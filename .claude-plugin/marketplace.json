@@ -1,0 +1,11 @@
+{
+  "name": "scolladon",
+  "owner": { "name": "Sébastien Colladon" },
+  "plugins": [
+    {
+      "name": "forge",
+      "source": "./",
+      "description": "Feature-delivery workflow engine with per-repo declination"
+    }
+  ]
+}
