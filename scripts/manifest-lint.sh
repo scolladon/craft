@@ -84,8 +84,12 @@ while IFS= read -r line; do
           case "$val" in
             '{'*'}')
               inner=$(printf '%s' "$val" | sed -E 's/^\{ *//; s/ *\}$//')
+              while printf '%s' "$inner" | grep -qE '\[[^]]*,[^]]*\]'; do
+                inner=$(printf '%s' "$inner" | sed -E 's/(\[[^]]*),([^]]*\])/\1¦\2/')
+              done
               IFS=',' read -ra pairs <<< "$inner"
               for p in "${pairs[@]}"; do
+                case "$p" in *:*) ;; *) continue ;; esac
                 k=$(printf '%s' "$p" | sed -E 's/^ *([A-Za-z-]+):.*/\1/')
                 v=$(printf '%s' "$p" | sed -E 's/^ *[A-Za-z-]+: *//; s/ *\[.*//; s/ *$//')
                 in_list "$k" "$PHASE_FIELDS" || err "unknown field on phase $PHASE: $k"
