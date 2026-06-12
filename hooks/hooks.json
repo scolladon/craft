@@ -1,0 +1,13 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/git-no-ext-diff.sh" },
+          { "type": "command", "command": "${CLAUDE_PLUGIN_ROOT}/hooks/block-no-verify.sh" }
+        ]
+      }
+    ]
+  }
+}
