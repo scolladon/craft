@@ -53,8 +53,13 @@ while IFS= read -r line; do
     case "$val" in
       '{'*'}')
         inner=$(printf '%s' "$val" | sed -E 's/^\{ *//; s/ *\}$//')
+        # Protect commas inside [...] arrays from the pair split.
+        while printf '%s' "$inner" | grep -qE '\[[^]]*,[^]]*\]'; do
+          inner=$(printf '%s' "$inner" | sed -E 's/(\[[^]]*),([^]]*\])/\1¦\2/')
+        done
         IFS=',' read -ra pairs <<< "$inner"
         for p in "${pairs[@]}"; do
+          case "$p" in *:*) ;; *) continue ;; esac
           k=$(printf '%s' "$p" | sed -E 's/^ *([A-Za-z-]+):.*/\1/')
           v=$(printf '%s' "$p" | sed -E 's/^ *[A-Za-z-]+: *//; s/ *$//')
           case "$SECTION" in
