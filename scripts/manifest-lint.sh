@@ -28,15 +28,26 @@ PHASE_FIELDS="context override skip strategy merge-flags non-blocking-jobs"
 GATE_FIELDS="slice phase review-batch"
 PR_FIELDS="creator pre-pr-gate"
 SCRIPT_FIELDS="post-setup pre-teardown"
+MODELS_KEYS="fallback designer planner reviewer slice-implementer refactor-executor mutation-triager docs-writer backlog-ticker"
 PROTECTED="branch plan implement review refactor mutation"
 
 ERRORS=""
 err() { ERRORS="${ERRORS}\n- $1"; }
 in_list() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac }
 
-check_file_ref() { # $1=key $2=path-value
+check_one_file() { # $1=key $2=single-path
   case "$2" in ""|"~") return 0 ;; esac
   [ -f "$ROOT/$2" ] || [ -f "$2" ] || err "$1 references missing file: $2"
+}
+
+check_file_ref() { # $1=key $2=path-value (single, or [a, b] list)
+  case "$2" in
+    '['*']')
+      local inner; inner=$(printf '%s' "$2" | sed -E 's/^\[ *//; s/ *\]$//')
+      local IFS=','; local f
+      for f in $inner; do check_one_file "$1" "$(printf '%s' "$f" | sed -E 's/^ *//; s/ *$//')"; done ;;
+    *) check_one_file "$1" "$2" ;;
+  esac
 }
 
 SECTION=""
@@ -61,12 +72,13 @@ while IFS= read -r line; do
         for p in "${pairs[@]}"; do
           case "$p" in *:*) ;; *) continue ;; esac
           k=$(printf '%s' "$p" | sed -E 's/^ *([A-Za-z-]+):.*/\1/')
-          v=$(printf '%s' "$p" | sed -E 's/^ *[A-Za-z-]+: *//; s/ *$//')
+          v=$(printf '%s' "$p" | sed -E 's/^ *[A-Za-z-]+: *//; s/ *$//' | tr '¦' ',')
           case "$SECTION" in
             pr)      in_list "$k" "$PR_FIELDS"     || err "unknown pr field: $k" ;;
             scripts) in_list "$k" "$SCRIPT_FIELDS" || err "unknown scripts field: $k"
                      check_file_ref "scripts.$k" "$v" ;;
-            paths|models|gates) : ;;
+            models)  in_list "$k" "$MODELS_KEYS"   || err "unknown models key: $k (expected an agent name or 'fallback')" ;;
+            paths|gates) : ;;
           esac
         done ;;
       *)
@@ -91,7 +103,7 @@ while IFS= read -r line; do
               for p in "${pairs[@]}"; do
                 case "$p" in *:*) ;; *) continue ;; esac
                 k=$(printf '%s' "$p" | sed -E 's/^ *([A-Za-z-]+):.*/\1/')
-                v=$(printf '%s' "$p" | sed -E 's/^ *[A-Za-z-]+: *//; s/ *\[.*//; s/ *$//')
+                v=$(printf '%s' "$p" | sed -E 's/^ *[A-Za-z-]+: *//; s/ *$//' | tr '¦' ',')
                 in_list "$k" "$PHASE_FIELDS" || err "unknown field on phase $PHASE: $k"
                 case "$k" in
                   skip) in_list "$PHASE" "$PROTECTED" && err "skip: is refused on protected phase '$PHASE' (sequence-editing in disguise)" ;;
