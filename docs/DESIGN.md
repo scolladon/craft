@@ -154,13 +154,14 @@ gates:  # placeholder vocabulary defined below, substituted by the executor at r
   phase: "npm run validate"
   review-batch: "npm run check:spelling"  # extra per-batch gate before each fix commit
 phases:
-  design:   { context: .claude/workflow/faithfulness.md }   # per-phase context
+  design:   { context: .claude/workflow/faithfulness.md }   # per-phase context (single file…
+  implement: { context: [.claude/workflow/surface-gates.md, .claude/workflow/faithfulness.md] }  # …or a list)
   mutation: { override: .claude/workflow/mutation.md }
   merge:    { merge-flags: "--admin", non-blocking-jobs: [mutation, benchmark-compare] }
 pr: { creator: session, pre-pr-gate: "npm outdated" }
 scripts: { pre-teardown: .claude/workflow/serena-prune.sh }  # post-setup also available
-models: {}  # per-AGENT override, e.g. { reviewer: opus } — applied at spawn time
-            # (spike-confirmed: invocation param takes precedence over frontmatter)
+models: {}  # per-AGENT override, e.g. { reviewer: opus }, + `fallback:` for the
+            # model-down path (spike-confirmed: invocation param beats frontmatter)
 ---
 ```
 
@@ -296,11 +297,24 @@ migration, final homes:
    PR creator, backlog ordering, apply-workflow learnings, equivalent-mutant triage
    pointers. Keep only genuine scratch (e.g. upstream-bug status); anything a workflow
    run depends on must have landed in a versioned layer first.
-5. **Validate fresh-machine operability**: run `/forge:run` on a small tsgit backlog
-   item in a session with memory ignored; checklist — hooks fired (observe an injected
-   `--no-ext-diff` surviving rtk), setup script ran, manifest-lint + plan-lint gated,
-   manifest fields honored (admin-merge, non-blocking jobs, skip-protection), no step
-   needed a memory recall.
+5. **Validate fresh-machine operability** — DONE (2026-06-13, PR #170
+   `missing-value-refusal-parity`). Full pipeline ran end-to-end including scope-fold
+   and architecture-refactor; manifest-lint + plan-lint + worktree setup/teardown all
+   fired; 24/25 git diffs carried `--no-ext-diff` (0 denials = clean compliance).
+   **Findings, all folded back:**
+   - *forge-generic:* (a) hard model pins had no fallback — a down model caused a
+     43-min dead spawn + manual override on every agent → **model-fallback invariant**
+     (run skill) + `models.fallback`; (b) planner hedged public-vs-internal on a new
+     export → a surface-gate fix round leaked to phase-boundary validate → **planner
+     now decides visibility up front + lists surface gates in the slice context**;
+     (c) a phase needed two contexts → **`context:` accepts a list**.
+   - *clobber:* the designer ran `git config` writes in the worktree, wiping the
+     common-dir `.git/config` → **designer contract: write-probes run in a `mktemp`
+     throwaway**.
+   - *tsgit-declination (own PR):* `npx biome` bin-resolution → `./node_modules/.bin`;
+     api.json/surface-gate set → `surface-gates.md` context; "post-refactor → whole
+     files" ambiguity → tighten `mutation.md`; migrate the run's two new memories into
+     versioned homes.
 6. **Second instantiation smoke test** (proves the abstraction): point `/forge:run` at
    a repo with no manifest; confirm the probe table's fallbacks engage (mutation no-ops
    with a note, backlog input form disabled, gates discovered or refused per spec).

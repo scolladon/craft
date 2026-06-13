@@ -38,7 +38,9 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
 - `skills/run` — orchestrator (cross-phase invariants, run record)
 - `skills/<phase>` — one per phase: non-overridable Preamble + overridable Procedure
 - `agents/` — role contracts with pinned models (designer, planner, reviewer,
-  slice-implementer, refactor-executor, mutation-triager, docs-writer, backlog-ticker)
+  slice-implementer, refactor-executor, mutation-triager, docs-writer, backlog-ticker).
+  A pinned model that goes down falls back (manifest `models.fallback` → session model)
+  and the degraded tier is remembered for the rest of the run.
 - `hooks/` — PreToolUse guards: `git diff/show` without `--no-ext-diff` is denied with
   the corrected command; `--no-verify` is denied flat
 - `scripts/` — worktree setup/teardown (mutation run-lock aware), manifest lint, plan lint
