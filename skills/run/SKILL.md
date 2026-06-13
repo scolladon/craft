@@ -64,9 +64,17 @@ its reason and moves on.
   green after implement, after each review/refactor fix round, and before push.
   Nothing is ever committed on a known-red gate.
 - **Agent spawns**: every role-agent invocation carries the working directory, the
-  task dynamics, AND the manifest's context file(s) verbatim. Models come from agent
-  defs unless the manifest's `models:` overrides per agent (pass as the spawn's model
-  param).
+  task dynamics, AND the manifest's context file(s) verbatim (a phase's `context:` may
+  be one file or a list — inject all of them).
+- **Model resolution & fallback**: resolve each spawn's model as manifest
+  `models.<agent>` → the agent def's pinned model (pass it as the spawn's model param).
+  If a spawn dies on a model-availability error (model down/overloaded/unknown — NOT a
+  task blocker, which uses the blocker protocol), mark that model **degraded for the
+  rest of the run** and re-resolve to `models.fallback` if declared, else the session's
+  own model (guaranteed available — the session is running on it). Record the
+  degradation in the run record, then respawn from the artifact. Once a tier is known
+  degraded this run, later spawns that would use it skip straight to the fallback — never
+  pay the same dead spawn twice.
 - **Blockers** escalate to the user as `{ phase/slice, reason, ≤3 candidate options }`
   — never spin, never silently abandon.
 - **Provenance**: no phase/ADR/backlog references inside source or test code, ever.

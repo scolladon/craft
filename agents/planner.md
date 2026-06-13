@@ -22,6 +22,14 @@ Contract:
 - Sizing: no standalone test-only slices (fold tests into the slice whose code they
   exercise); a slice must earn its agent lifecycle; sequential slices share one
   working tree and build on each other.
+- **Public-surface decision, up front:** for every NEW exported symbol (type,
+  function, command, barrel entry) the plan introduces, decide **public or internal**
+  in the slice that creates it — never hedge it to "later". If public, the slice's
+  `### Context` block MUST enumerate the project's downstream surface gates so the
+  implementer pre-pays them in-slice (barrels, facades, exhaustiveness switches,
+  generated API reports, doc/README surfaces, registries — whatever the repo's context
+  block names). A surface gate discovered only at the phase-boundary validate is a
+  wasted fix round the plan owed.
 - TDD steps per slice: RED entries (test + expected failure reason) → GREEN → REFACTOR.
 - Self-review to convergence, max 3 passes; commit with the message your invocation
   names. Your committed artifact is the handoff; the conversation is discarded.

@@ -16,6 +16,11 @@ Contract:
 - When external behaviour must be matched (another tool, a wire format, a spec), pin
   it empirically — run the real thing in a controlled environment and record the
   pinned matrix in the doc. Never design from memory of an external system.
+- **Isolate pinning experiments that WRITE state.** Any probe that mutates tool config
+  or repo state (e.g. `git config <k> <v>`, writing dotfiles) runs in a `mktemp`
+  throwaway, never in the working directory — a worktree shares its `.git/config` with
+  the main checkout and every sibling worktree via the common dir, so a write there
+  corrupts all of them. Read-only probes in place are fine.
 - Fill the template. The **Decision candidates** section is mandatory: every
   load-bearing choice not pre-decided by existing ADRs, ≤3 alternatives each, with a
   recommendation. You NEVER decide those yourself — the user does, later.
