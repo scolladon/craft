@@ -69,12 +69,19 @@ its reason and moves on.
 - **Artifact is the handoff**: every delegated agent's contribution must be in a
   committed artifact before the phase closes. A dead agent = fresh respawn fed from
   the artifact, never a continuation.
-- **Gates**: phase-boundary gate (`gates.phase`, or the probe's fallback) must be
-  green after implement, after each review/refactor fix round, and before push.
+- **Gates**: each fix commit gates on the TARGETED check (`gates.slice` over the
+  touched files + `gates.review-batch` if declared); the full phase-boundary gate
+  (`gates.phase`, or the probe's fallback) runs ONCE per round — after implement, after
+  each review/refactor fix round, and before push — not after every intra-round commit.
   Nothing is ever committed on a known-red gate.
 - **Agent spawns**: every role-agent invocation carries the working directory, the
   task dynamics, AND the manifest's context file(s) verbatim (a phase's `context:` may
-  be one file or a list — inject all of them).
+  be one file or a list — inject all of them). Artifacts already committed in the
+  worktree (design doc, plan slice) are passed by PATH — the agent reads them
+  in-place; the prompt embeds the pre-chewed Context and the load-bearing deltas, not a
+  second verbatim copy of a committed doc, and a respawn from a partial artifact points
+  at the on-disk state rather than re-transcribing it. The pre-chew mandate forbids
+  making an agent re-EXPLORE the codebase — not reading a committed plan.
 - **Model resolution & fallback**: resolve each spawn's model as manifest
   `models.<agent>` → the agent def's pinned model (pass it as the spawn's model param).
   If a spawn dies on a model-availability error (model down/overloaded/unknown — NOT a

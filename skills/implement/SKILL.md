@@ -18,10 +18,11 @@ description: Forge phase 5 - execute the plan slice by slice, one slice-implemen
 
 1. Execute slices top-to-bottom, **one forge:slice-implementer per slice,
    sequential** — never two agents writing one tree concurrently. Each spawn carries:
-   the working directory; the plan path + the slice text AND its `### Context` block
-   verbatim (hand it over — do not let the agent re-grep what the plan pre-chewed);
-   the design doc path; the resolved slice gate; the commit message from the plan;
-   global + implement-phase `context:` files verbatim.
+   the working directory; the plan path (the agent reads the slice there) + the slice's
+   `### Context` block verbatim AND any load-bearing deltas — hand the pre-chew over so
+   the agent never re-greps the codebase, but do NOT re-transcribe the whole committed
+   slice; the design doc path; the resolved slice gate; the commit message from the
+   plan; global + implement-phase `context:` files verbatim.
 2. **After each agent returns, verify before launching the next**: the commit exists
    and matches the slice promise (`git log`, `git show --stat`); spot-check
    conventions on the diff. Failed/blocked slice → fix in-session or escalate with
