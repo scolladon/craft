@@ -16,7 +16,11 @@ description: Forge phase 8 - mutation-test the change, triage survivors (kill or
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-1. **Scope the run to exactly the change's touched code** — never the full tree.
+1. **Scope the run to exactly the change's touched code** — never the full tree, and
+   never wider than the diff: derive one range per *contiguous changed hunk*
+   (`git diff -U0`), and do NOT consolidate across unchanged gaps. Loose/merged ranges
+   inflate the run AND surface out-of-scope survivors the triage must then filter — a
+   tight per-hunk list is faster and cleaner.
    Start it **in the background**; write the run-lock
    (`<root>/.forge-mutation.lock` ← `<pid> <iso-timestamp>`); clear the lock when the
    run lands. The docs phase may proceed in parallel while it grinds.
