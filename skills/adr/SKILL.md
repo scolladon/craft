@@ -21,6 +21,6 @@ ENTIRELY session-owned — never delegated.
    user's decision as `<adr-dir>/NNN-<title>.md` from the template; commit each as
    `docs(adr): NNN <title>`.
 3. **Scope-fold rule:** if any decision deviates from the design's recommendation,
-   spawn a FRESH **forge:designer** to revise — fed the ADRs + the existing doc (the
-   artifacts, never your conversation) — committing
+   spawn a FRESH **forge:designer** to revise — fed the ADR + design-doc PATHS (the
+   committed artifacts, read in-place; never your conversation) — committing
    `docs(design): revise <slug> against ADRs <range>` BEFORE the plan phase.
