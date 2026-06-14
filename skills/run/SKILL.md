@@ -57,6 +57,15 @@ its reason and moves on.
 - **Mutation triage gates the PR**: phase 10 does not start `pr create` until phase
   8's run has landed, survivors are triaged, and the phase gate is green. Docs (9) may
   parallel the background run; PR creation may not.
+- **Scope expansion re-enters review**: any *feature* behavior added after phase 6 has
+  run — new scope the user directs in, or a slice that grows, during implement /
+  review / refactor — that is NOT a fix to an existing finding, gets its own
+  feature-scoped review before mutation closes: re-enter forge:review on the added
+  behavior's diff (all four dimensions, per-dimension convergence), then apply the
+  fixes. The refactor phase's re-review is scoped to the *refactor* diff only and does
+  not substitute. A scope expansion that reaches the mutation gate unreviewed is a
+  workflow breach — pin the new behaviour's faithfulness too if the prime directive
+  applies.
 - **Artifact is the handoff**: every delegated agent's contribution must be in a
   committed artifact before the phase closes. A dead agent = fresh respawn fed from
   the artifact, never a continuation.
