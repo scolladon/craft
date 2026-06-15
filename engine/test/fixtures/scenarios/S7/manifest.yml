@@ -1,0 +1,14 @@
+pipeline:
+  insert:
+    - id: acme:bench
+      archetype: harness
+      contract:
+        - harness-exec
+      procedure: acme:bench
+      role: acme:bench-runner
+      after: validation
+      consumes:
+        - change
+      produces:
+        - acme-bench-report
+      gate: acme-bench-runner --check

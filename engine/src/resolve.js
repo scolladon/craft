@@ -3,7 +3,8 @@
  * Pure; immutable transforms only; no file I/O.
  *
  * Steps: aliasResolve → validateExecutionValues → expandProfile →
- *        applyEdits → resolveExecution → strandCheck → graphValidate
+ *        applyEdits → resolveExecution → strandCheck → graphValidate →
+ *        resolveGatesAndWaivers → buildManifestRecords
  */
 
 import { resolveAlias } from './alias-map.js';
@@ -12,6 +13,7 @@ import { expandProfile, applyProfileToArchetype, HARNESS_ARCHETYPE } from './pro
 import { DEFAULT_EXECUTION, VALID_EXECUTIONS } from './descriptor.js';
 import { applyEnableEdits, applyInserts } from './edits.js';
 import { checkStrandedConsumers } from './strand.js';
+import { resolveGatesAndWaivers } from './gates.js';
 
 // ─── step 1: alias-resolve ───────────────────────────────────────────────────
 
@@ -69,7 +71,7 @@ function validateExecutionValues(manifest) {
   return errors;
 }
 
-// ─── step 4: resolve execution per phase ─────────────────────────────────────
+// ─── step 3: resolve execution per phase ─────────────────────────────────────
 
 /**
  * Precedence: explicit phase field > profile > top-level default > descriptor default.
@@ -108,6 +110,35 @@ function resolveExecution(descriptors, phaseOverrides, profile, topLevelDefault,
   return { descriptors: resolved, records };
 }
 
+// ─── manifest-level record entries ───────────────────────────────────────────
+
+/**
+ * Build manifest-level record entries for top-level manifest keys that influence
+ * the pipeline resolution but are not phase-level edits.
+ *
+ * @param {object|null|undefined} manifest
+ * @returns {string[]}
+ */
+function buildManifestRecords(manifest) {
+  const records = [];
+  if (!manifest) return records;
+
+  if (manifest.backlog) {
+    records.push(
+      `backlog: "${manifest.backlog}" declared — Backlog.resolve required at input-classify.`,
+    );
+  }
+
+  const fallback = manifest.models?.fallback;
+  if (fallback) {
+    records.push(
+      `models.fallback: "${fallback}" declared — fallback re-resolution policy active for degraded tiers.`,
+    );
+  }
+
+  return records;
+}
+
 // ─── main resolver ────────────────────────────────────────────────────────────
 
 /**
@@ -115,7 +146,7 @@ function resolveExecution(descriptors, phaseOverrides, profile, topLevelDefault,
  *
  * @param {readonly object[]} defaults
  * @param {object|null|undefined} manifest
- * @returns {{ ok: boolean, errors: string[], effective: object[], record: string[], gateDecisions: [], waivers: [] }}
+ * @returns {{ ok: boolean, errors: string[], effective: object[], record: string[], gateDecisions: object[], waivers: object[] }}
  */
 export function resolvePipeline(defaults, manifest) {
   const resolved = aliasResolve(manifest);
@@ -142,7 +173,8 @@ export function resolvePipeline(defaults, manifest) {
     insertResult.descriptors, phaseOverrides, profile, resolved.execution, profileName,
   );
 
-  const record = [...enableResult.records, ...insertResult.records, ...execResult.records];
+  const manifestRecords = buildManifestRecords(resolved);
+  const record = [...enableResult.records, ...insertResult.records, ...execResult.records, ...manifestRecords];
 
   const strandErrors = checkStrandedConsumers(defaults, skipSet, execResult.descriptors);
   if (strandErrors.length > 0) {
@@ -155,5 +187,25 @@ export function resolvePipeline(defaults, manifest) {
   }
 
   const effective = execResult.descriptors.filter(d => d.enabled);
-  return { ok: true, errors: [], effective, record, gateDecisions: [], waivers: [] };
+
+  const { gateDecisions, waivers, gateRecords, floorErrors } = resolveGatesAndWaivers(
+    defaults,
+    effective,
+    resolved,
+    skipSet,
+    phaseOverrides,
+  );
+
+  if (floorErrors.length > 0) {
+    return { ok: false, errors: floorErrors, effective: [], record: [...record, ...gateRecords], gateDecisions: [], waivers: [] };
+  }
+
+  return {
+    ok: true,
+    errors: [],
+    effective,
+    record: [...record, ...gateRecords],
+    gateDecisions,
+    waivers,
+  };
 }
