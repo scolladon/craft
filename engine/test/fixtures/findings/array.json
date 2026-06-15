@@ -1,0 +1,16 @@
+[
+  {
+    "file": "src/foo.js",
+    "line": 42,
+    "severity": "error",
+    "finding": "Unused variable x",
+    "fix": "Remove the declaration"
+  },
+  {
+    "file": "src/bar.js",
+    "line": 7,
+    "severity": "warning",
+    "finding": "Missing return type",
+    "fix": "Add explicit return type"
+  }
+]

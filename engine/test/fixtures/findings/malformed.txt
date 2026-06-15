@@ -1,0 +1,3 @@
+THIS IS NOT A VALID FINDINGS FORMAT
+random garbage that cannot be parsed as findings
+no severity no file no line no delimiter

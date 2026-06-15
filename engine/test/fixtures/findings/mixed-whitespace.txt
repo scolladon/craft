@@ -1,0 +1,2 @@
+  error  src/foo.js:42  —  Unused variable x  |  Remove the declaration
+  warning  src/bar.js:7  —  Missing return type  |  Add explicit return type
