@@ -7,6 +7,7 @@ gates:
   phase: npm test
   review-batch: make ci
 pr: { creator: auto }
+scripts: { post-setup: ~ }
 models: { fallback: sonnet }
 phases:
   branch:

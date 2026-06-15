@@ -14,6 +14,12 @@ FIXTURES="${BATS_TEST_DIRNAME}/fixtures/manifest"
   [[ "$output" == *"no manifest"* ]]
 }
 
+@test "Given a manifest file with no YAML frontmatter, when lint runs, then it exits 0 and reports pure defaults" {
+  run_lint "${FIXTURES}/no-frontmatter.workflow.md"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no YAML frontmatter"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # Valid manifests
 # ---------------------------------------------------------------------------
@@ -24,13 +30,13 @@ FIXTURES="${BATS_TEST_DIRNAME}/fixtures/manifest"
   [[ "$output" == *"valid."* ]]
 }
 
-@test "Given a manifest with inline arrays containing commas, when lint runs, then it exits 0 (comma-protection regression)" {
+@test "Given comma-bearing inline arrays routed through file-ref validation, when lint runs, then it exits 0 (comma-protection regression)" {
   run_lint "${FIXTURES}/valid-inline-array.workflow.md"
   [ "$status" -eq 0 ]
   [[ "$output" == *"valid."* ]]
 }
 
-@test "Given a manifest with quoted values containing colons and hashes, when lint runs, then it exits 0 (quoting regression)" {
+@test "Given a phase-context path with a trailing comment and quoted colon values, when lint runs, then it exits 0 (comment-strip/quoting regression)" {
   run_lint "${FIXTURES}/valid-quoting.workflow.md"
   [ "$status" -eq 0 ]
   [[ "$output" == *"valid."* ]]
