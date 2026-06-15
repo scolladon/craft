@@ -6,6 +6,7 @@ SCRIPTS_DIR="${BATS_TEST_DIRNAME}/../scripts"
 
 REPO=""
 WT=""
+POST_SCRIPT=""
 
 setup() {
   REPO="$(mktemp -d "${BATS_TMPDIR}/forge-repo-XXXXXX")"
@@ -16,6 +17,7 @@ setup() {
 
 teardown() {
   rm -rf "$REPO" "$WT"
+  if [ -n "$POST_SCRIPT" ]; then rm -f "$POST_SCRIPT"; fi
 }
 
 # ---------------------------------------------------------------------------
@@ -33,17 +35,14 @@ teardown() {
 # ---------------------------------------------------------------------------
 
 @test "Given a worktree dir and a post-setup script, when setup runs, then it exits 0 and reports the script ran" {
-  local post_script
-  post_script="$(mktemp "${BATS_TMPDIR}/post-XXXXXX.sh")"
-  chmod +x "$post_script"
-  printf '#!/bin/sh\n' > "$post_script"
+  POST_SCRIPT="$(mktemp "${BATS_TMPDIR}/post-XXXXXX.sh")"
+  chmod +x "$POST_SCRIPT"
+  printf '#!/bin/sh\n' > "$POST_SCRIPT"
 
-  run bash "${SCRIPTS_DIR}/worktree-setup.sh" "$WT" "$post_script"
+  run bash "${SCRIPTS_DIR}/worktree-setup.sh" "$WT" "$POST_SCRIPT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"post-setup script ran:"* ]]
-  [[ "$output" == *"$post_script"* ]]
-
-  rm -f "$post_script"
+  [[ "$output" == *"$POST_SCRIPT"* ]]
 }
 
 # ---------------------------------------------------------------------------
@@ -57,8 +56,11 @@ teardown() {
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT"
   [ "$status" -eq 3 ]
+  # REFUSED is emitted to stderr; bats merges stderr into $output by default.
   [[ "$output" == *"REFUSED"* ]]
   [[ "$output" == *"mutation run alive"* ]]
+  # Refusal must leave the live lock intact — never clear a lock it would not honour.
+  [ -f "${WT}/.forge-mutation.lock" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -74,6 +76,8 @@ teardown() {
   [ "$status" -eq 0 ]
   [[ "$output" == *"FORCED past live mutation run"* ]]
   [ ! -f "${WT}/.forge-mutation.lock" ]
+  # --force proceeds to full teardown, so the worktree itself is gone.
+  [ ! -d "$WT" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -81,14 +85,20 @@ teardown() {
 # ---------------------------------------------------------------------------
 
 @test "Given a stale-PID lock in the worktree, when teardown runs, then it reports stale lock auto-cleared and removes the worktree" {
-  local ts
+  local ts dead_pid
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  # PID 999999 is unused by convention on macOS and Linux (max is typically lower)
-  printf '%s %s\n' "999999" "$ts" > "${WT}/.forge-mutation.lock"
+  # A reaped child PID is provably dead — more reliable than a fixed high number,
+  # which can be a live process where pid_max is large (e.g. Linux CI).
+  ( exit 0 ) &
+  dead_pid=$!
+  wait "$dead_pid" 2>/dev/null || true
+  printf '%s %s\n' "$dead_pid" "$ts" > "${WT}/.forge-mutation.lock"
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"stale lock"* ]]
   [[ "$output" == *"auto-cleared"* ]]
   [ ! -d "$WT" ]
+  # Teardown prunes the non-default branch it removed the worktree for.
+  ! git -C "$REPO" rev-parse --verify --quiet refs/heads/forge-test-branch
 }
