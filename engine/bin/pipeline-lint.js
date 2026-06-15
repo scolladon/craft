@@ -9,8 +9,14 @@ if (!filePath) {
   process.exit(2);
 }
 
-const yamlText = readFileSync(filePath, 'utf8');
-const descriptors = parsePipeline(yamlText);
+let descriptors;
+try {
+  descriptors = parsePipeline(readFileSync(filePath, 'utf8'));
+} catch (err) {
+  process.stderr.write(`pipeline-lint: ${err.message}\n`);
+  process.exit(2);
+}
+
 const { ok, errors } = validatePipeline(descriptors);
 
 if (!ok) {

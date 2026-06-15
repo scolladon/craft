@@ -7,6 +7,7 @@ import { parsePipeline } from '../src/descriptor.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dir, 'fixtures', 'pipeline');
+const canonicalDefaultPath = join(__dir, '..', '..', 'pipeline', 'default.yml');
 
 function readFixture(name) {
   return readFileSync(join(fixturesDir, name), 'utf8');
@@ -42,7 +43,7 @@ test('Given a minimal valid entry without execution, when parsePipeline runs, th
   assert.equal(result[0].execution, 'agent');
 });
 
-test('Given an entry without contract, when parsePipeline runs, then contract defaults to empty list', () => {
+test('Given an explicit empty contract, when parsePipeline runs, then it stays an empty list', () => {
   const yaml = `
 - id: workspace
   archetype: setup
@@ -77,15 +78,18 @@ test('Given a string contract field, when parsePipeline runs, then it is normali
   assert.deepEqual(result[0].contract, ['producer']);
 });
 
-test('Given parsePipeline, when called, then it returns a frozen array', () => {
+test('Given parsePipeline, when called, then it returns a deeply frozen array', () => {
   const yaml = `
 - id: workspace
   archetype: setup
   contract: []
   procedure: forge:workspace
+  produces: [workspace]
 `;
   const result = parsePipeline(yaml);
   assert.equal(Object.isFrozen(result), true);
+  assert.equal(Object.isFrozen(result[0]), true);
+  assert.equal(Object.isFrozen(result[0].produces), true);
 });
 
 // --- validation errors ---
@@ -117,13 +121,33 @@ test('Given an entry missing procedure, when parsePipeline runs, then it throws 
   assert.throws(() => parsePipeline(yaml), /procedure/);
 });
 
+test('Given an entry missing contract, when parsePipeline runs, then it throws a descriptive error', () => {
+  const yaml = `
+- id: workspace
+  archetype: setup
+  procedure: forge:workspace
+`;
+  assert.throws(() => parsePipeline(yaml), /contract/);
+});
+
+test('Given an entry with an invalid execution mode, when parsePipeline runs, then it throws a descriptive error', () => {
+  const yaml = `
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: forge:workspace
+  execution: turbo
+`;
+  assert.throws(() => parsePipeline(yaml), /execution/);
+});
+
 test('Given an entry with unknown archetype, when parsePipeline runs, then it throws a descriptive error', () => {
   assert.throws(() => parsePipeline(readFixture('bad-archetype.yml')), /archetype/);
 });
 
 // --- golden test: 13-descriptor default list ---
 
-const DEFAULT_YAML = readFixture('default.yml');
+const DEFAULT_YAML = readFileSync(canonicalDefaultPath, 'utf8');
 const EXPECTED_DESCRIPTORS = [
   {
     id: 'workspace',
@@ -303,6 +327,13 @@ test('Given default.yml, when parsePipeline runs, then all structural fields mat
         `Descriptor[${i}].${field} (id=${actual.id}): expected ${JSON.stringify(expected[field])}, got ${JSON.stringify(actual[field])}`,
       );
     }
+  }
+});
+
+test('Given default.yml, when parsePipeline runs, then every descriptor has execution agent', () => {
+  const result = parsePipeline(DEFAULT_YAML);
+  for (const d of result) {
+    assert.equal(d.execution, 'agent', `${d.id} should default execution to agent`);
   }
 });
 

@@ -6,28 +6,34 @@ const VALID_ARCHETYPES = new Set([
   'setup', 'specification', 'construction', 'harness', 'refinement', 'delivery',
 ]);
 
-const REQUIRED_FIELDS = ['id', 'archetype', 'procedure'];
+const REQUIRED_FIELDS = ['id', 'archetype', 'contract', 'procedure'];
+
+const DEFAULT_EXECUTION = 'agent';
+const VALID_EXECUTIONS = new Set([DEFAULT_EXECUTION, 'inline']);
 
 /**
- * Normalize a contract value to a string array.
+ * Coerce a YAML scalar-or-list field to a string array. Elements are stringified
+ * so an implicit YAML type (e.g. a bare date) cannot leak a non-string into the
+ * descriptor.
  * @param {unknown} value
  * @returns {string[]}
  */
-function normalizeContract(value) {
+function normalizeStringArray(value) {
   if (value === undefined || value === null) return [];
-  if (Array.isArray(value)) return value;
+  if (Array.isArray(value)) return value.map(String);
   return [String(value)];
 }
 
 /**
- * Coerce an optional list field to a string array.
- * @param {unknown} value
- * @returns {string[]}
+ * Recursively freeze an object graph so a parsed descriptor is fully immutable.
+ * @template T
+ * @param {T} value
+ * @returns {Readonly<T>}
  */
-function normalizeList(value) {
-  if (value === undefined || value === null) return [];
-  if (Array.isArray(value)) return value;
-  return [String(value)];
+function deepFreeze(value) {
+  if (value === null || typeof value !== 'object') return value;
+  for (const member of Object.values(value)) deepFreeze(member);
+  return Object.freeze(value);
 }
 
 /**
@@ -54,16 +60,24 @@ function normalizeEntry(raw, index) {
     );
   }
 
+  const execution = raw.execution === undefined ? DEFAULT_EXECUTION : String(raw.execution);
+  if (!VALID_EXECUTIONS.has(execution)) {
+    throw new Error(
+      `Descriptor at index ${index} (id="${raw.id}"): execution "${execution}" is not valid. ` +
+      `Must be one of: ${[...VALID_EXECUTIONS].join(', ')}.`,
+    );
+  }
+
   const entry = {
     id: String(raw.id),
     archetype,
     enabled: raw.enabled === undefined ? true : Boolean(raw.enabled),
-    contract: normalizeContract(raw.contract),
+    contract: normalizeStringArray(raw.contract),
     procedure: String(raw.procedure),
-    consumes: normalizeList(raw.consumes),
-    self_supply: normalizeList(raw.self_supply),
-    produces: normalizeList(raw.produces),
-    execution: raw.execution === undefined ? 'agent' : String(raw.execution),
+    consumes: normalizeStringArray(raw.consumes),
+    self_supply: normalizeStringArray(raw.self_supply),
+    produces: normalizeStringArray(raw.produces),
+    execution,
   };
 
   if (raw.role !== undefined && raw.role !== null) {
@@ -99,7 +113,7 @@ export function parsePipeline(yamlText) {
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
       throw new Error(`Descriptor at index ${index} must be an object, got ${typeof entry}.`);
     }
-    return normalizeEntry(entry, index);
+    return deepFreeze(normalizeEntry(entry, index));
   });
 
   return Object.freeze(descriptors);
