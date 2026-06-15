@@ -74,6 +74,13 @@ FIXTURES="${BATS_TEST_DIRNAME}/fixtures/manifest"
   [[ "$output" == *"references missing file"* ]]
 }
 
+@test "Given an inline-map gates with an unknown field, when lint runs, then it exits 2 and reports unknown gates field" {
+  run_lint "${FIXTURES}/invalid-unknown-gates-field.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"unknown gates field"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # Fallback-equivalence: subset-parser path must agree with the yq path on
 # every fixture (yq hidden from PATH so command -v yq fails).
@@ -135,4 +142,11 @@ FIXTURES="${BATS_TEST_DIRNAME}/fixtures/manifest"
   [ "$status" -eq 2 ]
   [[ "$output" == *"INVALID manifest"* ]]
   [[ "$output" == *"references missing file"* ]]
+}
+
+@test "Given an inline-map gates with an unknown field, when lint runs without yq, then it exits 2 and reports unknown gates field" {
+  run_lint_no_yq "${FIXTURES}/invalid-unknown-gates-field.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"unknown gates field"* ]]
 }
