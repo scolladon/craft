@@ -45,7 +45,7 @@ A **harness** is the key reusable concept: *an automated, repeatable verificatio
 single engineering concern, expressed as a gate plus an optional AI triage step,
 configurable and pluggable per repo.* Review, validation (default technique: mutation
 testing), and architecture (default: dependency/layering constraints) are all harnesses;
-a repo can tune them or add its own (security, performance, accessibility…). **[spike SP4]**
+a repo can tune them or add its own (security, performance, accessibility…). SP4 (§6.4)
 pins the final vocabulary.
 
 The **engine** walks the pipeline and applies the same cross-cutting guarantees to *every*
@@ -75,16 +75,16 @@ that we hold as the design convention throughout. **[decided]**
   | **Model** | `select(model)` / `isAvailable(model)` | SP5 · G12 |
   | **Gate / tool-guard** | `run(cmd) → pass\|fail`; mechanical guards (hooks) | §11 |
   | **Backlog SoT** | `resolve(id)` / `complete(id, refs)` | §9 · SP6 · G7 |
-  | **VCS / integration** | `branch`/`commit`/`pr`/`merge`; worktree lifecycle | §17 · SP8 |
+  | **VCS / integration** | `isolate`/`commit`/`propose`/`integrate`/`teardown` (SP8) | §17 · SP8 |
 
   The same split holds for every port: the core owns *which backlog id-form resolves and
-  when the tick fires* (the Backlog port only `resolve`/`complete`); *the gate-before-`pr`
+  when the tick fires* (the Backlog port only `resolve`/`complete`); *the gate-before-`propose`
   ordering + worktree-lifecycle sequencing* (the VCS port only the raw git/gh verbs); *when
   a phase runs inline vs as an agent and which §11 invariants transform* (the Execution port
   only `spawn`/`runInline`); and *the retrieval precedence project > env > user > native +
   the injection path §10.1* (the Code-access port only `read`/`navigate`).
   **Gate/tool-guard needs no spike** — its deny-hook + gate-wrapper mechanics are already
-  spike-proven (SPIKE.md b'); every other port carries an open unknown.
+  spike-proven (SPIKE.md b'); every other port's unknown was closed by its spike (§14 — P0 complete).
 - **Adapters (concrete implementations):** the **Claude Code adapter** (today — skills,
   subagents, hooks, MCP, `gh`/git CLI) implements every *adapter-owned* port. The
   **Code-access/retrieval** port is the deliberate exception — environment-sourced,
@@ -92,8 +92,9 @@ that we hold as the design convention throughout. **[decided]**
   Future adapters (OpenCode / litellm / Claude Agent SDK) implement the *same* ports →
   multi-provider (§15).
 
-This frame **unifies the whole PRD**: customization = configuring or swapping per-port
-(retrieval, model, execution, backlog, agent); the invariant core = the domain; portability
+This frame **unifies the whole PRD**: customization = configuring or swapping the relevant
+axis (phase on/off, order, agent, model, execution, harness, backlog, retrieval); the
+invariant core = the domain; portability
 (G13) = a second adapter. Every requirement that pushes a concern out to a port both
 sharpens customizability and shrinks the provider-specific surface. We build to this
 layering from P3 onward (§17).
@@ -102,7 +103,7 @@ layering from P3 onward (§17).
 derived plugin:
 1. *Does it run?* (skip / select) → §7 #1, #5
 2. *In what order, and what else runs?* (insert / reorder) → §7 #11, #5
-3. *Who does it?* (default agent / swapped agent / inline-in-session) → §7 #2, #4, #10
+3. *Who runs it — which agent, which model, delegated or inline?* (default/swapped agent · model · inline-in-session) → §7 #2, #4, #10
 4. *How hard does it verify?* (harness config: dimensions, cycles, convergence, tool) → §7 #6
 5. *What rules bind it?* (gates, context files, override body) → §7 #3, #8, #9
 
@@ -127,7 +128,7 @@ The full injection catalog (§7) lists every point with pros/cons and a repo sam
 
 ### Goals
 - G1. **Composable phases** — skip any, insert between, reorder within dependency constraints. **[decided]**
-- G2. **Optional PRD phase** — front-of-pipeline product-requirements step, default-off. **[decided]**
+- G2. **Optional `requirements` (PRD) phase** — front-of-pipeline product-requirements step, default-off. **[decided]**
 - G3. **Generic SE vocabulary** — phases named by concern, not tool; raise the *harness* family incl. **architecture harness**; mutation → **validation harness**. **[decided · spike SP4]**
 - G4. **Pluggable execution topology** — `inline` vs `agent` per phase; exposed cleanly. **[decided · spike SP1]**
 - G5. **Swappable agents/skills** with the engine-owned contract injected into every run. **[decided]**
@@ -157,7 +158,7 @@ The full injection catalog (§7) lists every point with pros/cons and a repo sam
 | Light customizer | Tweak gates/paths/models, skip a phase, set review count | one-line manifest edits |
 | Quick-fixer | Small fix: one context, no subagents, lean phases | **S1** `profile: solo` |
 | Deep customizer | Swap the planner; add a `bench` phase | **S2/S3** agent swap + `insert` |
-| Spec-driven team | Start from a PRD; capture requirements first | **S4** optional PRD phase on |
+| Spec-driven team | Start from a PRD; capture requirements first | **S4** optional `requirements` phase on |
 | Architecture-led team | Enforce layering/dependency rules as a gate | **S5** architecture harness on |
 | Issue-tracker shop | Backlog lives in Jira/GitHub Issues | **S6** backlog SoT adapter |
 | Framework builder | Ship a local plugin built on forge | **S7** derived-plugin extension |
@@ -176,7 +177,7 @@ The full injection catalog (§7) lists every point with pros/cons and a repo sam
   procedure: forge:validation     # default body (override: swap the skill)
   role: forge:validation-triager  # default agent; swap freely — engine injects the contract around any role (§11).
                                   #   Optional for harnesses: omit for a gate-only concern that needs no AI triage (§2)
-  execution: agent                # agent | inline                 [spike SP1]
+  execution: agent                # agent | inline                 (SP1 convention)
   model: sonnet                   # default model (override via models:)
   gate: "<harness gate>"          # the harness's own gate (see §8); engine runs it before the phase closes
   harness:                        # per-phase harness knobs (G6)
@@ -228,10 +229,10 @@ ships a sample manifest in `examples/` (G10).
 ### Tier 0 — one line in `.claude/workflow.md`
 | # | Point | Pros | Cons | Sample |
 |---|---|---|---|---|
-| 1 | **skip** a phase | trivial; dependency-checked | over-skipping erodes guarantees (flagged) | `pipeline: { skip: [refactor] }` |
+| 1 | **skip** a phase | trivial; dependency-checked | over-skipping erodes guarantees (flagged) | `pipeline: { skip: [refactoring] }` |
 | 2 | **model** per agent | cheap model routing | wrong tier hurts quality | `models: { reviewer: opus }` |
 | 3 | **gate** command | your harness, any tech | a weak gate weakens the floor | `gates: { phase: "make ci" }` |
-| 4 | **execution** inline/agent | speed/token control | inline loses isolation | `phases: { docs: { execution: inline } }` |
+| 4 | **execution** inline/agent | speed/token control | inline loses isolation | `phases: { documentation: { execution: inline } }` |
 | 5 | **profile** | whole-flow mode in one word | coarse | `pipeline: { profile: solo }` |
 | 6 | **harness config** | tune rigor per concern | mis-tuning over/under-verifies | `phases: { review: { harness: { max_cycles: 2 } } }` |
 | 7 | **backlog source** | use your tracker | adapter must exist | `backlog: { source: github-issues }` |
@@ -241,10 +242,10 @@ ships a sample manifest in `examples/` (G10).
 |---|---|---|---|---|
 | 8 | **context file** (global/per-phase) | additive constraints, contract-safe | drift if unmaintained | `context: .claude/workflow/serena.md` |
 | 9 | **override file** (procedure body) | full project-shaped procedure | you own that body; preamble still binds | `phases: { validation: { override: .claude/workflow/mut.md } }` |
-| 10 | **agent/skill swap** | domain-specific behavior, contract still injected | your agent must do the job | `phases: { plan: { role: my:domain-planner } }` |
-| 11 | **insert a phase** | new SE step, full guarantees | you supply its procedure | `pipeline: { insert: [{ after: implement, phase: {…} }] }` |
+| 10 | **agent/skill swap** | domain-specific behavior, contract still injected | your agent must do the job | `phases: { planning: { role: my:domain-planner } }` |
+| 11 | **insert a phase** | new SE step, full guarantees | you supply its procedure | `pipeline: { insert: [{ after: implementation, phase: {…} }] }` |
 
-### Tier 2 — a derived local plugin **[spike SP2]**
+### Tier 2 — a derived local plugin **(SP2 ✓ — confirmed GREEN)**
 | # | Point | Pros | Cons | Sample |
 |---|---|---|---|---|
 | 12 | **extension surface** — register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned | most setup; depends on cross-plugin dispatch | `forge.extends: { phases: [./phases/bench.md] }` |
@@ -294,7 +295,7 @@ extends to any harness a repo adds.
 
 ```yaml
 backlog:
-  source: file            # file | github-issues | jira | linear | custom   [spike SP6]
+  source: file            # file | github-issues | jira | linear | custom   (SP6)
   ref: docs/BACKLOG.md    # file: the doc; github: repo; jira/linear: project key
 ```
 A backlog **adapter** implements a tiny interface — `resolve(id) → brief` and
@@ -343,7 +344,7 @@ This keeps pre-chew tool-neutral: the plan's context block names *what* to read
 tsgit's existing `serena.md` repo context is the correct pattern already in practice
 (preference in the repo, not the plugin) — G14 generalizes it into an engine capability
 with detection + precedence and forbids any retrieval opinion leaking into plugin content.
-**[spike SP7].**
+**(SP7 ✓).**
 
 ---
 
@@ -445,7 +446,7 @@ the whole engine is built on, here viewed through the portability lens:
   runtime satisfies it with its own tools; forge stays opinion-free.
 
 Crucial leverage: **every step that moves enforcement into the engine** (contract
-injection §6.3, gate discipline, dependency graph) **shrinks the adapter** and moves us
+injection §11, gate discipline, dependency graph) **shrinks the adapter** and moves us
 toward portability. The harder part is that not all runtimes offer forge's primitives
 (subagents, mechanical hooks, model override); where a runtime lacks them, the engine must
 own that enforcement itself (gate wrappers instead of harness hooks) — which the
@@ -464,7 +465,7 @@ input to SP1/SP2 (how a phase + its guard get registered and dispatched off-Clau
 | **MetaGPT** / **ChatDev** | role-based "AI software company" (PM→architect→engineer→QA / CEO→CTO→programmer→reviewer→tester); SOP-encoded | closest conceptual cousin — phased SE roles, PRD-first | generate apps from a one-liner; heavyweight Python frameworks; not a customizable guiderail layered on *your* repo/harness with mechanical gates |
 | **MoAI-ADK** | SPEC-First + TDD + agents, full transparent lifecycle, OSS | closest *philosophy* (spec-first, TDD) | examine as prior art / inspiration |
 | **app.build** | model-agnostic, multi-layer validation pipelines, structured envs | the "validation harness" idea, model-agnostic | app-generation focus, not a general workflow engine |
-| **TDFlow** | purely-TDD agentic workflow, context-engineered sub-agents | the implement phase's TDD spine | single-concern; not a full pipeline |
+| **TDFlow** | purely-TDD agentic workflow, context-engineered sub-agents | the implementation phase's TDD spine | single-concern; not a full pipeline |
 | **OpenCode** | provider-agnostic terminal coding agent, 75+ providers | a possible *substrate/adapter target* | an agent, not a phased SE guiderail |
 | **Pi** ([pi.dev](https://pi.dev)) | minimal OSS agent *harness*; 15+ providers, SDK-embeddable, extension/skill system; deliberately no sub-agents/MCP/gates | **the chosen secondary-adapter target** (harness layer, not a workflow rival) | a harness forge runs *on*, not a phased SE guiderail — its omitted primitives are supplied by the engine |
 | **Praetorian "deterministic AI orchestration"** | ephemeral agents, gateway-curated context, hook-enforced workflows | almost forge's philosophy (artifact-handoff + mechanical enforcement) | platform/architecture writeup, not a packaged engine |
@@ -496,7 +497,7 @@ forge orchestrates *around* these; it never competes with them. Worked, runnable
 ## 16. Backward compatibility & migration
 - Existing manifests lint and run unchanged; new keys additive; old phase names aliased.
 - Default pipeline descriptor reproduces today's order/agents/models/`execution: agent` → identical zero-config behavior (SC1).
-- Contract relocation (§6.3) must not change default-run behavior — characterization guards it.
+- Contract relocation (P5; the invariant is §11) must not change default-run behavior — characterization guards it.
 - `docs/DESIGN.md` updated/split: living architecture (engine model) vs the now-historical migration record.
 - Retrieval strategy never enters plugin content (G14); tsgit's `serena.md` repo context is the migration exemplar — repos keep declaring their strategy, forge stops assuming one.
 
@@ -508,7 +509,7 @@ Each phase is shippable and (once the harness exists) itself forge-able (dogfood
 
 | # | Workstream | Resolves | Gate to next |
 |---|---|---|---|
-| **P0** | **Spikes** SP1–SP8 (SP2 *first*, highest-risk; record in SPIKE.md) | G3,G4,G7,G8,G12-model,G14,G13(SP8) | findings folded into design |
+| **P0** | **Spikes** SP1–SP8 — **DONE** (SP2 ran first as highest-risk, cleared GREEN; record in SPIKE.md) | G3,G4,G7,G8,G12-model,G14,G13(SP8) | ✅ all resolved; findings folded in |
 | **P1** | **Test harness + scenario suite + CI** (§13) — *build first* | G11 | green characterization of current behavior |
 | **P2** | **Harden `manifest-lint`** (yq-based + fallback) under test | G11 (SC4), R5 | regression suite incl. historical bugs |
 | **P3** | **Phase abstraction core** — descriptor + dependency graph; reproduce current pipeline (no behavior change) | G1 | SC1 green |
@@ -521,7 +522,7 @@ Each phase is shippable and (once the harness exists) itself forge-able (dogfood
 | **P10** | **New default phases & agents** — optional **`requirements`** (new `requirements-writer` agent) + **`architecture`** harness (new `architecture-triager` agent); both default-off | G2,G3 | S4,S5 green |
 | **P11** | **Backlog SoT abstraction** — adapter iface; file default; gh/jira/linear | G7 (per SP6) | S6 green |
 | **P12** | **DX** — mental model guide + injection catalog + `examples/` samples (**two-part: Tier-0/1 docs now; Tier-2 docs after P14**) | G10 | tailor-task usability check (Tier-2 docs gated after P14) |
-| **P13** | **NFR hardening** — speed + tokens + model-class matrix | G12 | targets met on scenario set |
+| **P13** | **NFR hardening** — speed + tokens + model-class matrix | G12 | targets met on scenario set (incl. S8 model-class) |
 | **P14** | **Derived-plugin extension surface** | G8 (per SP2) | S7 green |
 | **P15** | **Second-instantiation validation** (non-tsgit, zero manifest) + docs refresh | G9 | SC5 green → **ship** |
 | **P16** | *(next program)* **Provider-agnostic** — ports/adapters boundary + non-Claude adapter PoC (**target: Pi**, pi.dev) | G13 | the Pi adapter runs a scenario |
@@ -533,11 +534,13 @@ architecture harness→P4/P10; tested/no-regression→P1; strong defaults→P3/P
 fast→P6/P13; token-efficient→P6/P13; model-resistant→P5/P13; easy install/customize→P12/P15;
 provider-agnostic→P16; retrieval-strategy (LSP/RAG/RTK/Serena) agnosticism→P5 (per SP7);
 agent swap→P9 + contract injection→P5 (together = G5); derived-plugin extension→P14 (per
-SP2); VCS/integration port→SP8 then P16.
+SP2); VCS/integration port→SP8 then P16; per-invocation args→P6 (SP3).
 
-**Sequencing notes:** SP2 (highest risk) runs *first* in P0; if it fails, G8/Tier-2
-degrades to vendored descriptors (R1) and P14 narrows. P12's Tier-2 documentation is
-written only after P14 lands, so the catalog never advertises an unproven surface.
+**Sequencing notes:** P0 is complete (all spikes resolved, §14). SP2 (the highest-risk one)
+ran first and cleared GREEN, so G8/Tier-2 stands; the vendored-descriptors path (R1, SC9)
+is retained only as the fallback for a future runtime lacking cross-plugin dispatch. P12's
+Tier-2 documentation is still written only after P14 lands, so the catalog never advertises
+an unproven surface.
 
 ---
 
@@ -550,9 +553,9 @@ written only after P14 lands, so the catalog never advertises an unproven surfac
 - SC6. NFR targets (speed/tokens) tracked and met on the scenario set; model-class matrix green.
 - SC7. A newcomer tailors the pipeline (skip + insert + harness tune) from the docs alone in one sitting.
 - SC8. No retrieval-strategy string exists in plugin content; agents honor the environment-derived strategy (S9).
-- SC9. A derived plugin — or vendored descriptors if SP2 fails (R1) — registers a phase/agent that runs under the invariant core (S7/G8).
+- SC9. A derived plugin registers a phase/agent that runs under the invariant core (S7/G8); vendored descriptors are the equivalent fallback for a future runtime lacking cross-plugin dispatch.
 
-SC1–SC9 cover the in-program goals (G1–G12, G14; G8 via SC9). **G13/P16 is a next-program goal**; its
+SC1–SC9 cover the in-program goals (G1–G12, G14; G8 via SC9; G6 via SC2 + the P8 gate). **G13/P16 is a next-program goal**; its
 success — a non-Claude adapter PoC running one scenario end-to-end — is the P16 gate in
 §17, deliberately outside this program's SCs.
 
@@ -573,6 +576,6 @@ success — a non-Claude adapter PoC running one scenario end-to-end — is the 
 - OQ2. Profiles per-invocation vs per-repo? (lean: both; invocation overrides)
 - OQ3. Partial-inline phases (light parts in-session, heavy delegated)? (lean: per-phase binary first)
 - OQ4. May derived plugins touch the invariant core? (lean: no)
-- OQ5. Split this PRD into PRD + ROADMAP docs as it grows? (lean: split after P0)
+- OQ5. ~~Split this PRD into PRD + ROADMAP docs?~~ **RESOLVED:** keep one unified doc through the build phases — §17 *is* the roadmap section and the doc is still navigable; split only if it later impedes navigation.
 - OQ6. ~~Which providers/model-tiers define the supported "class"?~~ **RESOLVED (SP5):** the Claude class is **Haiku-4.5 and up** (all contracts hold class-wide); cross-*provider* class is a P16 question.
 - OQ7. Run forge's own design/ADR phases on each workstream, or keep lightweight? (lean: dogfood from P3 once P1 exists)

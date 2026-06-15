@@ -38,7 +38,7 @@ interactive session's model — irrelevant to the design but worth knowing for C
 
 Can a repo's OWN local plugin EXTEND forge — i.e. forge's `/forge:run` orchestrator
 discover and dispatch to a phase skill + role agent defined in a *different* plugin? Gates
-G8 / Tier-2 / P14 / P16. See `docs/PRD-customizable-engine.md` §6.5.
+G8 / Tier-2 / P14 / P16. See `docs/PRD-customizable-engine.md` §7 (Tier 2).
 
 ## Phase A — documentation grounding (DONE)
 
@@ -59,7 +59,7 @@ G8 / Tier-2 / P14 / P16. See `docs/PRD-customizable-engine.md` §6.5.
   **No `${PLUGIN_B_ROOT}` variable.**
 - Cross-marketplace deps require an allowlist; cache paths change on update.
 
-**Design implication (provisional — folds into PRD §6.5 / Tier-2):**
+**Design implication (provisional — folds into PRD §7 Tier-2):**
 - The extension surface **rides on native `dependencies` + namespacing**, not a bespoke
   `forge.extends` mechanism. Derived plugin B: `dependencies: ["forge"]`, ships
   `pluginB:my-phase` skill + `pluginB:my-agent`.
@@ -270,7 +270,7 @@ CI-green + user-confirm; teardown only after integrate, lock-aware. Port owns th
 
 ---
 
-# SP5 — model-class portability (PRD §12 G12-model; PROTOCOL — pending external run)
+# SP5 — model-class portability (PRD §12 G12-model; DONE)
 
 **Status: DONE (external run, 2026-06-15) — all 12 probes PASS across all tiers.** Question:
 the lowest model tier that still honors forge's load-bearing agent contracts → defines the
