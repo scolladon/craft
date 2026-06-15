@@ -1,0 +1,15 @@
+# ADR-008 precedence fixture:
+# - top-level execution:agent (lowest priority level for non-descriptor default)
+# - profile:solo (sets inline for non-harness phases)
+# - phases.implementation.execution:agent (explicit field wins over profile)
+#
+# Expected outcomes:
+#   documentation = inline  (profile:solo beat top-level execution:agent)
+#   implementation = agent  (explicit phase field beat profile's inline)
+#   validation     = agent  (harness-archetype caveat, not a precedence leg)
+execution: agent
+pipeline:
+  profile: solo
+phases:
+  implementation:
+    execution: agent

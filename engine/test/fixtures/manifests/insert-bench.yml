@@ -1,0 +1,13 @@
+pipeline:
+  insert:
+    - id: bench
+      archetype: harness
+      contract:
+        - harness-exec
+      procedure: forge:bench
+      role: forge:bench-runner
+      after: validation
+      consumes:
+        - change
+      produces:
+        - bench-report

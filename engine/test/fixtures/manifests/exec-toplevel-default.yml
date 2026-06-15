@@ -1,0 +1,4 @@
+# ADR-008 third leg: top-level execution:inline with no profile.
+# A non-harness phase with no explicit phase field should flip from
+# its descriptor default (agent) to inline (top-level default wins).
+execution: inline
