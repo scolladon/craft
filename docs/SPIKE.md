@@ -267,3 +267,25 @@ ordering/cadence policy):
 in-isolation · teardown refused while a long-running job holds the lock. **Hexagonal split:**
 core owns ordering — validation/architecture triage gates `propose`; `integrate` only after
 CI-green + user-confirm; teardown only after integrate, lock-aware. Port owns the raw verbs.
+
+---
+
+# SP5 — model-class portability (PRD §12 G12-model; PROTOCOL — pending external run)
+
+**Status: PENDING.** Heavy empirical; run in a separate session, paste the result block
+back to close it. Question: the lowest model tier that still honors forge's load-bearing
+agent contracts → defines the supported "model class."
+
+**Method:** for each tier in {opus, sonnet, haiku}, drive 4 contract probes via headless
+sub-runs (`env -u ANTHROPIC_API_KEY claude -p "<probe>" --model <tier> --append-system-prompt
+"$(cat agents/<agent>.md)" --allowedTools "" --output-format text`) and score adherence.
+Probes (text-in/out, mostly mechanical):
+- **A — planner/plan-schema:** plan a `slugify` util → `scripts/plan-lint.sh` PASSes.
+- **B — slice TDD + no-suppression:** `isEven` RED-before-GREEN, no suppression directives.
+- **C — reviewer structured findings:** review a planted off-by-one diff → severity-tagged + catches the bug.
+- **D — blocker protocol:** an under-specified slice → returns `{slice, reason, ≤3 options}`, doesn't guess.
+
+12 runs → a tier×probe PASS/PARTIAL/FAIL matrix → `proposed-class` = lowest all-PASS tier.
+Full operator prompt is in the PR thread / session; result pasted back here on completion.
+Model IDs if aliases rejected: opus=claude-opus-4-8, sonnet=claude-sonnet-4-6,
+haiku=claude-haiku-4-5-20251001.
