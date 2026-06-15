@@ -1,0 +1,1 @@
+{"tool_input":{"command":"git --git-dir=/repo/.git diff HEAD"}}

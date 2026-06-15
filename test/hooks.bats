@@ -18,6 +18,18 @@ load helpers/hooks
   [ "$output" = "deny" ]
 }
 
+@test "Given git merge with --no-verify flag, when block-no-verify runs, then it denies" {
+  run decision block-no-verify.sh block-no-verify-merge.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "deny" ]
+}
+
+@test "Given a denied bypass, when block-no-verify runs, then the reason explains the ban" {
+  run reason block-no-verify.sh block-no-verify-commit.json
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"hooks are part of the gate"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # block-no-verify.sh — allow matrix
 # ---------------------------------------------------------------------------
@@ -62,6 +74,30 @@ load helpers/hooks
   [[ "$output" == *"git -C /x show --no-ext-diff abc"* ]]
 }
 
+@test "Given git -c <k=v> diff without --no-ext-diff, when git-no-ext-diff runs, then it denies" {
+  run decision git-no-ext-diff.sh no-ext-diff-deny-c-opt.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "deny" ]
+}
+
+@test "Given git -c <k=v> diff without --no-ext-diff, when git-no-ext-diff runs, then reason contains corrected command" {
+  run reason git-no-ext-diff.sh no-ext-diff-deny-c-opt.json
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"git -c core.pager=cat diff --no-ext-diff HEAD"* ]]
+}
+
+@test "Given git --git-dir=... diff without --no-ext-diff, when git-no-ext-diff runs, then it denies" {
+  run decision git-no-ext-diff.sh no-ext-diff-deny-gitdir.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "deny" ]
+}
+
+@test "Given git --work-tree=... diff without --no-ext-diff, when git-no-ext-diff runs, then it denies" {
+  run decision git-no-ext-diff.sh no-ext-diff-deny-worktree.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "deny" ]
+}
+
 # ---------------------------------------------------------------------------
 # git-no-ext-diff.sh — allow matrix
 # ---------------------------------------------------------------------------
@@ -74,6 +110,18 @@ load helpers/hooks
 
 @test "Given git stash show, when git-no-ext-diff runs, then it allows (empty output)" {
   run decision git-no-ext-diff.sh no-ext-diff-allow-stash.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+}
+
+@test "Given git show-ref, when git-no-ext-diff runs, then it allows (empty output)" {
+  run decision git-no-ext-diff.sh no-ext-diff-allow-showref.json
+  [ "$status" -eq 0 ]
+  [ "$output" = "" ]
+}
+
+@test "Given git difftool, when git-no-ext-diff runs, then it allows (empty output)" {
+  run decision git-no-ext-diff.sh no-ext-diff-allow-difftool.json
   [ "$status" -eq 0 ]
   [ "$output" = "" ]
 }
