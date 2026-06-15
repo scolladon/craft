@@ -1,0 +1,32 @@
+# Producer is default-off; its sole consumer lists the artifact in self_supply
+# → must validate ok:true (the self_supply exemption)
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: forge:workspace
+  produces:
+    - workspace
+
+- id: requirements
+  archetype: specification
+  enabled: false
+  contract:
+    - producer
+  procedure: forge:requirements
+  consumes:
+    - workspace
+  produces:
+    - requirements
+
+- id: design
+  archetype: specification
+  contract:
+    - producer
+  procedure: forge:design
+  consumes:
+    - workspace
+    - requirements
+  self_supply:
+    - requirements
+  produces:
+    - design

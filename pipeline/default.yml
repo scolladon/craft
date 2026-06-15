@@ -1,0 +1,156 @@
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: forge:workspace
+  produces:
+    - workspace
+
+- id: requirements
+  archetype: specification
+  enabled: false
+  contract:
+    - producer
+  procedure: forge:requirements
+  role: forge:requirements-writer
+  consumes:
+    - workspace
+  produces:
+    - requirements
+
+- id: design
+  archetype: specification
+  contract:
+    - producer
+  procedure: forge:design
+  role: forge:designer
+  consumes:
+    - workspace
+    - requirements
+  self_supply:
+    - requirements
+  produces:
+    - design
+
+- id: decisions
+  archetype: specification
+  contract: []
+  procedure: forge:decisions
+  consumes:
+    - design
+  self_supply:
+    - design
+  produces:
+    - decisions
+
+- id: planning
+  archetype: specification
+  contract:
+    - producer
+  procedure: forge:planning
+  role: forge:planner
+  consumes:
+    - design
+    - decisions
+  self_supply:
+    - design
+    - decisions
+  produces:
+    - plan
+  gate: plan-lint
+
+- id: implementation
+  archetype: construction
+  contract:
+    - construction
+  procedure: forge:implementation
+  role: forge:slice-implementer
+  consumes:
+    - workspace
+    - plan
+  produces:
+    - change
+  gate: <gates.phase>
+
+- id: review
+  archetype: harness
+  contract:
+    - harness-read
+  procedure: forge:review
+  role: forge:reviewer
+  consumes:
+    - change
+  produces:
+    - review-report
+  gate: <gates.phase>
+
+- id: refactoring
+  archetype: refinement
+  contract: []
+  procedure: forge:refactoring
+  role: forge:refactor-executor
+  consumes:
+    - change
+  produces:
+    - change
+  gate: <gates.phase>
+
+- id: validation
+  archetype: harness
+  contract:
+    - harness-exec
+  procedure: forge:validation
+  role: forge:validation-triager
+  consumes:
+    - change
+  produces:
+    - validation-report
+  gate: <validation gate>
+  harness:
+    tool: stryker
+    scope: per-hunk
+
+- id: architecture
+  archetype: harness
+  enabled: false
+  contract:
+    - harness-exec
+  procedure: forge:architecture
+  role: forge:architecture-triager
+  consumes:
+    - change
+  produces:
+    - architecture-report
+  gate: <arch gate>
+  harness:
+    tool: dependency-cruiser
+
+- id: documentation
+  archetype: delivery
+  contract:
+    - delivery
+  procedure: forge:documentation
+  role: forge:docs-writer
+  consumes:
+    - design
+    - change
+  produces:
+    - docs
+
+- id: propose
+  archetype: delivery
+  contract:
+    - delivery
+  procedure: forge:propose
+  consumes:
+    - change
+  produces:
+    - pr
+  gate: pr.pre-pr-gate
+
+- id: integrate
+  archetype: delivery
+  contract:
+    - delivery
+  procedure: forge:integrate
+  consumes:
+    - pr

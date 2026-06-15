@@ -1,0 +1,19 @@
+# Consumer expects 'widget' artifact but no enabled producer provides it
+# and 'widget' is not in self_supply — this must fail validation
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: forge:workspace
+  produces:
+    - workspace
+
+- id: implementation
+  archetype: construction
+  contract:
+    - construction
+  procedure: forge:implementation
+  consumes:
+    - workspace
+    - widget
+  produces:
+    - change

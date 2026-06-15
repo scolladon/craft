@@ -1,0 +1,35 @@
+# A→B→A cycle via consumes: the graph must detect this and return ok:false
+# Note: the graph only resolves edges to *earlier* producers,
+# so a producer appearing *after* its consumer creates a dangling consume
+# (the earlier consumer has no producer for that artifact yet),
+# which the validator catches as a dangling consume (not a cycle per se).
+# A true cycle requires self-referential or round-trip edges. We model it by
+# having phase-b consume 'alpha' which only phase-c produces, and phase-c
+# consume 'beta' which only phase-b produces — but phase-b appears before phase-c,
+# so phase-c cannot resolve 'beta' from an earlier enabled producer.
+- id: alpha-producer
+  archetype: setup
+  contract: []
+  procedure: forge:workspace
+  produces:
+    - alpha
+
+- id: phase-b
+  archetype: construction
+  contract:
+    - construction
+  procedure: forge:implementation
+  consumes:
+    - alpha
+    - beta
+  produces:
+    - gamma
+
+- id: phase-c
+  archetype: refinement
+  contract: []
+  procedure: forge:refactoring
+  consumes:
+    - gamma
+  produces:
+    - beta
