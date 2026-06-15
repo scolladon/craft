@@ -137,3 +137,21 @@ under a lean profile *unless* the repo accepts running its dimensions sequential
 must encode this: `solo` = inline + single-pass harnesses; it does not silently serialize a
 fan-out the user still expects to parallelise. Record the inline/sequential choice in the
 run record.
+
+---
+
+# SP3 — per-invocation args survive `$ARGUMENTS` (PRD §10 / OQ2; CLI 2.1.177)
+
+Do forge-level args (`--profile solo`, `--skip`, pipeline edits) reach the orchestrator
+skill via `$ARGUMENTS` in headless `-p`? R9 flagged it as a live risk (the `-p` forced-opus
+observation).
+
+**Verdict: GREEN.** Minimal `argecho` plugin; skill body echoes `ARGS=[$ARGUMENTS]`:
+- `claude -p '/argecho:run --profile solo build the widget'` → `ARGS=[--profile solo build the widget]`
+- `claude -p '/argecho:run --profile solo --skip refactor,mutation "feat: x"'` → `ARGS=[--profile solo --skip refactor,mutation "feat: x"]`
+
+`$ARGUMENTS` is substituted **verbatim** in headless `-p`, preserving flag tokens,
+comma-lists, and embedded quotes. **R9 cleared** — the orchestrator can parse
+`--profile`/`--skip`/pipeline-edit tokens out of `$ARGUMENTS`; per-invocation profiles
+(OQ2) are buildable. (The earlier `-p forced opus-4-8` note concerns main-loop *model*
+selection, not args.) Throwaway spike dir: `/tmp/forge-sp3`.

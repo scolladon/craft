@@ -404,7 +404,7 @@ owning enforcement (vs the model "remembering") buys model-resistance *and* port
 
 - **SP1** Inline execution convention (G4) — **DONE (SPIKE.md): convention defined.** `inline` = the session runs the phase body itself (skills already run in-thread); same contract/gate/hooks; commit-is-the-handoff; session model. Load-bearing caveat: inline is *sequential* → multi-dimension harnesses stay `agent` (profiles encode it).
 - **SP2** Cross-plugin extension/dispatch (G8) — **DONE & GREEN (SPIKE.md).** Confirmed empirically: a skill in plugin A invokes a skill *and* spawns an agent (namespaced `subagent_type`) in plugin B; rides native plugin `dependencies` + namespacing + per-plugin `${CLAUDE_PLUGIN_ROOT}`. No bespoke mechanism needed. (Open refinements, non-blocking: scoped `Agent()` allowlist form; same-marketplace symlinks.)
-- **SP3** Per-invocation args (G4 · OQ2) — `--profile`/pipeline edits survive `$ARGUMENTS`, **including under headless CI** (SPIKE.md `-p` forced opus-4-8 — args survival is a live risk; see R9).
+- **SP3** Per-invocation args (G4 · OQ2) — **DONE & GREEN (SPIKE.md).** `$ARGUMENTS` carries `--profile`/`--skip`/pipeline tokens verbatim in headless `-p` (flag tokens, comma-lists, embedded quotes all preserved). R9 cleared.
 - **SP4** Generic vocabulary/taxonomy (G3) — finalize concern names + the harness family (validation, architecture, …); back-compat aliases.
 - **SP5** Model-class portability (G12-model) — run the default pipeline on ≥2–3 model tiers; record where prompts/contracts depend on model quirks; define the supported class. **Confirm per-invocation model override is honored under headless CI** (the SPIKE.md `-p` note observed forced opus-4-8).
 - **SP6** Backlog adapter interface (G7) — file vs github-issues (gh) vs jira/linear (MCP); the minimal `resolve`/`complete` contract **+ the adapter-failure path** (unreachable tracker = blocker, never a silent tick-skip).
@@ -558,7 +558,7 @@ success — a non-Claude adapter PoC running one scenario end-to-end — is the 
 - R6. Vocabulary churn breaks existing manifests → aliases (P4) + lint coverage.
 - R7. Provider portability blocked by missing primitives in other runtimes → engine owns enforcement; adapter shrinks; PoC validates feasibility before committing.
 - R8. Characterization pins *mechanism*, not agent judgment — a contract relocation (P5) could degrade agent output while golden runs stay green → add a small fixed-prompt agent-output diff (or manual re-baseline) at P5.
-- R9. Per-invocation args may not survive headless/`-p` (SPIKE.md observed forced opus-4-8) → SP3 verifies; fallback: repo-level `profile:` only (OQ2).
+- R9. ~~Per-invocation args may not survive headless/`-p`~~ — **CLEARED** (SP3: `$ARGUMENTS` verbatim in `-p`; flags/commas/quotes preserved; SPIKE.md).
 
 ## 20. Open questions
 - OQ1. Reorder freedom beyond insert/skip? (lean: insert/skip first)
