@@ -1,7 +1,7 @@
 /**
  * Profile expander — maps a named profile to a set of per-phase execution edits.
  * Closed vocabulary: only 'solo' and 'full' are valid.
- * The SP1 parallelism caveat is encoded as a static archetype rule:
+ * The harness-archetype caveat is encoded as a static archetype rule:
  * harness-archetype phases stay 'agent' even under the solo profile.
  */
 
@@ -10,7 +10,7 @@
  */
 
 /** Harness archetype stays agent regardless of profile. */
-const HARNESS_ARCHETYPE = 'harness';
+export const HARNESS_ARCHETYPE = 'harness';
 
 /**
  * Expand a named profile into an object describing how to override execution.

@@ -8,8 +8,8 @@ const VALID_ARCHETYPES = new Set([
 
 const REQUIRED_FIELDS = ['id', 'archetype', 'contract', 'procedure'];
 
-const DEFAULT_EXECUTION = 'agent';
-const VALID_EXECUTIONS = new Set([DEFAULT_EXECUTION, 'inline']);
+export const DEFAULT_EXECUTION = 'agent';
+export const VALID_EXECUTIONS = new Set([DEFAULT_EXECUTION, 'inline']);
 
 /**
  * Coerce a YAML scalar-or-list field to a string array. Elements are stringified

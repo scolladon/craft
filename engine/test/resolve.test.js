@@ -89,6 +89,21 @@ test('Given no manifest (undefined), when resolvePipeline is called, then effect
   assert.deepEqual(result.effective.map(d => d.id), SC1_IDS);
 });
 
+test('Given no manifest (null), when resolvePipeline is called, then all 11 enabled phases have execution:agent', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.effective.length, SC1_IDS.length, 'Expected exactly 11 enabled phases');
+  for (const d of result.effective) {
+    assert.equal(
+      d.execution,
+      'agent',
+      `Phase "${d.id}" expected execution "agent", got "${d.execution}"`,
+    );
+  }
+});
+
 // ─── skip-decisions (allowed — its only consumer, planning, self-supplies it) ─
 
 test('Given manifest skip-decisions, when resolvePipeline is called, then ok is true and decisions is absent from effective', () => {
@@ -100,31 +115,46 @@ test('Given manifest skip-decisions, when resolvePipeline is called, then ok is 
   assert.ok(!result.effective.some(d => d.id === 'decisions'), 'decisions should be absent');
 });
 
+// ─── skip-design (refused — strands documentation which consumes design without self_supply) ─
+
+test('Given manifest skip-design, when resolvePipeline is called, then ok is false with a strand error naming documentation and design', () => {
+  const sut = loadDefault();
+  const manifest = loadManifest('skip-design.yml');
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /documentation/i.test(e) && /strand/i.test(e) ||
+                            /design/i.test(e) && /strand/i.test(e)),
+    `Expected a strand error naming documentation or design, got: ${result.errors.join('; ')}`,
+  );
+});
+
 // ─── skip-planning (refused — strands implementation) ────────────────────────
 
-test('Given manifest skip-planning, when resolvePipeline is called, then ok is false with a strand error', () => {
+test('Given manifest skip-planning, when resolvePipeline is called, then ok is false with a strand error naming planning and strand', () => {
   const sut = loadDefault();
   const manifest = loadManifest('skip-planning.yml');
   const result = resolvePipeline(sut, manifest);
 
   assert.equal(result.ok, false);
   assert.ok(
-    result.errors.some(e => /planning/i.test(e) || /plan/i.test(e) || /strand/i.test(e) || /implementation/i.test(e)),
-    `Expected a strand error, got: ${result.errors.join('; ')}`,
+    result.errors.some(e => /planning/i.test(e) && /strand/i.test(e)),
+    `Expected a strand error containing both "planning" and "strand", got: ${result.errors.join('; ')}`,
   );
 });
 
 // ─── skip-workspace (refused — strands implementation) ───────────────────────
 
-test('Given manifest skip-workspace, when resolvePipeline is called, then ok is false with a strand error', () => {
+test('Given manifest skip-workspace, when resolvePipeline is called, then ok is false with a strand error naming workspace and strand', () => {
   const sut = loadDefault();
   const manifest = loadManifest('skip-workspace.yml');
   const result = resolvePipeline(sut, manifest);
 
   assert.equal(result.ok, false);
   assert.ok(
-    result.errors.some(e => /workspace/i.test(e) || /strand/i.test(e) || /implementation/i.test(e)),
-    `Expected a strand error, got: ${result.errors.join('; ')}`,
+    result.errors.some(e => /workspace/i.test(e) && /strand/i.test(e)),
+    `Expected a strand error containing both "workspace" and "strand", got: ${result.errors.join('; ')}`,
   );
 });
 
@@ -168,7 +198,105 @@ test('Given manifest profile-solo, when resolvePipeline is called, then harness-
   }
 });
 
-// ─── exec-precedence: isolates ADR-008 precedence legs ───────────────────────
+// ─── security: whitelist phase-override fields ───────────────────────────────
+
+test('Given a manifest with phases.validation.archetype:setup and profile:solo, when resolvePipeline is called, then validation execution stays agent (archetype not overridable)', () => {
+  const sut = loadDefault();
+  const manifest = {
+    pipeline: { profile: 'solo' },
+    phases: { validation: { archetype: 'setup' } },
+  };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.ok(validation, 'validation phase should be present');
+  assert.equal(
+    validation.execution,
+    'agent',
+    'validation must stay agent — harness archetype cannot be overridden by manifest',
+  );
+});
+
+test('Given a manifest with phases.workspace.id:renamed, when resolvePipeline is called, then workspace id is not renamed', () => {
+  const sut = loadDefault();
+  const manifest = {
+    phases: { workspace: { id: 'renamed' } },
+  };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const workspace = result.effective.find(d => d.id === 'workspace');
+  assert.ok(workspace, 'workspace should still be present under its original id');
+  assert.ok(!result.effective.some(d => d.id === 'renamed'), 'renamed should not appear');
+});
+
+// ─── security: validate execution values ─────────────────────────────────────
+
+test('Given a manifest with phases.implementation.execution:turbo (invalid), when resolvePipeline is called, then ok is false naming the bad value', () => {
+  const sut = loadDefault();
+  const manifest = {
+    phases: { implementation: { execution: 'turbo' } },
+  };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /turbo/i.test(e)),
+    `Expected error naming "turbo", got: ${result.errors.join('; ')}`,
+  );
+});
+
+test('Given a manifest with top-level execution:turbo (invalid), when resolvePipeline is called, then ok is false naming the bad value', () => {
+  const sut = loadDefault();
+  const manifest = { execution: 'turbo' };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /turbo/i.test(e)),
+    `Expected error naming "turbo", got: ${result.errors.join('; ')}`,
+  );
+});
+
+test('Given a manifest with pipeline.insert containing execution:warp (invalid), when resolvePipeline is called, then ok is false naming the bad value', () => {
+  const sut = loadDefault();
+  const manifest = {
+    pipeline: {
+      insert: [{
+        id: 'bench',
+        archetype: 'harness',
+        contract: [],
+        procedure: 'forge:bench',
+        after: 'validation',
+        execution: 'warp',
+      }],
+    },
+  };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /warp/i.test(e)),
+    `Expected error naming "warp", got: ${result.errors.join('; ')}`,
+  );
+});
+
+// ─── security: unknown profile → structured error, not throw ─────────────────
+
+test('Given a manifest with pipeline.profile:typo (unknown), when resolvePipeline is called, then ok is false naming the unknown profile', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { profile: 'typo' } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /typo/i.test(e)),
+    `Expected error naming "typo", got: ${result.errors.join('; ')}`,
+  );
+});
+
+// ─── exec-precedence: isolates execution precedence legs ─────────────────────
 
 test('Given exec-precedence manifest, when resolvePipeline is called, then documentation=inline (profile beat top-level agent)', () => {
   const sut = loadDefault();
@@ -215,7 +343,7 @@ test('Given exec-precedence manifest, when resolvePipeline is called, then valid
   );
 });
 
-// ─── exec-toplevel-default: isolates third ADR-008 leg ───────────────────────
+// ─── exec-toplevel-default: isolates top-level-default precedence leg ────────
 
 test('Given exec-toplevel-default manifest (bare execution:inline, no profile), when resolvePipeline is called, then a non-harness phase with no explicit field flips to inline', () => {
   const sut = loadDefault();
@@ -266,6 +394,30 @@ test('Given manifest insert-bench, when resolvePipeline is called, then bench is
 
   assert.ok(benchIdx !== -1, 'bench phase should be present');
   assert.ok(benchIdx > validationIdx, 'bench should come after validation');
+});
+
+test('Given manifest insert-bench, when resolvePipeline is called, then bench consumes an artifact produced by an earlier effective phase', () => {
+  const sut = loadDefault();
+  const manifest = loadManifest('insert-bench.yml');
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+
+  const ids = result.effective.map(d => d.id);
+  const benchIdx = ids.indexOf('bench');
+  const bench = result.effective[benchIdx];
+
+  assert.ok(bench.consumes.length > 0, 'bench should consume at least one artifact');
+
+  for (const artifact of bench.consumes) {
+    const hasEarlierProducer = result.effective
+      .slice(0, benchIdx)
+      .some(d => d.produces.includes(artifact));
+    assert.ok(
+      hasEarlierProducer,
+      `Artifact "${artifact}" consumed by bench must be produced by an earlier phase`,
+    );
+  }
 });
 
 // ─── enable-requirements ──────────────────────────────────────────────────────
