@@ -73,7 +73,7 @@ that we hold as the design convention throughout. **[decided]**
   | **Execution** | `spawn(role, ctx)` / `runInline(ctx)` | §10 · SP1 |
   | **Code-access / retrieval** *(env-sourced)* | `read` / `navigate` (LSP/RAG/RTK/Serena/native) | §10.1 · SP7 · G14 |
   | **Model** | `select(model)` / `isAvailable(model)` | SP5 · G12 |
-  | **Gate / tool-guard** | `run(cmd) → pass\|fail`; mechanical guards (hooks) | §11 |
+  | **Gate / tool-guard** | `run(cmd) → pass\|fail`; mechanical guards (hooks) | §11 (no SPn — SPIKE.md b') |
   | **Backlog SoT** | `resolve(id)` / `complete(id, refs)` | §9 · SP6 · G7 |
   | **VCS / integration** | `isolate`/`commit`/`propose`/`integrate`/`teardown` (SP8) | §17 · SP8 |
 
@@ -514,7 +514,7 @@ Each phase is shippable and (once the harness exists) itself forge-able (dogfood
 | **P2** | **Harden `manifest-lint`** (yq-based + fallback) under test | G11 (SC4), R5 | regression suite incl. historical bugs |
 | **P3** | **Phase abstraction core** — descriptor + dependency graph; reproduce current pipeline (no behavior change) | G1 | SC1 green |
 | **P4** | **Generic vocabulary** — full-SDLC rename (dirs+agents+orchestrator) + aliases (SP4 decided) | G3 | SC1 still green |
-| **P5** | **Engine-owned injection** — relocate contract; **derive + inject retrieval strategy** (env/project; strategy-free plugin); thin agents | G5 (contract injection),G14 | SC1 still green + agent-output re-baseline (R8) |
+| **P5** | **Engine-owned injection** — relocate contract; **derive + inject retrieval strategy** (env/project; strategy-free plugin); thin agents | G5 (contract injection),G14 | SC1 still green + agent-output re-baseline (R8); SC8/S9 green |
 | **P6** | **Execution topology** — `inline\|agent` + `solo`/`full` profiles | G4 (per SP1, SP3) | S1 green |
 | **P7** | **Pipeline editing** — skip-any / insert / reorder + dependency checks | G1,G2 | S3, SC3 green |
 | **P8** | **Per-phase harness config** — dimensions/passes/cycles/convergence/tool | G6 | review/validation knobs honored |
