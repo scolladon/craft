@@ -242,9 +242,11 @@ ships a sample manifest in `examples/` (G10).
 |---|---|---|---|---|
 | 12 | **extension surface** — register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned | most setup; depends on cross-plugin dispatch | `forge.extends: { phases: [./phases/bench.md] }` |
 
-**If SP2 finds cross-plugin dispatch unsupported,** Tier 2 degrades to **vendored
-descriptors** (copy the phase/agent into the repo) — same capability, no separate plugin
-(R1). This catalog and the P12 docs state which form applies once SP2 lands.
+**SP2 confirmed cross-plugin dispatch works** (native `dependencies` + namespacing; SPIKE.md
+Phase B) — so Tier 2 is real. A derived plugin declares `dependencies: ["forge"]` and ships
+`pluginB:my-phase` + `pluginB:my-agent`; the repo manifest wires them in (descriptor lives
+in the manifest, since a plugin cannot read another plugin's files). Vendored descriptors
+remain only a fallback for a future runtime that lacks cross-plugin dispatch.
 
 Mechanical (always available, any tier): repo `.claude/hooks` + lifecycle `scripts:` —
 unforgettable rules + setup/teardown steps.
@@ -401,7 +403,7 @@ owning enforcement (vs the model "remembering") buys model-resistance *and* port
 ## 14. Spikes (pin unknowns first; record in `docs/SPIKE.md`)
 
 - **SP1** Inline execution convention (G4) — run a phase in-context with contract + gate bound; meaning of artifact-handoff without a subagent; **enumerate which §11 invariants transform under inline** (see §11 carve-out).
-- **SP2** Cross-plugin extension/dispatch (G8) — can `/forge:run` discover & invoke phases/agents from a *derived* local plugin? namespace + `${CLAUDE_PLUGIN_ROOT}` + config resolution across plugins. **Highest risk.**
+- **SP2** Cross-plugin extension/dispatch (G8) — **DONE & GREEN (SPIKE.md).** Confirmed empirically: a skill in plugin A invokes a skill *and* spawns an agent (namespaced `subagent_type`) in plugin B; rides native plugin `dependencies` + namespacing + per-plugin `${CLAUDE_PLUGIN_ROOT}`. No bespoke mechanism needed. (Open refinements, non-blocking: scoped `Agent()` allowlist form; same-marketplace symlinks.)
 - **SP3** Per-invocation args (G4 · OQ2) — `--profile`/pipeline edits survive `$ARGUMENTS`, **including under headless CI** (SPIKE.md `-p` forced opus-4-8 — args survival is a live risk; see R9).
 - **SP4** Generic vocabulary/taxonomy (G3) — finalize concern names + the harness family (validation, architecture, …); back-compat aliases.
 - **SP5** Model-class portability (G12-model) — run the default pipeline on ≥2–3 model tiers; record where prompts/contracts depend on model quirks; define the supported class. **Confirm per-invocation model override is honored under headless CI** (the SPIKE.md `-p` note observed forced opus-4-8).
@@ -533,7 +535,7 @@ success — a non-Claude adapter PoC running one scenario end-to-end — is the 
 §17, deliberately outside this program's SCs.
 
 ## 19. Risks
-- R1. Cross-plugin extension may be unsupported → SP2 early; fallback: derived plugins vendor descriptors; G8 narrows.
+- R1. ~~Cross-plugin extension may be unsupported~~ — **CLEARED** (SP2 Phase B confirmed dispatch works on native primitives; SPIKE.md). Vendored descriptors retained only as a fallback for runtimes lacking cross-plugin dispatch.
 - R2. Inline erodes guarantees → SP1 defines contract+gate binding; default stays `agent`.
 - R3. Contract relocation regresses defaults → P1 characterization built first to catch it.
 - R4. Over-configuration dilutes the opinionated value → strong defaults + profiles + small firm core.

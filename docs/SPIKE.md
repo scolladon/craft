@@ -73,3 +73,24 @@ G8 / Tier-2 / P14 / P16. See `docs/PRD-customizable-engine.md` §6.5.
 2. Does the `Agent(name)` tool-allowlist accept **scoped** names (`Agent(pluginB:agent)`)?
 3. What context/skills does a cross-plugin-spawned subagent inherit (forge's, or only B's)?
 4. Same-marketplace symlink for a shared script resolves at runtime; `/reload-plugins` picks up cross-plugin changes.
+
+## Phase B — empirical (DONE, CLI 2.1.177)
+
+**Verdict: GREEN — cross-plugin dispatch works on native primitives.** Two minimal plugins
+(`forge-base` orchestrator + `ext-phase` derived), loaded via
+`claude -p "/forge-base:run" --plugin-dir forge-base --plugin-dir ext-phase`. The plugin-A
+orchestrator skill was told to invoke `ext-phase:custom-phase` (skill) and spawn
+`ext-phase:new-role` (agent), both in plugin B.
+
+- **Result, both runs:** `RESULT skill=EXT_SKILL_OK_7f3a agent=EXT_AGENT_OK_9b2c`.
+- **Airtight:** the confirming run allowed **only `Skill,Task`** (no Bash/Read). The two
+  tokens exist nowhere in plugin A → the sole source is genuine cross-plugin invocation.
+- **CONFIRMED:** (1) a skill in plugin A invokes a skill in plugin B via the Skill tool;
+  (2) a skill in plugin A spawns an agent in plugin B via the Task tool, addressed by the
+  namespaced `subagent_type: ext-phase:new-role`.
+
+**Consequence:** G8 / Tier-2 / P14 are feasible on native deps + namespacing — **R1
+cleared**, no bespoke dispatch mechanism required. Still untested (non-blocking
+refinements): the scoped `Agent(pluginB:agent)` *allowlist-restriction* form;
+same-marketplace symlink for shared scripts; cross-plugin subagent context-inheritance
+depth. Throwaway spike dir: `/tmp/forge-sp2`.
