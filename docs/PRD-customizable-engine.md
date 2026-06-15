@@ -143,7 +143,7 @@ The full injection catalog (§7) lists every point with pros/cons and a repo sam
 
 ### Non-goals
 - N1. Changing default behavior for current zero-config users (back-compat, §16).
-- N2. A GUI/wizard — customization stays file-based and versioned.
+- N2. A GUI/wizard — customization stays file-based and versioned. forge stays **headless**: because plan/diff/findings are committed artifacts (artifact-is-the-handoff), the human-decision touchpoints (plan · ADR · review diff) are *presentation-pluggable* — an external review UI (e.g. [plannotator](https://github.com/backnotprop/plannotator)) can front them, but forge never owns one.
 - N3. Rewriting the engine medium (Bash + skill/agent markdown stays), except where portability (§15) demands an explicit adapter boundary.
 - N4. Full multi-provider parity in this program — §15 delivers the *architecture* + a PoC, not every adapter.
 
