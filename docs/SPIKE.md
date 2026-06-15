@@ -272,9 +272,9 @@ CI-green + user-confirm; teardown only after integrate, lock-aware. Port owns th
 
 # SP5 — model-class portability (PRD §12 G12-model; PROTOCOL — pending external run)
 
-**Status: PENDING.** Heavy empirical; run in a separate session, paste the result block
-back to close it. Question: the lowest model tier that still honors forge's load-bearing
-agent contracts → defines the supported "model class."
+**Status: DONE (external run, 2026-06-15) — all 12 probes PASS across all tiers.** Question:
+the lowest model tier that still honors forge's load-bearing agent contracts → defines the
+supported "model class."
 
 **Method:** for each tier in {opus, sonnet, haiku}, drive 4 contract probes via headless
 sub-runs (`env -u ANTHROPIC_API_KEY claude -p "<probe>" --model <tier> --append-system-prompt
@@ -289,3 +289,33 @@ Probes (text-in/out, mostly mechanical):
 Full operator prompt is in the PR thread / session; result pasted back here on completion.
 Model IDs if aliases rejected: opus=claude-opus-4-8, sonnet=claude-sonnet-4-6,
 haiku=claude-haiku-4-5-20251001.
+
+## Result — all PASS; the class is broad
+
+| tier | A plan-lint | B tdd+no-suppress | C review-struct | D blocker |
+|---|---|---|---|---|
+| opus (claude-opus-4-8) | PASS | PASS | PASS | PASS |
+| sonnet (claude-sonnet-4-6) | PASS | PASS | PASS | PASS |
+| haiku (claude-haiku-4-5-20251001) | PASS | PASS | PASS | PASS |
+
+**Supported class: Haiku-4.5 and up.** Every load-bearing contract — plan slice schema,
+TDD + no-suppression, structured review (catches the planted index bug), blocker protocol —
+holds across the entire Claude tier ladder, down to the cheapest tier. Strong evidence for
+G12: contract adherence does not require top-tier reasoning.
+
+**Scope honesty (do not over-claim):** these are short, isolated *contract-adherence* probes
+— not full multi-phase runs with real tools, long context, convergence loops, or cross-agent
+handoffs. Haiku passing ≠ Haiku produces Opus-quality *output*. The probes pin the
+**portability floor** (the workflow won't break), not output quality — depth still scales
+with tier. So: keep higher tiers as the *default* on quality-sensitive roles (designer /
+planner / reviewer), Haiku fine for mechanical roles (backlog-ticker). But the **fallback
+chain is now proven contract-safe**: a `models.fallback` landing on a lower tier degrades
+quality at worst, never breaks a contract.
+
+**Format-variance signal (haiku/C):** Haiku returned the review findings as severity-tagged
+*JSON* (not one-per-line) — still parseable, still caught both bugs. Lesson: models vary the
+*shape* of structured output → the engine must pin the output format tightly or parse
+robustly across shapes (→ P5/P8 reviewer-output handling).
+
+**Caveat:** one provider (Claude). This pins the *Claude* class; cross-*provider* portability
+(G13) is a separate question for P16 / the adapter PoC.

@@ -378,7 +378,7 @@ what makes the engine portable (§15).
 |---|---|---|---|
 | **G12-speed** Fast to deliver | small fixes complete in one context, no spawn round-trips; safe parallelism preserved | `solo`/`inline`; parallel harnesses; pre-chewed context (no re-exploration) | wall-clock on a fixed scenario set, tracked over time |
 | **G12-tokens** Token efficient | minimize tokens/run; no redundant re-reads or re-exploration | progressive disclosure (load phase text just-in-time); artifact-by-path (no re-transcription); inline avoids spawn overhead; budget-aware | tokens/run on the scenario set; per-phase budget telemetry in the run record |
-| **G12-model** Model resistant | runs reliably across a *model class* (e.g. any frontier-tier), degrades gracefully | model resolution + fallback chain; contracts/prompts written to avoid single-model quirks; gates are model-independent (mechanical) | cross-model scenario matrix (≥2–3 tiers/providers-via-class); SP5 |
+| **G12-model** Model resistant | runs reliably across a *model class* (**SP5: Claude Haiku-4.5 and up** — all contracts pass class-wide), degrades gracefully | model resolution + contract-safe fallback chain; contracts/prompts model-quirk-independent; gates mechanical | **SP5 done** (contract probes all-PASS); P13 adds the full-pipeline + output-quality matrix |
 | **DX** Easy install/customize | one-command install; zero-config best-practice run; minimal-edit customization | strong defaults; mental model + injection catalog + samples | fresh-machine install test; "tailor task" usability checks |
 
 These interact: `inline`/`solo` buys speed + tokens at the cost of isolation; the engine
@@ -413,7 +413,7 @@ owning enforcement (vs the model "remembering") buys model-resistance *and* port
 - **SP2** Cross-plugin extension/dispatch (G8) — **DONE & GREEN (SPIKE.md).** Confirmed empirically: a skill in plugin A invokes a skill *and* spawns an agent (namespaced `subagent_type`) in plugin B; rides native plugin `dependencies` + namespacing + per-plugin `${CLAUDE_PLUGIN_ROOT}`. No bespoke mechanism needed. (Open refinements, non-blocking: scoped `Agent()` allowlist form; same-marketplace symlinks.)
 - **SP3** Per-invocation args (G4 · OQ2) — **DONE & GREEN (SPIKE.md).** `$ARGUMENTS` carries `--profile`/`--skip`/pipeline tokens verbatim in headless `-p` (flag tokens, comma-lists, embedded quotes all preserved). R9 cleared.
 - **SP4** Generic vocabulary/taxonomy (G3) — **DONE & DECIDED (SPIKE.md): full-SDLC concern naming + mutation→validation + harness family.** Old names → aliases; rename executed in P4.
-- **SP5** Model-class portability (G12-model) — run the default pipeline on ≥2–3 model tiers; record where prompts/contracts depend on model quirks; define the supported class. **Confirm per-invocation model override is honored under headless CI** (the SPIKE.md `-p` note observed forced opus-4-8).
+- **SP5** Model-class portability (G12-model) — **DONE (SPIKE.md): all contracts PASS across opus/sonnet/haiku → supported class = Haiku-4.5 and up.** Fallback proven contract-safe (degrades quality, never breaks a contract). Caveat: contract-adherence probes, not full-quality runs; output *shape* varies by model (pin/parse-robustly).
 - **SP6** Backlog adapter interface (G7) — **DONE (SPIKE.md).** `resolve`/`complete` port; file/github-issues/jira/linear/custom adapters (gh + Atlassian MCP confirmed present); unreachable source = blocker, never a silent tick-skip.
 - **SP7** Retrieval-strategy derivation (G14) — **DONE (SPIKE.md).** Plugin content verified strategy-free (grep empty); precedence project>env>user>native; `retrieval:` declaration primary + best-effort probe; CI lint enforces strategy-free (SC8).
 - **SP8** VCS/integration port (G13) — **DONE (SPIKE.md).** `isolate`/`commit`/`propose`/`integrate`/`teardown` port pinned from the lifecycle scripts (lock-aware teardown; deps-in-isolation); worktree mechanism is the adapter's choice, not the contract.
@@ -566,6 +566,7 @@ success — a non-Claude adapter PoC running one scenario end-to-end — is the 
 - R7. Provider portability blocked by missing primitives in other runtimes → engine owns enforcement; adapter shrinks; PoC validates feasibility before committing.
 - R8. Characterization pins *mechanism*, not agent judgment — a contract relocation (P5) could degrade agent output while golden runs stay green → add a small fixed-prompt agent-output diff (or manual re-baseline) at P5.
 - R9. ~~Per-invocation args may not survive headless/`-p`~~ — **CLEARED** (SP3: `$ARGUMENTS` verbatim in `-p`; flags/commas/quotes preserved; SPIKE.md).
+- R10. Structured-output *shape* varies by model (SP5: Haiku emitted review findings as JSON, not one-per-line) → the engine must pin each harness's output format tightly or parse robustly across shapes (P5/P8); never assume one layout.
 
 ## 20. Open questions
 - OQ1. Reorder freedom beyond insert/skip? (lean: insert/skip first)
@@ -573,5 +574,5 @@ success — a non-Claude adapter PoC running one scenario end-to-end — is the 
 - OQ3. Partial-inline phases (light parts in-session, heavy delegated)? (lean: per-phase binary first)
 - OQ4. May derived plugins touch the invariant core? (lean: no)
 - OQ5. Split this PRD into PRD + ROADMAP docs as it grows? (lean: split after P0)
-- OQ6. Which providers/model-tiers define the supported "class" for G12-model? (resolve in SP5)
+- OQ6. ~~Which providers/model-tiers define the supported "class"?~~ **RESOLVED (SP5):** the Claude class is **Haiku-4.5 and up** (all contracts hold class-wide); cross-*provider* class is a P16 question.
 - OQ7. Run forge's own design/ADR phases on each workstream, or keep lightweight? (lean: dogfood from P3 once P1 exists)
