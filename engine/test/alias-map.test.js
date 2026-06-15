@@ -15,9 +15,9 @@ const EXPECTED_ALIASES = [
   ['merge',     'integrate'],
 ];
 
-test('Given the alias map, when counting entries, then it has exactly 10 entries', () => {
+test('Given the alias map, when counting entries, then it matches the expected table size', () => {
   const result = Object.keys(ALIAS_MAP).length;
-  assert.equal(result, 10);
+  assert.equal(result, EXPECTED_ALIASES.length);
 });
 
 for (const [oldName, canonical] of EXPECTED_ALIASES) {
@@ -40,6 +40,14 @@ test('Given an unknown id, when resolveAlias is called, then it returns the inpu
   const result = resolveAlias('unknown-phase');
   assert.equal(result, 'unknown-phase');
 });
+
+for (const protoKey of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+  test(`Given the prototype key "${protoKey}", when resolveAlias is called, then it returns the key as a string`, () => {
+    const result = resolveAlias(protoKey);
+    assert.equal(typeof result, 'string');
+    assert.equal(result, protoKey);
+  });
+}
 
 for (const [oldName] of EXPECTED_ALIASES) {
   test(`Given old name "${oldName}", when resolveAlias is applied twice, then round-trip is stable`, () => {

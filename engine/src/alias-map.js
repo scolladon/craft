@@ -27,5 +27,7 @@ export const ALIAS_MAP = Object.freeze({
  * @returns {string}
  */
 export function resolveAlias(name) {
-  return ALIAS_MAP[name] ?? name;
+  // Own-property lookup only — a name like "constructor" must not resolve to an
+  // inherited Object.prototype member.
+  return Object.hasOwn(ALIAS_MAP, name) ? ALIAS_MAP[name] : name;
 }
