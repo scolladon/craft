@@ -424,9 +424,12 @@ the whole engine is built on, here viewed through the portability lens:
 - **Engine core (provider-neutral):** pipeline walk, invariant enforcement, contract
   injection, gate discipline, dependency graph, harness config, model resolution, run record.
 - **Adapter (per provider/runtime):** implements every port — *execution* (spawn/inline,
-  inject context), *gate/tool-guard*, *model*, *backlog SoT*, *VCS/integration*. Forge today
-  **is** the Claude Code adapter. A second adapter (OpenCode / litellm / Claude Agent SDK)
-  implementing the same ports makes it multi-provider.
+  inject context), *gate/tool-guard*, *model*, *backlog SoT*, *VCS/integration*. The
+  **leading adapter is Claude Code** (forge today **is** that adapter). The **designated
+  secondary adapter target is Pi** ([pi.dev](https://pi.dev) — minimal OSS harness, 15+
+  providers with mid-session switching, SDK-embeddable, extension/skill system); other
+  candidates: OpenCode, litellm, the Claude Agent SDK. A second adapter implementing the
+  same ports makes forge multi-provider.
 - **Code-access capability (environment-sourced port):** *read/navigate code* —
   LSP/RAG/RTK/Serena/native — fulfilled by whatever the runtime + project/user settings
   provide, never by the engine or any adapter (G14). A genuinely portable port: each
@@ -438,7 +441,11 @@ toward portability. The harder part is that not all runtimes offer forge's primi
 (subagents, mechanical hooks, model override); where a runtime lacks them, the engine must
 own that enforcement itself (gate wrappers instead of harness hooks) — which the
 model-resistance goal already pushes us toward. So G13 is the *natural endpoint*, not a
-bolt-on.
+bolt-on. **Pi (the secondary target) is exactly such a runtime** — it deliberately ships
+no sub-agents, MCP, or permission gates ("primitives, not features") — so a Pi adapter
+must supply *execution* and *gate/tool-guard* via Pi's SDK/extensions. That is the concrete
+proof that pushing enforcement into the engine (P5) is what unlocks portability, and a live
+input to SP1/SP2 (how a phase + its guard get registered and dispatched off-Claude).
 
 **Does it exist already? The category is crowded; nothing occupies forge's exact niche.**
 
@@ -449,6 +456,7 @@ bolt-on.
 | **app.build** | model-agnostic, multi-layer validation pipelines, structured envs | the "validation harness" idea, model-agnostic | app-generation focus, not a general workflow engine |
 | **TDFlow** | purely-TDD agentic workflow, context-engineered sub-agents | the implement phase's TDD spine | single-concern; not a full pipeline |
 | **OpenCode** | provider-agnostic terminal coding agent, 75+ providers | a possible *substrate/adapter target* | an agent, not a phased SE guiderail |
+| **Pi** ([pi.dev](https://pi.dev)) | minimal OSS agent *harness*; 15+ providers, SDK-embeddable, extension/skill system; deliberately no sub-agents/MCP/gates | **the chosen secondary-adapter target** (harness layer, not a workflow rival) | a harness forge runs *on*, not a phased SE guiderail — its omitted primitives are supplied by the engine |
 | **Praetorian "deterministic AI orchestration"** | ephemeral agents, gateway-curated context, hook-enforced workflows | almost forge's philosophy (artifact-handoff + mechanical enforcement) | platform/architecture writeup, not a packaged engine |
 | LangGraph / AutoGen / CrewAI / Semantic Kernel / Haystack / Kestra | general agent-orchestration libraries, provider-agnostic | could *build* an engine | not opinionated SE guiderails out of the box |
 
@@ -492,7 +500,7 @@ Each phase is shippable and (once the harness exists) itself forge-able (dogfood
 | **P13** | **NFR hardening** — speed + tokens + model-class matrix | G12 | targets met on scenario set |
 | **P14** | **Derived-plugin extension surface** | G8 (per SP2) | S7 green |
 | **P15** | **Second-instantiation validation** (non-tsgit, zero manifest) + docs refresh | G9 | SC5 green → **ship** |
-| **P16** | *(next program)* **Provider-agnostic** — ports/adapters boundary + non-Claude adapter PoC | G13 | a second adapter runs a scenario |
+| **P16** | *(next program)* **Provider-agnostic** — ports/adapters boundary + non-Claude adapter PoC (**target: Pi**, pi.dev) | G13 | the Pi adapter runs a scenario |
 
 Traceability check — every requirement lands: customize phases→P3/P7; interleave→P7;
 optional PRD→P10; backlog SoT→P11; mental model+injection+samples→P12; review
