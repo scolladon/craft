@@ -34,17 +34,22 @@ resolver equals today's pipeline so P3's rewire is identical by construction.
 
 The deterministic core is one **portable ESM Node module** at `engine/` (`package.json` with
 `"type": "module"`; tested by built-in `node --test`, Node ≥18; `js-yaml` the only runtime dep).
-The public surface is re-exported from `engine/src/index.js` and is **frozen by slice 5**; every
-later Node slice that touches it carries a *surface gate* line naming the export it locks.
+The public surface is re-exported from `engine/src/index.js`. The **shape below is frozen by
+slice 5** (no later slice may change a signature), but the *file grows incrementally* — each slice
+adds **only** its own re-export, never references a module that does not yet exist (a premature
+re-export would break that slice's `node --test` gate with `ERR_MODULE_NOT_FOUND`). Slice 5 lands
+the first three lines (`parsePipeline`, `validatePipeline`, `ALIAS_MAP/resolveAlias` — the last
+stubbed until slice 6); slices 6→9 each wire in their line. Every Node slice that touches the
+surface carries a *surface gate* line naming the export it locks.
 
 ```js
-// engine/src/index.js — the deterministic core's public surface (frozen at slice 5)
-export { parsePipeline }            from './descriptor.js' // (yamlText:string) => Descriptor[]   (throws on malformed)
-export { validatePipeline }         from './graph.js'      // (Descriptor[]) => { ok:boolean, errors:string[] }
-export { ALIAS_MAP, resolveAlias }  from './alias-map.js'  // resolveAlias(name:string) => canonicalId:string
-export { resolvePipeline }          from './resolve.js'    // (defaults:Descriptor[], manifest:Manifest) => Resolution
-export { assembleContract }         from './contract.js'   // (descriptor, manifest, fragments, opts) => injectedBlock:string
-export { normalizeFindings }        from './findings.js'   // (raw:string) => Finding[]
+// engine/src/index.js — END-STATE public surface (signatures frozen at slice 5; file built up across slices 5→9)
+export { parsePipeline }            from './descriptor.js' // (yamlText:string) => Descriptor[]   (throws on malformed)   [slice 5]
+export { validatePipeline }         from './graph.js'      // (Descriptor[]) => { ok:boolean, errors:string[] }            [slice 5]
+export { ALIAS_MAP, resolveAlias }  from './alias-map.js'  // resolveAlias(name:string) => canonicalId:string              [slice 6]
+export { resolvePipeline }          from './resolve.js'    // (defaults:Descriptor[], manifest:Manifest) => Resolution     [slice 7]
+export { assembleContract }         from './contract.js'   // (descriptor, manifest, fragments, opts) => injectedBlock     [slice 8]
+export { normalizeFindings }        from './findings.js'   // (raw:string) => Finding[]                                    [slice 9]
 ```
 
 Shapes (JSDoc typedefs, no TS — `types > runtime checks` applied via JSDoc + schema validation
@@ -66,7 +71,7 @@ forge ships **no** `.claude/workflow.md`, so gates resolve by capability probe, 
 - **Node slice** → `node --test engine/test/<file>.test.js` (targeted).
 - **Bash slice** → `bats test/<file>.bats` + `shellcheck <touched .sh>`.
 - **Phase-boundary gate (P1 close, run once):**
-  `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml` — mirrored verbatim by the GitHub Actions workflow (slice 1).
+  `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml` — the GitHub Actions workflow grows into this exact command: slice 1 commits the substrate legs (`node --test`, `bats`, `shellcheck`), slice 5 appends `pipeline-lint` (binary now exists), slice 10 appends `pipeline-resolve`. CI is never red on a not-yet-created binary.
 Never commit on a red gate; never `--no-verify` (the repo's own `block-no-verify` hook forbids it).
 
 ## Slice 1 — Test-harness substrate + CI + shellcheck baseline
@@ -78,14 +83,14 @@ shellcheck-clean (real GREEN). No `engine/`, `test/`, `.github/` exist (probed a
 - **Create** `engine/package.json` → `{ "name":"@forge/engine", "type":"module", "private":true, "engines":{"node":">=18"}, "scripts":{"test":"node --test"}, "dependencies":{"js-yaml":"^4.1.0"} }`. Add `engine/.gitignore` for `node_modules/`.
 - **Create** `engine/test/smoke.test.js` — one `node:test` (`import { test } from 'node:test'; import assert from 'node:assert/strict'`) asserting `1+1===2`, proving the runner + ESM resolution work.
 - **Create** `test/smoke.bats` — `bats-core` smoke (`@test "bats runs" { run true; [ "$status" -eq 0 ]; }`); confirms bats on PATH (verified: `/opt/homebrew/bin/bats`).
-- **Create** `.github/workflows/ci.yml` — on push/PR: checkout; `actions/setup-node@v4` (node 22); `cd engine && npm ci`; run the P1 phase-boundary gate command verbatim (install `bats` via `bats-core/bats-action` or `npm i -g bats`; `shellcheck` via `ludeeus/action-shellcheck` or apt). Single `ci` job, fail-fast.
-- **shellcheck baseline**: run `shellcheck scripts/*.sh hooks/*.sh` against current `scripts/{manifest-lint,plan-lint,worktree-setup,worktree-teardown}.sh` + `hooks/{block-no-verify,git-no-ext-diff}.sh`; fix every finding minimally (or annotate with a justified `# shellcheck disable=...` carrying a why-comment). These are touched-but-behavior-preserving edits — pin them under slices 2–4 next.
+- **Create** `.github/workflows/ci.yml` — on push/PR: checkout; `actions/setup-node@v4` (node 22); `cd engine && npm ci`; install `bats` (`bats-core/bats-action` or `npm i -g bats`) + `shellcheck` (`ludeeus/action-shellcheck` or apt) + `jq`/`yq`. **Run only the substrate gate at this slice** — `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh`. The `pipeline-lint`/`pipeline-resolve` steps are **added to the workflow in slices 5 and 10** when those binaries first exist, so CI is never red on a non-existent file through slices 2–4 ("never commit on a red gate" stays literally true). Single `ci` job, fail-fast.
+- **shellcheck baseline**: run `shellcheck scripts/*.sh hooks/*.sh` against **every** file the gate glob matches — `scripts/{manifest-lint,plan-lint,worktree-setup,worktree-teardown}.sh` + `hooks/{block-no-verify,git-no-ext-diff}.sh` (note `scripts/*.sh` includes `plan-lint.sh`); fix every finding minimally (or annotate with a justified `# shellcheck disable=...` carrying a why-comment). These are touched-but-behavior-preserving edits — pin the parsers under slices 2–4 next.
 - **Surface gate**: this slice fixes the repo layout invariant `engine/` = Node home, `test/` = bats home, `.github/workflows/ci.yml` = the single CI mirror of the phase gate. Later slices add files under these, never relocate them.
 
 ### TDD steps
 - RED: `npm ci` + `node --test engine/` + `bats test/` + `shellcheck scripts/*.sh hooks/*.sh` all fail/missing (no package, no runner config, latent shellcheck findings).
 - GREEN: add `engine/package.json` + smoke tests + CI workflow; clear/annotate every shellcheck finding on existing scripts until `shellcheck scripts/*.sh hooks/*.sh` exits 0; both smoke suites pass.
-- REFACTOR: factor the phase-gate command into a `engine/package.json` `scripts.ci` (or a `scripts/ci.sh`) so CI and local share one definition; no duplicated command string.
+- REFACTOR: factor the substrate gate into a shared definition (`engine/package.json` `scripts.ci` or `scripts/ci.sh`) so CI and local share one string; slices 5/10 append the `pipeline-lint`/`pipeline-resolve` steps to that one definition (it grows with the binaries, never references them ahead of their creation).
 
 ### Gate
 `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh`
@@ -180,17 +185,50 @@ protocol**; setup's lockfile-detection branch is characterizable without a real 
 Introduces `engine/` and **freezes the public surface** (above). Lands the deterministic
 descriptor parser, the canonical default pipeline as YAML data, and the graph validator — the
 SC1 *data* characterization (the default list encodes today's pipeline exactly).
-- **Create** `pipeline/default.yml` — the **13-descriptor** default list verbatim from
-  `DESIGN-customizable-engine.md` §"Phase descriptor schema" (the complete table, lines ~183–196).
-  Fields per descriptor: `id, archetype, enabled, contract, procedure, role?, execution(=agent),
-  model?, gate?, harness?, consumes, produces, self_supply`. 11 `enabled: true` + 2 default-off
-  (`requirements`, `architecture`, `enabled: false`). Concern-named ids; reproduce today's order:
-  `workspace, requirements(off), design, decisions, planning, implementation, review,
-  refactoring, validation, architecture(off), documentation, propose, integrate`. Encode the
-  exact `consumes/produces/self_supply` edges from the design table (e.g. `design.self_supply:
-  [requirements]`; `planning.consumes: [design, decisions]`, `self_supply: [design, decisions]`;
-  `implementation.consumes: [workspace, plan]`, `produces: [change]`; `review/refactoring/
-  validation.consumes: [change]`).
+- **Create** `pipeline/default.yml` — the **13-descriptor** default list (11 enabled + 2
+  default-off). The DESIGN §"Phase descriptor schema" table (lines ~183–196) carries only **8** of
+  the fields; the design's bundle table (lines 308–316) and the agent frontmatter pins supply the
+  rest. **Enumerated here so the slice agent never re-derives** (concern-named `id`s; `execution`
+  omitted → defaults `agent`; **`model` omitted by design** — the descriptor default is "the role's
+  frontmatter pin," resolved by the Model port, *not* carried in the data nor read by the Node core
+  at P1; `procedure`/`role` are **concern-named to-be refs** — the Node core validates structure,
+  **not** skill/agent file existence, so the still-old skill dirs + the `validation-triager` agent
+  rename land at P4 and the `requirements-writer`/`architecture-triager` agents at P10 without
+  blocking this data):
+
+  | `id` | `archetype` | `enabled` | `contract` (atop implicit `core`/U) | `procedure` | `role` | `consumes` | `self_supply` | `produces` | `gate`/`harness` |
+  |---|---|---|---|---|---|---|---|---|---|
+  | `workspace` | setup | true | `[]` | `forge:workspace` | — | — | — | `workspace` | — |
+  | `requirements` | specification | **false** | `[producer]` | `forge:requirements` | `forge:requirements-writer` | `workspace` | — | `requirements` | — |
+  | `design` | specification | true | `[producer]` | `forge:design` | `forge:designer` | `workspace, requirements` | `requirements` | `design` | — |
+  | `decisions` | specification | true | `[]` | `forge:decisions` | — *(session-owned)* | `design` | `design` | `decisions` | — |
+  | `planning` | specification | true | `[producer]` | `forge:planning` | `forge:planner` | `design, decisions` | `design, decisions` | `plan` | `plan-lint` |
+  | `implementation` | construction | true | `[construction]` | `forge:implementation` | `forge:slice-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
+  | `review` | harness | true | `[harness-read]` | `forge:review` | `forge:reviewer` | `change` | — | `review-report` | `<gates.phase>` per round |
+  | `refactoring` | refinement | true | `[]` | `forge:refactoring` | `forge:refactor-executor` | `change` | — | `change` | `<gates.phase>` |
+  | `validation` | harness | true | `[harness-exec]` | `forge:validation` | `forge:validation-triager` | `change` | — | `validation-report` | `<validation gate>` · `harness: {tool: stryker, scope: per-hunk}` |
+  | `architecture` | harness | **false** | `[harness-exec]` | `forge:architecture` | `forge:architecture-triager` | `change` | — | `architecture-report` | `<arch gate>` · `harness: {tool: dependency-cruiser}` |
+  | `documentation` | delivery | true | `[delivery]` | `forge:documentation` | `forge:docs-writer` *(+`forge:backlog-ticker`)* | `design, change` | — | `docs` | — |
+  | `propose` | delivery | true | `[delivery]` | `forge:propose` | — *(session-owned)* | `change` | — | `pr` | `pr.pre-pr-gate` |
+  | `integrate` | delivery | true | `[delivery]` | `forge:integrate` | — *(session-owned)* | `pr` | — | — | — |
+
+  Bundle mapping resolves the design's `harness`-archetype ambiguity explicitly: **`review` →
+  `[harness-read]`**, **`validation`/`architecture` → `[harness-exec]`** (design lines 313–314);
+  producers (`design`/`requirements`/`planning`) → `[producer]`; `implementation` → `[construction]`
+  (the design scopes `construction` to "implementation slices" only — line 312); the `delivery`
+  cluster → `[delivery]`; `workspace`/`decisions`/**`refactoring`** carry only the implicit U
+  (`[]`). **`refactoring` is deliberately U-only:** the design bundle table provides **no**
+  `refinement` bundle, and the construction bundle's RED→GREEN/test-authoring contract is *wrong*
+  for a behavior-preserving phase (cf. `agents/refactor-executor.md` — no RED→GREEN, gate stays
+  green). Its behavior-preserving discipline stays **agent-side role craft** at P5 (only invariant
+  contract relocates; role-specific craft stays in the thin agent). A future `refinement` bundle,
+  if wanted, is a design follow-up — not asserted here. **Model→pin reference** (the Model port resolves these from agent
+  frontmatter downstream — listed for traceability + slice-10 S8, *not* stored in the data):
+  designer/planner/reviewer = `fable`; slice-implementer/refactor-executor/validation-triager
+  (today `mutation-triager`)/docs-writer = `sonnet`; backlog-ticker = `haiku`.
+- **Append** `node engine/bin/pipeline-lint.js pipeline/default.yml` to the shared CI definition
+  (`scripts.ci` / `.github/workflows/ci.yml`) — the first engine binary now exists, so CI starts
+  mirroring it here (slice 1 deferred this step until the binary existed).
 - **Create** `engine/src/descriptor.js` → `parsePipeline(yamlText)`: `js-yaml` `load`, then per
   entry apply defaults (`enabled:true`, `execution:'agent'`, list-normalize `contract`, default
   `consumes/produces/self_supply` to `[]`), validate required fields (`id, archetype, contract,
@@ -198,23 +236,29 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
   delivery`) — **throw** a descriptive error on violation (no silent coercion). Pure, returns a
   new frozen array (immutable).
 - **Create** `engine/src/graph.js` → `validatePipeline(descriptors)`: returns `{ok, errors[]}`
-  checking — unique `id`s; `self_supply ⊆ consumes`; every `consumes` artifact has some earlier
-  enabled `produces` (edge resolves to the **nearest enabled producer earlier in order**, per
-  design §"Dependency graph"); acyclic (a refinement re-`produces: [change]` must not create a
-  cycle — resolve consumer edges to the nearest *earlier* producer only); `contract` names ∈ the
-  closed bundle vocabulary `{core,producer,construction,harness-read,harness-exec,delivery}`
-  (ADR-003/006). Pure.
+  checking — unique `id`s; `self_supply ⊆ consumes`; every `consumes` artifact **either** has some
+  earlier *enabled* `produces` (edge resolves to the **nearest enabled producer earlier in order**)
+  **or is listed in that consumer's `self_supply`** — a consumer that self-supplies an otherwise
+  absent input is **not** dangling. This exemption is what lets the default list validate with
+  `requirements`/`architecture` **default-off** (`design.consumes:[workspace,requirements]` is
+  absorbed by `design.self_supply:[requirements]`, per design §"Dependency graph" line 241).
+  Also: acyclic (a refinement re-`produces:[change]` must not create a cycle — resolve consumer
+  edges to the nearest *earlier* producer only); `contract` names ∈ the closed bundle vocabulary
+  `{core,producer,construction,harness-read,harness-exec,delivery}` (ADR-003/006). Pure.
 - **Create** `engine/src/index.js` (the frozen surface) and `engine/bin/pipeline-lint.js`
   (`parsePipeline(readFile(argv)) → validatePipeline`; print errors; `process.exit(ok?0:2)`).
 - **Create** `engine/test/descriptor.test.js` + `engine/test/graph.test.js` with fixtures under
   `engine/test/fixtures/pipeline/` (`default` symlink/copy of `pipeline/default.yml`;
-  `cycle.yml`; `dangling-consume.yml`; `bad-archetype.yml`; `selfsupply-not-subset.yml`).
+  `cycle.yml`; `dangling-consume.yml` — a consume with no enabled producer **and not** in
+  `self_supply` → `{ok:false}`; `disabled-producer-absorbed.yml` — a default-off producer whose
+  sole consumer lists the artifact in `self_supply` → `{ok:true}`; `bad-archetype.yml`;
+  `selfsupply-not-subset.yml`).
 - **Surface gate**: locks `parsePipeline`, `validatePipeline`, `ALIAS_MAP/resolveAlias` (stubbed
   empty here, filled slice 6), and the Descriptor shape. Downstream slices import, never redefine.
 
 ### TDD steps
-- RED: `engine/test/descriptor.test.js` asserts `parsePipeline(default)` yields 13 descriptors with defaults applied and `validatePipeline` returns `{ok:true}`; the invalid fixtures return `{ok:false}` with the specific error — all fail (no module).
-- GREEN: implement `descriptor.js` + `graph.js` + `index.js` + `pipeline-lint.js` + `pipeline/default.yml` until green; add a golden test asserting the parsed default deep-equals the design's 13-row table (ids, archetypes, roles, models, edges) — the SC1 data anchor.
+- RED: `engine/test/descriptor.test.js` asserts `parsePipeline(default)` yields 13 descriptors with defaults applied and `validatePipeline` returns `{ok:true}` **even with `requirements`/`architecture` default-off** (the `self_supply` exemption); the invalid fixtures (incl. `dangling-consume.yml`) return `{ok:false}` with the specific error, and `disabled-producer-absorbed.yml` returns `{ok:true}` — all fail (no module).
+- GREEN: implement `descriptor.js` + `graph.js` + `index.js` + `pipeline-lint.js` + `pipeline/default.yml` until green; add a golden test asserting the parsed default deep-equals the enumerated 13-descriptor table — `id, archetype, enabled, contract, procedure, role, consumes, self_supply, produces` (the **structural** fields the data carries; **not** resolved `model`, which the Model port derives from the agent pin downstream). This is the SC1 data anchor.
 - REFACTOR: split edge-resolution into a small named helper (`nearestEarlierProducer`); keep each file <200 lines, single-responsibility.
 
 ### Gate
@@ -228,6 +272,11 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
 ### Context
 The single shared old→new alias map (ADR-004) consulted by *both* the resolver walk (slice 7)
 and, at P4, `manifest-lint`. Lands as data + a pure resolver; the lint-side consumer is P4.
+**Deliberate pull-forward:** DESIGN line 287 / ADR-004 say "the map lands when the rename
+executes (P4)" — that refers to the **rename execution + lint-side wiring + the alias fixture in
+the lint suite**, all of which stay P4 (see the P4 outline). The *engine-internal map + pure
+`resolveAlias`* land here in P1 because slice 7's resolver consumes it (`mutation:` → `validation`,
+slice 7 step 1). No contradiction once the consumer/fixture split is stated.
 - **Create** `engine/src/alias-map.js` → `export const ALIAS_MAP` = the frozen table from
   DESIGN §"Manifest & alias resolution" / PRD §6.4: `branch→workspace, prd→requirements,
   adr→decisions, plan→planning, implement→implementation, mutation→validation,
@@ -260,9 +309,11 @@ The structural resolver — `(defaults, manifest) → effective pipeline` — th
 strictness and the ADR-008 execution precedence. Gate/waiver *accountability* output is slice 10;
 this slice owns *which phases, in what order, in what execution mode*.
 - **Create** `engine/src/profile.js` → `expandProfile(name)` returning an edit-set: `solo` =
-  every phase `execution:inline` + lean harness knobs (but a **multi-dimension harness stays
-  `agent`** — SP1 caveat: `review`/`validation` keep `agent` unless the repo opts into sequential
-  dimensions); `full` = the rich defaults. Closed profile vocabulary; unknown profile → throw.
+  every phase `execution:inline` + lean harness knobs, **except phases of `archetype: harness`
+  stay `agent`** (the SP1 parallelism caveat, encoded as a static archetype rule since the
+  per-`harness.dimensions` opt-in does not resolve until P8 — design line 172 / PLAN P8 outline;
+  P1 asserts the conservative static behavior, not a `dimensions`-driven one); `full` = the rich
+  defaults. Closed profile vocabulary; unknown profile → throw.
 - **Create** `engine/src/resolve.js` → `resolvePipeline(defaults, manifest)`:
   1. **alias-resolve** every id the manifest names (via `resolveAlias`) so `mutation:` edits hit
      the `validation` descriptor;
@@ -281,10 +332,16 @@ this slice owns *which phases, in what order, in what execution mode*.
   `none` (no manifest) → effective == today's 11 enabled in order (**SC1 zero-config golden**);
   `skip-design` → allowed (both consumers self-supply); `skip-planning` → **refused** (strands
   `implementation`); `skip-workspace` → refused; `profile-solo` → execution flips to inline except
-  the multi-dim harnesses; `exec-precedence` (top-level `execution:agent` + `profile:solo` +
-  `phases.review.execution:agent`) → asserts the winner at each level; `insert-bench`
-  (`pipeline.insert: [{id: bench, after: validation, …}]`) → joins + validates; `enable-requirements`
-  → default-off flips on, graph still valid.
+  the `harness`-archetype phases; `exec-precedence` (top-level `execution:agent` + `profile:solo`
+  + explicit `phases.implementation.execution:agent`) → isolates two of the three ADR-008 legs +
+  the caveat, each on a different phase so no result has two causes: `documentation` = `inline`
+  (**profile beat top-level `agent`**), `implementation` = `agent` (**explicit field beat the
+  profile's `inline`**), `validation` = `agent` (the harness-archetype caveat — labelled
+  separately, *not* a precedence leg); a **second** fixture `exec-toplevel-default` (bare top-level
+  `execution:inline`, **no profile**) isolates the third leg — a non-harness phase with no explicit
+  field flips from its descriptor default (`agent`) to `inline`, proving **top-level default beat
+  the descriptor default**; `insert-bench` (`pipeline.insert: [{id: bench, after: validation, …}]`)
+  → joins + validates; `enable-requirements` → default-off flips on, graph still valid.
 
 ### TDD steps
 - RED: `resolve.test.js` cases assert the effective order/exec/refusals — fail (no resolver).
@@ -386,7 +443,10 @@ test pass — the scenarios exercise it end-to-end at the resolution layer.
   - per phase, resolve the effective gate (`descriptor.gate` → manifest `gate`/`gates.phase` →
     capability probe placeholder); for a **code-producing** phase (`change ∈ produces`:
     `implementation, review, refactoring, validation`) with **no** resolvable gate → **refuse**
-    (the non-waivable floor);
+    (the non-waivable floor). **SC1 zero-config outcome is deterministic:** in the `none` golden
+    every code-producing phase carries a `descriptor.gate` from the data (`implementation`/`review`/
+    `refactoring` = `<gates.phase>`, `validation` = `<validation gate>`), so the floor **passes,
+    never refuses** — assert this explicitly in the SC1 case so the golden's floor result is pinned;
   - a `review|refactoring|validation` that is skipped/disabled → record a **waiver** in
     `waivers[]` and, for an executing-harness (`validation`, `architecture`), **release its
     propose-gate** (it cannot gate on a phase not run) + a loud `record[]` line;
@@ -394,19 +454,22 @@ test pass — the scenarios exercise it end-to-end at the resolution layer.
     gate (expressed by archetype, not phase name); `documentation` may parallel, `propose` may not.
 - **Create** `engine/bin/pipeline-resolve.js` → `resolvePipeline` → `JSON.stringify(resolution)`
   to stdout (the seam P3's orchestrator + CI consume).
+- **Append** `node engine/bin/pipeline-resolve.js pipeline/default.yml` to the shared CI
+  definition (`scripts.ci` / `.github/workflows/ci.yml`) — CI now mirrors the full P1
+  phase-boundary gate (substrate + `pipeline-lint` from slice 5 + this resolve smoke).
 - **Create** `engine/test/scenarios.test.js` + `engine/test/fixtures/scenarios/{S1..S9}/`
   (`workflow.md` manifest + `expected.json` golden of the relevant Resolution slice). What each
   asserts **now** and the phase that completes it (PRD §17 traceability):
   - **S1** `profile: solo` → execution inline (multi-dim harness stays agent); lean harness knobs. *(e2e P6)*
-  - **S2** `phases.planning.role: my:domain-planner` → role swapped, contract still assembles around it (cross-check slice 8). *(e2e P9)*
+  - **S2** `phases.planning.role: my:domain-planner` → `Resolution` golden shows the role swapped; **plus** a separate `assembleContract(planningDescriptor, manifest, fragments, {})` assertion that U + `[producer]` still inject around the swapped role (this assertion runs against `assembleContract`'s output, **not** the Resolution golden — `Resolution` carries no contract block). *(e2e P9)*
   - **S3** `pipeline.insert: bench` → inserted, graph valid, gate resolved. *(e2e P7)*
   - **S4** `phases.requirements.enabled:true` → default-off→on, graph valid (design self-supplies). *(agent P10)*
   - **S5** `phases.architecture.enabled:true` → on, harness gate resolved. *(agent P10)*
   - **S6** `backlog:` declared → `record` marks Backlog.resolve required at input-classify. *(adapter P11)*
   - **S7** namespaced inserted phase/role (`acme:bench`) → accepted/validated. *(registration P14)*
   - **S8** `models.fallback` present + a degraded tier → `gateDecisions`/`record` capture the fallback re-resolution policy. *(NFR matrix P13)*
-  - **S9** derived `retrieval:` → `assembleContract` injects the strategy note; **zero** retrieval strings in plugin content. *(e2e P5)*
-  - **SC1** the `none`/zero-config golden (from slice 7) re-asserted here against the design's 11-row enabled table as the suite's anchor.
+  - **S9** derived `retrieval:` → an `assembleContract(descriptor, manifest, fragments, {})` assertion (again on `assembleContract`'s output, not the Resolution golden) that the derived strategy note injects and **zero** retrieval strings live in the bundle fixtures. *(e2e P5)*
+  - **SC1** the `none`/zero-config golden (from slice 7) re-asserted here as the suite's anchor: the 11 enabled phases (of the 13-descriptor list) in today's order/roles.
 - **Note (no silent caps):** S6/S7 are *partial* at P1 (resolution-layer only — their ports/UX
   land at P11/P14); the scenario file `log`s this so the suite never reads as "fully covered."
 
@@ -422,8 +485,8 @@ test pass — the scenarios exercise it end-to-end at the resolution layer.
 
 ### Gate
 `node --test engine/test/scenarios.test.js && node engine/bin/pipeline-resolve.js pipeline/default.yml`
-**Phase-boundary gate (P1 close, run once):**
-`node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml`
+**Phase-boundary gate (P1 close, run once — the exact command CI mirrors):**
+`node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml`
 
 ### Commit
 `feat(engine): gate/waiver decisions + S1–S9 scenario golden suite`
