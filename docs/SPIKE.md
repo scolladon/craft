@@ -94,3 +94,46 @@ cleared**, no bespoke dispatch mechanism required. Still untested (non-blocking
 refinements): the scoped `Agent(pluginB:agent)` *allowlist-restriction* form;
 same-marketplace symlink for shared scripts; cross-plugin subagent context-inheritance
 depth. Throwaway spike dir: `/tmp/forge-sp2`.
+
+---
+
+# SP1 — inline execution convention (customizable-engine PRD §10; CLI 2.1.177)
+
+How does a phase run **inline** (in the session's own context, no subagent) while keeping
+the contract injected and the gate enforced — and what does artifact-is-the-handoff mean
+with no agent to die? Gates G4 / P6 / the `solo` profile.
+
+**Verdict: design-resolved — no CLI probe needed.** The mechanic is already established:
+Claude Code **skills run in the main conversation**; "agent" execution is the *deliberate*
+delegation of a phase to a Task subagent. So `inline` is simply the **absence of
+delegation** — the session runs the phase body itself. forge already does this for its
+session-owned phases (ADR, refactor judgment, synthesis); `execution:` generalizes the
+choice to every phase.
+
+## The convention (`execution: agent | inline`, per phase / profile)
+
+| Concern | `agent` (default) | `inline` |
+|---|---|---|
+| Who runs it | orchestrator spawns a role agent (Task) | the **session** runs the phase body in-thread |
+| Contract | injected into the spawn prompt | the session loads the same engine contract block at phase entry and follows it itself |
+| Manifest `context:` / retrieval | injected into the spawn prompt | loaded into the session at phase entry (same assembly path) |
+| Gate | session verifies the agent's commit, runs the gate | session runs the **same** gate; commit only on green |
+| Mechanical guards (hooks) | fire for the subagent's tool calls (spike-confirmed) | fire for the **session's** tool calls — the floor holds either way |
+| Handoff | the commit is the handoff; dead agent → respawn from artifact | the commit is the handoff; **no respawn** (the session continues) |
+| Model | resolved per spawn + fallback | the **session model** (no separate spawn to re-target) — §11 inline carve-out |
+
+**Transformed invariants (the two §11 names the carve-out enumerates):**
+artifact-is-the-handoff → "the commit is the handoff"; model-resolution+fallback → the
+session model. Every other invariant binds verbatim.
+
+**When to choose inline:** small/cheap phases or the `solo` profile — saves the spawn
+round-trip (speed, G12) and the subagent context duplication (tokens, G12), at the cost of
+**isolation**.
+
+**Parallelism caveat (load-bearing):** `agent` mode enables *parallel* phases — e.g. the
+review phase fans out one subagent per dimension concurrently. `inline` is inherently
+**sequential** (one session, one thread). So a multi-dimension harness stays `agent` even
+under a lean profile *unless* the repo accepts running its dimensions sequentially. Profiles
+must encode this: `solo` = inline + single-pass harnesses; it does not silently serialize a
+fan-out the user still expects to parallelise. Record the inline/sequential choice in the
+run record.

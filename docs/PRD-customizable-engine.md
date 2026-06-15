@@ -402,7 +402,7 @@ owning enforcement (vs the model "remembering") buys model-resistance *and* port
 
 ## 14. Spikes (pin unknowns first; record in `docs/SPIKE.md`)
 
-- **SP1** Inline execution convention (G4) — run a phase in-context with contract + gate bound; meaning of artifact-handoff without a subagent; **enumerate which §11 invariants transform under inline** (see §11 carve-out).
+- **SP1** Inline execution convention (G4) — **DONE (SPIKE.md): convention defined.** `inline` = the session runs the phase body itself (skills already run in-thread); same contract/gate/hooks; commit-is-the-handoff; session model. Load-bearing caveat: inline is *sequential* → multi-dimension harnesses stay `agent` (profiles encode it).
 - **SP2** Cross-plugin extension/dispatch (G8) — **DONE & GREEN (SPIKE.md).** Confirmed empirically: a skill in plugin A invokes a skill *and* spawns an agent (namespaced `subagent_type`) in plugin B; rides native plugin `dependencies` + namespacing + per-plugin `${CLAUDE_PLUGIN_ROOT}`. No bespoke mechanism needed. (Open refinements, non-blocking: scoped `Agent()` allowlist form; same-marketplace symlinks.)
 - **SP3** Per-invocation args (G4 · OQ2) — `--profile`/pipeline edits survive `$ARGUMENTS`, **including under headless CI** (SPIKE.md `-p` forced opus-4-8 — args survival is a live risk; see R9).
 - **SP4** Generic vocabulary/taxonomy (G3) — finalize concern names + the harness family (validation, architecture, …); back-compat aliases.
@@ -453,6 +453,7 @@ input to SP1/SP2 (how a phase + its guard get registered and dispatched off-Clau
 
 | Tool | What it is | Overlap | Gap vs forge |
 |---|---|---|---|
+| **Superpowers** (obra, 228k★) | opinionated SE methodology as editable markdown skills (brainstorm→plan→TDD subagents→review→finish); multi-host; marketplace | **closest ecosystem peer** — same workflow layer, Claude-Code-native, already multi-host | instruction-*followed*, not *mechanically enforced*; a fixed methodology you edit, not a composable engine with a small invariant core, PR-gating harnesses, and config-driven declination |
 | **MetaGPT** / **ChatDev** | role-based "AI software company" (PM→architect→engineer→QA / CEO→CTO→programmer→reviewer→tester); SOP-encoded | closest conceptual cousin — phased SE roles, PRD-first | generate apps from a one-liner; heavyweight Python frameworks; not a customizable guiderail layered on *your* repo/harness with mechanical gates |
 | **MoAI-ADK** | SPEC-First + TDD + agents, full transparent lifecycle, OSS | closest *philosophy* (spec-first, TDD) | examine as prior art / inspiration |
 | **app.build** | model-agnostic, multi-layer validation pipelines, structured envs | the "validation harness" idea, model-agnostic | app-generation focus, not a general workflow engine |
@@ -468,6 +469,20 @@ per-repo declination, harnesses (incl. architecture) that gate the PR, and stron
 zero-config defaults — packaged as a plug-and-play plugin. That specific combination is
 not on the shelf. (Worth a deeper prior-art pass on MoAI-ADK and MetaGPT's SOP design
 before building §15.) **[research-followup]**
+
+**Layering note — rules/toolkit collections are *inputs*, not rivals (reinforces G10/G14).**
+Only the *workflow-methodology* layer (Superpowers) is a true peer. The layers below it
+*feed* forge:
+- **Rules/guideline packs** (e.g. Karpathy-skills — think-before-coding / simplicity /
+  surgical-changes) → drop into a forge **`context:`** file, injected verbatim into every
+  agent (and inline run).
+- **Capability toolkits** (e.g. everything-claude — agents / commands / hooks / rules) →
+  slot into existing injection points: agents via `role:` swap, scripts via `gates:`,
+  commands/skills via an inserted phase, rules via `context:`, hooks via the repo's
+  `.claude/hooks` (mechanical, automatic).
+
+forge orchestrates *around* these; it never competes with them. Worked, runnable examples:
+`examples/karpathy-as-context/` and `examples/everything-claude-toolkit/`.
 
 ---
 
