@@ -4,7 +4,7 @@
 > walks a *declarative phase descriptor list* behind six explicit ports, with the invariant
 > contract injected by the engine (not baked into agent defs) — preserving zero-config
 > behaviour exactly. Scope: the P3–P5 core cluster + schemas (PRD §17). Design only.
-> Status: draft → self-reviewed ×3 → awaiting ADR pass
+> Status: draft → self-reviewed ×3 → **accepted** (ADR pass 2026-06-15 → `docs/adr/001–008`)
 
 ## Context
 
@@ -48,9 +48,11 @@ schema. No automated tests exist — the mechanical layer that *is* the guarante
 - Resolved ADRs (PRD): hexagonal architecture; full-SDLC vocabulary with old names as aliases;
   mutation→validation; extension rides native plugin `dependencies`+namespacing; supported
   class Haiku-4.5+; retrieval is environment-derived, never in plugin content.
-- **N3**: the engine medium stays Bash + skill/agent markdown — there is **no compiled core**.
-  The hexagon is realised as *prose policy + data + deterministic scripts*, not a class graph
-  (see §"How the hexagon is realised" below). This is load-bearing for the whole design.
+- **N3 (with the §15 portability carve-out — ADR-002)**: the engine medium stays Bash +
+  skill/agent markdown, **except the deterministic engine core, which is a portable Node.js
+  module** (parse/resolve/validate/assemble) the orchestrator invokes. The hexagon is realised
+  as *LLM policy text + data + a portable Node core*, not a class graph (see §"How the hexagon
+  is realised" below). This is load-bearing for the whole design.
 
 ### Scope of this doc
 
@@ -94,9 +96,10 @@ artifacts and hold the boundary as a **design discipline**, not a type system:
 
 - **Domain core** = the orchestrator skill's *policy text* (the pipeline walk + the §11
   invariants, generalised away from hardcoded phase names) **+** the engine-owned **contract
-  fragments** (data) **+** the **default descriptor list** (data) **+** the **deterministic
-  resolver/lint scripts** (parse, alias-resolve, apply edits, validate the graph, assemble the
-  injected block). The core knows *what* must happen, never *how* a runtime carries it out.
+  fragments** (data, ADR-003) **+** the **default descriptor list** (`pipeline/default.yml`,
+  ADR-001) **+** a **portable Node core module** (ADR-002: parse, alias-resolve, expand profile,
+  apply edits, validate the graph, assemble the injected block). The core knows *what* must
+  happen, never *how* a runtime carries it out.
 - **Ports** = the named, thin operation-sets the orchestrator is *allowed* to use to reach a
   mechanism. A port is a contract: operation signature + pre/postconditions. The core keeps
   the *policy*; the port exposes only *mechanism*.
@@ -106,10 +109,10 @@ artifacts and hold the boundary as a **design discipline**, not a type system:
   operations — out of scope here; we only fix the boundary so it *can*.
 
 The payoff is twofold and concrete: (1) **testability** — the deterministic operations
-(parse/resolve/validate/assemble) move into scripts or bounded shell functions that P1 unit-
-tests without an LLM; the LLM orchestrator merely *consumes* their outputs; (2) **portability**
-— every invariant pushed from an agent def or an inline git command into the core *shrinks the
-adapter* (PRD §15).
+(parse/resolve/validate/assemble) live in the portable Node core module (ADR-002) that P1
+unit-tests without an LLM; the LLM orchestrator merely *consumes* their outputs; (2)
+**portability** — that Node core is itself runtime-portable, and every invariant pushed from an
+agent def or an inline git command into the core *shrinks the adapter* (PRD §15).
 
 ```
                  ┌──────────────────────── Domain core (provider-neutral) ─────────────────────────┐
@@ -211,8 +214,8 @@ are P8 (out of scope).
   (SP8 / §11), not a `consumes` edge. A harness-exec phase that is **disabled, default-skipped,
   or flag-skipped releases its own `propose`-gate by recorded waiver** (you cannot gate on a
   phase you chose not to run — exactly today's "no mutation config → no-op with note"). The
-  **non-waivable floor** is the code-producing gate above, never any individual harness. DC-5
-  surfaces whether to additionally hard-protect the PR-gating harness.
+  **non-waivable floor** is the code-producing gate above, never any individual harness
+  (decided — ADR-005).
 
 **Descriptor storage form** and **resolution home** are decision candidates (DC-1, DC-2): the
 recommendation is a YAML data file (`pipeline/default.yml`, same parser family as the manifest)
@@ -243,14 +246,14 @@ so a refinement never strands an earlier consumer (`review` resolves `change` to
   rejected by the *same machinery* as a stranding skip.
 
 This dissolves the static `PROTECTED="branch plan implement review refactor mutation"` list in
-`manifest-lint`. Workspace and planning stay *effectively* protected (they strand). The harness
-and refinement phases (`review`, `refactoring`, `validation`) become **skippable-but-flagged**:
-their `produces` are reports/refinements nothing consumes as a hard input, so a skip doesn't
-strand — it waives a guarantee, recorded for accountability, and a skipped harness-exec phase
-releases its `propose`-gate (above). Whether that fully replaces the hard-protected set, or a
-residual hard floor keeps the code-producing gate **and the PR-gating harness** non-waivable,
-is **DC-5** — the load-bearing tension against PRD §1's "mechanically enforced" tenet. Arbitrary
-reorder is deferred (insert+skip first, per OQ1) — also DC-5.
+`manifest-lint`. Workspace and planning stay *effectively* protected (they strand). **Decided
+(ADR-005):** the graph fully replaces the static list — a skip is refused **only** when it
+strands. The harness and refinement phases (`review`, `refactoring`, `validation`) become
+**skippable-but-flagged**: their `produces` are reports/refinements nothing consumes as a hard
+input, so a skip doesn't strand — it waives a guarantee, recorded for accountability, and a
+skipped/disabled executing-harness **waiver-releases its `propose`-gate** (above). The single
+non-waivable floor is "a gate must exist for code-producing phases" — never any individual
+harness. Arbitrary reorder stays deferred (insert+skip first, per OQ1).
 
 > SC1 is unaffected: the default pipeline has no edits, so the graph is walked in default order
 > with default agents — behaviour identical. Only the *customization surface* widens.
@@ -263,15 +266,17 @@ Today's top keys: `backlog paths context gates phases pr scripts models`. Additi
 |---|---|---|---|
 | `pipeline:` | top-level | `profile:` · `skip: [...]` · `insert: [...]` *(· `reorder: [...]` — deferred, pending DC-5)* | §7 #1,5,11; §10 |
 | `retrieval:` | top-level | a context-file pointer **or** a named strategy forge maps to a stock note | §10.1·SP7 |
-| `execution:` | phase field (`phases.<id>.execution`) | `inline\|agent`; profiles set it en masse | §7 #4 |
+| `execution:` | **top-level default** *and* phase field (`phases.<id>.execution`) | `inline\|agent`; precedence per-phase field > profile > top-level default (ADR-008) | §7 #4 |
 | `role:` | phase field (`phases.<id>.role`) | agent/skill swap (`my:domain-planner`) — contract still injected | §7 #10 |
 | `harness:` | phase field (`phases.<id>.harness`) | per-phase harness knobs (dimensions/passes/cycles/convergence/tool) | §8 |
 | `models:` | top-level *(exists)* | per-agent override + `fallback:` | §7 #2 |
 
-So the new *top-level* keys are `pipeline:` and `retrieval:`; `execution`/`role`/`harness` are
-new *phase fields*. `profile:` (e.g. `solo`, `full`) is a named bundle the resolver expands into
-per-phase `execution` + harness settings before applying explicit edits (explicit phase fields
-override the profile). All additive — an existing manifest with none of these is unchanged (N1).
+So the new *top-level* keys are `pipeline:`, `retrieval:`, and a global `execution:` default
+(ADR-008); `role`/`harness` are new *phase fields* and `execution:` is **both**. `profile:`
+(e.g. `solo`, `full`) is a named bundle the resolver expands into per-phase `execution` +
+harness settings; the resolver then applies the precedence **per-phase field > profile >
+top-level `execution:` default** before validating. All additive — an existing manifest with
+none of these is unchanged (N1).
 
 **Alias resolution.** SP4 phase ids are concern-named; old names ship as aliases
 (`branch→workspace, prd→requirements, adr→decisions, plan→planning, implement→implementation,
@@ -393,8 +398,8 @@ The to-be `run/SKILL.md` walk, generalised away from hardcoded phase names:
 | `run/SKILL.md` hardcoded 1→11 table + cross-phase invariants | core: **descriptor-driven walk** over the effective pipeline; the §11 invariants stay but generalise by archetype; the phase table → the default descriptor data file | P3,P5 |
 | `skills/<phase>/SKILL.md` (Preamble + Procedure) | unchanged structure; referenced by `descriptor.procedure`; the **Preamble still always runs**, `override:` still swaps only the Procedure; dirs renamed to concern names | P3,P4 |
 | `agents/<role>.md` carrying full contracts | **thin** role defs (identity + craft); invariant text relocated to the engine **contract store**; agents renamed to concern names (`mutation-triager→validation-triager`, …) | P4,P5 |
-| `manifest-lint.sh` (shape, static `PROTECTED`, old `PHASE_NAMES`) | extended for new keys; **alias map** added; static `PROTECTED` removed (graph computes stranding); P2 hardens it (yq + fallback) under test | P2,P3,P4 |
-| — (no resolver) | **new** pipeline-resolve/lint: alias-resolve, expand profile, apply edits, validate the graph, assemble the injected block — the deterministic core functions (DC-1/2) | P3,P5 |
+| `manifest-lint.sh` (shape, static `PROTECTED`, old `PHASE_NAMES`) | extended for new keys; reads the shared **alias map** (ADR-004); static `PROTECTED` removed (the graph computes stranding); P2 hardens it (yq + fallback) under test — **or folds into the Node core** (ADR-002 follow-up) | P2,P3,P4 |
+| — (no resolver) | **new portable Node core module** (ADR-002): parse `pipeline/default.yml`, alias-resolve, expand profile, apply edits, validate the graph, assemble the injected block — the deterministic core functions, P1-unit-tested with a Node runner | P3,P5 |
 | `plan-lint.sh` | unchanged (structural slice-schema gate — the shape-robust output model) | — |
 | `worktree-setup/teardown.sh` | unchanged mechanically; **named as the VCS adapter** (isolate/teardown verbs); lock policy is core | P3 (name), P16 (extract) |
 | `hooks/*` | unchanged; **named as the Gate/tool-guard mechanical adapter** | — |
@@ -415,25 +420,28 @@ phase-for-phase. The contract relocation (P5) must not change spawn *content* �
 sourced from the engine store instead of the agent body. P1 characterization (mechanism) +
 the R8 fixed-prompt agent-output re-baseline guard both halves.
 
-## Decision candidates
+## Decision candidates — **resolved in the ADR pass (2026-06-15)**
 
-These are the finer, load-bearing choices the designer does **not** settle — the ADR pass does.
+All eight are decided; full options + rationale live in `docs/adr/001–008`. Three (⚑) overrode
+the designer's recommendation.
 
-| # | Choice | Alternatives (≤3) | Recommendation | Why |
-|---|---|---|---|---|
-| DC-1 | **Descriptor storage form** | (a) YAML data file `pipeline/default.yml`; (b) JSON file; (c) markdown table in `run/SKILL.md` read by the LLM | **(a) YAML data file** | same parser family as the manifest; machine-validatable + fixture-testable (P1); keeps the LLM walk consuming data, not re-parsing prose |
-| DC-2 | **Resolution + graph-check home** | (a) extend `manifest-lint.sh`; (b) **new** `pipeline-resolve.sh` + `pipeline-lint.sh` sibling; (c) the orchestrator (LLM) does it | **(b) dedicated script** | single-responsibility (lint stays shape-only); the deterministic core function P1 unit-tests; LLM never silently mis-resolves the graph |
-| DC-3 | **Contract storage form** | (a) composable fragment files under `contracts/` named by `contract:`; (b) one `contract.md` with named sections; (c) leave in skill preambles | **(a) fragment files** | DRY single home; assembly is testable; swap-safe; mirrors how `context:` files already compose |
-| DC-4 | **Alias-resolution home** | (a) one data alias-map consulted by lint **and** walk; (b) hardcoded in `manifest-lint` only; (c) per-phase `aliases:` descriptor field | **(a) shared data map** | one source of truth keeps lint and walk in agreement; avoids the drift that bit `manifest-lint` twice |
-| DC-5 | **Skip/reorder strictness** | (a) graph fully replaces the static protected list → review/refactoring/validation skippable-but-flagged, a skipped harness-exec waiver-releases its `propose`-gate, only stranding refuses; (b) graph **plus** a residual hard floor (workspace, the code-producing gate, **and** the PR-gating harness — validation cannot be flag-skipped); (c) insert+skip only, defer arbitrary reorder | **(a) for skip + (c) for reorder** | matches PRD §6.2 ("every step skippable *and* safe") and the OQ1 lean; the run-record flag preserves accountability without a static list. *Pick (b) instead if "validation gates the PR" must be non-waivable per PRD §1's "mechanically enforced" tenet — the genuine tension here* |
-| DC-6 | **`contract:` shape** | (a) single bundle name (+ implicit U); (b) a list `contract: [producer, harness-read]`; (c) free-form per-phase contract file | **(b) a list (defaulting to one)** | composition without a combinatorial bundle explosion; still a closed, validatable vocabulary |
-| DC-7 | **`DESIGN.md` split** | (a) this doc = living architecture SoT, old DESIGN.md → `DESIGN-history.md`; (b) keep one merged doc; (c) fold history into a PRD appendix | **(a) split** | §16 calls for it; separates the evolving engine model from the now-historical migration record |
-| DC-8 | **`execution` global default** | (a) per-phase + `profile:` only; (b) also a top-level `execution:` default | **(a) per-phase + profiles** | a top-level default duplicates `profile: solo`; fewer ways to say the same thing |
+| # | Choice | Decision | ADR |
+|---|---|---|---|
+| DC-1 | Descriptor storage form | YAML data file (`pipeline/default.yml`) | 001 |
+| DC-2 ⚑ | Deterministic resolution home | a **portable Node module** (not Bash) — descriptor parse, alias-resolve, profile-expand, edit-apply, graph-validate, contract-assemble | 002 |
+| DC-3 | Contract storage form | composable fragment files under `contracts/` | 003 |
+| DC-4 | Alias-resolution home | one shared data alias-map (consulted by lint *and* walk) | 004 |
+| DC-5 ⚑ | Skip/reorder strictness | graph-only; **all harnesses (incl. validation) skippable-but-flagged**, a skipped executing-harness waiver-releases its `propose`-gate; only a stranding skip refuses; reorder deferred | 005 |
+| DC-6 | `contract:` shape | a list, defaulting to one | 006 |
+| DC-7 | `DESIGN.md` split | split — this doc = living SoT, old `DESIGN.md` → `DESIGN-history.md` | 007 |
+| DC-8 ⚑ | `execution` config levels | per-phase field **>** profile **>** top-level `execution:` default | 008 |
 
 ## Test strategy
 
 The design's central testability move is **extracting the deterministic engine functions** so
-P1 can pin them without an LLM (this is the hexagonal payoff for testing). Seams P1 needs:
+P1 can pin them without an LLM (this is the hexagonal payoff for testing) — now a **portable
+Node core module** (ADR-002), unit-tested with a Node runner (`node:test`/vitest); bats covers
+the remaining Bash (hooks, worktree scripts). Seams P1 needs:
 
 - **Descriptor parse + graph validation** — acyclic; every `consumes` has a `produces`;
   `self_supply ⊆ consumes`; the default list is internally consistent. Pure function over the
