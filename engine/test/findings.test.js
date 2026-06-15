@@ -143,7 +143,7 @@ test('Given a JSON entry without a fix field, when normalizeFindings runs, then 
   assert.equal(result.length, 1);
   assert.equal(result[0].file, 'src/x.js');
   assert.equal(result[0].severity, 'info');
-  assert.equal(result[0].fix, undefined);
+  assert.ok(!('fix' in result[0]), 'fix must be genuinely absent, not set to undefined');
 });
 
 test('Given a per-line entry without a | fix part, when normalizeFindings runs, then it returns the Finding with fix undefined', () => {
@@ -157,13 +157,34 @@ test('Given a per-line entry without a | fix part, when normalizeFindings runs, 
   assert.equal(result[0].line, 5);
   assert.equal(result[0].severity, 'warning');
   assert.equal(result[0].finding, 'Missing semicolon');
-  assert.equal(result[0].fix, undefined);
+  assert.ok(!('fix' in result[0]), 'fix must be genuinely absent, not set to undefined');
+});
+
+test('Given a fix explicitly set to null in JSON, when normalizeFindings runs, then fix is omitted (not the string "null")', () => {
+  const raw = JSON.stringify([
+    { file: 'src/x.js', line: 1, severity: 'info', finding: 'Some note', fix: null },
+  ]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.ok(!('fix' in result[0]), 'an explicit null fix must be omitted, never coerced to "null"');
 });
 
 // ─── malformed → throws ───────────────────────────────────────────────────────
 
 test('Given a malformed fixture, when normalizeFindings runs, then it throws on structurally unrecoverable input', () => {
   const raw = readFixture('malformed.txt');
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    /Cannot parse findings/,
+  );
+});
+
+test('Given JSON-ish input that is invalid JSON, when normalizeFindings runs, then it throws the uniform parse error', () => {
+  const raw = '[{"file": "a.js", ';
   const sut = normalizeFindings;
 
   assert.throws(

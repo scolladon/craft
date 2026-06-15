@@ -7,9 +7,26 @@
  * The em-dash separator (—) may be surrounded by any whitespace.
  * The pipe + fix part is optional.
  */
-const LINE_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.+?)(?:\s+\|\s+(.+))?$/u;
+const LINE_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+([^|]+?)(?:\s+\|\s+([^|]+))?$/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
+
+/**
+ * Build a canonical Finding from raw field values, regardless of source shape.
+ * `fix` is omitted when null or undefined (it is the only optional field).
+ *
+ * @param {{ file: unknown, line: unknown, severity: unknown, finding: unknown, fix?: unknown }} fields
+ * @returns {Finding}
+ */
+function toFinding({ file, line, severity, finding, fix }) {
+  const base = {
+    file: String(file),
+    line: Number(line),
+    severity: String(severity),
+    finding: String(finding).trim(),
+  };
+  return fix != null ? { ...base, fix: String(fix).trim() } : base;
+}
 
 /**
  * Returns true when `raw` starts with a JSON array token (cheap shape sniff).
@@ -29,16 +46,15 @@ function looksLikeJsonArray(trimmed) {
  * @returns {Finding}
  */
 function mapJsonItem(item, index) {
+  if (item == null || typeof item !== 'object') {
+    throw new Error(`Finding at index ${index} is not an object`);
+  }
   for (const field of REQUIRED_JSON_FIELDS) {
-    if (item == null || !(field in Object(item))) {
+    if (!(field in item)) {
       throw new Error(`Finding at index ${index} missing required field: ${field}`);
     }
   }
-
-  const { file, line, severity, finding, fix } = /** @type {Record<string,unknown>} */ (item);
-  return fix !== undefined
-    ? { file: String(file), line: Number(line), severity: String(severity), finding: String(finding), fix: String(fix) }
-    : { file: String(file), line: Number(line), severity: String(severity), finding: String(finding) };
+  return toFinding(/** @type {Record<string,unknown>} */ (item));
 }
 
 /**
@@ -48,7 +64,12 @@ function mapJsonItem(item, index) {
  * @returns {Finding[]}
  */
 function parseJsonShape(raw) {
-  const parsed = JSON.parse(raw);
+  let parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (err) {
+    throw new Error(`Cannot parse findings: invalid JSON — ${err.message}`, { cause: err });
+  }
   if (!Array.isArray(parsed)) {
     throw new Error('Cannot parse findings: JSON input must be an array');
   }
@@ -68,9 +89,7 @@ function parseLine(line) {
     return null;
   }
   const [, severity, file, rawLine, finding, fix] = match;
-  return fix !== undefined
-    ? { file, line: Number(rawLine), severity, finding: finding.trim(), fix: fix.trim() }
-    : { file, line: Number(rawLine), severity, finding: finding.trim() };
+  return toFinding({ file, line: rawLine, severity, finding, fix });
 }
 
 /**
