@@ -196,3 +196,74 @@ probe. Old names ship as **back-compat aliases** (manifest-lint resolves them; N
 Rename skill dirs + agents (`mutation-triager → validation-triager`, …), update the run
 orchestrator phase table, add the alias-resolution map + fixture to manifest-lint (§13/SC4).
 Aliases: `branch, prd, adr, plan, implement, mutation, refactor, docs, pr, merge`.
+
+---
+
+# SP6 — backlog adapter interface (PRD §9; design-resolved 2026-06-15)
+
+**Verdict: resolved; capabilities confirmed** (`gh` present + authed; Atlassian MCP
+`getJiraIssue`/`transitionJiraIssue`/`addCommentToJiraIssue` exist).
+
+**Port (mechanism only):**
+- `resolve(id) → { title, brief }` — read-only; id not found → **blocker** (never guess).
+- `complete(id, refs[]) → void` — idempotent; append refs (PR url, commits); bounded-change guard.
+
+| `backlog.source` | resolve | complete | status |
+|---|---|---|---|
+| `file` (default) | look up id in the backlog md (`^\d+(\.\d+)+$`) | flip `[ ]`→`[x]` + append refs (current backlog-ticker) | current |
+| `github-issues` | `gh issue view <id> --json title,body` | `gh issue close` + `gh issue comment` (refs) | gh ✓ |
+| `jira` | MCP `getJiraIssue` | `transitionJiraIssue`→Done + `addCommentToJiraIssue` | MCP ✓ |
+| `linear` | own MCP / `custom` | "" | → `custom` (no MCP yet) |
+| `custom` | repo script | repo script | always |
+
+**Failure contract:** an unreachable source (MCP down / auth expired / `gh` missing) → a
+**blocker via the blocker protocol**; the closing tick lives in the run record and is never
+silently skipped. **Hexagonal split:** core owns *which id-form is a backlog id* + *when
+`complete` fires* (delivery, after the PR exists); the port owns only `resolve`/`complete`.
+
+# SP7 — retrieval-strategy derivation (PRD §10.1; design-resolved + baseline confirmed)
+
+**Verdict: resolved.** Grep of forge **plugin** content (`agents/ skills/ templates/`) for
+`serena|symbol tool|LSP|RAG|rtk|ripgrep` → **empty**. forge is **already
+retrieval-strategy-free** (the tsgit Serena mandate lives in the *repo* declination, not
+the plugin). G14 = keep it that way + add derivation/injection.
+
+**Precedence (most-specific wins):** project (manifest `retrieval:` / repo context) > active
+env capabilities (probe) > user prefs (global CLAUDE.md, inherited) > native (Read/Grep/Glob).
+
+**Mechanism:**
+- **Declaration (primary, reliable):** a `retrieval:` manifest field — a context-file
+  pointer (same shape + injection as the existing `serena.md` pattern), or a named strategy
+  forge maps to a stock note. Injected into every spawn + inline run via the contract/context
+  assembly path.
+- **Probe (secondary, best-effort hints):** filesystem/env signals — `which rtk`, a
+  `.serena/` config, an LSP/RAG config dir. The engine *hints*, never *assumes*. (MCP-tool
+  availability is not reliably introspectable from a script → declaration is the robust path.)
+- **Mechanical layers apply automatically:** RTK + tool-call hooks fire at the tool layer
+  (inheritance spike-confirmed); forge only coexists.
+- **Native floor:** nothing declared/detected → Read/Grep/Glob, no opinion.
+
+**Strategy-free invariant (→ P5/P12, SC8):** a CI lint greps plugin content for retrieval
+strings and fails if any appear. Baseline green today.
+
+# SP8 — VCS/integration port (PRD §2.1; pinned from the lifecycle scripts)
+
+**Verdict: resolved.** Port a non-Claude adapter must implement (mechanism; core keeps
+ordering/cadence policy):
+- `isolate(type, slug) → workspace` — git-worktree in the Claude adapter (`worktree-setup.sh`:
+  lockfile-probe → deps **installed in-worktree, never symlinked**); or in-place branch under
+  `branch: { strategy: in-place }`.
+- `commit(message) → hash` — atomic commit (the handoff). `diff(range)` / `defaultBranch()` — read ops for scoping.
+- `propose(title, body) → url` — `gh pr create`.
+- `integrate(flags) → void` — `gh pr merge --squash --delete-branch <flags>`.
+- `teardown(workspace, {force})` — **lock-aware** (`worktree-teardown.sh`): refuses while
+  `.forge-mutation.lock` holds a live PID (`<pid> <iso-ts>`); auto-clears a dead-PID lock;
+  live PID needs `--force` (echoed; run-record-logged). Then `fetch --prune` → `worktree
+  remove` → `branch -D`.
+
+**Git/worktree-specific (adapter's choice, NOT the port contract):** the worktree mechanism
++ lifecycle scripts. A non-git/non-worktree adapter satisfies isolate/teardown differently
+(clone, container, branch) as long as it honors: isolated workspace · deps installed
+in-isolation · teardown refused while a long-running job holds the lock. **Hexagonal split:**
+core owns ordering — validation/architecture triage gates `propose`; `integrate` only after
+CI-green + user-confirm; teardown only after integrate, lock-aware. Port owns the raw verbs.

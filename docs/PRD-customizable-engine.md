@@ -301,8 +301,8 @@ A backlog **adapter** implements a tiny interface — `resolve(id) → brief` an
 `complete(id, refs)` — so input resolution and the closing "tick" work against any
 tracker. Default `file` reproduces today exactly. `github-issues` uses `gh`; `jira` uses
 the Atlassian MCP (present in this environment); `linear` needs its own MCP or a `custom`
-script (not present yet). `custom` points at a repo script. SP6 pins the adapter interface
-per source.
+script (not present yet). `custom` points at a repo script. **SP6 (done, SPIKE.md)** pinned the `resolve`/`complete` contract per
+source + the failure path (unreachable source = blocker, never a silent tick-skip).
 
 ---
 
@@ -414,9 +414,9 @@ owning enforcement (vs the model "remembering") buys model-resistance *and* port
 - **SP3** Per-invocation args (G4 · OQ2) — **DONE & GREEN (SPIKE.md).** `$ARGUMENTS` carries `--profile`/`--skip`/pipeline tokens verbatim in headless `-p` (flag tokens, comma-lists, embedded quotes all preserved). R9 cleared.
 - **SP4** Generic vocabulary/taxonomy (G3) — **DONE & DECIDED (SPIKE.md): full-SDLC concern naming + mutation→validation + harness family.** Old names → aliases; rename executed in P4.
 - **SP5** Model-class portability (G12-model) — run the default pipeline on ≥2–3 model tiers; record where prompts/contracts depend on model quirks; define the supported class. **Confirm per-invocation model override is honored under headless CI** (the SPIKE.md `-p` note observed forced opus-4-8).
-- **SP6** Backlog adapter interface (G7) — file vs github-issues (gh) vs jira/linear (MCP); the minimal `resolve`/`complete` contract **+ the adapter-failure path** (unreachable tracker = blocker, never a silent tick-skip).
-- **SP7** Retrieval-strategy derivation (G14) — detect available code-access capabilities (Serena/LSP/RTK/RAG), fix the precedence (project > env > user > native), the injection path; confirm plugin content stays strategy-free.
-- **SP8** VCS/integration port (G13) — the `branch`/`commit`/`pr`/`merge` + worktree-lifecycle interface; pin the worktree/git-CLI semantics a non-Claude adapter must reimplement.
+- **SP6** Backlog adapter interface (G7) — **DONE (SPIKE.md).** `resolve`/`complete` port; file/github-issues/jira/linear/custom adapters (gh + Atlassian MCP confirmed present); unreachable source = blocker, never a silent tick-skip.
+- **SP7** Retrieval-strategy derivation (G14) — **DONE (SPIKE.md).** Plugin content verified strategy-free (grep empty); precedence project>env>user>native; `retrieval:` declaration primary + best-effort probe; CI lint enforces strategy-free (SC8).
+- **SP8** VCS/integration port (G13) — **DONE (SPIKE.md).** `isolate`/`commit`/`propose`/`integrate`/`teardown` port pinned from the lifecycle scripts (lock-aware teardown; deps-in-isolation); worktree mechanism is the adapter's choice, not the contract.
 
 ---
 
