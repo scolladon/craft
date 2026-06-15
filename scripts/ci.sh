@@ -4,4 +4,7 @@
 # binary before it exists.
 set -euo pipefail
 
+# Resolve from repo root so relative paths and globs are call-site independent.
+cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 (cd engine && node --test) && bats test/ && shellcheck scripts/*.sh hooks/*.sh

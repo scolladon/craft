@@ -6,7 +6,8 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test"
+    "test": "node --test",
+    "ci": "bash ../scripts/ci.sh"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"

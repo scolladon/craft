@@ -4,6 +4,9 @@ on:
   push:
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -13,25 +16,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
 
       - name: Install engine dependencies
         run: cd engine && npm ci
 
-      - name: Install bats
-        run: |
-          git clone --depth 1 https://github.com/bats-core/bats-core.git /tmp/bats
-          /tmp/bats/install.sh /usr/local
-
-      - name: Install shellcheck
-        run: sudo apt-get install -y shellcheck
-
-      - name: Install jq
-        run: sudo apt-get install -y jq
+      - name: Install bats, shellcheck, jq
+        run: sudo apt-get update && sudo apt-get install -y bats shellcheck jq
 
       - name: Install yq
         run: |
           sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
           sudo chmod +x /usr/local/bin/yq
 
       - name: Substrate gate
