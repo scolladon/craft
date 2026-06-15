@@ -36,3 +36,17 @@ in the Claude Code environment; CI has it). P1 tests the core with a Node test r
 (`node:test`/vitest); bats is reserved for the remaining Bash (hooks, worktree scripts). Robust
 `js-yaml` + a real graph check replace Bash string-munging. **Follow-up (P2):** decide whether
 `manifest-lint` shape validation migrates into the same module.
+
+**P2 fold evaluation (deferred to P3):** `manifest-lint.sh` was hardened in P2 with a
+`parse_frontmatter()` seam backed by `yq` (mikefarah) when available and the existing sed/awk
+subset parser as a fallback. This approach is sufficient for the P2 validation scope (key/phase
+membership, skip-on-protected, dangling-file checks). Folding the remaining shape validation into
+the Node core is deliberately **deferred to P3** for the following reasons: (1) P3 removes the
+static `PROTECTED` list — replacing it with the graph's strand-detection — which is the most
+structurally significant change to `manifest-lint`'s logic and the right moment for a single
+coordinated migration; (2) the Node resolver (`engine/src/resolve.js`) already parses manifests
+in P1, so P3 can expose a `validateManifest` export from the same module without a second parse
+boundary; (3) the `yq`-backed Bash script is now shellcheck-clean and all regression fixtures
+pass under both backends, making it a stable interim home rather than a maintenance hazard. Until
+P3, `manifest-lint.sh` remains the canonical shape-validation entry point; the Node core is the
+canonical graph-validation entry point.
