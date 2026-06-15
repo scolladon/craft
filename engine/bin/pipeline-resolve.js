@@ -29,7 +29,13 @@ if (manifestPath) {
   }
 }
 
-const resolution = resolvePipeline(defaults, manifest);
+let resolution;
+try {
+  resolution = resolvePipeline(defaults, manifest);
+} catch (err) {
+  process.stderr.write(`pipeline-resolve: ${err.message}\n`);
+  process.exit(2);
+}
 
 if (!resolution.ok) {
   for (const error of resolution.errors) {

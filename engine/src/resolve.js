@@ -123,14 +123,14 @@ function buildManifestRecords(manifest) {
   const records = [];
   if (!manifest) return records;
 
-  if (manifest.backlog) {
+  if (typeof manifest.backlog === 'string' && manifest.backlog) {
     records.push(
       `backlog: "${manifest.backlog}" declared — Backlog.resolve required at input-classify.`,
     );
   }
 
   const fallback = manifest.models?.fallback;
-  if (fallback) {
+  if (typeof fallback === 'string' && fallback) {
     records.push(
       `models.fallback: "${fallback}" declared — fallback re-resolution policy active for degraded tiers.`,
     );

@@ -19,6 +19,7 @@ import { load } from 'js-yaml';
 import { parsePipeline } from '../src/descriptor.js';
 import { resolvePipeline } from '../src/resolve.js';
 import { assembleContract } from '../src/contract.js';
+import { HARNESS_ARCHETYPE } from '../src/profile.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const defaultYml = join(__dir, '..', '..', 'pipeline', 'default.yml');
@@ -70,9 +71,6 @@ const SC1_IDS = [
 // The floor is data-driven: change ∈ produces is the criterion.
 const CODE_PRODUCING_IDS = ['implementation', 'refactoring'];
 
-// Executing-harness archetype phases in the default pipeline
-const EXECUTING_HARNESS_IDS = ['validation'];
-
 // ─── SC1: zero-config golden ─────────────────────────────────────────────────
 
 test('SC1 Given no manifest, when resolvePipeline runs, then 11 enabled phases in canonical order with all executions agent', () => {
@@ -122,6 +120,14 @@ test('SC1 Given no manifest, when resolvePipeline runs, then code-producing floo
     assert.equal(decision.codeProducing, true, `${id} must be marked code-producing`);
     assert.ok(decision.gate, `${id} must have a non-empty gate (floor passes)`);
   }
+
+  // Pin that report-producers are NOT code-producing (change ∈ produces is the predicate).
+  // Regression guard: adding 'change' to a report-producer must break this test loudly.
+  for (const id of ['review', 'validation']) {
+    const decision = result.gateDecisions.find(g => g.phaseId === id);
+    assert.ok(decision, `gateDecisions must have entry for ${id}`);
+    assert.equal(decision.codeProducing, false, `${id} produces a report, not change — codeProducing must be false`);
+  }
 });
 
 test('SC1 Given no manifest, when resolvePipeline runs, then propose gateDecisions reflects executing-harness ordering invariant', () => {
@@ -139,10 +145,11 @@ test('SC1 Given no manifest, when resolvePipeline runs, then propose gateDecisio
     Array.isArray(proposeDecision.awaitingHarnesses),
     'propose gateDecision must list awaitingHarnesses',
   );
-  // validation is the only default-enabled executing-harness
-  assert.ok(
-    proposeDecision.awaitingHarnesses.includes('validation'),
-    'propose must await validation (executing-harness)',
+  // validation is the only default-enabled executing-harness; review is a read-harness and must not appear
+  assert.deepEqual(
+    proposeDecision.awaitingHarnesses,
+    ['validation'],
+    'propose must await exactly validation (executing-harness); review (read-harness) must be excluded',
   );
 });
 
@@ -168,7 +175,7 @@ test('S1 Given profile:solo manifest, when resolvePipeline runs, then non-harnes
 
   assert.equal(result.ok, true);
 
-  const harnessIds = new Set(result.effective.filter(d => d.archetype === 'harness').map(d => d.id));
+  const harnessIds = new Set(result.effective.filter(d => d.archetype === HARNESS_ARCHETYPE).map(d => d.id));
   for (const d of result.effective) {
     if (harnessIds.has(d.id)) {
       assert.equal(d.execution, 'agent', `harness phase ${d.id} must stay agent under solo profile`);
@@ -330,8 +337,8 @@ test('S5 Given architecture enabled, when resolvePipeline runs, then propose awa
 // NOTE: Partial coverage at P1. The Backlog adapter implementation lands at P11.
 // This scenario asserts only the resolution-layer record entry.
 
-test('S6 Given backlog declared in manifest, when resolvePipeline runs, then record mentions Backlog.resolve required', () => {
-  console.log('S6 NOTE: Partial P1 coverage — Backlog adapter port/UX lands at P11.');
+test('S6 Given backlog declared in manifest, when resolvePipeline runs, then record mentions Backlog.resolve required (partial — resolution-layer only)', () => {
+  // Partial coverage: Backlog adapter port and UX land in a later phase.
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S6');
   const sut = resolvePipeline;
@@ -348,8 +355,8 @@ test('S6 Given backlog declared in manifest, when resolvePipeline runs, then rec
 // NOTE: Partial coverage at P1. Full namespaced registration UX lands at P14.
 // This scenario asserts the resolution-layer acceptance of namespaced ids.
 
-test('S7 Given namespaced acme:bench insert, when resolvePipeline runs, then it is accepted and in effective pipeline', () => {
-  console.log('S7 NOTE: Partial P1 coverage — namespaced registration/UX lands at P14.');
+test('S7 Given namespaced acme:bench insert, when resolvePipeline runs, then it is accepted and in effective pipeline (partial — resolution-layer only)', () => {
+  // Partial coverage: full namespaced registration and UX land in a later phase.
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S7');
   const sut = resolvePipeline;
@@ -402,9 +409,12 @@ test('S8 Given models.fallback:haiku, when resolvePipeline runs, then gateDecisi
   assert.ok(result.gateDecisions.length > 0, 'gateDecisions must be populated');
 });
 
-// ─── S9: retrieval derived — assembleContract check ──────────────────────────
+// ─── S9: retrieval note — unconditional engine injection ─────────────────────
+// The engine calls deriveRetrievalNote() unconditionally inside assembleContract;
+// it does NOT read manifest.retrieval to decide whether to inject.
+// Manifest-driven *strategy derivation* is a later-phase concern.
 
-test('S9 Given retrieval declared in manifest, when assembleContract runs, then derived retrieval note is present in output', () => {
+test('S9 Given retrieval declared in manifest, when assembleContract runs, then engine-injected retrieval note is present', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S9');
   const resolveResult = resolvePipeline(defaults, manifest);
@@ -417,7 +427,24 @@ test('S9 Given retrieval declared in manifest, when assembleContract runs, then 
 
   const result = sut(designDescriptor, manifest, FRAGMENTS, {});
 
-  assert.ok(result.includes('retrieval'), 'derived retrieval note must be in the assembled contract');
+  assert.ok(result.includes('retrieval'), 'engine-injected retrieval note must be present');
+});
+
+test('S9 Given an EMPTY manifest (no retrieval key), when assembleContract runs, then engine still injects the retrieval note', () => {
+  // Proves the note is unconditionally engine-injected — not manifest- or fixture-sourced.
+  const defaults = loadDefault();
+  const resolveResult = resolvePipeline(defaults, {});
+  assert.equal(resolveResult.ok, true);
+
+  const designDescriptor = resolveResult.effective.find(d => d.id === 'design');
+  assert.ok(designDescriptor, 'design must be in effective pipeline');
+
+  const sut = assembleContract;
+
+  // Empty manifest — no retrieval key present
+  const result = sut(designDescriptor, {}, FRAGMENTS, {});
+
+  assert.ok(result.includes('retrieval'), 'retrieval note must be present even with empty manifest — engine injects unconditionally');
 });
 
 test('S9 Given retrieval derived, when assembleContract runs, then no retrieval strings live in bundle fixtures themselves', () => {
@@ -462,7 +489,7 @@ test('Given a code-producing phase with no gate in descriptor or manifest, when 
 
 // ─── harness waiver: skipped validation releases propose-gate ─────────────────
 
-test('Given pipeline.skip:[validation], when resolvePipeline runs, then waivers includes a validation waiver', () => {
+test('Given pipeline.skip:[validation], when resolvePipeline runs, then waivers includes a validation waiver with proposeGateReleased:true', () => {
   const defaults = loadDefault();
   const manifest = { pipeline: { skip: ['validation'] } };
   const sut = resolvePipeline;
@@ -471,8 +498,10 @@ test('Given pipeline.skip:[validation], when resolvePipeline runs, then waivers 
 
   assert.equal(result.ok, true);
 
-  const hasWaiver = result.waivers.some(w => w.phaseId === 'validation');
-  assert.ok(hasWaiver, 'waivers must record a validation waiver when validation is skipped');
+  const waiver = result.waivers.find(w => w.phaseId === 'validation');
+  assert.ok(waiver, 'waivers must record a validation waiver when validation is skipped');
+  // validation is an executing-harness: skipping it releases its propose-gate
+  assert.equal(waiver.proposeGateReleased, true, 'validation waiver must have proposeGateReleased:true (executing-harness)');
 });
 
 test('Given pipeline.skip:[validation], when resolvePipeline runs, then propose-gate is released with a record line', () => {
@@ -509,7 +538,7 @@ test('Given pipeline.skip:[validation], when resolvePipeline runs, then propose 
 
 // ─── harness waiver: skipped review records waiver ────────────────────────────
 
-test('Given pipeline.skip:[review], when resolvePipeline runs, then waivers includes a review waiver', () => {
+test('Given pipeline.skip:[review], when resolvePipeline runs, then waivers includes a review waiver with proposeGateReleased:false', () => {
   const defaults = loadDefault();
   const manifest = { pipeline: { skip: ['review'] } };
   const sut = resolvePipeline;
@@ -518,13 +547,15 @@ test('Given pipeline.skip:[review], when resolvePipeline runs, then waivers incl
 
   assert.equal(result.ok, true);
 
-  const hasWaiver = result.waivers.some(w => w.phaseId === 'review');
-  assert.ok(hasWaiver, 'waivers must record a review waiver when review is skipped');
+  const waiver = result.waivers.find(w => w.phaseId === 'review');
+  assert.ok(waiver, 'waivers must record a review waiver when review is skipped');
+  // review is a read-harness: skipping it does NOT release a propose-gate
+  assert.equal(waiver.proposeGateReleased, false, 'review waiver must have proposeGateReleased:false (read-harness)');
 });
 
 // ─── harness waiver: skipped refactoring records waiver ─────────────────────
 
-test('Given pipeline.skip:[refactoring], when resolvePipeline runs, then waivers includes a refactoring waiver', () => {
+test('Given pipeline.skip:[refactoring], when resolvePipeline runs, then waivers includes a refactoring waiver with proposeGateReleased:false', () => {
   const defaults = loadDefault();
   const manifest = { pipeline: { skip: ['refactoring'] } };
   const sut = resolvePipeline;
@@ -533,6 +564,31 @@ test('Given pipeline.skip:[refactoring], when resolvePipeline runs, then waivers
 
   assert.equal(result.ok, true);
 
-  const hasWaiver = result.waivers.some(w => w.phaseId === 'refactoring');
-  assert.ok(hasWaiver, 'waivers must record a refactoring waiver when refactoring is skipped');
+  const waiver = result.waivers.find(w => w.phaseId === 'refactoring');
+  assert.ok(waiver, 'waivers must record a refactoring waiver when refactoring is skipped');
+  // refactoring is a refinement phase, not an executing-harness: proposeGateReleased must be false
+  assert.equal(waiver.proposeGateReleased, false, 'refactoring waiver must have proposeGateReleased:false (refinement, not executing-harness)');
+});
+
+// ─── harness waiver: skipped architecture releases propose-gate ───────────────
+
+test('Given architecture enabled then skipped, when resolvePipeline runs, then architecture waiver has proposeGateReleased:true and record mentions architecture + propose', () => {
+  const defaults = loadDefault();
+  // architecture is disabled by default; enable it so the skip can waive it as an executing-harness
+  const manifest = { phases: { architecture: { enabled: true } }, pipeline: { skip: ['architecture'] } };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+
+  const waiver = result.waivers.find(w => w.phaseId === 'architecture');
+  assert.ok(waiver, 'waivers must record an architecture waiver when architecture is enabled then skipped');
+  // architecture is an executing-harness: skipping it releases its propose-gate
+  assert.equal(waiver.proposeGateReleased, true, 'architecture waiver must have proposeGateReleased:true (executing-harness)');
+
+  const hasReleaseRecord = result.record.some(r =>
+    r.toLowerCase().includes('architecture') && r.toLowerCase().includes('propose'),
+  );
+  assert.ok(hasReleaseRecord, `record must include a loud propose-gate release line for architecture; got: ${JSON.stringify(result.record)}`);
 });

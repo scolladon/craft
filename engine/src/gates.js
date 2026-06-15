@@ -35,7 +35,7 @@ const NO_GATE = '';
 
 /**
  * Resolve the effective gate for a single phase.
- * Precedence: descriptor.gate → manifest gates override → no gate.
+ * Precedence (highest→lowest): descriptor.gate → manifest.gates[phaseId] → none.
  *
  * @param {object} descriptor
  * @param {object|null|undefined} manifest
@@ -46,7 +46,7 @@ function resolveGate(descriptor, manifest) {
   const manifestGates = manifest?.gates;
   if (manifestGates && typeof manifestGates === 'object') {
     const phaseGate = manifestGates[descriptor.id];
-    if (phaseGate) return String(phaseGate);
+    if (typeof phaseGate === 'string' && phaseGate) return phaseGate;
   }
   return NO_GATE;
 }
