@@ -77,11 +77,13 @@ test('Given contract:[producer, harness-read], when assembleContract runs, then 
 
   const result = sut(descriptor, manifest, FRAGMENTS, {});
 
-  const coreEnd = result.indexOf(FRAGMENTS.core.slice(-20).trim());
+  // Anchor on the first core line (marker-free, survives carve-out expansion);
+  // the last core line is a carve-out marker that expandCore rewrites.
+  const corePos = result.indexOf(FRAGMENTS.core.split('\n')[0].trim());
   const producerStart = result.indexOf(FRAGMENTS.producer.slice(0, 20).trim());
   const harnessReadStart = result.indexOf(FRAGMENTS['harness-read'].slice(0, 20).trim());
 
-  assert.ok(coreEnd < producerStart, 'producer bundle must appear after core');
+  assert.ok(corePos !== -1 && corePos < producerStart, 'producer bundle must appear after core');
   assert.ok(producerStart < harnessReadStart, 'harness-read bundle must appear after producer');
 });
 
@@ -187,6 +189,32 @@ test('Given execution:agent vs execution:inline, when assembleContract runs, the
     diffs.length,
     2,
     `Expected exactly 2 lines to differ between agent and inline modes, got ${diffs.length}: ${JSON.stringify(diffs)}`,
+  );
+
+  // The two changed lines must be the named carve-outs — nothing else.
+  const inlineLines = diffs.map(d => d.b);
+  const agentLines = diffs.map(d => d.a);
+  assert.ok(
+    inlineLines.some(l => l.includes('the commit is the handoff (no agent context to lose)')),
+    'one changed line must be the inline artifact-handoff carve-out',
+  );
+  assert.ok(
+    inlineLines.some(l => l.includes('the session model')),
+    'one changed line must be the inline model carve-out',
+  );
+  assert.ok(
+    agentLines.some(l => l.includes('the agent commit is the handoff')),
+    'the agent-mode artifact-handoff line must be one of the two that changed',
+  );
+});
+
+test('Given a contract bundle named after a prototype key, when assembleContract runs, then it throws Unknown contract bundle', () => {
+  const descriptor = { id: 'workspace', contract: ['constructor'], execution: 'agent' };
+  const sut = assembleContract;
+
+  assert.throws(
+    () => sut(descriptor, {}, FRAGMENTS, {}),
+    /Unknown contract bundle/,
   );
 });
 

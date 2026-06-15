@@ -26,7 +26,7 @@ const INLINE_VARIANTS = Object.freeze({
 function applyCarveOuts(line, inline) {
   const variants = inline ? INLINE_VARIANTS : AGENT_VARIANTS;
   return Object.entries(variants).reduce(
-    (acc, [marker, replacement]) => acc.replace(marker, replacement),
+    (acc, [marker, replacement]) => acc.replaceAll(marker, replacement),
     line,
   );
 }
@@ -78,7 +78,10 @@ function extractContext(value) {
  *   [manifest per-phase context verbatim]
  *   [dynamics — reserved for the caller; not assembled here]
  *
- * @param {{ id: string, contract: string[], execution?: string }} descriptor
+ * manifest `context` values are injected verbatim — trusted operator input, not
+ * untrusted end-user data.
+ *
+ * @param {{ id: string, contract: string[] }} descriptor
  * @param {{ context?: unknown, phases?: Record<string, { context?: unknown }> }} manifest
  * @param {{ core: string, producer: string, construction: string, 'harness-read': string, 'harness-exec': string, delivery: string }} fragments
  * @param {{ execution?: string }} opts
@@ -91,11 +94,10 @@ export function assembleContract(descriptor, manifest, fragments, opts) {
   sections.push(expandCore(fragments.core, inline));
 
   for (const bundleName of descriptor.contract) {
-    const bundle = fragments[bundleName];
-    if (bundle === undefined) {
+    if (!Object.hasOwn(fragments, bundleName)) {
       throw new Error(`Unknown contract bundle: "${bundleName}"`);
     }
-    sections.push(bundle);
+    sections.push(fragments[bundleName]);
   }
 
   sections.push(deriveRetrievalNote());
