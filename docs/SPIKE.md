@@ -155,3 +155,44 @@ comma-lists, and embedded quotes. **R9 cleared** — the orchestrator can parse
 `--profile`/`--skip`/pipeline-edit tokens out of `$ARGUMENTS`; per-invocation profiles
 (OQ2) are buildable. (The earlier `-p forced opus-4-8` note concerns main-loop *model*
 selection, not args.) Throwaway spike dir: `/tmp/forge-sp3`.
+
+---
+
+# SP4 — generic vocabulary / harness family (PRD §6.4; DECIDED 2026-06-15)
+
+**Decision: full-SDLC concern-naming + `mutation → validation`.** A phase `id` names the
+**engineering concern**; the concrete **technique** lives in `harness.tool` or the phase
+probe. Old names ship as **back-compat aliases** (manifest-lint resolves them; N1).
+
+## Decided taxonomy
+| Archetype | Phase (concern) | Alias (old) | Default technique |
+|---|---|---|---|
+| Setup | `workspace` | branch | git worktree / in-place branch |
+| Specification | `requirements` *(opt, off)* | prd | PRD/spec doc |
+| Specification | `design` | — | design doc |
+| Specification | `decisions` | adr | ADR records |
+| Specification | `planning` | plan | sliced TDD plan + plan-lint |
+| Construction | `implementation` | implement | TDD slices |
+| Harness — *reading* | `review` | — | AI multi-dimension diff read |
+| Harness — *executing* | `validation` | mutation | mutation testing (stryker/mutmut/cargo-mutants) |
+| Harness — *executing* | `architecture` *(opt, off)* | — | dependency/layering rules (dependency-cruiser/ArchUnit/import-linter) |
+| Refinement | `refactoring` | refactor | structural refactor |
+| Delivery | `documentation` | docs | doc pages + backlog tick |
+| Delivery | `propose` | pr | `gh pr create` |
+| Delivery | `integrate` | merge | squash-merge + cleanup |
+
+## Harness family
+- **Reading harness** — `review`: AI reads the diff across dimensions (code/security/tests/perf).
+- **Executing harnesses** — a tool runs, AI triages: `validation` (test-suite efficacy;
+  default mutation testing), `architecture` (structural rules; default dep/layering linter);
+  open-ended (security, performance, accessibility…). Each is concern-named, tool-pluggable
+  (`harness.tool`), AI-triaged, and gates the PR.
+
+## New default phases (both default-OFF / opt-in)
+- `requirements` (Specification) — produces a PRD/spec; new agent `requirements-writer`.
+- `architecture` (Harness) — structural-rule gate; new agent `architecture-triager`.
+
+## Implementation (→ P4)
+Rename skill dirs + agents (`mutation-triager → validation-triager`, …), update the run
+orchestrator phase table, add the alias-resolution map + fixture to manifest-lint (§13/SC4).
+Aliases: `branch, prd, adr, plan, implement, mutation, refactor, docs, pr, merge`.

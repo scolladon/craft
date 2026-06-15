@@ -34,12 +34,12 @@ Phases fall into a few **archetypes**:
 
 | Archetype | Phases (default content) | Purpose |
 |---|---|---|
-| **Setup** | workspace (branch/worktree) | isolate the work |
-| **Specification** | *PRD (opt)* · design · decisions (ADR) · plan | produce the knowledge artifacts |
-| **Construction** | implement (TDD slices) | produce the change |
-| **Harness** | review · validation · architecture · *(security/perf…)* | verify one concern, gate on it |
-| **Refinement** | refactor | improve structure, behavior-preserving |
-| **Delivery** | docs · backlog · PR · merge | ship and record |
+| **Setup** | `workspace` | isolate the work |
+| **Specification** | `requirements` *(opt)* · `design` · `decisions` · `planning` | produce the knowledge artifacts |
+| **Construction** | `implementation` (TDD slices) | produce the change |
+| **Harness** | `review` · `validation` · `architecture` · *(security/perf…)* | verify one concern, gate on it |
+| **Refinement** | `refactoring` | improve structure, behavior-preserving |
+| **Delivery** | `documentation` · backlog · `propose` · `integrate` | ship and record |
 
 A **harness** is the key reusable concept: *an automated, repeatable verification of a
 single engineering concern, expressed as a gate plus an optional AI triage step,
@@ -204,12 +204,19 @@ treatment. `reorder` is validated against the dependency graph (a consumer befor
 producer is rejected by the same machinery as a bad skip). **[proposal]** insert+skip
 first; arbitrary reorder later (OQ1).
 
-### 6.4 Generic vocabulary **[spike SP4]**
-Default-content phases get concern-based names; concrete techniques become the harness
-*default tool*. Provisional map (final set from SP4):
-`mutation → validation harness` · *new* `architecture harness` · `review` (already
-generic) · concrete tools (stryker, dependency-cruiser, …) live in `harness.tool`. Old
-names kept as **back-compat aliases** so existing manifests don't break (N1).
+### 6.4 Generic vocabulary **[SP4 decided — full SDLC]**
+A phase `id` names the **engineering concern**; the concrete **technique** lives in
+`harness.tool` or the phase probe (so "mutation" is a *tool*, not a phase). Decided
+taxonomy (canonical table + harness family in SPIKE.md SP4):
+
+`workspace`←branch · `requirements`←*(new, opt)* · `design` · `decisions`←adr ·
+`planning`←plan · `implementation`←implement · `review` · **`validation`←mutation** ·
+`architecture`←*(new, opt)* · `refactoring`←refactor · `documentation`←docs · `propose`←pr ·
+`integrate`←merge.
+
+Old names ship as **back-compat aliases** (manifest-lint resolves them; N1):
+`branch, prd, adr, plan, implement, mutation, refactor, docs, pr, merge`. The rename is
+executed in P4 (dirs + agents + orchestrator table).
 
 ---
 
@@ -405,7 +412,7 @@ owning enforcement (vs the model "remembering") buys model-resistance *and* port
 - **SP1** Inline execution convention (G4) — **DONE (SPIKE.md): convention defined.** `inline` = the session runs the phase body itself (skills already run in-thread); same contract/gate/hooks; commit-is-the-handoff; session model. Load-bearing caveat: inline is *sequential* → multi-dimension harnesses stay `agent` (profiles encode it).
 - **SP2** Cross-plugin extension/dispatch (G8) — **DONE & GREEN (SPIKE.md).** Confirmed empirically: a skill in plugin A invokes a skill *and* spawns an agent (namespaced `subagent_type`) in plugin B; rides native plugin `dependencies` + namespacing + per-plugin `${CLAUDE_PLUGIN_ROOT}`. No bespoke mechanism needed. (Open refinements, non-blocking: scoped `Agent()` allowlist form; same-marketplace symlinks.)
 - **SP3** Per-invocation args (G4 · OQ2) — **DONE & GREEN (SPIKE.md).** `$ARGUMENTS` carries `--profile`/`--skip`/pipeline tokens verbatim in headless `-p` (flag tokens, comma-lists, embedded quotes all preserved). R9 cleared.
-- **SP4** Generic vocabulary/taxonomy (G3) — finalize concern names + the harness family (validation, architecture, …); back-compat aliases.
+- **SP4** Generic vocabulary/taxonomy (G3) — **DONE & DECIDED (SPIKE.md): full-SDLC concern naming + mutation→validation + harness family.** Old names → aliases; rename executed in P4.
 - **SP5** Model-class portability (G12-model) — run the default pipeline on ≥2–3 model tiers; record where prompts/contracts depend on model quirks; define the supported class. **Confirm per-invocation model override is honored under headless CI** (the SPIKE.md `-p` note observed forced opus-4-8).
 - **SP6** Backlog adapter interface (G7) — file vs github-issues (gh) vs jira/linear (MCP); the minimal `resolve`/`complete` contract **+ the adapter-failure path** (unreachable tracker = blocker, never a silent tick-skip).
 - **SP7** Retrieval-strategy derivation (G14) — detect available code-access capabilities (Serena/LSP/RTK/RAG), fix the precedence (project > env > user > native), the injection path; confirm plugin content stays strategy-free.
@@ -505,13 +512,13 @@ Each phase is shippable and (once the harness exists) itself forge-able (dogfood
 | **P1** | **Test harness + scenario suite + CI** (§13) — *build first* | G11 | green characterization of current behavior |
 | **P2** | **Harden `manifest-lint`** (yq-based + fallback) under test | G11 (SC4), R5 | regression suite incl. historical bugs |
 | **P3** | **Phase abstraction core** — descriptor + dependency graph; reproduce current pipeline (no behavior change) | G1 | SC1 green |
-| **P4** | **Generic vocabulary** — concern names + harness family + aliases | G3 (per SP4) | SC1 still green |
+| **P4** | **Generic vocabulary** — full-SDLC rename (dirs+agents+orchestrator) + aliases (SP4 decided) | G3 | SC1 still green |
 | **P5** | **Engine-owned injection** — relocate contract; **derive + inject retrieval strategy** (env/project; strategy-free plugin); thin agents | G5 (contract injection),G14 | SC1 still green + agent-output re-baseline (R8) |
 | **P6** | **Execution topology** — `inline\|agent` + `solo`/`full` profiles | G4 (per SP1, SP3) | S1 green |
 | **P7** | **Pipeline editing** — skip-any / insert / reorder + dependency checks | G1,G2 | S3, SC3 green |
 | **P8** | **Per-phase harness config** — dimensions/passes/cycles/convergence/tool | G6 | review/validation knobs honored |
 | **P9** | **Agent/skill swap** via manifest (contract from P5 injected around the swap) | G5 (swap UX) | S2 green |
-| **P10** | **New default phases & agents** — optional **PRD** (new `prd-writer` agent) + **architecture harness** (new `architecture-triager` agent); both default-off | G2,G3 | S4,S5 green |
+| **P10** | **New default phases & agents** — optional **`requirements`** (new `requirements-writer` agent) + **`architecture`** harness (new `architecture-triager` agent); both default-off | G2,G3 | S4,S5 green |
 | **P11** | **Backlog SoT abstraction** — adapter iface; file default; gh/jira/linear | G7 (per SP6) | S6 green |
 | **P12** | **DX** — mental model guide + injection catalog + `examples/` samples (**two-part: Tier-0/1 docs now; Tier-2 docs after P14**) | G10 | tailor-task usability check (Tier-2 docs gated after P14) |
 | **P13** | **NFR hardening** — speed + tokens + model-class matrix | G12 | targets met on scenario set |
