@@ -4,3 +4,4 @@ export { ALIAS_MAP, resolveAlias } from './alias-map.js';
 export { resolvePipeline }         from './resolve.js';
 export { assembleContract }        from './contract.js';
 export { normalizeFindings }       from './findings.js';
+export { validateManifest }        from './manifest.js';
