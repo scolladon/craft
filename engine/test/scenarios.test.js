@@ -164,6 +164,42 @@ test('SC1 Given no manifest, when resolvePipeline runs, then waivers is empty (n
   assert.deepEqual(result.waivers, []);
 });
 
+test('SC1 Given no manifest, when resolvePipeline runs, then record seeds exactly the two default-skip entries the walk consumes', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC1');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  // The orchestrator walk seeds its run record verbatim from this array (run/SKILL.md §0 1c);
+  // pin the exact strings so the engine cannot drift the prefix/entries out from under the walk.
+  assert.deepEqual(result.record, [
+    'default-skip: requirements (descriptor enabled:false)',
+    'default-skip: architecture (descriptor enabled:false)',
+  ]);
+});
+
+test('SC1 Given no manifest, when resolvePipeline runs, then the per-phase gate strings the walk reads are pinned', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC1');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const gateOf = id => result.gateDecisions.find(g => g.phaseId === id)?.gate;
+  // Walk step 5 branches on these exact strings (empty = no gate; placeholder = resolved at gate time).
+  assert.equal(gateOf('planning'), 'plan-lint');
+  assert.equal(gateOf('implementation'), '<gates.phase>');
+  assert.equal(gateOf('review'), '<gates.phase>');
+  assert.equal(gateOf('refactoring'), '<gates.phase>');
+  assert.equal(gateOf('validation'), '<validation gate>');
+  assert.equal(gateOf('propose'), 'pr.pre-pr-gate');
+  assert.equal(gateOf('workspace'), '');
+  assert.equal(gateOf('documentation'), '');
+});
+
 // ─── S1: profile:solo ────────────────────────────────────────────────────────
 
 test('S1 Given profile:solo manifest, when resolvePipeline runs, then non-harness phases run inline', () => {

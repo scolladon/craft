@@ -34,14 +34,20 @@ Input: `$ARGUMENTS`
     its initial lines. Subsequent phase outcomes, skip reasons, no-op
     justifications, probe results, and forced actions are appended.
 
-1d. Read `Resolution.gateDecisions` and extract `awaitingHarnesses[]` from the
-    `propose` entry. Store this set in-session as the executing-harness ids that
-    must land before `propose` starts `pr create`.
+1d. `Resolution.gateDecisions` is an ARRAY of `{ phaseId, gate, codeProducing }`
+    (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose
+    `phaseId === "propose"` and store its `awaitingHarnesses[]` in-session as the
+    executing-harness ids that must land before `propose` starts `pr create`
+    (a missing entry or absent field = the empty set).
 
-1e. Note `Resolution.waivers[]`. Waiver entries are already written into
-    `Resolution.record[]` as `WAIVER: …` lines by the engine; they arrive
-    pre-formatted. The structured `waivers[]` array is available for conditional
-    logic (e.g., checking if `propose` is released) but is NOT re-formatted here.
+1e. Surface `Resolution.waivers[]` in the run record. The engine pre-formats a
+    `WAIVER: …` line into `record[]` **only for executing-harness skips**
+    (`proposeGateReleased: true` — e.g. `validation`/`architecture`); those arrive
+    via step 1c. For every OTHER waiver (a skipped `review`/`refactoring`,
+    `proposeGateReleased: false` — the engine writes no record line), append your own
+    loud waiver notice to the run record so **every** skip is visible (ADR-005).
+    Use `waivers[]` for the gate-release decision (each `proposeGateReleased: true`
+    releases that phase's `propose`-gate).
 
 2. Classify the input: **backlog id** (matches the repo's backlog convention — only if
    the manifest declares `backlog:`; look the entry up there) | **file path** (read
@@ -85,7 +91,8 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
      and its gate is green
    - `delivery` (`integrate`): user confirms; cleanup
 
-5. **Gate** — read gate string from `Resolution.gateDecisions[phase.id].gate`.
+5. **Gate** — read the gate string (`.gate`) from the `Resolution.gateDecisions`
+   entry whose `phaseId === phase.id`.
    If `codeProducing: true`: apply gate-cadence invariant (targeted gate per fix
    commit; phase gate once per round; never commit on known-red).
    If `codeProducing: false` and gate non-empty: run gate once at phase boundary.
@@ -102,25 +109,27 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 ALIAS_MAP inverse table (canonical id → skill dir, single authoritative copy
 derived from `engine/src/alias-map.js` — DC-4; this table is deleted at P4):
 
-| canonical id   | skill dir    |
+| canonical id   | skill dir                              |
 |---|---|
-| workspace      | branch       |
-| requirements   | prd          |
-| decisions      | adr          |
-| planning       | plan         |
-| implementation | implement    |
-| design         | design       |
-| review         | review       |
-| refactoring    | refactor     |
-| validation     | mutation     |
-| architecture   | architecture |
-| documentation  | docs         |
-| propose        | pr           |
-| integrate      | merge        |
+| workspace      | branch                                 |
+| requirements   | — (new phase; no skill dir until P10)   |
+| decisions      | adr                                    |
+| planning       | plan                                   |
+| implementation | implement                              |
+| design         | design                                 |
+| review         | review                                 |
+| refactoring    | refactor                               |
+| validation     | mutation                               |
+| architecture   | — (new phase; no skill dir until P10)   |
+| documentation  | docs                                   |
+| propose        | pr                                     |
+| integrate      | merge                                  |
 
-`requirements` and `architecture` are disabled by default (not in SC1 `effective[]`).
-`design` and `review` map to themselves (no alias entry; `skills/design/` and
-`skills/review/` already exist under those names).
+`requirements` and `architecture` are disabled by default (not in SC1 `effective[]`)
+and have **no skill dir yet** — their skills/agents land at P10. Enabling either before
+then hits the loud STOP above ("unknown phase id"); that is the intended guard, not a
+silent skip. `design` and `review` map to themselves (no alias entry; `skills/design/`
+and `skills/review/` already exist under those names).
 
 ### Walk error paths
 
@@ -131,7 +140,7 @@ derived from `engine/src/alias-map.js` — DC-4; this table is deleted at P4):
 | `effective[]` is empty | Stop; surface "no enabled phases in resolution" |
 | A phase id has no matching inverse-alias and no same-named `skills/` dir | Stop; surface "unknown phase id <id>; P4 may fix this" |
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
-| `waivers[]` is non-empty | Entries are already in `record[]` as `WAIVER: …` lines; continue |
+| `waivers[]` is non-empty | Executing-harness waivers are pre-formatted in `record[]`; surface every other waiver (review/refactoring) to the run record yourself per §1e; continue |
 | A skip strands a consumer | `ok: false` already; covered by the stop-on-error path |
 | manifest-lint exits 2 (invalid) | Stop; surface errors (existing behavior; unchanged) |
 
@@ -139,9 +148,10 @@ derived from `engine/src/alias-map.js` — DC-4; this table is deleted at P4):
 
 - **Executing-harness triage gates `propose`**: a phase is an executing-harness when
   `archetype: harness` and `harness-exec ∈ contract`. `propose` does not start
-  `pr create` until every phase id in the in-session `awaitingHarnesses` set (read
-  from `Resolution.gateDecisions[propose].awaitingHarnesses` in §0) has landed its
-  run and its gate is green. `documentation` (archetype: `delivery`) may parallel a
+  `pr create` until every phase id in the in-session `awaitingHarnesses` set (the
+  `awaitingHarnesses[]` of the `Resolution.gateDecisions` entry whose
+  `phaseId === "propose"`, captured in §0 step 1d) has landed its run and its gate is
+  green. `documentation` (archetype: `delivery`) may parallel a
   background executing-harness; `propose` may not.
   If an executing-harness was waived (skipped via `pipeline.skip`), its gate is
   released — the waiver is in `Resolution.waivers[]` and pre-formatted in
