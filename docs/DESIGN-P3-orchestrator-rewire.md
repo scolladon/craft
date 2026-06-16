@@ -170,13 +170,16 @@ no alias entry (`design`, `review`) resolve to themselves, and `skills/design/` 
    `proposeGateReleased: true`) are appended to the run record with a prominent label so the waiver
    is visible in the final summary and PR body.
 
-8. **R8 — PROTECTED removal.** `scripts/manifest-lint.sh` has its `PROTECTED` variable (line 32)
-   and the `skip: is refused on protected phase` check (lines 270–271) removed. The engine's
-   strand-detection is the sole skip guard at runtime.
+8. **R8 — Manifest validation folds into Node (ADR-012).** Shape-validation moves to a pure
+   `validateManifest` export + an `engine/bin/manifest-lint.js` CLI; `scripts/manifest-lint.sh`
+   becomes a thin wrapper. `PROTECTED` is not ported (ADR-005); the new top-level keys are
+   accepted (ADR-010); the legacy per-phase `skip:` is rejected loudly (ADR-011). The slice-2
+   `test/manifest-lint.bats` suite is the behavior-preserving guard.
 
-9. **R9 — Bats re-baseline.** The `invalid-skip-protected` fixture and its two bats tests (yq and
-   no-yq variants) are re-baselined to reflect the post-PROTECTED behavior. What the new behavior
-   is depends on DC-P3-A (decision candidate #3).
+9. **R9 — Bats re-baseline + yq-backend retirement.** The `invalid-skip-protected` test stays
+   exit-2 with the new legacy-skip message (ADR-011). The slice-11 yq-present/yq-absent
+   equivalence tests are retired (`js-yaml` is now the single parser — ADR-012); the behavioral
+   exit-code/message tests stay, exercising the node-backed wrapper.
 
 10. **R10 — Zero-config identity.** With no manifest, the walk must reproduce today's phase
     sequence, agents, and gates phase-for-phase. The SC1 golden is the verification.
@@ -293,44 +296,51 @@ them with archetype-driven language:
   replacing concrete phase names (8, 9, 10, 11) with archetype labels or the generic "the phase"
   where the text currently anchors to a specific number.
 
-### Work item 2: remove PROTECTED from `manifest-lint.sh`
+### Work item 2 (revised — ADR-010/011/012): fold manifest validation into the Node core
 
-Two surgical edits to `scripts/manifest-lint.sh`:
+Per ADR-012 the bash subset-parser is **retired**; manifest shape-validation becomes a pure Node
+function guarded by the existing slice-2 bats suite (behavior-preserving migration, the P2
+pattern). Three new/changed artifacts:
 
-1. Remove line 32: `PROTECTED="branch plan implement review refactor mutation"`
-2. Remove lines 270–271:
-   ```bash
-   skip)
-     in_list "$ph" "$PROTECTED" && err "skip: is refused on protected phase '$ph' (sequence-editing in disguise)" ;;
-   ```
-   The `skip` case block is either removed entirely (if the only logic was the PROTECTED check) or
-   reduced to just the closing `;;`. The `skip` field still appears in `PHASE_FIELDS` (line 27) as
-   a known field; that entry stays — `skip:` remains a recognized field for the engine's
-   `pipeline.skip` list. Note: the per-phase `skip:` field in the manifest is the old mechanism;
-   the engine now consumes `pipeline.skip: [...]`. The field entry in `PHASE_FIELDS` is kept for
-   backward compatibility linting (recognizes but no longer refuses it).
+1. **`engine/src/manifest.js` → `validateManifest(manifest, opts)`** — pure, no I/O. Returns
+   `{ ok, errors[] }`. Reproduces today's shape checks: known **top-level keys** — now including
+   `pipeline`, `retrieval`, `execution` (ADR-010) atop `backlog paths context gates phases pr
+   scripts models`; known **phase names** (the *old* set — alias wiring stays P4, ADR-004, so the
+   bats fixtures hold green); known sub-fields (`gates`/`pr`/`scripts`/`models` + phase fields);
+   `pipeline.{profile,skip,insert}` recognized as shape (the **contents** of `pipeline.skip` are
+   not name-validated — the resolver's strand-check owns skip semantics). **No `PROTECTED`**
+   (ADR-005). **Legacy per-phase `skip:` → a loud error** pointing at `pipeline.skip: [...]`
+   (ADR-011). Dangling-file existence is **injected** (`opts.fileExists(path)`) so the core stays
+   I/O-free like `resolvePipeline`.
+2. **`engine/bin/manifest-lint.js`** — the CLI that owns I/O: resolves the manifest path
+   (default `.claude/workflow.md`), handles absent file / absent frontmatter with today's
+   "pure defaults" messages + exit 0, extracts frontmatter, parses with `js-yaml`, supplies
+   `fileExists` (resolving against `ROOT=dirname(dirname(MF))` and CWD, as the bash did), calls
+   `validateManifest`, and prints **today's exact strings** (`"<MF> valid."`, `"INVALID manifest
+   <MF>:"` + bullet list, the fix-loudly trailer) with exit 0/2.
+3. **`scripts/manifest-lint.sh`** — reduced to a thin, shellcheck-clean wrapper:
+   `exec node "<plugin-root>/engine/bin/manifest-lint.js" "$@"`. Every caller path is unchanged
+   (`run/SKILL.md`, `test/manifest-lint.bats`, `ci.sh`'s shellcheck glob still matches it).
 
-### Work item 3: bats re-baseline for `invalid-skip-protected`
+The full bash parsing logic (`parse_frontmatter`, `_subset_parser_props`, `_emit_scalar_or_array`,
+`validate_props`, the key/field lists) is deleted (~250 lines). `engine/src/index.js` gains a
+`validateManifest` export (7th surface entry).
 
-The `invalid-skip-protected.workflow.md` fixture currently has:
-```yaml
-phases:
-  plan:
-    skip: true
-```
+### Work item 3 (revised — ADR-011): bats re-baseline + yq-backend test retirement
 
-After `PROTECTED` is removed, `plan` with `skip: true` in `phases.plan.skip` is a recognized but
-semantically inert field (the engine doesn't read per-phase `skip:`, only `pipeline.skip: [...]`).
-The manifest-lint sees `phases.plan.skip` as a known `PHASE_FIELDS` entry and exits 0 (valid).
-
-The behavior change depends on the DC-P3-A decision (see Decision candidates). If the `skip`
-field entry is also removed from `PHASE_FIELDS` (no longer recognized), lint exits 2 with
-"unknown field". If kept, lint exits 0. This is a decision candidate.
-
-The two bats tests (`invalid-skip-protected` with yq and without yq) must be re-baselined to
-match the chosen post-PROTECTED behavior. At minimum, the assertion `[[ "$output" == *"skip: is
-refused on protected phase"* ]]` must change. The fixture may also need to change depending on
-the decision.
+- **`invalid-skip-protected`** (`phases: { plan: { skip: true } }`): stays **exit 2**, but the
+  asserted message changes from `"skip: is refused on protected phase"` to the new legacy-skip
+  guidance (e.g. `"per-phase skip: is inert — use top-level pipeline.skip: [plan]"`). Both the
+  fixture title and the assertion update; the fixture content stays (it still demonstrates the
+  per-phase `skip:` field). This is the **one deliberate, expected** bats regression in P3.
+- **yq-present vs yq-absent equivalence tests** (slice-11): the fold makes `js-yaml` the single
+  parser — the dual-backend property no longer exists, so these equivalence assertions are
+  **retired** (ADR-012). The behavioral tests (exit codes + message substrings on every fixture)
+  stay, now exercising the node-backed wrapper. The PATH-shimming `setup`/helpers for the
+  yq-absent runs are removed.
+- New **valid** coverage: a `valid-pipeline-skip.workflow.md` fixture (`pipeline: { skip:
+  [decisions] }`) asserts the new top-level surface lints clean (ADR-010), and an
+  `invalid-unknown-pipeline-subkey` (or similar) pins the shape boundary.
 
 ### Work item 4: run-record seeded from `Resolution.record`
 
@@ -381,7 +391,22 @@ outcome, skip reason, no-op justification, probe result, and forced action as be
 
 ---
 
-## Decision candidates
+## Decision candidates — resolved (ADR pass 2026-06-16 → `docs/adr/009–012`)
+
+**Resolutions** (two ⚑ overrode the designer's recommendation):
+
+- **DC-P3-1 → A** — invert `ALIAS_MAP` in the walk for the procedure→skill bridge (ADR-009).
+- **DC-P3-2 → B** — extend manifest validation for the new surface (`pipeline:`/`retrieval:`/
+  `execution:` + `pipeline.skip`) now (ADR-010).
+- **DC-P3-3 ⚑ → Reject** — the legacy per-phase `skip:` field is a loud error with migration
+  guidance (ADR-011; designer recommended Keep). Fail-loud over backward-compat.
+- **DC-P3-4 ⚑ → Fold** — manifest shape-validation moves into the Node core now (ADR-012;
+  designer recommended Defer). One deterministic validation home; closes the ADR-002 follow-up.
+
+DC-P3-2/3/4 collapse into **one coherent change**: all manifest validation (new keys, legacy-skip
+rejection, PROTECTED removal) lands inside the folded Node validator, not the retired bash parser.
+The **Design** subsections below (Work items 2–3) are revised to that folded approach; the
+candidate table is retained for the options/rationale.
 
 | # | Choice | Alt A | Alt B | Alt C | Recommendation | Why |
 |---|---|---|---|---|---|---|
@@ -448,5 +473,6 @@ After the walk rewrite:
 - **P8 harness internals** (dimensions, passes, cycles): the walk names harness phases by
   archetype; internal execution details are per-harness phase skills.
 - **worktree-teardown.sh production hardening**: parked item (see BACKLOG.md); not touched.
-- **Full fold of `manifest-lint` into Node core**: ADR-002 follow-up; recommended as A (deferred)
-  in DC-P3-4 above.
+- **Phase-name aliasing in `validateManifest`**: P3 keeps the old phase-name set (the bats suite
+  holds green); wiring `validateManifest` to `resolveAlias` so new/old names both validate is P4
+  (ADR-004), not this phase. (The manifest *fold itself* is IN scope per ADR-012.)
