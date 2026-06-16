@@ -138,11 +138,13 @@ function validateScripts(scripts, fileExists, errors) {
 }
 
 /**
- * Validate the `pipeline` sub-object (ADR-010).
+ * Validate the `pipeline` sub-object keys (ADR-010).
+ * Named distinctly from the graph's exported `validatePipeline(descriptors)`:
+ * this checks manifest-shape sub-keys, not the descriptor DAG.
  * @param {Record<string, unknown>} pipeline
  * @param {string[]} errors
  */
-function validatePipeline(pipeline, errors) {
+function validatePipelineKeys(pipeline, errors) {
   if (!pipeline || typeof pipeline !== 'object' || Array.isArray(pipeline)) return;
   for (const key of Object.keys(pipeline)) {
     if (!PIPELINE_KEYS.has(key)) {
@@ -201,13 +203,15 @@ function validatePhases(phases, fileExists, errors) {
  * Returns { ok: boolean, errors: string[] }; never throws.
  *
  * @param {Record<string, unknown>|null|undefined} manifest - js-yaml load() output
- * @param {{ fileExists: (path: string) => boolean }} opts
+ * @param {{ fileExists?: (path: string) => boolean }} [opts] - fileExists defaults to
+ *   "assume present" when omitted (file existence is a separate, injected concern); the
+ *   guard keeps the never-throws contract even if a caller forgets opts.
  * @returns {{ ok: boolean, errors: string[] }}
  */
 export function validateManifest(manifest, opts) {
   if (manifest === null || manifest === undefined) return { ok: true, errors: [] };
 
-  const { fileExists } = opts;
+  const fileExists = typeof opts?.fileExists === 'function' ? opts.fileExists : () => true;
   const errors = [];
 
   for (const [key, value] of Object.entries(manifest)) {
@@ -233,7 +237,7 @@ export function validateManifest(manifest, opts) {
         validateScripts(value, fileExists, errors);
         break;
       case 'pipeline':
-        validatePipeline(value, errors);
+        validatePipelineKeys(value, errors);
         break;
       case 'phases':
         validatePhases(value, fileExists, errors);

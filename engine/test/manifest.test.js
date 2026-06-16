@@ -448,8 +448,112 @@ test('Given a manifest with multiple validation errors, when validateManifest ru
   );
 
   assert.equal(result.ok, false);
-  assert.ok(result.errors.length >= 3);
+  assert.ok(result.errors.length >= 4);
   assert.ok(result.errors.some(e => e.includes('unknown top-level key: unknownTop')));
   assert.ok(result.errors.some(e => e.includes('unknown phase: bogusPhase')));
   assert.ok(result.errors.some(e => e.includes('unknown gates field: bogusGateField')));
+  // the per-phase skip on bogusPhase must also accumulate (ADR-011), not be dropped
+  assert.ok(result.errors.some(e => e.includes('pipeline.skip')));
+});
+
+// ─── review fixes: faithful-port coverage the slice-2 bats fixtures depend on ──
+
+test('Given a missing opts argument, when validateManifest runs on a path-bearing manifest, then it does not throw (never-throws contract)', () => {
+  const sut = validateManifest;
+
+  // No opts passed at all — fileExists must default safely, not throw.
+  const result = sut({ context: 'some/path.md' });
+
+  assert.equal(result.ok, true);
+});
+
+test('Given a scripts field as an array of all-existing files, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { scripts: { 'post-setup': ['scripts/a.sh', 'scripts/b.sh'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given phases.review.context as an array of all-existing files, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { context: ['a.md', 'b.md'] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given phases.plan.override as an array with a missing file, when validateManifest runs, then it returns an error containing "references missing file"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { plan: { override: ['ok.md', 'gone.md'] } } },
+    { fileExists: p => p === 'ok.md' },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('references missing file')));
+});
+
+test('Given phases.plan.override as an array of all-existing files, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { plan: { override: ['a.md', 'b.md'] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given phases.plan.override as null, when validateManifest runs, then it returns ok (null path is valid)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { plan: { override: null } } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a known phase with non-blocking-jobs and merge-flags fields, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { docs: { 'non-blocking-jobs': 2 }, merge: { 'merge-flags': '--squash' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a non-fallback models key (slice-implementer), when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { models: { 'slice-implementer': 'haiku', reviewer: 'sonnet' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a per-phase skip on a NON-protected phase (design), when validateManifest runs, then it is still rejected with pipeline.skip guidance (ADR-011 broadening)', () => {
+  const sut = validateManifest;
+
+  // Pre-P3 the bash PROTECTED list let design.skip lint clean; ADR-011 rejects every per-phase skip.
+  const result = sut(
+    { phases: { design: { skip: true } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('pipeline.skip')));
 });
