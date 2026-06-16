@@ -1,9 +1,9 @@
 ---
-name: adr
+name: decisions
 description: Forge phase 3 - the user decides every load-bearing design choice; decisions are captured as ADRs; deviations fold back into the design.
 ---
 
-# forge:adr
+# forge:decisions
 
 ## Preamble (always runs — non-overridable)
 
@@ -23,4 +23,4 @@ ENTIRELY session-owned — never delegated.
 3. **Scope-fold rule:** if any decision deviates from the design's recommendation,
    spawn a FRESH **forge:designer** to revise — fed the ADR + design-doc PATHS (the
    committed artifacts, read in-place; never your conversation) — committing
-   `docs(design): revise <slug> against ADRs <range>` BEFORE the plan phase.
+   `docs(design): revise <slug> against ADRs <range>` BEFORE the planning phase.

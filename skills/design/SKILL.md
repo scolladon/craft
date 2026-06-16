@@ -22,6 +22,6 @@ description: Forge phase 2 - produce the feature design doc via the designer age
 2. When it returns: READ THE DOC (not the agent's exploration). Sanity-check it
    against the brief; verify the commit exists and the Decision-candidates section is
    present (possibly empty).
-3. Carry the decision candidates forward to the adr phase. Record the outcome in the
-   run record.
+3. Carry the decision candidates forward to the decisions phase. Record the outcome in
+   the run record.
 4. Dead agent → respawn fresh from the brief + whatever the doc already contains.

@@ -5,16 +5,22 @@
  * No I/O — file-existence checks are injected via opts.fileExists.
  */
 
+import { resolveAlias } from './alias-map.js';
+
 /** Known top-level keys (ADR-010 adds pipeline, retrieval, execution). */
 const TOP_KEYS = Object.freeze(new Set([
   'backlog', 'paths', 'context', 'gates', 'phases',
   'pr', 'scripts', 'models', 'pipeline', 'retrieval', 'execution',
 ]));
 
-/** Phase names accepted as children of the `phases` key (OLD set — alias wiring is P4). */
+/**
+ * Canonical concern ids accepted as children of the `phases` key.
+ * Old names (branch, mutation, docs, …) resolve to these via resolveAlias.
+ */
 const PHASE_NAMES = Object.freeze(new Set([
-  'branch', 'design', 'adr', 'plan', 'implement',
-  'review', 'refactor', 'mutation', 'docs', 'pr', 'merge',
+  'workspace', 'requirements', 'design', 'decisions', 'planning',
+  'implementation', 'review', 'refactoring', 'validation',
+  'architecture', 'documentation', 'propose', 'integrate',
 ]));
 
 /** Fields accepted on each phase block (skip is intentionally absent — ADR-011). */
@@ -34,7 +40,7 @@ const SCRIPT_FIELDS = Object.freeze(new Set(['post-setup', 'pre-teardown']));
 /** Agent/role names accepted under the `models` key. */
 const MODELS_KEYS = Object.freeze(new Set([
   'fallback', 'designer', 'planner', 'reviewer',
-  'slice-implementer', 'refactor-executor', 'mutation-triager',
+  'slice-implementer', 'refactor-executor', 'validation-triager',
   'docs-writer', 'backlog-ticker',
 ]));
 
@@ -87,9 +93,12 @@ function checkFileRef(label, value, fileExists, errors) {
 function validateModels(models, errors) {
   if (!models || typeof models !== 'object' || Array.isArray(models)) return;
   for (const key of Object.keys(models)) {
-    if (!MODELS_KEYS.has(key)) {
-      errors.push(`unknown models key: ${key} (expected an agent name or 'fallback')`);
+    if (MODELS_KEYS.has(key)) continue;
+    if (key === 'mutation-triager') {
+      errors.push(`models key 'mutation-triager' was renamed — use 'validation-triager'`);
+      continue;
     }
+    errors.push(`unknown models key: ${key} (expected an agent name or 'fallback')`);
   }
 }
 
@@ -191,7 +200,7 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
 function validatePhases(phases, fileExists, errors) {
   if (!phases || typeof phases !== 'object' || Array.isArray(phases)) return;
   for (const [phaseName, block] of Object.entries(phases)) {
-    if (!PHASE_NAMES.has(phaseName)) {
+    if (!PHASE_NAMES.has(resolveAlias(phaseName))) {
       errors.push(`unknown phase: ${phaseName}`);
     }
     validatePhaseBlock(phaseName, block, fileExists, errors);

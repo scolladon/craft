@@ -117,3 +117,21 @@ FIXTURES="${BATS_TEST_DIRNAME}/fixtures/manifest"
   [ "$status" -eq 0 ]
   [[ "$output" == *"no manifest"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Canonical phase names + renamed models key
+# ---------------------------------------------------------------------------
+
+@test "Given a manifest with new canonical phase names and validation-triager model key, when lint runs, then it exits 0 and reports valid" {
+  run_lint "${FIXTURES}/valid-new-phase-names.workflow.md"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"valid."* ]]
+}
+
+@test "Given a manifest with the renamed mutation-triager models key, when lint runs, then it exits 2 and reports INVALID manifest with validation-triager guidance" {
+  run_lint "${FIXTURES}/invalid-renamed-agent-model.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"mutation-triager"* ]]
+  [[ "$output" == *"validation-triager"* ]]
+}

@@ -1,6 +1,6 @@
 {
   "name": "forge",
   "version": "0.1.1",
-  "description": "Feature-delivery workflow engine: branch → design → ADR → plan → TDD slices → review → refactor → mutation → docs → PR → merge. Phase skills with per-repo declination via .claude/workflow.md.",
+  "description": "Feature-delivery workflow engine: workspace → design → decisions → planning → implementation → review → refactoring → validation → documentation → propose → integrate. Phase skills with per-repo declination via .claude/workflow.md.",
   "author": { "name": "Sébastien Colladon" }
 }

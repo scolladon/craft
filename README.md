@@ -1,10 +1,10 @@
 # forge
 
 A feature-delivery workflow engine for Claude Code, packaged as a plugin. One abstract
-phase sequence — **branch → design → ADR → plan → implement-by-slices → review →
-refactor → mutation → docs → PR → merge** — that any repo adopts as-is and customizes
-through a committed declination manifest. Zero session-memory dependence: every
-load-bearing rule lives in a hook, a script, or versioned instruction text.
+phase sequence — **workspace → design → decisions → planning → implementation → review →
+refactoring → validation → documentation → propose → integrate** — that any repo adopts
+as-is and customizes through a committed declination manifest. Zero session-memory
+dependence: every load-bearing rule lives in a hook, a script, or versioned instruction text.
 
 ## Install
 
@@ -22,7 +22,7 @@ Dev loop: `claude --plugin-dir /path/to/forge`.
 ```
 
 Phase skills also run standalone: `/forge:review` (multi-dimension review battery on
-the current branch), `/forge:mutation` (scoped mutation run + triage), etc.
+the current branch), `/forge:validation` (scoped mutation run + triage), etc.
 
 ## Customize — `.claude/workflow.md` in your repo
 
@@ -38,7 +38,7 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
 - `skills/run` — orchestrator (cross-phase invariants, run record)
 - `skills/<phase>` — one per phase: non-overridable Preamble + overridable Procedure
 - `agents/` — role contracts with pinned models (designer, planner, reviewer,
-  slice-implementer, refactor-executor, mutation-triager, docs-writer, backlog-ticker).
+  slice-implementer, refactor-executor, validation-triager, docs-writer, backlog-ticker).
   A pinned model that goes down falls back (manifest `models.fallback` → session model)
   and the degraded tier is remembered for the rest of the run.
 - `hooks/` — PreToolUse guards: `git diff/show` without `--no-ext-diff` is denied with

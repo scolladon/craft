@@ -1,13 +1,13 @@
 ---
-name: refactor
+name: refactoring
 description: Forge phase 7 - widen the lens to the whole codebase for structural gains the diff-scoped passes cannot see; behavior-preserving; may be an honest no-op.
 ---
 
-# forge:refactor
+# forge:refactoring
 
 ## Preamble (always runs — non-overridable)
 
-1. Manifest read (lint if standalone); gates as in implement's preamble.
+1. Manifest read (lint if standalone); gates as in implementation's preamble.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
@@ -27,4 +27,4 @@ description: Forge phase 7 - widen the lens to the whole codebase for structural
 4. **Re-review, scoped to the refactor diff only**, via forge:review's procedure
    (same dimensions, per-dimension convergence ≤3). Findings implying FURTHER
    refactoring become follow-ups, not another loop. `gates.phase` green to close.
-5. Order rationale: this runs BEFORE mutation so mutation scores the final shape.
+5. Order rationale: this runs BEFORE validation so validation scores the final shape.

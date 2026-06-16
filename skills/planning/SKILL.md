@@ -1,9 +1,9 @@
 ---
-name: plan
+name: planning
 description: Forge phase 4 - produce the sliced TDD implementation plan via the planner agent; mechanically linted so every slice carries its context block.
 ---
 
-# forge:plan
+# forge:planning
 
 ## Preamble (always runs — non-overridable)
 
@@ -18,7 +18,7 @@ description: Forge phase 4 - produce the sliced TDD implementation plan via the 
    absolute working directory; the output path `<plan-dir>/<slug>.md`; the template
    `"${CLAUDE_PLUGIN_ROOT}/templates/plan.md"`; the slice-gate command (manifest
    `gates.slice`, or probe: the repo's test runner over touched files, falling back to
-   `gates.phase`); the commit message `docs(plan): <slug>`; global + plan-phase
+   `gates.phase`); the commit message `docs(plan): <slug>`; global + planning-phase
    `context:` files verbatim.
 2. When it returns: run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-lint.sh" <plan-path>` —
    **the phase cannot close red**. On failure, respawn fresh with the lint output; ≤2

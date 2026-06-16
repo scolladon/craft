@@ -557,3 +557,76 @@ test('Given a per-phase skip on a NON-protected phase (design), when validateMan
   assert.equal(result.ok, false);
   assert.ok(result.errors.some(e => e.includes('pipeline.skip')));
 });
+
+// ─── canonical phase names (new concern vocabulary) ──────────────────────────
+
+test('Given a manifest with new canonical phase names, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { workspace: {}, validation: {}, documentation: {} } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with old phase names (aliases), when validateManifest runs, then it returns ok (back-compat via resolveAlias)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { branch: {}, mutation: {}, docs: {} } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest naming the prd alias (target is a default-off phase), when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  // prd→requirements is the one alias whose target shape differs from the rename pattern
+  // and whose phase is default-off; pin it through the manifest path, not just resolveAlias.
+  const result = sut(
+    { phases: { prd: {} } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest mixing an old alias and a new canonical phase name, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { branch: {}, implementation: {} } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+// ─── validation-triager models key (renamed from mutation-triager) ────────────
+
+test('Given a manifest with models.validation-triager, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { models: { 'validation-triager': 'sonnet' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with models.mutation-triager (renamed key), when validateManifest runs, then it returns an error containing "validation-triager"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { models: { 'mutation-triager': 'sonnet' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('validation-triager')));
+});

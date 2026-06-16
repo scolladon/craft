@@ -1,9 +1,9 @@
 ---
-name: merge
+name: integrate
 description: Forge phase 11 - monitor CI to green, merge on user confirmation, clean up worktree/branch and repo tooling.
 ---
 
-# forge:merge
+# forge:integrate
 
 ## Preamble (always runs — non-overridable)
 
@@ -26,6 +26,6 @@ description: Forge phase 11 - monitor CI to green, merge on user confirmation, c
    ```
    The script refuses while the mutation run-lock is alive (dead-PID locks
    auto-clear; a live lock needs `--force`, which is recorded in the run record).
-   The pre-teardown script is the matched pair of branch-phase tooling activation —
+   The pre-teardown script is the matched pair of workspace-phase tooling activation —
    every activation gets its prune.
 4. Close the run record; deliver the final summary (PR URL, what shipped, record).

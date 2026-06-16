@@ -62,10 +62,11 @@ Input: `$ARGUMENTS`
 
 Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 
-1. **Resolve the skill dir** — look up `phase.id` in the ALIAS_MAP inverse table
-   below and invoke `forge:<skill-dir-name>`. If `phase.id` has no entry and no
-   same-named `skills/` dir exists: STOP and surface "unknown phase id <id>; P4
-   may fix this".
+1. **Resolve the skill** — invoke `forge:<phase.id>` directly: the skill dir name
+   equals `phase.id` (concern names match dir names). `requirements` and
+   `architecture` are default-off and have no skill dir until P10; an enabled phase
+   id with no `skills/<id>/` dir is the loud STOP "unknown phase id <id>" — the
+   intended guard, not a silent skip.
 
 2. **Resolve execution** — use `phase.execution` (`agent` | `inline`) from the
    Resolution. Apply manifest override (`phases.<id>.override`,
@@ -106,30 +107,9 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 8. **On model-down** (not a task blocker): mark tier degraded; re-resolve to
    fallback; respawn from artifact. Record degradation in run record.
 
-ALIAS_MAP inverse table (canonical id → skill dir, single authoritative copy
-derived from `engine/src/alias-map.js` — DC-4; this table is deleted at P4):
-
-| canonical id   | skill dir                              |
-|---|---|
-| workspace      | branch                                 |
-| requirements   | — (new phase; no skill dir until P10)   |
-| decisions      | adr                                    |
-| planning       | plan                                   |
-| implementation | implement                              |
-| design         | design                                 |
-| review         | review                                 |
-| refactoring    | refactor                               |
-| validation     | mutation                               |
-| architecture   | — (new phase; no skill dir until P10)   |
-| documentation  | docs                                   |
-| propose        | pr                                     |
-| integrate      | merge                                  |
-
-`requirements` and `architecture` are disabled by default (not in SC1 `effective[]`)
-and have **no skill dir yet** — their skills/agents land at P10. Enabling either before
-then hits the loud STOP above ("unknown phase id"); that is the intended guard, not a
-silent skip. `design` and `review` map to themselves (no alias entry; `skills/design/`
-and `skills/review/` already exist under those names).
+`design` and `review` are already concern-named (no alias); every other phase id maps
+to a `skills/<id>/` dir of the same name after the P4 rename, so the walk invokes
+`forge:<phase.id>` with no translation table.
 
 ### Walk error paths
 
@@ -138,7 +118,7 @@ and `skills/review/` already exist under those names).
 | `ok: false` from `pipeline-resolve` | Stop; surface all `errors[]`; refuse to proceed |
 | Non-zero exit from `pipeline-resolve` | Stop; surface stderr; refuse to proceed |
 | `effective[]` is empty | Stop; surface "no enabled phases in resolution" |
-| A phase id has no matching inverse-alias and no same-named `skills/` dir | Stop; surface "unknown phase id <id>; P4 may fix this" |
+| A phase id has no `skills/<id>/` dir (e.g. an enabled requirements/architecture pre-P10) | Stop; surface "unknown phase id <id>" |
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
 | `waivers[]` is non-empty | Executing-harness waivers are pre-formatted in `record[]`; surface every other waiver (review/refactoring) to the run record yourself per §1e; continue |
 | A skip strands a consumer | `ok: false` already; covered by the stop-on-error path |

@@ -10,7 +10,7 @@ description: Forge phase 6 - parallel multi-dimension review with per-dimension 
 1. Manifest read (lint if standalone). Standalone: scope = current branch vs default
    branch; establish global-context preconditions (checkout root).
 2. Probe: dimensions = code, security, tests, perf (a repo `context:` may refine their
-   definitions); gates as in implement's preamble; `gates.review-batch` optional extra.
+   definitions); gates as in implementation's preamble; `gates.review-batch` optional extra.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
@@ -19,7 +19,7 @@ description: Forge phase 6 - parallel multi-dimension review with per-dimension 
    working directory; the diff scope; the design doc path (if any); global +
    review-phase `context:` files verbatim. Perf calibrates to the diff — zero findings
    legitimate. Tests dimension: no mutation analysis, but suspected-equivalent mutants
-   MAY be flagged as advisory notes (keep them for the mutation phase).
+   MAY be flagged as advisory notes (keep them for the validation phase).
 2. **Fixes — session-owned:** apply every accepted finding yourself, batched per
    dimension; each batch gates on the targeted checks (`gates.slice` over touched
    files) + `gates.review-batch` before its conventional commit (e.g.

@@ -1,9 +1,9 @@
 ---
-name: docs
-description: Forge phase 9 - refresh affected documentation pages, tick the backlog entry under guard, author follow-ups; runs in parallel with the background mutation run.
+name: documentation
+description: Forge phase 9 - refresh affected documentation pages, tick the backlog entry under guard, author follow-ups; runs in parallel with the background validation run.
 ---
 
-# forge:docs
+# forge:documentation
 
 ## Preamble (always runs — non-overridable)
 
@@ -13,7 +13,7 @@ description: Forge phase 9 - refresh affected documentation pages, tick the back
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-Runs in parallel with the mutation phase's background run.
+Runs in parallel with the validation phase's background run.
 
 1. **Pages — only if any are affected:** spawn **forge:docs-writer** with the affected
    page list + what changed per page, the design doc path as content source, the

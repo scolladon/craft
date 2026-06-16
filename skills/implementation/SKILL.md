@@ -1,9 +1,9 @@
 ---
-name: implement
+name: implementation
 description: Forge phase 5 - execute the plan slice by slice, one slice-implementer agent each, sequential, with per-slice gates and one phase-boundary gate.
 ---
 
-# forge:implement
+# forge:implementation
 
 ## Preamble (always runs — non-overridable)
 
@@ -22,7 +22,7 @@ description: Forge phase 5 - execute the plan slice by slice, one slice-implemen
    `### Context` block verbatim AND any load-bearing deltas — hand the pre-chew over so
    the agent never re-greps the codebase, but do NOT re-transcribe the whole committed
    slice; the design doc path; the resolved slice gate; the commit message from the
-   plan; global + implement-phase `context:` files verbatim.
+   plan; global + implementation-phase `context:` files verbatim.
 2. **After each agent returns, verify before launching the next**: the commit exists
    and matches the slice promise (`git log`, `git show --stat`); spot-check
    conventions on the diff. Failed/blocked slice → fix in-session or escalate with
