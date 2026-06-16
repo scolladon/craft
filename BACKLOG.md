@@ -16,13 +16,14 @@
 | P2 | `manifest-lint` hardened (yq + subset-parser fallback) | ✅ done & green |
 | P3 | Rewire the live walk + fold manifest validation into the Node core | ✅ done & green |
 | P4 | Generic vocabulary (rename + alias-map wiring) | ✅ done & green |
-| **P5** | **Engine-owned contract injection + DESIGN split** | ⏭️ **next** |
-| P6–P16 | e2e, NFR matrix, backlog/registration ports, … | ⬜ outlined (PRD §17) |
+| P5 | Engine-owned contract injection + DESIGN split | ✅ done & green |
+| **P6–P16** | **e2e, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
-> `scripts/ci.sh` green (210 `node --test` + 42 bats). **P3 connected them; P4 made the
-> vocabulary generic — `skill dir == phase.id`, no alias bridge.**
+> the contract has one engine home (`contracts/` → `assembleContract`, injected on every run);
+> `scripts/ci.sh` green (276 `node --test` + 42 bats). **P3 connected the walk; P4 made the
+> vocabulary generic; P5 made the contract engine-owned — agents are thin, a swap can't drop it.**
 
 ## Done
 
@@ -52,17 +53,19 @@
 - [x] `templates/backlog.md` added (ADR-014); alias-resolution fixture in the slice-2 bats suite — a NEW-name manifest and `valid-basic` (OLD names) both lint clean
 - [x] **Surface gate held:** golden `Resolution` byte-identical (`pipeline/default.yml` untouched); SC1 + scenario + `manifest-lint.bats` green by construction (210 `node --test` + 42 bats)
 
-## Next — P5: engine-owned contract injection + DESIGN split
-- [ ] create the real `contracts/{core,producer,construction,harness-read,harness-exec,delivery}.md`; feed them to `assembleContract`; thin the `agents/*.md` to role-craft only
-- [ ] `DESIGN.md → DESIGN-history.md` (ADR-007) — **this reconciles the pre-P4 vocabulary still in `DESIGN.md`** (old phase names + the now-removed `skills/mutation/` · `agents/mutation-triager.md` layout paths); P4 deliberately left them because once `DESIGN.md` is the *history* record those old names are correct-as-history, and a piecemeal mutation→validation pass would only half-rename a doc that still describes the hardcoded 1→11 pipeline
-- [ ] re-baseline the R8 fixed-prompt agent-output diff (contract relocation must not change spawn content)
+### P5 — engine-owned contract injection + DESIGN split (slices 1–5; SoT `docs/{DESIGN,PLAN}-P5-contract-injection.md`, ADRs 015–019)
+- [x] `contracts/{core,producer,construction,harness-read,harness-exec,delivery,refinement}.md` authored (the real invariant store) + `contracts-lint` (7 present, non-empty, no `retrieval`, names ⊆ vocab) wired into `ci.sh` (ADR-003/016)
+- [x] **6th `refinement` bundle** (DC-15 / ADR-015 — the override): `BUNDLE_VOCAB`→7, `refactoring.contract:[refinement]`; every archetype's invariants are now engine-owned (a swapped refactor agent can't drop "behavior-preserving" either)
+- [x] `assembleContract` wired into the walk via `engine/bin/contract-assemble.js` (`run/SKILL.md` step 3 — pure core stays I/O-free, `Resolution` byte-identical so SC1 holds); the **deterministic R8 block-equivalence guard** replaces the nondeterministic agent-output diff (ADR-018)
+- [x] 8 `agents/*.md` **fully thinned** to identity + craft (ADR-017); no invariant text duplicated between `contracts/` and `agents/` (the engine injects it — a swap can't drop it, G5 closed)
+- [x] `normalizeFindings` wired for review output via `engine/bin/normalize-findings.js` (R10 — consumers key on fields, not JSON-vs-per-line layout; ADR-019); `findings.js` `LINE_PATTERN` hardened against ReDoS (review)
+- [x] `DESIGN.md → DESIGN-history.md` (ADR-007) — pure relabel (old vocab = correct-as-history); living SoT is `DESIGN-customizable-engine.md`
+- [x] **Surface gate held:** R8 deterministic per-phase block-equivalence; inline swaps exactly the two carve-out lines; `pipeline/default.yml` changed only `refactoring.contract` (resolver untouched, SC1 + scenarios green); 7-export surface unchanged; CI green at every commit (276 `node --test` + 42 bats)
 
-**Surface gate (P5):** the R8 agent-output diff is the only deliberate change; SC1 + scenario suite stay green; the relocated contract is byte-equal in meaning to today's scattered invariants.
-
-## Then
-- **Showcase docs** (post-P5, once the architecture is stable): a clean, illustrated overview —
-  intent, hexagon diagram (Mermaid), a sample `.claude/workflow.md`, a sample run. Deliberately
-  *after* P5 so the diagrams don't churn every phase.
+## Next — P6+
+- **Showcase docs** (now that the architecture is stable post-P5): a clean, illustrated overview —
+  intent, hexagon diagram (Mermaid), a sample `.claude/workflow.md`, a sample run.
+- P6–P16 ports (e2e, NFR matrix, backlog/registration ports) — PRD §17.
 
 ## Deferred / parked
 - [ ] `worktree-teardown.sh` production hardening — validate PID before `kill -0`, `git branch -D --`,

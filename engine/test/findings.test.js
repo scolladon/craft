@@ -202,3 +202,42 @@ test('Given a JSON array with a missing required field (file), when normalizeFin
     /Finding at index 0 missing required field/,
   );
 });
+
+// ─── ReDoS resistance: pathological trailing-space-then-pipe input ────────────
+
+test('Given a per-line input with thousands of spaces before a lone pipe, when normalizeFindings runs, then it rejects promptly without catastrophic backtracking', () => {
+  // A regression guard: the prior combined lazy-quantifier + optional-group pattern
+  // backtracked super-linearly on this shape (700 chars ≈ 2s). If it regresses, this
+  // test hangs the runner rather than completing.
+  const raw = `error a.js:1 — ${' '.repeat(5000)}|`;
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    /Cannot parse findings/,
+  );
+});
+
+// ─── bare pipe in finding/fix is rejected (preserves [^|] semantics) ──────────
+
+test('Given a per-line finding containing a bare pipe, when normalizeFindings runs, then it throws (finding may not contain a pipe)', () => {
+  const raw = 'error a.js:1 — left|right';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    /Cannot parse findings/,
+  );
+});
+
+// ─── long unparseable line is truncated in the error message ─────────────────
+
+test('Given a long unparseable line, when normalizeFindings runs, then the thrown message truncates the echoed content', () => {
+  const longGarbage = `x${'y'.repeat(500)}`;
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(longGarbage),
+    (err) => err.message.includes('…') && !err.message.includes('y'.repeat(200)),
+  );
+});

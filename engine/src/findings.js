@@ -3,11 +3,15 @@
  */
 
 /**
- * Per-line pattern: <severity> <file>:<line> — <finding> | <fix>
- * The em-dash separator (—) may be surrounded by any whitespace.
- * The pipe + fix part is optional.
+ * Per-line shape: <severity> <file>:<line> — <finding> [ | <fix> ]
+ * The em-dash separator (—) may be surrounded by any whitespace; the ` | ` fix part
+ * is optional. We split on the pipe delimiter FIRST, then match the head with a single
+ * backtracking-free pattern — preserving the original `[^|]` semantics (finding and fix
+ * may not contain a pipe) without the catastrophic backtracking the prior combined
+ * lazy-quantifier + optional-group pattern exhibited on `<finding><spaces>|` input.
  */
-const LINE_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+([^|]+?)(?:\s+\|\s+([^|]+))?$/u;
+const PIPE_DELIMITER = /\s+\|\s+/u;
+const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
@@ -84,11 +88,21 @@ function parseJsonShape(raw) {
  * @returns {Finding | null}
  */
 function parseLine(line) {
-  const match = line.trim().match(LINE_PATTERN);
+  const parts = line.trim().split(PIPE_DELIMITER);
+  // finding and fix can't span a second delimiter — more than one is unparseable.
+  if (parts.length > 2) {
+    return null;
+  }
+  const match = parts[0].match(LINE_HEAD_PATTERN);
   if (match === null) {
     return null;
   }
-  const [, severity, file, rawLine, finding, fix] = match;
+  const [, severity, file, rawLine, finding] = match;
+  const fix = parts.length === 2 ? parts[1] : undefined;
+  // A bare pipe in finding or fix is rejected (the original `[^|]` groups did the same).
+  if (finding.includes('|') || (fix !== undefined && fix.includes('|'))) {
+    return null;
+  }
   return toFinding({ file, line: rawLine, severity, finding, fix });
 }
 
@@ -110,8 +124,10 @@ function parseLineShape(raw) {
   for (const line of nonBlank) {
     const finding = parseLine(line);
     if (finding === null) {
+      // Truncate the echoed content — input may be long or carry sensitive text.
+      const shown = line.length > 120 ? `${line.slice(0, 120)}…` : line;
       throw new Error(
-        `Cannot parse findings: line does not match the per-line format: ${JSON.stringify(line)}`,
+        `Cannot parse findings: line does not match the per-line format: ${JSON.stringify(shown)}`,
       );
     }
     results.push(finding);

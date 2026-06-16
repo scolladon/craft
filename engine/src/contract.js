@@ -83,7 +83,7 @@ function extractContext(value) {
  *
  * @param {{ id: string, contract: string[] }} descriptor
  * @param {{ context?: unknown, phases?: Record<string, { context?: unknown }> }} manifest
- * @param {{ core: string, producer: string, construction: string, 'harness-read': string, 'harness-exec': string, delivery: string }} fragments
+ * @param {{ core: string, producer: string, construction: string, 'harness-read': string, 'harness-exec': string, delivery: string, refinement: string }} fragments
  * @param {{ execution?: string }} opts
  * @returns {string}
  */

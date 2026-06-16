@@ -48,6 +48,7 @@ const FRAGMENTS = {
   'harness-read': readBundle('harness-read'),
   'harness-exec': readBundle('harness-exec'),
   delivery:       readBundle('delivery'),
+  refinement:     readBundle('refinement'),
 };
 
 // Canonical SC1 phase order (11 enabled phases)

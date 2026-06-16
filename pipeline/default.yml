@@ -85,7 +85,8 @@
 
 - id: refactoring
   archetype: refinement
-  contract: []
+  contract:
+    - refinement
   procedure: forge:refactoring
   role: forge:refactor-executor
   consumes:

@@ -1,6 +1,6 @@
 /** Closed bundle vocabulary — every contract name must be in this set. */
-const BUNDLE_VOCAB = new Set([
-  'core', 'producer', 'construction', 'harness-read', 'harness-exec', 'delivery',
+export const BUNDLE_VOCAB = new Set([
+  'core', 'producer', 'construction', 'harness-read', 'harness-exec', 'delivery', 'refinement',
 ]);
 
 /**

@@ -1,3 +1,9 @@
+> **Frozen migration record.** The living engine architecture is
+> [DESIGN-customizable-engine.md](DESIGN-customizable-engine.md) (ADR-007). The pre-P4
+> vocabulary below — old phase names, and the retired `skills/mutation/` ·
+> `agents/mutation-triager.md` layout — is correct-as-history and is deliberately not
+> rewritten.
+
 # Workflow promotion — abstract engine, per-repo declination
 
 Promote tsgit's `/apply-workflow` into a reusable workflow any project can adopt, with

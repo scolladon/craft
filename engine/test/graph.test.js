@@ -129,3 +129,15 @@ test('Given descriptors with valid bundle names, when validatePipeline runs, the
   const result = validatePipeline(sut);
   assert.equal(result.ok, true, `Expected ok but got: ${result.errors.join('; ')}`);
 });
+
+test('Given a descriptor with contract:[refinement], when validatePipeline runs, then ok is true', () => {
+  const yaml = `
+- id: refactoring
+  archetype: refinement
+  contract: [refinement]
+  procedure: forge:refactoring
+`;
+  const sut = parsePipeline(yaml);
+  const result = validatePipeline(sut);
+  assert.equal(result.ok, true, `Expected ok but got: ${result.errors.join('; ')}`);
+});

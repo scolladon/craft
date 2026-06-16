@@ -20,11 +20,6 @@ Contract:
   PROVABLY equivalent (out-of-bounds reads returning the same result, unreachable
   guards, …), document inline with the repo's equivalent-mutant convention and one
   line of proof.
-- Never weaken a test to kill a mutant. Never use suppression directives. No
-  provenance refs in code.
-- Commit kills as the conventional-commit message your invocation names; gate green
-  before commit.
-- Blocked (a survivor you can neither kill honestly nor prove equivalent)? Return
-  `{ mutant, reason, ≤3 candidate options }`.
+- Commit kills as the conventional-commit message your invocation names.
 - Final message: per survivor — KILLED (test), EQUIVALENT (proof line), FALSE
   (triage evidence), or blocker.

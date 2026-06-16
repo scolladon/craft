@@ -19,6 +19,7 @@ const FRAGMENTS = {
   'harness-read':  readBundle('harness-read'),
   'harness-exec':  readBundle('harness-exec'),
   delivery:     readBundle('delivery'),
+  refinement:   readBundle('refinement'),
 };
 
 const RETRIEVAL_MARKER = 'retrieval';
@@ -294,4 +295,25 @@ test('Given a full descriptor with all sections, when assembleContract runs, the
   assert.ok(producerPos < retrievalPos, 'bundles must precede retrieval note');
   assert.ok(retrievalPos < globalPos,   'retrieval note must precede global context');
   assert.ok(globalPos < phasePos,       'global context must precede per-phase context');
+});
+
+// ─── refinement bundle ────────────────────────────────────────────────────────
+
+test('Given a descriptor with contract:[refinement], when assembleContract runs, then refinement fixture content is present in output', () => {
+  const descriptor = { id: 'refactoring', contract: ['refinement'], execution: 'agent' };
+  const manifest = {};
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  const corePos = result.indexOf(FRAGMENTS.core.split('\n')[0].trim());
+  const refinementPos = result.indexOf(FRAGMENTS.refinement);
+  assert.ok(
+    result.includes(FRAGMENTS.refinement),
+    'refinement bundle content must appear verbatim in output',
+  );
+  assert.ok(
+    corePos !== -1 && corePos < refinementPos,
+    'refinement bundle must appear after the U core',
+  );
 });

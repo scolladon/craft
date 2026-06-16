@@ -230,7 +230,7 @@ const EXPECTED_DESCRIPTORS = [
     id: 'refactoring',
     archetype: 'refinement',
     enabled: true,
-    contract: [],
+    contract: ['refinement'],
     procedure: 'forge:refactoring',
     role: 'forge:refactor-executor',
     consumes: ['change'],

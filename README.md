@@ -30,7 +30,8 @@ No manifest = sensible defaults via capability probing (lockfile detection, test
 discovery, mutation-config probe, remote probe). The manifest declares only what
 probing can't infer. Schema, declination verbs (`context:` / `override:` / `skip:`),
 protected phases, and gate placeholder vocabulary: see
-[docs/DESIGN.md](docs/DESIGN.md). `scripts/manifest-lint.sh` validates the manifest
+[docs/DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md).
+`scripts/manifest-lint.sh` validates the manifest
 and refuses to run on unknown keys — misconfiguration fails loudly.
 
 ## Layout
@@ -48,8 +49,10 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
 
 ## Design provenance
 
-[docs/DESIGN.md](docs/DESIGN.md) — the full design (phase table, injection surfaces,
-enforcement hierarchy, migration plan). [docs/SPIKE.md](docs/SPIKE.md) — the empirical
+[docs/DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md) — the living
+engine architecture (phases, contract injection, ports, enforcement hierarchy);
+[docs/DESIGN-history.md](docs/DESIGN-history.md) — the frozen workflow-promotion
+migration record. [docs/SPIKE.md](docs/SPIKE.md) — the empirical
 spike that pinned hook inheritance, `updatedInput` composition (same-snapshot,
 last-writer-wins → hence deny-based hooks), model override precedence, and the skill
 invocation surface.

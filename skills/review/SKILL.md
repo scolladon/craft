@@ -20,14 +20,18 @@ description: Forge phase 6 - parallel multi-dimension review with per-dimension 
    review-phase `context:` files verbatim. Perf calibrates to the diff — zero findings
    legitimate. Tests dimension: no mutation analysis, but suspected-equivalent mutants
    MAY be flagged as advisory notes (keep them for the validation phase).
-2. **Fixes — session-owned:** apply every accepted finding yourself, batched per
+2. **Normalize findings:** before applying, pipe each reviewer's raw output through
+   `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/normalize-findings.js"` to obtain a
+   canonical `Finding[]` (`{file, line, severity, finding, fix?}`). Key on these
+   fields — never on whether the reviewer emitted a JSON array or a per-line list.
+3. **Fixes — session-owned:** apply every accepted finding yourself, batched per
    dimension; each batch gates on the targeted checks (`gates.slice` over touched
    files) + `gates.review-batch` before its conventional commit (e.g.
    `refactor(<scope>): apply code-review fixes`); `gates.phase` after the round.
-3. **Converge per dimension, ≤3 cycles:** LOW-only → converged once fixed, NO
+4. **Converge per dimension, ≤3 cycles:** LOW-only → converged once fixed, NO
    relaunch. MEDIUM+ → fresh reviewer scoped to the FIX DELTA only (prior findings +
    fix commits' diff; mission: verify resolutions + review the fix diff). Fresh agent
    each cycle — never continue a reviewer.
-4. **Security gate:** HIGH/CRITICAL security findings — show the user the fix diff
+5. **Security gate:** HIGH/CRITICAL security findings — show the user the fix diff
    BEFORE committing. Everything else: fix-all-then-converge, no user round-trip.
-5. Record per-dimension outcomes in the run record.
+6. Record per-dimension outcomes in the run record.

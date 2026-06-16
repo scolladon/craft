@@ -72,9 +72,18 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    Resolution. Apply manifest override (`phases.<id>.override`,
    `phases.<id>.context`) as before.
 
-3. **Assemble the injected block** — P5 TODO: call `assembleContract(phase.contract,
-   FRAGMENTS)` and inject the result as the contract block. For now, agent defs
-   carry their own contracts.
+3. **Assemble the injected block** — at phase entry run:
+   ```
+   node "${CLAUDE_PLUGIN_ROOT}/engine/bin/contract-assemble.js" \
+     --descriptor-id <phase.id> \
+     [--manifest <manifest-path>] \
+     [--inline]          # only when phase.execution is "inline"
+     [--contracts-dir "${CLAUDE_PLUGIN_ROOT}/contracts"]
+   ```
+   via Bash, capturing stdout as the **injected contract block**. On non-zero
+   exit: STOP; surface stderr; refuse to proceed. On **agent** execution the
+   block is PREPENDED to the Task spawn prompt. On **inline** execution the
+   block is loaded into the session at phase entry and the session follows it.
 
 4. **Execute** via the resolved execution mode. Session-owned responsibilities by
    archetype:
@@ -155,14 +164,18 @@ to a `skills/<id>/` dir of the same name after the P4 rename, so the walk invoke
   `harness`/`refinement` fix round, and before push — not after every intra-round
   commit. Nothing is ever committed on a known-red gate.
 
-- **Agent spawns**: every role-agent invocation carries the working directory, the
-  task dynamics, AND the manifest's context file(s) verbatim (a phase's `context:`
-  may be one file or a list — inject all of them). Artifacts already committed in the
-  worktree are passed by PATH — the agent reads them in-place; the prompt embeds the
-  pre-chewed context and the load-bearing deltas, not a second verbatim copy, and a
-  respawn from a partial artifact points at the on-disk state rather than
-  re-transcribing it. The pre-chew mandate forbids making an agent re-explore the
-  codebase — not reading a committed plan.
+- **Agent spawns**: every role-agent spawn is structured as:
+  1. **Injected contract block** (from step 3 above, includes the assembled core +
+     bundle invariants + derived retrieval note + manifest `context:` appended by
+     the assembler). Do NOT separately re-inject `context:` — the assembler already
+     appends it; double-injection is a breach.
+  2. **Working directory** and **task dynamics** (phase id, slice, gate string).
+  3. **Artifact paths**: committed artifacts passed by PATH — the agent reads them
+     in-place. The prompt embeds the pre-chewed context and the load-bearing deltas,
+     not a second verbatim copy. A respawn from a partial artifact points at the
+     on-disk state rather than re-transcribing it.
+  The pre-chew mandate forbids making an agent re-explore the codebase — reading a
+  committed plan is not re-exploring.
 
 - **Model resolution & fallback**: resolve each spawn's model as manifest
   `models.<agent>` → the agent def's pinned model (pass it as the spawn's model
