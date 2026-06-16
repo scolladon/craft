@@ -86,3 +86,34 @@ FIXTURES="${BATS_TEST_DIRNAME}/fixtures/manifest"
   [[ "$output" == *"INVALID manifest"* ]]
   [[ "$output" == *"unknown gates field"* ]]
 }
+
+# ---------------------------------------------------------------------------
+# Fold-introduced code paths (ADR-010/011/012) — pinned end-to-end through the CLI
+# ---------------------------------------------------------------------------
+
+@test "Given malformed YAML frontmatter, when lint runs, then it exits 2 with an INVALID manifest message (no crash)" {
+  run_lint "${FIXTURES}/invalid-malformed-yaml.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"malformed YAML"* ]]
+}
+
+@test "Given an unknown pipeline sub-key, when lint runs, then it exits 2 and reports unknown pipeline key" {
+  run_lint "${FIXTURES}/invalid-unknown-pipeline-key.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"unknown pipeline key"* ]]
+}
+
+@test "Given a per-phase skip on a non-protected phase, when lint runs, then it exits 2 with legacy-skip guidance (ADR-011 broadening)" {
+  run_lint "${FIXTURES}/invalid-skip-nonprotected.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"pipeline.skip"* ]]
+}
+
+@test "Given a directory path as the manifest argument, when lint runs, then it exits 0 and reports no manifest (faithful to [ -f ])" {
+  run_lint "${FIXTURES}"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"no manifest"* ]]
+}
