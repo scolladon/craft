@@ -330,7 +330,8 @@ this slice owns *which phases, in what order, in what execution mode*.
      **default-off** descriptor left off is a recorded default-skip, never a strand.
 - **Create** `engine/test/resolve.test.js` + manifest fixtures `engine/test/fixtures/manifests/`:
   `none` (no manifest) → effective == today's 11 enabled in order (**SC1 zero-config golden**);
-  `skip-design` → allowed (both consumers self-supply); `skip-planning` → **refused** (strands
+  `skip-decisions` → allowed (`planning` self-supplies `decisions`); `skip-design` → **refused**
+(`documentation` consumes `design` without `self_supply`); `skip-planning` → **refused** (strands
   `implementation`); `skip-workspace` → refused; `profile-solo` → execution flips to inline except
   the `harness`-archetype phases; `exec-precedence` (top-level `execution:agent` + `profile:solo`
   + explicit `phases.implementation.execution:agent`) → isolates two of the three ADR-008 legs +
@@ -442,11 +443,12 @@ test pass — the scenarios exercise it end-to-end at the resolution layer.
   `resolvePipeline` also emits `Resolution.gateDecisions` + `Resolution.waivers`:
   - per phase, resolve the effective gate (`descriptor.gate` → manifest `gate`/`gates.phase` →
     capability probe placeholder); for a **code-producing** phase (`change ∈ produces`:
-    `implementation, review, refactoring, validation`) with **no** resolvable gate → **refuse**
-    (the non-waivable floor). **SC1 zero-config outcome is deterministic:** in the `none` golden
-    every code-producing phase carries a `descriptor.gate` from the data (`implementation`/`review`/
-    `refactoring` = `<gates.phase>`, `validation` = `<validation gate>`), so the floor **passes,
-    never refuses** — assert this explicitly in the SC1 case so the golden's floor result is pinned;
+    `implementation, refactoring` — the harnesses produce `*-report`, not `change`) with **no**
+    resolvable gate → **refuse** (the non-waivable floor). **SC1 zero-config outcome is
+    deterministic:** in the `none` golden every code-producing phase carries a `descriptor.gate`
+    from the data (`implementation`/`refactoring` = `<gates.phase>`), so the floor **passes, never
+    refuses** — assert this explicitly in the SC1 case (incl. `review`/`validation`
+    `codeProducing:false`) so the golden's floor result is pinned;
   - a `review|refactoring|validation` that is skipped/disabled → record a **waiver** in
     `waivers[]` and, for an executing-harness (`validation`, `architecture`), **release its
     propose-gate** (it cannot gate on a phase not run) + a loud `record[]` line;

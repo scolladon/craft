@@ -200,9 +200,9 @@ per SP4 (old name in parentheses). Artifact names below are the design's canonic
 *Notes.* `gate` carries today's placeholder vocabulary (`<touched-files>`, `<touched-tests>`,
 `<gates.phase>`); the empty-set rule (a placeholder resolving empty drops its command) carries
 over unchanged. **A "code-producing" phase** — for the §11 "a gate must exist" invariant — is
-any phase with `change ∈ produces` (here: `implementation`, `review`, `refactoring`,
-`validation`); the resolver refuses such a descriptor with no resolvable gate (manifest `gate`
-→ capability probe → refuse). `harness` shape is reproduced from §8; its *resolution internals*
+any phase with `change ∈ produces` (here: `implementation`, `refactoring` — *not* the
+harnesses `review`/`validation`, which produce `*-report`, not `change`); the resolver refuses
+such a descriptor with no resolvable gate (manifest `gate` → capability probe → refuse). `harness` shape is reproduced from §8; its *resolution internals*
 are P8 (out of scope).
 
 **Two distinct, deliberately separate mechanisms** (the source of two earlier ambiguities):
@@ -233,9 +233,11 @@ so a refinement never strands an earlier consumer (`review` resolves `change` to
 - **Skip(X)** is allowed **iff** for every artifact `a ∈ X.produces`, every downstream consumer
   `C` of `a` has `a ∈ C.self_supply`. Otherwise the skip **strands** a consumer → the engine
   **refuses** (a hard strand) or **loudly flags** it in the run record (a waived guarantee).
-  Example: `Skip(design)` is safe — `design`'s *both* consumers, `decisions` and `planning`,
-  list `design` in `self_supply` (the ADR conversation falls back to the brief; the planner
-  explores). `Skip(planning)` strands `implementation` (no `self_supply: [plan]`) → refused.
+  Example: `Skip(decisions)` is safe — its only consumer, `planning`, lists `decisions` in
+  `self_supply`. `Skip(design)` is **refused** — `design` has *three* consumers (`decisions`,
+  `planning`, `documentation`); the first two self-supply it, but `documentation`
+  (`consumes: [design, change]`, `self_supply: []`) does not, so the skip strands it.
+  `Skip(planning)` strands `implementation` (no `self_supply: [plan]`) → refused.
   `Skip(workspace)` strands `implementation` → refused. A **default-off** descriptor
   (`enabled: false`) is a *recorded default-skip*, not a strand — its `self_supply`-bearing
   consumers (e.g. `design.self_supply: [requirements]`) absorb its absence by construction.

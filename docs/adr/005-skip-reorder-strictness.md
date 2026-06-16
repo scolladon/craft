@@ -23,9 +23,10 @@ enforced, not merely suggested", §1). The crux: can the PR-gating executing har
 
 The **dependency graph fully replaces the static protected list**. A skip is refused **only**
 when it strands a non-self-supplying consumer; otherwise it is allowed and **loudly flagged in
-the run record**. Harness phases (review, refactoring, validation) are skippable-but-flagged; a
-skipped or disabled executing-harness **waiver-releases its `propose`-gate** (you cannot gate on
-a phase you chose not to run). The single non-waivable floor is "**a gate must exist for
+the run record**. `review`, `refactoring`, and `validation` are skippable-but-flagged (a skip
+strands no downstream consumer); a skipped or disabled **executing-harness** (`validation`,
+`architecture`) **waiver-releases its `propose`-gate** (you cannot gate on a phase you chose not
+to run). The single non-waivable floor is "**a gate must exist for
 code-producing phases**" — never any individual harness. Arbitrary reorder stays deferred
 (insert+skip first, OQ1).
 
