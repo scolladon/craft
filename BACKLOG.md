@@ -14,13 +14,14 @@
 | P0 | Spikes — feasibility + decisions | ✅ done |
 | P1 | Characterization net + Node engine core + scenario goldens | ✅ done & green |
 | P2 | `manifest-lint` hardened (yq + subset-parser fallback) | ✅ done & green |
-| **P3** | **Rewire the live walk to consume the engine** | ⏭️ **next** |
-| P4 | Generic vocabulary (rename + alias-map wiring) | ⬜ planned |
+| P3 | Rewire the live walk + fold manifest validation into the Node core | ✅ done & green |
+| **P4** | **Generic vocabulary (rename + alias-map wiring)** | ⏭️ **next** |
 | P5 | Engine-owned contract injection + DESIGN split | ⬜ planned |
 | P6–P16 | e2e, NFR matrix, backlog/registration ports, … | ⬜ outlined (PRD §17) |
 
-> ⚠️ **The engine is built but DORMANT.** `engine/` is unit-green (156 `node --test` + 45 bats,
-> `scripts/ci.sh` green) but `run/SKILL.md` still walks its hardcoded 1→11 table. **P3 connects them.**
+> ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
+> 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
+> `scripts/ci.sh` green (204 `node --test` + 15 bats). **P3 connected them.**
 
 ## Done
 
@@ -34,19 +35,24 @@
 
 ### P2 — manifest-lint hardening (slice 11)
 - [x] `manifest-lint.sh` parses via `yq`, falls back to the sed/awk subset parser — behavior-preserving (slice-2 net is the guardrail)
+  - *(superseded by P3's fold — ADR-012: `js-yaml` is now the single parser; the yq/subset dual-backend was retired)*
 
-## Next — P3: rewire the walk (make the engine live)
-- [ ] `run/SKILL.md` walks `pipeline-resolve` output instead of the hardcoded 1→11 table
-- [ ] §11 cross-phase invariants generalize **by archetype**, not by phase name
-- [ ] Remove the static `PROTECTED` list from `manifest-lint` (the graph now computes stranding)
-- [ ] Emit the run-record from `Resolution.record`
+### P3 — rewire the live walk; fold manifest validation into Node (slices 1–3; SoT `docs/{DESIGN,PLAN}-P3-orchestrator-rewire.md`, ADRs 009–012)
+- [x] `run/SKILL.md` walks `pipeline-resolve` output instead of the hardcoded 1→11 table — skill resolved via the inverse `ALIAS_MAP` bridge (ADR-009; deleted at P4)
+- [x] §11 cross-phase invariants generalized **by archetype** (executing-harness-gates-`propose` via `gateDecisions[propose].awaitingHarnesses`; full waiver surfacing incl. read-harness/refinement skips — ADR-005)
+- [x] static `PROTECTED` removed — manifest **shape-validation folded into the Node core** (`validateManifest` + `engine/bin/manifest-lint.js`; `scripts/manifest-lint.sh` → thin wrapper; ADR-012)
+- [x] run-record emitted from `Resolution.record`; new manifest surface accepted (`pipeline:`/`retrieval:`/`execution:` — ADR-010); legacy per-phase `skip:` rejected loudly with `pipeline.skip` guidance (ADR-011)
+- [x] **Surface gate held:** golden `Resolution` byte-identical to pre-P3; SC1 + scenario suite green *by construction*
 
-**Surface gate:** the slice-7/10 golden `Resolution` is the contract — the rewired walk must
-reproduce it; SC1 + the scenario suite stay green *by construction*.
+## Next — P4: generic vocabulary (rename + alias-map wiring)
+- [ ] rename skill dirs + agent files to the concern names (`branch→workspace`, `adr→decisions`, `mutation→validation`, …); the default descriptor ids are already concern-named
+- [ ] **delete the inverse-`ALIAS_MAP` table in `run/SKILL.md`** — once dirs are renamed, `skill dir == phase.id` (the P3 bridge was built to disappear here)
+- [ ] wire `resolveAlias` into the folded `validateManifest` (Node) so old + new phase names both validate — one alias home (DC-4); add the alias fixture to the slice-2 bats suite
+- [ ] `requirements`/`architecture` stay new (no dir to rename); `prd` stays a registered alias
+
+**Surface gate (P4):** `resolveAlias` is the only alias home — no second copy; SC1 + scenario suite stay green.
 
 ## Then
-- **P4 — vocabulary:** rename skill dirs + agent files to the concern names; wire `manifest-lint`
-  to read the slice-6 `ALIAS_MAP` (one alias home — DC-4); add the alias fixture to the slice-2 suite.
 - **P5 — injection + split:** create the real `contracts/{core,producer,construction,harness-read,harness-exec,delivery}.md`;
   feed them to `assembleContract`; thin the `agents/*.md`; `DESIGN.md → DESIGN-history.md` (ADR-007);
   re-baseline the R8 fixed-prompt agent-output diff.
@@ -57,7 +63,6 @@ reproduce it; SC1 + the scenario suite stay green *by construction*.
 ## Deferred / parked
 - [ ] `worktree-teardown.sh` production hardening — validate PID before `kill -0`, `git branch -D --`,
   realpath the `WT≠MAIN` guard (rides with the VCS-adapter phase).
-- [ ] Fold manifest shape-validation into the Node core — deferred to P3 per the ADR-002 follow-up note.
 
 ## Notes
 - **Data is the SoT, not the prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.
