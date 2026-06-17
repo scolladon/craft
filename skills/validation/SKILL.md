@@ -9,18 +9,23 @@ description: Forge phase 8 - mutation-test the change, triage survivors (kill or
 
 1. Manifest read (lint if standalone). Standalone: scope = current branch vs default
    branch.
-2. **Probe: mutation tooling configured?** (stryker/mutmut/cosmic-ray/cargo-mutants
-   config, or whatever the repo `context:`/`override:` names.) Absent → **no-op with a
+2. **Read harness knobs** from `phase.harness` (the resolved descriptor): `tool` names
+   which mutation tool to run (absent → the probe below determines it); `scope` (default
+   `per-hunk`); `incremental` (default `false`). Then **probe: mutation tooling
+   configured?** (stryker/mutmut/cosmic-ray/cargo-mutants config, or whatever the repo
+   `context:`/`override:` names) — it runs regardless of `tool`. Absent → **no-op with a
    note** in the run record; the phase ends here. A manifest may never pre-empt this
    probe.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-1. **Scope the run to exactly the change's touched code** — never the full tree, and
-   never wider than the diff: derive one range per *contiguous changed hunk*
-   (`git diff -U0`), and do NOT consolidate across unchanged gaps. Loose/merged ranges
-   inflate the run AND surface out-of-scope survivors the triage must then filter — a
-   tight per-hunk list is faster and cleaner.
+1. **Scope the run per `phase.harness.scope`** (default `per-hunk`), never wider than the
+   change's touched code and never the full tree: with `per-hunk`, derive one range per
+   *contiguous changed hunk* (`git diff -U0`); with `per-file`, scope to the full touched
+   files. Do NOT consolidate across unchanged gaps regardless of mode, and honor
+   `incremental` when the tool supports it. Loose/merged ranges inflate the run AND
+   surface out-of-scope survivors the triage must then filter — a tight per-hunk list is
+   faster and cleaner.
    Start it **in the background**; write the run-lock
    (`<root>/.forge-mutation.lock` ← `<pid> <iso-timestamp>`); clear the lock when the
    run lands. The documentation phase may proceed in parallel while it grinds.

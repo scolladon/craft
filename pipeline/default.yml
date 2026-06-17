@@ -82,6 +82,11 @@
   produces:
     - review-report
   gate: <gates.phase>
+  harness:
+    dimensions: [code, security, tests, perf]
+    passes: 1
+    max_cycles: 3
+    convergence: low-only
 
 - id: refactoring
   archetype: refinement

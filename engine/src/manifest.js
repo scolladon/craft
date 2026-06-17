@@ -26,6 +26,7 @@ const PHASE_NAMES = Object.freeze(new Set([
 /** Fields accepted on each phase block (skip is intentionally absent — ADR-011). */
 const PHASE_FIELDS = Object.freeze(new Set([
   'context', 'override', 'strategy', 'merge-flags', 'non-blocking-jobs',
+  'harness', 'execution', 'enabled', 'role', 'model',
 ]));
 
 /** Fields accepted under the `gates` key. */
@@ -46,6 +47,9 @@ const MODELS_KEYS = Object.freeze(new Set([
 
 /** Sub-keys accepted under the `pipeline` key. */
 const PIPELINE_KEYS = Object.freeze(new Set(['profile', 'skip', 'insert', 'reorder']));
+
+/** Accepted string values for a harness `convergence` knob (ADR-030). */
+const CONVERGENCE_STRINGS = Object.freeze(new Set(['low-only', 'none']));
 
 /**
  * Sentinel values that indicate an absent path (no file-existence check needed).
@@ -164,6 +168,54 @@ function validateReorder(reorder, errors) {
 }
 
 /**
+ * Validate the shape of a harness block on a phase override (ADR-030).
+ * Named sub-keys are type-checked; unknown sub-keys are allowed (forward-compat).
+ * Errors accumulate — no short-circuit.
+ * @param {unknown} harness
+ * @param {string} phaseName
+ * @param {string[]} errors
+ */
+function validateHarness(harness, phaseName, errors) {
+  if (!harness || typeof harness !== 'object' || Array.isArray(harness)) {
+    errors.push(`phases.${phaseName}.harness must be an object`);
+    return;
+  }
+  if (Object.hasOwn(harness, 'dimensions')) {
+    const d = harness.dimensions;
+    if (!Array.isArray(d) || d.some(item => typeof item !== 'string')) {
+      errors.push(`phases.${phaseName}.harness.dimensions must be a list of strings`);
+    }
+  }
+  if (Object.hasOwn(harness, 'passes')) {
+    const p = harness.passes;
+    if (!Number.isInteger(p) || p <= 0) {
+      errors.push(`phases.${phaseName}.harness.passes must be a positive integer`);
+    }
+  }
+  if (Object.hasOwn(harness, 'max_cycles')) {
+    const m = harness.max_cycles;
+    if (!Number.isInteger(m) || m <= 0) {
+      errors.push(`phases.${phaseName}.harness.max_cycles must be a positive integer`);
+    }
+  }
+  if (Object.hasOwn(harness, 'convergence')) {
+    const c = harness.convergence;
+    if (!(CONVERGENCE_STRINGS.has(c) || (Number.isFinite(c) && c >= 0))) {
+      errors.push(`phases.${phaseName}.harness.convergence must be 'low-only', 'none', or a non-negative number`);
+    }
+  }
+  if (Object.hasOwn(harness, 'tool') && typeof harness.tool !== 'string') {
+    errors.push(`phases.${phaseName}.harness.tool must be a string`);
+  }
+  if (Object.hasOwn(harness, 'scope') && typeof harness.scope !== 'string') {
+    errors.push(`phases.${phaseName}.harness.scope must be a string`);
+  }
+  if (Object.hasOwn(harness, 'incremental') && typeof harness.incremental !== 'boolean') {
+    errors.push(`phases.${phaseName}.harness.incremental must be a boolean`);
+  }
+}
+
+/**
  * Validate the `pipeline` sub-object keys (ADR-010).
  * Named distinctly from the graph's exported `validatePipeline(descriptors)`:
  * this checks manifest-shape sub-keys, not the descriptor DAG.
@@ -203,10 +255,19 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
       errors.push(`unknown field on phase ${phaseName}: ${field}`);
       continue;
     }
+    // execution: accepted by PHASE_FIELDS; value checked by validateExecutionValues in resolve.js — no check here
     if (field === 'context') {
       checkFileRef(`phases.${phaseName}.context`, value, fileExists, errors);
     } else if (field === 'override') {
       checkFileRef(`phases.${phaseName}.override`, value, fileExists, errors);
+    } else if (field === 'role' && typeof value !== 'string') {
+      errors.push(`phases.${phaseName}.role must be a string`);
+    } else if (field === 'model' && typeof value !== 'string') {
+      errors.push(`phases.${phaseName}.model must be a string`);
+    } else if (field === 'enabled' && typeof value !== 'boolean') {
+      errors.push(`phases.${phaseName}.enabled must be a boolean`);
+    } else if (field === 'harness') {
+      validateHarness(value, phaseName, errors);
     }
   }
 }

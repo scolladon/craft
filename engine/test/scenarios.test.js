@@ -920,3 +920,119 @@ test('Given reorder puts validation before implementation (consumer before produ
   assert.ok(hasGraphError,
     `errors must mention the consumer-before-producer violation; got: ${JSON.stringify(result.errors)}`);
 });
+
+// ─── S-harness-review: partial harness override preserves default knobs ───────
+
+test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when resolvePipeline runs, then ok:true', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-review');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when resolvePipeline runs, then review descriptor has max_cycles:2 (override wins)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-review');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const reviewDesc = result.effective.find(d => d.id === 'review');
+  assert.ok(reviewDesc, 'review must be in effective');
+  assert.equal(reviewDesc.harness.max_cycles, 2);
+});
+
+test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when resolvePipeline runs, then the merged review harness keeps every unset default knob (override wins, defaults survive)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-review');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const reviewDesc = result.effective.find(d => d.id === 'review');
+  // Pin the WHOLE merged block: max_cycles overridden to 2; dimensions/passes/convergence
+  // all survive the one-level deep-merge.
+  assert.deepEqual(reviewDesc.harness, {
+    dimensions: ['code', 'security', 'tests', 'perf'],
+    passes: 1,
+    max_cycles: 2,
+    convergence: 'low-only',
+  });
+});
+
+test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when resolvePipeline runs, then effective ids equal SC1_IDS (no phase change)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-review');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.effective.map(d => d.id), SC1_IDS);
+});
+
+test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when resolvePipeline runs, then unrelated validation descriptor keeps harness.tool: stryker', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-review');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const validationDesc = result.effective.find(d => d.id === 'validation');
+  // An unrelated review override must not corrupt validation's own harness block.
+  assert.equal(validationDesc.harness.tool, 'stryker');
+  assert.equal(validationDesc.harness.scope, 'per-hunk');
+});
+
+// ─── S-harness-validation: partial harness override preserves default tool ────
+
+test('S-harness-validation Given phases.validation.harness: { scope: "per-file" }, when resolvePipeline runs, then ok:true', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-validation');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('S-harness-validation Given phases.validation.harness: { scope: "per-file" }, when resolvePipeline runs, then validation keeps harness.tool: stryker (default preserved)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-validation');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const validationDesc = result.effective.find(d => d.id === 'validation');
+  assert.equal(validationDesc.harness.tool, 'stryker');
+});
+
+test('S-harness-validation Given phases.validation.harness: { scope: "per-file" }, when resolvePipeline runs, then validation.harness.scope is per-file (override wins)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-validation');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const validationDesc = result.effective.find(d => d.id === 'validation');
+  assert.equal(validationDesc.harness.scope, 'per-file');
+});
+
+test('S-harness-validation Given phases.validation.harness: { scope: "per-file" }, when resolvePipeline runs, then effective ids equal SC1_IDS', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-harness-validation');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.effective.map(d => d.id), SC1_IDS);
+});

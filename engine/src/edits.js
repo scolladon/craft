@@ -12,7 +12,16 @@ import { DEFAULT_EXECUTION } from './descriptor.js';
 const ALLOWED_PHASE_OVERRIDE_FIELDS = new Set(['role', 'model', 'harness']);
 
 /**
+ * Returns true when v is a plain (non-null, non-array) object.
+ * @param {unknown} v
+ * @returns {boolean}
+ */
+const isPlainObject = v => v !== null && typeof v === 'object' && !Array.isArray(v);
+
+/**
  * Apply only the whitelisted fields from a phase override to a descriptor.
+ * harness is deep-merged one level when both sides are plain objects;
+ * otherwise scalar-replaced (null/array/absent → land as-is).
  * @param {object} descriptor
  * @param {object} override
  * @returns {object}
@@ -20,7 +29,10 @@ const ALLOWED_PHASE_OVERRIDE_FIELDS = new Set(['role', 'model', 'harness']);
 function applyAllowedOverrides(descriptor, override) {
   const patch = {};
   for (const field of ALLOWED_PHASE_OVERRIDE_FIELDS) {
-    if (Object.hasOwn(override, field)) {
+    if (!Object.hasOwn(override, field)) continue;
+    if (field === 'harness' && isPlainObject(descriptor[field]) && isPlainObject(override[field])) {
+      patch[field] = { ...descriptor[field], ...override[field] };
+    } else {
       patch[field] = override[field];
     }
   }

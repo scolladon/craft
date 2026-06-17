@@ -703,3 +703,368 @@ test('Given a manifest with models.mutation-triager (renamed key), when validate
   assert.equal(result.ok, false);
   assert.ok(result.errors.some(e => e.includes('validation-triager')));
 });
+
+// ─── phases: newly accepted fields (ADR-028 lint-gap closure) ────────────────
+
+test('Given phases.documentation.execution: inline, when validateManifest runs, then ok:true (no longer rejected)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { documentation: { execution: 'inline' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.planning.role: "my:domain-planner", when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { planning: { role: 'my:domain-planner' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.harness: { max_cycles: 2 }, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { max_cycles: 2 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.requirements.enabled: true, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { requirements: { enabled: true } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.role: 42 (non-string), when validateManifest runs, then ok:false with role-type error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { role: 42 } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('phases.review.role') && e.includes('string')));
+});
+
+test('Given phases.review.model: true (non-string), when validateManifest runs, then ok:false with model-type error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { model: true } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('phases.review.model') && e.includes('string')));
+});
+
+test('Given phases.review.enabled: "yes" (non-boolean), when validateManifest runs, then ok:false with enabled-type error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { enabled: 'yes' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('phases.review.enabled') && e.includes('boolean')));
+});
+
+// ─── phases.harness shape validation (ADR-030) ───────────────────────────────
+
+test('Given phases.review.harness: "not-an-object", when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: 'not-an-object' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('phases.review.harness') && e.includes('object')));
+});
+
+test('Given phases.review.harness: { max_cycles: "three" }, when validateManifest runs, then ok:false with max_cycles type error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { max_cycles: 'three' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('max_cycles') && e.includes('integer')));
+});
+
+test('Given phases.review.harness: { passes: 0 }, when validateManifest runs, then ok:false (passes must be positive)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { passes: 0 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('passes') && e.includes('positive')));
+});
+
+test('Given phases.review.harness: { convergence: "bad-value" }, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { convergence: 'bad-value' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('convergence') && e.includes('non-negative')));
+});
+
+test('Given phases.review.harness: { convergence: 0 }, when validateManifest runs, then ok:true (numeric 0 is valid)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { convergence: 0 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.harness: { convergence: "low-only" }, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { convergence: 'low-only' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.harness: { convergence: "none" }, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { convergence: 'none' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.harness: { dimensions: "not-a-list" }, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { dimensions: 'not-a-list' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('dimensions') && e.includes('list of strings')));
+});
+
+test('Given phases.review.harness: { dimensions: ["code", "tests"] }, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { dimensions: ['code', 'tests'] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.harness: { tool: 42 }, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { tool: 42 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('tool') && e.includes('string')));
+});
+
+test('Given phases.review.harness: { incremental: "yes" }, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { incremental: 'yes' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('incremental') && e.includes('boolean')));
+});
+
+test('Given phases.review.harness: { rules: ".dependency-cruiser.json" } (unknown sub-key), when validateManifest runs, then ok:true (forward-compat)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { rules: '.dependency-cruiser.json' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── phases.harness boundary cases (mutation-resistance) ─────────────────────
+
+test('Given phases.review.harness: null, when validateManifest runs, then ok:false (null is not an object)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: null } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('harness') && e.includes('object')));
+});
+
+test('Given phases.review.harness: [] (array), when validateManifest runs, then ok:false (array is not an object)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: [] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('harness') && e.includes('object')));
+});
+
+test('Given phases.review.harness: { passes: 1 }, when validateManifest runs, then ok:true (minimal valid passes)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { passes: 1 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.harness: { passes: 1.5 } (float), when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { passes: 1.5 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('passes') && e.includes('integer')));
+});
+
+test('Given phases.review.harness: { max_cycles: 0 }, when validateManifest runs, then ok:false (zero is not positive)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { max_cycles: 0 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('max_cycles') && e.includes('integer')));
+});
+
+test('Given phases.review.harness: { convergence: -1 } (negative), when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { convergence: -1 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('convergence') && e.includes('non-negative')));
+});
+
+test('Given phases.review.harness: { convergence: Infinity }, when validateManifest runs, then ok:false (must be finite)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { convergence: Infinity } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('convergence') && e.includes('non-negative')));
+});
+
+test('Given phases.review.harness: { dimensions: [] } (empty list), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { dimensions: [] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.harness: { dimensions: [42] } (non-string element), when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { dimensions: [42] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('dimensions') && e.includes('list of strings')));
+});
+
+test('Given phases.validation.harness: { scope: "per-file" }, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { scope: 'per-file' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness: { scope: 42 } (non-string), when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { scope: 42 } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('scope') && e.includes('string')));
+});
+
+test('Given phases.review.model: "sonnet" (valid string), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { model: 'sonnet' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});

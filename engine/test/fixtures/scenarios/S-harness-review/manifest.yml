@@ -1,0 +1,4 @@
+phases:
+  review:
+    harness:
+      max_cycles: 2

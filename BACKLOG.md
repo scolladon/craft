@@ -19,7 +19,8 @@
 | P5 | Engine-owned contract injection + DESIGN split | ✅ done & green |
 | P6 | Execution topology — `inline\|agent` end-to-end + `solo`/`full`/`lean` profiles + per-invocation args | ✅ done & green |
 | P7 | Pipeline editing — `pipeline.reorder` (relative-permutation) + walk verbatim-procedure dispatch + SC3 | ✅ done & green |
-| **P8–P16** | **harness config, agent swap, new default phases, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
+| P8 | Per-phase harness config — `harness:` knobs deep-merged + manifest-validated + walk-read; PHASE_FIELDS lint-gap closed | ✅ done & green |
+| **P9–P16** | **agent swap, new default phases, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -79,15 +80,36 @@
 - [x] **Walk dispatches `phase.procedure` verbatim** (ADR-025): `run/SKILL.md` step 1 + error-paths table — namespace-agnostic (forge-local or `acme:`); "unknown phase id" STOP → "procedure resolves to no installed skill"; contract injected from the descriptor (G5) for forge-native phases incl. role-swaps; namespaced *registration* (`forge.extends:`) stays P14
 - [x] **Surface gate held:** `resolvePipeline` signature + `engine/src/index.js` (7 exports) + `pipeline/default.yml` + `graph.js`/`contract.js` untouched; SC1/S1/S2/S3/S-lean/S-full/contract-equivalence green; reorder/applyReorder are **internal** to `edits.js` (not the public barrel); CI green at every commit (357 `node --test` + 42 bats); 4-dimension review after every code slice + a consistency review on the prose, every fix applied
 
-## Next — P7+
-- **P8 — per-phase harness config**: dimensions/passes/cycles/convergence/tool (G6). Next up.
-- **P8–P16** (PRD §17, in order): P8 per-phase harness config · P9 agent/skill swap · P10 new
-  default phases (requirements/architecture) · P11 backlog SoT adapter · **P12 DX** · P13 NFR
+### P8 — per-phase harness config (slices 1–4; SoT `docs/{DESIGN,PLAN}-P8-harness-config.md`, ADRs 028–031)
+- [x] **PHASE_FIELDS honored-set reconciliation** (ADR-028): `manifest.js` `PHASE_FIELDS` extended to the full honored set (`harness`, `execution`, `enabled`, `role`, `model`) — closing a **latent lint bug**: the resolver already honored these (the §7 #4 catalog sample `phases.documentation.execution:inline` and the S2 fixture `phases.planning.role:my:domain-planner` both *failed* `validateManifest` while resolving fine, because scenario tests bypass it). `role`/`model` get string shape checks, `enabled` a boolean check; `execution` is accepted shape-only (value stays owned by `resolve.js`'s `validateExecutionValues` — no duplication)
+- [x] **`validateHarness` — typed knobs, unknown sub-keys allowed** (ADR-030): named private fn mirroring `validateReorder` — `dimensions`=list-of-strings, `passes`/`max_cycles`=positive int, `convergence`∈{`low-only`|`none`|finite ≥0}, `tool`/`scope`=string, `incremental`=bool; unknown sub-keys pass (forward-compat for "any harness a repo adds", e.g. `dependency-cruiser`'s `rules:`). Accumulates all errors (no short-circuit)
+- [x] **Harness override = one-level deep-merge** (ADR-029): `applyAllowedOverrides` in `edits.js` deep-merges `harness` (override knobs win, unset default knobs survive — `{scope:per-file}` keeps `tool:stryker`) via an `isPlainObject` guard; arrays replace (not union); `role`/`model` stay scalar-replace; pure/immutable
+- [x] **Review defaults relocated to data** (ADR-031): `review.harness` added to `pipeline/default.yml` (`dimensions:[code,security,tests,perf]`/`passes:1`/`max_cycles:3`/`convergence:low-only`) — data is now the SoT, the walk reads it with strong fallbacks; golden-safe (no test asserts a descriptor's `harness` value, the P5 precedent)
+- [x] **Walk reads the knobs** (session-direct prose): `skills/review/SKILL.md` reads dimensions/passes/max_cycles/convergence; `skills/validation/SKILL.md` reads tool/scope/incremental (before the probe); `skills/run/SKILL.md` step-4 harness rows point at them; `passes>1` fan-out + numeric `convergence:<n>` enforcement documented as **parked, not silently capped**
+- [x] **Coverage** (ADR-031): `S-harness-review` (partial `{max_cycles:2}` → merged review.harness pinned by full `deepEqual`: override wins, dimensions/passes/convergence survive) + `S-harness-validation` (partial `{scope:per-file}` → `tool:stryker` survives); bad-harness-shape negatives in `manifest.test.js`; cross-phase isolation (an unrelated review override leaves `validation.harness` untouched)
+- [x] **Surface gate held:** `resolvePipeline` signature + `engine/src/index.js` (7 exports) + `graph.js` + `contract.js` show 0 diff vs main; `pipeline/default.yml` change limited to the `review.harness` add (13 descriptors, enabled/disabled state unchanged); SC1 record[] byte-identical; SC1/S1/S2/S3/S-lean/S-full/S-reorder/SC3 + contract-equivalence green; `validateHarness`/`applyAllowedOverrides` stay **internal**; CI green at every commit (405 `node --test` + 42 bats); 4-dimension review after every code slice + a consistency review on the prose, every fix applied
+
+## Next — P9+
+- **P9 — agent/skill swap via manifest**: `phases.<id>.role` swap with the P5 contract injected around the swap (S2 green). Next up. P8 already closed the `role:`/`model:` lint-gap, so `manifest.js` needs no further change — P9 is the walk/UX + the S2 scenario.
+- **P9–P16** (PRD §17, in order): P9 agent/skill swap · P10 new default phases
+  (requirements/architecture) · P11 backlog SoT adapter · **P12 DX** · P13 NFR
   hardening · P14 derived-plugin extension · P15 second-instantiation · P16 provider-agnostic.
 - **Showcase / DX docs are P12 — intentionally late**, not next. The illustrated overview (intent,
   hexagon Mermaid, a sample `.claude/workflow.md`, a sample run) documents the *full* customization
   surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
   P14 so the catalog never advertises an unproven surface (PRD §17 P12).
+
+### Parked from P8 (walk-fidelity, not engine gaps — knobs validate + reach the descriptor)
+- **`passes > 1` multi-reviewer fan-out is not engine-enforced**: the validator accepts `passes`
+  and it deep-merges onto the descriptor, and `review/SKILL.md` reads it, but the actual N-reviewers-
+  per-dimension parallelism is a session-honored self-directed constraint, not an engine invariant.
+  Documented explicitly in `review/SKILL.md` (no silent cap). Would harden in a later walk/parallelism pass.
+- **Numeric `convergence: <n>` stopping is walk-judgment**: the validator accepts a finite ≥0
+  threshold and the descriptor carries it, but the exact stop rule for arbitrary thresholds
+  (finding-count vs. severity-weighted) is left to the review walk, not engine-enforced. Documented in
+  `review/SKILL.md` step 4.
+- **Per-invocation `--harness` CLI flag** (override a knob without a manifest, à la `--profile`/`--skip`
+  ADR-022) was out of P8 scope — would follow the same `cli-overlay.js` pattern in a later phase.
 
 ### Parked from P7 (scoped out by ADR-025 — ride with P14 derived-plugin/registration)
 - **Inserted-phase contract injection** is not wired: `engine/bin/contract-assemble.js` keys on

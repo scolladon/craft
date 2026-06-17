@@ -136,9 +136,11 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    - `setup`: workspace preparation and setup
    - `specification`: verify artifact; conversation if no `role` field (decisions)
    - `construction`: verify each slice; run phase gate per gate-cadence invariant
-   - `harness` (`harness-read ∈ contract`): apply ALL findings; convergence
+   - `harness` (`harness-read ∈ contract`): apply ALL findings; converge per the
+     `phase.harness` knobs (dimensions/passes/max_cycles/convergence — `forge:review` reads them)
    - `refinement`: judgment (scan + scoping); apply ALL findings
-   - `harness` (`harness-exec ∈ contract`): start background run; gate `propose`
+   - `harness` (`harness-exec ∈ contract`): start background run with the `phase.harness`
+     tool/scope/incremental (`forge:validation` reads them); gate `propose`
      on triage completion (see invariants below)
    - `delivery` (`documentation`): synthesis (follow-ups, backlog guard) — may
      parallel a running executing-harness

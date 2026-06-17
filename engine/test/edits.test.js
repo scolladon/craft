@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyReorder, checkReorderApplicability } from '../src/edits.js';
+import { applyReorder, checkReorderApplicability, applyEnableEdits } from '../src/edits.js';
 
 function makeDescriptor(id, enabled = true) {
   return { id, enabled, contract: [], consumes: [], produces: [], self_supply: [] };
@@ -149,4 +149,94 @@ test('Given a disabled descriptor sandwiched between reordered phases, when appl
   assert.equal(result.descriptors[0].id, 'validation');
   assert.equal(result.descriptors[1].id, 'refactoring');
   assert.equal(result.descriptors[2].id, 'review');
+});
+
+// ─── Group C: applyAllowedOverrides (via applyEnableEdits) — harness deep-merge ──
+
+function makeHarnessDescriptor(id, harness) {
+  return { id, enabled: true, contract: [], consumes: [], produces: [], self_supply: [], harness };
+}
+
+function applyOverride(descriptor, override) {
+  const skipSet = new Set();
+  const phaseOverrides = new Map([[descriptor.id, override]]);
+  const { descriptors } = applyEnableEdits([descriptor], skipSet, phaseOverrides);
+  return descriptors[0];
+}
+
+test('Given descriptor.harness: { tool: "stryker", scope: "per-hunk" } and override.harness: { scope: "per-file" }, when applyAllowedOverrides runs, then result.harness is { tool: "stryker", scope: "per-file" } (tool preserved, scope overridden)', () => {
+  const sut = applyOverride;
+  const descriptor = makeHarnessDescriptor('validation', { tool: 'stryker', scope: 'per-hunk' });
+
+  const result = sut(descriptor, { harness: { scope: 'per-file' } });
+
+  assert.deepEqual(result.harness, { tool: 'stryker', scope: 'per-file' });
+});
+
+test('Given descriptor.harness: { tool: "stryker", scope: "per-hunk" } and override.harness: { max_cycles: 2 }, when applyAllowedOverrides runs, then result.harness contains tool, scope, and max_cycles', () => {
+  const sut = applyOverride;
+  const descriptor = makeHarnessDescriptor('validation', { tool: 'stryker', scope: 'per-hunk' });
+
+  const result = sut(descriptor, { harness: { max_cycles: 2 } });
+
+  assert.deepEqual(result.harness, { tool: 'stryker', scope: 'per-hunk', max_cycles: 2 });
+});
+
+test('Given descriptor.harness is a non-plain value (array) and override.harness: { scope: "per-file" }, when applyAllowedOverrides runs, then result.harness is scalar-replaced (the descriptor-side plain-object guard holds)', () => {
+  const sut = applyOverride;
+  const descriptor = makeHarnessDescriptor('review', ['legacy']);
+
+  const result = sut(descriptor, { harness: { scope: 'per-file' } });
+
+  assert.deepEqual(result.harness, { scope: 'per-file' });
+});
+
+test('Given descriptor has no harness and override.harness: { scope: "per-file" }, when applyAllowedOverrides runs, then result.harness is { scope: "per-file" } (scalar-replace fallback)', () => {
+  const sut = applyOverride;
+  const descriptor = makeHarnessDescriptor('review', undefined);
+
+  const result = sut(descriptor, { harness: { scope: 'per-file' } });
+
+  assert.deepEqual(result.harness, { scope: 'per-file' });
+});
+
+test('Given override.harness is null, when applyAllowedOverrides runs, then result.harness is null (scalar-replace for non-object)', () => {
+  const sut = applyOverride;
+  const descriptor = makeHarnessDescriptor('validation', { tool: 'stryker' });
+
+  const result = sut(descriptor, { harness: null });
+
+  assert.equal(result.harness, null);
+});
+
+test('Given descriptor.harness: { dimensions: ["code","tests"] } and override.harness: { dimensions: ["code"] }, when applyAllowedOverrides runs, then result.harness.dimensions is ["code"] (array replace, not union)', () => {
+  const sut = applyOverride;
+  const descriptor = makeHarnessDescriptor('review', { dimensions: ['code', 'tests'] });
+
+  const result = sut(descriptor, { harness: { dimensions: ['code'] } });
+
+  assert.deepEqual(result.harness.dimensions, ['code']);
+});
+
+test('Given descriptor has harness and override.role: "my:role", when applyAllowedOverrides runs, then role is scalar-replaced (scalar semantics unchanged)', () => {
+  const sut = applyOverride;
+  const descriptor = { ...makeHarnessDescriptor('review', { tool: 'stryker' }), role: 'forge:reviewer' };
+
+  const result = sut(descriptor, { role: 'my:role', harness: { scope: 'per-file' } });
+
+  assert.equal(result.role, 'my:role');
+  assert.equal(result.harness.tool, 'stryker');
+  assert.equal(result.harness.scope, 'per-file');
+});
+
+test('Given a frozen input harness, when applyAllowedOverrides runs, then the input descriptor.harness is not mutated (immutability)', () => {
+  const sut = applyOverride;
+  // Freeze mirrors the deep-frozen descriptors the real resolver passes: any in-place
+  // write would throw, turning a silent mutation into a hard failure.
+  const harnessBefore = Object.freeze({ tool: 'stryker', scope: 'per-hunk' });
+  const descriptor = makeHarnessDescriptor('validation', harnessBefore);
+
+  sut(descriptor, { harness: { scope: 'per-file', max_cycles: 2 } });
+
+  assert.deepEqual(descriptor.harness, { tool: 'stryker', scope: 'per-hunk' });
 });
