@@ -18,7 +18,8 @@
 | P4 | Generic vocabulary (rename + alias-map wiring) | ✅ done & green |
 | P5 | Engine-owned contract injection + DESIGN split | ✅ done & green |
 | P6 | Execution topology — `inline\|agent` end-to-end + `solo`/`full`/`lean` profiles + per-invocation args | ✅ done & green |
-| **P7–P16** | **pipeline editing, harness config, agent swap, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
+| P7 | Pipeline editing — `pipeline.reorder` (relative-permutation) + walk verbatim-procedure dispatch + SC3 | ✅ done & green |
+| **P8–P16** | **harness config, agent swap, new default phases, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -71,9 +72,15 @@
 - [x] **Coverage** (ADR-023): S-lean + S-full scenarios; `profile`/`cli-overlay`/`frontmatter`/bin-CLI unit + integration tests; the inline-fidelity walk check is a documented manual smoke test (`--profile lean`, recorded under `inline-fidelity-check`); `examples/lean-profile/`
 - [x] **Surface gate held:** `engine/src/index.js` (7 exports) + `pipeline/default.yml` + `contract.js` + `resolve.js` untouched; S1/SC1/`contract-equivalence` green; harness-stays-agent under solo *and* lean; CI green at every commit (325 `node --test` + 42 bats); 4-dimension review after every code slice, every fix applied
 
+### P7 — pipeline editing (slices 1–4 + 2 prose; SoT `docs/{DESIGN,PLAN}-P7-pipeline-editing.md`, ADRs 024–027)
+- [x] **`pipeline.reorder` — relative-permutation** (ADR-024): listed ids' slots refill in the given order, unlisted phases keep position; `applyReorder` (pure command, `edits.js`) + `checkReorderApplicability` (CQS query — unknown/non-enabled/duplicate, ADR-026); `manifest.js` `PIPELINE_KEYS`→4 + named `validateReorder` shape check (DC-C); ends the OQ1/ADR-005 reorder defer
+- [x] **Reorder wired in `resolve.js`** between `applyInserts` and `resolveExecution`: `aliasResolve` resolves reorder ids; `checkReorderApplicability` fails fast (surfacing prior-edit records); a consumer-before-producer reorder is refused by the **existing `validatePipeline` graph check** — no duplicate ordering pre-check (ADR-005/026 "same machinery"); per-id `reorder: <id> (pipeline.reorder)` record lines (DC-B)
+- [x] **SC3 composed golden** (skip `refactoring` + insert `bench` after `validation` + reorder `[validation, review]`) pinning effective order + record lines + `gateDecisions` (bench gate, `propose.awaitingHarnesses == [validation, bench]`); **S-reorder** positive (full-order pin) + **reorder-refused** negative (graph, not strand) (ADR-027); S3 untouched
+- [x] **Walk dispatches `phase.procedure` verbatim** (ADR-025): `run/SKILL.md` step 1 + error-paths table — namespace-agnostic (forge-local or `acme:`); "unknown phase id" STOP → "procedure resolves to no installed skill"; contract injected from the descriptor (G5) for forge-native phases incl. role-swaps; namespaced *registration* (`forge.extends:`) stays P14
+- [x] **Surface gate held:** `resolvePipeline` signature + `engine/src/index.js` (7 exports) + `pipeline/default.yml` + `graph.js`/`contract.js` untouched; SC1/S1/S2/S3/S-lean/S-full/contract-equivalence green; reorder/applyReorder are **internal** to `edits.js` (not the public barrel); CI green at every commit (357 `node --test` + 42 bats); 4-dimension review after every code slice + a consistency review on the prose, every fix applied
+
 ## Next — P7+
-- **P7 — pipeline editing**: skip-any / insert / reorder + dependency checks (S3, SC3). The
-  per-invocation `--skip` CLI overlay (P6) is a thin slice of this; P7 is the full manifest surface.
+- **P8 — per-phase harness config**: dimensions/passes/cycles/convergence/tool (G6). Next up.
 - **P8–P16** (PRD §17, in order): P8 per-phase harness config · P9 agent/skill swap · P10 new
   default phases (requirements/architecture) · P11 backlog SoT adapter · **P12 DX** · P13 NFR
   hardening · P14 derived-plugin extension · P15 second-instantiation · P16 provider-agnostic.
@@ -81,6 +88,14 @@
   hexagon Mermaid, a sample `.claude/workflow.md`, a sample run) documents the *full* customization
   surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
   P14 so the catalog never advertises an unproven surface (PRD §17 P12).
+
+### Parked from P7 (scoped out by ADR-025 — ride with P14 derived-plugin/registration)
+- **Inserted-phase contract injection** is not wired: `engine/bin/contract-assemble.js` keys on
+  `pipeline/default.yml` by `--descriptor-id`, so a novel inserted `id` (e.g. `bench`) STOPs at
+  `run/SKILL.md` step 3 with "unknown descriptor-id". P7 landed inserted-phase *dispatch* (step 1)
+  + resolution-layer insert (S3/SC3); full inserted-phase *execution* needs `contract-assemble` to
+  learn the resolved/inserted descriptors (pass the resolved descriptor or read the Resolution),
+  which rides with the P14 registration surface.
 
 ### Parked from P6 (small, pre-existing — not execution-topology)
 - `run/SKILL.md` step 1b describes an `ok: false`-in-JSON branch, but `pipeline-resolve.js` exits 2

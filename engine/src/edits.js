@@ -126,3 +126,56 @@ export function applyInserts(descriptors, inserts) {
 
   return { descriptors: result, records };
 }
+
+/**
+ * Check whether all ids in reorderList are valid targets (known + enabled, no duplicates).
+ * Pure query — returns string[] of all accumulated errors (no short-circuit).
+ *
+ * @param {object[]} descriptors
+ * @param {string[]} reorderList
+ * @returns {string[]}
+ */
+export function checkReorderApplicability(descriptors, reorderList) {
+  if (!reorderList || reorderList.length === 0) return [];
+  const byId = new Map(descriptors.map(d => [d.id, d]));
+  const seen = new Set();
+  const errors = [];
+  for (const id of reorderList) {
+    const descriptor = byId.get(id);
+    if (!descriptor) {
+      errors.push(`reorder: unknown id "${id}" — not present in the post-insert descriptor list`);
+    } else if (!descriptor.enabled) {
+      errors.push(`reorder: "${id}" is not enabled — only enabled phases may be reordered`);
+    }
+    if (seen.has(id)) {
+      errors.push(`reorder: duplicate id "${id}" in pipeline.reorder list`);
+    }
+    seen.add(id);
+  }
+  return errors;
+}
+
+/**
+ * Permute descriptors so that reorderList ids occupy the slots previously held by those same ids.
+ * Pure command — returns `{ descriptors, records }`. Never returns errors (CQS).
+ * Empty list = no-op. Input array is never mutated.
+ *
+ * @param {object[]} descriptors
+ * @param {string[]} reorderList
+ * @returns {{ descriptors: object[], records: string[] }}
+ */
+export function applyReorder(descriptors, reorderList) {
+  if (!reorderList || reorderList.length === 0) return { descriptors, records: [] };
+  const reorderSet = new Set(reorderList);
+  const byId = new Map(descriptors.map(d => [d.id, d]));
+  const slots = descriptors.reduce((acc, d, i) => {
+    if (reorderSet.has(d.id)) acc.push(i);
+    return acc;
+  }, []);
+  const reordered = [...descriptors];
+  for (let k = 0; k < slots.length; k++) {
+    reordered[slots[k]] = byId.get(reorderList[k]);
+  }
+  const records = reorderList.map(id => `reorder: ${id} (pipeline.reorder)`);
+  return { descriptors: reordered, records };
+}

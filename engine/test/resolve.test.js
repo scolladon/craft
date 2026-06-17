@@ -476,3 +476,62 @@ test('Given any manifest, when resolvePipeline is called, then result includes g
   assert.ok(Array.isArray(result.gateDecisions), 'gateDecisions should be an array');
   assert.ok(Array.isArray(result.waivers), 'waivers should be an array');
 });
+
+// ─── reorder wiring ───────────────────────────────────────────────────────────
+
+test('Given pipeline.reorder containing an alias id (mutation), when resolvePipeline runs, then ok:true and reorder applies via canonical id', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { reorder: ['mutation', 'review'] } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${JSON.stringify(result.errors)}`);
+  const ids = result.effective.map(d => d.id);
+  assert.ok(ids.indexOf('validation') < ids.indexOf('review'),
+    'validation (alias: mutation) must precede review after reorder');
+});
+
+test('Given pipeline.reorder containing an unknown id, when resolvePipeline runs, then ok:false with unknown-id error and the prior edit records surfaced', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { reorder: ['ghost-phase'] } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('"ghost-phase"') && e.includes('not present')));
+  // The reorder guard surfaces the records computed before it (the two default-skips),
+  // consistent with the strand/graph early-returns — not an empty record.
+  assert.deepEqual(result.record, [
+    'default-skip: requirements (descriptor enabled:false)',
+    'default-skip: architecture (descriptor enabled:false)',
+  ]);
+});
+
+test('Given pipeline.reorder: [validation, review], when resolvePipeline runs, then effective has validation before review with ordered record lines', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { reorder: ['validation', 'review'] } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${JSON.stringify(result.errors)}`);
+  const ids = result.effective.map(d => d.id);
+  assert.ok(ids.indexOf('validation') < ids.indexOf('review'),
+    'validation must precede review after reorder');
+  const r1 = result.record.indexOf('reorder: validation (pipeline.reorder)');
+  const r2 = result.record.indexOf('reorder: review (pipeline.reorder)');
+  assert.ok(r1 !== -1 && r2 !== -1, 'both reorder record lines must be present');
+  assert.ok(r1 < r2, 'reorder records must appear in reorder-list order');
+});
+
+test('Given pipeline.reorder:[validation, implementation] (consumer before producer), when resolvePipeline runs, then ok:false with a graph error (not a strand error) mentioning validation and change', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { reorder: ['validation', 'implementation'] } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, false);
+  const hasGraphError = result.errors.some(e => e.includes('validation') && e.includes('change'));
+  assert.ok(hasGraphError, `errors must mention validation+change consumer-before-producer; got: ${JSON.stringify(result.errors)}`);
+  assert.ok(!result.errors.some(e => e.startsWith('Strand:')),
+    'the refusal must come from the graph check, not the strand check (no skips here)');
+});

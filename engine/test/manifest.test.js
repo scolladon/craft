@@ -115,6 +115,79 @@ test('Given a manifest with an unknown pipeline sub-key, when validateManifest r
   assert.ok(result.errors.some(e => e.includes('unknown pipeline key: bogus')));
 });
 
+test('Given pipeline.reorder: [validation, review] in manifest, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { reorder: ['validation', 'review'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given pipeline.reorder: "not-a-list" in manifest, when validateManifest runs, then ok:false with shape error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { reorder: 'not-a-list' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('pipeline.reorder must be a list of phase ids')));
+});
+
+test('Given pipeline.reorder: null in manifest (empty key body), when validateManifest runs, then ok:false with shape error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { reorder: null } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('pipeline.reorder must be a list of phase ids')));
+});
+
+test('Given pipeline.reorder: [1, 2] in manifest (non-string items), when validateManifest runs, then ok:false with an error per bad item', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { reorder: [1, 2] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('pipeline.reorder[0]') && e.includes('number')));
+  assert.ok(result.errors.some(e => e.includes('pipeline.reorder[1]') && e.includes('number')));
+});
+
+test('Given pipeline.reorder: [valid, 42, valid] in manifest (mixed), when validateManifest runs, then only the non-string item errors', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { reorder: ['validation', 42, 'review'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('pipeline.reorder[1]') && e.includes('number')));
+  assert.ok(!result.errors.some(e => e.includes('pipeline.reorder[0]')));
+  assert.ok(!result.errors.some(e => e.includes('pipeline.reorder[2]')));
+});
+
+test('Given pipeline.reorder: [] in manifest (empty list), when validateManifest runs, then ok:true (empty is valid shape)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { reorder: [] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
 // ─── retrieval and execution (shape-only) ────────────────────────────────────
 
 test('Given a manifest with retrieval as empty object, when validateManifest runs, then it returns ok', () => {

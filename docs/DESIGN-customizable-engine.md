@@ -244,8 +244,12 @@ so a refinement never strands an earlier consumer (`review` resolves `change` to
 - **Insert** places a descriptor with `after:`/`before:`; the new phase gets full engine
   treatment (contract, gate, model, run-record). Its `consumes`/`produces`/`self_supply` join
   the graph; the same validation runs.
-- **Reorder** is validated against the edges — a consumer placed before its producer is
-  rejected by the *same machinery* as a stranding skip.
+- **Reorder** (`pipeline.reorder: [id, …]`, a relative-permutation — the listed ids' slots
+  refill in the given order, unlisted phases keep position; ADR-024) is validated against the
+  edges — a consumer placed before its producer is rejected by the *same machinery* as a
+  stranding skip (the existing `validatePipeline` graph check, no duplicate pre-check; ADR-026).
+  A separate `checkReorderApplicability` query (CQS) refuses an unknown / non-enabled / duplicate
+  id before the transform runs. **Landed P7.**
 
 This dissolves the static `PROTECTED="branch plan implement review refactor mutation"` list in
 `manifest-lint`. Workspace and planning stay *effectively* protected (they strand). **Decided
@@ -255,7 +259,8 @@ strands. The harness and refinement phases (`review`, `refactoring`, `validation
 input, so a skip doesn't strand — it waives a guarantee, recorded for accountability, and a
 skipped/disabled executing-harness **waiver-releases its `propose`-gate** (above). The single
 non-waivable floor is "a gate must exist for code-producing phases" — never any individual
-harness. Arbitrary reorder stays deferred (insert+skip first, per OQ1).
+harness. Reorder (the OQ1 defer) **landed at P7** as a relative-permutation, graph-validated by
+the same machinery (ADR-024/026).
 
 > SC1 is unaffected: the default pipeline has no edits, so the graph is walked in default order
 > with default agents — behaviour identical. Only the *customization surface* widens.
@@ -266,7 +271,7 @@ Today's top keys: `backlog paths context gates phases pr scripts models`. Additi
 
 | Key / field | Level | Holds | §/Tier |
 |---|---|---|---|
-| `pipeline:` | top-level | `profile:` · `skip: [...]` · `insert: [...]` *(· `reorder: [...]` — deferred, pending DC-5)* | §7 #1,5,11; §10 |
+| `pipeline:` | top-level | `profile:` · `skip: [...]` · `insert: [...]` · `reorder: [...]` *(relative-permutation; landed P7 — ADR-024)* | §7 #1,5,11; §10 |
 | `retrieval:` | top-level | a context-file pointer **or** a named strategy forge maps to a stock note | §10.1·SP7 |
 | `execution:` | **top-level default** *and* phase field (`phases.<id>.execution`) | `inline\|agent`; precedence per-phase field > profile > top-level default (ADR-008) | §7 #4 |
 | `role:` | phase field (`phases.<id>.role`) | agent/skill swap (`my:domain-planner`) — contract still injected | §7 #10 |
@@ -370,10 +375,10 @@ the *contract* (pinned fields + shape-agnostic consumption) and the *seam*, not 
 The to-be `run/SKILL.md` walk, generalised away from hardcoded phase names:
 
 1. **Resolve.** Run `manifest-lint` (shape); read the manifest. Load the default descriptor
-   list; **alias-resolve**; **expand `profile:`**; **apply `pipeline:` edits** (skip + insert +
-   explicit phase fields; reorder once DC-5 admits it); **validate the effective graph** (acyclic;
+   list; **alias-resolve** (incl. reorder ids); **expand `profile:`**; **apply `pipeline:` edits**
+   (skip + insert + reorder + explicit phase fields); **validate the effective graph** (acyclic;
    every `consumes` has a `produces`; `self_supply ⊆ consumes`; no skip strands a
-   non-self-supplying consumer; once reorder lands, no consumer precedes its producer) — refuse
+   non-self-supplying consumer; no consumer precedes its producer after reorder) — refuse
    loudly on violation. Classify input (backlog-id only if `backlog:` declared → Backlog
    port `resolve`; file path; free-text brief). Derive the slug. **Open the run record.**
 2. **Walk** each phase in effective order. For each:
@@ -443,7 +448,7 @@ the designer's recommendation.
 | DC-2 ⚑ | Deterministic resolution home | a **portable Node module** (not Bash) — descriptor parse, alias-resolve, profile-expand, edit-apply, graph-validate, contract-assemble | 002 |
 | DC-3 | Contract storage form | composable fragment files under `contracts/` | 003 |
 | DC-4 | Alias-resolution home | one shared data alias-map (consulted by lint *and* walk) | 004 |
-| DC-5 ⚑ | Skip/reorder strictness | graph-only; **all harnesses (incl. validation) skippable-but-flagged**, a skipped executing-harness waiver-releases its `propose`-gate; only a stranding skip refuses; reorder deferred | 005 |
+| DC-5 ⚑ | Skip/reorder strictness | graph-only; **all harnesses (incl. validation) skippable-but-flagged**, a skipped executing-harness waiver-releases its `propose`-gate; only a stranding skip refuses; reorder **landed P7** — relative-permutation, graph-validated by the same machinery (024/026) | 005, 024, 026 |
 | DC-6 | `contract:` shape | a list, defaulting to one | 006 |
 | DC-7 | `DESIGN.md` split | split — this doc = living SoT, old `DESIGN.md` → `DESIGN-history.md` | 007 |
 | DC-8 ⚑ | `execution` config levels | per-phase field **>** profile **>** top-level `execution:` default | 008 |

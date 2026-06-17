@@ -11,7 +11,7 @@ import { resolveAlias } from './alias-map.js';
 import { validatePipeline } from './graph.js';
 import { expandProfile, applyProfileToArchetype, HARNESS_ARCHETYPE } from './profile.js';
 import { DEFAULT_EXECUTION, VALID_EXECUTIONS } from './descriptor.js';
-import { applyEnableEdits, applyInserts } from './edits.js';
+import { applyEnableEdits, applyInserts, applyReorder, checkReorderApplicability } from './edits.js';
 import { checkStrandedConsumers } from './strand.js';
 import { resolveGatesAndWaivers } from './gates.js';
 
@@ -29,9 +29,10 @@ function aliasResolve(manifest) {
   const resolvedPhases = Object.fromEntries(
     Object.entries(manifest.phases ?? {}).map(([k, v]) => [resolveAlias(k), v]),
   );
+  const resolvedReorder = (pipeline.reorder ?? []).map(resolveAlias);
   return {
     ...manifest,
-    pipeline: { ...pipeline, skip: resolvedSkip, insert: resolvedInsert },
+    pipeline: { ...pipeline, skip: resolvedSkip, insert: resolvedInsert, reorder: resolvedReorder },
     phases: resolvedPhases,
   };
 }
@@ -169,12 +170,35 @@ export function resolvePipeline(defaults, manifest) {
 
   const enableResult = applyEnableEdits([...defaults], skipSet, phaseOverrides);
   const insertResult = applyInserts(enableResult.descriptors, resolved.pipeline?.insert ?? []);
+
+  const reorderList = resolved.pipeline?.reorder ?? [];
+  const reorderErrors = checkReorderApplicability(insertResult.descriptors, reorderList);
+  if (reorderErrors.length > 0) {
+    // Surface the records computed so far (enable + insert), consistent with the strand
+    // and graph early-returns below, so a failed reorder still shows the prior edits.
+    return {
+      ok: false,
+      errors: reorderErrors,
+      effective: [],
+      record: [...enableResult.records, ...insertResult.records],
+      gateDecisions: [],
+      waivers: [],
+    };
+  }
+  const reorderResult = applyReorder(insertResult.descriptors, reorderList);
+
   const execResult = resolveExecution(
-    insertResult.descriptors, phaseOverrides, profile, resolved.execution, profileName,
+    reorderResult.descriptors, phaseOverrides, profile, resolved.execution, profileName,
   );
 
   const manifestRecords = buildManifestRecords(resolved);
-  const record = [...enableResult.records, ...insertResult.records, ...execResult.records, ...manifestRecords];
+  const record = [
+    ...enableResult.records,
+    ...insertResult.records,
+    ...reorderResult.records,
+    ...execResult.records,
+    ...manifestRecords,
+  ];
 
   const strandErrors = checkStrandedConsumers(defaults, skipSet, execResult.descriptors);
   if (strandErrors.length > 0) {

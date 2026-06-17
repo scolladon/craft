@@ -765,3 +765,158 @@ test('S-full Given profile:full manifest, when resolvePipeline runs, then effect
   assert.equal(result.ok, true);
   assert.equal(result.effective.length, SC1_IDS.length, 'S-full must produce the same phase count as SC1');
 });
+
+// ─── S-reorder: valid reorder alone ──────────────────────────────────────────
+
+test('S-reorder Given reorder:[validation, review], when resolvePipeline runs, then ok:true with validation before review', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-reorder');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const ids = result.effective.map(d => d.id);
+  assert.ok(ids.indexOf('validation') < ids.indexOf('review'),
+    'validation must precede review after reorder');
+});
+
+// S-reorder swaps validation/review only; refactoring (enabled here — no skip) stays put
+// between them, so the full order pins that non-reordered phases keep their positions.
+const S_REORDER_IDS = [
+  'workspace', 'design', 'decisions', 'planning', 'implementation',
+  'validation', 'refactoring', 'review', 'documentation', 'propose', 'integrate',
+];
+
+test('S-reorder Given reorder:[validation, review], when resolvePipeline runs, then effective order matches the S-reorder golden (refactoring stays put)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-reorder');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.effective.map(d => d.id), S_REORDER_IDS);
+  assert.equal(result.effective.length, SC1_IDS.length, 'reorder preserves the full phase count — only order changes');
+});
+
+test('S-reorder Given reorder:[validation, review], when resolvePipeline runs, then record contains both reorder lines', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-reorder');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(result.record.includes('reorder: validation (pipeline.reorder)'));
+  assert.ok(result.record.includes('reorder: review (pipeline.reorder)'));
+});
+
+// ─── SC3: composed golden (skip + insert + reorder) ──────────────────────────
+
+const SC3_EFFECTIVE_IDS = [
+  'workspace', 'design', 'decisions', 'planning', 'implementation',
+  'validation', 'review', 'bench', 'documentation', 'propose', 'integrate',
+];
+
+test('SC3 Given skip:refactoring + insert:bench after validation + reorder:[validation,review], when resolvePipeline runs, then ok:true', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC3');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('SC3 Given composed edits, when resolvePipeline runs, then effective id order matches SC3 golden', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC3');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.effective.map(d => d.id), SC3_EFFECTIVE_IDS);
+});
+
+test('SC3 Given composed edits, when resolvePipeline runs, then record includes all four pinned lines in order', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC3');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const rec = result.record;
+  const skipIdx    = rec.indexOf('skip: refactoring (manifest pipeline.skip)');
+  const insertIdx  = rec.indexOf('insert: bench (after:validation)');
+  const reorder1Idx = rec.indexOf('reorder: validation (pipeline.reorder)');
+  const reorder2Idx = rec.indexOf('reorder: review (pipeline.reorder)');
+  assert.ok(skipIdx !== -1, 'record must include skip:refactoring line');
+  assert.ok(insertIdx !== -1, 'record must include insert:bench line');
+  assert.ok(reorder1Idx !== -1, 'record must include reorder:validation line');
+  assert.ok(reorder2Idx !== -1, 'record must include reorder:review line');
+  assert.ok(skipIdx < insertIdx, 'skip line must precede insert line');
+  assert.ok(insertIdx < reorder1Idx, 'insert line must precede first reorder line');
+  assert.ok(reorder1Idx < reorder2Idx, 'first reorder line must precede second');
+});
+
+test('SC3 Given composed edits, when resolvePipeline runs, then bench gateDecision has a non-empty gate', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC3');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const benchDecision = result.gateDecisions.find(g => g.phaseId === 'bench');
+  assert.ok(benchDecision, 'gateDecisions must include bench');
+  assert.equal(benchDecision.gate, 'node --test engine/test/bench.test.js',
+    'bench gate must be the exact string from the insert descriptor (walk contract)');
+});
+
+test('SC3 Given composed edits, when resolvePipeline runs, then propose awaits validation and bench but not review', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC3');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const proposeDecision = result.gateDecisions.find(g => g.phaseId === 'propose');
+  assert.ok(proposeDecision, 'propose must have a gateDecision');
+  // Exactly the two harness-exec phases, in effective order — review (harness-read) excluded,
+  // no spurious entries. deepEqual pins the complete set, not just membership.
+  assert.deepEqual(proposeDecision.awaitingHarnesses, ['validation', 'bench']);
+});
+
+test('SC3 Given composed edits, when resolvePipeline runs, then refactoring has no gateDecision entry (skipped)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC3');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const refactoringDecision = result.gateDecisions.find(g => g.phaseId === 'refactoring');
+  assert.ok(!refactoringDecision, 'refactoring must have no gateDecision (it is skipped)');
+});
+
+// ─── reorder-refused negative: consumer before producer ───────────────────────
+
+test('Given reorder puts validation before implementation (consumer before producer), when resolvePipeline runs, then ok:false with a graph error mentioning validation and change', () => {
+  const defaults = loadDefault();
+  // reorder: [validation, implementation] — over the FULL descriptor list (incl. default-off
+  // requirements/architecture), implementation is at index 5 and validation at index 8; slots [5,8]
+  // refill to validation@5, implementation@8 → validation precedes its change producer
+  const manifest = { pipeline: { reorder: ['validation', 'implementation'] } };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, false);
+  const hasGraphError = result.errors.some(e => e.includes('validation') && e.includes('change'));
+  assert.ok(hasGraphError,
+    `errors must mention the consumer-before-producer violation; got: ${JSON.stringify(result.errors)}`);
+});

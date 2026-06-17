@@ -45,7 +45,7 @@ const MODELS_KEYS = Object.freeze(new Set([
 ]));
 
 /** Sub-keys accepted under the `pipeline` key. */
-const PIPELINE_KEYS = Object.freeze(new Set(['profile', 'skip', 'insert']));
+const PIPELINE_KEYS = Object.freeze(new Set(['profile', 'skip', 'insert', 'reorder']));
 
 /**
  * Sentinel values that indicate an absent path (no file-existence check needed).
@@ -147,6 +147,23 @@ function validateScripts(scripts, fileExists, errors) {
 }
 
 /**
+ * Validate the `pipeline.reorder` value.
+ * @param {unknown} reorder
+ * @param {string[]} errors
+ */
+function validateReorder(reorder, errors) {
+  if (!Array.isArray(reorder)) {
+    errors.push('pipeline.reorder must be a list of phase ids');
+    return;
+  }
+  for (const [i, item] of reorder.entries()) {
+    if (typeof item !== 'string') {
+      errors.push(`pipeline.reorder[${i}]: expected a string id, got ${typeof item}`);
+    }
+  }
+}
+
+/**
  * Validate the `pipeline` sub-object keys (ADR-010).
  * Named distinctly from the graph's exported `validatePipeline(descriptors)`:
  * this checks manifest-shape sub-keys, not the descriptor DAG.
@@ -159,6 +176,9 @@ function validatePipelineKeys(pipeline, errors) {
     if (!PIPELINE_KEYS.has(key)) {
       errors.push(`unknown pipeline key: ${key}`);
     }
+  }
+  if (Object.hasOwn(pipeline, 'reorder')) {
+    validateReorder(pipeline.reorder, errors);
   }
 }
 

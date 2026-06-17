@@ -75,11 +75,25 @@ Input: `$ARGUMENTS`
 
 Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 
-1. **Resolve the skill** — invoke `forge:<phase.id>` directly: the skill dir name
-   equals `phase.id` (concern names match dir names). `requirements` and
-   `architecture` are default-off and have no skill dir until P10; an enabled phase
-   id with no `skills/<id>/` dir is the loud STOP "unknown phase id <id>" — the
-   intended guard, not a silent skip.
+1. **Resolve the skill** — invoke `phase.procedure` **verbatim** (the descriptor's
+   `procedure:` field — e.g. `forge:design`, or an inserted phase's `forge:bench` /
+   `acme:bench`). For every forge-native phase the procedure is `forge:<phase.id>` and the
+   skill dir name equals `phase.id`, so default phases are unaffected. An **inserted** phase
+   carries its own `procedure:` and may name a forge-local skill or a namespaced one — the walk
+   dispatches the string as-is; cross-plugin dispatch is SP2-proven (the derived-plugin
+   *registration* surface, `forge.extends:`, is P14 — P7 only dispatches what the manifest
+   names). `requirements` and `architecture` are default-off and have no skill dir until P10.
+   If the skill or plugin a `procedure` names is not installed (no `skills/<id>/` dir for a
+   forge-native procedure; no installed plugin for a namespaced one) → the loud STOP
+   "procedure `<phase.procedure>` resolves to no installed skill" — the intended guard, not a
+   silent skip. For a forge-native phase — including one whose `role:` is swapped (the
+   descriptor `id` is unchanged) — the injected contract (step 3) is assembled from that
+   descriptor regardless of who supplies the procedure, so a role-swapped procedure can never
+   drop it (G5). **Inserted-phase contract injection is not yet wired:** `contract-assemble`
+   (step 3) keys on `pipeline/default.yml`, so a novel inserted `id` STOPs there with
+   "unknown descriptor-id". P7 lands inserted-phase *dispatch* (above) and resolution-layer
+   insert (S3/SC3); full inserted-phase *execution* — teaching `contract-assemble` the resolved
+   inserted descriptors — rides with the derived-plugin registration surface (P14).
 
 2. **Resolve execution** — use `phase.execution` (`agent` | `inline`) from the
    Resolution. Apply manifest override (`phases.<id>.override`,
@@ -149,9 +163,10 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 8. **On model-down** (not a task blocker): mark tier degraded; re-resolve to
    fallback; respawn from artifact. Record degradation in run record.
 
-`design` and `review` are already concern-named (no alias); every other phase id maps
-to a `skills/<id>/` dir of the same name after the P4 rename, so the walk invokes
-`forge:<phase.id>` with no translation table.
+`design` and `review` are already concern-named (no alias); every other forge-native phase
+id maps to a `skills/<id>/` dir of the same name after the P4 rename, so its `procedure` is
+`forge:<phase.id>` and the walk dispatches it with no translation table. Inserted phases
+bring their own `procedure`, dispatched verbatim (step 1).
 
 ### Walk error paths
 
@@ -160,7 +175,7 @@ to a `skills/<id>/` dir of the same name after the P4 rename, so the walk invoke
 | `ok: false` from `pipeline-resolve` | Stop; surface all `errors[]`; refuse to proceed |
 | Non-zero exit from `pipeline-resolve` | Stop; surface stderr; refuse to proceed |
 | `effective[]` is empty | Stop; surface "no enabled phases in resolution" |
-| A phase id has no `skills/<id>/` dir (e.g. an enabled requirements/architecture pre-P10) | Stop; surface "unknown phase id <id>" |
+| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for a forge-native procedure, e.g. an enabled requirements/architecture pre-P10; no installed plugin for a namespaced one) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
 | `waivers[]` is non-empty | Executing-harness waivers are pre-formatted in `record[]`; surface every other waiver (review/refactoring) to the run record yourself per §1e; continue |
 | A skip strands a consumer | `ok: false` already; covered by the stop-on-error path |

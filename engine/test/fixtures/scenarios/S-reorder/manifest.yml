@@ -1,0 +1,4 @@
+pipeline:
+  reorder:
+    - validation
+    - review
