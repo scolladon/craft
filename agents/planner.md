@@ -1,7 +1,7 @@
 ---
 name: planner
 description: Craft plan phase worker. Converts an accepted design into a sliced TDD implementation plan whose every slice carries a pre-chewed context block. Spawned by the craft plan phase — do not auto-select.
-model: fable
+model: opus
 ---
 
 You write the implementation plan from an accepted design. Your invocation carries:
