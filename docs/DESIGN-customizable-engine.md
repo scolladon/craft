@@ -1,6 +1,6 @@
-# Design — Forge customizable engine: hexagonal core, phase descriptors, engine-owned contract
+# Design — Craft customizable engine: hexagonal core, phase descriptors, engine-owned contract
 
-> Brief: turn forge's hardcoded 11-phase orchestrator into a hexagonal domain core that
+> Brief: turn craft's hardcoded 11-phase orchestrator into a hexagonal domain core that
 > walks a *declarative phase descriptor list* behind six explicit ports, with the invariant
 > contract injected by the engine (not baked into agent defs) — preserving zero-config
 > behaviour exactly. Scope: the P3–P5 core cluster + schemas (PRD §17). Design only.
@@ -10,7 +10,7 @@
 
 ### What exists today (the as-is)
 
-forge is a Claude Code plugin: a thin orchestrator skill (`skills/run/SKILL.md`) drives a
+craft is a Claude Code plugin: a thin orchestrator skill (`skills/run/SKILL.md`) drives a
 **hardcoded 1→11 phase sequence** (`branch → design → adr → plan → implement → review →
 refactor → mutation → docs → pr → merge`). Three layers (`docs/DESIGN.md`):
 
@@ -40,7 +40,7 @@ schema. No automated tests exist — the mechanical layer that *is* the guarante
 - **SPIKE.md** (8 resolved spikes, treated as facts): SP1 inline = the session runs the phase
   body, contract/gate/hooks identical, commit-is-the-handoff, *sequential* (multi-dimension
   harness stays `agent`); SP2 cross-plugin dispatch GREEN on native `dependencies` +
-  namespacing; SP3 `$ARGUMENTS` carries forge args verbatim in `-p`; SP4 full-SDLC vocabulary
+  namespacing; SP3 `$ARGUMENTS` carries craft args verbatim in `-p`; SP4 full-SDLC vocabulary
   + `mutation→validation` + harness family; SP5 supported model class = **Haiku-4.5 and up**,
   fallback proven contract-safe, *output shape varies by model* (R10); SP6 backlog port
   `resolve`/`complete`; SP7 retrieval derivation (plugin content already strategy-free,
@@ -91,7 +91,7 @@ What must be true when the P3–P5 core ships (verifiable; each maps to a design
 
 ### How the hexagon is realised in a Bash + markdown engine (the linchpin)
 
-There is no compiled core (N3). So we name the three hexagonal roles onto concrete forge
+There is no compiled core (N3). So we name the three hexagonal roles onto concrete craft
 artifacts and hold the boundary as a **design discipline**, not a type system:
 
 - **Domain core** = the orchestrator skill's *policy text* (the pipeline walk + the §11
@@ -105,7 +105,7 @@ artifacts and hold the boundary as a **design discipline**, not a type system:
   the *policy*; the port exposes only *mechanism*.
 - **Adapter** = the binding of those operations to concrete Claude Code primitives (Task,
   Bash, PreToolUse hooks, `gh`/git CLI, the per-invocation model param, the Skill tool). Today
-  **forge *is* the Claude Code adapter.** A second adapter (P16, e.g. Pi) re-binds the same
+  **craft *is* the Claude Code adapter.** A second adapter (P16, e.g. Pi) re-binds the same
   operations — out of scope here; we only fix the boundary so it *can*.
 
 The payoff is twofold and concrete: (1) **testability** — the deterministic operations
@@ -138,7 +138,7 @@ project/user settings, never by the adapter (G14).
 | Port | Mechanism (operations) | Policy kept in core | Adapter binding (Claude Code) | Spec |
 |---|---|---|---|---|
 | **Execution** | `spawn(role, ctx) → result` · `runInline(ctx) → result` | when a phase runs inline vs agent; which §11 invariants *transform* under inline; assembling `ctx` (contract + retrieval + context + dynamics); fan-out parallelism (agent only — inline is sequential) | Task subagent (namespaced `subagent_type`, model param) / in-thread skill body | §10·SP1 |
-| **Code-access / retrieval** *(env-sourced)* | `read(path\|symbol)` · `navigate(...)` | precedence project>env>user>native; the injection path (same as `context:`) | the **runtime's own** read/navigate tools satisfy the operations; forge *derives + injects the strategy note* but **never binds the operations itself** | §10.1·SP7·G14 |
+| **Code-access / retrieval** *(env-sourced)* | `read(path\|symbol)` · `navigate(...)` | precedence project>env>user>native; the injection path (same as `context:`) | the **runtime's own** read/navigate tools satisfy the operations; craft *derives + injects the strategy note* but **never binds the operations itself** | §10.1·SP7·G14 |
 | **Model** | `select(model)` · `isAvailable(model)` | resolution order manifest→agent-pin→fallback→session; degraded-tier memory for the run; class = Haiku-4.5+ | per-invocation `model` param (SP1 spike c) | SP5·G12 |
 | **Gate / tool-guard** | `run(cmd) → pass\|fail` · mechanical guards | gate cadence (targeted per fix, phase gate once/round); never commit on red; a gate must exist for code-producing phases; placeholder resolution | Bash exec of the gate command + PreToolUse hooks | §11 (SP b′) |
 | **Backlog SoT** | `resolve(id) → {title, brief}` · `complete(id, refs[])` | which id-form is a backlog id; *when* the tick fires (delivery, after the PR exists); unreachable = blocker | file md / `gh` / Atlassian MCP / custom script | §9·SP6·G7 |
@@ -148,7 +148,7 @@ project/user settings, never by the adapter (G14).
 **not** fully extract every mechanism into a swappable implementation — that is the P16
 adapter work. Two ports are already cleanly extracted (Gate = hooks + manifest gate commands;
 VCS = the lifecycle scripts); the others remain bound inline in the Claude adapter's
-orchestrator/agent text for now, which is allowed — the Claude adapter *is* forge today. The
+orchestrator/agent text for now, which is allowed — the Claude adapter *is* craft today. The
 design contract is: the core never *assumes* a mechanism it could instead *name through a
 port*.
 
@@ -164,7 +164,7 @@ reorder/field-override) to produce the **effective pipeline**. Fields, types, de
 | `archetype` | enum `setup\|specification\|construction\|harness\|refinement\|delivery` | yes | — | groups phases; selects the default contract bundle, classifies code-producing phases, drives walk treatment |
 | `enabled` | bool | no | `true` | a shipped descriptor with `enabled: false` is **default-off** — the walk treats it as a default-skip (recorded, never a strand); a manifest turns it on with `phases.<id>: { enabled: true }`. This is the G2 optional-`requirements` / opt-in-`architecture` mechanism |
 | `contract` | string (bundle name; may be a list — DC-6) | yes | by archetype | which engine-owned contract bundle layers on the always-on universal core |
-| `procedure` | string (skill ref, e.g. `forge:validation`) | yes | — | default body; a manifest `override:` replaces it (the preamble still runs) |
+| `procedure` | string (skill ref, e.g. `craft:validation`) | yes | — | default body; a manifest `override:` replaces it (the preamble still runs) |
 | `role` | string (agent ref) | no | — | default agent; **omit for a gate-only harness** with no AI triage; the engine injects the contract around *any* role |
 | `execution` | enum `agent\|inline` | no | `agent` | delegated subagent vs in-thread session body (SP1); profiles set it en masse |
 | `model` | string (model tier/id) | no | `role`'s frontmatter pin | default model; overridden by manifest `models.<role>`; resolved via the Model port |
@@ -182,16 +182,16 @@ per SP4 (old name in parentheses). Artifact names below are the design's canonic
 | `id` (alias) | archetype | enabled | `role` | `consumes` | `self_supply` | `produces` | gate / harness |
 |---|---|---|---|---|---|---|---|
 | `workspace` (branch) | setup | yes | — | — | — | `workspace` | — |
-| `requirements` (prd) | specification | **no** | `forge:requirements-writer`¹ | `workspace` | — | `requirements` | — |
-| `design` | specification | yes | `forge:designer` | `workspace, requirements` | `requirements` | `design` | — |
+| `requirements` (prd) | specification | **no** | `craft:requirements-writer`¹ | `workspace` | — | `requirements` | — |
+| `design` | specification | yes | `craft:designer` | `workspace, requirements` | `requirements` | `design` | — |
 | `decisions` (adr) | specification | yes | — *(session-owned)* | `design` | `design` | `decisions` | — |
-| `planning` (plan) | specification | yes | `forge:planner` | `design, decisions` | `design, decisions` | `plan` | `plan-lint` |
-| `implementation` (implement) | construction | yes | `forge:slice-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
-| `review` | harness | yes | `forge:reviewer` | `change` | — | `review-report` | `<gates.phase>` per round |
-| `refactoring` (refactor) | refinement | yes | `forge:refactor-executor` | `change` | — | `change` | `<gates.phase>` |
-| `validation` (mutation) | harness | yes | `forge:validation-triager` | `change` | — | `validation-report` | `<validation gate>` · `harness: {tool: stryker, scope: per-hunk}` |
-| `architecture` | harness | **no** | `forge:architecture-triager`¹ | `change` | — | `architecture-report` | `<arch gate>` · `harness: {tool: dependency-cruiser}` |
-| `documentation` (docs) | delivery | yes | `forge:docs-writer` (+ `forge:backlog-ticker`) | `design, change` | — | `docs` | — |
+| `planning` (plan) | specification | yes | `craft:planner` | `design, decisions` | `design, decisions` | `plan` | `plan-lint` |
+| `implementation` (implement) | construction | yes | `craft:slice-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
+| `review` | harness | yes | `craft:reviewer` | `change` | — | `review-report` | `<gates.phase>` per round |
+| `refactoring` (refactor) | refinement | yes | `craft:refactor-executor` | `change` | — | `change` | `<gates.phase>` |
+| `validation` (mutation) | harness | yes | `craft:validation-triager` | `change` | — | `validation-report` | `<validation gate>` · `harness: {tool: stryker, scope: per-hunk}` |
+| `architecture` | harness | **no** | `craft:architecture-triager`¹ | `change` | — | `architecture-report` | `<arch gate>` · `harness: {tool: dependency-cruiser}` |
+| `documentation` (docs) | delivery | yes | `craft:docs-writer` (+ `craft:backlog-ticker`) | `design, change` | — | `docs` | — |
 | `propose` (pr) | delivery | yes | — *(session-owned)* | `change` | — | `pr` | `pr.pre-pr-gate` |
 | `integrate` (merge) | delivery | yes | — *(session-owned)* | `pr` | — | — | — |
 
@@ -272,7 +272,7 @@ Today's top keys: `backlog paths context gates phases pr scripts models`. Additi
 | Key / field | Level | Holds | §/Tier |
 |---|---|---|---|
 | `pipeline:` | top-level | `profile:` · `skip: [...]` · `insert: [...]` · `reorder: [...]` *(relative-permutation; landed P7 — ADR-024)* | §7 #1,5,11; §10 |
-| `retrieval:` | top-level | a context-file pointer **or** a named strategy forge maps to a stock note | §10.1·SP7 |
+| `retrieval:` | top-level | a context-file pointer **or** a named strategy craft maps to a stock note | §10.1·SP7 |
 | `execution:` | **top-level default** *and* phase field (`phases.<id>.execution`) | `inline\|agent`; precedence per-phase field > profile > top-level default (ADR-008) | §7 #4 |
 | `role:` | phase field (`phases.<id>.role`) | agent/skill swap (`my:domain-planner`) — contract still injected | §7 #10 |
 | `harness:` | phase field (`phases.<id>.harness`) | per-phase harness knobs (dimensions/passes/cycles/convergence/tool) | §8 |
@@ -286,7 +286,7 @@ top-level `execution:` default** before validating. Profiles are **pure sugar** 
 precedence — `profile: lean` ≡ top-level `execution: inline` with
 `phases.{implementation,refactoring}.execution: agent` (the `harness` archetype stays `agent`
 regardless — the parallelism caveat binds at every level). All additive — an existing manifest
-with none of these is unchanged (N1). **Per-invocation:** `/forge:run` also accepts
+with none of these is unchanged (N1). **Per-invocation:** `/craft:run` also accepts
 `--profile`/`--skip` flags in `$ARGUMENTS`; the `pipeline-resolve` bin folds them over the
 manifest at highest precedence (CLI > manifest), so a one-off `--profile lean` needs no manifest
 edit (ADR-022).

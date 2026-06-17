@@ -1,7 +1,7 @@
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces:
     - workspace
 
@@ -10,8 +10,8 @@
   enabled: false
   contract:
     - producer
-  procedure: forge:requirements
-  role: forge:requirements-writer
+  procedure: craft:requirements
+  role: craft:requirements-writer
   consumes:
     - workspace
   produces:
@@ -21,8 +21,8 @@
   archetype: specification
   contract:
     - producer
-  procedure: forge:design
-  role: forge:designer
+  procedure: craft:design
+  role: craft:designer
   consumes:
     - workspace
     - requirements
@@ -34,7 +34,7 @@
 - id: decisions
   archetype: specification
   contract: []
-  procedure: forge:decisions
+  procedure: craft:decisions
   consumes:
     - design
   self_supply:
@@ -46,8 +46,8 @@
   archetype: specification
   contract:
     - producer
-  procedure: forge:planning
-  role: forge:planner
+  procedure: craft:planning
+  role: craft:planner
   consumes:
     - design
     - decisions
@@ -62,8 +62,8 @@
   archetype: construction
   contract:
     - construction
-  procedure: forge:implementation
-  role: forge:slice-implementer
+  procedure: craft:implementation
+  role: craft:slice-implementer
   consumes:
     - workspace
     - plan
@@ -75,8 +75,8 @@
   archetype: harness
   contract:
     - harness-read
-  procedure: forge:review
-  role: forge:reviewer
+  procedure: craft:review
+  role: craft:reviewer
   consumes:
     - change
   produces:
@@ -92,8 +92,8 @@
   archetype: refinement
   contract:
     - refinement
-  procedure: forge:refactoring
-  role: forge:refactor-executor
+  procedure: craft:refactoring
+  role: craft:refactor-executor
   consumes:
     - change
   produces:
@@ -104,8 +104,8 @@
   archetype: harness
   contract:
     - harness-exec
-  procedure: forge:validation
-  role: forge:validation-triager
+  procedure: craft:validation
+  role: craft:validation-triager
   consumes:
     - change
   produces:
@@ -120,8 +120,8 @@
   enabled: false
   contract:
     - harness-exec
-  procedure: forge:architecture
-  role: forge:architecture-triager
+  procedure: craft:architecture
+  role: craft:architecture-triager
   consumes:
     - change
   produces:
@@ -134,8 +134,8 @@
   archetype: delivery
   contract:
     - delivery
-  procedure: forge:documentation
-  role: forge:docs-writer
+  procedure: craft:documentation
+  role: craft:docs-writer
   consumes:
     - design
     - change
@@ -146,7 +146,7 @@
   archetype: delivery
   contract:
     - delivery
-  procedure: forge:propose
+  procedure: craft:propose
   consumes:
     - change
   produces:
@@ -157,6 +157,6 @@
   archetype: delivery
   contract:
     - delivery
-  procedure: forge:integrate
+  procedure: craft:integrate
   consumes:
     - pr

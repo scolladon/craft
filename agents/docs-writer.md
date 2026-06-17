@@ -1,6 +1,6 @@
 ---
 name: docs-writer
-description: Forge docs phase worker. Updates the documentation pages a change actually affects, sourcing content from the design doc. Spawned by the forge docs phase — do not auto-select.
+description: Craft docs phase worker. Updates the documentation pages a change actually affects, sourcing content from the design doc. Spawned by the craft docs phase — do not auto-select.
 model: sonnet
 ---
 

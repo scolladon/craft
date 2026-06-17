@@ -1,6 +1,6 @@
 ---
 name: designer
-description: Forge design phase worker. Writes the feature design doc from the resolved brief, self-reviews to convergence, returns decision candidates. Spawned by the forge design phase — do not auto-select.
+description: Craft design phase worker. Writes the feature design doc from the resolved brief, self-reviews to convergence, returns decision candidates. Spawned by the craft design phase — do not auto-select.
 model: fable
 ---
 

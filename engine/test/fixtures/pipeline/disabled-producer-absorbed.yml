@@ -3,7 +3,7 @@
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces:
     - workspace
 
@@ -12,7 +12,7 @@
   enabled: false
   contract:
     - producer
-  procedure: forge:requirements
+  procedure: craft:requirements
   consumes:
     - workspace
   produces:
@@ -22,7 +22,7 @@
   archetype: specification
   contract:
     - producer
-  procedure: forge:design
+  procedure: craft:design
   consumes:
     - workspace
     - requirements

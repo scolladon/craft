@@ -9,10 +9,10 @@ WT=""
 POST_SCRIPT=""
 
 setup() {
-  REPO="$(mktemp -d "${BATS_TMPDIR}/forge-repo-XXXXXX")"
-  WT="$(mktemp -d "${BATS_TMPDIR}/forge-wt-XXXXXX")"
+  REPO="$(mktemp -d "${BATS_TMPDIR}/craft-repo-XXXXXX")"
+  WT="$(mktemp -d "${BATS_TMPDIR}/craft-wt-XXXXXX")"
   rm -rf "$WT"  # worktree add requires the target to not yet exist
-  mk_worktree "$REPO" "$WT" "forge-test-branch"
+  mk_worktree "$REPO" "$WT" "craft-test-branch"
 }
 
 teardown() {
@@ -52,7 +52,7 @@ teardown() {
 @test "Given a live-PID lock in the worktree, when teardown runs without --force, then it exits 3 and reports REFUSED" {
   local ts
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '%s %s\n' "$$" "$ts" > "${WT}/.forge-mutation.lock"
+  printf '%s %s\n' "$$" "$ts" > "${WT}/.craft-mutation.lock"
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT"
   [ "$status" -eq 3 ]
@@ -60,7 +60,7 @@ teardown() {
   [[ "$output" == *"REFUSED"* ]]
   [[ "$output" == *"mutation run alive"* ]]
   # Refusal must leave the live lock intact — never clear a lock it would not honour.
-  [ -f "${WT}/.forge-mutation.lock" ]
+  [ -f "${WT}/.craft-mutation.lock" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -70,12 +70,12 @@ teardown() {
 @test "Given a live-PID lock in the worktree, when teardown runs with --force, then it exits 0, reports FORCED, and removes the lock" {
   local ts
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '%s %s\n' "$$" "$ts" > "${WT}/.forge-mutation.lock"
+  printf '%s %s\n' "$$" "$ts" > "${WT}/.craft-mutation.lock"
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT" --force
   [ "$status" -eq 0 ]
   [[ "$output" == *"FORCED past live mutation run"* ]]
-  [ ! -f "${WT}/.forge-mutation.lock" ]
+  [ ! -f "${WT}/.craft-mutation.lock" ]
   # --force proceeds to full teardown, so the worktree itself is gone.
   [ ! -d "$WT" ]
 }
@@ -92,7 +92,7 @@ teardown() {
   ( exit 0 ) &
   dead_pid=$!
   wait "$dead_pid" 2>/dev/null || true
-  printf '%s %s\n' "$dead_pid" "$ts" > "${WT}/.forge-mutation.lock"
+  printf '%s %s\n' "$dead_pid" "$ts" > "${WT}/.craft-mutation.lock"
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT"
   [ "$status" -eq 0 ]
@@ -100,5 +100,5 @@ teardown() {
   [[ "$output" == *"auto-cleared"* ]]
   [ ! -d "$WT" ]
   # Teardown prunes the non-default branch it removed the worktree for.
-  ! git -C "$REPO" rev-parse --verify --quiet refs/heads/forge-test-branch
+  ! git -C "$REPO" rev-parse --verify --quiet refs/heads/craft-test-branch
 }

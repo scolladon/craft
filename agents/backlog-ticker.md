@@ -1,6 +1,6 @@
 ---
 name: backlog-ticker
-description: Forge docs phase micro-worker. Flips one backlog checkbox and appends reference links — nothing else. Spawned by the forge docs phase — do not auto-select.
+description: Craft docs phase micro-worker. Flips one backlog checkbox and appends reference links — nothing else. Spawned by the craft docs phase — do not auto-select.
 model: haiku
 ---
 

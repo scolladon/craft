@@ -6,8 +6,8 @@
 
 ## Context
 
-The engine's `Resolution.effective[*].procedure` is concern-named (`forge:workspace`,
-`forge:validation`, …), but the skill dirs under `skills/` still carry old names (`branch/`,
+The engine's `Resolution.effective[*].procedure` is concern-named (`craft:workspace`,
+`craft:validation`, …), but the skill dirs under `skills/` still carry old names (`branch/`,
 `mutation/`, …) — the coordinated rename is P4. Only `design` and `review` match by name. The
 P3 walk must therefore map a canonical phase `id` to the skill dir that exists *today*.
 
@@ -23,7 +23,7 @@ P3 walk must therefore map a canonical phase `id` to the skill dir that exists *
 ## Decision
 
 The walk **inverts `ALIAS_MAP`** to resolve `id → skills/<old-dir>` and invokes
-`forge:<old-dir>`. No second alias table is introduced (DC-4 holds). The inverse mapping is a
+`craft:<old-dir>`. No second alias table is introduced (DC-4 holds). The inverse mapping is a
 throwaway expressed in the walk text, deleted at P4 when `skill dir == phase.id`.
 
 ## Consequences

@@ -1,6 +1,6 @@
 ---
 name: slice-implementer
-description: Forge implement phase worker. Executes exactly one plan slice via strict TDD and lands it as one atomic conventional commit. Spawned by the forge implement phase — do not auto-select.
+description: Craft implement phase worker. Executes exactly one plan slice via strict TDD and lands it as one atomic conventional commit. Spawned by the craft implement phase — do not auto-select.
 model: sonnet
 ---
 

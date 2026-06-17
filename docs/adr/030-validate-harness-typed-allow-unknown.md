@@ -10,14 +10,14 @@
 its sub-keys? PRD §8 fixes the canonical knobs (`dimensions`, `passes`, `max_cycles`,
 `convergence ∈ {low-only|none|numeric}`, `tool`, `scope`, `incremental`) but also promises "the
 same shape extends to any harness a repo adds" — e.g. `dependency-cruiser` carries a `rules:`
-path that forge does not enumerate. A validator that rejects unknown sub-keys would block that.
+path that craft does not enumerate. A validator that rejects unknown sub-keys would block that.
 
 ## Options considered
 
 1. **Shape-only** — accept any object, no per-knob checks. Lets `max_cycles: 'three'` through to
    the walk.
 2. **Typed + reject unknown** — strictest; but blocks repo-specific harness config (`rules:`) unless
-   forge enumerates every tool's knobs forever.
+   craft enumerates every tool's knobs forever.
 3. **Typed + allow unknown sub-keys** — type-check the known knobs, pass unknown sub-keys through
    untouched. Catches real mistakes without blocking "any harness a repo adds". *(user choice)*
 

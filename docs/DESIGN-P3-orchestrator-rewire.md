@@ -22,8 +22,8 @@ replaces this static list; the graph's strand-detection is already live in the r
 
 The skill dirs under `skills/` use old phase names (`branch`, `adr`, `plan`, `implement`,
 `refactor`, `mutation`, `docs`, `pr`, `merge`). The engine's `effective[*].procedure` values are
-concern-named (`forge:workspace`, `forge:decisions`, `forge:planning`, `forge:implementation`,
-`forge:refactoring`, `forge:validation`, `forge:documentation`, `forge:propose`, `forge:integrate`).
+concern-named (`craft:workspace`, `craft:decisions`, `craft:planning`, `craft:implementation`,
+`craft:refactoring`, `craft:validation`, `craft:documentation`, `craft:propose`, `craft:integrate`).
 The `ALIAS_MAP` in `engine/src/alias-map.js` maps old→new; its inverse maps canonical-id→old-skill-dir.
 Skill-dir renames are P4. P3 must bridge the gap.
 
@@ -73,17 +73,17 @@ Running `node engine/bin/pipeline-resolve.js pipeline/default.yml` emits:
 
 | id | archetype | procedure | role | gate |
 |---|---|---|---|---|
-| workspace | setup | forge:workspace | — | — |
-| design | specification | forge:design | forge:designer | — |
-| decisions | specification | forge:decisions | — | — |
-| planning | specification | forge:planning | forge:planner | plan-lint |
-| implementation | construction | forge:implementation | forge:slice-implementer | `<gates.phase>` |
-| review | harness | forge:review | forge:reviewer | `<gates.phase>` |
-| refactoring | refinement | forge:refactoring | forge:refactor-executor | `<gates.phase>` |
-| validation | harness | forge:validation | forge:validation-triager | `<validation gate>` |
-| documentation | delivery | forge:documentation | forge:docs-writer | — |
-| propose | delivery | forge:propose | — | pr.pre-pr-gate |
-| integrate | delivery | forge:integrate | — | — |
+| workspace | setup | craft:workspace | — | — |
+| design | specification | craft:design | craft:designer | — |
+| decisions | specification | craft:decisions | — | — |
+| planning | specification | craft:planning | craft:planner | plan-lint |
+| implementation | construction | craft:implementation | craft:slice-implementer | `<gates.phase>` |
+| review | harness | craft:review | craft:reviewer | `<gates.phase>` |
+| refactoring | refinement | craft:refactoring | craft:refactor-executor | `<gates.phase>` |
+| validation | harness | craft:validation | craft:validation-triager | `<validation gate>` |
+| documentation | delivery | craft:documentation | craft:docs-writer | — |
+| propose | delivery | craft:propose | — | pr.pre-pr-gate |
+| integrate | delivery | craft:integrate | — | — |
 
 **Gate decisions (pinned):**
 
@@ -108,17 +108,17 @@ executing-harness triage invariant. `codeProducing` = `change ∈ produces`.
 
 | canonical id | skill dir (today) | procedure |
 |---|---|---|
-| workspace | `branch/` | `forge:workspace` |
-| design | `design/` | `forge:design` |
-| decisions | `adr/` | `forge:decisions` |
-| planning | `plan/` | `forge:planning` |
-| implementation | `implement/` | `forge:implementation` |
-| review | `review/` | `forge:review` |
-| refactoring | `refactor/` | `forge:refactoring` |
-| validation | `mutation/` | `forge:validation` |
-| documentation | `docs/` | `forge:documentation` |
-| propose | `pr/` | `forge:propose` |
-| integrate | `merge/` | `forge:integrate` |
+| workspace | `branch/` | `craft:workspace` |
+| design | `design/` | `craft:design` |
+| decisions | `adr/` | `craft:decisions` |
+| planning | `plan/` | `craft:planning` |
+| implementation | `implement/` | `craft:implementation` |
+| review | `review/` | `craft:review` |
+| refactoring | `refactor/` | `craft:refactoring` |
+| validation | `mutation/` | `craft:validation` |
+| documentation | `docs/` | `craft:documentation` |
+| propose | `pr/` | `craft:propose` |
+| integrate | `merge/` | `craft:integrate` |
 
 The inverse ALIAS_MAP covers all 11 SC1 phases without a gap. Phases where the canonical id has
 no alias entry (`design`, `review`) resolve to themselves, and `skills/design/` and
@@ -219,7 +219,7 @@ The static table is replaced by:
 Walk each phase descriptor in Resolution.effective[] order. For each phase:
 
 1. Resolve the skill dir: look up phase.id in the ALIAS_MAP inverse table below.
-   Invoke it as `forge:<skill-dir-name>`.
+   Invoke it as `craft:<skill-dir-name>`.
 
 2. Resolve execution: use phase.execution (agent | inline) from the Resolution.
    Apply manifest override (phases.<id>.override, phases.<id>.context) as before.
@@ -444,7 +444,7 @@ repo must produce the same 11-phase sequence as today.
 
 After the walk rewrite:
 1. Run `node engine/bin/pipeline-resolve.js pipeline/default.yml` — confirm SC1 output.
-2. Invoke `forge:run` on a trivial feature with no manifest — confirm the walk visits the same
+2. Invoke `craft:run` on a trivial feature with no manifest — confirm the walk visits the same
    11 phases in SC1 order and the run record is seeded with the two default-skip entries.
 3. Confirm `scripts/ci.sh` exits 0.
 

@@ -24,7 +24,7 @@ test('Given a minimal valid YAML entry, when parsePipeline runs, then enabled de
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces: [workspace]
 `;
   const result = parsePipeline(yaml);
@@ -36,7 +36,7 @@ test('Given a minimal valid entry without execution, when parsePipeline runs, th
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces: [workspace]
 `;
   const result = parsePipeline(yaml);
@@ -48,7 +48,7 @@ test('Given an explicit empty contract, when parsePipeline runs, then it stays a
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
 `;
   const result = parsePipeline(yaml);
   assert.deepEqual(result[0].contract, []);
@@ -59,7 +59,7 @@ test('Given an entry without consumes/produces/self_supply, when parsePipeline r
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
 `;
   const result = parsePipeline(yaml);
   assert.deepEqual(result[0].consumes, []);
@@ -72,7 +72,7 @@ test('Given a string contract field, when parsePipeline runs, then it is normali
 - id: planning
   archetype: specification
   contract: producer
-  procedure: forge:planning
+  procedure: craft:planning
 `;
   const result = parsePipeline(yaml);
   assert.deepEqual(result[0].contract, ['producer']);
@@ -83,7 +83,7 @@ test('Given parsePipeline, when called, then it returns a deeply frozen array', 
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces: [workspace]
 `;
   const result = parsePipeline(yaml);
@@ -98,7 +98,7 @@ test('Given an entry missing id, when parsePipeline runs, then it throws a descr
   const yaml = `
 - archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
 `;
   assert.throws(() => parsePipeline(yaml), /id/);
 });
@@ -107,7 +107,7 @@ test('Given an entry missing archetype, when parsePipeline runs, then it throws 
   const yaml = `
 - id: workspace
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
 `;
   assert.throws(() => parsePipeline(yaml), /archetype/);
 });
@@ -125,7 +125,7 @@ test('Given an entry missing contract, when parsePipeline runs, then it throws a
   const yaml = `
 - id: workspace
   archetype: setup
-  procedure: forge:workspace
+  procedure: craft:workspace
 `;
   assert.throws(() => parsePipeline(yaml), /contract/);
 });
@@ -135,7 +135,7 @@ test('Given an entry with an invalid execution mode, when parsePipeline runs, th
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   execution: turbo
 `;
   assert.throws(() => parsePipeline(yaml), /execution/);
@@ -154,7 +154,7 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'setup',
     enabled: true,
     contract: [],
-    procedure: 'forge:workspace',
+    procedure: 'craft:workspace',
     role: undefined,
     consumes: [],
     self_supply: [],
@@ -165,8 +165,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'specification',
     enabled: false,
     contract: ['producer'],
-    procedure: 'forge:requirements',
-    role: 'forge:requirements-writer',
+    procedure: 'craft:requirements',
+    role: 'craft:requirements-writer',
     consumes: ['workspace'],
     self_supply: [],
     produces: ['requirements'],
@@ -176,8 +176,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'specification',
     enabled: true,
     contract: ['producer'],
-    procedure: 'forge:design',
-    role: 'forge:designer',
+    procedure: 'craft:design',
+    role: 'craft:designer',
     consumes: ['workspace', 'requirements'],
     self_supply: ['requirements'],
     produces: ['design'],
@@ -187,7 +187,7 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'specification',
     enabled: true,
     contract: [],
-    procedure: 'forge:decisions',
+    procedure: 'craft:decisions',
     role: undefined,
     consumes: ['design'],
     self_supply: ['design'],
@@ -198,8 +198,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'specification',
     enabled: true,
     contract: ['producer'],
-    procedure: 'forge:planning',
-    role: 'forge:planner',
+    procedure: 'craft:planning',
+    role: 'craft:planner',
     consumes: ['design', 'decisions'],
     self_supply: ['design', 'decisions'],
     produces: ['plan'],
@@ -209,8 +209,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'construction',
     enabled: true,
     contract: ['construction'],
-    procedure: 'forge:implementation',
-    role: 'forge:slice-implementer',
+    procedure: 'craft:implementation',
+    role: 'craft:slice-implementer',
     consumes: ['workspace', 'plan'],
     self_supply: [],
     produces: ['change'],
@@ -220,8 +220,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'harness',
     enabled: true,
     contract: ['harness-read'],
-    procedure: 'forge:review',
-    role: 'forge:reviewer',
+    procedure: 'craft:review',
+    role: 'craft:reviewer',
     consumes: ['change'],
     self_supply: [],
     produces: ['review-report'],
@@ -231,8 +231,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'refinement',
     enabled: true,
     contract: ['refinement'],
-    procedure: 'forge:refactoring',
-    role: 'forge:refactor-executor',
+    procedure: 'craft:refactoring',
+    role: 'craft:refactor-executor',
     consumes: ['change'],
     self_supply: [],
     produces: ['change'],
@@ -242,8 +242,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'harness',
     enabled: true,
     contract: ['harness-exec'],
-    procedure: 'forge:validation',
-    role: 'forge:validation-triager',
+    procedure: 'craft:validation',
+    role: 'craft:validation-triager',
     consumes: ['change'],
     self_supply: [],
     produces: ['validation-report'],
@@ -253,8 +253,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'harness',
     enabled: false,
     contract: ['harness-exec'],
-    procedure: 'forge:architecture',
-    role: 'forge:architecture-triager',
+    procedure: 'craft:architecture',
+    role: 'craft:architecture-triager',
     consumes: ['change'],
     self_supply: [],
     produces: ['architecture-report'],
@@ -264,8 +264,8 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'delivery',
     enabled: true,
     contract: ['delivery'],
-    procedure: 'forge:documentation',
-    role: 'forge:docs-writer',
+    procedure: 'craft:documentation',
+    role: 'craft:docs-writer',
     consumes: ['design', 'change'],
     self_supply: [],
     produces: ['docs'],
@@ -275,7 +275,7 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'delivery',
     enabled: true,
     contract: ['delivery'],
-    procedure: 'forge:propose',
+    procedure: 'craft:propose',
     role: undefined,
     consumes: ['change'],
     self_supply: [],
@@ -286,7 +286,7 @@ const EXPECTED_DESCRIPTORS = [
     archetype: 'delivery',
     enabled: true,
     contract: ['delivery'],
-    procedure: 'forge:integrate',
+    procedure: 'craft:integrate',
     role: undefined,
     consumes: ['pr'],
     self_supply: [],

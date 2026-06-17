@@ -1,9 +1,9 @@
 ---
 name: validation
-description: Forge phase 8 - mutation-test the change, triage survivors (kill or prove equivalent); gates the PR. Also useful standalone after a hotfix.
+description: Craft phase 8 - mutation-test the change, triage survivors (kill or prove equivalent); gates the PR. Also useful standalone after a hotfix.
 ---
 
-# forge:validation
+# craft:validation
 
 ## Preamble (always runs — non-overridable)
 
@@ -27,11 +27,11 @@ description: Forge phase 8 - mutation-test the change, triage survivors (kill or
    surface out-of-scope survivors the triage must then filter — a tight per-hunk list is
    faster and cleaner.
    Start it **in the background**; write the run-lock
-   (`<root>/.forge-mutation.lock` ← `<pid> <iso-timestamp>`); clear the lock when the
+   (`<root>/.craft-mutation.lock` ← `<pid> <iso-timestamp>`); clear the lock when the
    run lands. The documentation phase may proceed in parallel while it grinds.
 2. **The PR waits for triage** (orchestrator invariant): when the run lands, filter
    survivors/no-coverage to the change's lines only (pre-existing-line survivors are
-   out of scope), then spawn **forge:validation-triager** with: the filtered survivors;
+   out of scope), then spawn **craft:validation-triager** with: the filtered survivors;
    **reviewer-predicted equivalent mutants verbatim** (from the review phase's
    advisory notes); the gates; the commit message `test(mutation): <scope>`; global +
    validation-phase `context:` files verbatim (tool-specific triage procedure included).

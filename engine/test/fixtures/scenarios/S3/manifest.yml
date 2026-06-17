@@ -4,8 +4,8 @@ pipeline:
       archetype: harness
       contract:
         - harness-exec
-      procedure: forge:bench
-      role: forge:bench-runner
+      procedure: craft:bench
+      role: craft:bench-runner
       after: validation
       consumes:
         - change

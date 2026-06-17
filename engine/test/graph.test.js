@@ -81,12 +81,12 @@ test('Given descriptors with duplicate ids, when validatePipeline runs, then ok 
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces: [workspace]
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces: [workspace]
 `;
   const sut = parsePipeline(yaml);
@@ -102,7 +102,7 @@ test('Given a descriptor with an unknown bundle name in contract, when validateP
 - id: workspace
   archetype: setup
   contract: [unknown-bundle]
-  procedure: forge:workspace
+  procedure: craft:workspace
 `;
   const sut = parsePipeline(yaml);
   const result = validatePipeline(sut);
@@ -115,12 +115,12 @@ test('Given descriptors with valid bundle names, when validatePipeline runs, the
 - id: workspace
   archetype: setup
   contract: [core]
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces: [workspace]
 - id: planning
   archetype: specification
   contract: [producer]
-  procedure: forge:planning
+  procedure: craft:planning
   consumes: [workspace]
   self_supply: []
   produces: [plan]
@@ -135,7 +135,7 @@ test('Given a descriptor with contract:[refinement], when validatePipeline runs,
 - id: refactoring
   archetype: refinement
   contract: [refinement]
-  procedure: forge:refactoring
+  procedure: craft:refactoring
 `;
   const sut = parsePipeline(yaml);
   const result = validatePipeline(sut);

@@ -220,7 +220,7 @@ test('Given descriptor.harness: { dimensions: ["code","tests"] } and override.ha
 
 test('Given descriptor has harness and override.role: "my:role", when applyAllowedOverrides runs, then role is scalar-replaced (scalar semantics unchanged)', () => {
   const sut = applyOverride;
-  const descriptor = { ...makeHarnessDescriptor('review', { tool: 'stryker' }), role: 'forge:reviewer' };
+  const descriptor = { ...makeHarnessDescriptor('review', { tool: 'stryker' }), role: 'craft:reviewer' };
 
   const result = sut(descriptor, { role: 'my:role', harness: { scope: 'per-file' } });
 

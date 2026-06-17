@@ -1,6 +1,6 @@
 ---
 # A capability toolkit (everything-claude-style: agents/commands/hooks/rules) slotted into
-# forge across FIVE injection points. forge orchestrates the pieces; it does not replace them.
+# craft across FIVE injection points. craft orchestrates the pieces; it does not replace them.
 # Surfaces tagged (current) work today; (PRD) land in the customizable-engine program.
 
 context: .claude/workflow/house-rules.md          # toolkit "rules" → global context        (current, §7 #8)
@@ -20,14 +20,14 @@ pipeline:                                           #                           
 models: { reviewer: opus }                          # toolkit-driven model routing              (current, §7 #2)
 ---
 
-# everything-claude toolkit + forge
+# everything-claude toolkit + craft
 
-A toolkit is a *bag of parts*. forge gives each part a home and a guarantee:
+A toolkit is a *bag of parts*. craft gives each part a home and a guarantee:
 
-| Toolkit artifact | forge injection point | Note |
+| Toolkit artifact | craft injection point | Note |
 |---|---|---|
 | rule files (`house-rules.md`, `sec-rules.md`) | `context:` (global / per-phase) | injected verbatim into agents |
-| a custom planner agent (`my-toolkit:planner`) | `role:` swap on the `plan` phase | the engine still injects the forge contract *around* it (PRD §6.3) |
+| a custom planner agent (`my-toolkit:planner`) | `role:` swap on the `plan` phase | the engine still injects the craft contract *around* it (PRD §6.3) |
 | a command/skill (`my-toolkit:license-check`) | an **inserted** phase | gets gate discipline + run-record like any phase |
 | a validate script | `gates.phase` | run verbatim at the phase boundary |
 | hooks | repo `.claude/hooks` | mechanical, automatic — not even in this manifest |

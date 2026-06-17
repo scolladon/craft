@@ -36,9 +36,9 @@ function isRegularFile(p) {
  * @returns {never}
  */
 function failInvalid(mf, errors) {
-  process.stderr.write(`forge-manifest: INVALID manifest ${mf}:\n`);
+  process.stderr.write(`craft-manifest: INVALID manifest ${mf}:\n`);
   for (const err of errors) process.stderr.write(`- ${err}\n`);
-  process.stderr.write('Fix the manifest — forge refuses to run on a misconfigured declination (fail loudly, never silently).\n');
+  process.stderr.write('Fix the manifest — craft refuses to run on a misconfigured declination (fail loudly, never silently).\n');
   process.exit(EXIT_INVALID);
 }
 
@@ -60,7 +60,7 @@ const MF = resolveManifestPath();
 // A non-regular-file path (absent, a directory, a special file) → pure defaults, exit 0
 // — mirrors the bash `[ ! -f "$MF" ]` guard.
 if (!isRegularFile(MF)) {
-  process.stdout.write(`forge-manifest: no manifest at ${MF} — pure defaults via capability probing.\n`);
+  process.stdout.write(`craft-manifest: no manifest at ${MF} — pure defaults via capability probing.\n`);
   process.exit(EXIT_OK);
 }
 
@@ -68,7 +68,7 @@ const content = readFileSync(MF, 'utf8');
 const fm = extractFrontmatter(content);
 
 if (fm === null) {
-  process.stdout.write(`forge-manifest: ${MF} has no YAML frontmatter — pure defaults.\n`);
+  process.stdout.write(`craft-manifest: ${MF} has no YAML frontmatter — pure defaults.\n`);
   process.exit(EXIT_OK);
 }
 
@@ -83,7 +83,7 @@ const fileExists = buildFileExists(path.resolve(MF));
 const { ok, errors } = validateManifest(parsed, { fileExists });
 
 if (ok) {
-  process.stdout.write(`forge-manifest: ${MF} valid.\n`);
+  process.stdout.write(`craft-manifest: ${MF} valid.\n`);
   process.exit(EXIT_OK);
 }
 

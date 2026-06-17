@@ -217,7 +217,7 @@ No new exports. `validateHarness` is internal.
 **Surface-gate assertion for this slice:** `PHASE_FIELDS` currently rejects `harness`, `execution`,
 `enabled`, `role`, `model` as unknown. After the change, `S2` fixture
 (`engine/test/fixtures/scenarios/S2/manifest.yml`) which contains `phases.planning.role:
-forge:planner` now lints clean (previously an unknown-field error if run through validateManifest).
+craft:planner` now lints clean (previously an unknown-field error if run through validateManifest).
 The SC1 golden (11 effective ids, canonical order) must remain byte-identical.
 
 ### TDD steps
@@ -666,7 +666,7 @@ test('Given descriptor.harness: { dimensions: ["code","tests"] } and override.ha
 
 test('Given descriptor has harness and override.role: "my:role", when applyAllowedOverrides runs, then role is scalar-replaced (scalar semantics unchanged)', () => {
   const sut = applyOverride;
-  const descriptor = { ...makeHarnessDescriptor('review', { tool: 'stryker' }), role: 'forge:reviewer' };
+  const descriptor = { ...makeHarnessDescriptor('review', { tool: 'stryker' }), role: 'craft:reviewer' };
 
   const result = sut(descriptor, { role: 'my:role', harness: { scope: 'per-file' } });
 
@@ -773,8 +773,8 @@ Full review descriptor after edit (lines 74–89):
   archetype: harness
   contract:
     - harness-read
-  procedure: forge:review
-  role: forge:reviewer
+  procedure: craft:review
+  role: craft:reviewer
   consumes:
     - change
   produces:
@@ -1154,9 +1154,9 @@ Replace the two harness rows with:
 ```
    - `harness` (`harness-read ∈ contract`): apply ALL findings; convergence per
      `phase.harness` knobs (dimensions, passes, max_cycles, convergence — see
-     `forge:review` SKILL.md for the read protocol).
+     `craft:review` SKILL.md for the read protocol).
    - `harness` (`harness-exec ∈ contract`): start background run using the tool and
-     scope from `phase.harness` (tool, scope, incremental — see `forge:validation`
+     scope from `phase.harness` (tool, scope, incremental — see `craft:validation`
      SKILL.md for the read protocol); gate `propose` on triage completion.
 ```
 

@@ -30,8 +30,8 @@ one deterministic home.
 ## Consequences
 
 Invokes the **N3 §15 portability carve-out**: the core's deterministic part becomes a genuinely
-runtime-portable code module — the closest thing forge has to a real domain core — shrinking the
-Bash-bound adapter and advancing G13. Node becomes a forge runtime dependency (already universal
+runtime-portable code module — the closest thing craft has to a real domain core — shrinking the
+Bash-bound adapter and advancing G13. Node becomes a craft runtime dependency (already universal
 in the Claude Code environment; CI has it). P1 tests the core with a Node test runner
 (`node:test`/vitest); bats is reserved for the remaining Bash (hooks, worktree scripts). Robust
 `js-yaml` + a real graph check replace Bash string-munging. **Follow-up (P2):** decide whether

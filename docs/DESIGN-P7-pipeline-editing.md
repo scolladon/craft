@@ -45,9 +45,9 @@ stable; P7 does not change them.
 
 **`pipeline/default.yml`** (the 13-descriptor SoT) is untouched by P7.
 
-**`skills/run/SKILL.md`** step 1 dispatches `forge:<phase.id>`. P7 relaxes this for
+**`skills/run/SKILL.md`** step 1 dispatches `craft:<phase.id>`. P7 relaxes this for
 inserted phases: the dispatch target is `phase.procedure` verbatim, namespace-agnostic
-(whether `forge:bench` or `acme:bench`). Step 4's execution-mode branching is unchanged;
+(whether `craft:bench` or `acme:bench`). Step 4's execution-mode branching is unchanged;
 the `effective[]` order already reflects any reorder, so the walk needs no reorder awareness
 beyond consuming `Resolution.effective[]` in order.
 
@@ -62,8 +62,8 @@ the existing `validatePipeline` path. P7 makes this live.
 
 SP2 confirmed cross-plugin dispatch works via native `dependencies` + namespacing. A phase
 inserted from a manifest may carry `procedure: acme:bench`; the walk's current "dispatch
-`forge:<phase.id>`" assumption breaks for such phases. P7 corrects the dispatch to use
-`phase.procedure` verbatim. The inserted-phase registration surface (`forge.extends:`) is
+`craft:<phase.id>`" assumption breaks for such phases. P7 corrects the dispatch to use
+`phase.procedure` verbatim. The inserted-phase registration surface (`craft.extends:`) is
 P14; P7 only fixes the dispatch-target computation and documents that namespaced procedures
 dispatch via cross-plugin (SP2-proven).
 
@@ -80,7 +80,7 @@ dispatch via cross-plugin (SP2-proven).
 | R5 | `checkReorderApplicability` (a separate CQS query, ADR-026) refuses: unknown reorder id, id referencing a non-enabled phase, duplicate id in the list; each refusal has a clear message; `applyReorder` stays a pure transform | applicability guard spec (§Design) |
 | R6 | A reorder that puts a consumer before its producer produces `ok: false` via the existing `validatePipeline` graph check; no duplicate ordering pre-check is added | ADR-005 compliance; the graph check fires on the post-reorder descriptor list |
 | R7 | `manifest.js` accepts `reorder` as a valid `pipeline` sub-key and validates its shape (list of strings) | `PIPELINE_KEYS` + shape check |
-| R8 | The walk dispatches `phase.procedure` verbatim for all phases (not `forge:<phase.id>`); a missing procedure → STOP with a clear message | `run/SKILL.md` step 1 edit |
+| R8 | The walk dispatches `phase.procedure` verbatim for all phases (not `craft:<phase.id>`); a missing procedure → STOP with a clear message | `run/SKILL.md` step 1 edit |
 | R9 | SC3 composed scenario (skip + insert + reorder together) is authored and its golden pins effective ids, record lines, and gateDecisions | new fixture + test |
 | R10 | S-reorder positive scenario (valid reorder alone) and reorder-refused negative (consumer before producer, `ok:false`) are tested | new tests |
 | R11 | S1/SC1/S3/S-lean/S-full/contract-equivalence all stay green; `pipeline/default.yml`, 7-export surface, and `resolvePipeline` signature untouched | surface-gate invariant |
@@ -287,14 +287,14 @@ Shape validation: `reorder` must be a list of strings. No semantic validation in
 ### Walk change — `skills/run/SKILL.md` step 1
 
 **Current step 1:**
-> Resolve the skill — invoke `forge:<phase.id>` directly: the skill dir name equals
+> Resolve the skill — invoke `craft:<phase.id>` directly: the skill dir name equals
 > `phase.id`. … an enabled phase id with no `skills/<id>/` dir is the loud STOP "unknown
 > phase id <id>".
 
 **P7 change to step 1:**
-> Resolve the skill — invoke `phase.procedure` verbatim (e.g. `forge:bench`,
-> `acme:bench`). For forge-native phases the procedure is always `forge:<phase.id>`, so
-> existing phases are unaffected. For inserted phases with a non-forge procedure, the
+> Resolve the skill — invoke `phase.procedure` verbatim (e.g. `craft:bench`,
+> `acme:bench`). For craft-native phases the procedure is always `craft:<phase.id>`, so
+> existing phases are unaffected. For inserted phases with a non-craft procedure, the
 > verbatim procedure is used directly — cross-plugin dispatch (SP2, proven). If the skill or
 > plugin the procedure names is not installed → STOP: "procedure `<phase.procedure>` resolves
 > to no installed skill".
@@ -311,7 +311,7 @@ which the walk already consumes in sequence. No walk logic specific to reorder i
 | `ok: false` from `pipeline-resolve` | Stop; surface all `errors[]`; refuse to proceed |
 | Non-zero exit from `pipeline-resolve` | Stop; surface stderr; refuse to proceed |
 | `effective[]` is empty | Stop; surface "no enabled phases in resolution" |
-| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for forge-native, no installed plugin for namespaced) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
+| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for craft-native, no installed plugin for namespaced) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
 | `waivers[]` is non-empty | Executing-harness waivers are pre-formatted in `record[]`; surface every other waiver to the run record per §1e; continue |
 | A skip strands a consumer | `ok: false` already; covered by the stop-on-error path |
@@ -319,7 +319,7 @@ which the walk already consumes in sequence. No walk logic specific to reorder i
 
 **Namespaced procedures → P14 boundary.** P7 documents that the dispatch-target computation
 uses `phase.procedure` verbatim and that SP2 proves cross-plugin dispatch works. P7 does NOT
-build the derived-plugin registration surface (`forge.extends:`) or an installed-plugin
+build the derived-plugin registration surface (`craft.extends:`) or an installed-plugin
 end-to-end run — those stay P14. A namespaced `procedure` that refers to an uninstalled
 plugin stops at the "procedure resolves to no installed skill" guard.
 
@@ -329,7 +329,7 @@ SC3 is the composed scenario: skip + insert + reorder together on the default pi
 
 **Chosen composition:**
 - Skip `refactoring` (a safe skip — its produces `change` is also produced by `implementation`; `validation` self-supplies nothing but `review-report` is consumed by nothing downstream, so the strand check clears).
-- Insert `bench` after `validation` (reusing the S3 fixture structure: `archetype: harness`, `contract: [harness-exec]`, `procedure: forge:bench`, `role: forge:bench-runner`, `consumes: [change]`, `produces: [bench-report]`, `gate: node --test engine/test/bench.test.js`).
+- Insert `bench` after `validation` (reusing the S3 fixture structure: `archetype: harness`, `contract: [harness-exec]`, `procedure: craft:bench`, `role: craft:bench-runner`, `consumes: [change]`, `produces: [bench-report]`, `gate: node --test engine/test/bench.test.js`).
 - Reorder `[validation, review]` — swap review and validation in their post-insert slots. After the skip and insert steps, the descriptor list (with `refactoring` disabled) is:
   `[workspace(0), design(1), decisions(2), planning(3), implementation(4), review(5), refactoring(6,disabled), validation(7), bench(8), documentation(9), propose(10), integrate(11)]`.
   Slot collection scans all descriptors left-to-right for ids in `{validation, review}`: slots = [5, 7] (review at 5, validation at 7). Refill: slot 5 gets `reorderList[0]` = `validation`; slot 7 gets `reorderList[1]` = `review`. After refill:
@@ -346,8 +346,8 @@ pipeline:
       archetype: harness
       contract:
         - harness-exec
-      procedure: forge:bench
-      role: forge:bench-runner
+      procedure: craft:bench
+      role: craft:bench-runner
       after: validation
       consumes:
         - change
@@ -530,7 +530,7 @@ Given pipeline.reorder: [mutation, review] (using old alias), when resolvePipeli
 
 | Item | Why excluded |
 |---|---|
-| `forge.extends:` derived-plugin registration surface | P14; SP2 proves dispatch works; P7 only fixes the dispatch-target computation |
+| `craft.extends:` derived-plugin registration surface | P14; SP2 proves dispatch works; P7 only fixes the dispatch-target computation |
 | An installed-plugin end-to-end run for namespaced procedures | P14; P7 documents the boundary and the SP2 proof |
 | Per-invocation `--reorder` CLI flag | Not in the P7 PRD row; the manifest `pipeline.reorder` is the surface; a CLI overlay would follow the `--skip`/`--profile` pattern (ADR-022) in a later phase |
 | Reorder of default-off descriptors without enabling them | A configuration error caught by the non-enabled applicability guard; no special handling needed |

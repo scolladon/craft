@@ -1,9 +1,9 @@
 ---
 name: refactoring
-description: Forge phase 7 - widen the lens to the whole codebase for structural gains the diff-scoped passes cannot see; behavior-preserving; may be an honest no-op.
+description: Craft phase 7 - widen the lens to the whole codebase for structural gains the diff-scoped passes cannot see; behavior-preserving; may be an honest no-op.
 ---
 
-# forge:refactoring
+# craft:refactoring
 
 ## Preamble (always runs — non-overridable)
 
@@ -21,10 +21,10 @@ description: Forge phase 7 - widen the lens to the whole codebase for structural
    no-op is forbidden waste. A silent skip is not allowed.
 3. **Candidates survive → scope each into a precise spec** (what moves where, which
    symbols/files, expected mechanical test changes, blast radius), then spawn
-   **forge:refactor-executor** with the specs, gates, and context files.
+   **craft:refactor-executor** with the specs, gates, and context files.
    Integrate-don't-defer: in-scope gains land NOW in this change; only a genuinely
    feature-sized refactor (own design + ADRs) becomes a follow-up entry.
-4. **Re-review, scoped to the refactor diff only**, via forge:review's procedure
+4. **Re-review, scoped to the refactor diff only**, via craft:review's procedure
    (same dimensions, per-dimension convergence ≤3). Findings implying FURTHER
    refactoring become follow-ups, not another loop. `gates.phase` green to close.
 5. Order rationale: this runs BEFORE validation so validation scores the final shape.

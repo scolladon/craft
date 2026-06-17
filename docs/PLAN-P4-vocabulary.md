@@ -14,7 +14,7 @@
 - `scripts/ci.sh` green at every commit; never `--no-verify`. The SC1 + scenario goldens
   (`engine/test/scenarios.test.js`) and `test/manifest-lint.bats` stay green by construction.
 - `resolveAlias` (`engine/src/alias-map.js`) is the ONLY alias home — no second copy (DC-4).
-- Every renamed skill stays invocable as `forge:<concern>` (its `name:` frontmatter matches the
+- Every renamed skill stays invocable as `craft:<concern>` (its `name:` frontmatter matches the
   new dir).
 
 ## Sizing rules
@@ -79,12 +79,12 @@ sonnet }`). `run_lint` helper is `test/helpers/manifest-lint`.
 `branch→workspace, adr→decisions, plan→planning, implement→implementation, refactor→refactoring,
 mutation→validation, docs→documentation, pr→propose, merge→integrate`. `design`, `review`, `run`
 stay. For EACH renamed dir's `SKILL.md`: update the `name:` frontmatter (line 2) AND the
-`# forge:<old>` H1 heading (line ~6) to the new concern name. Do NOT touch any `forge:<agent>`
+`# craft:<old>` H1 heading (line ~6) to the new concern name. Do NOT touch any `craft:<agent>`
 spawn ref in a body yet (the `mutation-triager` agent is still named that until slice 3 — so
-`skills/validation/SKILL.md` line ~29 `forge:mutation-triager` stays as-is here).
+`skills/validation/SKILL.md` line ~29 `craft:mutation-triager` stays as-is here).
 `skills/run/SKILL.md`: DELETE the `ALIAS_MAP inverse table` block (the markdown table, lines
 ~109–126) AND the paragraph after it (lines ~128–132, "`requirements` and `architecture` are
-disabled…"). Collapse Phase-walk step 1 (lines ~65–68) to: invoke `forge:<phase.id>` directly —
+disabled…"). Collapse Phase-walk step 1 (lines ~65–68) to: invoke `craft:<phase.id>` directly —
 skill dir == `phase.id` after P4; `requirements`/`architecture` have no skill dir until P10, so
 an enabled-but-dirless phase id is the loud STOP. Update the walk-error-path row that says
 "no matching inverse-alias" to "no same-named `skills/` dir". Sweep skill BODY prose naming an
@@ -101,9 +101,9 @@ old phase (e.g. a cross-reference to "the adr phase"); `grep -rn` each old name 
 
 ### Gate
 `scripts/ci.sh` green; `git status` shows 9 renamed dirs (R, not D+A) + run/SKILL.md modified;
-`grep -rn 'forge:\(branch\|adr\|plan\|implement\|refactor\|mutation\|docs\|pr\|merge\)\b' skills/`
-returns only the still-valid `forge:mutation-triager` (agent ref, slice 3) and `forge:docs-writer`
-/`forge:refactor-executor` (unchanged agents).
+`grep -rn 'craft:\(branch\|adr\|plan\|implement\|refactor\|mutation\|docs\|pr\|merge\)\b' skills/`
+returns only the still-valid `craft:mutation-triager` (agent ref, slice 3) and `craft:docs-writer`
+/`craft:refactor-executor` (unchanged agents).
 
 ### Commit
 `refactor(skills): rename phase skill dirs to concern names; drop P3 inverse-alias bridge (ADR-009)`
@@ -113,10 +113,10 @@ returns only the still-valid `forge:mutation-triager` (agent ref, slice 3) and `
 ### Context
 `git mv agents/mutation-triager.md agents/validation-triager.md`; update its `name:` frontmatter
 (line 2) `mutation-triager` → `validation-triager`. Update the ONE spawn ref now resolvable:
-`skills/validation/SKILL.md` (renamed in slice 2) `forge:mutation-triager` → `forge:validation-triager`.
+`skills/validation/SKILL.md` (renamed in slice 2) `craft:mutation-triager` → `craft:validation-triager`.
 Sweep user-facing prose: `.claude-plugin/plugin.json` `description` (the "branch → design → ADR →
 plan → implement-by-slices → review → refactor → mutation → docs → PR → merge" sequence → concern
-names) and `README.md` (the same intro sequence; `/forge:mutation` → `/forge:validation` on
+names) and `README.md` (the same intro sequence; `/craft:mutation` → `/craft:validation` on
 line ~25; the `agents/` list `mutation-triager` → `validation-triager` on line ~41). Do NOT touch
 `docs/DESIGN.md`, `docs/DESIGN-*.md`, `docs/PLAN-*.md`, `docs/PRD-*.md`, `docs/SPIKE.md` — those
 are SoT/history records that deliberately discuss the old→new mapping. `.claude-plugin/marketplace.json`

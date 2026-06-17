@@ -1,4 +1,4 @@
-# Plan — Forge customizable engine: P1 foundational net + P2 manifest-lint hardening (P3–P5 outlined)
+# Plan — Craft customizable engine: P1 foundational net + P2 manifest-lint hardening (P3–P5 outlined)
 
 > Source: design doc `docs/DESIGN-customizable-engine.md` (accepted, commit b6a37c0) · ADRs `001–008`
 > The plan is the implementation script AND the knowledge handoff. Slice agents start with
@@ -10,8 +10,8 @@
 This plan **fully slices P1** (the characterization + scenario test net + CI, GREEN before any
 abstraction — SC1, SC4) and **P2** (harden `manifest-lint`). P3–P5 are **outlined** at lower
 resolution (a non-`## Slice` section `plan-lint` does not gate) because OQ7 makes them
-dogfoodable once P1 is green; each may be replanned per-workstream via `/forge:design` +
-`/forge:plan`.
+dogfoodable once P1 is green; each may be replanned per-workstream via `/craft:design` +
+`/craft:plan`.
 
 Build order (linear, dependency-respecting): `1` (substrate) → `2,3,4` (bash characterization,
 mutually independent) → `5,6,7,8,9` (Node core deterministic seams) → `10` (gate/waiver +
@@ -67,7 +67,7 @@ slice 10). These are the seams the orchestrator/CI invoke; the orchestrator wiri
 
 ## Gates (no manifest → probe-derived)
 
-forge ships **no** `.claude/workflow.md`, so gates resolve by capability probe, not `gates.slice`:
+craft ships **no** `.claude/workflow.md`, so gates resolve by capability probe, not `gates.slice`:
 - **Node slice** → `node --test engine/test/<file>.test.js` (targeted).
 - **Bash slice** → `bats test/<file>.bats` + `shellcheck <touched .sh>`.
 - **Phase-boundary gate (P1 close, run once):**
@@ -80,7 +80,7 @@ Never commit on a red gate; never `--no-verify` (the repo's own `block-no-verify
 Walking skeleton for the whole net; nothing tests product logic yet beyond a smoke assertion,
 but it lands the gate substrate every later slice rides and brings existing bash to
 shellcheck-clean (real GREEN). No `engine/`, `test/`, `.github/` exist (probed absent).
-- **Create** `engine/package.json` → `{ "name":"@forge/engine", "type":"module", "private":true, "engines":{"node":">=18"}, "scripts":{"test":"node --test"}, "dependencies":{"js-yaml":"^4.1.0"} }`. Add `engine/.gitignore` for `node_modules/`.
+- **Create** `engine/package.json` → `{ "name":"@craft/engine", "type":"module", "private":true, "engines":{"node":">=18"}, "scripts":{"test":"node --test"}, "dependencies":{"js-yaml":"^4.1.0"} }`. Add `engine/.gitignore` for `node_modules/`.
 - **Create** `engine/test/smoke.test.js` — one `node:test` (`import { test } from 'node:test'; import assert from 'node:assert/strict'`) asserting `1+1===2`, proving the runner + ESM resolution work.
 - **Create** `test/smoke.bats` — `bats-core` smoke (`@test "bats runs" { run true; [ "$status" -eq 0 ]; }`); confirms bats on PATH (verified: `/opt/homebrew/bin/bats`).
 - **Create** `.github/workflows/ci.yml` — on push/PR: checkout; `actions/setup-node@v4` (node 22); `cd engine && npm ci`; install `bats` (`bats-core/bats-action` or `npm i -g bats`) + `shellcheck` (`ludeeus/action-shellcheck` or apt) + `jq`/`yq`. **Run only the substrate gate at this slice** — `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh`. The `pipeline-lint`/`pipeline-resolve` steps are **added to the workflow in slices 5 and 10** when those binaries first exist, so CI is never red on a non-existent file through slices 2–4 ("never commit on a red gate" stays literally true). Single `ci` job, fail-fast.
@@ -116,7 +116,7 @@ the `¦` comma-protection (lines 68–70 and 99–101) — this slice locks that
   - `invalid-skip-protected.workflow.md` (`phases: { plan: { skip: true } }`) → `"skip: is refused on protected phase"`, exit 2 (line 109/117; this behavior is **retained at P1**, removed only at P3 when the graph replaces `PROTECTED`).
   - `invalid-dangling-file.workflow.md` (`context: ./nope.md`) → `"references missing file"`, exit 2.
   - `absent` case: point the script at a non-existent path → exit 0 + `"no manifest"`.
-- Use `forge`'s own repo as `ROOT` resolution context, or set fixtures self-contained with referenced files present/absent as needed (note `check_one_file` resolves against `ROOT=dirname(dirname(MF))` and CWD — place referenced files accordingly under the fixture dir).
+- Use `craft`'s own repo as `ROOT` resolution context, or set fixtures self-contained with referenced files present/absent as needed (note `check_one_file` resolves against `ROOT=dirname(dirname(MF))` and CWD — place referenced files accordingly under the fixture dir).
 
 ### TDD steps
 - RED: no `test/manifest-lint.bats` — `bats test/manifest-lint.bats` errors (missing file).
@@ -160,11 +160,11 @@ Pins `scripts/worktree-setup.sh` and `scripts/worktree-teardown.sh` (both read i
 adapter the design names (SP8). The valuable, deterministic behavior is the **teardown lock
 protocol**; setup's lockfile-detection branch is characterizable without a real package install.
 - `worktree-setup.sh <wt> [post]`: picks an installer by lockfile (`package-lock.json`→npm, `pnpm-lock.yaml`→pnpm, … `composer.lock`→composer); with **no** recognized lockfile prints `"no recognized lockfile/manifest — dependency install skipped (noted)."` and exit 0; runs `[post]` if given.
-- `worktree-teardown.sh <main> <wt> [--pre-teardown s] [--force]`: reads `<wt>/.forge-mutation.lock` = `"<pid> <iso>"`; **live** PID without `--force` → exit 3 + `"REFUSED — mutation run alive"`; live PID with `--force` → clears lock + `"FORCED past live mutation run"`; **dead** PID → `"stale lock … auto-cleared"` + proceeds; then `git worktree remove` + branch delete (guarded against `main`/`master`).
+- `worktree-teardown.sh <main> <wt> [--pre-teardown s] [--force]`: reads `<wt>/.craft-mutation.lock` = `"<pid> <iso>"`; **live** PID without `--force` → exit 3 + `"REFUSED — mutation run alive"`; live PID with `--force` → clears lock + `"FORCED past live mutation run"`; **dead** PID → `"stale lock … auto-cleared"` + proceeds; then `git worktree remove` + branch delete (guarded against `main`/`master`).
 - **Create** `test/worktree.bats` with a `setup()` building a throwaway git repo + worktree in `$BATS_TMPDIR` (`git init`, `git worktree add`), and `teardown()` cleaning it.
 - Fixtures/cases:
   - setup: empty dir (no lockfile) → exit 0 + "skipped (noted)"; dir with a `package-lock.json` but stub `npm` on a shimmed `PATH` (or assert only the branch chosen via a dry-run flag) — prefer asserting the **no-lockfile** + **post-script-runs** branches to avoid network/installs.
-  - teardown live-lock refusal: write `.forge-mutation.lock` = `"$$  <ts>"` (current shell PID, guaranteed live) → exit 3, REFUSED; with `--force` → exit 0, FORCED, lock gone.
+  - teardown live-lock refusal: write `.craft-mutation.lock` = `"$$  <ts>"` (current shell PID, guaranteed live) → exit 3, REFUSED; with `--force` → exit 0, FORCED, lock gone.
   - teardown stale-lock: write a dead PID (e.g. `999999`) → "auto-cleared", worktree removed.
 - Note: `kill -0 "$PID"` (line 28) drives liveness; use `$$` for live, an unused high PID for dead.
 
@@ -198,19 +198,19 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
 
   | `id` | `archetype` | `enabled` | `contract` (atop implicit `core`/U) | `procedure` | `role` | `consumes` | `self_supply` | `produces` | `gate`/`harness` |
   |---|---|---|---|---|---|---|---|---|---|
-  | `workspace` | setup | true | `[]` | `forge:workspace` | — | — | — | `workspace` | — |
-  | `requirements` | specification | **false** | `[producer]` | `forge:requirements` | `forge:requirements-writer` | `workspace` | — | `requirements` | — |
-  | `design` | specification | true | `[producer]` | `forge:design` | `forge:designer` | `workspace, requirements` | `requirements` | `design` | — |
-  | `decisions` | specification | true | `[]` | `forge:decisions` | — *(session-owned)* | `design` | `design` | `decisions` | — |
-  | `planning` | specification | true | `[producer]` | `forge:planning` | `forge:planner` | `design, decisions` | `design, decisions` | `plan` | `plan-lint` |
-  | `implementation` | construction | true | `[construction]` | `forge:implementation` | `forge:slice-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
-  | `review` | harness | true | `[harness-read]` | `forge:review` | `forge:reviewer` | `change` | — | `review-report` | `<gates.phase>` per round |
-  | `refactoring` | refinement | true | `[]` | `forge:refactoring` | `forge:refactor-executor` | `change` | — | `change` | `<gates.phase>` |
-  | `validation` | harness | true | `[harness-exec]` | `forge:validation` | `forge:validation-triager` | `change` | — | `validation-report` | `<validation gate>` · `harness: {tool: stryker, scope: per-hunk}` |
-  | `architecture` | harness | **false** | `[harness-exec]` | `forge:architecture` | `forge:architecture-triager` | `change` | — | `architecture-report` | `<arch gate>` · `harness: {tool: dependency-cruiser}` |
-  | `documentation` | delivery | true | `[delivery]` | `forge:documentation` | `forge:docs-writer` *(+`forge:backlog-ticker`)* | `design, change` | — | `docs` | — |
-  | `propose` | delivery | true | `[delivery]` | `forge:propose` | — *(session-owned)* | `change` | — | `pr` | `pr.pre-pr-gate` |
-  | `integrate` | delivery | true | `[delivery]` | `forge:integrate` | — *(session-owned)* | `pr` | — | — | — |
+  | `workspace` | setup | true | `[]` | `craft:workspace` | — | — | — | `workspace` | — |
+  | `requirements` | specification | **false** | `[producer]` | `craft:requirements` | `craft:requirements-writer` | `workspace` | — | `requirements` | — |
+  | `design` | specification | true | `[producer]` | `craft:design` | `craft:designer` | `workspace, requirements` | `requirements` | `design` | — |
+  | `decisions` | specification | true | `[]` | `craft:decisions` | — *(session-owned)* | `design` | `design` | `decisions` | — |
+  | `planning` | specification | true | `[producer]` | `craft:planning` | `craft:planner` | `design, decisions` | `design, decisions` | `plan` | `plan-lint` |
+  | `implementation` | construction | true | `[construction]` | `craft:implementation` | `craft:slice-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
+  | `review` | harness | true | `[harness-read]` | `craft:review` | `craft:reviewer` | `change` | — | `review-report` | `<gates.phase>` per round |
+  | `refactoring` | refinement | true | `[]` | `craft:refactoring` | `craft:refactor-executor` | `change` | — | `change` | `<gates.phase>` |
+  | `validation` | harness | true | `[harness-exec]` | `craft:validation` | `craft:validation-triager` | `change` | — | `validation-report` | `<validation gate>` · `harness: {tool: stryker, scope: per-hunk}` |
+  | `architecture` | harness | **false** | `[harness-exec]` | `craft:architecture` | `craft:architecture-triager` | `change` | — | `architecture-report` | `<arch gate>` · `harness: {tool: dependency-cruiser}` |
+  | `documentation` | delivery | true | `[delivery]` | `craft:documentation` | `craft:docs-writer` *(+`craft:backlog-ticker`)* | `design, change` | — | `docs` | — |
+  | `propose` | delivery | true | `[delivery]` | `craft:propose` | — *(session-owned)* | `change` | — | `pr` | `pr.pre-pr-gate` |
+  | `integrate` | delivery | true | `[delivery]` | `craft:integrate` | — *(session-owned)* | `pr` | — | — | — |
 
   Bundle mapping resolves the design's `harness`-archetype ambiguity explicitly: **`review` →
   `[harness-read]`**, **`validation`/`architecture` → `[harness-exec]`** (design lines 313–314);
@@ -534,7 +534,7 @@ ADR-002 follow-up (fold shape validation into the Node core) and record the deci
 ## Downstream phases (P3–P5 outline)
 
 Lower-resolution per the brief; OQ7 makes each dogfoodable once P1 is green, so each **may be
-replanned per-workstream** via `/forge:design` + `/forge:plan`. Listed here for sequencing +
+replanned per-workstream** via `/craft:design` + `/craft:plan`. Listed here for sequencing +
 the surface gates they must honor.
 
 - **P3 — Phase-abstraction core (rewire the walk; SC1 green).** Make `run/SKILL.md` *consume*

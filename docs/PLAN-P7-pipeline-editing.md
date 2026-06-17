@@ -47,7 +47,7 @@ These two changes have no RED/GREEN TDD cycle and violate plan-lint's `## Slice`
 they are tracked here for the session-direct pass after the 4 slices land:
 
 1. **`skills/run/SKILL.md` step-1 walk change** (ADR-025): relax dispatch target from
-   `forge:<phase.id>` to `phase.procedure` verbatim (namespace-agnostic). Update the "Walk
+   `craft:<phase.id>` to `phase.procedure` verbatim (namespace-agnostic). Update the "Walk
    error paths" table: "unknown phase id `<id>`" → "procedure `<phase.procedure>` resolves to
    no installed skill". File: `skills/run/SKILL.md`.
 
@@ -659,8 +659,8 @@ pipeline:
       archetype: harness
       contract:
         - harness-exec
-      procedure: forge:bench
-      role: forge:bench-runner
+      procedure: craft:bench
+      role: craft:bench-runner
       after: validation
       consumes:
         - change

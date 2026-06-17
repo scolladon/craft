@@ -1,9 +1,9 @@
 ---
 name: implementation
-description: Forge phase 5 - execute the plan slice by slice, one slice-implementer agent each, sequential, with per-slice gates and one phase-boundary gate.
+description: Craft phase 5 - execute the plan slice by slice, one slice-implementer agent each, sequential, with per-slice gates and one phase-boundary gate.
 ---
 
-# forge:implementation
+# craft:implementation
 
 ## Preamble (always runs — non-overridable)
 
@@ -16,7 +16,7 @@ description: Forge phase 5 - execute the plan slice by slice, one slice-implemen
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-1. Execute slices top-to-bottom, **one forge:slice-implementer per slice,
+1. Execute slices top-to-bottom, **one craft:slice-implementer per slice,
    sequential** — never two agents writing one tree concurrently. Each spawn carries:
    the working directory; the plan path (the agent reads the slice there) + the slice's
    `### Context` block verbatim AND any load-bearing deltas — hand the pre-chew over so

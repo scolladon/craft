@@ -1,9 +1,9 @@
 ---
 name: planning
-description: Forge phase 4 - produce the sliced TDD implementation plan via the planner agent; mechanically linted so every slice carries its context block.
+description: Craft phase 4 - produce the sliced TDD implementation plan via the planner agent; mechanically linted so every slice carries its context block.
 ---
 
-# forge:planning
+# craft:planning
 
 ## Preamble (always runs — non-overridable)
 
@@ -14,7 +14,7 @@ description: Forge phase 4 - produce the sliced TDD implementation plan via the 
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-1. Spawn **forge:planner** with: the design doc path (or brief) + the accepted ADR paths; the
+1. Spawn **craft:planner** with: the design doc path (or brief) + the accepted ADR paths; the
    absolute working directory; the output path `<plan-dir>/<slug>.md`; the template
    `"${CLAUDE_PLUGIN_ROOT}/templates/plan.md"`; the slice-gate command (manifest
    `gates.slice`, or probe: the repo's test runner over touched files, falling back to

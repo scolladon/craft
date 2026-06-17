@@ -34,6 +34,6 @@ code-producing phases**" — never any individual harness. Arbitrary reorder sta
 
 "Skip any phase" (G1) is literally true. "Validation gates the PR" becomes a **strong default
 with visible accountability** (the run-record waiver), not a mechanical block — consistent with
-the run record being forge's accountability ledger. The resolver/walk must record every waiver
+the run record being craft's accountability ledger. The resolver/walk must record every waiver
 and gate-release. Reorder validation (consumer-before-producer rejection) is specified but
 dormant until reorder lands. Revisit if field experience shows waived validation eroding quality.

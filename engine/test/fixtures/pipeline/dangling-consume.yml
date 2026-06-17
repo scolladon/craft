@@ -3,7 +3,7 @@
 - id: workspace
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces:
     - workspace
 
@@ -11,7 +11,7 @@
   archetype: construction
   contract:
     - construction
-  procedure: forge:implementation
+  procedure: craft:implementation
   consumes:
     - workspace
     - widget

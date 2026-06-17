@@ -1,6 +1,6 @@
 ---
 name: validation-triager
-description: Forge validation phase worker. Triages surviving mutants — kills with tests or documents provable equivalence. Spawned by the forge validation phase — do not auto-select.
+description: Craft validation phase worker. Triages surviving mutants — kills with tests or documents provable equivalence. Spawned by the craft validation phase — do not auto-select.
 model: sonnet
 ---
 

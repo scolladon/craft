@@ -8,6 +8,6 @@ test('Given the test runner, when a trivial assertion runs, then it passes', () 
 });
 
 test('Given an ESM dependency, when imported from node_modules, then it resolves', () => {
-  const result = load('forge: engine');
-  assert.deepEqual(result, { forge: 'engine' });
+  const result = load('craft: engine');
+  assert.deepEqual(result, { craft: 'engine' });
 });

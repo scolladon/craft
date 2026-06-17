@@ -1,9 +1,9 @@
 ---
 name: propose
-description: Forge phase 10 - pre-PR gate, push, and PR creation per repo policy. Blocked until validation triage is complete.
+description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy. Blocked until validation triage is complete.
 ---
 
-# forge:propose
+# craft:propose
 
 ## Preamble (always runs — non-overridable)
 

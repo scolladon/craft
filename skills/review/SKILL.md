@@ -1,9 +1,9 @@
 ---
 name: review
-description: Forge phase 6 - parallel multi-dimension review with per-dimension convergence; the session applies every fix. Also useful standalone on any branch.
+description: Craft phase 6 - parallel multi-dimension review with per-dimension convergence; the session applies every fix. Also useful standalone on any branch.
 ---
 
-# forge:review
+# craft:review
 
 ## Preamble (always runs — non-overridable)
 
@@ -18,7 +18,7 @@ description: Forge phase 6 - parallel multi-dimension review with per-dimension 
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-1. **Round 1 — full scope:** fan out `passes` read-only **forge:reviewer** per dimension
+1. **Round 1 — full scope:** fan out `passes` read-only **craft:reviewer** per dimension
    in parallel (one message, N×`passes` spawns). Each carries: its dimension + definition; the
    working directory; the diff scope; the design doc path (if any); global +
    review-phase `context:` files verbatim. Perf calibrates to the diff — zero findings

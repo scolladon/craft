@@ -3,7 +3,7 @@
   "owner": { "name": "Sébastien Colladon" },
   "plugins": [
     {
-      "name": "forge",
+      "name": "craft",
       "source": "./",
       "description": "Feature-delivery workflow engine with per-repo declination"
     }

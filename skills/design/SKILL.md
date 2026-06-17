@@ -1,9 +1,9 @@
 ---
 name: design
-description: Forge phase 2 - produce the feature design doc via the designer agent; returns decision candidates for the ADR conversation.
+description: Craft phase 2 - produce the feature design doc via the designer agent; returns decision candidates for the ADR conversation.
 ---
 
-# forge:design
+# craft:design
 
 ## Preamble (always runs — non-overridable)
 
@@ -15,7 +15,7 @@ description: Forge phase 2 - produce the feature design doc via the designer age
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-1. Spawn **forge:designer** with: the resolved brief; the absolute working directory;
+1. Spawn **craft:designer** with: the resolved brief; the absolute working directory;
    the output path `<design-dir>/<slug>.md`; the template; the commit message
    `docs(design): <slug>`; the manifest's global + design-phase `context:` files
    verbatim.

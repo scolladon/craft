@@ -1,7 +1,7 @@
 ---
 # A topology preset: run the cheap, judgment-fused phases IN-THREAD (no subagent),
 # isolate only the heavy code-producer and the harnesses. Injection point #4 (PRD §7):
-# `execution:` / `profile:`. All-current: works on forge today.
+# `execution:` / `profile:`. All-current: works on craft today.
 pipeline:
   profile: lean
 ---
@@ -46,10 +46,10 @@ Use the name for convenience; reach for the per-phase form when you want a mix n
 
 ## Per-invocation — no manifest at all
 
-`/forge:run` accepts the same switch as a flag, folded over the manifest at highest precedence:
+`/craft:run` accepts the same switch as a flag, folded over the manifest at highest precedence:
 
 ```
-/forge:run --profile lean "add a CSV export to the report page"
+/craft:run --profile lean "add a CSV export to the report page"
 ```
 
 > In your real repo this file lives at the project root as `.claude/workflow.md`.

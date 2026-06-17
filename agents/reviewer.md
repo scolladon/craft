@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Forge review phase worker. Read-only, single-dimension reviewer returning structured findings. Spawned by the forge review phase with a dimension parameter — do not auto-select.
+description: Craft review phase worker. Read-only, single-dimension reviewer returning structured findings. Spawned by the craft review phase with a dimension parameter — do not auto-select.
 model: fable
 ---
 

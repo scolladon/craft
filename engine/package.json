@@ -1,5 +1,5 @@
 {
-  "name": "@forge/engine",
+  "name": "@craft/engine",
   "type": "module",
   "private": true,
   "engines": {

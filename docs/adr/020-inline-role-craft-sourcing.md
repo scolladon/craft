@@ -29,7 +29,7 @@ automatically hands it the agent craft. Where does an inline phase get it?
 
 ## Decision
 
-An inline phase whose descriptor carries a `role:` that resolves to a **local forge agent file**
+An inline phase whose descriptor carries a `role:` that resolves to a **local craft-plugin agent file**
 loads that agent's body (sans frontmatter) into the session at phase entry, **immediately after the
 engine-injected contract block** — the same two artifacts a spawn carries, in the same order. The
 session reads the second-person craft as self-directed; the spawn-only "final message to the parent"

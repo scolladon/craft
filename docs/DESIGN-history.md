@@ -22,36 +22,36 @@ versioned mechanism, placed by the enforcement hierarchy:
 | Choice | Decision |
 |---|---|
 | Packaging | **Personal plugin** (own git repo + personal marketplace): command, phase skills, agent defs, hooks, templates, lifecycle scripts ship as one versioned unit |
-| Name | **`forge`** — orchestrator invoked `/forge:run <input>` (plugin namespacing is mandatory; `commands/` is legacy, so the orchestrator ships as a skill), phase skills `/forge:<phase>`. Verb-able, no collision with the harness Workflow tool / `/workflows` |
-| Segregation | **Three layers**: thin orchestrator command (resolve input, parse+validate manifest, run phase sequence, hold gates) → **one skill per phase** (default handler text, loaded just-in-time = progressive disclosure; independently invocable standalone, e.g. `/forge:review` on any branch) → **role agents** spawned per the phase skills' instructions |
+| Name | **`craft`** — orchestrator invoked `/craft:run <input>` (plugin namespacing is mandatory; `commands/` is legacy, so the orchestrator ships as a skill), phase skills `/craft:<phase>`. Verb-able, no collision with the harness Workflow tool / `/workflows` |
+| Segregation | **Three layers**: thin orchestrator command (resolve input, parse+validate manifest, run phase sequence, hold gates) → **one skill per phase** (default handler text, loaded just-in-time = progressive disclosure; independently invocable standalone, e.g. `/craft:review` on any branch) → **role agents** spawned per the phase skills' instructions |
 | Declination | **Manifest + override files**: committed `.claude/workflow.md` (YAML frontmatter + prose); long handlers as referenced files; no manifest = pure defaults via capability probing |
 | Role contracts | **Plugin agent definitions** (model pinned in frontmatter, invariant contract in body); invocations pass only dynamic context |
-| Agent naming | **Plain roles, no prefix** (`designer`, `planner`, `reviewer`, `slice-implementer`, `refactor-executor`, `mutation-triager`, `docs-writer`, `backlog-ticker`) — the plugin namespace supplies `forge:` |
+| Agent naming | **Plain roles, no prefix** (`designer`, `planner`, `reviewer`, `slice-implementer`, `refactor-executor`, `mutation-triager`, `docs-writer`, `backlog-ticker`) — the plugin namespace supplies `craft:` |
 | Docs delegation | **Sonnet for all doc pages**; **haiku only for the backlog tick**, guarded (see Docs phase) |
-| Entry point | **Plugin entry point only** (`/forge:run <input>`); no repo alias; legacy trigger phrases ("apply the workflow", "use my default workflow") map to it via the repo/global CLAUDE.md pointers |
+| Entry point | **Plugin entry point only** (`/craft:run <input>`); no repo alias; legacy trigger phrases ("apply the workflow", "use my default workflow") map to it via the repo/global CLAUDE.md pointers |
 | Manifest format | **Markdown + YAML frontmatter** — machine fields parse deterministically, prose carries the why |
 | Global CLAUDE.md | "Default feature workflow" section **replaced by a ~3-line trigger pointer** to the plugin command; the precedence rule is deleted (the manifest mechanism subsumes it) |
 
-## Plugin layout (`forge` plugin, own repo)
+## Plugin layout (`craft` plugin, own repo)
 
 ```
-forge/
+craft/
 ├── plugin.json
 ├── skills/
-│   ├── run/SKILL.md              # /forge:run <backlog-id | file | description> — thin orchestrator
+│   ├── run/SKILL.md              # /craft:run <backlog-id | file | description> — thin orchestrator
 │   │                             #   (skills/, not legacy commands/; namespacing is mandatory)
 │   ├── branch/SKILL.md           # one skill per phase — default handlers, loaded just-in-time
 │   ├── design/SKILL.md
 │   ├── adr/SKILL.md
 │   ├── plan/SKILL.md
 │   ├── implement/SKILL.md
-│   ├── review/SKILL.md           # also standalone: /forge:review on any branch
+│   ├── review/SKILL.md           # also standalone: /craft:review on any branch
 │   ├── refactor/SKILL.md
-│   ├── mutation/SKILL.md         # also standalone: /forge:mutation after a hotfix
+│   ├── mutation/SKILL.md         # also standalone: /craft:mutation after a hotfix
 │   ├── docs/SKILL.md
 │   ├── pr/SKILL.md
 │   └── merge/SKILL.md
-├── agents/                       # surface namespaced as forge:<name> — no prefix needed
+├── agents/                       # surface namespaced as craft:<name> — no prefix needed
 │   ├── designer.md               # fable — design doc, self-review ≤3, decision candidates
 │   ├── planner.md                # fable — plan with pre-chewed per-slice context blocks
 │   ├── reviewer.md               # fable — read-only, dimension passed as parameter
@@ -79,7 +79,7 @@ forge/
 ```
 
 The `resolve` step has no own skill — it opens the orchestrator (it must run before any
-phase skill is chosen). Phase skills invoked **standalone** (outside a `/forge:run`)
+phase skill is chosen). Phase skills invoked **standalone** (outside a `/craft:run`)
 first validate + read the manifest via the shared `manifest-lint.sh` — gates, context,
 and override apply identically, with zero per-skill duplication of parse rules — default
 their scope to the current branch's diff against the default branch, and **establish the
@@ -94,10 +94,10 @@ gates the PR), the protected-phase list, the agent-spawn context-assembly rule, 
 orchestrator, landing in the final summary and the PR body). *Phase-local* invariants
 live in each phase skill's **preamble**: the `manifest-lint.sh` call and the phase's
 own probe run **always**; scope defaulting and precondition setup run **only-if-unset**
-(a `/forge:run` pipeline has already established scope and worktree preconditions at the
+(a `/craft:run` pipeline has already established scope and worktree preconditions at the
 branch phase — standalone runs establish them here, against the current checkout root).
 `override:` replaces only the skill's **procedure body** — the preamble always runs,
-which is what keeps standalone invocations correct too: a standalone `/forge:mutation`
+which is what keeps standalone invocations correct too: a standalone `/craft:mutation`
 still probes and still validates the manifest even when the body is overridden.
 Cross-phase invariants that cannot apply standalone (there is no PR to gate) simply
 don't — the preamble is the binding floor. A manifest `skip:` never binds a standalone
@@ -115,7 +115,7 @@ message) — the planner fills the template, the script lints the structure.
   phases possible); they are never pushed into subagents wholesale.
 - **Why phase skills, not one big command:** (1) progressive disclosure — a phase's
   handler text enters context only when that phase runs, instead of 24KB up front;
-  (2) standalone reuse — `/forge:review` (the 4-dimension battery) or `/forge:mutation`
+  (2) standalone reuse — `/craft:review` (the 4-dimension battery) or `/craft:mutation`
   are useful outside the full pipeline; (3) clean override semantics — the phase skill
   always loads and its preamble runs; `override:` swaps only the procedure body for the
   repo's file (structural, not textual).
@@ -132,13 +132,13 @@ message) — the planner fills the template, the script lints the structure.
   designed so its committed artifact, not agent context, is the handoff, and the
   recovery is always a **fresh respawn fed from that artifact**, never a continuation.
 - **Plugin hooks are global once installed** — and the spike (2026-06-12, CLI 2.1.175;
-  see `forge-spike/README.md`) pinned the mechanics: (1) **plugin hooks DO fire for
+  see `craft-spike/README.md`) pinned the mechanics: (1) **plugin hooks DO fire for
   subagent tool calls** (verified: both spike hooks intercepted a subagent's Bash call)
   — no belt-and-braces duplication in agent defs needed; (2) **`updatedInput` does NOT
   compose**: same-event rewriting hooks all receive the same input snapshot and the
   last writer wins wholesale (verified: plugin rewrite silently discarded when the
   user-level rtk hook rewrote the same call; ordering ran user-source last, and that
-  order is observed, not contractual). Therefore the forge git-mangler guard
+  order is observed, not contractual). Therefore the craft git-mangler guard
   (`git diff`/`git show` without `--no-ext-diff`, which fixes difftastic but not rtk)
   uses **deny-with-corrective-message naming the exact corrected command** — verified
   to beat a concurrent `updatedInput` deterministically, order-independent. One
@@ -238,14 +238,14 @@ refuses to run — misconfiguration fails loudly, never silently.
 |---|---|---|
 | **resolve** | File path or free-text brief; backlog-id form only if `backlog:` declared | `backlog: docs/BACKLOG.md`, `^\d+(\.\d+)+$` entries |
 | **branch** | `git worktree add ../<repo>-<slug> -b <type>/<slug>` (`<type>` inferred from the brief — feat/fix/chore, default feat) → run `worktree-setup.sh` (deps installed in-worktree, never symlinked) → apply declination context | global `serena.md` context (reaches every agent): activate on worktree, symbol-tools-default mandate, stale-activation recovery (mkdir placeholder → activate → rmdir); `serena-prune.sh` as pre-teardown script |
-| **design** | `forge:designer` (fable): read existing design/ADR docs, write `docs/design/<slug>.md`, self-review ≤3, return decision candidates (never decides them), commit | Context adds: git-faithfulness — pin real git empirically (scrubbed env, signing off), record the matrix |
+| **design** | `craft:designer` (fable): read existing design/ADR docs, write `docs/design/<slug>.md`, self-review ≤3, return decision candidates (never decides them), commit | Context adds: git-faithfulness — pin real git empirically (scrubbed env, signing off), record the matrix |
 | **adr** | Session-owned. ≤3 options per decision; `docs/adr/NNN-<title>.md`; skip honestly if none. **Scope-fold rule:** decisions deviating from the design → fresh design-revision agent fed the ADRs + existing doc (artifacts, not agent context, are the handoff) | default |
-| **plan** | `forge:planner` (fable): plan with **pre-chewed per-slice context blocks** (files, symbol paths, signatures, fixtures, pinned bytes); slice sizing rules (no test-only slices). **Gate: `plan-lint.sh`** validates every slice carries its block before the phase closes | default |
-| **implement** | One `forge:slice-implementer` (sonnet) per slice, sequential, shared worktree. Slice gate from manifest `gates.slice`; session verifies each commit; full `gates.phase` once after the last slice | gates as in manifest above |
-| **review** | Parallel read-only `forge:reviewer` (fable) per dimension — default set: code, security, tests, perf (perf calibrates to the diff; zero findings legitimate). The tests dimension **excludes mutation analysis** (deferred to the mutation phase — never anticipated or duplicated here), with one carve-out: reviewers MAY flag **suspected-equivalent mutants as advisory notes** — that prediction is precisely the input the mutation triager's prompt consumes; only the full analysis is deferred. Session applies all fixes, batches per dimension; each batch gates on the targeted checks (`gates.slice`) + `gates.review-batch` before its commit; `gates.phase` per round. Convergence: LOW-only → done, no relaunch; MEDIUM+ → fresh reviewer scoped to the fix delta only; ≤3 cycles. HIGH/CRITICAL security → user sees the fix diff before commit | review-batch spelling gate; perf dimension scoped to CLAUDE.md §Performance |
-| **refactor** | Session owns judgment (in-thread candidate scan seeded by the diff, scoped specs); `forge:refactor-executor` (sonnet) executes; behavior-preserving, integrate-don't-defer, no-op needs written justification; re-review scoped to refactor diff; runs **before** mutation | default |
-| **mutation** | **Probe (preamble):** mutation config present? Absent → no-op with note. Present → background run scoped to the PR's touched code, **writing a run-lock file in the worktree** (cleared when the run lands); **docs phase may run in parallel while it grinds**; PR waits for triage (orchestrator invariant); `forge:mutation-triager` (sonnet) kills or documents equivalents — **reviewer-predicted equivalent mutants are passed verbatim into its prompt** (assembly rule + triager agent contract, both non-overridable homes). **Never destroy the worktree while a run is alive** — mechanically backed by `worktree-teardown.sh` refusing on the lock (lock carries PID + timestamp; teardown auto-clears a dead-PID lock, otherwise requires an explicit force flag — recorded in the run record in pipeline mode; standalone, the flag itself is the explicit user intent and the script echoes what it destroyed) | `mutation.md` override (body only): Stryker line-range scoping recipe, `--incremental`, vitest-4 false-survivor triage (hand-apply mutant → run named test), post-refactor scope = whole files + triage filters to feature-changed logic, concurrency safety (run only after sandbox copy completes; never `npm install` during the run) |
-| **docs** | Runs **in parallel with the background mutation run**. `forge:docs-writer` (sonnet) for affected pages only (skip honestly if none). **Backlog tick:** `forge:backlog-ticker` (haiku) flips `[ ]`→`[x]` + appends refs ONLY — **session guard: accept only if the diff touches exactly the expected lines, else redo in-session** (a delegated agent has rewritten entry bodies before). Session keeps synthesis: follow-up backlog entries, PR body | Backlog follow-ups placed in dependency order (manifest body note) |
+| **plan** | `craft:planner` (fable): plan with **pre-chewed per-slice context blocks** (files, symbol paths, signatures, fixtures, pinned bytes); slice sizing rules (no test-only slices). **Gate: `plan-lint.sh`** validates every slice carries its block before the phase closes | default |
+| **implement** | One `craft:slice-implementer` (sonnet) per slice, sequential, shared worktree. Slice gate from manifest `gates.slice`; session verifies each commit; full `gates.phase` once after the last slice | gates as in manifest above |
+| **review** | Parallel read-only `craft:reviewer` (fable) per dimension — default set: code, security, tests, perf (perf calibrates to the diff; zero findings legitimate). The tests dimension **excludes mutation analysis** (deferred to the mutation phase — never anticipated or duplicated here), with one carve-out: reviewers MAY flag **suspected-equivalent mutants as advisory notes** — that prediction is precisely the input the mutation triager's prompt consumes; only the full analysis is deferred. Session applies all fixes, batches per dimension; each batch gates on the targeted checks (`gates.slice`) + `gates.review-batch` before its commit; `gates.phase` per round. Convergence: LOW-only → done, no relaunch; MEDIUM+ → fresh reviewer scoped to the fix delta only; ≤3 cycles. HIGH/CRITICAL security → user sees the fix diff before commit | review-batch spelling gate; perf dimension scoped to CLAUDE.md §Performance |
+| **refactor** | Session owns judgment (in-thread candidate scan seeded by the diff, scoped specs); `craft:refactor-executor` (sonnet) executes; behavior-preserving, integrate-don't-defer, no-op needs written justification; re-review scoped to refactor diff; runs **before** mutation | default |
+| **mutation** | **Probe (preamble):** mutation config present? Absent → no-op with note. Present → background run scoped to the PR's touched code, **writing a run-lock file in the worktree** (cleared when the run lands); **docs phase may run in parallel while it grinds**; PR waits for triage (orchestrator invariant); `craft:mutation-triager` (sonnet) kills or documents equivalents — **reviewer-predicted equivalent mutants are passed verbatim into its prompt** (assembly rule + triager agent contract, both non-overridable homes). **Never destroy the worktree while a run is alive** — mechanically backed by `worktree-teardown.sh` refusing on the lock (lock carries PID + timestamp; teardown auto-clears a dead-PID lock, otherwise requires an explicit force flag — recorded in the run record in pipeline mode; standalone, the flag itself is the explicit user intent and the script echoes what it destroyed) | `mutation.md` override (body only): Stryker line-range scoping recipe, `--incremental`, vitest-4 false-survivor triage (hand-apply mutant → run named test), post-refactor scope = whole files + triage filters to feature-changed logic, concurrency safety (run only after sandbox copy completes; never `npm install` during the run) |
+| **docs** | Runs **in parallel with the background mutation run**. `craft:docs-writer` (sonnet) for affected pages only (skip honestly if none). **Backlog tick:** `craft:backlog-ticker` (haiku) flips `[ ]`→`[x]` + appends refs ONLY — **session guard: accept only if the diff touches exactly the expected lines, else redo in-session** (a delegated agent has rewritten entry bodies before). Session keeps synthesis: follow-up backlog entries, PR body | Backlog follow-ups placed in dependency order (manifest body note) |
 | **pr** | Probe remote — none → pr **and** merge no-op with note (work stays on the local branch). Else push `-u`; `pr.creator: session\|user` decides who runs `gh pr create` (default: session); `pr.pre-pr-gate` runs first — gate contract is **check + documented remediation + documented exceptions** (remediation/exceptions in the manifest body or a phase context file, never memory) | `creator: session`; pre-PR gate `npm outdated` → bump in own `chore(deps)` commit; documented exception: `@ls-lint` same-version publisher false flag (local-only, ignorable) |
 | **merge+cleanup** | Monitor CI → fix to green (skip `non-blocking-jobs`) → **user confirms** → `gh pr merge --squash --delete-branch <merge-flags>` → `worktree-teardown.sh` (uses `git sync` if available, else fetch+prune+remove) → declination teardown | `--admin` flag; non-blocking: `mutation`, `benchmark-compare`; teardown prunes the worktree's `~/.serena` project entry (the activate/prune matched pair, now script-enforced) |
 
@@ -269,21 +269,21 @@ migration, final homes:
 | Tooling activate/prune matched pair + Serena stale-activation recovery | tsgit global `serena.md` context (activation + recovery; reaches session and every agent) + `serena-prune.sh` as `scripts.pre-teardown` |
 | Closing steps (CI monitor, ignore non-blocking jobs, admin merge, `git sync`, prune) | merge handler default + tsgit manifest fields |
 | Scope-fold → fresh design-revision agent | adr phase default handler |
-| Reviewer-predicted equivalent mutants → triage prompt verbatim | orchestrator assembly rule + `forge:mutation-triager` agent contract (both non-overridable; stated in the default mutation row, not the tsgit override) |
+| Reviewer-predicted equivalent mutants → triage prompt verbatim | orchestrator assembly rule + `craft:mutation-triager` agent contract (both non-overridable; stated in the default mutation row, not the tsgit override) |
 | Post-refactor mutation whole-file scope + triage filter; concurrent-Stryker safety | tsgit `mutation.md` override |
 | Stryker false-survivor triage (already in project CLAUDE.md) | tsgit `mutation.md` override (single home; CLAUDE.md keeps a pointer) |
 | Session creates PRs; admin-merge necessity | tsgit manifest `pr.creator` / `merge-flags` |
 | Backlog dependency-order convention | tsgit manifest body |
-| Plan-as-knowledge-handoff contract | `forge:planner` contract + **mechanical** `plan-lint.sh` gate |
+| Plan-as-knowledge-handoff contract | `craft:planner` contract + **mechanical** `plan-lint.sh` gate |
 
 ## Migration plan
 
-0. **Spike — DONE (2026-06-12, CLI 2.1.175; record: `forge-spike/README.md`).**
+0. **Spike — DONE (2026-06-12, CLI 2.1.175; record: `craft-spike/README.md`).**
    (a) hooks fire in subagents: CONFIRMED → belt-and-braces dropped; (b) `updatedInput`
    composition: same-snapshot last-writer-wins, user source ran last → git-mangler
    guard is deny-with-corrective-message (verified to beat concurrent rewrites);
    (c) per-invocation `model` overrides agent frontmatter: CONFIRMED (transcript-
-   verified) → `models:` manifest field implementable; (d) `/forge:run` + `$ARGUMENTS`:
+   verified) → `models:` manifest field implementable; (d) `/craft:run` + `$ARGUMENTS`:
    CONFIRMED verbatim.
 1. **Build the plugin** (new repo + personal marketplace entry): 12 skills (run + 11
    phases), 8 agent defs, 2 hooks, 4 scripts, 3 templates. Distil the engine text from
@@ -293,11 +293,11 @@ migration, final homes:
    `.claude/workflow/{serena,faithfulness,mutation}.md` + `serena-prune.sh`; delete
    `.claude/commands/apply-workflow.md`;
    update CLAUDE.md §Development Workflow to point triggers ("apply the workflow", "the
-   usual flow") at `/forge:run` + manifest; move the CLAUDE.md Stryker-triage notes into
+   usual flow") at `/craft:run` + manifest; move the CLAUDE.md Stryker-triage notes into
    `mutation.md`, leaving a pointer. The `npm outdated` ls-lint false-flag caveat lands
    in the manifest body (versioned), NOT memory.
 3. **Global CLAUDE.md**: replace the "Default feature workflow" section with the ~3-line
-   trigger pointer ("use my default workflow" → `/forge:run`); delete the precedence rule.
+   trigger pointer ("use my default workflow" → `/craft:run`); delete the precedence rule.
 4. **Prune migrated memories** (each now harness-owned): `--no-ext-diff`/rtk manglers,
    worktree node_modules, Serena lifecycle + stale-activation, closing steps, admin-merge,
    PR creator, backlog ordering, apply-workflow learnings, equivalent-mutant triage
@@ -308,7 +308,7 @@ migration, final homes:
    and architecture-refactor; manifest-lint + plan-lint + worktree setup/teardown all
    fired; 24/25 git diffs carried `--no-ext-diff` (0 denials = clean compliance).
    **Findings, all folded back:**
-   - *forge-generic:* (a) hard model pins had no fallback — a down model caused a
+   - *craft-generic:* (a) hard model pins had no fallback — a down model caused a
      43-min dead spawn + manual override on every agent → **model-fallback invariant**
      (run skill) + `models.fallback`; (b) planner hedged public-vs-internal on a new
      export → a surface-gate fix round leaked to phase-boundary validate → **planner
@@ -321,6 +321,6 @@ migration, final homes:
      api.json/surface-gate set → `surface-gates.md` context; "post-refactor → whole
      files" ambiguity → tighten `mutation.md`; migrate the run's two new memories into
      versioned homes.
-6. **Second instantiation smoke test** (proves the abstraction): point `/forge:run` at
+6. **Second instantiation smoke test** (proves the abstraction): point `/craft:run` at
    a repo with no manifest; confirm the probe table's fallbacks engage (mutation no-ops
    with a note, backlog input form disabled, gates discovered or refused per spec).

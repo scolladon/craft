@@ -1,8 +1,8 @@
-# forge-spike — pinned Claude Code mechanics (2026-06-12, claude CLI 2.1.175)
+# craft-spike — pinned Claude Code mechanics (2026-06-12, claude CLI 2.1.175)
 
-Throwaway spike for the `forge` plugin design (see `../workflow-promotion-design.md`,
+Throwaway spike for the `craft` plugin design (see `../workflow-promotion-design.md`,
 Migration step 0). Method: headless `claude -p --plugin-dir <this dir>` runs with
-instrumented hooks logging their received input to `/tmp/forge-spike/hooks.log`.
+instrumented hooks logging their received input to `/tmp/craft-spike/hooks.log`.
 `ANTHROPIC_API_KEY` must be unset for child runs (it shadows OAuth and fails on a
 zero-credit account).
 
@@ -13,21 +13,21 @@ zero-credit account).
 | a | Do plugin hooks fire for SUBAGENT tool calls? | **CONFIRMED** | Both plugin PreToolUse(Bash) hooks logged the subagent's `echo` command (same session id); marker executed inside the subagent's call |
 | b | How do two `updatedInput` PreToolUse hooks compose? | **SAME-SNAPSHOT, LAST-WRITER-WINS** | Hook B received the ORIGINAL command, not A's rewrite; only B's marker executed. Cross-source: with user-level rtk-rewrite active, both plugin hooks saw the original, rtk's rewrite executed, plugin marker DISCARDED → merged order runs user-settings hooks after plugin hooks; no chaining, no merge |
 | b' | Does a hook DENY beat a concurrent `updatedInput`? | **CONFIRMED** | Deny variant blocked `git status` with its exact corrective message while rtk (updatedInput) was active on the same call |
-| c | Does a per-invocation `model` param override agent-def frontmatter? | **CONFIRMED** | `forge-spike:echo` (frontmatter `model: haiku`): bare spawn ran haiku, spawn with `model: 'sonnet'` ran sonnet-4-6 — verified in transcript JSONL, not just self-report |
-| d | Plugin skill invocation surface + arguments | **CONFIRMED** | `/forge-spike:run hello 24.9k extra words` → skill fired, `$ARGUMENTS` = full string verbatim |
+| c | Does a per-invocation `model` param override agent-def frontmatter? | **CONFIRMED** | `craft-spike:echo` (frontmatter `model: haiku`): bare spawn ran haiku, spawn with `model: 'sonnet'` ran sonnet-4-6 — verified in transcript JSONL, not just self-report |
+| d | Plugin skill invocation surface + arguments | **CONFIRMED** | `/craft-spike:run hello 24.9k extra words` → skill fired, `$ARGUMENTS` = full string verbatim |
 
 ## Design consequences (applied to workflow-promotion-design.md)
 
 1. **Drop the belt-and-braces agent-def lines** — hook inheritance is confirmed; the
    mechanical layer reaches subagents.
-2. **The forge git-mangler guard uses DENY-with-corrective-message, not `updatedInput`**
+2. **The craft git-mangler guard uses DENY-with-corrective-message, not `updatedInput`**
    — rewriting cannot compose with rtk (or any other Bash-rewriting hook): same
    snapshot, last writer wins, and the winner depends on source ordering (user-after-
    plugin observed on 2.1.175, not contractual). Deny is order-independent and
    deterministic: one corrected retry instead of silent clobber.
 3. **`models:` manifest override is implementable** as the per-invocation param; agent
    frontmatter is the default, the param takes precedence.
-4. **Entry point confirmed**: `/forge:run <args>` with `$ARGUMENTS`.
+4. **Entry point confirmed**: `/craft:run <args>` with `$ARGUMENTS`.
 
 Headless side-observation: `-p` main loops defaulted to opus-4-8 regardless of the
 interactive session's model — irrelevant to the design but worth knowing for CI use.
@@ -36,7 +36,7 @@ interactive session's model — irrelevant to the design but worth knowing for C
 
 # SP2 — cross-plugin extension/dispatch (customizable-engine PRD; CLI 2.1.177)
 
-Can a repo's OWN local plugin EXTEND forge — i.e. forge's `/forge:run` orchestrator
+Can a repo's OWN local plugin EXTEND craft — i.e. craft's `/craft:run` orchestrator
 discover and dispatch to a phase skill + role agent defined in a *different* plugin? Gates
 G8 / Tier-2 / P14 / P16. See `docs/PRD-customizable-engine.md` §7 (Tier 2).
 
@@ -50,7 +50,7 @@ G8 / Tier-2 / P14 / P16. See `docs/PRD-customizable-engine.md` §7 (Tier 2).
 | Agent registry across plugins | **SUPPORTED** | global — all enabled plugins' agents in one registry; orchestrator can spawn another plugin's agent |
 | Skill→skill across plugins | **SUPPORTED (docs imply)** | Skill tool invokes namespaced `pluginB:phase` — but no explicit cross-plugin example → Phase B |
 | `${CLAUDE_PLUGIN_ROOT}` scoping | **SUPPORTED** | per-plugin — resolves to the owning plugin's own root even with others loaded |
-| Plugin dependencies / extension | **SUPPORTED** | `plugin.json` `dependencies: ["forge"]`, semver, auto-install; cross-marketplace needs `allowCrossMarketplaceDependenciesOn` allowlist |
+| Plugin dependencies / extension | **SUPPORTED** | `plugin.json` `dependencies: ["craft"]`, semver, auto-install; cross-marketplace needs `allowCrossMarketplaceDependenciesOn` allowlist |
 | One marketplace, many plugins + local coexist | **SUPPORTED** | `--plugin-dir` coexists with installed; local wins on name clash |
 
 **Hard constraints (documented):**
@@ -61,24 +61,24 @@ G8 / Tier-2 / P14 / P16. See `docs/PRD-customizable-engine.md` §7 (Tier 2).
 
 **Design implication (provisional — folds into PRD §7 Tier-2):**
 - The extension surface **rides on native `dependencies` + namespacing**, not a bespoke
-  `forge.extends` mechanism. Derived plugin B: `dependencies: ["forge"]`, ships
+  `craft.extends` mechanism. Derived plugin B: `dependencies: ["craft"]`, ships
   `pluginB:my-phase` skill + `pluginB:my-agent`.
-- Because forge (plugin A) **cannot read plugin B's files**, the phase **descriptor wiring**
+- Because craft (plugin A) **cannot read plugin B's files**, the phase **descriptor wiring**
   (execution, gate, consumes/produces, role) lives in the **repo manifest** (`.claude/workflow.md`,
-  which forge already reads); plugin B ships only the *skill/agent content*, invoked **by
+  which craft already reads); plugin B ships only the *skill/agent content*, invoked **by
   namespaced name**. This cleanly sidesteps the file-access constraint.
 
 **Undocumented → Phase B (empirical, `claude -p --plugin-dir a --plugin-dir b`):**
 1. Skill in plugin A invokes a skill in plugin B via the Skill tool (runtime confirm).
 2. Does the `Agent(name)` tool-allowlist accept **scoped** names (`Agent(pluginB:agent)`)?
-3. What context/skills does a cross-plugin-spawned subagent inherit (forge's, or only B's)?
+3. What context/skills does a cross-plugin-spawned subagent inherit (craft's, or only B's)?
 4. Same-marketplace symlink for a shared script resolves at runtime; `/reload-plugins` picks up cross-plugin changes.
 
 ## Phase B — empirical (DONE, CLI 2.1.177)
 
 **Verdict: GREEN — cross-plugin dispatch works on native primitives.** Two minimal plugins
-(`forge-base` orchestrator + `ext-phase` derived), loaded via
-`claude -p "/forge-base:run" --plugin-dir forge-base --plugin-dir ext-phase`. The plugin-A
+(`craft-base` orchestrator + `ext-phase` derived), loaded via
+`claude -p "/craft-base:run" --plugin-dir craft-base --plugin-dir ext-phase`. The plugin-A
 orchestrator skill was told to invoke `ext-phase:custom-phase` (skill) and spawn
 `ext-phase:new-role` (agent), both in plugin B.
 
@@ -93,7 +93,7 @@ orchestrator skill was told to invoke `ext-phase:custom-phase` (skill) and spawn
 cleared**, no bespoke dispatch mechanism required. Still untested (non-blocking
 refinements): the scoped `Agent(pluginB:agent)` *allowlist-restriction* form;
 same-marketplace symlink for shared scripts; cross-plugin subagent context-inheritance
-depth. Throwaway spike dir: `/tmp/forge-sp2`.
+depth. Throwaway spike dir: `/tmp/craft-sp2`.
 
 ---
 
@@ -106,7 +106,7 @@ with no agent to die? Gates G4 / P6 / the `solo` profile.
 **Verdict: design-resolved — no CLI probe needed.** The mechanic is already established:
 Claude Code **skills run in the main conversation**; "agent" execution is the *deliberate*
 delegation of a phase to a Task subagent. So `inline` is simply the **absence of
-delegation** — the session runs the phase body itself. forge already does this for its
+delegation** — the session runs the phase body itself. craft already does this for its
 session-owned phases (ADR, refactor judgment, synthesis); `execution:` generalizes the
 choice to every phase.
 
@@ -142,7 +142,7 @@ run record.
 
 # SP3 — per-invocation args survive `$ARGUMENTS` (PRD §10 / OQ2; CLI 2.1.177)
 
-Do forge-level args (`--profile solo`, `--skip`, pipeline edits) reach the orchestrator
+Do craft-level args (`--profile solo`, `--skip`, pipeline edits) reach the orchestrator
 skill via `$ARGUMENTS` in headless `-p`? R9 flagged it as a live risk (the `-p` forced-opus
 observation).
 
@@ -154,7 +154,7 @@ observation).
 comma-lists, and embedded quotes. **R9 cleared** — the orchestrator can parse
 `--profile`/`--skip`/pipeline-edit tokens out of `$ARGUMENTS`; per-invocation profiles
 (OQ2) are buildable. (The earlier `-p forced opus-4-8` note concerns main-loop *model*
-selection, not args.) Throwaway spike dir: `/tmp/forge-sp3`.
+selection, not args.) Throwaway spike dir: `/tmp/craft-sp3`.
 
 ---
 
@@ -223,8 +223,8 @@ silently skipped. **Hexagonal split:** core owns *which id-form is a backlog id*
 
 # SP7 — retrieval-strategy derivation (PRD §10.1; design-resolved + baseline confirmed)
 
-**Verdict: resolved.** Grep of forge **plugin** content (`agents/ skills/ templates/`) for
-`serena|symbol tool|LSP|RAG|rtk|ripgrep` → **empty**. forge is **already
+**Verdict: resolved.** Grep of craft **plugin** content (`agents/ skills/ templates/`) for
+`serena|symbol tool|LSP|RAG|rtk|ripgrep` → **empty**. craft is **already
 retrieval-strategy-free** (the tsgit Serena mandate lives in the *repo* declination, not
 the plugin). G14 = keep it that way + add derivation/injection.
 
@@ -234,13 +234,13 @@ env capabilities (probe) > user prefs (global CLAUDE.md, inherited) > native (Re
 **Mechanism:**
 - **Declaration (primary, reliable):** a `retrieval:` manifest field — a context-file
   pointer (same shape + injection as the existing `serena.md` pattern), or a named strategy
-  forge maps to a stock note. Injected into every spawn + inline run via the contract/context
+  craft maps to a stock note. Injected into every spawn + inline run via the contract/context
   assembly path.
 - **Probe (secondary, best-effort hints):** filesystem/env signals — `which rtk`, a
   `.serena/` config, an LSP/RAG config dir. The engine *hints*, never *assumes*. (MCP-tool
   availability is not reliably introspectable from a script → declaration is the robust path.)
 - **Mechanical layers apply automatically:** RTK + tool-call hooks fire at the tool layer
-  (inheritance spike-confirmed); forge only coexists.
+  (inheritance spike-confirmed); craft only coexists.
 - **Native floor:** nothing declared/detected → Read/Grep/Glob, no opinion.
 
 **Strategy-free invariant (→ P5/P12, SC8):** a CI lint greps plugin content for retrieval
@@ -257,7 +257,7 @@ ordering/cadence policy):
 - `propose(title, body) → url` — `gh pr create`.
 - `integrate(flags) → void` — `gh pr merge --squash --delete-branch <flags>`.
 - `teardown(workspace, {force})` — **lock-aware** (`worktree-teardown.sh`): refuses while
-  `.forge-mutation.lock` holds a live PID (`<pid> <iso-ts>`); auto-clears a dead-PID lock;
+  `.craft-mutation.lock` holds a live PID (`<pid> <iso-ts>`); auto-clears a dead-PID lock;
   live PID needs `--force` (echoed; run-record-logged). Then `fetch --prune` → `worktree
   remove` → `branch -D`.
 
@@ -273,7 +273,7 @@ CI-green + user-confirm; teardown only after integrate, lock-aware. Port owns th
 # SP5 — model-class portability (PRD §12 G12-model; DONE)
 
 **Status: DONE (external run, 2026-06-15) — all 12 probes PASS across all tiers.** Question:
-the lowest model tier that still honors forge's load-bearing agent contracts → defines the
+the lowest model tier that still honors craft's load-bearing agent contracts → defines the
 supported "model class."
 
 **Method:** for each tier in {opus, sonnet, haiku}, drive 4 contract probes via headless

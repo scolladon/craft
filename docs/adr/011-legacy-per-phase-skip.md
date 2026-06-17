@@ -15,7 +15,7 @@ after P3 the per-phase field is **inert**: it would lint clean yet do nothing.
 
 1. **Reject loudly with guidance** — `phases.<id>.skip` becomes a validation error pointing at
    `pipeline.skip: [...]`. Honors manifest validation's own "fail loudly, never silently"
-   contract — an inert field that silently no-ops is exactly the trap forge refuses. *(user
+   contract — an inert field that silently no-ops is exactly the trap craft refuses. *(user
    choice — overrides the designer's backward-compat recommendation)*
 2. **Keep it lint-valid** — leave `skip` a recognized phase field; lints exit-0 but is a silent
    no-op at the engine. Backward-compatible, but no shipped manifest uses it. *(designer

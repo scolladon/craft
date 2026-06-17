@@ -305,7 +305,7 @@ After the existing step 4 header and before the archetype-duties list, insert a 
 two-path dispatch specification:
 
 **Agent path (existing, unchanged):**
-- Spawn a Task with `subagent_type: forge:<role>` (or the manifest-swapped role).
+- Spawn a Task with `subagent_type: craft:<role>` (or the manifest-swapped role).
 - Prepend the injected contract block (from step 3) to the Task prompt, followed by
   working directory, task dynamics, and artifact paths.
 - Await the commit; verify artifact on return.
@@ -314,9 +314,9 @@ two-path dispatch specification:
 - The injected block was assembled with `--inline` in step 3; the session treats it as
   the active governing constraint for this phase (reads it as policy, follows it
   throughout the phase body).
-- If `descriptor.role` is present AND resolves to a local forge agent file
+- If `descriptor.role` is present AND resolves to a local craft agent file
   (`agents/<agent-name>.md` where `<agent-name>` is the last segment of the role ref
-  after stripping any `forge:` namespace): **load the agent body (sans YAML frontmatter)**
+  after stripping any `craft:` namespace): **load the agent body (sans YAML frontmatter)**
   and read it as self-directed craft. The session has: injected block (inline variant)
   + agent craft body — the same two artifacts a spawned agent carries, in the same order.
   Custom/external roles (e.g. `acme:my-planner`) with no local agent file run on the
@@ -336,7 +336,7 @@ Add a new subsection `### Manual acceptance check` at the end of the walk (befor
 `## Done`) that documents the one-off procedure for verifying inline fidelity:
 
 > To verify that an inline-executed phase produces an equivalent artifact to its agent
-> run: invoke forge with `--profile lean` on a real feature brief, confirm the
+> run: invoke craft with `--profile lean` on a real feature brief, confirm the
 > inline phases commit their artifacts in the same shape as the agent path, and record
 > the outcome in the run record under `inline-fidelity-check`. This is NOT CI-gated;
 > run on demand and as a release smoke test.
@@ -428,7 +428,7 @@ mirroring the existing entries.
 
 **4. `docs/DESIGN-P6-execution-topology.md`** — add a `### Manual acceptance check`
 section at the end (before the Out-of-scope table or at end of Test strategy section)
-recording the ADR-023 §4 procedure verbatim: invoke forge with `--profile lean`, confirm
+recording the ADR-023 §4 procedure verbatim: invoke craft with `--profile lean`, confirm
 inline artifacts match agent shape, record in run record under `inline-fidelity-check`.
 This is the documented procedure referenced in the SKILL.md acceptance check note.
 

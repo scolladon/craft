@@ -1,6 +1,6 @@
 ---
 name: refactor-executor
-description: Forge refactor phase worker. Executes pre-scoped, behavior-preserving refactor specs as atomic commits. Never judges what to refactor. Spawned by the forge refactor phase — do not auto-select.
+description: Craft refactor phase worker. Executes pre-scoped, behavior-preserving refactor specs as atomic commits. Never judges what to refactor. Spawned by the craft refactor phase — do not auto-select.
 model: sonnet
 ---
 

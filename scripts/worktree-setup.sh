@@ -1,5 +1,5 @@
 #!/bin/bash
-# forge — branch-phase setup: install dependencies INSIDE the worktree.
+# craft — branch-phase setup: install dependencies INSIDE the worktree.
 # Never symlink the main checkout's dependency dir: it silently couples the branch's
 # dependency state to main and breaks branch-isolated upgrades.
 #
@@ -22,11 +22,11 @@ elif [ -f go.mod ];            then go mod download; installed="go"
 elif [ -f Gemfile.lock ];      then bundle install; installed="bundler"
 elif [ -f composer.lock ];     then composer install; installed="composer"
 else
-  echo "forge-setup: no recognized lockfile/manifest — dependency install skipped (noted)."
+  echo "craft-setup: no recognized lockfile/manifest — dependency install skipped (noted)."
 fi
-[ -n "$installed" ] && echo "forge-setup: dependencies installed in-worktree via $installed."
+[ -n "$installed" ] && echo "craft-setup: dependencies installed in-worktree via $installed."
 
 if [ -n "$POST" ]; then
   if [ -x "$POST" ]; then "$POST" "$WT"; else bash "$POST" "$WT"; fi
-  echo "forge-setup: post-setup script ran: $POST"
+  echo "craft-setup: post-setup script ran: $POST"
 fi

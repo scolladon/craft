@@ -30,7 +30,7 @@ Add, as the P6 gate on top of the already-green suite:
    behaviourally — a `full` typo should be characterised, not silently thrown).
 3. **Bin flag-precedence tests** — `--profile` beats the manifest profile; `--skip` union-extends
    `pipeline.skip`; flags compose with positional pipeline/manifest paths (ADR-022).
-4. **A documented manual acceptance check** (NOT CI-gated): a forge dogfood run under `--profile lean`
+4. **A documented manual acceptance check** (NOT CI-gated): a craft dogfood run under `--profile lean`
    confirming an inline phase commits the same artifact shape as its agent run, **recorded in the run
    record**. The walk is a skill (no Node entry point to unit-test), so this surface gets an explicit,
    recorded check rather than a silent gap.

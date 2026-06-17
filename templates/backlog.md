@@ -5,7 +5,7 @@
 > SoT — *intent:* `<prd path>` · *architecture:* `<design path>` · *decisions:* `<adr dir>`
 > · *build script:* `<plan path>` · *spikes:* `<spike path, or omit>`
 
-<!-- The SoT pointers a forge run resolves intent / architecture / decisions / plan from. -->
+<!-- The SoT pointers a craft run resolves intent / architecture / decisions / plan from. -->
 
 ## Status at a glance
 
@@ -30,8 +30,8 @@
 
 ## Next — <id>: <title>
 
-<!-- The phase forge will pick up next. One unchecked `[ ]` bullet per deliverable, sized so
-     a single forge run can land it. Pull these from the design/PRD, not from memory. -->
+<!-- The phase craft will pick up next. One unchecked `[ ]` bullet per deliverable, sized so
+     a single craft run can land it. Pull these from the design/PRD, not from memory. -->
 
 - [ ] <deliverable>
 

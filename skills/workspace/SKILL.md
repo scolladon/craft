@@ -1,14 +1,14 @@
 ---
 name: workspace
-description: Forge phase 1 - create the feature branch and worktree, install dependencies in-worktree, establish repo tooling preconditions.
+description: Craft phase 1 - create the feature branch and worktree, install dependencies in-worktree, establish repo tooling preconditions.
 ---
 
-# forge:workspace
+# craft:workspace
 
 ## Preamble (always runs — non-overridable)
 
 1. `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh"` must pass; read the manifest.
-2. Probe: git repo present (else STOP — forge needs one); default branch
+2. Probe: git repo present (else STOP — craft needs one); default branch
    (`origin/HEAD` → `main` → `master` → ask once).
 
 ## Procedure (default body — a manifest `override:` replaces everything below)

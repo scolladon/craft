@@ -10,7 +10,7 @@
 - id: alpha-producer
   archetype: setup
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces:
     - alpha
 
@@ -18,7 +18,7 @@
   archetype: construction
   contract:
     - construction
-  procedure: forge:implementation
+  procedure: craft:implementation
   consumes:
     - alpha
     - beta
@@ -28,7 +28,7 @@
 - id: phase-c
   archetype: refinement
   contract: []
-  procedure: forge:refactoring
+  procedure: craft:refactoring
   consumes:
     - gamma
   produces:

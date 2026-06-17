@@ -1,6 +1,6 @@
 - id: workspace
   archetype: unknown-type
   contract: []
-  procedure: forge:workspace
+  procedure: craft:workspace
   produces:
     - workspace

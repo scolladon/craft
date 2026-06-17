@@ -1,5 +1,5 @@
 #!/bin/bash
-# forge — validate a plan file against the slice schema (templates/plan.md).
+# craft — validate a plan file against the slice schema (templates/plan.md).
 # The plan is the knowledge handoff: every slice MUST carry its pre-chewed context
 # block so slice agents never rediscover. This gate makes that contract mechanical.
 #
@@ -24,7 +24,7 @@ awk -v req="$REQUIRED" '
   /^### /     { for (i = 1; i <= n; i++) if (index($0, R[i]) == 1) seen[R[i]] = 1 }
   END {
     flush()
-    if (slices == 0) { print "plan-lint: no \"## Slice\" sections found — not a forge plan."; exit 2 }
+    if (slices == 0) { print "plan-lint: no \"## Slice\" sections found — not a craft plan."; exit 2 }
     if (bad > 0)     { printf "plan-lint: %d slice(s) violate the schema. The plan phase cannot close.\n", bad; exit 2 }
     printf "plan-lint: %d slice(s) OK — every slice carries its context block.\n", slices
   }

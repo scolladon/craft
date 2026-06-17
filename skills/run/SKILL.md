@@ -1,22 +1,22 @@
 ---
 name: run
-description: Run the forge feature-delivery workflow on a backlog id, a spec/PRD file, or a free-text feature description. Triggers - "apply the workflow", "use my default workflow", "forge this".
+description: Run the craft feature-delivery workflow on a backlog id, a spec/PRD file, or a free-text feature description. Triggers - "apply the workflow", "use my default workflow", "craft this".
 argument-hint: <backlog-id | path/to/spec.md | "feature description">
 ---
 
-# forge — orchestrator
+# craft — orchestrator
 
-You are running the forge workflow. The SESSION is the orchestrator: it resolves the
+You are running the craft workflow. The SESSION is the orchestrator: it resolves the
 input, talks to the user (ADRs, escalations, merge confirmation), verifies every
 delegated artifact, applies review fixes, runs phase-boundary gates, and owns all
-synthesis (run record, backlog follow-ups, PR body). Heavy work runs in the forge role
+synthesis (run record, backlog follow-ups, PR body). Heavy work runs in the craft role
 agents per each phase skill's instructions.
 
 Input: `$ARGUMENTS`
 
 ## 0 — Resolve
 
-0a. **Parse forge flags from `$ARGUMENTS`** first: strip any `--profile <name>` and
+0a. **Parse craft flags from `$ARGUMENTS`** first: strip any `--profile <name>` and
    `--skip <id,…>` tokens (they may appear anywhere — lead or trail; comma-split the skip
    ids). Hold them for step 1b. The
    **non-flag remainder is the input brief** consumed at step 2 — a flags-only
@@ -76,17 +76,17 @@ Input: `$ARGUMENTS`
 Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 
 1. **Resolve the skill** — invoke `phase.procedure` **verbatim** (the descriptor's
-   `procedure:` field — e.g. `forge:design`, or an inserted phase's `forge:bench` /
-   `acme:bench`). For every forge-native phase the procedure is `forge:<phase.id>` and the
+   `procedure:` field — e.g. `craft:design`, or an inserted phase's `craft:bench` /
+   `acme:bench`). For every craft-native phase the procedure is `craft:<phase.id>` and the
    skill dir name equals `phase.id`, so default phases are unaffected. An **inserted** phase
-   carries its own `procedure:` and may name a forge-local skill or a namespaced one — the walk
+   carries its own `procedure:` and may name a craft-local skill or a namespaced one — the walk
    dispatches the string as-is; cross-plugin dispatch is SP2-proven (the derived-plugin
-   *registration* surface, `forge.extends:`, is P14 — P7 only dispatches what the manifest
+   *registration* surface, `craft.extends:`, is P14 — P7 only dispatches what the manifest
    names). `requirements` and `architecture` are default-off and have no skill dir until P10.
    If the skill or plugin a `procedure` names is not installed (no `skills/<id>/` dir for a
-   forge-native procedure; no installed plugin for a namespaced one) → the loud STOP
+   craft-native procedure; no installed plugin for a namespaced one) → the loud STOP
    "procedure `<phase.procedure>` resolves to no installed skill" — the intended guard, not a
-   silent skip. For a forge-native phase — including one whose `role:` is swapped (the
+   silent skip. For a craft-native phase — including one whose `role:` is swapped (the
    descriptor `id` is unchanged) — the injected contract (step 3) is assembled from that
    descriptor regardless of who supplies the procedure, so a role-swapped procedure can never
    drop it (G5). **Inserted-phase contract injection is not yet wired:** `contract-assemble`
@@ -114,7 +114,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 
 4. **Execute** via the resolved execution mode (`phase.execution`).
 
-   **`agent`** (default): spawn `forge:<role>` (or the manifest-swapped role) as a Task,
+   **`agent`** (default): spawn `craft:<role>` (or the manifest-swapped role) as a Task,
    structured per the **Agent spawns** invariant below — the step-3 injected block
    PREPENDED to the spawn prompt, then working dir, task dynamics, artifact paths. Await
    the commit; verify on return.
@@ -122,7 +122,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    **`inline`**: run the phase body **in-thread — no Task spawn**. The step-3 block was
    assembled with `--inline`; load it as the governing constraint for this phase. If
    `phase.role` is present AND resolves to a **local** agent def
-   (`agents/<name>.md`, `<name>` = the role ref minus any `forge:` namespace), **also load
+   (`agents/<name>.md`, `<name>` = the role ref minus any `craft:` namespace), **also load
    that agent body (sans frontmatter)** right after the block and follow it as
    self-directed craft — the same two artifacts a spawn carries, in the same order; the
    spawn-only "final message to the parent" line is moot (no parent). A role that resolves
@@ -137,10 +137,10 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    - `specification`: verify artifact; conversation if no `role` field (decisions)
    - `construction`: verify each slice; run phase gate per gate-cadence invariant
    - `harness` (`harness-read ∈ contract`): apply ALL findings; converge per the
-     `phase.harness` knobs (dimensions/passes/max_cycles/convergence — `forge:review` reads them)
+     `phase.harness` knobs (dimensions/passes/max_cycles/convergence — `craft:review` reads them)
    - `refinement`: judgment (scan + scoping); apply ALL findings
    - `harness` (`harness-exec ∈ contract`): start background run with the `phase.harness`
-     tool/scope/incremental (`forge:validation` reads them); gate `propose`
+     tool/scope/incremental (`craft:validation` reads them); gate `propose`
      on triage completion (see invariants below)
    - `delivery` (`documentation`): synthesis (follow-ups, backlog guard) — may
      parallel a running executing-harness
@@ -165,9 +165,9 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 8. **On model-down** (not a task blocker): mark tier degraded; re-resolve to
    fallback; respawn from artifact. Record degradation in run record.
 
-`design` and `review` are already concern-named (no alias); every other forge-native phase
+`design` and `review` are already concern-named (no alias); every other craft-native phase
 id maps to a `skills/<id>/` dir of the same name after the P4 rename, so its `procedure` is
-`forge:<phase.id>` and the walk dispatches it with no translation table. Inserted phases
+`craft:<phase.id>` and the walk dispatches it with no translation table. Inserted phases
 bring their own `procedure`, dispatched verbatim (step 1).
 
 ### Walk error paths
@@ -177,7 +177,7 @@ bring their own `procedure`, dispatched verbatim (step 1).
 | `ok: false` from `pipeline-resolve` | Stop; surface all `errors[]`; refuse to proceed |
 | Non-zero exit from `pipeline-resolve` | Stop; surface stderr; refuse to proceed |
 | `effective[]` is empty | Stop; surface "no enabled phases in resolution" |
-| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for a forge-native procedure, e.g. an enabled requirements/architecture pre-P10; no installed plugin for a namespaced one) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
+| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for a craft-native procedure, e.g. an enabled requirements/architecture pre-P10; no installed plugin for a namespaced one) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
 | `waivers[]` is non-empty | Executing-harness waivers are pre-formatted in `record[]`; surface every other waiver (review/refactoring) to the run record yourself per §1e; continue |
 | A skip strands a consumer | `ok: false` already; covered by the stop-on-error path |
@@ -244,7 +244,7 @@ bring their own `procedure`, dispatched verbatim (step 1).
 
 ## Manual acceptance check (inline fidelity) — not CI-gated
 
-On demand / as a release smoke test: invoke forge with `--profile lean` (or `solo`) on a
+On demand / as a release smoke test: invoke craft with `--profile lean` (or `solo`) on a
 real brief, confirm the inline phases commit artifacts in the same shape as the agent path
 (the injected block differs only by the two carve-out lines —
 `engine/test/contract-equivalence.test.js` proves that bound per descriptor), and record

@@ -7,7 +7,7 @@
 ## Context
 
 SP3 confirmed `$ARGUMENTS` reaches the orchestrator skill verbatim in headless `-p` (flag tokens,
-comma-lists, embedded quotes preserved). forge-level flags — `--profile`, `--skip` — must shape
+comma-lists, embedded quotes preserved). craft-level flags — `--profile`, `--skip` — must shape
 resolution and compose with the repo manifest at **CLI-wins** precedence. The constraint: the
 engine's 7-export module surface and `pipeline/default.yml` must stay untouched (the P6 surface
 gate). `resolvePipeline` already honours `pipeline.profile` and `pipeline.skip` from a manifest, so

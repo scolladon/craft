@@ -29,7 +29,7 @@ This is a new public export — add it in the same commit, not later.
 
 **Files to create/touch:**
 - CREATE `engine/src/manifest.js` — pure ESM module, no I/O
-- EDIT `engine/src/index.js` at `/Users/scolladon/workspace/perso/forge/engine/src/index.js` — add line 7
+- EDIT `engine/src/index.js` at `/Users/scolladon/workspace/perso/craft/engine/src/index.js` — add line 7
 - CREATE `engine/test/manifest.test.js` — `node:test` + `node:assert/strict`
 
 **Engine module conventions (match exactly):**
@@ -163,16 +163,16 @@ feat(engine): validateManifest pure module + barrel export (ADR-010/011/012)
 Argument: optional manifest path. Default: `.claude/workflow.md`.
 
 1. **Absent file:** if file does not exist →
-   `process.stdout.write('forge-manifest: no manifest at <MF> — pure defaults via capability probing.\n')` + `process.exit(0)`
+   `process.stdout.write('craft-manifest: no manifest at <MF> — pure defaults via capability probing.\n')` + `process.exit(0)`
 
 2. **No frontmatter:** read file; if no `---` delimited YAML frontmatter block →
-   `process.stdout.write('forge-manifest: <MF> has no YAML frontmatter — pure defaults.\n')` + `process.exit(0)`
+   `process.stdout.write('craft-manifest: <MF> has no YAML frontmatter — pure defaults.\n')` + `process.exit(0)`
 
 3. **Valid:** call `validateManifest(parsed, { fileExists })` → `{ ok: true }` →
-   `process.stdout.write('forge-manifest: <MF> valid.\n')` + `process.exit(0)`
+   `process.stdout.write('craft-manifest: <MF> valid.\n')` + `process.exit(0)`
 
 4. **Invalid:** `{ ok: false, errors[] }` →
-   write to **stderr**: `'forge-manifest: INVALID manifest <MF>:\n'` + `'- <err>\n'` per error + `'Fix the manifest — forge refuses to run on a misconfigured declination (fail loudly, never silently).\n'`
+   write to **stderr**: `'craft-manifest: INVALID manifest <MF>:\n'` + `'- <err>\n'` per error + `'Fix the manifest — craft refuses to run on a misconfigured declination (fail loudly, never silently).\n'`
    + `process.exit(2)`
 
 **Frontmatter extraction (mirrors the bash `awk` in `manifest-lint.sh` line 19):**
@@ -311,7 +311,7 @@ feat(manifest-lint): fold shape-validation into Node core, retire yq backend (AD
 3. §0 Resolve (lines 17–30) — add engine invocation + run-record seeding
 
 **This slice touches ONE file:** `skills/run/SKILL.md` at
-`/Users/scolladon/workspace/perso/forge/skills/run/SKILL.md`
+`/Users/scolladon/workspace/perso/craft/skills/run/SKILL.md`
 
 No compiled code changes. No new test files. The gate is `scripts/ci.sh` staying green
 (regression safety — touching no tested code) plus a structural review confirming the
@@ -364,7 +364,7 @@ Replace lines 32–53 with:
 Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 
 1. **Resolve the skill dir** — look up `phase.id` in the ALIAS_MAP inverse table
-   below and invoke `forge:<skill-dir-name>`. If `phase.id` has no entry and no
+   below and invoke `craft:<skill-dir-name>`. If `phase.id` has no entry and no
    same-named `skills/` dir exists: STOP and surface "unknown phase id <id>; P4
    may fix this".
 

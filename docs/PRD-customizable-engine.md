@@ -1,4 +1,4 @@
-# PRD — Forge: a customizable, model-resistant software-engineering workflow engine
+# PRD — Craft: a customizable, model-resistant software-engineering workflow engine
 
 **Status:** working draft (2026-06-15) · converged after 4 review rounds · **Owner:** Sébastien Colladon · **Branch:** `feat/customizable-engine`
 
@@ -10,7 +10,7 @@
 
 ## 1. Summary
 
-Turn forge from *one opinionated 11-phase workflow with bounded declination* into an
+Turn craft from *one opinionated 11-phase workflow with bounded declination* into an
 **abstract software-engineering workflow engine**: a pipeline of composable, abstract
 phases whose membership, order, execution strategy, agents, harness behavior, and
 procedures are all customizable — guarded by a small invariant *guiderail* that always
@@ -144,7 +144,7 @@ The full injection catalog (§7) lists every point with pros/cons and a repo sam
 
 ### Non-goals
 - N1. Changing default behavior for current zero-config users (back-compat, §16).
-- N2. A GUI/wizard — customization stays file-based and versioned. forge stays **headless**: because plan/diff/findings are committed artifacts (artifact-is-the-handoff), the human-decision touchpoints (plan · ADR · review diff) are *presentation-pluggable* — an external review UI (e.g. [plannotator](https://github.com/backnotprop/plannotator)) can front them, but forge never owns one.
+- N2. A GUI/wizard — customization stays file-based and versioned. craft stays **headless**: because plan/diff/findings are committed artifacts (artifact-is-the-handoff), the human-decision touchpoints (plan · ADR · review diff) are *presentation-pluggable* — an external review UI (e.g. [plannotator](https://github.com/backnotprop/plannotator)) can front them, but craft never owns one.
 - N3. Rewriting the engine medium (Bash + skill/agent markdown stays), except where portability (§15) demands an explicit adapter boundary.
 - N4. Full multi-provider parity in this program — §15 delivers the *architecture* + a PoC, not every adapter.
 
@@ -161,9 +161,9 @@ The full injection catalog (§7) lists every point with pros/cons and a repo sam
 | Spec-driven team | Start from a PRD; capture requirements first | **S4** optional `requirements` phase on |
 | Architecture-led team | Enforce layering/dependency rules as a gate | **S5** architecture harness on |
 | Issue-tracker shop | Backlog lives in Jira/GitHub Issues | **S6** backlog SoT adapter |
-| Framework builder | Ship a local plugin built on forge | **S7** derived-plugin extension |
+| Framework builder | Ship a local plugin built on craft | **S7** derived-plugin extension |
 | Multi-model shop | Run reliably across a model class / on a budget model | **S8** model-resistance + fallback |
-| Tooling-opinionated dev | Agents must read code via my LSP/RAG/RTK/Serena setup, not forge's | **S9** derived retrieval strategy |
+| Tooling-opinionated dev | Agents must read code via my LSP/RAG/RTK/Serena setup, not craft's | **S9** derived retrieval strategy |
 
 ---
 
@@ -174,8 +174,8 @@ The full injection catalog (§7) lists every point with pros/cons and a repo sam
 - id: validation                  # generic concern name (was: mutation)
   archetype: harness
   contract: harness               # engine-owned invariants, injected into every run
-  procedure: forge:validation     # default body (override: swap the skill)
-  role: forge:validation-triager  # default agent; swap freely — engine injects the contract around any role (§11).
+  procedure: craft:validation     # default body (override: swap the skill)
+  role: craft:validation-triager  # default agent; swap freely — engine injects the contract around any role (§11).
                                   #   Optional for harnesses: omit for a gate-only concern that needs no AI triage (§2)
   execution: agent                # agent | inline                 (SP1 convention)
   model: sonnet                   # default model (override via models:)
@@ -248,10 +248,10 @@ ships a sample manifest in `examples/` (G10).
 ### Tier 2 — a derived local plugin **(SP2 ✓ — confirmed GREEN)**
 | # | Point | Pros | Cons | Sample |
 |---|---|---|---|---|
-| 12 | **extension surface** — register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned | most setup; depends on cross-plugin dispatch | `forge.extends: { phases: [./phases/bench.md] }` |
+| 12 | **extension surface** — register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned | most setup; depends on cross-plugin dispatch | `craft.extends: { phases: [./phases/bench.md] }` |
 
 **SP2 confirmed cross-plugin dispatch works** (native `dependencies` + namespacing; SPIKE.md
-Phase B) — so Tier 2 is real. A derived plugin declares `dependencies: ["forge"]` and ships
+Phase B) — so Tier 2 is real. A derived plugin declares `dependencies: ["craft"]` and ships
 `pluginB:my-phase` + `pluginB:my-agent`; the repo manifest wires them in (descriptor lives
 in the manifest, since a plugin cannot read another plugin's files). Vendored descriptors
 remain only a fallback for a future runtime that lacks cross-plugin dispatch.
@@ -322,7 +322,7 @@ source + the failure path (unreachable source = blocker, never a silent tick-ski
 
 *How* an agent reads and navigates code — LSP symbol tools, RAG/semantic search, the RTK
 token proxy, Serena symbol navigation, or plain Read/Grep/Glob — is a **user/project
-preference, not a forge opinion.** Plugin content (agent defs, skills) carries **zero**
+preference, not a craft opinion.** Plugin content (agent defs, skills) carries **zero**
 retrieval-strategy text. The engine **derives** the strategy at run time and injects it,
 most-specific-source first:
 1. **Project settings** — manifest (`retrieval:`) or a repo context file / `.claude/settings.json`.
@@ -331,9 +331,9 @@ most-specific-source first:
 4. **Neutral default** — native Read/Grep/Glob. No preference = no opinion.
 
 Two layers, two mechanisms:
-- **Mechanical strategies apply automatically; forge only coexists, never assumes.** RTK
+- **Mechanical strategies apply automatically; craft only coexists, never assumes.** RTK
   rewriting and tool-call hooks fire at the tool layer and are inherited by subagents
-  (spike-confirmed); forge's own hooks were written to compose with them (the git-mangler
+  (spike-confirmed); craft's own hooks were written to compose with them (the git-mangler
   deny exists precisely for rtk coexistence).
 - **Preference strategies are injected** as a derived retrieval-context (e.g. "prefer
   symbol tools over full-file reads"), assembled by the engine from the sources above —
@@ -401,7 +401,7 @@ owning enforcement (vs the model "remembering") buys model-resistance *and* port
 - **Scenario suite (golden runs):** S1–S9 each captured as a fixture; assert the pipeline
   resolution + gate decisions (not LLM prose). This is "tested with different scenarios,
   strong, no regression so it can evolve easily."
-- **`shellcheck`** clean; **GitHub Actions** runs all of the above on push/PR — forge gets
+- **`shellcheck`** clean; **GitHub Actions** runs all of the above on push/PR — craft gets
   the gate it imposes on others.
 - **Acceptance:** characterization pins current behavior green before abstraction; stays
   green through the refactor except where a change is deliberate and re-baselined.
@@ -423,11 +423,11 @@ owning enforcement (vs the model "remembering") buys model-resistance *and* port
 
 ## 15. Provider-agnostic future (G13) — feasibility & prior art
 
-**Is it possible? Yes — and the genericity program is the path to it.** Forge's workflow
+**Is it possible? Yes — and the genericity program is the path to it.** Craft's workflow
 *definition* (phases, contracts, gates, dependency graph) is already portable: it is
 declarative data + instruction text + shell gates. What is Claude-specific is the
 **harness binding** — how a phase is executed: spawn a subagent, inject context, hook tool
-calls, override the model, the `/forge:run` slash command, `${CLAUDE_PLUGIN_ROOT}`.
+calls, override the model, the `/craft:run` slash command, `${CLAUDE_PLUGIN_ROOT}`.
 
 The clean architecture is the **hexagonal** convention defined in §2.1 — the same ports
 the whole engine is built on, here viewed through the portability lens:
@@ -435,19 +435,19 @@ the whole engine is built on, here viewed through the portability lens:
   injection, gate discipline, dependency graph, harness config, model resolution, run record.
 - **Adapter (per provider/runtime):** implements every port — *execution* (spawn/inline,
   inject context), *gate/tool-guard*, *model*, *backlog SoT*, *VCS/integration*. The
-  **leading adapter is Claude Code** (forge today **is** that adapter). The **designated
+  **leading adapter is Claude Code** (craft today **is** that adapter). The **designated
   secondary adapter target is Pi** ([pi.dev](https://pi.dev) — minimal OSS harness, 15+
   providers with mid-session switching, SDK-embeddable, extension/skill system); other
   candidates: OpenCode, litellm, the Claude Agent SDK. A second adapter implementing the
-  same ports makes forge multi-provider.
+  same ports makes craft multi-provider.
 - **Code-access capability (environment-sourced port):** *read/navigate code* —
   LSP/RAG/RTK/Serena/native — fulfilled by whatever the runtime + project/user settings
   provide, never by the engine or any adapter (G14). A genuinely portable port: each
-  runtime satisfies it with its own tools; forge stays opinion-free.
+  runtime satisfies it with its own tools; craft stays opinion-free.
 
 Crucial leverage: **every step that moves enforcement into the engine** (contract
 injection §11, gate discipline, dependency graph) **shrinks the adapter** and moves us
-toward portability. The harder part is that not all runtimes offer forge's primitives
+toward portability. The harder part is that not all runtimes offer craft's primitives
 (subagents, mechanical hooks, model override); where a runtime lacks them, the engine must
 own that enforcement itself (gate wrappers instead of harness hooks) — which the
 model-resistance goal already pushes us toward. So G13 is the *natural endpoint*, not a
@@ -457,9 +457,9 @@ must supply *execution* and *gate/tool-guard* via Pi's SDK/extensions. That is t
 proof that pushing enforcement into the engine (P5) is what unlocks portability, and a live
 input to SP1/SP2 (how a phase + its guard get registered and dispatched off-Claude).
 
-**Does it exist already? The category is crowded; nothing occupies forge's exact niche.**
+**Does it exist already? The category is crowded; nothing occupies craft's exact niche.**
 
-| Tool | What it is | Overlap | Gap vs forge |
+| Tool | What it is | Overlap | Gap vs craft |
 |---|---|---|---|
 | **Superpowers** (obra, 228k★) | opinionated SE methodology as editable markdown skills (brainstorm→plan→TDD subagents→review→finish); multi-host; marketplace | **closest ecosystem peer** — same workflow layer, Claude-Code-native, already multi-host | instruction-*followed*, not *mechanically enforced*; a fixed methodology you edit, not a composable engine with a small invariant core, PR-gating harnesses, and config-driven declination |
 | **MetaGPT** / **ChatDev** | role-based "AI software company" (PM→architect→engineer→QA / CEO→CTO→programmer→reviewer→tester); SOP-encoded | closest conceptual cousin — phased SE roles, PRD-first | generate apps from a one-liner; heavyweight Python frameworks; not a customizable guiderail layered on *your* repo/harness with mechanical gates |
@@ -467,8 +467,8 @@ input to SP1/SP2 (how a phase + its guard get registered and dispatched off-Clau
 | **app.build** | model-agnostic, multi-layer validation pipelines, structured envs | the "validation harness" idea, model-agnostic | app-generation focus, not a general workflow engine |
 | **TDFlow** | purely-TDD agentic workflow, context-engineered sub-agents | the implementation phase's TDD spine | single-concern; not a full pipeline |
 | **OpenCode** | provider-agnostic terminal coding agent, 75+ providers | a possible *substrate/adapter target* | an agent, not a phased SE guiderail |
-| **Pi** ([pi.dev](https://pi.dev)) | minimal OSS agent *harness*; 15+ providers, SDK-embeddable, extension/skill system; deliberately no sub-agents/MCP/gates | **the chosen secondary-adapter target** (harness layer, not a workflow rival) | a harness forge runs *on*, not a phased SE guiderail — its omitted primitives are supplied by the engine |
-| **Praetorian "deterministic AI orchestration"** | ephemeral agents, gateway-curated context, hook-enforced workflows | almost forge's philosophy (artifact-handoff + mechanical enforcement) | platform/architecture writeup, not a packaged engine |
+| **Pi** ([pi.dev](https://pi.dev)) | minimal OSS agent *harness*; 15+ providers, SDK-embeddable, extension/skill system; deliberately no sub-agents/MCP/gates | **the chosen secondary-adapter target** (harness layer, not a workflow rival) | a harness craft runs *on*, not a phased SE guiderail — its omitted primitives are supplied by the engine |
+| **Praetorian "deterministic AI orchestration"** | ephemeral agents, gateway-curated context, hook-enforced workflows | almost craft's philosophy (artifact-handoff + mechanical enforcement) | platform/architecture writeup, not a packaged engine |
 | LangGraph / AutoGen / CrewAI / Semantic Kernel / Haystack / Kestra | general agent-orchestration libraries, provider-agnostic | could *build* an engine | not opinionated SE guiderails out of the box |
 
 **Differentiation to preserve:** a declarative, composable phase pipeline with a *small
@@ -480,16 +480,16 @@ before building §15.) **[research-followup]**
 
 **Layering note — rules/toolkit collections are *inputs*, not rivals (reinforces G10/G14).**
 Only the *workflow-methodology* layer (Superpowers) is a true peer. The layers below it
-*feed* forge:
+*feed* craft:
 - **Rules/guideline packs** (e.g. Karpathy-skills — think-before-coding / simplicity /
-  surgical-changes) → drop into a forge **`context:`** file, injected verbatim into every
+  surgical-changes) → drop into a craft **`context:`** file, injected verbatim into every
   agent (and inline run).
 - **Capability toolkits** (e.g. everything-claude — agents / commands / hooks / rules) →
   slot into existing injection points: agents via `role:` swap, scripts via `gates:`,
   commands/skills via an inserted phase, rules via `context:`, hooks via the repo's
   `.claude/hooks` (mechanical, automatic).
 
-forge orchestrates *around* these; it never competes with them. Worked, runnable examples:
+craft orchestrates *around* these; it never competes with them. Worked, runnable examples:
 `examples/karpathy-as-context/` and `examples/everything-claude-toolkit/`.
 
 ---
@@ -499,13 +499,13 @@ forge orchestrates *around* these; it never competes with them. Worked, runnable
 - Default pipeline descriptor reproduces today's order/agents/models/`execution: agent` → identical zero-config behavior (SC1).
 - Contract relocation (P5; the invariant is §11) must not change default-run behavior — characterization guards it.
 - `docs/DESIGN.md` updated/split: living architecture (engine model) vs the now-historical migration record.
-- Retrieval strategy never enters plugin content (G14); tsgit's `serena.md` repo context is the migration exemplar — repos keep declaring their strategy, forge stops assuming one.
+- Retrieval strategy never enters plugin content (G14); tsgit's `serena.md` repo context is the migration exemplar — repos keep declaring their strategy, craft stops assuming one.
 
 ---
 
 ## 17. Program breakdown (phased) + traceability
 
-Each phase is shippable and (once the harness exists) itself forge-able (dogfood).
+Each phase is shippable and (once the harness exists) itself craft-able (dogfood).
 
 | # | Workstream | Resolves | Gate to next |
 |---|---|---|---|
@@ -578,4 +578,4 @@ success — a non-Claude adapter PoC running one scenario end-to-end — is the 
 - OQ4. May derived plugins touch the invariant core? (lean: no)
 - OQ5. ~~Split this PRD into PRD + ROADMAP docs?~~ **RESOLVED:** keep one unified doc through the build phases — §17 *is* the roadmap section and the doc is still navigable; split only if it later impedes navigation.
 - OQ6. ~~Which providers/model-tiers define the supported "class"?~~ **RESOLVED (SP5):** the Claude class is **Haiku-4.5 and up** (all contracts hold class-wide); cross-*provider* class is a P16 question.
-- OQ7. Run forge's own design/ADR phases on each workstream, or keep lightweight? (lean: dogfood from P3 once P1 exists)
+- OQ7. Run craft's own design/ADR phases on each workstream, or keep lightweight? (lean: dogfood from P3 once P1 exists)

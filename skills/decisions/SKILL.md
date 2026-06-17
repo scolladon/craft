@@ -1,9 +1,9 @@
 ---
 name: decisions
-description: Forge phase 3 - the user decides every load-bearing design choice; decisions are captured as ADRs; deviations fold back into the design.
+description: Craft phase 3 - the user decides every load-bearing design choice; decisions are captured as ADRs; deviations fold back into the design.
 ---
 
-# forge:decisions
+# craft:decisions
 
 ## Preamble (always runs — non-overridable)
 
@@ -21,6 +21,6 @@ ENTIRELY session-owned — never delegated.
    user's decision as `<adr-dir>/NNN-<title>.md` from the template; commit each as
    `docs(adr): NNN <title>`.
 3. **Scope-fold rule:** if any decision deviates from the design's recommendation,
-   spawn a FRESH **forge:designer** to revise — fed the ADR + design-doc PATHS (the
+   spawn a FRESH **craft:designer** to revise — fed the ADR + design-doc PATHS (the
    committed artifacts, read in-place; never your conversation) — committing
    `docs(design): revise <slug> against ADRs <range>` BEFORE the planning phase.

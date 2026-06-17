@@ -245,8 +245,8 @@ Add `harness:` to the `review` descriptor:
   archetype: harness
   contract:
     - harness-read
-  procedure: forge:review
-  role: forge:reviewer
+  procedure: craft:review
+  role: craft:reviewer
   consumes:
     - change
   produces:
@@ -353,10 +353,10 @@ gain one sentence each:
 
 > `harness` (`harness-read ∈ contract`): apply ALL findings; convergence per
 > `phase.harness` knobs (dimensions, passes, max_cycles, convergence — see
-> `forge:review` SKILL.md for the read protocol).
+> `craft:review` SKILL.md for the read protocol).
 >
 > `harness` (`harness-exec ∈ contract`): start background run using the tool and scope
-> from `phase.harness` (tool, scope, incremental — see `forge:validation` SKILL.md for
+> from `phase.harness` (tool, scope, incremental — see `craft:validation` SKILL.md for
 > the read protocol); gate `propose` on triage completion.
 
 This is a single-sentence addition per row — no structural change to step 4.

@@ -1,9 +1,9 @@
 ---
 name: integrate
-description: Forge phase 11 - monitor CI to green, merge on user confirmation, clean up worktree/branch and repo tooling.
+description: Craft phase 11 - monitor CI to green, merge on user confirmation, clean up worktree/branch and repo tooling.
 ---
 
-# forge:integrate
+# craft:integrate
 
 ## Preamble (always runs — non-overridable)
 

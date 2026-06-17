@@ -1,6 +1,6 @@
-# Forge — Backlog & Roadmap
+# Craft — Backlog & Roadmap
 
-> Forge is a Claude Code feature-delivery workflow engine being re-architected from a fixed
+> Craft is a Claude Code feature-delivery workflow engine being re-architected from a fixed
 > 11-phase pipeline into a **customizable, hexagonal engine**: composable phases (skip / insert /
 > reorder), strong zero-config defaults, a small invariant core, per-port customization.
 >
@@ -20,6 +20,7 @@
 | P6 | Execution topology — `inline\|agent` end-to-end + `solo`/`full`/`lean` profiles + per-invocation args | ✅ done & green |
 | P7 | Pipeline editing — `pipeline.reorder` (relative-permutation) + walk verbatim-procedure dispatch + SC3 | ✅ done & green |
 | P8 | Per-phase harness config — `harness:` knobs deep-merged + manifest-validated + walk-read; PHASE_FIELDS lint-gap closed | ✅ done & green |
+| P8.5 | Rename plugin **forge→craft** + namespace propagation (non-PRD interstitial — branding/productization, **not** a PRD §17 phase; §17 numbering unchanged, P9 still next) | ✅ done & green |
 | **P9–P16** | **agent swap, new default phases, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
@@ -51,7 +52,7 @@
 
 ### P4 — generic vocabulary: rename + alias-map wiring (slices 1–4; SoT `docs/PLAN-P4-vocabulary.md`, ADRs 013–014)
 - [x] `validateManifest` canonicalized — `PHASE_NAMES` is the concern set; manifest phase keys resolve through the shared `resolveAlias` **before** membership (DC-4, one alias home), so old (`branch`) and new (`workspace`) both validate; `MODELS_KEYS` → `validation-triager`
-- [x] 9 skill dirs renamed to concern names (`branch→workspace` … `merge→integrate`); the P3 inverse-`ALIAS_MAP` bridge in `run/SKILL.md` deleted — `skill dir == phase.id`, the walk invokes `forge:<phase.id>` with no translation table (ADR-009 retired)
+- [x] 9 skill dirs renamed to concern names (`branch→workspace` … `merge→integrate`); the P3 inverse-`ALIAS_MAP` bridge in `run/SKILL.md` deleted — `skill dir == phase.id`, the walk invokes `craft:<phase.id>` with no translation table (ADR-009 retired)
 - [x] `mutation-triager` agent → `validation-triager` (closes the descriptor's dangling `role:` pointer); `models.mutation-triager` rejected loudly with rename guidance (ADR-013); `plugin.json` + `README` old-name sequences swept
 - [x] `templates/backlog.md` added (ADR-014); alias-resolution fixture in the slice-2 bats suite — a NEW-name manifest and `valid-basic` (OLD names) both lint clean
 - [x] **Surface gate held:** golden `Resolution` byte-identical (`pipeline/default.yml` untouched); SC1 + scenario + `manifest-lint.bats` green by construction (210 `node --test` + 42 bats)
@@ -77,7 +78,7 @@
 - [x] **`pipeline.reorder` — relative-permutation** (ADR-024): listed ids' slots refill in the given order, unlisted phases keep position; `applyReorder` (pure command, `edits.js`) + `checkReorderApplicability` (CQS query — unknown/non-enabled/duplicate, ADR-026); `manifest.js` `PIPELINE_KEYS`→4 + named `validateReorder` shape check (DC-C); ends the OQ1/ADR-005 reorder defer
 - [x] **Reorder wired in `resolve.js`** between `applyInserts` and `resolveExecution`: `aliasResolve` resolves reorder ids; `checkReorderApplicability` fails fast (surfacing prior-edit records); a consumer-before-producer reorder is refused by the **existing `validatePipeline` graph check** — no duplicate ordering pre-check (ADR-005/026 "same machinery"); per-id `reorder: <id> (pipeline.reorder)` record lines (DC-B)
 - [x] **SC3 composed golden** (skip `refactoring` + insert `bench` after `validation` + reorder `[validation, review]`) pinning effective order + record lines + `gateDecisions` (bench gate, `propose.awaitingHarnesses == [validation, bench]`); **S-reorder** positive (full-order pin) + **reorder-refused** negative (graph, not strand) (ADR-027); S3 untouched
-- [x] **Walk dispatches `phase.procedure` verbatim** (ADR-025): `run/SKILL.md` step 1 + error-paths table — namespace-agnostic (forge-local or `acme:`); "unknown phase id" STOP → "procedure resolves to no installed skill"; contract injected from the descriptor (G5) for forge-native phases incl. role-swaps; namespaced *registration* (`forge.extends:`) stays P14
+- [x] **Walk dispatches `phase.procedure` verbatim** (ADR-025): `run/SKILL.md` step 1 + error-paths table — namespace-agnostic (craft-local or `acme:`); "unknown phase id" STOP → "procedure resolves to no installed skill"; contract injected from the descriptor (G5) for craft-native phases incl. role-swaps; namespaced *registration* (`craft.extends:`) stays P14
 - [x] **Surface gate held:** `resolvePipeline` signature + `engine/src/index.js` (7 exports) + `pipeline/default.yml` + `graph.js`/`contract.js` untouched; SC1/S1/S2/S3/S-lean/S-full/contract-equivalence green; reorder/applyReorder are **internal** to `edits.js` (not the public barrel); CI green at every commit (357 `node --test` + 42 bats); 4-dimension review after every code slice + a consistency review on the prose, every fix applied
 
 ### P8 — per-phase harness config (slices 1–4; SoT `docs/{DESIGN,PLAN}-P8-harness-config.md`, ADRs 028–031)
@@ -89,6 +90,53 @@
 - [x] **Coverage** (ADR-031): `S-harness-review` (partial `{max_cycles:2}` → merged review.harness pinned by full `deepEqual`: override wins, dimensions/passes/convergence survive) + `S-harness-validation` (partial `{scope:per-file}` → `tool:stryker` survives); bad-harness-shape negatives in `manifest.test.js`; cross-phase isolation (an unrelated review override leaves `validation.harness` untouched)
 - [x] **Surface gate held:** `resolvePipeline` signature + `engine/src/index.js` (7 exports) + `graph.js` + `contract.js` show 0 diff vs main; `pipeline/default.yml` change limited to the `review.harness` add (13 descriptors, enabled/disabled state unchanged); SC1 record[] byte-identical; SC1/S1/S2/S3/S-lean/S-full/S-reorder/SC3 + contract-equivalence green; `validateHarness`/`applyAllowedOverrides` stay **internal**; CI green at every commit (405 `node --test` + 42 bats); 4-dimension review after every code slice + a consistency review on the prose, every fix applied
 
+### P8.5 — rename forge→craft (branch `feat/p8.5-rename-craft`, squash-merged to `main`; non-PRD interstitial — branding/productization, §17 numbering unchanged so P9 is still next; SoT ADRs 032–036)
+- [x] **Decisions up front (ADRs 032–036, user-ratified via AskUserQuestion):** ADR-032 rename
+  plugin `name: forge→craft` in `plugin.json` **and** `marketplace.json`, namespace re-derives
+  (`craft:<dir>`/`craft:<name>`), skill/agent **dirs do NOT move** (unlike P4's `git mv`), version
+  `0.1.1→0.2.0` (breaking); ADR-033 **no back-compat `forge:` namespace alias** (a plugin has one
+  name, `ALIAS_MAP` stays phase-id-only per ADR-004/013); **ADR-034 ⚑ user OVERRODE my P4-precedent
+  rec → "sweep EVERYTHING"** (every doc reads `craft`, incl. the dated ADRs/SPIKE/per-phase
+  DESIGN-P*/PLAN-*/DESIGN-history — the rename event stays recorded only in 032–036 + this block +
+  memory); **ADR-035 ⚑ user reversed the dir call mid-session** → the on-disk dir IS renamed
+  `…/perso/forge → …/craft` as the **final post-merge action** (refs handled: `known_marketplaces.json`
+  path re-pointed; `installed_plugins.json`/cache reinstall flagged, not hand-edited; no symlinks);
+  ADR-036 `.forge-mutation.lock → .craft-mutation.lock` clean break (no old-name reader).
+- [x] **s1 — namespace data + tests + metadata (atomic, CI-critical):** `pipeline/default.yml` 22
+  `procedure:`/`role:` `forge:→craft:` (ids/archetypes/edges/gates/harness/enabled all unchanged);
+  ALL `engine/test/**` goldens+fixtures flip in lockstep (green by construction, the deliberate
+  difference from P4); `plugin.json`+`marketplace.json` name+version; `@forge/engine→@craft/engine`
+  metadata. 4-dim review: code ✓ + test ✓ clean (goldens earned, not weakened); perf/security waived
+  (mechanical token flip, 0 executable-path change).
+- [x] **s2 — scripts/hooks/lock (behavior-bearing):** `.forge-mutation.lock→.craft-mutation.lock`
+  across reader (`worktree-teardown.sh`) + writer prose (`validation/SKILL.md`) + 5 bats assertions
+  **in lockstep** (protocol proven green); `forge-setup:`/`forge-teardown:`/`# forge —` + hook deny
+  reasons (`"forge: …"→"craft: …"`). Review: code ✓ clean (lock sites agree, no logic/quoting/exit
+  change); security covered by green `hooks.bats` deny-matrix + the structurally-unchanged deny JSON.
+- [x] **s3 — all 12 phase skills:** `craft:<phase.id>`/`craft:<role>` + `# craft:` H1s + the run-walk
+  orchestrator prose + `craft-native`/`craft-local`/`craft.extends` compounds + "Craft phase N"
+  descriptions. Consistency review ✓ clean (`acme:`/`my:` preserved, `name:` frontmatter intact,
+  pre-existing "craft"=expertise untouched).
+- [x] **s4 — product-name prose:** agents/*.md descriptions, `templates/backlog.md`, README
+  (install `craft@scolladon`, `/craft:run`), `examples/**`. Third-party `my-toolkit:`/`my:` untouched.
+- [x] **s5 — docs "sweep everything" (ADR-034):** word-boundary `\bforge\b→craft` across PRD,
+  DESIGN-*, PLAN-*, ADRs 002–030, SPIKE, DESIGN-history (the `\b` protects `unforgettable`/`forgets`;
+  new ADRs 032–036 excluded as rename-narration). Consistency review ✓ (one LOW fixed: ADR-020
+  "local craft-plugin agent file" disambiguated from "craft"=expertise).
+- [x] **residue-closure (recon-missed product-name, not namespace):** `engine/bin/manifest-lint.js`
+  5 user-facing CLI messages (`craft-manifest:`/"craft refuses to run") + `test/helpers/worktree.bash`
+  git test-identity. **Narrow documented deviation from "engine/bin 0-diff":** engine LOGIC/exports/
+  signatures are 0-diff; only 5 branding message strings changed (bats assert substrings, not the
+  prefix → CI green). `engine/src` is fully 0-diff.
+- [x] **Surface gate held:** `engine/src/**` **0-diff** vs P8 (`0bd99e7`); `engine/bin` diff =
+  ONLY `manifest-lint.js` 5 message lines (documented); `node engine/bin/pipeline-resolve.js
+  pipeline/default.yml` emits `craft:*` procedures/roles, exit 0; **CI green at every commit**
+  (405 `node --test` + 42 bats, never `--no-verify`).
+- [x] **grep-residue acceptance — ALL remaining `forge` is intentionally justified:** the new ADRs
+  032–036 (rename-decision records narrating forge→craft / naming the old name); `unforgettable`×2
+  (protected English); BACKLOG P8.5 row (this rename); `manifest.js:298` "a caller **forgets** opts"
+  (English). Zero unjustified product-name or `forge:` namespace residue.
+
 ## Next — P9+
 - **P9 — agent/skill swap via manifest**: `phases.<id>.role` swap with the P5 contract injected around the swap (S2 green). Next up. P8 already closed the `role:`/`model:` lint-gap, so `manifest.js` needs no further change — P9 is the walk/UX + the S2 scenario.
 - **P9–P16** (PRD §17, in order): P9 agent/skill swap · P10 new default phases
@@ -98,6 +146,17 @@
   hexagon Mermaid, a sample `.claude/workflow.md`, a sample run) documents the *full* customization
   surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
   P14 so the catalog never advertises an unproven surface (PRD §17 P12).
+
+### Parked from P8.5 (out-of-repo install state — CLI-managed, handled at session end)
+- **Folder rename + marketplace re-point (done at session end):** `…/perso/forge → …/craft` via
+  `mv`, with `~/.claude/plugins/known_marketplaces.json` `scolladon` `path`/`installLocation`
+  re-pointed to the new dir (the only ref the dir move breaks).
+- **Installed-plugin reinstall (user action):** `~/.claude/plugins/installed_plugins.json` keys the
+  plugin `forge@scolladon` (cache `cache/scolladon/forge/0.1.1`) — stale from the NAME change. Fix =
+  CLI reinstall as `craft@scolladon` + **session restart** so the `craft:*` namespace loads (the
+  registry is not hand-edited — that would dangle the cached copy). The current session keeps the
+  old `forge:*` namespace loaded until restart; on-disk edits take effect on next plugin load.
+- **`~/.claude/CLAUDE.md`:** the "default feature workflow" trigger updated `/forge:run → /craft:run`.
 
 ### Parked from P8 (walk-fidelity, not engine gaps — knobs validate + reach the descriptor)
 - **`passes > 1` multi-reviewer fan-out is not engine-enforced**: the validator accepts `passes`
@@ -136,9 +195,9 @@
   Explanatory prose was corrected to match: `skip-design` is **refused** (`documentation` is a 3rd
   consumer of `design`); the code-producing floor = `implementation` + `refactoring` only (predicate
   `change ∈ produces`; review/validation are *waivable* harnesses).
-- Each phase is **dogfoodable** now that P1 is green (OQ7) — runnable through `/forge:run` itself.
+- Each phase is **dogfoodable** now that P1 is green (OQ7) — runnable through `/craft:run` itself.
 - Working style: sliced TDD, one slice per dedicated agent **chosen by slice shape** —
-  `forge:slice-implementer` for TDD slices, `forge:refactor-executor` for pre-scoped
+  `craft:slice-implementer` for TDD slices, `craft:refactor-executor` for pre-scoped
   behavior-preserving rename/relocation slices, session-direct only for judgment-fused sweeps; a
   4-dimension review (perf/security/code/test) interleaved after each slice, every fix applied
   before the next. CI green at every commit; never `--no-verify`.

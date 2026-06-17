@@ -1,16 +1,16 @@
-# forge examples — integrating external skill collections
+# craft examples — integrating external skill collections
 
-forge sits at the **workflow-engine** layer. The popular Claude Code skill collections sit
-*below* it and **feed** forge rather than compete with it (see PRD §15). Each kind of
-artifact lands at a forge injection point (PRD §7):
+craft sits at the **workflow-engine** layer. The popular Claude Code skill collections sit
+*below* it and **feed** craft rather than compete with it (see PRD §15). Each kind of
+artifact lands at a craft injection point (PRD §7):
 
 | Collection kind | Example | Lands at | Status |
 |---|---|---|---|
 | **Rules / guidelines** | Karpathy-skills | `context:` (global or per-phase) — injected into every agent / inline run | current |
 | **Capability toolkit** | everything-claude | `role:` swap · `gates:` · `pipeline.insert` · `context:` · repo `.claude/hooks` | mixed (see below) |
-| **Methodology** | Superpowers | *same layer as forge* — a peer, not an input | — |
+| **Methodology** | Superpowers | *same layer as craft* — a peer, not an input | — |
 
-**Status legend:** *current* = works on forge today; *PRD* = lands in the customizable-engine
+**Status legend:** *current* = works on craft today; *PRD* = lands in the customizable-engine
 program (PRD §17). Each example labels its surfaces.
 
 ## Examples
@@ -22,5 +22,5 @@ program (PRD §17). Each example labels its surfaces.
   the code-producer and harnesses stay `agent`; shows profiles are sugar over the per-phase
   `execution:` precedence. *All-current.*
 
-The point: forge stays opinion-free about *what* you inject — it owns only the orchestration
-guarantees (PRD §11). Bring your own rules, agents, and tools; forge wires and gates them.
+The point: craft stays opinion-free about *what* you inject — it owns only the orchestration
+guarantees (PRD §11). Bring your own rules, agents, and tools; craft wires and gates them.

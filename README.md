@@ -1,4 +1,4 @@
-# forge
+# craft
 
 A feature-delivery workflow engine for Claude Code, packaged as a plugin. One abstract
 phase sequence — **workspace → design → decisions → planning → implementation → review →
@@ -10,19 +10,19 @@ dependence: every load-bearing rule lives in a hook, a script, or versioned inst
 
 ```bash
 claude plugin marketplace add <this-repo-path-or-url>
-claude plugin install forge@scolladon
+claude plugin install craft@scolladon
 ```
 
-Dev loop: `claude --plugin-dir /path/to/forge`.
+Dev loop: `claude --plugin-dir /path/to/craft`.
 
 ## Use
 
 ```
-/forge:run <backlog-id | path/to/spec.md | "feature description">
+/craft:run <backlog-id | path/to/spec.md | "feature description">
 ```
 
-Phase skills also run standalone: `/forge:review` (multi-dimension review battery on
-the current branch), `/forge:validation` (scoped mutation run + triage), etc.
+Phase skills also run standalone: `/craft:review` (multi-dimension review battery on
+the current branch), `/craft:validation` (scoped mutation run + triage), etc.
 
 ## Customize — `.claude/workflow.md` in your repo
 

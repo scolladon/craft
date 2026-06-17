@@ -1,5 +1,5 @@
 #!/bin/bash
-# forge — PreToolUse(Bash): scripted `git diff` / `git show` must carry --no-ext-diff.
+# craft — PreToolUse(Bash): scripted `git diff` / `git show` must carry --no-ext-diff.
 # External-diff tools (difftastic, …) mangle machine-parsed output; agents always parse.
 #
 # Strategy: DENY with the exact corrected command. Spike-pinned (2026-06-12): two
@@ -29,4 +29,4 @@ fi
 # Build the corrected command: insert --no-ext-diff after the first diff/show subcommand.
 FIXED=$(printf '%s' "$CMD" | sed -E "s/(^|[;&|][[:space:]]*)(git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir=[^[:space:]]+|--work-tree=[^[:space:]]+))*[[:space:]]+(diff|show))([[:space:]]|$)/\1\2 --no-ext-diff\6/")
 
-jq -cn --arg fixed "$FIXED" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:("forge: scripted git diff/show must pass --no-ext-diff (external diff mangles parsed output). Re-issue exactly: " + $fixed)}}'
+jq -cn --arg fixed "$FIXED" '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"deny",permissionDecisionReason:("craft: scripted git diff/show must pass --no-ext-diff (external diff mangles parsed output). Re-issue exactly: " + $fixed)}}'

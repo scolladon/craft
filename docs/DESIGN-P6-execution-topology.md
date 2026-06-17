@@ -45,7 +45,7 @@ phase inline — no Task spawn, but:
 - how per-invocation `--profile`/`--skip` tokens in `$ARGUMENTS` are stripped before the brief
   reaches the phase
 
-`pipeline/default.yml` carries `role: forge:<name>` on the eight delegating descriptors.
+`pipeline/default.yml` carries `role: craft:<name>` on the eight delegating descriptors.
 `workspace`, `decisions`, `propose`, `integrate` have no `role` field and are already
 session-owned — they are unaffected by `execution:`.
 
@@ -118,7 +118,7 @@ embedded quotes. The orchestrator can parse `--profile`/`--skip`/pipeline-edit f
 duties for the session-as-orchestrator. P6 deepens it to specify the two dispatch paths explicitly:
 
 **Agent path (existing, unchanged):**
-1. Spawn a Task with `subagent_type: forge:<role>`.
+1. Spawn a Task with `subagent_type: craft:<role>`.
 2. Prepend the injected block (from step 3) to the Task prompt, followed by working directory,
    task dynamics, and artifact paths.
 3. Await the commit; verify artifact on return.
@@ -126,7 +126,7 @@ duties for the session-as-orchestrator. P6 deepens it to specify the two dispatc
 **Inline path (new prose):**
 1. The injected block was assembled with `--inline` in step 3; the session treats it as the active
    governing constraint for this phase (reads it as policy, follows it throughout the phase body).
-2. If the descriptor carries a `role:` field that resolves to a local forge agent file
+2. If the descriptor carries a `role:` field that resolves to a local craft agent file
    (`agents/<agent-name>.md`): **load the role craft** (per DC-1 decision). Custom/external roles
    (e.g. `acme:my-planner`) that have no local agent file are skipped — the contract block alone
    governs that phase inline.
@@ -170,7 +170,7 @@ inline for all non-harness phases). Option (c) breaks S1 as currently tested.
 
 ### Per-invocation args (subject to DC-3)
 
-SP3 confirmed `$ARGUMENTS` carries forge flags verbatim. The orchestrator's step 0 must parse
+SP3 confirmed `$ARGUMENTS` carries craft flags verbatim. The orchestrator's step 0 must parse
 them before classifying the brief.
 
 **Parsing rule:** flags are leading tokens matching `--<key>` or `--<key> <value>` (or
@@ -273,7 +273,7 @@ gate mechanics (SKILL.md step 5 unchanged).
 
 Not CI-gated; run on demand and as a release smoke test:
 
-1. Invoke forge with `--profile lean` (or `solo`) on a real feature brief.
+1. Invoke craft with `--profile lean` (or `solo`) on a real feature brief.
 2. Confirm each inline phase commits its artifact in the **same shape** as the agent path would —
    the injected block differs only by the two carve-out lines (artifact-handoff, model), which
    `engine/test/contract-equivalence.test.js` already pins per descriptor; the role craft is the
