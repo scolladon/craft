@@ -86,10 +86,19 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    If the skill or plugin a `procedure` names is not installed (no `skills/<id>/` dir for a
    craft-native procedure; no installed plugin for a namespaced one) → the loud STOP
    "procedure `<phase.procedure>` resolves to no installed skill" — the intended guard, not a
-   silent skip. For a craft-native phase — including one whose `role:` is swapped (the
-   descriptor `id` is unchanged) — the injected contract (step 3) is assembled from that
-   descriptor regardless of who supplies the procedure, so a role-swapped procedure can never
-   drop it (G5). **Inserted-phase contract injection is not yet wired:** `contract-assemble`
+   silent skip. **Swap-fidelity (G5) — a swap changes *who* runs a phase or *which skill*
+   orchestrates it, never *what invariants bind it*.** A manifest may swap a default phase's
+   worker (`phases.<id>.role`) or its orchestrating skill (`phases.<id>.procedure`); either way
+   the descriptor `id` is unchanged, so the injected contract (step 3) — assembled from that `id`
+   — is identical, and the swapped worker (agent or inline) always runs inside the same
+   engine-owned contract. A `role:`- or `procedure:`-swapped phase can never drop the invariant
+   core. A swapped default-phase `procedure:` is dispatched **verbatim** exactly like an inserted
+   one (above); a procedure that resolves to no installed skill STOPs via the same "resolves to no
+   installed skill" guard. A swapped `role:` the resolver's `roleExists` probe rejects makes
+   `pipeline-resolve` return `ok: false` at §0 — the role case of the existing `ok: false`
+   error-path row — before the walk dispatches anything, uniformly for agent and inline (the
+   engine guard ships now; the resolver wiring that supplies a live install-probe follows in a
+   later phase, so today the seam no-ops to permissive). **Inserted-phase contract injection is not yet wired:** `contract-assemble`
    (step 3) keys on `pipeline/default.yml`, so a novel inserted `id` STOPs there with
    "unknown descriptor-id". P7 lands inserted-phase *dispatch* (above) and resolution-layer
    insert (S3/SC3); full inserted-phase *execution* — teaching `contract-assemble` the resolved
@@ -174,10 +183,10 @@ bring their own `procedure`, dispatched verbatim (step 1).
 
 | Condition | Behavior |
 |---|---|
-| `ok: false` from `pipeline-resolve` | Stop; surface all `errors[]`; refuse to proceed |
+| `ok: false` from `pipeline-resolve` (incl. a swapped `role:` the resolver's `roleExists` probe rejects, or a stranded consumer) | Stop; surface all `errors[]`; refuse to proceed |
 | Non-zero exit from `pipeline-resolve` | Stop; surface stderr; refuse to proceed |
 | `effective[]` is empty | Stop; surface "no enabled phases in resolution" |
-| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for a craft-native procedure, e.g. an enabled requirements/architecture pre-P10; no installed plugin for a namespaced one) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
+| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for a craft-native procedure, e.g. an enabled requirements/architecture pre-P10; no installed plugin for a namespaced one; **incl. a swapped default-phase `procedure:`**) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
 | `waivers[]` is non-empty | Executing-harness waivers are pre-formatted in `record[]`; surface every other waiver (review/refactoring) to the run record yourself per §1e; continue |
 | A skip strands a consumer | `ok: false` already; covered by the stop-on-error path |

@@ -20,6 +20,7 @@ import { parsePipeline } from '../src/descriptor.js';
 import { resolvePipeline } from '../src/resolve.js';
 import { assembleContract } from '../src/contract.js';
 import { HARNESS_ARCHETYPE } from '../src/profile.js';
+import { CORE_MARKERS, hasCI } from '../test-helpers/contract-markers.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const defaultYml = join(__dir, '..', '..', 'pipeline', 'default.yml');
@@ -49,6 +50,18 @@ const FRAGMENTS = {
   'harness-exec': readBundle('harness-exec'),
   delivery:       readBundle('delivery'),
   refinement:     readBundle('refinement'),
+};
+
+// Real (shipping) contract bundles — the source contract-equivalence.test.js assembles
+// against; carries the full core (incl. the swallowed-errors line the minimal fixture omits).
+const REAL_FRAGMENTS = {
+  core:           readFileSync(join(__dir, '..', '..', 'contracts', 'core.md'), 'utf8'),
+  producer:       readFileSync(join(__dir, '..', '..', 'contracts', 'producer.md'), 'utf8'),
+  construction:   readFileSync(join(__dir, '..', '..', 'contracts', 'construction.md'), 'utf8'),
+  'harness-read': readFileSync(join(__dir, '..', '..', 'contracts', 'harness-read.md'), 'utf8'),
+  'harness-exec': readFileSync(join(__dir, '..', '..', 'contracts', 'harness-exec.md'), 'utf8'),
+  delivery:       readFileSync(join(__dir, '..', '..', 'contracts', 'delivery.md'), 'utf8'),
+  refinement:     readFileSync(join(__dir, '..', '..', 'contracts', 'refinement.md'), 'utf8'),
 };
 
 // Canonical SC1 phase order (11 enabled phases)
@@ -247,9 +260,10 @@ test('S2 Given phases.planning.role:my:domain-planner, when resolvePipeline runs
   const planning = result.effective.find(d => d.id === 'planning');
   assert.ok(planning, 'planning must be in effective pipeline');
   assert.equal(planning.role, 'my:domain-planner', 'planning role must be swapped');
+  assert.equal(planning.id, 'planning', 'the swap changes role, never id');
 });
 
-test('S2 Given phases.planning.role swapped, when assembleContract runs on planning descriptor, then U core and producer bundle still inject', () => {
+test('S2 Given phases.planning.role swapped, when assembleContract runs on planning descriptor, then EVERY core marker and the producer bundle survive', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S2');
   const resolveResult = resolvePipeline(defaults, manifest);
@@ -257,15 +271,46 @@ test('S2 Given phases.planning.role swapped, when assembleContract runs on plann
 
   const planningDescriptor = resolveResult.effective.find(d => d.id === 'planning');
   assert.ok(planningDescriptor, 'planning must be in effective pipeline');
-
   const sut = assembleContract;
 
-  const result = sut(planningDescriptor, manifest, FRAGMENTS, {});
+  const result = sut(planningDescriptor, manifest, REAL_FRAGMENTS, {});
 
-  // U core is always present
-  assert.ok(result.includes('Never commit on a red gate'), 'U core must be present');
-  // producer bundle must be present (planning has contract:[producer])
-  assert.ok(result.includes('Decision-candidates'), 'producer bundle must be present (contains Decision-candidates marker)');
+  for (const marker of CORE_MARKERS) {
+    assert.ok(hasCI(result, marker), `swap dropped core marker: "${marker}"`);
+  }
+  assert.ok(hasCI(result, 'Decision-candidates'), 'producer bundle must survive the swap');
+});
+
+// ─── S2-proc: default-phase procedure override lands on the descriptor ────────
+
+test('S2-proc Given phases.planning.procedure:acme:my-planner, when resolvePipeline runs, then effective planning carries that procedure with id unchanged', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S2-procedure');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+  const planning = result.effective.find(d => d.id === 'planning');
+  assert.ok(planning, 'planning must be in effective pipeline');
+  assert.equal(planning.procedure, 'acme:my-planner', 'planning procedure must be overridden');
+  assert.equal(planning.id, 'planning', 'the override changes procedure, never id');
+});
+
+// ─── S2-neg: swap to a non-existent role fails closed at resolution ───────────
+
+test('S2-neg Given phases.planning.role:my:does-not-exist and a roleExists probe that rejects it, when resolvePipeline runs, then ok:false naming the phase and the ref', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S2-bad-role');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest, { roleExists: ref => ref !== 'my:does-not-exist' });
+
+  assert.equal(result.ok, false, 'a swap to an unresolved role must fail closed');
+  assert.ok(
+    result.errors.some(e => e.includes('planning') && e.includes('my:does-not-exist')),
+    `errors must name the phase and the unresolved ref; got: ${JSON.stringify(result.errors)}`,
+  );
 });
 
 // ─── S3: insert bench phase with gate ────────────────────────────────────────

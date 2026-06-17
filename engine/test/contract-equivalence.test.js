@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { assembleContract } from '../src/contract.js';
 import { parsePipeline } from '../src/descriptor.js';
+import { CORE_MARKERS, hasCI } from '../test-helpers/contract-markers.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(__dir, '..', '..');
@@ -27,26 +28,6 @@ const FRAGMENTS = {
 const DESCRIPTORS = parsePipeline(
   readFileSync(join(repoRoot, 'pipeline', 'default.yml'), 'utf8'),
 );
-
-// Markers that must appear in every assembled block (from the core fragment).
-// Matched case-insensitively (hasCI) — the assertion proves invariant PRESENCE, never
-// dictates the fragment's casing (a fragment must not be bent to a test's exact case).
-const CORE_MARKERS = [
-  'never commit on a red gate',
-  'Blocker protocol',
-  'provenance',
-  'suppression',
-  'swallowed',
-  'Bounded scope',
-  // Expanded carve-out in agent mode:
-  'the agent commit is the handoff',
-  'the role model resolved',
-];
-
-/** Case-insensitive substring presence — the marker proves an invariant, not its casing. */
-function hasCI(haystack, marker) {
-  return haystack.toLowerCase().includes(marker.toLowerCase());
-}
 
 // Markers specific to each bundle.
 const PHASE_EXPECTATIONS = {

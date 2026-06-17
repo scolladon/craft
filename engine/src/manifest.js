@@ -26,7 +26,7 @@ const PHASE_NAMES = Object.freeze(new Set([
 /** Fields accepted on each phase block (skip is intentionally absent — ADR-011). */
 const PHASE_FIELDS = Object.freeze(new Set([
   'context', 'override', 'strategy', 'merge-flags', 'non-blocking-jobs',
-  'harness', 'execution', 'enabled', 'role', 'model',
+  'harness', 'execution', 'enabled', 'role', 'model', 'procedure',
 ]));
 
 /** Fields accepted under the `gates` key. */
@@ -264,6 +264,8 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
       errors.push(`phases.${phaseName}.role must be a string`);
     } else if (field === 'model' && typeof value !== 'string') {
       errors.push(`phases.${phaseName}.model must be a string`);
+    } else if (field === 'procedure' && typeof value !== 'string') {
+      errors.push(`phases.${phaseName}.procedure must be a string`);
     } else if (field === 'enabled' && typeof value !== 'boolean') {
       errors.push(`phases.${phaseName}.enabled must be a boolean`);
     } else if (field === 'harness') {

@@ -21,7 +21,8 @@
 | P7 | Pipeline editing — `pipeline.reorder` (relative-permutation) + walk verbatim-procedure dispatch + SC3 | ✅ done & green |
 | P8 | Per-phase harness config — `harness:` knobs deep-merged + manifest-validated + walk-read; PHASE_FIELDS lint-gap closed | ✅ done & green |
 | P8.5 | Rename plugin **forge→craft** + namespace propagation (non-PRD interstitial — branding/productization, **not** a PRD §17 phase; §17 numbering unchanged, P9 still next) | ✅ done & green |
-| **P9–P16** | **agent swap, new default phases, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
+| P9 | Agent/skill swap via manifest — `role:` + new default-phase `procedure:` override + engine `roleExists` guard (seam); S2 hardened walk-level | ✅ done & green |
+| **P10–P16** | **new default phases, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -137,9 +138,58 @@
   (protected English); BACKLOG P8.5 row (this rename); `manifest.js:298` "a caller **forgets** opts"
   (English). Zero unjustified product-name or `forge:` namespace residue.
 
-## Next — P9+
-- **P9 — agent/skill swap via manifest**: `phases.<id>.role` swap with the P5 contract injected around the swap (S2 green). Next up. P8 already closed the `role:`/`model:` lint-gap, so `manifest.js` needs no further change — P9 is the walk/UX + the S2 scenario.
-- **P9–P16** (PRD §17, in order): P9 agent/skill swap · P10 new default phases
+### P9 — agent/skill swap via manifest (slices 1–5 + refactor; SoT `docs/{DESIGN,PLAN}-P9-agent-swap.md`, ADRs 037–040; built dogfood via `/craft:run`)
+- [x] **Scope reconciliation (design):** all four "already-shipped" claims verified PASS against code —
+  resolution already swaps `phases.<id>.role` (S2 green), lint already accepts `role:`/`model:` (P8/ADR-028),
+  contract keys on descriptor `id` so G5 holds structurally (P5/ADR-017), the walk already references the
+  swapped role (P7/ADR-025). The genuinely-new concern: **no role-existence check existed anywhere** — a
+  typo'd role passed lint+resolution and degraded silently inline.
+- [x] **Decisions (ADRs 037–040, user-ratified; 3 of 4 diverged):** ADR-038 (DC-B, as-rec) extend the two S2
+  tests to full-`CORE_MARKERS` survival; **ADR-037 ⚑ user UPGRADED DC-A walk-STOP → engine-level** `roleExists`
+  probe (injected predicate, `ok:false` on a missing role, uniform agent+inline); **ADR-039 ⚑ user chose the
+  external/highest-stakes example** `implementation.role: acme:tdd-specialist` (not the local `planning` swap);
+  **ADR-040 ⚑ user WIDENED scope → new default-phase `procedure:` override field** (skill swap, not role-only).
+  The DC-A×DC-D interaction (DC-D puts `engine/src` in play, voiding DC-A's 0-diff rationale) was surfaced and
+  re-ratified → engine-level guard. Scope-fold design revision committed before planning.
+- [x] **s1 — `procedure:` override field (engine):** `'procedure'` added to `manifest.js` `PHASE_FIELDS` +
+  string shape-check, and to `edits.js` `ALLOWED_PHASE_OVERRIDE_FIELDS` (scalar-copy path, not the harness
+  deep-merge). New `S2-procedure` fixture + S2-proc positive (override lands on descriptor, id unchanged).
+- [x] **s2 — `roleExists` resolution guard (engine seam):** `resolvePipeline(defaults, manifest, opts)` gains
+  an OPTIONAL trailing `opts`; `roleExists` defaults permissive (mirrors `validateManifest`'s `fileExists`);
+  guard `effective.filter(d => d.role && !roleExists(d.role))` → `ok:false` naming phase+ref, before gates.
+  `d.role &&` skips the 4 role-less phases. 7-export surface unchanged; SC1 byte-identical (default path never
+  consults the probe). New `S2-bad-role` fixture + S2-neg (per-call stub rejects the bad ref).
+- [x] **s3 — S2 hardened (walk-level):** the two S2 tests now pin id-unchanged + the FULL 8-marker
+  `CORE_MARKERS` set survives on the swapped descriptor's assembled block — asserted against the REAL
+  `contracts/` bundles (a RED probe confirmed the thin in-test fixture omits `swallowed`), the structural proof
+  that a swap drops nothing (G5).
+- [x] **s4 — walk/UX prose (`skills/run/SKILL.md`):** named the swap-fidelity (G5) guarantee across BOTH axes
+  (`role:`+`procedure:`, id-keyed contract); role-not-found named as a cause of the existing `ok:false` row;
+  default-phase `procedure:` override documented as riding verbatim dispatch + the existing "resolves to no
+  installed skill" STOP. No new error-paths row. **Scope-honest:** states the engine seam ships now and the
+  live install-probe wiring follows later (today the seam no-ops permissive — see parked).
+- [x] **s5 — example + README:** `examples/role-swap/workflow.md` (`implementation.role: acme:tdd-specialist`,
+  ADR-039), mirroring `lean-profile`; leads with the external/contract-only-inline (ADR-020) + fail-closed
+  (ADR-037) story + the `procedure:` sibling axis; README Examples row.
+- [x] **4-dim review converged low-only:** code/security/perf ZERO; 2 LOW tests → refactoring. Security
+  confirmed the permissive-default seam is an accepted documented boundary (strings are inert JSON, no sink).
+- [x] **Refactoring:** centralized the duplicated `CORE_MARKERS`/`hasCI` into a shared test helper + aligned
+  the producer assertion to `hasCI`. **Re-review caught a regression the refactor's gate missed** — `node --test`
+  auto-runs every `.js` under `test/`, so the new helper became a phantom 0-assertion passing test (count
+  409→410); relocated to `engine/test-helpers/` (out of discovery), count honest 409.
+- [x] **Validation:** NO-OP — the repo has no mutation tooling configured (the default `validation.harness`
+  names `tool: stryker`, but it isn't set up). P9 mutation-adequacy unverified; review advisories ADV-1/2/3
+  carried as coverage observations.
+- [x] **Surface gate held (revised):** `engine/src/index.js` 7-export surface + `resolvePipeline` call-shape
+  (trailing-optional `opts`) + `pipeline/default.yml` + `graph.js` + `contract.js` + `contract-assemble.js`
+  unchanged; SC1 run-record byte-identical; `engine/src` delta limited to the `procedure` field + the
+  `roleExists` seam (NOT 0-diff — the deliberate DC-A/DC-D consequence). CI green at every commit, never
+  `--no-verify` (409 `node --test` + 42 bats).
+
+## Next — P10+
+- **P10 — new default phases & agents**: optional `requirements` (new `requirements-writer` agent) +
+  `architecture` harness (new `architecture-triager` agent), both default-off. Next up (S4/S5 green).
+- **P10–P16** (PRD §17, in order): P10 new default phases
   (requirements/architecture) · P11 backlog SoT adapter · **P12 DX** · P13 NFR
   hardening · P14 derived-plugin extension · P15 second-instantiation · P16 provider-agnostic.
 - **Showcase / DX docs are P12 — intentionally late**, not next. The illustrated overview (intent,
@@ -147,16 +197,29 @@
   surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
   P14 so the catalog never advertises an unproven surface (PRD §17 P12).
 
-### Parked from P8.5 (out-of-repo install state — CLI-managed, handled at session end)
-- **Folder rename + marketplace re-point (done at session end):** `…/perso/forge → …/craft` via
-  `mv`, with `~/.claude/plugins/known_marketplaces.json` `scolladon` `path`/`installLocation`
-  re-pointed to the new dir (the only ref the dir move breaks).
-- **Installed-plugin reinstall (user action):** `~/.claude/plugins/installed_plugins.json` keys the
-  plugin `forge@scolladon` (cache `cache/scolladon/forge/0.1.1`) — stale from the NAME change. Fix =
-  CLI reinstall as `craft@scolladon` + **session restart** so the `craft:*` namespace loads (the
-  registry is not hand-edited — that would dangle the cached copy). The current session keeps the
-  old `forge:*` namespace loaded until restart; on-disk edits take effect on next plugin load.
-- **`~/.claude/CLAUDE.md`:** the "default feature workflow" trigger updated `/forge:run → /craft:run`.
+### Parked from P9 (the engine seam ships; the live guarantee + its verification ride later)
+- [ ] **`roleExists` live install-probe not wired into the bin/walk.** `engine/bin/pipeline-resolve.js`
+  calls `resolvePipeline(defaults, manifest)` 2-arg, so the probe defaults permissive — the ADR-037 guard
+  ships as a tested SEAM but is **dormant in the real `/craft:run`**: a typo'd `role:` still resolves
+  `ok:true` today (caught only loud-at-spawn in agent mode, silent inline). For craft-native `craft:<role>`
+  refs a caller could scan `agents/`; for EXTERNAL `my:`/`acme:` refs "what counts as installed" is genuinely
+  P14 registration territory (ADR-037 deliberately punts it to the caller). Wire it when the walk gains a real
+  probe — rides with the walk-wiring / P14 derived-plugin surface.
+- [ ] **Validation mutation-adequacy unverified.** The repo has no mutation tooling, so the P9 validation
+  phase no-ops (the default `validation.harness` names `tool: stryker`, but the craft engine itself has no
+  stryker config). Review advisories stayed un-killed: **ADV-1** the `roleExists` filter true-branch isn't
+  exhaustively pinned (no test asserts a *resolvable* role through a *rejecting* probe yields exactly one
+  error); ADV-2 producer-content mutant; ADV-3 empty-string-`procedure` boundary. Setting up stryker for
+  `engine/` would let validation actually run and close these.
+
+### Parked from P8.5 — ✅ DONE (out-of-repo install state resolved; verified by this session running as `craft:*` from `…/perso/craft`)
+- [x] **Folder rename + marketplace re-point:** `…/perso/forge → …/craft` via `mv`, with
+  `~/.claude/plugins/known_marketplaces.json` `scolladon` `path`/`installLocation` re-pointed to
+  the new dir (the only ref the dir move breaks).
+- [x] **Installed-plugin reinstall:** CLI reinstall as `craft@scolladon` + session restart — the
+  `craft:*` namespace now loads (proven: this run dispatches `craft:run`/`craft:design`/… and the
+  repo lives at `…/perso/craft`); the registry was reinstalled, not hand-edited.
+- [x] **`~/.claude/CLAUDE.md`:** the "default feature workflow" trigger updated `/forge:run → /craft:run`.
 
 ### Parked from P8 (walk-fidelity, not engine gaps — knobs validate + reach the descriptor)
 - **`passes > 1` multi-reviewer fan-out is not engine-enforced**: the validator accepts `passes`
@@ -189,6 +252,33 @@
 - [ ] `backlog-lint` / `design-lint` structure lints — the optional half of ADR-014 (the
   `templates/backlog.md` template shipped at P4; the enforcing script + bats fixtures stayed
   deferred). Rides with the backlog-port phase (P6/P11).
+
+### Engine/tooling hardening (surfaced during the P9 dogfood — not P9-feature gaps)
+- [ ] **Agent model pins + declare a fallback.** `craft:designer`/`planner`/`reviewer` are pinned
+  `model: fable`; with Fable 5 unavailable, every such spawn dies once before the model-down protocol
+  falls back to the session model, and `pipeline/default.yml` declares no `models.fallback`. Declare a
+  `models.fallback` and/or re-evaluate the Fable pins so a degraded tier doesn't pay a dead spawn first.
+  (Adjacent to P13's model-class work, but a config-robustness fix, not the NFR matrix.)
+- [ ] **`worktree-setup.sh` nested-lockfile probe.** The setup script probes only the repo root for a
+  lockfile, so it installs nothing when the package lives in a subdir (`engine/package-lock.json`) — the
+  P9 worktree came up red until a manual `npm ci` in `engine/`. Probe one level deep, or take a
+  configurable deps path. Sibling to the `worktree-teardown.sh` item; rides with the VCS/workspace-adapter phase.
+- [ ] **`node --test` discovery footguns.** (a) `(cd engine && node --test)` vs `node --test engine/test/`
+  from the repo root give wildly different counts (405 vs 1) — easy to misread a baseline. (b) Bare
+  `node --test` auto-runs *every* `.js` under `test/`, so a non-test helper silently becomes a phantom
+  0-assertion passing test (count drifted 409→410 in P9 until the helper was relocated to
+  `engine/test-helpers/`), and a `node --test`-green gate can't catch it. Consider an explicit glob
+  (`test/**/*.test.js`) in `ci.sh` + `engine/package.json`, or a gate that asserts the expected test count.
+- [ ] **`decisions` phase — surface cross-candidate interactions.** AskUserQuestion presents decision
+  candidates independently, but answers can interact (in P9, DC-D putting `engine/src` in play voided
+  DC-A's `engine/src`-0-diff rationale — caught manually and re-ratified before ADRs were authored). The
+  `decisions` skill could prompt the session to check whether ratified choices interact before writing ADRs.
+- [ ] **`run/SKILL.md` step 0a echoes the full brief ~3× verbatim.** The flag-parse step re-prints the
+  entire `$ARGUMENTS` brief multiple times — very noisy for a long brief. Trim to a single reference.
+- [ ] **Review cadence — per-slice vs single phase.** The stated working style ("4-dimension review after
+  every code slice") differs from the pipeline's single `review` phase over the whole change. Decide and
+  document the intended cadence; if a per-slice interleave is wanted, model it (e.g. a `run`/harness knob),
+  cross-linking the "later walk/parallelism pass" noted under *Parked from P8*.
 
 ## Notes
 - **Data is the SoT, not the prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.

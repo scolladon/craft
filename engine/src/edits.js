@@ -9,7 +9,7 @@ import { DEFAULT_EXECUTION } from './descriptor.js';
  * Fields from manifest.phases.<id> that are allowed to be applied to a descriptor.
  * Protects engine-controlled invariants (id, archetype, contract, consumes, produces, self_supply).
  */
-const ALLOWED_PHASE_OVERRIDE_FIELDS = new Set(['role', 'model', 'harness']);
+const ALLOWED_PHASE_OVERRIDE_FIELDS = new Set(['role', 'model', 'harness', 'procedure']);
 
 /**
  * Returns true when v is a plain (non-null, non-array) object.

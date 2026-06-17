@@ -774,6 +774,29 @@ test('Given phases.review.model: true (non-string), when validateManifest runs, 
   assert.ok(result.errors.some(e => e.includes('phases.review.model') && e.includes('string')));
 });
 
+test('Given phases.planning.procedure: "acme:my-planner", when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { planning: { procedure: 'acme:my-planner' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.planning.procedure: 42 (non-string), when validateManifest runs, then ok:false with procedure-type error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { planning: { procedure: 42 } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('phases.planning.procedure') && e.includes('string')));
+});
+
 test('Given phases.review.enabled: "yes" (non-boolean), when validateManifest runs, then ok:false with enabled-type error', () => {
   const sut = validateManifest;
 

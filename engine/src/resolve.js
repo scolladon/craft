@@ -149,8 +149,9 @@ function buildManifestRecords(manifest) {
  * @param {object|null|undefined} manifest
  * @returns {{ ok: boolean, errors: string[], effective: object[], record: string[], gateDecisions: object[], waivers: object[] }}
  */
-export function resolvePipeline(defaults, manifest) {
+export function resolvePipeline(defaults, manifest, opts) {
   const resolved = aliasResolve(manifest);
+  const roleExists = typeof opts?.roleExists === 'function' ? opts.roleExists : () => true;
 
   const execErrors = validateExecutionValues(resolved);
   if (execErrors.length > 0) {
@@ -211,6 +212,13 @@ export function resolvePipeline(defaults, manifest) {
   }
 
   const effective = execResult.descriptors.filter(d => d.enabled);
+
+  const roleErrors = effective
+    .filter(d => d.role && !roleExists(d.role))
+    .map(d => `phases.${d.id}.role: "${d.role}" does not resolve to an installed agent`);
+  if (roleErrors.length > 0) {
+    return { ok: false, errors: roleErrors, effective: [], record, gateDecisions: [], waivers: [] };
+  }
 
   const { gateDecisions, waivers, gateRecords, floorErrors } = resolveGatesAndWaivers(
     defaults,

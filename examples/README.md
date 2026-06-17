@@ -21,6 +21,10 @@ program (PRD §17). Each example labels its surfaces.
 - [`lean-profile/`](lean-profile/) — the `lean` execution topology: cheap phases run inline,
   the code-producer and harnesses stay `agent`; shows profiles are sugar over the per-phase
   `execution:` precedence. *All-current.*
+- [`role-swap/`](role-swap/) — swap a phase's agent (`role:`) or its orchestrating skill
+  (`procedure:`); the engine injects the invariant contract around your worker (G5), so a swap
+  changes *who* runs a phase, never *what binds it*. *All-current* (the live install-probe for
+  external refs rides a later phase).
 
 The point: craft stays opinion-free about *what* you inject — it owns only the orchestration
 guarantees (PRD §11). Bring your own rules, agents, and tools; craft wires and gates them.
