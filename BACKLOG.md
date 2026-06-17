@@ -74,9 +74,13 @@
 ## Next — P7+
 - **P7 — pipeline editing**: skip-any / insert / reorder + dependency checks (S3, SC3). The
   per-invocation `--skip` CLI overlay (P6) is a thin slice of this; P7 is the full manifest surface.
-- **Showcase docs** (architecture stable post-P5/P6): a clean, illustrated overview —
-  intent, hexagon diagram (Mermaid), a sample `.claude/workflow.md`, a sample run.
-- P8–P16 ports (harness config, agent swap, NFR matrix, backlog/registration ports) — PRD §17.
+- **P8–P16** (PRD §17, in order): P8 per-phase harness config · P9 agent/skill swap · P10 new
+  default phases (requirements/architecture) · P11 backlog SoT adapter · **P12 DX** · P13 NFR
+  hardening · P14 derived-plugin extension · P15 second-instantiation · P16 provider-agnostic.
+- **Showcase / DX docs are P12 — intentionally late**, not next. The illustrated overview (intent,
+  hexagon Mermaid, a sample `.claude/workflow.md`, a sample run) documents the *full* customization
+  surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
+  P14 so the catalog never advertises an unproven surface (PRD §17 P12).
 
 ### Parked from P6 (small, pre-existing — not execution-topology)
 - `run/SKILL.md` step 1b describes an `ok: false`-in-JSON branch, but `pipeline-resolve.js` exits 2
