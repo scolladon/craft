@@ -629,3 +629,139 @@ test('Given architecture enabled then skipped, when resolvePipeline runs, then a
   );
   assert.ok(hasReleaseRecord, `record must include a loud propose-gate release line for architecture; got: ${JSON.stringify(result.record)}`);
 });
+
+// ─── S-lean: profile:lean per-archetype expansion ────────────────────────────
+
+test('S-lean Given profile:lean manifest, when resolvePipeline runs, then setup archetype phases run inline', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-lean');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+
+  const setupPhases = result.effective.filter(d => d.archetype === 'setup');
+  assert.ok(setupPhases.length > 0, 'must have at least one setup-archetype phase');
+  for (const d of setupPhases) {
+    assert.equal(d.execution, 'inline', `setup phase ${d.id} must be inline under lean profile`);
+  }
+});
+
+test('S-lean Given profile:lean manifest, when resolvePipeline runs, then specification archetype phases run inline', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-lean');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+
+  const specPhases = result.effective.filter(d => d.archetype === 'specification');
+  assert.ok(specPhases.length > 0, 'must have at least one specification-archetype phase');
+  for (const d of specPhases) {
+    assert.equal(d.execution, 'inline', `specification phase ${d.id} must be inline under lean profile`);
+  }
+});
+
+test('S-lean Given profile:lean manifest, when resolvePipeline runs, then delivery archetype phases run inline', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-lean');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+
+  const deliveryPhases = result.effective.filter(d => d.archetype === 'delivery');
+  assert.ok(deliveryPhases.length > 0, 'must have at least one delivery-archetype phase');
+  for (const d of deliveryPhases) {
+    assert.equal(d.execution, 'inline', `delivery phase ${d.id} must be inline under lean profile`);
+  }
+});
+
+test('S-lean Given profile:lean manifest, when resolvePipeline runs, then construction archetype phases run agent', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-lean');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+
+  const constructionPhases = result.effective.filter(d => d.archetype === 'construction');
+  assert.ok(constructionPhases.length > 0, 'must have at least one construction-archetype phase');
+  for (const d of constructionPhases) {
+    assert.equal(d.execution, 'agent', `construction phase ${d.id} must be agent under lean profile`);
+  }
+});
+
+test('S-lean Given profile:lean manifest, when resolvePipeline runs, then refinement archetype phases run agent', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-lean');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+
+  const refinementPhases = result.effective.filter(d => d.archetype === 'refinement');
+  assert.ok(refinementPhases.length > 0, 'must have at least one refinement-archetype phase');
+  for (const d of refinementPhases) {
+    assert.equal(d.execution, 'agent', `refinement phase ${d.id} must be agent under lean profile`);
+  }
+});
+
+test('S-lean Given profile:lean manifest, when resolvePipeline runs, then harness archetype phases run agent', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-lean');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+
+  const harnessPhases = result.effective.filter(d => d.archetype === HARNESS_ARCHETYPE);
+  assert.ok(harnessPhases.length > 0, 'must have at least one harness-archetype phase');
+  for (const d of harnessPhases) {
+    assert.equal(d.execution, 'agent', `harness phase ${d.id} must be agent under lean profile`);
+  }
+});
+
+test('S-lean Given profile:lean manifest, when resolvePipeline runs, then gateDecisions length equals effective length', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-lean');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.gateDecisions.length, result.effective.length);
+});
+
+// ─── S-full: profile:full all agent ──────────────────────────────────────────
+
+test('S-full Given profile:full manifest, when resolvePipeline runs, then every effective phase runs agent', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-full');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+
+  for (const d of result.effective) {
+    assert.equal(d.execution, 'agent', `phase ${d.id} must be agent under full profile`);
+  }
+});
+
+test('S-full Given profile:full manifest, when resolvePipeline runs, then effective length equals 11 (matches SC1)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S-full');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  assert.equal(result.effective.length, SC1_IDS.length, 'S-full must produce the same phase count as SC1');
+});

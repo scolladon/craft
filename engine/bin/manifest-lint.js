@@ -3,6 +3,7 @@ import { readFileSync, statSync } from 'node:fs';
 import path from 'node:path';
 import { load } from 'js-yaml';
 import { validateManifest } from '../src/index.js';
+import { extractFrontmatter } from '../src/frontmatter.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -39,34 +40,6 @@ function failInvalid(mf, errors) {
   for (const err of errors) process.stderr.write(`- ${err}\n`);
   process.stderr.write('Fix the manifest — forge refuses to run on a misconfigured declination (fail loudly, never silently).\n');
   process.exit(EXIT_INVALID);
-}
-
-/**
- * Extract the YAML frontmatter block between the first and second `---` lines.
- * Returns null when no such block exists.
- *
- * Mirrors the awk in the original manifest-lint.sh:
- *   awk '/^---$/{n++; next} n==1{print} n>=2{exit}'
- *
- * @param {string} content
- * @returns {string|null}
- */
-function extractFrontmatter(content) {
-  const lines = content.split('\n');
-  const collected = [];
-  let delimCount = 0;
-
-  for (const line of lines) {
-    if (line === '---') {
-      delimCount += 1;
-      if (delimCount >= 2) break;
-      continue;
-    }
-    if (delimCount === 1) collected.push(line);
-  }
-
-  if (delimCount < 1 || collected.length === 0) return null;
-  return collected.join('\n');
 }
 
 /**

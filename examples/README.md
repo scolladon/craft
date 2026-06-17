@@ -18,6 +18,9 @@ program (PRD §17). Each example labels its surfaces.
   a global `context:` file. *All-current.*
 - [`everything-claude-toolkit/`](everything-claude-toolkit/) — a grab-bag toolkit slotted in
   across five injection points (agent swap, gate, inserted phase, per-phase context, hooks).
+- [`lean-profile/`](lean-profile/) — the `lean` execution topology: cheap phases run inline,
+  the code-producer and harnesses stay `agent`; shows profiles are sugar over the per-phase
+  `execution:` precedence. *All-current.*
 
 The point: forge stays opinion-free about *what* you inject — it owns only the orchestration
 guarantees (PRD §11). Bring your own rules, agents, and tools; forge wires and gates them.

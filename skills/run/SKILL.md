@@ -16,15 +16,27 @@ Input: `$ARGUMENTS`
 
 ## 0 — Resolve
 
+0a. **Parse forge flags from `$ARGUMENTS`** first: strip any `--profile <name>` and
+   `--skip <id,…>` tokens (they may appear anywhere — lead or trail; comma-split the skip
+   ids). Hold them for step 1b. The
+   **non-flag remainder is the input brief** consumed at step 2 — a flags-only
+   `$ARGUMENTS` (e.g. `--profile lean`) leaves an empty brief, and step 2 STOPs as
+   ambiguous exactly as a zero-argument invocation does. These are per-invocation
+   overrides: they win over the manifest's `pipeline.profile`/`pipeline.skip` (the bin
+   merges them at highest precedence — ADR-022).
+
 1. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh"` (repo manifest:
    `.claude/workflow.md`). It must pass — on INVALID, STOP and surface the errors.
    Read the manifest (frontmatter = config, body = policy rationale). No manifest =
    pure defaults via each phase's capability probe.
 
 1b. Run `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/pipeline-resolve.js" \
-        "${CLAUDE_PLUGIN_ROOT}/pipeline/default.yml" [manifest-path]` via Bash,
-    capturing stdout. The manifest path argument is included only when a manifest
-    file was found in step 1.
+        "${CLAUDE_PLUGIN_ROOT}/pipeline/default.yml" [manifest-path] \
+        [--profile <name>] [--skip <id,…>]` via Bash, capturing stdout. The manifest
+    path argument is included only when a manifest file was found in step 1; the
+    `--profile`/`--skip` flags are appended only when parsed in step 0a (the bin folds
+    them over the manifest at highest precedence — a bad `--profile` value exits non-zero;
+    stderr names the supported profiles).
     - On non-zero exit: STOP; surface stderr to the user; refuse to proceed.
     - On `ok: false` in the JSON: STOP; surface all `errors[]` entries; refuse.
     - If `effective[]` is empty: STOP; surface "no enabled phases in resolution".
@@ -49,9 +61,10 @@ Input: `$ARGUMENTS`
     Use `waivers[]` for the gate-release decision (each `proposeGateReleased: true`
     releases that phase's `propose`-gate).
 
-2. Classify the input: **backlog id** (matches the repo's backlog convention — only if
-   the manifest declares `backlog:`; look the entry up there) | **file path** (read
-   it) | **free-text brief** (use verbatim). Ambiguous → STOP and ask.
+2. Classify the input (the non-flag remainder from step 0a): **backlog id** (matches the
+   repo's backlog convention — only if the manifest declares `backlog:`; look the entry
+   up there) | **file path** (read it) | **free-text brief** (use verbatim). Empty or
+   ambiguous → STOP and ask.
 3. Derive a kebab-case topic slug (≤6 words). Print:
    `Resolved → topic: <slug>, brief: <one line>` for user confirmation.
 4. Open the **run record** (in-session ledger): seeded from `Resolution.record[]`
@@ -85,8 +98,27 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    block is PREPENDED to the Task spawn prompt. On **inline** execution the
    block is loaded into the session at phase entry and the session follows it.
 
-4. **Execute** via the resolved execution mode. Session-owned responsibilities by
-   archetype:
+4. **Execute** via the resolved execution mode (`phase.execution`).
+
+   **`agent`** (default): spawn `forge:<role>` (or the manifest-swapped role) as a Task,
+   structured per the **Agent spawns** invariant below — the step-3 injected block
+   PREPENDED to the spawn prompt, then working dir, task dynamics, artifact paths. Await
+   the commit; verify on return.
+
+   **`inline`**: run the phase body **in-thread — no Task spawn**. The step-3 block was
+   assembled with `--inline`; load it as the governing constraint for this phase. If
+   `phase.role` is present AND resolves to a **local** agent def
+   (`agents/<name>.md`, `<name>` = the role ref minus any `forge:` namespace), **also load
+   that agent body (sans frontmatter)** right after the block and follow it as
+   self-directed craft — the same two artifacts a spawn carries, in the same order; the
+   spawn-only "final message to the parent" line is moot (no parent). A role that resolves
+   to no local def (e.g. `acme:planner`) runs on the block alone. The session is both
+   orchestrator and worker for this phase. Verify, gate, record, and handoff are
+   **identical** to `agent` — the block already carries the inline carve-outs (the commit
+   is the handoff; the session model). Role-less phases
+   (`workspace`/`decisions`/`propose`/`integrate`) are session-owned regardless of mode.
+
+   Session-owned responsibilities by archetype:
    - `setup`: workspace preparation and setup
    - `specification`: verify artifact; conversation if no `role` field (decisions)
    - `construction`: verify each slice; run phase gate per gate-cadence invariant
@@ -108,7 +140,8 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    If `codeProducing: false` and gate non-empty: run gate once at phase boundary.
    If gate is empty string: no gate check.
 
-6. **Record outcome** in the run record (appended to the seeded entries).
+6. **Record outcome** in the run record (appended to the seeded entries). An
+   inline-executed phase is noted: `inline: <phase.id> — ran in-session`.
 
 7. **On blocker**: escalate `{ phase/slice, reason, ≤3 candidate options }`. Never
    spin, never silently abandon.
@@ -191,6 +224,15 @@ to a `skills/<id>/` dir of the same name after the P4 rename, so the walk invoke
 
 - **Provenance**: no phase/ADR/backlog references inside source or test code, ever.
   Design docs and the PR body carry provenance.
+
+## Manual acceptance check (inline fidelity) — not CI-gated
+
+On demand / as a release smoke test: invoke forge with `--profile lean` (or `solo`) on a
+real brief, confirm the inline phases commit artifacts in the same shape as the agent path
+(the injected block differs only by the two carve-out lines —
+`engine/test/contract-equivalence.test.js` proves that bound per descriptor), and record
+the result in the run record under `inline-fidelity-check`. Rationale:
+`docs/DESIGN-P6-execution-topology.md`.
 
 ## Done
 

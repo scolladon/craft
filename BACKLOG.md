@@ -17,7 +17,8 @@
 | P3 | Rewire the live walk + fold manifest validation into the Node core | ✅ done & green |
 | P4 | Generic vocabulary (rename + alias-map wiring) | ✅ done & green |
 | P5 | Engine-owned contract injection + DESIGN split | ✅ done & green |
-| **P6–P16** | **e2e, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
+| P6 | Execution topology — `inline\|agent` end-to-end + `solo`/`full`/`lean` profiles + per-invocation args | ✅ done & green |
+| **P7–P16** | **pipeline editing, harness config, agent swap, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -62,10 +63,25 @@
 - [x] `DESIGN.md → DESIGN-history.md` (ADR-007) — pure relabel (old vocab = correct-as-history); living SoT is `DESIGN-customizable-engine.md`
 - [x] **Surface gate held:** R8 deterministic per-phase block-equivalence; inline swaps exactly the two carve-out lines; `pipeline/default.yml` changed only `refactoring.contract` (resolver untouched, SC1 + scenarios green); 7-export surface unchanged; CI green at every commit (276 `node --test` + 42 bats)
 
-## Next — P6+
-- **Showcase docs** (now that the architecture is stable post-P5): a clean, illustrated overview —
+### P6 — execution topology (slices 1–5; SoT `docs/{DESIGN,PLAN}-P6-execution-topology.md`, ADRs 020–023)
+- [x] **`lean` profile + per-archetype expansion** (ADR-021): `expandProfile` returns a per-archetype `execution` map (was a binary `{defaultExecution, harnessStaysAgent}`); `applyProfileToArchetype` forces `harness→agent` **unconditionally** (the SP1 parallelism caveat is now structural, not per-map); closed vocab `solo\|full\|lean`; solo/full byte-identical (S1/SC1 green). Profiles are **derivable sugar** — `lean ≡ execution: inline + phases.{implementation,refactoring}.execution: agent`
+- [x] **Per-invocation args** (ADR-022): `engine/src/cli-overlay.js` (`applyCliOverlay`, pure) + `pipeline-resolve.js` `--profile`/`--skip` flags merged at highest precedence (CLI > manifest); unknown flags rejected; `resolvePipeline` + 7-export surface + `pipeline/default.yml` untouched
+- [x] **Inline dispatch in the walk** (ADR-020): `run/SKILL.md` step 4 — an inline phase runs in-thread (no Task spawn), loading the injected `--inline` block **and** the local `agents/<role>.md` craft (the two artifacts a spawn carries), so inline fidelity = agent fidelity modulo the two carve-out lines; step 0a/1b parse + forward `--profile`/`--skip` from `$ARGUMENTS`, non-flag remainder = brief
+- [x] **Robust manifest parsing** (review-surfaced, pre-P3 latent): shared `engine/src/frontmatter.js` — `pipeline-resolve` now parses a real frontmatter+body `.claude/workflow.md` (was raw `load()` → crash on the body); CRLF/trailing-space fences, empty-fence→defaults, body excluded from the parser; `manifest-lint` shares the extractor
+- [x] **Coverage** (ADR-023): S-lean + S-full scenarios; `profile`/`cli-overlay`/`frontmatter`/bin-CLI unit + integration tests; the inline-fidelity walk check is a documented manual smoke test (`--profile lean`, recorded under `inline-fidelity-check`); `examples/lean-profile/`
+- [x] **Surface gate held:** `engine/src/index.js` (7 exports) + `pipeline/default.yml` + `contract.js` + `resolve.js` untouched; S1/SC1/`contract-equivalence` green; harness-stays-agent under solo *and* lean; CI green at every commit (325 `node --test` + 42 bats); 4-dimension review after every code slice, every fix applied
+
+## Next — P7+
+- **P7 — pipeline editing**: skip-any / insert / reorder + dependency checks (S3, SC3). The
+  per-invocation `--skip` CLI overlay (P6) is a thin slice of this; P7 is the full manifest surface.
+- **Showcase docs** (architecture stable post-P5/P6): a clean, illustrated overview —
   intent, hexagon diagram (Mermaid), a sample `.claude/workflow.md`, a sample run.
-- P6–P16 ports (e2e, NFR matrix, backlog/registration ports) — PRD §17.
+- P8–P16 ports (harness config, agent swap, NFR matrix, backlog/registration ports) — PRD §17.
+
+### Parked from P6 (small, pre-existing — not execution-topology)
+- `run/SKILL.md` step 1b describes an `ok: false`-in-JSON branch, but `pipeline-resolve.js` exits 2
+  on `ok:false` and never emits JSON — the branch is unreachable. Pre-existing since P3; the
+  "Walk error paths" table carries the same row. Tidy both together (out of P6 scope).
 
 ## Deferred / parked
 - [ ] `worktree-teardown.sh` production hardening — validate PID before `kill -0`, `git branch -D --`,

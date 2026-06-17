@@ -1,12 +1,58 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { load } from 'js-yaml';
 import { parsePipeline } from '../src/descriptor.js';
 import { resolvePipeline } from '../src/resolve.js';
+import { applyCliOverlay } from '../src/cli-overlay.js';
+import { parseManifestContent } from '../src/frontmatter.js';
 
-const pipelinePath = process.argv[2];
+/**
+ * Parse CLI args into structured options.
+ * Non-flag tokens fill positionals in order (1st=pipelinePath, 2nd=manifestPath).
+ * Flags may appear anywhere.
+ *
+ * @param {string[]} argv
+ * @returns {{ pipelinePath: string|null, manifestPath: string|null, profile: string|undefined, skip: string[]|undefined }}
+ */
+function parseArgs(argv) {
+  let pipelinePath = null;
+  let manifestPath = null;
+  let profile;
+  let skip;
+
+  const takeValue = (i, flag) => {
+    const value = argv[i + 1];
+    if (value === undefined || value.startsWith('-')) {
+      process.stderr.write(`pipeline-resolve: option ${flag} requires a non-flag value\n`);
+      process.exit(2);
+    }
+    return value;
+  };
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (arg === '--profile') {
+      profile = takeValue(i, arg);
+      i++;
+    } else if (arg === '--skip') {
+      skip = takeValue(i, arg).split(',').map(s => s.trim()).filter(Boolean);
+      i++;
+    } else if (arg.startsWith('-')) {
+      process.stderr.write(`pipeline-resolve: unknown option ${arg}\n`);
+      process.exit(2);
+    } else if (pipelinePath === null) {
+      pipelinePath = arg;
+    } else if (manifestPath === null) {
+      manifestPath = arg;
+    }
+  }
+
+  return { pipelinePath, manifestPath, profile, skip };
+}
+
+const { pipelinePath, manifestPath, profile, skip } = parseArgs(process.argv.slice(2));
+
 if (!pipelinePath) {
-  process.stderr.write('Usage: pipeline-resolve <pipeline.yml> [manifest.yml]\n');
+  process.stderr.write('Usage: pipeline-resolve <pipeline.yml> [manifest.yml] [--profile <name>] [--skip <csv>]\n');
   process.exit(2);
 }
 
@@ -19,19 +65,20 @@ try {
 }
 
 let manifest = null;
-const manifestPath = process.argv[3];
 if (manifestPath) {
   try {
-    manifest = load(readFileSync(manifestPath, 'utf8')) ?? null;
+    manifest = parseManifestContent(readFileSync(manifestPath, 'utf8'));
   } catch (err) {
     process.stderr.write(`pipeline-resolve: failed to parse manifest: ${err.message}\n`);
     process.exit(2);
   }
 }
 
+const effectiveManifest = applyCliOverlay(manifest ?? {}, { profile, skip });
+
 let resolution;
 try {
-  resolution = resolvePipeline(defaults, manifest);
+  resolution = resolvePipeline(defaults, effectiveManifest);
 } catch (err) {
   process.stderr.write(`pipeline-resolve: ${err.message}\n`);
   process.exit(2);

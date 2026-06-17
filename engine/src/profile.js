@@ -1,53 +1,74 @@
 /**
- * Profile expander — maps a named profile to a set of per-phase execution edits.
- * Closed vocabulary: only 'solo' and 'full' are valid.
- * The harness-archetype caveat is encoded as a static archetype rule:
- * harness-archetype phases stay 'agent' even under the solo profile.
- */
-
-/**
- * @typedef {{ execution: 'inline' | 'agent', harnessOverride?: boolean }} ProfileEdits
+ * Profile expander — maps a named profile to a per-archetype execution map.
+ * Closed vocabulary: 'solo', 'full', and 'lean' are valid.
+ * The harness archetype is unconditionally forced to 'agent' after the map
+ * lookup, regardless of what the map says.
  */
 
 /** Harness archetype stays agent regardless of profile. */
 export const HARNESS_ARCHETYPE = 'harness';
 
 /**
- * Expand a named profile into an object describing how to override execution.
- * Returns an object with:
- *   - harnessStaysAgent: boolean — if true, harness-archetype phases keep 'agent'
- *   - defaultExecution: 'inline' | 'agent' — execution to apply to non-harness phases
+ * Expand a named profile into a per-archetype execution map.
+ * Keys are the six archetype strings; values are 'inline' | 'agent'.
+ *
+ * Profiles:
+ *   solo: setup/specification/construction/refinement/delivery → inline; harness → agent
+ *   lean: setup/specification/delivery → inline; construction/refinement/harness → agent
+ *   full: all archetypes → agent
  *
  * Throws with a descriptive message for unknown profile names.
  *
  * @param {string} name
- * @returns {{ defaultExecution: 'inline' | 'agent', harnessStaysAgent: boolean }}
+ * @returns {Record<string, 'inline' | 'agent'>}
  */
 export function expandProfile(name) {
   switch (name) {
     case 'solo':
-      return { defaultExecution: 'inline', harnessStaysAgent: true };
+      return {
+        setup:         'inline',
+        specification: 'inline',
+        construction:  'inline',
+        harness:       'agent',
+        refinement:    'inline',
+        delivery:      'inline',
+      };
+    case 'lean':
+      return {
+        setup:         'inline',
+        specification: 'inline',
+        construction:  'agent',
+        harness:       'agent',
+        refinement:    'agent',
+        delivery:      'inline',
+      };
     case 'full':
-      return { defaultExecution: 'agent', harnessStaysAgent: false };
+      return {
+        setup:         'agent',
+        specification: 'agent',
+        construction:  'agent',
+        harness:       'agent',
+        refinement:    'agent',
+        delivery:      'agent',
+      };
     default:
       throw new Error(
-        `Unknown profile "${name}". Supported profiles: solo, full.`,
+        `Unknown profile "${name}". Supported profiles: solo, full, lean.`,
       );
   }
 }
 
 /**
- * Apply a profile to a descriptor's archetype, returning the resolved execution mode.
- * If harnessStaysAgent is true and the archetype is 'harness', returns 'agent'.
- * Otherwise returns the profile's defaultExecution.
+ * Apply a per-archetype profile map to a descriptor's archetype, returning the
+ * resolved execution mode. The harness archetype is forced to 'agent' before the
+ * map is consulted — the parallelism caveat binds regardless of the map (and of
+ * any future profile that mis-sets it).
  *
- * @param {{ defaultExecution: 'inline' | 'agent', harnessStaysAgent: boolean }} profile
+ * @param {Record<string, 'inline' | 'agent'>} profile
  * @param {string} archetype
  * @returns {'inline' | 'agent'}
  */
 export function applyProfileToArchetype(profile, archetype) {
-  if (profile.harnessStaysAgent && archetype === HARNESS_ARCHETYPE) {
-    return 'agent';
-  }
-  return profile.defaultExecution;
+  if (archetype === HARNESS_ARCHETYPE) return 'agent';
+  return profile[archetype] ?? 'agent';
 }

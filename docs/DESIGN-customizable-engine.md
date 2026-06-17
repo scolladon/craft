@@ -275,10 +275,16 @@ Today's top keys: `backlog paths context gates phases pr scripts models`. Additi
 
 So the new *top-level* keys are `pipeline:`, `retrieval:`, and a global `execution:` default
 (ADR-008); `role`/`harness` are new *phase fields* and `execution:` is **both**. `profile:`
-(e.g. `solo`, `full`) is a named bundle the resolver expands into per-phase `execution` +
-harness settings; the resolver then applies the precedence **per-phase field > profile >
-top-level `execution:` default** before validating. All additive — an existing manifest with
-none of these is unchanged (N1).
+(`solo`, `full`, `lean` — ADR-021) is a named bundle the resolver expands into a per-archetype
+`execution` map; the resolver then applies the precedence **per-phase field > profile >
+top-level `execution:` default** before validating. Profiles are **pure sugar** over that
+precedence — `profile: lean` ≡ top-level `execution: inline` with
+`phases.{implementation,refactoring}.execution: agent` (the `harness` archetype stays `agent`
+regardless — the parallelism caveat binds at every level). All additive — an existing manifest
+with none of these is unchanged (N1). **Per-invocation:** `/forge:run` also accepts
+`--profile`/`--skip` flags in `$ARGUMENTS`; the `pipeline-resolve` bin folds them over the
+manifest at highest precedence (CLI > manifest), so a one-off `--profile lean` needs no manifest
+edit (ADR-022).
 
 **Alias resolution.** SP4 phase ids are concern-named; old names ship as aliases
 (`branch→workspace, prd→requirements, adr→decisions, plan→planning, implement→implementation,
@@ -337,7 +343,11 @@ injected block by concatenating, in order:
 - **agent**: the block is prepended to the Task spawn prompt (the agent def supplies only role
   craft).
 - **inline**: the same block is loaded into the session at phase entry; the session follows it
-  itself (SP1 "the session loads the same engine contract block").
+  itself (SP1 "the session loads the same engine contract block"). When the descriptor carries a
+  `role:` resolving to a local `agents/<name>.md`, the agent body is **also** loaded (sans
+  frontmatter) right after the block — the same two artifacts a spawn carries, in the same order,
+  so inline fidelity = agent fidelity modulo the two carve-out lines (ADR-020). A `role:` with no
+  local def runs on the block alone.
 
 This is the *same assembly path* the PRD mandates for `context:`/retrieval — one home, one rule,
 swap-safe, and **deterministic enough to unit-test** (P1: assert U always present; assert
