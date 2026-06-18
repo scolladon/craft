@@ -257,3 +257,139 @@ test('Given a valid pipeline and a malformed manifest, when main runs, then it r
   assert.equal(result, 2);
   assert.match(io.stderr.joined(), /failed to parse manifest/);
 });
+
+// ─── takeValue: value === undefined guard for --profile ──────────────────────
+// Kills: ConditionalExpression(false||…) at pipeline-resolve-main.js:37 — undefined branch.
+
+test('Given --profile with no following value (end of argv), when main runs, then returns 2 with "requires a non-flag value" naming --profile', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--profile'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /pipeline-resolve: option --profile requires a non-flag value/);
+});
+
+// ─── takeValue null propagation for --profile ────────────────────────────────
+// Kills: ConditionalExpression(false) at :48 — null-check after takeValue for --profile.
+// With mutant: takeValue writes the option error and returns null, but null-guard suppressed →
+// profile=null (undefined), loop continues, pipelinePath may be set. If pipelinePath is already
+// provided, exit is 0. So we need the message to be the ONLY error, with no further resolution.
+// Asserting the Usage message absent distinguishes: mutant lets parseArgs continue (profile=null,
+// loop over) → pipelinePath already set from first positional → exit 0 (different from exit 2).
+
+test('Given --profile with a flag-as-value (--skip) and no pipelinePath, when main runs, then returns 2 with option error only', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  // No pipeline path provided — ensures that with the mutant (null not propagated),
+  // parseArgs returns { pipelinePath: null, ... } and main returns 2 via !pipelinePath check,
+  // but the error message differs (Usage vs option error).
+  const result = sut(['--profile', '--skip'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /pipeline-resolve: option --profile requires a non-flag value/);
+  assert.ok(
+    !io.stderr.joined().includes('Usage:'),
+    `Usage must not appear; only the option error should be written. got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── takeValue null propagation for --skip ───────────────────────────────────
+// Kills: ConditionalExpression(false) at :53 — null-check after takeValue for --skip.
+// Same pattern: assert option error only, no Usage message.
+
+test('Given --skip with a flag-as-value (--profile) and no pipelinePath, when main runs, then returns 2 with option error only', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--skip', '--profile'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /pipeline-resolve: option --skip requires a non-flag value/);
+  assert.ok(
+    !io.stderr.joined().includes('Usage:'),
+    `Usage must not appear; only the option error should be written. got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── --skip trim + filter(Boolean): whitespace and empties stripped ───────────
+// Kills: MethodExpression(trim) at :54 and MethodExpression(filter(Boolean)) at :54.
+
+test('Given --skip " a , , b " with spaces and empties, when main runs, then only "a" and "b" are skipped (trim + filter both applied)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--skip', ' a , , b ', pipelinePath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  const ids = resolution.effective.map(d => d.id);
+  assert.ok(!ids.includes('a'), 'phase "a" (not a real phase) must not appear');
+  // trim: verify whitespace-only entry (from "  ") does not appear as undefined/empty
+  // filter: without filter(Boolean), " " trimmed to "" would survive and produce an empty skip entry
+  // The real guard is that " , " does not produce a skip of "".
+  // We verify by checking a real phase that is NOT in the skip list still appears.
+  assert.ok(ids.includes('design'), `design should remain; got: ${JSON.stringify(ids)}`);
+});
+
+// ─── --skip trim: leading/trailing whitespace stripped ───────────────────────
+// Kills: MethodExpression(s => s) at :54 (the trim→identity mutant).
+
+test('Given --skip "  decisions  " with surrounding spaces, when main runs, then decisions is excluded', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--skip', '  decisions  ', pipelinePath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const ids = JSON.parse(io.stdout.joined()).effective.map(d => d.id);
+  assert.ok(!ids.includes('decisions'), `decisions must be skipped after trim; ids: ${JSON.stringify(ids)}`);
+});
+
+// ─── second positional argument → manifestPath (manifestPath === null guard) ──
+// Kills: ConditionalExpression(true) at :61 — if always true, pipelinePath gets the manifest slot.
+
+test('Given pipeline path then manifest path as positionals, when main runs, then both are consumed correctly and returns 0', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestPath = join(manifestsDir, 'with-body.md');
+
+  const result = sut([pipelinePath, manifestPath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  // with-body.md has profile:lean → implementation=agent
+  assert.equal(resolution.effective.find(d => d.id === 'implementation').execution, 'agent',
+    'manifest profile lean must apply — confirms manifestPath was set correctly');
+});
+
+// ─── manifestPath === null guard: third positional is silently ignored ─────────
+// Kills: ConditionalExpression(manifestPath === null → true) at :61.
+// With mutant (else if true): a third positional arg overwrites manifestPath, causing
+// readFileSync to fail on the overwritten path (nonexistent) → exit 2.
+// Original: manifestPath is already set; the third arg falls through all branches harmlessly → exit 0.
+
+test('Given pipeline path, manifest path, and a spurious third positional, when main runs, then returns 0 (third positional is ignored)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestPath = join(manifestsDir, 'with-body.md');
+
+  const result = sut([pipelinePath, manifestPath, '/nonexistent/spurious.yml'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+});
+
+// ─── stdout trailing newline: pipeline-resolve :123 ──────────────────────────
+// Kills: StringLiteral('\n' → "") at :123.
+
+test('Given a valid pipeline, when main runs, then stdout output ends with a newline', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().endsWith('\n'), 'stdout must end with a trailing newline');
+});

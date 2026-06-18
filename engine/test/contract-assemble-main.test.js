@@ -259,3 +259,175 @@ test('Given a malformed --manifest, when main runs, then it returns 2 and report
   assert.equal(result, 2);
   assert.match(io.stderr.joined(), /failed to parse manifest/);
 });
+
+// ─── takeValue: value === undefined guard → exit 2, no Usage fallthrough ─────
+// Kills: ConditionalExpression(false) + LogicalOperator(&&) + ConditionalExpression(false||…)
+// at contract-assemble-main.js:31, AND ConditionalExpression(false) at :42 (null-propagation
+// for --descriptor-id). Both mutants allow the function to continue past the error, eventually
+// printing "Usage:" which the strict absence assertion catches.
+
+test('Given --descriptor-id at end of argv (no following value), when main runs, then returns 2 with option error only and no Usage message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /contract-assemble: option --descriptor-id requires a non-flag value/);
+  assert.ok(
+    !io.stderr.joined().includes('Usage:'),
+    `Usage must not appear; only the option error should be written. got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── takeValue: value.startsWith('--') guard → exit 2, no Usage fallthrough ──
+// Kills: ConditionalExpression(false||…) → false and MethodExpression(endsWith) at :31.
+// Also kills :42 null-propagation for --descriptor-id (same no-Usage assertion).
+
+test('Given --descriptor-id followed by another --flag, when main runs, then returns 2 with option error only and no Usage message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id', '--inline'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /contract-assemble: option --descriptor-id requires a non-flag value/);
+  assert.ok(
+    !io.stderr.joined().includes('Usage:'),
+    `Usage must not appear; got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── takeValue null propagation for --manifest ────────────────────────────────
+// Kills: ConditionalExpression(false) at :42 and :47 — the null-check after takeValue.
+// With mutant: takeValue still writes the option error and returns null, but the
+// null-guard is suppressed so parseArgs continues, leaving manifestPath=null.
+// After the loop, !descriptorId fires → Usage message is written to stderr too.
+// Asserting the Usage message is absent distinguishes the two paths.
+
+test('Given --manifest with no following value, when main runs, then returns 2 with option error only (no Usage message)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--manifest'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /contract-assemble: option --manifest requires a non-flag value/);
+  assert.ok(
+    !io.stderr.joined().includes('Usage:'),
+    `Usage must not appear when parseArgs returns null early; got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── takeValue null propagation for --contracts-dir ──────────────────────────
+// Kills: ConditionalExpression(false) at :54 — the null-check after takeValue for --contracts-dir.
+// The ConditionalExpression at :52 (arg === '--contracts-dir' → true) is killed separately
+// by the "extra positional arg" test below. For :54: with mutant, parseArgs continues after
+// the option error, leaving contractsDir at the default. !descriptorId fires → Usage written too.
+
+test('Given --contracts-dir with no following value, when main runs, then returns 2 with option error only (no Usage message)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--contracts-dir'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /contract-assemble: option --contracts-dir requires a non-flag value/);
+  assert.ok(
+    !io.stderr.joined().includes('Usage:'),
+    `Usage must not appear when parseArgs returns null early; got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── else-if --contracts-dir guard: unknown positional arg is NOT treated as contracts-dir ──
+// Kills: ConditionalExpression(arg === '--contracts-dir' → true) at :52.
+// With mutant (else if true): any arg reaching that branch is treated as --contracts-dir;
+// an extra trailing positional arg 'extra' consumes the next argv value as contractsDir,
+// but since there is no next arg, takeValue writes the option error and returns null,
+// making parseArgs return null → exit 2. Without mutant: 'extra' falls through all branches
+// harmlessly and exit is 0.
+
+test('Given --descriptor-id design with an extra trailing positional arg, when main runs, then returns 0 (unknown positional is silently ignored)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id', 'design', 'extraarg'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+});
+
+// ─── for-loop boundary: i < vs i <= argv.length ──────────────────────────────
+// Kills: EqualityOperator (<= at :38) which reads argv[argv.length] = undefined, treating the
+// last arg as a flag-needing-a-value and triggering a spurious error even on valid argv.
+
+test('Given exactly one valid arg pair (--descriptor-id design), when main runs, then returns 0 not 2', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id', 'design'], io);
+
+  assert.equal(result, 0, `boundary i<=length mutant would over-run and error; stderr: ${io.stderr.joined()}`);
+});
+
+// ─── unknown descriptor-id: full error message content ───────────────────────
+// Kills: ConditionalExpression(!descriptor→false) + BlockStatement(empty) + both StringLiteral
+// + ArrowFunction(()=>undefined) + join separator StringLiteral at :104-107.
+
+test('Given --descriptor-id nonexistent-phase, when main runs, then stderr contains exact error format with known ids', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id', 'nonexistent-phase'], io);
+
+  assert.equal(result, 2);
+  const stderr = io.stderr.joined();
+  assert.match(stderr, /contract-assemble: unknown descriptor-id "nonexistent-phase"\./);
+  assert.match(stderr, /Known ids: /);
+  // The ids list uses ', ' separator — kills the join("") StringLiteral mutant.
+  assert.ok(stderr.includes(', '), `Expected ", " separator in known-ids list; got: ${stderr}`);
+  // The arrow d => d.id must return real ids, not undefined — kills ArrowFunction mutant.
+  assert.ok(stderr.includes('design'), `Expected "design" in known ids; got: ${stderr}`);
+  assert.ok(stderr.includes('planning'), `Expected "planning" in known ids; got: ${stderr}`);
+  assert.ok(stderr.endsWith('\n'), 'Error message must end with newline');
+});
+
+// ─── stdout trailing newline: contract-assemble :141 ─────────────────────────
+// Kills: StringLiteral('\n' → "") at :141.
+
+test('Given --descriptor-id design, when main runs, then stdout output ends with a newline', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id', 'design'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().endsWith('\n'), 'stdout must end with a trailing newline');
+});
+
+// ─── inline vs agent execution mode string ───────────────────────────────────
+// Kills: StringLiteral('agent' → "") at :135 — without --inline the assembleContract
+// call must receive execution:'agent', not execution:''.
+
+test('Given --descriptor-id design (agent mode), when main runs, then stdout contains agent-mode carve-out text', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id', 'design'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  // "the role model resolved" is injected only when execution==='agent'; empty string → wrong branch.
+  assert.ok(io.stdout.joined().includes('the role model resolved'), 'agent execution carve-out must be present for execution=agent');
+});
+
+// ─── inline mode does not produce agent carve-out (complementary side) ───────
+// Confirms 'inline' execution string propagates correctly.
+
+test('Given --descriptor-id design --inline, when main runs, then stdout does NOT contain agent-only carve-out text', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id', 'design', '--inline'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stdout.joined().includes('the role model resolved'), 'agent carve-out must be absent in inline mode');
+});

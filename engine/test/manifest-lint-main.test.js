@@ -146,3 +146,45 @@ test('Given a manifest referencing a nonexistent script file, when main runs, th
   assert.equal(result, 2);
   assert.ok(io.stderr.joined().includes('INVALID manifest'), `stderr was: ${io.stderr.joined()}`);
 });
+
+// ─── DEFAULT_MANIFEST path in "no manifest" message ──────────────────────────
+// Kills: StringLiteral('.claude/workflow.md' → "") at manifest-lint-main.js:10.
+// When called with no argv, the "no manifest at <path>" message must name the default path.
+
+test('Given no argv, when main runs with the default path absent, then stdout names the exact default path .claude/workflow.md', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([], io);
+
+  assert.equal(result, 0);
+  assert.ok(io.stdout.joined().includes('.claude/workflow.md'),
+    `stdout must include ".claude/workflow.md"; got: ${io.stdout.joined()}`);
+});
+
+// ─── buildFileExists: absolute path fallback branch (|| isRegularFile(p)) ────
+// Kills: ArrowFunction(()=>undefined) + LogicalOperator(&&) + ConditionalExpression(false)
+// at manifest-lint-main.js:58.
+// A manifest that references a script by its ABSOLUTE path (not relative to ROOT) must
+// pass validation — this exercises the `|| isRegularFile(p)` branch on the right side.
+
+test('Given a manifest referencing a script by absolute path that exists, when main runs, then returns 0', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  // Write a real executable-looking script to a temp dir.
+  const scriptDir = mkdtempSync(join(tmpdir(), 'manifestlint-abs-'));
+  tmpDirs.push(scriptDir);
+  const scriptPath = join(scriptDir, 'setup.sh');
+  writeFileSync(scriptPath, '#!/bin/sh\necho ok\n');
+
+  // Write a manifest in a DIFFERENT temp dir so ROOT != dirname(scriptDir).
+  // The script is referenced by its absolute path, so isRegularFile(join(ROOT, p))
+  // returns false but isRegularFile(p) returns true → the || short-circuits correctly.
+  const manifestPath = writeTmp('abs-script.md', `---\nscripts:\n  post-setup: ${scriptPath}\n---\n`);
+
+  const result = sut([manifestPath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().includes('valid.'), `stdout was: ${io.stdout.joined()}`);
+});

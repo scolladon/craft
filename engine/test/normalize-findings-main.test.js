@@ -165,3 +165,25 @@ test('Given no file path arg and a readStdin that throws, when main runs, then r
   assert.ok(io.stderr.joined().includes('normalize-findings:'), `stderr was: ${io.stderr.joined()}`);
   assert.equal(io.stdout.joined(), '');
 });
+
+// ─── readFileSync catch block: error message contains the file path ────────────
+// Kills: BlockStatement(catch body → {}) at normalize-findings-main.js:29.
+// When readFileSync throws (ENOENT for a missing file), the catch writes the OS
+// error (which contains the filepath) via fail(). With an empty catch, raw=undefined,
+// normalizeFindings(undefined) throws a TypeError, and the second catch writes a
+// TypeError message instead — the filepath is absent from stderr.
+
+test('Given a nonexistent file path, when main runs, then stderr contains the file path (readFileSync catch propagates ENOENT)', () => {
+  const sut = main;
+  const io = makeIo();
+  const missingPath = '/no/such/normalize-findings/specific-file-123.json';
+
+  const result = sut([missingPath], io);
+
+  assert.equal(result, 2);
+  // The ENOENT message contains the path; a TypeError from normalizeFindings(undefined) does not.
+  assert.ok(
+    io.stderr.joined().includes('specific-file-123.json'),
+    `stderr must contain the file path from the ENOENT; got: ${io.stderr.joined()}`,
+  );
+});
