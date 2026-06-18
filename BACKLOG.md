@@ -230,7 +230,10 @@
   (finding-count vs. severity-weighted) is left to the review walk, not engine-enforced. Documented in
   `review/SKILL.md` step 4.
 - **Per-invocation `--harness` CLI flag** (override a knob without a manifest, à la `--profile`/`--skip`
-  ADR-022) was out of P8 scope — would follow the same `cli-overlay.js` pattern in a later phase.
+  ADR-022) → **deferred to P12 (DX)** — a per-invocation override flag is DX-surface polish; it would
+  follow the same `cli-overlay.js` pattern but writes nested `phases.<id>.harness.<knob>` (dotted-path
+  parse + type coercion, more than the flat profile/skip overlay). Best landed **after** the harness
+  knobs it overrides (`passes>1`, numeric `convergence`) are actually engine-enforced.
 
 ### Parked from P7 (scoped out by ADR-025 — ride with P14 derived-plugin/registration)
 - **Inserted-phase contract injection** is not wired: `engine/bin/contract-assemble.js` keys on
@@ -240,10 +243,14 @@
   learn the resolved/inserted descriptors (pass the resolved descriptor or read the Resolution),
   which rides with the P14 registration surface.
 
-### Parked from P6 (small, pre-existing — not execution-topology)
-- `run/SKILL.md` step 1b describes an `ok: false`-in-JSON branch, but `pipeline-resolve.js` exits 2
-  on `ok:false` and never emits JSON — the branch is unreachable. Pre-existing since P3; the
-  "Walk error paths" table carries the same row. Tidy both together (out of P6 scope).
+### Parked from P6 — ✅ DONE (this session — doc-contract reconciliation)
+- [x] `run/SKILL.md` step 1b + the "Walk error paths" table reconciled to the engine's real
+  behavior: resolver `ok: false` is surfaced as a **non-zero exit with `errors[]` on stderr**,
+  never as stdout JSON. The unreachable `ok: false`-in-JSON bullet was removed and the two
+  duplicate table rows (ok:false vs non-zero-exit — the same code path) merged into one. The same
+  edit corrected a now-stale P9-era line ("the seam no-ops to permissive"): P9.5 wired the live
+  craft-native probe, so the prose now reads — live install-probe for `craft:<role>`, external
+  `my:`/`acme:` permissive pending P14.
 
 ## Deferred / parked
 - [ ] `worktree-teardown.sh` production hardening — validate PID before `kill -0`, `git branch -D --`,
@@ -275,20 +282,27 @@
   Parked-from-P8 walk/parallelism pass (ADR-043/DC-8).
 
 ### Parked from P9.5 (follow-ups surfaced during the hardening batch)
-- [ ] **Full-engine mutation baseline + bin coverage.** `npm run mutation` now runs for real (repo-root
-  sandbox; `engine/src/**` scope). The P9.5 run validated only the changed src hunk (per-hunk: `manifest.js`
-  16/16 killed); a full `engine/src` baseline (slow) hasn't been taken. **The bins are not Stryker-coverable**:
-  `engine/bin/*` is exercised via `spawnSync` subprocesses, outside Stryker's import-graph coverage (they
-  report "no coverage" regardless of `coverageAnalysis`). The bin changes (roleExists, parseManifestContent)
-  are covered by `spawnSync` bin tests verified red-on-revert in review. Closing this needs an in-process bin
-  harness (import the bin's logic rather than spawn it) or a separate command-runner mutation pass.
-- [ ] **`roleExists` path-traversal hardening (defense-in-depth).** The bin probe does a read-only
-  `existsSync(join(REPO_ROOT, 'agents', <ref-after-craft:> + '.md'))` on a repo-trusted manifest value; a
-  `craft:../../x` ref could probe outside `agents/`. Real impact is nil (read-only existence bit, trusted
-  input), so it was left as-is; if wanted, reject refs whose name contains a path separator before the probe.
-- [ ] **Nested-lockfile bats test env-coupling.** `test/worktree.bats`'s nested test runs a real `npm install`
-  (against an empty `{}` package.json — a local, network-free install). A PATH `npm` stub would pin the
-  branch-selection + message without depending on npm at all; optional robustness.
+- [x] **Full-engine mutation baseline — TAKEN (this session).** `npm run mutation` over the full
+  `engine/src/**` scope: **80.03% mutation score** (1185 killed · 248 survived · 48 no-cov · 1 timeout).
+  Per-file — strongest: `alias-map.js` 100%, `graph.js` 91.78%, `profile.js` 89.47%, `manifest.js` 87.28%;
+  weakest (the test-gap map for a later hardening pass): `resolve.js` 70.83%, `gates.js` 73.12%,
+  `findings.js` 73.23%, `edits.js` 74.86%, `contract.js` 75.56%, `descriptor.js` 77.19%. Taken pre-P10
+  deliberately (P10 adds default-off phases/agents = mostly data/prose, little `engine/src` churn), so the
+  baseline stays representative as the starting line.
+- [ ] **Bin mutation coverage** → **deferred to P13 (NFR hardening).** `engine/bin/*` is exercised via
+  `spawnSync`, outside Stryker's import graph (reports "no coverage" regardless of `coverageAnalysis`); the
+  bin logic (`roleExists` incl. the new traversal guard, `parseManifestContent`) is covered by `spawnSync`
+  bin tests verified red-on-revert. Closing it needs an in-process bin harness (import the bin's logic rather
+  than spawn it) — an NFR-quality concern, lands with the NFR matrix.
+- [x] **`roleExists` path-traversal hardening — DONE (this session).** `engine/bin/pipeline-resolve.js`
+  `roleExists` now rejects any `craft:<name>` whose `<name>` carries a path separator (`/` or `\`) **before**
+  the existence probe, so a `craft:../agents/planner`-style traversal can't falsely satisfy the guard by
+  resolving to a real file outside `agents/`. TDD: `traversal-role.md` fixture + a bin test (RED confirmed
+  exit 0 pre-guard; GREEN exit 2 post-guard, naming phase+ref). 418 `node --test`.
+- [ ] **Nested-lockfile bats test env-coupling** → **rides with the VCS-adapter phase** (grouped with
+  `worktree-teardown.sh` prod hardening above). `test/worktree.bats`'s nested test runs a real `npm install`
+  (empty `{}` package.json — local, network-free); a PATH `npm` stub would pin branch-selection + message
+  without depending on npm. All worktree-script robustness lands with the VCS adapter.
 
 ## Notes
 - **Data is the SoT, not the prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.
