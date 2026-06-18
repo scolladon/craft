@@ -5,20 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { main } from '../src/contract-assemble-main.js';
+import { makeCaptureIo } from '../test-helpers/capture-io.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const manifestsDir = join(__dir, 'fixtures', 'manifests');
 const contractsDir = join(__dir, '..', '..', 'contracts');
-
-function makeIo() {
-  const io = {
-    stdout: { writes: [], write(s) { this.writes.push(s); } },
-    stderr: { writes: [], write(s) { this.writes.push(s); } },
-  };
-  io.stdout.joined = () => io.stdout.writes.join('');
-  io.stderr.joined = () => io.stderr.writes.join('');
-  return io;
-}
 
 const tmpDirs = [];
 function makeTmpDir() {
@@ -32,7 +23,7 @@ after(() => { for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: t
 
 test('Given --descriptor-id design (agent mode), when main runs, then stdout contains core markers', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'design'], io);
 
@@ -48,7 +39,7 @@ test('Given --descriptor-id design (agent mode), when main runs, then stdout con
 
 test('Given --descriptor-id design (agent mode), when main runs, then stdout contains producer markers', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'design'], io);
 
@@ -63,7 +54,7 @@ test('Given --descriptor-id design (agent mode), when main runs, then stdout con
 
 test('Given --descriptor-id design (agent mode), when main runs, then stdout contains agent-mode carve-outs', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'design'], io);
 
@@ -82,7 +73,7 @@ test('Given --descriptor-id design (agent mode), when main runs, then stdout con
 
 test('Given --descriptor-id design --inline, when main runs, then stdout contains "the session model"', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'design', '--inline'], io);
 
@@ -96,7 +87,7 @@ test('Given --descriptor-id design --inline, when main runs, then stdout contain
 
 test('Given --descriptor-id design --inline, when main runs, then stdout contains inline commit handoff', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'design', '--inline'], io);
 
@@ -115,7 +106,7 @@ test('Given --descriptor-id design --inline, when main runs, then stdout contain
 
 test('Given --descriptor-id workspace (contract:[]), when main runs, then exits 0 with core markers', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'workspace'], io);
 
@@ -128,7 +119,7 @@ test('Given --descriptor-id workspace (contract:[]), when main runs, then exits 
 
 test('Given --descriptor-id nonexistent-phase, when main runs, then returns 2', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'nonexistent-phase'], io);
 
@@ -140,7 +131,7 @@ test('Given --descriptor-id nonexistent-phase, when main runs, then returns 2', 
 
 test('Given no --descriptor-id argument, when main runs, then returns 2', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut([], io);
 
@@ -152,7 +143,7 @@ test('Given no --descriptor-id argument, when main runs, then returns 2', () => 
 
 test('Given --manifest immediately followed by another flag, when main runs, then returns 2 naming --manifest', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--manifest', '--descriptor-id', 'design'], io);
 
@@ -164,7 +155,7 @@ test('Given --manifest immediately followed by another flag, when main runs, the
 
 test('Given --descriptor-id design --manifest with-body.md, when main runs, then exits 0 with core markers', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const manifestPath = join(manifestsDir, 'with-body.md');
 
   const result = sut(['--descriptor-id', 'design', '--manifest', manifestPath], io);
@@ -177,7 +168,7 @@ test('Given --descriptor-id design --manifest with-body.md, when main runs, then
 
 test('Given --descriptor-id design --manifest with-context.md, when main runs, then context sentinels are injected and body sentinel absent', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const manifestPath = join(manifestsDir, 'with-context.md');
 
   const result = sut(['--descriptor-id', 'design', '--manifest', manifestPath], io);
@@ -192,7 +183,7 @@ test('Given --descriptor-id design --manifest with-context.md, when main runs, t
 
 test('Given --descriptor-id requirements, when main runs, then exits 0 with producer markers', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'requirements'], io);
 
@@ -206,7 +197,7 @@ test('Given --descriptor-id requirements, when main runs, then exits 0 with prod
 
 test('Given --descriptor-id architecture, when main runs, then exits 0 with harness-exec markers', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'architecture'], io);
 
@@ -220,7 +211,7 @@ test('Given --descriptor-id architecture, when main runs, then exits 0 with harn
 
 test('Given --descriptor-id review, when main runs, then stdout contains harness-read markers', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'review'], io);
 
@@ -234,7 +225,7 @@ test('Given --descriptor-id review, when main runs, then stdout contains harness
 
 test('Given --contracts-dir pointing at the real contracts dir, when main runs, then it exits 0 with core markers', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--descriptor-id', 'design', '--contracts-dir', contractsDir], io);
 
@@ -246,7 +237,7 @@ test('Given --contracts-dir pointing at the real contracts dir, when main runs, 
 
 test('Given --contracts-dir pointing at a dir missing fragments, when main runs, then it returns 2 and reports a fragment load failure', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const emptyDir = makeTmpDir();
 
   const result = sut(['--descriptor-id', 'design', '--contracts-dir', emptyDir], io);
@@ -259,7 +250,7 @@ test('Given --contracts-dir pointing at a dir missing fragments, when main runs,
 
 test('Given a malformed --manifest, when main runs, then it returns 2 and reports a manifest parse failure', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const badManifest = join(makeTmpDir(), 'bad.md');
   writeFileSync(badManifest, '---\nkey:\n\tbroken\n---\nbody\n');
 

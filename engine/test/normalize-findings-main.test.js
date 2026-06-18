@@ -14,15 +14,11 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { main } from '../src/normalize-findings-main.js';
+import { makeCaptureIo } from '../test-helpers/capture-io.js';
 
 function makeIo() {
-  const io = {
-    stdout: { writes: [], write(s) { this.writes.push(s); } },
-    stderr: { writes: [], write(s) { this.writes.push(s); } },
-    readStdin: () => { throw new Error('readStdin should not be called in file-path mode'); },
-  };
-  io.stdout.joined = () => io.stdout.writes.join('');
-  io.stderr.joined = () => io.stderr.writes.join('');
+  const io = makeCaptureIo();
+  io.readStdin = () => { throw new Error('readStdin should not be called in file-path mode'); };
   return io;
 }
 

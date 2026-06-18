@@ -5,20 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { main } from '../src/pipeline-resolve-main.js';
+import { makeCaptureIo } from '../test-helpers/capture-io.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const pipelinePath = join(__dir, '..', '..', 'pipeline', 'default.yml');
 const manifestsDir = join(__dir, 'fixtures', 'manifests');
-
-function makeIo() {
-  const io = {
-    stdout: { writes: [], write(s) { this.writes.push(s); } },
-    stderr: { writes: [], write(s) { this.writes.push(s); } },
-  };
-  io.stdout.joined = () => io.stdout.writes.join('');
-  io.stderr.joined = () => io.stderr.writes.join('');
-  return io;
-}
 
 const tmpDirs = [];
 function writeTmp(name, content) {
@@ -34,7 +25,7 @@ after(() => { for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: t
 
 test('Given --profile lean, when main runs, then construction is agent and specification is inline', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--profile', 'lean', pipelinePath], io);
 
@@ -53,7 +44,7 @@ test('Given --profile lean, when main runs, then construction is agent and speci
 
 test('Given --skip decisions, when main runs, then decisions is absent from effective', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--skip', 'decisions', pipelinePath], io);
 
@@ -69,7 +60,7 @@ test('Given --skip decisions, when main runs, then decisions is absent from effe
 
 test('Given manifest profile:full and --profile solo, when main runs, then CLI profile wins and construction is inline', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const manifestPath = join(manifestsDir, 'profile-full.yml');
 
   const result = sut(['--profile', 'solo', pipelinePath, manifestPath], io);
@@ -85,7 +76,7 @@ test('Given manifest profile:full and --profile solo, when main runs, then CLI p
 
 test('Given --profile lean placed after the pipeline path, when main runs, then the profile still applies', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut([pipelinePath, '--profile', 'lean'], io);
 
@@ -100,7 +91,7 @@ test('Given --profile lean placed after the pipeline path, when main runs, then 
 
 test('Given a manifest with YAML frontmatter and a markdown body, when main runs, then it extracts frontmatter and resolves the profile', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const manifestPath = join(manifestsDir, 'with-body.md');
 
   const result = sut([pipelinePath, manifestPath], io);
@@ -117,7 +108,7 @@ test('Given a manifest with YAML frontmatter and a markdown body, when main runs
 
 test('Given an unknown --flag, when main runs, then it returns 2 and names the option in stderr', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut([pipelinePath, '--bogus'], io);
 
@@ -129,7 +120,7 @@ test('Given an unknown --flag, when main runs, then it returns 2 and names the o
 
 test('Given a manifest with a misspelled craft role (craft:plannr), when main runs, then it returns 2 naming the phase and ref', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const badRolePath = join(manifestsDir, 'bad-role.md');
 
   const result = sut([pipelinePath, badRolePath], io);
@@ -143,7 +134,7 @@ test('Given a manifest with a misspelled craft role (craft:plannr), when main ru
 
 test('Given a manifest with a valid craft role (craft:planner), when main runs, then it returns 0', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const goodRolePath = join(manifestsDir, 'good-role.md');
 
   const result = sut([pipelinePath, goodRolePath], io);
@@ -155,7 +146,7 @@ test('Given a manifest with a valid craft role (craft:planner), when main runs, 
 
 test('Given a manifest with an external role (acme:tdd-specialist), when main runs, then it returns 0', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const externalRolePath = join(manifestsDir, 'external-role.md');
 
   const result = sut([pipelinePath, externalRolePath], io);
@@ -167,7 +158,7 @@ test('Given a manifest with an external role (acme:tdd-specialist), when main ru
 
 test('Given a manifest with a path-traversal craft role (craft:../agents/planner), when main runs, then it returns 2 — separator guard rejects it', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const traversalRolePath = join(manifestsDir, 'traversal-role.md');
 
   const result = sut([pipelinePath, traversalRolePath], io);
@@ -181,7 +172,7 @@ test('Given a manifest with a path-traversal craft role (craft:../agents/planner
 
 test('Given a manifest with requirements enabled, when main runs, then it returns 0 and effective includes requirements', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut([pipelinePath, join(manifestsDir, 'enable-requirements.yml')], io);
 
@@ -194,7 +185,7 @@ test('Given a manifest with requirements enabled, when main runs, then it return
 
 test('Given a manifest with architecture enabled, when main runs, then it returns 0 and effective includes architecture', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut([pipelinePath, join(manifestsDir, 'enable-architecture.yml')], io);
 
@@ -207,7 +198,7 @@ test('Given a manifest with architecture enabled, when main runs, then it return
 
 test('Given a manifest with requirements and architecture both enabled, when main runs, then it returns 0 and effective includes both', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut([pipelinePath, join(manifestsDir, 'enable-both.yml')], io);
 
@@ -221,7 +212,7 @@ test('Given a manifest with requirements and architecture both enabled, when mai
 
 test('Given no arguments, when main runs, then it returns 2 and writes usage to stderr', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut([], io);
 
@@ -233,7 +224,7 @@ test('Given no arguments, when main runs, then it returns 2 and writes usage to 
 
 test('Given --profile followed by --skip (flag as value), when main runs, then it returns 2 naming --profile', async () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['--profile', '--skip'], io);
 
@@ -245,7 +236,7 @@ test('Given --profile followed by --skip (flag as value), when main runs, then i
 
 test('Given a malformed pipeline file, when main runs, then it returns 2 and reports a pipeline parse failure', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const badPipeline = writeTmp('bad-pipeline.yml', 'phases:\n\t- broken\n');
 
   const result = sut([badPipeline], io);
@@ -258,7 +249,7 @@ test('Given a malformed pipeline file, when main runs, then it returns 2 and rep
 
 test('Given a valid pipeline and a malformed manifest, when main runs, then it returns 2 and reports a manifest parse failure', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const badManifest = writeTmp('bad-manifest.md', '---\nkey:\n\tbroken\n---\nbody\n');
 
   const result = sut([pipelinePath, badManifest], io);

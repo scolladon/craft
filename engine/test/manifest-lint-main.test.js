@@ -5,19 +5,10 @@ import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { main } from '../src/manifest-lint-main.js';
+import { makeCaptureIo } from '../test-helpers/capture-io.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const manifestsDir = join(__dir, 'fixtures', 'manifests');
-
-function makeIo() {
-  const io = {
-    stdout: { writes: [], write(s) { this.writes.push(s); } },
-    stderr: { writes: [], write(s) { this.writes.push(s); } },
-  };
-  io.stdout.joined = () => io.stdout.writes.join('');
-  io.stderr.joined = () => io.stderr.writes.join('');
-  return io;
-}
 
 const tmpDirs = [];
 after(() => tmpDirs.forEach(d => rmSync(d, { recursive: true, force: true })));
@@ -34,7 +25,7 @@ function writeTmp(name, content) {
 
 test('Given a nonexistent manifest path, when main runs, then returns 0 and stdout contains "no manifest at"', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut(['/no/such/workflow.md'], io);
 
@@ -47,7 +38,7 @@ test('Given a nonexistent manifest path, when main runs, then returns 0 and stdo
 
 test('Given no argv (default manifest path), when main runs and the default file is absent, then returns 0 and stdout contains "no manifest at"', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   // The default path ".claude/workflow.md" is resolved relative to cwd.
   // The engine/ cwd never has that file, so this is reliably absent.
@@ -61,7 +52,7 @@ test('Given no argv (default manifest path), when main runs and the default file
 
 test('Given a directory path as the manifest, when main runs, then returns 0 (directory is not a regular file)', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
 
   const result = sut([__dir], io);
 
@@ -73,7 +64,7 @@ test('Given a directory path as the manifest, when main runs, then returns 0 (di
 
 test('Given a file with no YAML frontmatter fence, when main runs, then returns 0 and stdout contains "no YAML frontmatter"', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const path = writeTmp('no-fence.md', '# Just a heading\n\nNo frontmatter here.\n');
 
   const result = sut([path], io);
@@ -87,7 +78,7 @@ test('Given a file with no YAML frontmatter fence, when main runs, then returns 
 
 test('Given a file with malformed YAML frontmatter, when main runs, then returns 2 and stderr contains "malformed YAML frontmatter"', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const path = writeTmp('malformed.md', '---\n: : :\n---\n');
 
   const result = sut([path], io);
@@ -101,7 +92,7 @@ test('Given a file with malformed YAML frontmatter, when main runs, then returns
 
 test('Given a manifest with an unknown top-level key, when main runs, then returns 2 and stderr contains INVALID and Fix the manifest', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const path = writeTmp('bogus-key.md', '---\nbogus: 1\n---\n');
 
   const result = sut([path], io);
@@ -116,7 +107,7 @@ test('Given a manifest with an unknown top-level key, when main runs, then retur
 
 test('Given a valid manifest (with-body.md, profile: lean), when main runs, then returns 0 and stdout contains "valid."', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   const manifestPath = join(manifestsDir, 'with-body.md');
 
   const result = sut([manifestPath], io);
@@ -130,7 +121,7 @@ test('Given a valid manifest (with-body.md, profile: lean), when main runs, then
 
 test('Given a manifest that references a file existing relative to repo root, when main runs with buildFileExists, then validates without error', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   // with-body.md lives at engine/test/fixtures/manifests/with-body.md.
   // Its ROOT = dirname(dirname(resolve(manifestPath))) = engine/test/fixtures/
   // Use a manifest in a temp dir that doesn't reference any paths that need
@@ -146,7 +137,7 @@ test('Given a manifest that references a file existing relative to repo root, wh
 
 test('Given a manifest referencing a nonexistent script file, when main runs, then returns 2 (fileExists check fails)', () => {
   const sut = main;
-  const io = makeIo();
+  const io = makeCaptureIo();
   // A manifest with a scripts.post-setup referencing a file that does not exist.
   const path = writeTmp('bad-script.md', '---\nscripts:\n  post-setup: no-such-script.sh\n---\n');
 
