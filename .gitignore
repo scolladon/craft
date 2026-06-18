@@ -1,0 +1,8 @@
+# The user's global gitignore excludes every `.claude/` directory. craft ships sample
+# context/override bodies under examples/.claude/workflow/ so the example manifests lint
+# as-is (the linter resolves a manifest's relative refs against examples/; ADR-063).
+# Re-include exactly that path so the committed samples reach a clone and CI's
+# examples-lint gate is reproducible — without this the samples would be silently dropped.
+!examples/.claude/
+!examples/.claude/workflow/
+!examples/.claude/workflow/*.md

@@ -39,8 +39,11 @@ the current branch), `/craft:validation` (scoped mutation run + triage), etc.
 
 No manifest = sensible defaults via capability probing (lockfile detection, test-script
 discovery, mutation-config probe, remote probe). The manifest declares only what
-probing can't infer. Schema, declination verbs (`context:` / `override:` / `skip:`),
-protected phases, and gate placeholder vocabulary: see
+probing can't infer. **Start with [docs/GUIDE-customizing.md](docs/GUIDE-customizing.md)** —
+the mental model (hexagon · ports · the invariant core you can't change) plus the full
+injection catalog (skip / model / gate / execution / profile / harness / backlog /
+context / override / swap / insert), each linked to a runnable [`examples/`](examples/)
+sample. Deeper schema, declination verbs, and protected phases: see
 [docs/DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md).
 `scripts/manifest-lint.sh` validates the manifest
 and refuses to run on unknown keys — misconfiguration fails loudly.

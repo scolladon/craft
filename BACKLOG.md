@@ -25,12 +25,13 @@
 | P9.5 | Hardening batch (parked-from-P9 + engine/tooling dogfood gaps) — `roleExists` live-probe wired + Stryker stood up (validation runs for real) + `models.fallback` (`sonnet`) & fable→opus + nested-lockfile probe + `node --test` glob+count-assert + decisions interaction prompt + brief-echo trim + review-cadence doc + `contract-assemble` parse fix + planner test-infra carve-out (item-10 forge-era aliasing DROPPED, ADR-045); ADRs 041–047 | ✅ done & green |
 | P10 | New default phases & agents — optional `requirements` (`requirements-writer`) + `architecture` harness (`architecture-triager`), both default-off, runnable-when-enabled | ✅ done & green |
 | P11 | Backlog SoT abstraction — two-source port `{ file, custom }` (`resolve`/`complete`); `file` default byte-for-byte + `custom` runtime-resolvable escape hatch (gh/jira/linear become custom recipes); manifest `backlog.{source,ref}` validated; adapter failure = blocker; ADRs 054–060 | ✅ done & green |
-| **P12–P16** | **DX docs, NFR matrix, derived-plugin/registration, second-instantiation, provider-agnostic** | ⬜ **outlined (PRD §17)** |
+| P12 | DX — single entry guide (`docs/GUIDE-customizing.md`: hexagon mental model + tiered injection catalog) + a lint-clean `examples/` sample per Tier-0/1 point + `examples-lint` anti-rot gate; Tier-2 a gated stub (after P14); ADRs 061–064 | ✅ done & green |
+| **P13–P16** | **NFR matrix, derived-plugin/registration, second-instantiation, provider-agnostic** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
 > the contract has one engine home (`contracts/` → `assembleContract`, injected on every run);
-> `scripts/ci.sh` green (448 `node --test` + 60 bats). **P3 connected the walk; P4 made the
+> `scripts/ci.sh` green (448 `node --test` + 62 bats). **P3 connected the walk; P4 made the
 > vocabulary generic; P5 made the contract engine-owned — agents are thin, a swap can't drop it.**
 
 ## Done
@@ -266,15 +267,37 @@
 - [x] **Surface:** `EXPECTED_TESTS` 423→448; CI green at every commit, never `--no-verify` (448 `node --test`
   + 60 bats). No git remote → `propose` ends at a branch (no PR URL).
 
-## Next — P12+
-- **P12 — DX** (next up): mental-model guide + injection catalog + `examples/` samples (Tier-0/1 docs now;
-  Tier-2 derived-plugin docs gated after P14) — PRD §17 P12, G10.
-- **P12–P16** (PRD §17, in order): **P12 DX** · P13 NFR hardening · P14 derived-plugin extension ·
+### P12 — DX guide + injection catalog + lintable examples (docs-only; SoT `docs/DESIGN-P12-dx.md`, ADRs 061–064; G10)
+- [x] **Decisions (ADRs 061–064):** ADR-061 one entry doc `docs/GUIDE-customizing.md` (mental model →
+  catalog → examples index → one-sitting walkthrough), not a two-doc split or a README fold (SC7 is a
+  single-sitting task); ADR-062 Tier-2 (#12) ships as a **gated stub** + #11 *insert* carries a
+  "dispatch works (P7), full inserted-phase contract execution at P14" caveat — never advertise an
+  unproven surface; ADR-063 examples made lint-clean by shipping referenced bodies under shared
+  `examples/.claude/workflow/` (resolve via the linter's `ROOT = dirname(dirname(manifest))`) + a bats
+  anti-rot gate; ADR-064 the parked-from-P8 `--harness` flag is **re-parked** (precondition unmet).
+- [x] **The guide — `docs/GUIDE-customizing.md`:** hexagon mental model (core / 6 ports / Claude Code
+  adapter, canonical ASCII diagram reused) + the §11 invariant core framed as *what you cannot inject*
+  + the tiered injection catalog (Tier 0 #1–7, Tier 1 #8–11, Tier 2 #12 stub) with a sample link per
+  point + precedence rules + a *tailor in one sitting* worked manifest (points #1/#2/#6/#8) → lint → run.
+- [x] **A sample per Tier-0/1 point:** six new lint-clean examples — `skip-phase` (#1), `model-routing`
+  (#2), `gate-command` (#3), `review-harness` (#6), `backlog-custom` (#7), `override-procedure` (#9);
+  existing dirs cover #4/#5 (`lean-profile`), #8 (`karpathy-as-context`), #10 (`role-swap`), #11
+  (`everything-claude-toolkit`). All **12** examples now pass `manifest-lint` (the two previously-red
+  `context:` examples fixed by shipping their bodies).
+- [x] **Anti-rot gate:** `test/examples-lint.bats` asserts every `examples/*/workflow.md` lints — bats,
+  so `EXPECTED_TESTS` (448 `node --test`) is unchanged; runs under the existing `bats test/` line.
+- [x] **READMEs:** `examples/README.md` → per-injection-point index + the sample-files note; root
+  `README.md` Customize section points at the guide first. **No `engine/src` change** (docs-only —
+  no TDD slices, no mutation run; validation is a no-op for markdown).
+
+## Next — P13+
+- **P13 — NFR hardening** (next up): speed + tokens + model-class matrix on the scenario set (incl. S8
+  model-class); home for the deferred **bin mutation coverage** (in-process bin harness) — PRD §17 P13, G12, SC6.
+- **P13–P16** (PRD §17, in order): **P13 NFR hardening** · P14 derived-plugin extension ·
   P15 second-instantiation · P16 provider-agnostic.
-- **Showcase / DX docs are P12 — intentionally late**, not next. The illustrated overview (intent,
-  hexagon Mermaid, a sample `.claude/workflow.md`, a sample run) documents the *full* customization
-  surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
-  P14 so the catalog never advertises an unproven surface (PRD §17 P12).
+- **Tier-2 DX docs are gated after P14** — the derived-plugin half of the injection catalog (point #12)
+  + the #11 inserted-phase contract-execution caveat are written only once P14 ships the extension
+  surface, so the catalog never advertises an unproven surface (PRD §17 P12; ADR-062).
 
 ### Parked from P10 (surfaced this run)
 - [ ] **Evaluate migrating the `bats` suite to `node --test` (JS) for portability** (user-requested;
@@ -317,10 +340,13 @@
   (finding-count vs. severity-weighted) is left to the review walk, not engine-enforced. Documented in
   `review/SKILL.md` step 4.
 - **Per-invocation `--harness` CLI flag** (override a knob without a manifest, à la `--profile`/`--skip`
-  ADR-022) → **deferred to P12 (DX)** — a per-invocation override flag is DX-surface polish; it would
-  follow the same `cli-overlay.js` pattern but writes nested `phases.<id>.harness.<knob>` (dotted-path
-  parse + type coercion, more than the flat profile/skip overlay). Best landed **after** the harness
-  knobs it overrides (`passes>1`, numeric `convergence`) are actually engine-enforced.
+  ADR-022) → **re-parked from P12 to the walk/parallelism pass (ADR-064)** — a per-invocation override
+  flag is DX-surface polish; it would follow the same `cli-overlay.js` pattern but writes nested
+  `phases.<id>.harness.<knob>` (dotted-path parse + type coercion, more than the flat profile/skip
+  overlay). Its precondition — the two knobs above (`passes>1`, numeric `convergence`) being actually
+  engine-enforced — is still unmet, so P12 (DX docs) re-parked it rather than ship a flag overriding
+  walk-judgment knobs. The guide documents the *manifest* form (point #6) + the existing
+  `--profile`/`--skip` flags; the `--harness` flag rides the same later pass that enforces the knobs.
 
 ### Parked from P7 (scoped out by ADR-025 — ride with P14 derived-plugin/registration)
 - **Inserted-phase contract injection** is not wired: `engine/bin/contract-assemble.js` keys on
