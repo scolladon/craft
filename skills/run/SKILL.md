@@ -268,6 +268,23 @@ real brief, confirm the inline phases commit artifacts in the same shape as the 
 the result in the run record under `inline-fidelity-check`. Rationale:
 `docs/DESIGN-P6-execution-topology.md`.
 
+## Model-class matrix (cross-tier) — not CI-gated
+
+On demand / when a maintainer wants the full-pipeline + output-quality matrix: run the
+full pipeline across the Claude class — opus (`claude-opus-4-8`), sonnet
+(`claude-sonnet-4-6`), haiku (`claude-haiku-4-5-20251001`) — on a representative brief,
+record a tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / slice-TDD /
+structured-review / blocker / full-pipeline-completion), and capture the per-phase
+tokens + wall-clock into the committed artifact and the run record.
+
+**Numbers are harness-sourced.** The orchestrator reads `subagent_tokens` and
+`duration_ms` from the usage block the spawn already returns — exact, zero-cost. No
+agent is asked to report its own usage.
+
+**Where results land:** fill `docs/model-class-matrix.md` (the committed, diffable
+artifact template) and append a one-line entry to the run record under
+`model-class-matrix`. Rationale: `docs/DESIGN-P13-nfr-hardening.md`.
+
 ## Review cadence — engine vs working-style
 
 The engine cadence is the single `review` phase over the whole change (per-dimension
