@@ -26,12 +26,13 @@
 | P10 | New default phases & agents — optional `requirements` (`requirements-writer`) + `architecture` harness (`architecture-triager`), both default-off, runnable-when-enabled | ✅ done & green |
 | P11 | Backlog SoT abstraction — two-source port `{ file, custom }` (`resolve`/`complete`); `file` default byte-for-byte + `custom` runtime-resolvable escape hatch (gh/jira/linear become custom recipes); manifest `backlog.{source,ref}` validated; adapter failure = blocker; ADRs 054–060 | ✅ done & green |
 | P12 | DX — single entry guide (`docs/GUIDE-customizing.md`: hexagon mental model + tiered injection catalog) + a lint-clean `examples/` sample per Tier-0/1 point + `examples-lint` anti-rot gate; Tier-2 a gated stub (after P14); ADRs 061–064 | ✅ done & green |
-| **P13–P16** | **NFR matrix, derived-plugin/registration, second-instantiation, provider-agnostic** | ⬜ **outlined (PRD §17)** |
+| P13 | NFR hardening — bin mutation coverage (4 bins → `engine/src/<bin>-main.js`, in-process units + retained child-proc smoke; mutation 85→95.40%) + model-class matrix (deterministic R10 shape-stability guard CI + live cross-tier procedure); **metrics harness-sourced, no engine telemetry**; ADRs 065–068 | ✅ done & green |
+| **P14–P16** | **derived-plugin/registration, second-instantiation, provider-agnostic** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
 > the contract has one engine home (`contracts/` → `assembleContract`, injected on every run);
-> `scripts/ci.sh` green (448 `node --test` + 62 bats). **P3 connected the walk; P4 made the
+> `scripts/ci.sh` green (528 `node --test` + 62 bats). **P3 connected the walk; P4 made the
 > vocabulary generic; P5 made the contract engine-owned — agents are thin, a swap can't drop it.**
 
 ## Done
@@ -290,9 +291,39 @@
   `README.md` Customize section points at the guide first. **No `engine/src` change** (docs-only —
   no TDD slices, no mutation run; validation is a no-op for markdown).
 
-## Next — P13+
-- **P13 — NFR hardening** (next up): speed + tokens + model-class matrix on the scenario set (incl. S8
-  model-class); home for the deferred **bin mutation coverage** (in-process bin harness) — PRD §17 P13, G12, SC6.
+### P13 — NFR hardening: bin mutation coverage + model-class matrix (slices 1–6 + review/refactor/validation; SoT `docs/{DESIGN,PLAN}-P13-nfr-hardening.md`, ADRs 065–068; G12/SC6)
+- [x] **Decisions (ADRs 065–068):** ADR-065 — NFR metrics are **harness-sourced** (the per-spawn usage
+  block the orchestrator already receives), with **no engine telemetry object, no subagent self-report,
+  no deterministic engine-speed baseline** (the design's DC-2/3/6 dropped after the user challenged the
+  premise — the pure resolution core has no tokens/time to model, and the harness already surfaces exact
+  per-phase usage); ADR-066 — bin mutation coverage via **extract-to-`engine/src/<bin>-main.js`**
+  (`main(argv, io)` returns the exit code; bin shrinks to a thin entrypoint guard; the
+  `mutate: ["engine/src/**"]` glob is unchanged so the extracted modules are auto-covered); ADR-067 —
+  in-process units **alongside** retained child-process smoke; ADR-068 — model-class matrix = deterministic
+  R10 shape-stability guard (CI) + a live cross-tier procedure (on-demand, not CI-gated, records harness usage).
+- [x] **Bin mutation coverage:** 4 bins extracted to `engine/src/*-main.js` (`pipeline-resolve`,
+  `contract-assemble`, `manifest-lint`, `normalize-findings`); bins are 5-line guards; `normalize-findings`
+  stdin injected via `io.readStdin` (no raw fd-0 read in src). `pipeline-lint`/`contracts-lint` **skipped**
+  (thin pass-throughs, already smoke-covered — follow-up below). New `manifest-lint.bin.test.js` smoke.
+- [x] **Model-class matrix:** `engine/test/model-class-shape.test.js` asserts the assembled contract block is
+  model-independent (byte-identical across the 3 pins, no pin string leaks) and `normalizeFindings` is
+  shape-stable (JSON vs per-line deep-equal) — the R10 discharge. Live procedure + `docs/model-class-matrix.md`
+  template added to `skills/run/SKILL.md` as a sibling of the inline-fidelity check (not CI-gated).
+- [x] **Review (4 dims, low-only):** code/security/perf converged clean (security: traversal guard +
+  `REPO_ROOT` intact post-move; perf: barrel→direct import a slight load win); tests R1 flagged 2 MEDIUM
+  (uncovered bin error-path glue) → session fix `test(engine): cover bin error-path glue` → R2 converged.
+- [x] **Refactoring:** extracted shared `makeCaptureIo()` test helper (`engine/test-helpers/capture-io.js`),
+  4 test files DRY'd (behavior-preserving). `takeValue`/parseArgs + bin-guard duplication deliberately NOT
+  extracted (variants legitimately differ — `-` vs `--`; idiomatic entrypoint guard).
+- [x] **Validation (Stryker per-hunk over the 4 new modules):** 85.06% → **95.40%** (triage
+  `test(mutation): bin-main glue` killed 22 mutants with 21 tests; **12 documented provably-equivalent** —
+  6 unreachable catch-blocks over fixed in-repo files, 3 `utf8`/`""` encoding-identical, an off-by-one with
+  no `else`, `agent`/`""` binary-inline, falsy-`catch`, empty-skip no-op); session's authoritative re-run:
+  surviving == the 12 equivalents exactly. `normalize-findings-main.js` 100%.
+- [x] **Surface:** `EXPECTED_TESTS` 448→**528**; CI green at every commit, never `--no-verify`. No git remote
+  → `propose` ends at a branch (no PR URL).
+
+## Next — P13.5 / P14+
 - **P13.5 — ban-enforcement boundary** (interstitial, user-raised; **NOT** a PRD §17 phase — §17 numbering
   unchanged, like P8.5/P9.5): revisit *every* mechanically- or contract-enforced "ban" and split
   **engine-invariant** from **adapter-mechanism**. **Position to discuss (user, IMHO):** the framework should
@@ -313,8 +344,13 @@
   - **Touches:** PRD §11 (invariant core) + §2.1 (ports/adapters), `hooks/`, `contracts/core.md`, the
     injection catalog (`docs/GUIDE-customizing.md`). Sequencing TBD in the discussion (near the
     adapter-boundary work P16, or the DX/injection surface).
-- **P13–P16** (PRD §17, in order): **P13 NFR hardening** · P14 derived-plugin extension ·
-  P15 second-instantiation · P16 provider-agnostic.
+- **P14–P16** (PRD §17, in order): **P14 derived-plugin extension** · P15 second-instantiation ·
+  P16 provider-agnostic. (P13 NFR hardening ✅ done — see the Done section above.)
+- **Follow-up from P13 (ADR-066 per-bin scope):** convert the remaining two bins
+  `engine/bin/{pipeline-lint,contracts-lint}.js` to the extract-to-`engine/src/<bin>-main.js` pattern for
+  mutation coverage — P13 skipped them as thin pass-throughs (already smoke-covered by `ci.sh`), but their
+  residual glue (`contracts-lint`'s failure-collection loop especially) is `[NoCoverage]` like the others
+  were. Low priority; do when their mutation coverage matters.
 - **Tier-2 DX docs are gated after P14** — the derived-plugin half of the injection catalog (point #12)
   + the #11 inserted-phase contract-execution caveat are written only once P14 ships the extension
   surface, so the catalog never advertises an unproven surface (PRD §17 P12; ADR-062).
