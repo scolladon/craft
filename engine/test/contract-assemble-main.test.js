@@ -1,11 +1,14 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { main } from '../src/contract-assemble-main.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const manifestsDir = join(__dir, 'fixtures', 'manifests');
+const contractsDir = join(__dir, '..', '..', 'contracts');
 
 function makeIo() {
   const io = {
@@ -16,6 +19,14 @@ function makeIo() {
   io.stderr.joined = () => io.stderr.writes.join('');
   return io;
 }
+
+const tmpDirs = [];
+function makeTmpDir() {
+  const dir = mkdtempSync(join(tmpdir(), 'craft-ca-'));
+  tmpDirs.push(dir);
+  return dir;
+}
+after(() => { for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true }); });
 
 // ─── agent mode: core markers present ────────────────────────────────────────
 
@@ -217,4 +228,43 @@ test('Given --descriptor-id review, when main runs, then stdout contains harness
   assert.ok(io.stdout.joined().includes('Read-only'), 'harness-read marker "Read-only" must be present');
   assert.ok(io.stdout.joined().includes('findings'), 'harness-read marker "findings" must be present');
   assert.ok(io.stdout.joined().includes('Zero findings'), 'harness-read marker "Zero findings" must be present');
+});
+
+// ─── --contracts-dir positive branch: explicit real dir resolves ─────────────
+
+test('Given --contracts-dir pointing at the real contracts dir, when main runs, then it exits 0 with core markers', () => {
+  const sut = main;
+  const io = makeIo();
+
+  const result = sut(['--descriptor-id', 'design', '--contracts-dir', contractsDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().toLowerCase().includes('never commit on a red gate'), 'core marker must be present');
+});
+
+// ─── --contracts-dir missing a fragment: loadFragments failure catch ─────────
+
+test('Given --contracts-dir pointing at a dir missing fragments, when main runs, then it returns 2 and reports a fragment load failure', () => {
+  const sut = main;
+  const io = makeIo();
+  const emptyDir = makeTmpDir();
+
+  const result = sut(['--descriptor-id', 'design', '--contracts-dir', emptyDir], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /failed to load contract fragments/);
+});
+
+// ─── malformed --manifest: manifest parse-failure catch ──────────────────────
+
+test('Given a malformed --manifest, when main runs, then it returns 2 and reports a manifest parse failure', () => {
+  const sut = main;
+  const io = makeIo();
+  const badManifest = join(makeTmpDir(), 'bad.md');
+  writeFileSync(badManifest, '---\nkey:\n\tbroken\n---\nbody\n');
+
+  const result = sut(['--descriptor-id', 'design', '--manifest', badManifest], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /failed to parse manifest/);
 });

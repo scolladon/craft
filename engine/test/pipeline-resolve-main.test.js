@@ -1,7 +1,9 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
+import { tmpdir } from 'node:os';
 import { main } from '../src/pipeline-resolve-main.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
@@ -17,6 +19,16 @@ function makeIo() {
   io.stderr.joined = () => io.stderr.writes.join('');
   return io;
 }
+
+const tmpDirs = [];
+function writeTmp(name, content) {
+  const dir = mkdtempSync(join(tmpdir(), 'craft-pr-'));
+  tmpDirs.push(dir);
+  const filePath = join(dir, name);
+  writeFileSync(filePath, content);
+  return filePath;
+}
+after(() => { for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true }); });
 
 // ─── --profile lean: construction agent, specification inline ─────────────────
 
@@ -227,4 +239,30 @@ test('Given --profile followed by --skip (flag as value), when main runs, then i
 
   assert.equal(result, 2);
   assert.match(io.stderr.joined(), /option --profile requires a non-flag value/);
+});
+
+// ─── malformed pipeline file: parse-failure catch ────────────────────────────
+
+test('Given a malformed pipeline file, when main runs, then it returns 2 and reports a pipeline parse failure', () => {
+  const sut = main;
+  const io = makeIo();
+  const badPipeline = writeTmp('bad-pipeline.yml', 'phases:\n\t- broken\n');
+
+  const result = sut([badPipeline], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /failed to parse pipeline/);
+});
+
+// ─── valid pipeline + malformed manifest: manifest parse-failure catch ────────
+
+test('Given a valid pipeline and a malformed manifest, when main runs, then it returns 2 and reports a manifest parse failure', () => {
+  const sut = main;
+  const io = makeIo();
+  const badManifest = writeTmp('bad-manifest.md', '---\nkey:\n\tbroken\n---\nbody\n');
+
+  const result = sut([pipelinePath, badManifest], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /failed to parse manifest/);
 });
