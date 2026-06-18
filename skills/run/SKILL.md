@@ -37,8 +37,9 @@ Input: `$ARGUMENTS`
     `--profile`/`--skip` flags are appended only when parsed in step 0a (the bin folds
     them over the manifest at highest precedence — a bad `--profile` value exits non-zero;
     stderr names the supported profiles).
-    - On non-zero exit: STOP; surface stderr to the user; refuse to proceed.
-    - On `ok: false` in the JSON: STOP; surface all `errors[]` entries; refuse.
+    - On non-zero exit (this includes resolver `ok: false` — a rejected `role:` or a
+      stranded consumer — whose `errors[]` are written to stderr, never as stdout JSON):
+      STOP; surface stderr to the user; refuse to proceed.
     - If `effective[]` is empty: STOP; surface "no enabled phases in resolution".
     Parse the JSON as `Resolution`.
 
@@ -95,10 +96,10 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    core. A swapped default-phase `procedure:` is dispatched **verbatim** exactly like an inserted
    one (above); a procedure that resolves to no installed skill STOPs via the same "resolves to no
    installed skill" guard. A swapped `role:` the resolver's `roleExists` probe rejects makes
-   `pipeline-resolve` return `ok: false` at §0 — the role case of the existing `ok: false`
-   error-path row — before the walk dispatches anything, uniformly for agent and inline (the
-   engine guard ships now; the resolver wiring that supplies a live install-probe follows in a
-   later phase, so today the seam no-ops to permissive). **Inserted-phase contract injection is not yet wired:** `contract-assemble`
+   `pipeline-resolve` exit non-zero at §0 (resolver `ok: false`) — the role case of the existing
+   non-zero-exit error-path row — before the walk dispatches anything, uniformly for agent and
+   inline. The bin wires a live install-probe for craft-native `craft:<role>` refs (a typo'd role
+   fails closed); external `my:`/`acme:` refs stay permissive pending P14 registration. **Inserted-phase contract injection is not yet wired:** `contract-assemble`
    (step 3) keys on `pipeline/default.yml`, so a novel inserted `id` STOPs there with
    "unknown descriptor-id". P7 lands inserted-phase *dispatch* (above) and resolution-layer
    insert (S3/SC3); full inserted-phase *execution* — teaching `contract-assemble` the resolved
@@ -183,8 +184,7 @@ bring their own `procedure`, dispatched verbatim (step 1).
 
 | Condition | Behavior |
 |---|---|
-| `ok: false` from `pipeline-resolve` (incl. a swapped `role:` the resolver's `roleExists` probe rejects, or a stranded consumer) | Stop; surface all `errors[]`; refuse to proceed |
-| Non-zero exit from `pipeline-resolve` | Stop; surface stderr; refuse to proceed |
+| Non-zero exit from `pipeline-resolve` (incl. resolver `ok: false` — a swapped `role:` the `roleExists` probe rejects, or a stranded consumer — whose `errors[]` are written to stderr, never stdout JSON) | Stop; surface stderr; refuse to proceed |
 | `effective[]` is empty | Stop; surface "no enabled phases in resolution" |
 | A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for a craft-native procedure, e.g. an enabled requirements/architecture pre-P10; no installed plugin for a namespaced one; **incl. a swapped default-phase `procedure:`**) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
