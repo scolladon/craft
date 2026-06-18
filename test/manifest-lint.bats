@@ -135,3 +135,52 @@ FIXTURES="${BATS_TEST_DIRNAME}/fixtures/manifest"
   [[ "$output" == *"mutation-triager"* ]]
   [[ "$output" == *"validation-triager"* ]]
 }
+
+# --- backlog source/shape validation ---
+
+@test "Given a manifest with backlog { source: file, ref: existing }, when lint runs, then it exits 0 and reports valid" {
+  run_lint "${FIXTURES}/valid-backlog-file.workflow.md"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"valid."* ]]
+}
+
+@test "Given a manifest with backlog { source: custom, ref: non-path-checked }, when lint runs, then it exits 0 and reports valid" {
+  run_lint "${FIXTURES}/valid-backlog-custom.workflow.md"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"valid."* ]]
+}
+
+@test "Given a manifest with backlog as a bare string, when lint runs, then it exits 2 and reports must be an object" {
+  run_lint "${FIXTURES}/invalid-backlog-string.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"must be an object"* ]]
+}
+
+@test "Given a manifest with backlog { source: file, ref: missing-file }, when lint runs, then it exits 2 and reports references missing file" {
+  run_lint "${FIXTURES}/invalid-backlog-file-bad-ref.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"references missing file"* ]]
+}
+
+@test "Given a manifest with backlog { source: custom } and no ref, when lint runs, then it exits 2 and reports ref is required" {
+  run_lint "${FIXTURES}/invalid-backlog-custom-no-ref.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"ref is required"* ]]
+}
+
+@test "Given a manifest with backlog { source: bogus }, when lint runs, then it exits 2 and reports unknown backlog source" {
+  run_lint "${FIXTURES}/invalid-backlog-unknown-source.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"unknown backlog source"* ]]
+}
+
+@test "Given a manifest with backlog { source: linear }, when lint runs, then it exits 2 and reports use source: custom" {
+  run_lint "${FIXTURES}/invalid-backlog-linear.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"use source: custom"* ]]
+}

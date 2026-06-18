@@ -51,6 +51,9 @@ const PIPELINE_KEYS = Object.freeze(new Set(['profile', 'skip', 'insert', 'reord
 /** Accepted string values for a harness `convergence` knob (ADR-030). */
 const CONVERGENCE_STRINGS = Object.freeze(new Set(['low-only', 'none']));
 
+/** Valid source identifiers for the `backlog` key. */
+const BACKLOG_SOURCES = Object.freeze(new Set(['file', 'custom']));
+
 /**
  * Sentinel values that indicate an absent path (no file-existence check needed).
  * @param {unknown} value
@@ -147,6 +150,52 @@ function validateScripts(scripts, fileExists, errors) {
       errors.push(`unknown scripts field: ${key}`);
     }
     checkFileRef(`scripts.${key}`, value, fileExists, errors);
+  }
+}
+
+/** Non-built-in tracker values that get a targeted hint instead of the generic error. */
+const NON_BUILTIN_TRACKERS = Object.freeze(new Set(['github-issues', 'jira', 'linear']));
+
+/**
+ * Validate the `backlog` sub-object.
+ * @param {unknown} backlog
+ * @param {(path: string) => boolean} fileExists
+ * @param {string[]} errors
+ */
+function validateBacklog(backlog, fileExists, errors) {
+  if (typeof backlog !== 'object' || backlog === null || Array.isArray(backlog)) {
+    errors.push('backlog must be an object { source, ref }');
+    return;
+  }
+
+  for (const k of Object.keys(backlog)) {
+    if (k !== 'source' && k !== 'ref') {
+      errors.push(`unknown backlog field: ${k}`);
+    }
+  }
+
+  const { source, ref } = backlog;
+
+  if (source === undefined) {
+    errors.push('backlog must declare a source (one of file, custom)');
+    return;
+  }
+
+  if (!BACKLOG_SOURCES.has(source)) {
+    if (NON_BUILTIN_TRACKERS.has(source)) {
+      errors.push(`backlog source '${source}' is not built-in — use source: custom with a ref to a resolver script`);
+    } else {
+      errors.push(`unknown backlog source: ${source} (expected one of file, custom)`);
+    }
+    return;
+  }
+
+  if (source === 'file') {
+    checkFileRef('backlog.ref', ref, fileExists, errors);
+  } else if (source === 'custom') {
+    if (typeof ref !== 'string' || ref.trim() === '') {
+      errors.push('backlog.ref is required for source custom');
+    }
   }
 }
 
@@ -334,7 +383,10 @@ export function validateManifest(manifest, opts) {
       case 'phases':
         validatePhases(value, fileExists, errors);
         break;
-      // backlog, paths, retrieval, execution: recognized; no sub-validation
+      case 'backlog':
+        validateBacklog(value, fileExists, errors);
+        break;
+      // paths, retrieval, execution: recognized; no sub-validation
     }
   }
 

@@ -65,7 +65,14 @@ Input: `$ARGUMENTS`
 2. Classify the input (the non-flag remainder from step 0a): **backlog id** (matches the
    repo's backlog convention — only if the manifest declares `backlog:`; look the entry
    up there) | **file path** (read it) | **free-text brief** (use verbatim). Empty or
-   ambiguous → STOP and ask.
+   ambiguous → STOP and ask. For the per-source `resolve` mechanism see
+   `docs/adapters/backlog.md`: for `source: file`, classify by the repo's backlog
+   convention (prose-judgment) and resolve by reading the entry; for `source: custom`,
+   the script owns the id-form and resolve runs `ref` with argv `["resolve", id]` —
+   `id` is untrusted, passed as a discrete argument (never spliced into a shell string)
+   and validated against the source's id-form before invoking (see the spec's safe-invocation
+   note). Id-not-found, an id failing the id-form, or an unreachable `custom` source is a
+   **runtime blocker** (never a guessed brief).
 3. Derive a kebab-case topic slug (≤6 words). Print:
    `Resolved → topic: <slug>, brief: <one line>` for user confirmation.
 4. Open the **run record** (in-session ledger): seeded from `Resolution.record[]`

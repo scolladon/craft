@@ -50,7 +50,7 @@ test('Given a manifest with an unknown top-level key, when validateManifest runs
 test('Given a manifest with all known top-level keys, when validateManifest runs, then it returns ok', () => {
   const sut = validateManifest;
   const manifest = {
-    backlog: 'my-backlog',
+    backlog: { source: 'file', ref: null },
     paths: { repo: '.' },
     context: null,
     gates: {},
@@ -1122,4 +1122,224 @@ test('Given phases.review.model: "sonnet" (valid string), when validateManifest 
   );
 
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── backlog source/shape validation ─────────────────────────────────────────
+
+test('Given backlog { source: file, ref: existing } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'file', ref: 'some/file.md' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given backlog { source: custom, ref: non-empty } when validateManifest runs with NEVER_EXISTS, then ok:true and no "references missing file" error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'custom', ref: './scripts/backlog.sh' } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given backlog as a bare string when validateManifest runs, then error contains "backlog must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: 'my-backlog' },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('backlog must be an object')));
+});
+
+test('Given backlog as an array when validateManifest runs, then error contains "backlog must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: ['file', 'custom'] },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('backlog must be an object')));
+});
+
+test('Given backlog { source: bogus, ref: x } when validateManifest runs, then error contains "unknown backlog source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'bogus', ref: 'x' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown backlog source')));
+});
+
+test('Given backlog { source: linear, ref: x } when validateManifest runs, then error contains "use source: custom" and does not contain "unknown backlog source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'linear', ref: 'x' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes("'linear'") && e.includes('use source: custom')));
+  assert.ok(!result.errors.some(e => e.includes('unknown backlog source')));
+});
+
+test('Given backlog { source: github-issues, ref: x } when validateManifest runs, then error contains "use source: custom" and does not contain "unknown backlog source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'github-issues', ref: 'x' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('use source: custom')));
+  assert.ok(!result.errors.some(e => e.includes('unknown backlog source')));
+});
+
+test('Given backlog { source: jira, ref: x } when validateManifest runs, then error contains "use source: custom" and does not contain "unknown backlog source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'jira', ref: 'x' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('use source: custom')));
+  assert.ok(!result.errors.some(e => e.includes('unknown backlog source')));
+});
+
+test('Given backlog { source: file, ref: missing } when validateManifest runs with NEVER_EXISTS, then error contains "references missing file"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'file', ref: 'manifest/stubs/nope.md' } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('references missing file')));
+  assert.ok(result.errors.some(e => e.includes('backlog.ref')));
+});
+
+test('Given backlog null when validateManifest runs, then ok is false and error contains "backlog must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: null },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('backlog must be an object')));
+});
+
+test('Given backlog { source: custom } with no ref when validateManifest runs, then error contains "ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'custom' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('ref is required')));
+});
+
+test('Given backlog with an unknown sub-key when validateManifest runs, then error contains "unknown backlog field"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'file', ref: 'manifest/stubs/a.md', bogus: 1 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown backlog field')));
+});
+
+test('Given backlog { source: bogus } when validateManifest runs, then errors has length exactly 1', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'bogus' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.equal(result.errors.length, 1);
+});
+
+test('Given backlog { ref } with no source when validateManifest runs, then error contains "must declare a source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { ref: 'manifest/stubs/a.md' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('must declare a source')));
+});
+
+test('Given backlog { source: custom, ref: null } when validateManifest runs, then error contains "ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'custom', ref: null } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('ref is required')));
+});
+
+test('Given backlog { source: custom, ref: empty string } when validateManifest runs, then error contains "ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'custom', ref: '' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('ref is required')));
+});
+
+test('Given backlog { source: custom, ref: whitespace } when validateManifest runs, then error contains "ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'custom', ref: '   ' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('ref is required')));
+});
+
+test('Given backlog { source: custom, ref: non-string } when validateManifest runs, then error contains "ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { backlog: { source: 'custom', ref: 42 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('ref is required')));
 });

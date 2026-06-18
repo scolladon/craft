@@ -467,6 +467,99 @@ test('Given no manifest, when resolvePipeline is called, then record notes defau
   );
 });
 
+// ─── backlog record line names the active source ───────────────────────────────
+
+test('Given backlog { source: custom, ref: ./x.sh }, when resolvePipeline runs, then record has a line naming "custom" and the ref', () => {
+  const sut = loadDefault();
+  const manifest = { backlog: { source: 'custom', ref: './x.sh' } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    result.record.some(r => r.includes('custom') && r.includes('./x.sh')),
+    `Expected a record line with "custom" and "./x.sh", got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given backlog { source: custom } with no ref, when resolvePipeline runs, then the custom record line renders a placeholder, not "undefined"', () => {
+  const sut = loadDefault();
+  const manifest = { backlog: { source: 'custom' } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const backlogLine = result.record.find(r => /backlog/i.test(r));
+  assert.ok(backlogLine, `Expected a backlog record line, got: ${JSON.stringify(result.record)}`);
+  assert.ok(backlogLine.includes('custom'), `Expected the line to name "custom", got: ${backlogLine}`);
+  assert.ok(backlogLine.includes('(ref: <unspecified>)'), `Expected the placeholder token, got: ${backlogLine}`);
+  assert.ok(!backlogLine.includes('undefined'), `Expected no literal "undefined" in the line, got: ${backlogLine}`);
+});
+
+test('Given backlog { source: file, ref: BACKLOG.md }, when resolvePipeline runs, then record has a line naming "file" and still matches /backlog/i', () => {
+  const sut = loadDefault();
+  const manifest = { backlog: { source: 'file', ref: 'BACKLOG.md' } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const backlogLine = result.record.find(r => /backlog/i.test(r));
+  assert.ok(backlogLine, `Expected a backlog record line, got: ${JSON.stringify(result.record)}`);
+  assert.ok(/source "file"/.test(backlogLine), `Expected the backlog line to name source "file", got: ${backlogLine}`);
+  assert.ok(backlogLine.includes('BACKLOG.md'), `Expected the backlog line to include the ref value "BACKLOG.md", got: ${backlogLine}`);
+});
+
+test('Given backlog { source: file } with no ref, when resolvePipeline runs, then record line includes "<default path>"', () => {
+  const sut = loadDefault();
+  const manifest = { backlog: { source: 'file' } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const backlogLine = result.record.find(r => /backlog/i.test(r));
+  assert.ok(backlogLine, `Expected a backlog record line, got: ${JSON.stringify(result.record)}`);
+  assert.ok(/source "file"/.test(backlogLine), `Expected the line to name source "file", got: ${backlogLine}`);
+  assert.ok(backlogLine.includes('<default path>'), `Expected the placeholder "<default path>", got: ${backlogLine}`);
+});
+
+test('Given backlog null, when resolvePipeline runs, then result is ok and no backlog source line is emitted', () => {
+  const sut = loadDefault();
+
+  const result = resolvePipeline(sut, { backlog: null });
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /source "(file|custom)"/.test(r)),
+    `Expected no source-named backlog line for a null backlog, got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given backlog as a bare string, when resolvePipeline runs, then it does not throw and emits no backlog source line', () => {
+  const sut = loadDefault();
+  const manifest = { backlog: 'PROJ-42' };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /source "(file|custom)"/.test(r)),
+    `Expected no source-named backlog line for a bare-string backlog, got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given no backlog key, when resolvePipeline runs, then record has no backlog source line', () => {
+  const sut = loadDefault();
+  const manifest = {};
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /source "(file|custom)"/.test(r)),
+    `Expected no source-named backlog line when backlog is absent, got: ${JSON.stringify(result.record)}`,
+  );
+});
+
 // ─── forward shape: gateDecisions + waivers present as empty arrays ───────────
 
 test('Given any manifest, when resolvePipeline is called, then result includes gateDecisions and waivers as empty arrays', () => {

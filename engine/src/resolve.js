@@ -114,6 +114,20 @@ function resolveExecution(descriptors, phaseOverrides, profile, topLevelDefault,
 // ─── manifest-level record entries ───────────────────────────────────────────
 
 /**
+ * Returns the backlog source string when backlog is a valid object with a source,
+ * else null. Pure; no I/O; never throws.
+ *
+ * @param {unknown} backlog
+ * @returns {string|null}
+ */
+function backlogSourceOf(backlog) {
+  if (backlog === null || typeof backlog !== 'object' || Array.isArray(backlog)) return null;
+  const source = backlog.source;
+  if (typeof source !== 'string' || !source) return null;
+  return source;
+}
+
+/**
  * Build manifest-level record entries for top-level manifest keys that influence
  * the pipeline resolution but are not phase-level edits.
  *
@@ -124,9 +138,16 @@ function buildManifestRecords(manifest) {
   const records = [];
   if (!manifest) return records;
 
-  if (typeof manifest.backlog === 'string' && manifest.backlog) {
+  const source = backlogSourceOf(manifest.backlog);
+  if (source === 'file') {
+    const ref = manifest.backlog.ref ?? '<default path>';
     records.push(
-      `backlog: "${manifest.backlog}" declared — Backlog.resolve required at input-classify.`,
+      `backlog: source "file" (ref: ${ref}) — Backlog.resolve required at input-classify.`,
+    );
+  } else if (source === 'custom') {
+    const ref = manifest.backlog.ref ?? '<unspecified>';
+    records.push(
+      `backlog: source "custom" (ref: ${ref}) — Backlog.resolve required at input-classify.`,
     );
   }
 

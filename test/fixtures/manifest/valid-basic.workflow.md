@@ -1,5 +1,5 @@
 ---
-backlog: my-backlog
+backlog: { source: file, ref: manifest/stubs/a.md }
 paths: { repo: https://example.com }
 context: ~
 gates:

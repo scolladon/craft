@@ -24,12 +24,13 @@
 | P9 | Agent/skill swap via manifest — `role:` + new default-phase `procedure:` override + engine `roleExists` guard (seam); S2 hardened walk-level | ✅ done & green |
 | P9.5 | Hardening batch (parked-from-P9 + engine/tooling dogfood gaps) — `roleExists` live-probe wired + Stryker stood up (validation runs for real) + `models.fallback` (`sonnet`) & fable→opus + nested-lockfile probe + `node --test` glob+count-assert + decisions interaction prompt + brief-echo trim + review-cadence doc + `contract-assemble` parse fix + planner test-infra carve-out (item-10 forge-era aliasing DROPPED, ADR-045); ADRs 041–047 | ✅ done & green |
 | P10 | New default phases & agents — optional `requirements` (`requirements-writer`) + `architecture` harness (`architecture-triager`), both default-off, runnable-when-enabled | ✅ done & green |
-| **P11–P16** | **NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
+| P11 | Backlog SoT abstraction — two-source port `{ file, custom }` (`resolve`/`complete`); `file` default byte-for-byte + `custom` runtime-resolvable escape hatch (gh/jira/linear become custom recipes); manifest `backlog.{source,ref}` validated; adapter failure = blocker; ADRs 054–060 | ✅ done & green |
+| **P12–P16** | **DX docs, NFR matrix, derived-plugin/registration, second-instantiation, provider-agnostic** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
 > the contract has one engine home (`contracts/` → `assembleContract`, injected on every run);
-> `scripts/ci.sh` green (276 `node --test` + 42 bats). **P3 connected the walk; P4 made the
+> `scripts/ci.sh` green (448 `node --test` + 60 bats). **P3 connected the walk; P4 made the
 > vocabulary generic; P5 made the contract engine-owned — agents are thin, a swap can't drop it.**
 
 ## Done
@@ -230,10 +231,46 @@
   descriptors already present, `enabled: false`); S4/S5 resolver goldens green; both phases remain default-off;
   CI green at every commit, never `--no-verify` (423 `node --test` + 53 bats).
 
-## Next — P11+
-- **P11 — backlog SoT adapter**: adapter iface; file default; gh/jira/linear (PRD §17 P11; S6 green). Next up.
-- **P11–P16** (PRD §17, in order): P11 backlog SoT adapter · **P12 DX** · P13 NFR
-  hardening · P14 derived-plugin extension · P15 second-instantiation · P16 provider-agnostic.
+### P11 — backlog SoT adapter (slices 1–3 + review/validation fixes; SoT `docs/{DESIGN,PLAN}-P11-backlog-port.md`, `docs/adapters/backlog.md`, ADRs 054–060; built dogfood via `/craft:run`)
+- [x] **Decisions (ADRs 054–060; 2 of 7 diverged from the design rec):** ADR-054 `backlog` MUST be an
+  object `{ source, ref }` — a bare string is **hard-rejected** (⚑ user overrode the migrate-with-record
+  rec; the 3 string-form fixtures migrated); **ADR-055 ⚑ user reframed the source set to exactly
+  `{ file, custom }`** — `file` built-in + `custom` runtime-resolvable escape hatch; github-issues/jira/linear
+  are rejected source values that survive as documented `custom` recipes (the framework guarantees the seam,
+  not the tracker's uptime); ADR-056 adapter procedures live in one `docs/adapters/backlog.md` spec
+  referenced from the skills; ADR-057 failure-is-a-blocker relies on the injected `contracts/core.md` blocker
+  protocol (no duplicated clause); ADR-058 failures split — config → engine non-zero exit, runtime → session
+  blocker; ADR-059 `custom` `complete` guard = non-zero exit ⇒ blocker + script-documented idempotency;
+  ADR-060 `file` id-form stays orchestrator prose-judgment (no engine regex / no `id-pattern` knob).
+  Scope-fold design revision committed before planning.
+- [x] **s1 — `validateBacklog` (engine/src/manifest.js, scored):** object-shape guard + `BACKLOG_SOURCES =
+  { file, custom }` + non-built-in-tracker "use source: custom" hint + `file.ref` via `checkFileRef` /
+  `custom.ref` non-empty-string-only; `case 'backlog':` wired; 2 migration sites + 7 bats fixtures.
+- [x] **s2 — record line names the source (engine/src/resolve.js, scored):** `backlogSourceOf` +
+  `buildManifestRecords` rewrite naming `file|custom`; S6 fixture migrated to object form + assertion
+  strengthened to source-naming.
+- [x] **s3 — adapter spec + skill wiring (docs-only):** `docs/adapters/backlog.md` (port iface, file +
+  custom procedures, gh/jira custom recipes, safe-invocation guidance) + `skills/run` & `skills/documentation`
+  step-2 source-dispatch.
+- [x] **4-dim review → converged:** code 2 LOW; **security 2 HIGH** (adapter prose modeled command injection
+  by example — reframed to argv-array invocation + an enforced id-form allowlist; the HIGH fix diff was shown
+  to and approved by the user) + 2 MED + 1 LOW; tests 2 MED (+1 MED in fix-delta: a surviving placeholder
+  mutant); perf 0. Every finding applied by the session; fix-delta re-review converged.
+- [x] **Validation (Stryker per-hunk):** triage (`test(mutation): backlog-port`) killed 5 surviving mutants
+  (3 new + 2 strengthened tests) and documented 4 provably-equivalent (the redundant `=== 'custom'` after the
+  membership gate + the `backlogSourceOf` defensive guard whose return is unobservable to its sole consumer);
+  re-run **96.19%**, survivors == the 4 documented equivalents exactly.
+- [x] **Refactoring:** NO-OP (justified) — considered a shared `isPlainObject` guard (radiates across 5
+  unrelated validators), a record-branch merge (distinct placeholder semantics), cross-module source-set
+  sharing (engine-purity boundary); nothing cleared the bar.
+- [x] **Surface:** `EXPECTED_TESTS` 423→448; CI green at every commit, never `--no-verify` (448 `node --test`
+  + 60 bats). No git remote → `propose` ends at a branch (no PR URL).
+
+## Next — P12+
+- **P12 — DX** (next up): mental-model guide + injection catalog + `examples/` samples (Tier-0/1 docs now;
+  Tier-2 derived-plugin docs gated after P14) — PRD §17 P12, G10.
+- **P12–P16** (PRD §17, in order): **P12 DX** · P13 NFR hardening · P14 derived-plugin extension ·
+  P15 second-instantiation · P16 provider-agnostic.
 - **Showcase / DX docs are P12 — intentionally late**, not next. The illustrated overview (intent,
   hexagon Mermaid, a sample `.claude/workflow.md`, a sample run) documents the *full* customization
   surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
@@ -307,7 +344,18 @@
   realpath the `WT≠MAIN` guard (rides with the VCS-adapter phase).
 - [ ] `backlog-lint` / `design-lint` structure lints — the optional half of ADR-014 (the
   `templates/backlog.md` template shipped at P4; the enforcing script + bats fixtures stayed
-  deferred). Rides with the backlog-port phase (P6/P11).
+  deferred). P11 landed the manifest-lint `backlog.{source,ref}` shape fixtures but NOT the
+  backlog-*entry*-structure lint — that template-structure lint stays deferred (own concern).
+
+### Parked from P11 (backlog SoT adapter — design out-of-scope, ADRs 055/058/060)
+- [ ] **A built-in per-tracker adapter** (vs a repo `custom` script) — e.g. a first-class `github-issues`
+  source — rides with the **P14** derived-plugin/registration surface (a derived plugin shipping a backlog
+  adapter), not the repo-`custom`-script escape hatch P11 ships.
+- [ ] **Live `gh`/`jira` round-trip E2E** for the custom recipes — not run in CI (a real `gh issue close` /
+  Jira transition mutates a tracker and needs credentials CI lacks); the recipes are pinned empirically
+  (read-only probes) + prose. A gated/opt-in integration test is the home if ever wanted.
+- [ ] **`backlog.id-pattern` manifest knob** (machine-enforced `file` id-form) — the pre-analysed deferred
+  upgrade path (ADR-060); `file` id-form stays orchestrator prose-judgment until a repo needs it.
 
 ### Engine/tooling hardening — ✅ DONE (P9.5 hardening batch; surfaced during the P9 dogfood)
 - [x] **Agent model pins + declared fallback.** The fable pins on `craft:designer`/`planner`/`reviewer`

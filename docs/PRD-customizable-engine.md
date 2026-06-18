@@ -160,7 +160,7 @@ The full injection catalog (§7) lists every point with pros/cons and a repo sam
 | Deep customizer | Swap the planner; add a `bench` phase | **S2/S3** agent swap + `insert` |
 | Spec-driven team | Start from a PRD; capture requirements first | **S4** optional `requirements` phase on |
 | Architecture-led team | Enforce layering/dependency rules as a gate | **S5** architecture harness on |
-| Issue-tracker shop | Backlog lives in Jira/GitHub Issues | **S6** backlog SoT adapter |
+| Issue-tracker shop | Backlog lives in Jira/GitHub Issues | **S6** backlog SoT adapter (via a `custom` adapter) |
 | Framework builder | Ship a local plugin built on craft | **S7** derived-plugin extension |
 | Multi-model shop | Run reliably across a model class / on a budget model | **S8** model-resistance + fallback |
 | Tooling-opinionated dev | Agents must read code via my LSP/RAG/RTK/Serena setup, not craft's | **S9** derived retrieval strategy |
@@ -235,7 +235,7 @@ ships a sample manifest in `examples/` (G10).
 | 4 | **execution** inline/agent | speed/token control | inline loses isolation | `phases: { documentation: { execution: inline } }` |
 | 5 | **profile** | whole-flow mode in one word | coarse | `pipeline: { profile: solo }` |
 | 6 | **harness config** | tune rigor per concern | mis-tuning over/under-verifies | `phases: { review: { harness: { max_cycles: 2 } } }` |
-| 7 | **backlog source** | use your tracker | adapter must exist | `backlog: { source: github-issues }` |
+| 7 | **backlog source** | use your tracker | custom ref resolvable at runtime | `backlog: { source: custom, ref: ./scripts/your-tracker.sh }` |
 
 ### Tier 1 — add a file
 | # | Point | Pros | Cons | Sample |
@@ -295,15 +295,26 @@ extends to any harness a repo adds.
 
 ```yaml
 backlog:
-  source: file            # file | github-issues | jira | linear | custom   (SP6)
-  ref: docs/BACKLOG.md    # file: the doc; github: repo; jira/linear: project key
+  source: file            # file | custom
+  ref: docs/BACKLOG.md    # file: path to the backlog doc; custom: path/command to resolver script
 ```
-A backlog **adapter** implements a tiny interface — `resolve(id) → brief` and
-`complete(id, refs)` — so input resolution and the closing "tick" work against any
-tracker. Default `file` reproduces today exactly. `github-issues` uses `gh`; `jira` uses
-the Atlassian MCP (present in this environment); `linear` needs its own MCP or a `custom`
-script (not present yet). `custom` points at a repo script. **SP6 (done, SPIKE.md)** pinned the `resolve`/`complete` contract per
-source + the failure path (unreachable source = blocker, never a silent tick-skip).
+A backlog **adapter** implements a two-operation port — `resolve(id) → { title, brief }` and
+`complete(id, refs[])` — so input resolution and the closing "tick" work against any
+tracker. The valid sources are exactly **`{ file, custom }`**:
+
+- `file` is the only built-in adapter; it reproduces today's behaviour byte-for-byte.
+- `custom` is the single runtime-resolvable escape hatch: the `ref` field names a script
+  or command the session invokes for both operations.
+
+`github-issues`, `jira`, and `linear` are **not** sources — they are documented `custom`
+recipes (copy-paste reference scripts). The validator rejects any of those values with a
+targeted hint to use `source: custom` with a `ref` pointing to a resolver script. SP6
+originally sketched a wider enumeration; the shipped model refined it to `{ file, custom }`.
+
+Unreachable source = blocker, never a silent tick-skip.
+
+See `docs/adapters/backlog.md` for the per-source procedures, gh/jira custom recipes, and
+safe-invocation guidance.
 
 ---
 
@@ -520,7 +531,7 @@ Each phase is shippable and (once the harness exists) itself craft-able (dogfood
 | **P8** | **Per-phase harness config** — dimensions/passes/cycles/convergence/tool | G6 | review/validation knobs honored |
 | **P9** | **Agent/skill swap** via manifest (contract from P5 injected around the swap) | G5 (swap UX) | S2 green |
 | **P10** | **New default phases & agents** — optional **`requirements`** (new `requirements-writer` agent) + **`architecture`** harness (new `architecture-triager` agent); both default-off | G2,G3 | S4,S5 green |
-| **P11** | **Backlog SoT abstraction** — adapter iface; file default; gh/jira/linear | G7 (per SP6) | S6 green |
+| **P11** | **Backlog SoT abstraction** — adapter iface; `file` default + `custom` escape hatch; gh/jira/linear as custom recipes | G7 (per SP6) | S6 green |
 | **P12** | **DX** — mental model guide + injection catalog + `examples/` samples (**two-part: Tier-0/1 docs now; Tier-2 docs after P14**) | G10 | tailor-task usability check (Tier-2 docs gated after P14) |
 | **P13** | **NFR hardening** — speed + tokens + model-class matrix | G12 | targets met on scenario set (incl. S8 model-class) |
 | **P14** | **Derived-plugin extension surface** | G8 (per SP2) | S7 green |

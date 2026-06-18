@@ -1,1 +1,1 @@
-backlog: PROJ-42
+backlog: { source: file, ref: BACKLOG.md }

@@ -5,9 +5,10 @@
  * specific slices of the Resolution. Gate/waiver assertions exercise the
  * gate-decision layer that this slice lands.
  *
- * NOTE: S6 (backlog adapter) and S7 (namespaced registration) are PARTIAL at P1.
- * Resolution-layer behavior is asserted; their ports/UX land at P11/P14.
- * These logs are intentional — the suite must not be read as "fully covered."
+ * NOTE: S7 (namespaced registration) is PARTIAL — resolution-layer acceptance is
+ * asserted, but its full registration UX lands with the derived-plugin extension
+ * surface. That gap is intentional — the suite must not be read as "fully covered"
+ * for S7. S6 (backlog adapter) is now exercised end-to-end at the resolution layer.
  */
 
 import { test } from 'node:test';
@@ -415,12 +416,9 @@ test('S5 Given architecture enabled, when resolvePipeline runs, then propose awa
   assert.ok(proposeDecision.awaitingHarnesses.includes('architecture'), 'propose must await architecture');
 });
 
-// ─── S6: backlog declared — record marks Backlog.resolve required ─────────────
-// NOTE: Partial coverage at P1. The Backlog adapter implementation lands at P11.
-// This scenario asserts only the resolution-layer record entry.
+// ─── S6: backlog declared — record names the active adapter ──────────────────
 
-test('S6 Given backlog declared in manifest, when resolvePipeline runs, then record mentions Backlog.resolve required (partial — resolution-layer only)', () => {
-  // Partial coverage: Backlog adapter port and UX land in a later phase.
+test('S6 Given backlog { source: file } declared in manifest, when resolvePipeline runs, then record names the active source "file" and matches /backlog/i', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S6');
   const sut = resolvePipeline;
@@ -429,8 +427,9 @@ test('S6 Given backlog declared in manifest, when resolvePipeline runs, then rec
 
   assert.equal(result.ok, true);
 
-  const hasBacklogRecord = result.record.some(r => r.toLowerCase().includes('backlog'));
-  assert.ok(hasBacklogRecord, 'record must mention Backlog.resolve when backlog: is declared');
+  const backlogLine = result.record.find(r => r.includes('file'));
+  assert.ok(backlogLine, 'record must contain a line naming the active source "file"');
+  assert.ok(/backlog/i.test(backlogLine), 'the source-naming line must still match /backlog/i');
 });
 
 // ─── S7: namespaced acme:bench phase ─────────────────────────────────────────
