@@ -143,3 +143,19 @@ test('Given a manifest with an external role (acme:tdd-specialist), when pipelin
 
   assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
 });
+
+// ─── roleExists: path-traversal ref rejected before the existence probe ───────
+// (craft:../agents/planner resolves to the real agents/planner.md via traversal;
+//  WITHOUT the separator guard the existence probe would falsely satisfy it. The
+//  guard must reject any craft: ref whose name carries a path separator.)
+
+test('Given a manifest with a path-traversal craft role (craft:../agents/planner), when pipeline-resolve runs, then it exits 2 — the separator guard rejects it before the existence probe', () => {
+  const sut = run;
+  const traversalRolePath = join(manifestsDir, 'traversal-role.md');
+
+  const result = sut(pipelinePath, traversalRolePath);
+
+  assert.equal(result.status, 2, `expected exit 2 but got ${result.status}; stderr: ${result.stderr}`);
+  assert.match(result.stderr, /implementation/);
+  assert.match(result.stderr, /craft:\.\.\/agents\/planner/);
+});

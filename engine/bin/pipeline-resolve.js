@@ -9,9 +9,14 @@ import { parseManifestContent } from '../src/frontmatter.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CRAFT_PREFIX = 'craft:';
-const roleExists = ref =>
-  !ref.startsWith(CRAFT_PREFIX) ||
-  existsSync(join(REPO_ROOT, 'agents', ref.slice(CRAFT_PREFIX.length) + '.md'));
+const roleExists = ref => {
+  if (!ref.startsWith(CRAFT_PREFIX)) return true;
+  const name = ref.slice(CRAFT_PREFIX.length);
+  // A craft role is a bare name under agents/; a separator means a traversal ref
+  // that could probe (and falsely satisfy) a file outside agents/ — reject it.
+  if (name.includes('/') || name.includes('\\')) return false;
+  return existsSync(join(REPO_ROOT, 'agents', name + '.md'));
+};
 
 /**
  * Parse CLI args into structured options.
