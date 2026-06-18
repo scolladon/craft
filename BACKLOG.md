@@ -341,7 +341,9 @@
 
 ## Deferred / parked
 - [ ] `worktree-teardown.sh` production hardening — validate PID before `kill -0`, `git branch -D --`,
-  realpath the `WT≠MAIN` guard (rides with the VCS-adapter phase).
+  realpath the `WT≠MAIN` guard; **guard `git fetch --prune` for no-remote repos** (it aborts the script
+  under `set -e` when no remote is configured — surfaced dogfooding P11 integrate on a local-only repo, so
+  worktree/branch cleanup was done manually) (rides with the VCS-adapter phase).
 - [ ] `backlog-lint` / `design-lint` structure lints — the optional half of ADR-014 (the
   `templates/backlog.md` template shipped at P4; the enforcing script + bats fixtures stayed
   deferred). P11 landed the manifest-lint `backlog.{source,ref}` shape fixtures but NOT the
