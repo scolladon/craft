@@ -1,11 +1,12 @@
-# Design — P13: NFR hardening (speed · tokens · model-class · bin mutation coverage)
+# Design — P13: NFR hardening (bin mutation coverage · model-class matrix · harness-sourced metrics)
 
-> Brief: P13 makes craft's three non-functional requirements *measurable and tracked* on the
-> scenario set — **speed** (wall-clock), **tokens** (tokens/run + per-phase budget telemetry in
-> the run record), and **model-class resistance** (runs reliably across the Claude class,
-> Haiku-4.5 and up) — and lands the **deferred bin mutation coverage** (an in-process bin
-> harness so `engine/bin/*.js` becomes mutation-testable). PRD §17 P13, goal G12, success-criterion SC6.
-> Status: draft → self-reviewed ×3 → ready for the decisions phase.
+> Brief: P13 lands the **deferred bin mutation coverage** (extract each bin's glue to an in-process
+> `engine/src/<bin>-main.js` so `engine/bin/*.js` logic becomes mutation-testable) and the
+> **model-class matrix** (a deterministic R10 shape-stability guard + a live cross-tier procedure).
+> NFR numbers (**speed** wall-clock, **tokens**) are **harness-sourced** — read by the orchestrator
+> from the harness usage block the spawn already returns and recorded on demand; there is **no engine
+> telemetry** and no subagent self-report. PRD §17 P13, goal G12, success-criterion SC6.
+> Status: revised ×1 against ADRs 065-068.
 
 ## Context
 
@@ -26,12 +27,16 @@ R10. P12's `DESIGN-P12-dx.md` is the nearest altitude precedent (tight, decision
 
 **The current state, pinned by reading the code:**
 
-- **The run record has no telemetry.** It is an *in-session ledger* (`skills/run/SKILL.md`
-  step 4), seeded from `Resolution.record[]` (step 1c) and appended per phase outcome. There is
-  no persisted run-record file. `Resolution.record[]` is a **`string[]`** of prose event lines
-  (`engine/src/resolve.js` builds it: `execution: <id> → …`, `backlog: source …`,
-  `models.fallback: …`, `WAIVER: …`). There is **no** numeric token or timing field anywhere in
-  the resolution or the ledger.
+- **The engine resolution core has no tokens or wall-clock to model.** It is a pure function over
+  data (`engine/src/**`, no I/O, immutable transforms); there is nothing to instrument inside it —
+  which is why NFR metrics are harness-sourced (read by the orchestrator from the per-spawn usage
+  block), not an engine feature.
+- **The run record is an in-session ledger.** `skills/run/SKILL.md` step 4, seeded from
+  `Resolution.record[]` (step 1c) and appended per phase outcome; no persisted run-record file.
+  `Resolution.record[]` is a **`string[]`** of prose event lines (`engine/src/resolve.js` builds it:
+  `execution: <id> → …`, `backlog: source …`, `models.fallback: …`, `WAIVER: …`). There is **no**
+  numeric token or timing field anywhere in the resolution or the ledger — the orchestrator records
+  harness-surfaced numbers into it on demand (ADR-065).
 - **The scenario set is pure, deterministic, zero-token.** `engine/test/scenarios.test.js`
   (S1–S9 + the SC1 anchor) runs `resolvePipeline` against manifest fixtures and asserts slices of
   the `Resolution` (effective pipeline, gate decisions, waivers). Sub-second, no LLM, no spend.
@@ -66,37 +71,37 @@ output **shape** varies by model (Haiku emitted review findings as JSON, not one
 
 ## Requirements
 
-What must be true when P13 ships. "Tracked over time" here concretely means: a committed
-baseline artifact in the repo (numbers a future run diffs against), not a dashboard or a service.
+What must be true when P13 ships. "Tracked over time" here concretely means: numbers land in a
+committed artifact a future run diffs against, not a dashboard or a service.
 
-1. **Speed measurement (G12-speed → SC6).** A repeatable command produces a wall-clock number
-   for the scenario set; a committed baseline records the current number so any future change can
-   be compared against it. Deterministic (no LLM) so CI *can* assert a regression budget if the
-   decisions phase opts in.
-2. **Token / per-phase budget telemetry (G12-tokens → SC6, §11).** The run record carries a
-   per-phase token-budget field and a per-phase wall-clock field; the schema (field names, value
-   types, where each lives, who writes each) is defined and asserted by a test. Whatever portion
-   is deterministic is CI-gated; the live-spend portion (real tokens/run) is whatever the scope
-   choice (DC-1) admits.
-3. **Model-class matrix (G12-model → SC6, S8).** A defined, repeatable procedure exercises craft
-   across the Claude class (Haiku-4.5 and up) at a fidelity beyond SP5's isolated contract probes
-   (per PRD §12 "full-pipeline + output-quality matrix"); its result is recorded as a committed
-   tier×dimension matrix; R10 (shape-varies-by-model) is handled by pinning the asserted surface
-   to format-independent signals (the resolution/gate-decision layer and the
-   already-shape-robust `normalizeFindings` parser), never raw prose layout.
-4. **Bin mutation coverage (P9.5 follow-up → G11/SC4 adjacency).** The logic currently reachable
-   only through `engine/bin/*.js` becomes mutation-testable: mutants on that logic are *coverable*
-   (no `[NoCoverage]`) and killed by in-process tests. The mutate scope is widened to include the
-   newly-reachable surface; the structural boilerplate (argv-dispatch, `process.exit`) is **not**
-   dragged into the mutate surface as unkillable noise (pinned below).
+1. **Bin mutation coverage (P9.5 follow-up → G11/SC4 adjacency; ADR-066/067).** The logic currently
+   reachable only through `engine/bin/*.js` becomes mutation-testable: each converted bin's glue is
+   extracted to an `engine/src/<bin>-main.js` callable, so its mutants are *coverable* (no
+   `[NoCoverage]`) and killed by in-process tests. The `mutate: ["engine/src/**/*.js"]` glob is
+   **unchanged** — extracted modules are auto-covered; the structural boilerplate (argv-dispatch,
+   `process.exit` guard) stays in the bin, out of the mutate surface (pinned below).
+2. **Model-class resistance, guarded + measured (G12-model → SC6, S8; ADR-068).** A deterministic
+   CI-gated guard asserts the assembled contract block and `normalizeFindings` are **shape-stable**
+   across the documented model pins — the R10 discharge, asserting only format-independent signals
+   (resolution/gate layer + the already-shape-robust `normalizeFindings`), never raw prose layout.
+   On top, a documented **not-CI-gated** live procedure exercises the full pipeline across the
+   Claude class (Haiku-4.5 and up) at the "full-pipeline + output-quality" fidelity PRD §12 names,
+   recording a tier×dimension PASS/PARTIAL/FAIL matrix into a committed artifact.
+3. **NFR numbers obtainable on demand from harness usage (G12-speed / G12-tokens → SC6; ADR-065).**
+   Per-phase tokens + wall-clock are read by the orchestrator from the harness usage block the spawn
+   already returns (exact, zero-cost) and recorded into the run record and the live model-class
+   matrix artifact on demand. This is **no engine feature**: no typed telemetry object, no
+   subagent self-report, no deterministic engine-speed baseline. Verifiable: the recording mechanism
+   is documented in `skills/run/SKILL.md`, and the live matrix artifact carries the numbers.
 
 ## Design
 
-The phase is **mostly authoring + one engine refactor**: a telemetry schema + harness/CLI, a
-documented model-class procedure, and the bin-coverage refactor. The decisions phase (DC-1) sets
-how far live spend goes; everything below is written so the deterministic spine stands on its own
-and the live matrix bolts on as a documented, un-gated procedure (matching the existing
-inline-fidelity precedent).
+The phase is **one engine refactor + one authored procedure**: the bin-coverage refactor
+(extract-to-`src`, ADR-066/067) and the model-class matrix (ADR-068). NFR numbers are not an engine
+feature — they are read from the harness and recorded on demand (ADR-065). The deterministic spine
+(bin mutation coverage + the R10 shape-stability guard) stands on its own and is CI-gated; the live
+matrix bolts on as a documented, un-gated procedure (matching the existing inline-fidelity
+precedent) and is the single home for the harness-surfaced numbers.
 
 ### Empirically-pinned matrix — why the bins are mutation-invisible, and the cleanest fix
 
@@ -119,8 +124,8 @@ The takeaways are load-bearing:
   child-process tests pass, yet the logic shows up as `[NoCoverage]` — *not* "survived", which is
   why widening `mutate` to `engine/bin/**` without changing the tests would report the bins as
   uncovered, not killed. The fix space is forced: the logic must be reachable **in-process**.
-- **C vs D is the bin-harness decision (DC-4).** Mutating the run-on-import bin *directly* drags
-  the dispatch boilerplate — the `if (process.argv[1] === entrypoint)` guard and the
+- **C vs D is the bin-harness mechanism, fixed by ADR-066.** Mutating the run-on-import bin
+  *directly* drags the dispatch boilerplate — the `if (process.argv[1] === entrypoint)` guard and the
   `process.exit(main(...))` line — into the mutate surface, where it survives unkillably (an
   in-process import deliberately *avoids* the entrypoint branch, so no in-process test can ever
   reach it). **Extracting the logic into `engine/src/` keeps the mutate scope pure** (logic only,
@@ -148,123 +153,110 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
 ```
 
 The run-on-direct-invoke guard stays in the **bin** (excluded from mutate); the testable logic
-lives in **src** (in mutate scope). Tests import `main` and assert on the returned exit code +
-captured `io` writes — converting the child-process bin tests to in-process is the test-count
-delta (DC re: count). Whether to widen `mutate` to `engine/bin/**` at all, or only to the new
-`engine/src/<bin>-main.js` modules, is DC-5 — probe D says src-only is the clean answer.
+lives in **src** (in mutate scope). In-process tests import `main` and assert on the returned exit
+code + captured `io` writes; the existing child-process bin tests are **retained as integration
+smoke** (ADR-067), so `EXPECTED_TESTS` grows by the added units in the landing commit. The
+`mutate: ["engine/src/**/*.js"]` glob is **kept unchanged** (ADR-066): the extracted modules are
+auto-covered with no config change, and widening to `engine/bin/**` would re-import the probe-C
+boilerplate survivors.
 
-### Telemetry schema — per-phase wall-clock + token budget
+### NFR metrics — harness-sourced, orchestrator-recorded on demand (ADR-065)
 
-The run record is the natural home (PRD §11: "the run record logs every … degradation"). Today it
-is an in-session prose ledger seeded from `Resolution.record[]: string[]`. Two shape questions are
-load-bearing and *not* pre-decided (DC-2, DC-3):
+There is **no engine telemetry** and **no subagent self-report**. The resolution core is a pure
+function over data with no tokens or wall-clock to model, so a typed `Resolution.telemetry` would be
+a container the engine can never populate — and a deterministic engine-speed baseline measures
+microsecond resolution-layer time, unrelated to live `/craft:run` speed (which LLM latency + spawn
+round-trips dominate, the actual G12 levers). Both are dropped.
 
-- **Shape.** A typed per-phase telemetry object — `{ phaseId, execution, wallClockMs,
-  tokensIn, tokensOut, budget? }` — is *engine-assertable* (a serializer/validator in
-  `engine/src/`, mutation-covered, schema-pinned by a test). Today's `record[]` is free prose,
-  which a test can only assert loosely. The recommendation (DC-2) is to add a typed
-  `Resolution.telemetry` (or a sibling `telemetrySchema` the orchestrator fills) so the *schema*
-  is engine-owned and CI-asserted, while the orchestrator fills live values per phase
-  (`skills/run/SKILL.md` step 4 / "Record outcome").
-- **Location.** In-session ledger only (ephemeral, in the summary/PR body) vs a persisted
-  run-record file under the worktree (DC-3). The deterministic baseline (req 1) needs *somewhere
-  committed*; the live per-run telemetry does not have to persist. Recommendation: schema +
-  deterministic baseline committed; live per-run telemetry stays in the ledger (no new persisted
-  per-run artifact), matching the no-DB "tracked = committed baseline" reading.
+Instead, the harness already returns an exact per-spawn usage block to the orchestrator at zero cost
+(observed verbatim on the design spawn: `subagent_tokens: 110282  duration_ms: 404605`). "Tracked"
+means the orchestrator reads those numbers and records them — into the run record's in-session
+ledger, and into the live model-class matrix artifact (below) when that procedure runs. This is
+on-demand, not every-run, and changes no agent contract (workers never learn about usage, so the
+token-efficiency NFR is preserved, not taxed). It is the single home of the "provide the numbers if
+the user cares" data; enforcing per-phase budgets (vs tracking) would be a new orchestrator decision,
+out of P13 scope.
 
-Who writes what: the engine owns the **schema** and the deterministic fields (execution mode,
-the resolution-derived budget hints); the orchestrator fills the **live** fields (wall-clock,
-tokens) per phase at "Record outcome" — exactly where it already appends ledger lines. The
-assertion: a `node --test` test pins the schema shape + the deterministic-field values; the live
-fields are asserted as *present and well-typed*, never as fixed numbers (they vary per run).
-Honesty note: a *real* per-phase token count is only observable during live spend (the harness
-must surface usage) — so the token field has a defined schema slot everywhere, but a populated
-value only exists in the DC-1 live half; the deterministic half asserts the slot, not a number.
-
-### Speed measurement
-
-Deterministic, because the scenario set is deterministic. A harness/CLI times
-`resolvePipeline` over the S1–S9 fixtures (wall-clock for the resolution layer end-to-end) and
-emits the number; a committed baseline file records it. Because it is deterministic, the
-decisions phase *may* opt to gate a regression budget in `ci.sh` (DC-6: committed-baseline-file
-vs telemetry-only). Note the honesty gap this must state plainly: **resolution-layer wall-clock
-is microseconds and bears no relation to live `/craft:run` wall-clock** (which is dominated by LLM
-latency + spawn round-trips, exactly the G12-speed levers). So the deterministic speed number
-tracks *engine* regression, not *delivery* speed; the delivery-speed number only exists in the
-live matrix (DC-1).
-
-### Model-class matrix (R10-safe, gating per DC)
+### Model-class matrix — deterministic guard + live procedure (ADR-068)
 
 SP5 pinned the contract floor with 12 isolated probes; PRD §12 asks P13 for the **full-pipeline +
-output-quality** matrix. The fidelity question (resolution-only vs contract-assembly-across-pins
-vs live) is folded into DC-1 (the scope spine) and DC re: matrix gating. The R10 handling is the
-fixed part regardless of scope: **assert only format-independent signals** — the resolution + gate
-decisions (the §13 "not LLM prose" rule) and `normalizeFindings`, which already canonicalizes both
-the one-per-line and the JSON shapes Haiku produced (proven by `normalize-findings-bin.test.js`).
-The matrix records a tier×dimension PASS/PARTIAL/FAIL table (the SP5 format) as a committed
-artifact; if any portion is live it follows the inline-fidelity precedent: a documented,
-on-demand, **not-CI-gated** procedure whose result lands in the run record. Model ids per SP5:
-opus=`claude-opus-4-8`, sonnet=`claude-sonnet-4-6`, haiku=`claude-haiku-4-5-20251001`.
+output-quality** matrix. Two halves:
+
+- **Deterministic guard (CI-gated, no live spend).** Assert that the assembled contract block and
+  `normalizeFindings` are **shape-stable across the documented model pins** — the R10 discharge.
+  Assert only format-independent signals: the resolution + gate decisions (the §13 "not LLM prose"
+  rule) and `normalizeFindings`, which already canonicalizes both the one-per-line and the JSON
+  shapes Haiku produced (proven by `normalize-findings-bin.test.js`). This is the green gate for
+  SC6's model-class clause; it is ordinary `node --test` coverage, so `EXPECTED_TESTS` bumps with it.
+- **Live cross-tier matrix (documented, not CI-gated).** A procedure that runs the full pipeline
+  across the Claude class — opus=`claude-opus-4-8`, sonnet=`claude-sonnet-4-6`,
+  haiku=`claude-haiku-4-5-20251001` (per SP5) — recording a tier×dimension PASS/PARTIAL/FAIL table
+  (the SP5 format) **and** the harness-surfaced per-phase tokens + wall-clock (ADR-065) into a
+  committed artifact. It follows the existing `skills/run/SKILL.md` inline-fidelity precedent:
+  on-demand, result lands in the run record, never blocks a push. This artifact is the single
+  durable home for the NFR numbers and is diffable across runs (the "tracked over time" reading
+  without a metrics service).
 
 ## Decision candidates
 
-The designer never decides these; the decisions phase (ADRs) does. Row 1 is the spine.
+**Resolved by ADRs 065-068; no open candidates.** This section is now a resolution record of the
+candidates the design raised; the decisions phase ratified them (some reshaping the design). It does
+not re-open any decided question or introduce new candidates.
 
-| # | Choice | Alternatives (≤3) | Recommendation | Why |
-|---|---|---|---|---|
-| **DC-1** | **NFR-hardening scope** (dominates speed+tokens+model-class) | (a) **deterministic telemetry**: run-record schema (per-phase wall-clock + token budget) + harness/CLI emitting & asserting it, CI-gated, zero LLM spend, + bin mutation coverage; (b) **live end-to-end matrix**: instrument real `/craft:run` across the model class on representative briefs, real wall-clock + tokens; (c) **hybrid**: (a) CI-gated now + a documented, manually-run live matrix on top, not CI-gated | **(c) hybrid** | (a) alone makes "tokens/run on the scenario set" toothless — the scenario set is zero-token, so the deterministic number can't *measure* the NFR it claims to; (b) alone is non-deterministic, costs tokens, and can't CI-gate, so it can't be a green gate for SC6. (c) gets a CI-gated deterministic floor (schema + bin coverage + engine speed regression) *and* a real-fidelity live matrix that honestly measures tokens/wall-clock — and it matches the repo's existing "inline-fidelity check, not CI-gated" precedent. The live half is a procedure, not a gate. |
-| **DC-2** | **Telemetry schema shape** | (a) typed engine object `Resolution.telemetry` / sibling schema (serializer + validator in `engine/src/`, mutation-covered); (b) keep the free-prose `record[]` and append `tokens=…/ms=…` substrings; (c) a separate JSON sidecar schema the orchestrator owns, engine untouched | **(a) typed engine object** | Engine-owned schema = CI-assertable + mutation-coverable (the whole point of P13's measurability); prose substrings (b) can only be asserted by brittle regex and aren't mutation-meaningful; (c) splits the schema from the resolver that already builds `record[]`. |
-| **DC-3** | **Telemetry location** | (a) in-session ledger only (live values ephemeral) + committed deterministic baseline; (b) persisted per-run run-record file under the worktree; (c) both (ledger + persisted file per run) | **(a)** | "Tracked over time" = a committed baseline to diff against, not a per-run history store; per-run persistence (b/c) adds a teardown/lock surface and an artifact nobody reads, for no SC6 requirement. |
-| **DC-4** | **Bin-harness mechanism** | (a) **extract logic to `engine/src/<bin>-main.js`**, bin becomes a thin guarded wrapper; (b) refactor each bin to **export `main(argv, io)`** in place (logic stays in `engine/bin/`); (c) an in-process import shim that runs the bin module under a captured `process.exit`/stdout | **(a) extract-to-src** | Probe C vs D: mutating bin-resident code (b) drags the run-on-direct-invoke guard + `process.exit` dispatch into the mutate surface as **unkillable survivors**; (c) is fragile (monkey-patching `process.exit`/`process.stdout` per test) and still exercises the guard. (a) keeps the mutate scope pure logic, reuses the existing src↔bin split, and the bin shrinks to a one-line guard that mutate excludes. |
-| **DC-5** | **Mutate-scope widening** | (a) widen to the new `engine/src/<bin>-main.js` modules only (bins stay excluded); (b) widen to `engine/bin/**` too; (c) keep `engine/src/**` glob — extracted modules are included automatically | **(c) keep the glob** | The current `mutate: ["engine/src/**/*.js"]` already covers any new `engine/src/` module — extracting (DC-4a) makes the glue mutation-covered with **no config change**. (b) re-imports the boilerplate survivors probe C found; (a) is a redundant explicit list. |
-| **DC-6** | **Speed-baseline storage** | (a) committed baseline file (e.g. `docs/` or a `bench/` artifact) the harness diffs; (b) telemetry-only (number lives in the run record, no committed baseline); (c) committed baseline + a CI regression-budget assertion in `ci.sh` | **(a) committed baseline file** | "Tracked over time" needs a committed anchor (b can't compare across runs). Gating a budget in CI (c) risks flaky failures on shared-runner jitter for a microsecond-scale number; ship the baseline first, let a later pass add a gate if the number proves stable. |
-| **DC-7** | **Model-class matrix fidelity & gating** | (a) **resolution-layer only** (extend `scenarios.test.js`-style goldens; CI-gated, deterministic); (b) **contract-assembly across model pins** (assert the assembled block + `normalizeFindings` are shape-stable; CI-gated, deterministic, no live spend); (c) **live full-pipeline** across tiers (highest fidelity, manual, not CI-gated) | **(b) deterministic + (c) as the documented manual procedure** (folds into DC-1c) | (a) adds nothing over the existing suite. (b) is the deterministic teeth that *can* be green-gated for SC6 and directly discharges R10 (pin format / parse robustly) on the already-shape-robust `normalizeFindings`. (c) supplies the "full-pipeline + output-quality" fidelity PRD §12 names, but as a not-CI-gated procedure per the inline-fidelity precedent. |
-| **DC-8** | **`EXPECTED_TESTS` handling for the converted bin tests** | (a) convert child-process bin tests to in-process **in place** (count may shift; bump `EXPECTED_TESTS` in the same commit); (b) **add** in-process tests alongside the existing child-process ones (count grows; child-process tests retained as integration smoke); (c) replace child-process bin tests entirely with in-process | **(b) add alongside** | The child-process tests are the only thing asserting the *real* `process.exit` codes + argv wiring end-to-end (the guard line mutate excludes); keeping them as integration smoke + adding in-process unit tests preserves both surfaces. Bump `EXPECTED_TESTS` to the new total in the landing commit per the `ci.sh` append-only convention. |
+| # | Choice | Resolution | Fixed by |
+|---|---|---|---|
+| **DC-1** | NFR-hardening scope | **Reshaped.** No engine telemetry leg; the deterministic floor is bin mutation coverage + the R10 shape-stability guard, and the live half is the on-demand model-class matrix recording harness-surfaced numbers. | ADR-065 |
+| **DC-2** | Telemetry schema shape | **Dropped.** No typed `Resolution.telemetry` object — the pure resolution core has nothing to populate it with. | ADR-065 |
+| **DC-3** | Telemetry location | **Moot.** No telemetry artifact to locate; harness numbers are recorded on demand into the run record + the live matrix artifact. | ADR-065 |
+| **DC-4** | Bin-harness mechanism | **Extract logic to `engine/src/<bin>-main.js`** (callable `main(argv, io)`); the bin is a thin entrypoint-guard wrapper. | ADR-066 |
+| **DC-5** | Mutate-scope widening | **Keep the `mutate: ["engine/src/**/*.js"]` glob unchanged** — extracted modules are auto-covered; do not widen to `engine/bin/**`. | ADR-066 |
+| **DC-6** | Speed-baseline storage | **Dropped.** No deterministic engine-speed baseline and no `ci.sh` speed gate (resolution-layer wall-clock is microseconds, unrelated to live speed). | ADR-065 |
+| **DC-7** | Model-class matrix fidelity & gating | **Deterministic shape-stability guard (CI-gated)** + **live cross-tier matrix (documented, not CI-gated)** recording the PASS/PARTIAL/FAIL table and harness tokens/wall-clock into a committed artifact. | ADR-068 |
+| **DC-8** | `EXPECTED_TESTS` handling for the bin tests | **Add in-process units alongside; retain the child-process tests as integration smoke;** bump `EXPECTED_TESTS` in the landing commit. | ADR-067 |
 
 ## Test strategy
 
-- **Telemetry schema** — a `node --test` unit on the engine serializer/validator (DC-2a):
-  the schema shape, the deterministic-field values (execution mode, resolution-derived budget
-  hints), and the live fields asserted *present + well-typed*, never as fixed numbers. Mutation
-  scope covers it automatically (`engine/src/**`). If a serializer/parser pair is introduced, add
-  a **round-trip lens** (serialize → parse → deep-equal) and a property-style lens over the field
-  domains (phase ids, non-negative numerics).
-- **Bin-coverage harness** — in-process unit tests on each new `engine/src/<bin>-main.js`
-  (`main(argv, io)`: assert returned exit code + captured `io` writes), driving the previously
-  `[NoCoverage]` glue (argv branches, usage/error exits, closures). Retain the child-process bin
-  tests as integration smoke (DC-8b). Mutation-adequacy plan: run Stryker scoped to the new src
-  modules (per-hunk per `skills/validation/SKILL.md`); every glue mutant must be *coverable* (no
-  `[NoCoverage]`, per probe D) and killed or proved equivalent by the validation phase.
-- **Speed harness** — a runnable that times `resolvePipeline` over S1–S9 and writes the
-  baseline; a structural test that the harness runs and the baseline file parses. No fixed-time
-  assertion (jitter) unless DC-6c is chosen.
-- **Model-class matrix** — deterministic half (DC-7b): assert the assembled contract block +
+- **Bin-coverage harness (ADR-066/067)** — in-process unit tests on each new
+  `engine/src/<bin>-main.js` (`main(argv, io)`: assert returned exit code + captured `io` writes),
+  driving the previously `[NoCoverage]` glue (argv branches, usage/error exits, closures). **Retain**
+  the child-process bin tests as integration smoke (the sole assertion that the real entrypoint exits
+  with the right code and wires argv — the guard line the mutate surface excludes). Mutation-adequacy
+  plan: run Stryker scoped to the new src modules (per-hunk per `skills/validation/SKILL.md`); every
+  glue mutant must be *coverable* (no `[NoCoverage]`, per probe D) and killed or proved equivalent by
+  the validation phase. If a parser/serializer pair is touched in an extracted module, add a
+  **round-trip lens** (parse → serialize → deep-equal) — otherwise none, no parser is introduced.
+- **Model-class deterministic guard (ADR-068)** — assert the assembled contract block +
   `normalizeFindings` are shape-stable across the documented model pins (reusing the existing
   `normalize-findings-bin.test.js` shape-equivalence lens, which already proves the
-  one-per-line/JSON pair canonicalize identically — the exact R10 surface). Live half: a
-  documented, not-CI-gated procedure (no test).
-- **`EXPECTED_TESTS`** — **will change**. Every added `node --test` test (telemetry unit, the
-  new in-process bin units, the speed structural test, the matrix shape tests) increments the
-  count; the landing commit bumps `EXPECTED_TESTS=448 → <new>` in `scripts/ci.sh` in lockstep
-  (the file's append-only convention). Any new bin/harness referenced by `ci.sh` is appended only
-  after it exists.
-- **Fixtures to extend** — `engine/test/fixtures/scenarios/` (matrix goldens if DC-7b adds any),
-  `engine/test/fixtures/manifests/` and `engine/test/fixtures/contracts/` (telemetry/assembly
-  pins); the `mkdtemp`/`spawnSync` helper pattern in `contract-assemble.test.js` /
+  one-per-line/JSON pair canonicalize identically — the exact R10 surface). This is CI-gated
+  `node --test` coverage. The live cross-tier matrix is a documented, not-CI-gated procedure (no
+  test).
+- **`EXPECTED_TESTS`** — **will change**. Every added `node --test` test (the new in-process bin
+  units, the model-class shape tests) increments the count; the landing commit bumps
+  `EXPECTED_TESTS=448 → <new>` in `scripts/ci.sh` in lockstep (the file's append-only convention).
+  Any new bin referenced by `ci.sh` is appended only after it exists.
+- **Fixtures to extend** — `engine/test/fixtures/contracts/` (assembly pins for the shape-stability
+  guard) and `engine/test/fixtures/scenarios/` (goldens if the guard adds any); the
+  `mkdtemp`/`spawnSync` helper pattern in `contract-assemble.test.js` /
   `normalize-findings-bin.test.js` is the model for the retained child-process smoke tests.
 
 ## Out of scope
 
+- **Engine telemetry schema / per-phase budget object / subagent self-reported usage** — dropped
+  (ADR-065): the harness already surfaces exact per-spawn usage to the orchestrator, so an engine
+  schema is a container the pure core can never fill and self-report taxes the very NFR it measures.
+  Enforced (vs tracked) per-phase budgets would be a new orchestrator decision, not P13.
 - **P13.5 ban-enforcement boundary** — a separate, *discussion-first* backlog item (NOT a PRD
   §17 phase; `BACKLOG.md` ~L296); splitting engine-invariant from adapter-mechanism for the
   enforced bans is its own design conversation, not P13.
 - **P14 derived-plugin extension surface** — the registration surface (`craft.extends:`, Tier-2
   injection catalog) is P14; the model-class matrix only exercises what the manifest already
   names, never a derived phase.
-- **Live-provider / cross-provider work** beyond whatever DC-1 admits — cross-*provider*
+- **Live-provider / cross-provider work** beyond the on-demand Claude-class matrix — cross-*provider*
   portability (non-Claude) is G13/P16; P13 pins the *Claude* class only (SP5 caveat).
 - **A full `engine/src` mutation baseline** — P9.5 named it as a sibling follow-up to bin
   coverage; P13 lands the bin-coverage *mechanism* and its scoped adequacy, not a tree-wide
   baseline run (out of the §13/SC6 NFR remit; would ride a dedicated hardening pass).
-- **Per-run telemetry persistence / a metrics service** — DC-3 recommends committed-baseline +
-  ephemeral ledger; a history store or dashboard is beyond "tracked over time" as SC6 frames it.
+- **Per-run telemetry persistence / a metrics service** — harness numbers land in the run record
+  and the on-demand live matrix artifact (diffable across runs); a history store or dashboard is
+  beyond "tracked over time" as SC6 frames it.
