@@ -293,6 +293,26 @@
 ## Next — P13+
 - **P13 — NFR hardening** (next up): speed + tokens + model-class matrix on the scenario set (incl. S8
   model-class); home for the deferred **bin mutation coverage** (in-process bin harness) — PRD §17 P13, G12, SC6.
+- **P13.5 — ban-enforcement boundary** (interstitial, user-raised; **NOT** a PRD §17 phase — §17 numbering
+  unchanged, like P8.5/P9.5): revisit *every* mechanically- or contract-enforced "ban" and split
+  **engine-invariant** from **adapter-mechanism**. **Position to discuss (user, IMHO):** the framework should
+  *provide* the hooks but **NOT wire them on by default** — enforcement is user/repo context, not framework
+  law. This item is **discussion-first** (no decision pre-made here). Current ban inventory:
+  - **Hook-enforced (PreToolUse Bash, mechanical — `hooks/hooks.json`):** `block-no-verify.sh` (denies
+    `git commit|push|merge --no-verify`); `git-no-ext-diff.sh` (forces `--no-ext-diff` on git diff/show).
+  - **Contract-text (`contracts/core.md`, injected every phase; PRD §11 core):** never commit on a red gate /
+    never `--no-verify`; no provenance refs in source/test; no suppression directives
+    (`@ts-ignore`/`eslint-disable`/coverage-mutation-ignores/lint-silencing); no swallowed errors; bounded scope.
+  - **Reconciliation seam (§2.1 hexagonal):** the *invariant* "never commit on a red gate" reads as
+    engine-core; the *mechanism* "block `--no-verify`" is the **Claude Code adapter's** enforcement (§11 tags
+    the line `(hook + orchestrator)`). The ban also conflates "the repo's git pre-commit hook == the gate" —
+    true for husky/lefthook repos, not universal (CI-only gating, slow/irrelevant local hooks).
+  - **Caveat the discussion must resolve:** a free opt-out that supplies *no* equivalent mechanical anchor
+    silently degrades the guarantee to honor-system — the exact thing craft beats vs markdown frameworks
+    (PRD §16). Decide whether "ship-but-default-off" must keep an engine-side red-gate refusal as the floor.
+  - **Touches:** PRD §11 (invariant core) + §2.1 (ports/adapters), `hooks/`, `contracts/core.md`, the
+    injection catalog (`docs/GUIDE-customizing.md`). Sequencing TBD in the discussion (near the
+    adapter-boundary work P16, or the DX/injection surface).
 - **P13–P16** (PRD §17, in order): **P13 NFR hardening** · P14 derived-plugin extension ·
   P15 second-instantiation · P16 provider-agnostic.
 - **Tier-2 DX docs are gated after P14** — the derived-plugin half of the injection catalog (point #12)
