@@ -22,6 +22,7 @@
 | P8 | Per-phase harness config — `harness:` knobs deep-merged + manifest-validated + walk-read; PHASE_FIELDS lint-gap closed | ✅ done & green |
 | P8.5 | Rename plugin **forge→craft** + namespace propagation (non-PRD interstitial — branding/productization, **not** a PRD §17 phase; §17 numbering unchanged, P9 still next) | ✅ done & green |
 | P9 | Agent/skill swap via manifest — `role:` + new default-phase `procedure:` override + engine `roleExists` guard (seam); S2 hardened walk-level | ✅ done & green |
+| P9.5 | Hardening batch (parked-from-P9 + engine/tooling dogfood gaps) — `roleExists` live-probe wired + Stryker stood up (validation runs for real) + `models.fallback` (`sonnet`) & fable→opus + nested-lockfile probe + `node --test` glob+count-assert + decisions interaction prompt + brief-echo trim + review-cadence doc + `contract-assemble` parse fix + planner test-infra carve-out (item-10 forge-era aliasing DROPPED, ADR-045); ADRs 041–047 | ✅ done & green |
 | **P10–P16** | **new default phases, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
@@ -197,20 +198,18 @@
   surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
   P14 so the catalog never advertises an unproven surface (PRD §17 P12).
 
-### Parked from P9 (the engine seam ships; the live guarantee + its verification ride later)
-- [ ] **`roleExists` live install-probe not wired into the bin/walk.** `engine/bin/pipeline-resolve.js`
-  calls `resolvePipeline(defaults, manifest)` 2-arg, so the probe defaults permissive — the ADR-037 guard
-  ships as a tested SEAM but is **dormant in the real `/craft:run`**: a typo'd `role:` still resolves
-  `ok:true` today (caught only loud-at-spawn in agent mode, silent inline). For craft-native `craft:<role>`
-  refs a caller could scan `agents/`; for EXTERNAL `my:`/`acme:` refs "what counts as installed" is genuinely
-  P14 registration territory (ADR-037 deliberately punts it to the caller). Wire it when the walk gains a real
-  probe — rides with the walk-wiring / P14 derived-plugin surface.
-- [ ] **Validation mutation-adequacy unverified.** The repo has no mutation tooling, so the P9 validation
-  phase no-ops (the default `validation.harness` names `tool: stryker`, but the craft engine itself has no
-  stryker config). Review advisories stayed un-killed: **ADV-1** the `roleExists` filter true-branch isn't
-  exhaustively pinned (no test asserts a *resolvable* role through a *rejecting* probe yields exactly one
-  error); ADV-2 producer-content mutant; ADV-3 empty-string-`procedure` boundary. Setting up stryker for
-  `engine/` would let validation actually run and close these.
+### Parked from P9 — ✅ DONE (P9.5 hardening batch)
+- [x] **`roleExists` live install-probe wired into the bin.** `engine/bin/pipeline-resolve.js` now
+  constructs a real `roleExists` predicate and passes it 3-arg: craft-native `craft:<role>` resolves iff
+  `agents/<role>.md` exists; EXTERNAL `my:`/`acme:` refs stay permissive (P14 registration territory, still
+  punted per ADR-037). `bad-role`/`good-role`/`external-role` bin tests pin it (ADR-047/DC-1). A typo'd craft
+  role now fails closed at resolution (`ok:false`, exit 2) in the real `/craft:run`.
+- [x] **Validation mutation-adequacy — Stryker stood up; validation runs for real.** `@stryker-mutator/core@8.7.1`
+  + `tap-runner` configured (repo-root sandbox so the suite's repo-root `contracts/`/`agents/` resolve;
+  `engine/src/**` scope, `coverageAnalysis: perTest`). The changed src hunk (`manifest.js` empty-`procedure`
+  guard) scores **16/16 mutants killed**. **ADV-1** (exactly-one-error count through a rejecting probe),
+  **ADV-2** (producer-content marker), **ADV-3** (empty- AND whitespace-`procedure` boundary) all landed as
+  tests. Bin mutation-coverage + a full `engine/src` baseline ride as a P9.5 follow-up (below).
 
 ### Parked from P8.5 — ✅ DONE (out-of-repo install state resolved; verified by this session running as `craft:*` from `…/perso/craft`)
 - [x] **Folder rename + marketplace re-point:** `…/perso/forge → …/craft` via `mv`, with
@@ -253,32 +252,43 @@
   `templates/backlog.md` template shipped at P4; the enforcing script + bats fixtures stayed
   deferred). Rides with the backlog-port phase (P6/P11).
 
-### Engine/tooling hardening (surfaced during the P9 dogfood — not P9-feature gaps)
-- [ ] **Agent model pins + declare a fallback.** `craft:designer`/`planner`/`reviewer` are pinned
-  `model: fable`; with Fable 5 unavailable, every such spawn dies once before the model-down protocol
-  falls back to the session model, and `pipeline/default.yml` declares no `models.fallback`. Declare a
-  `models.fallback` and/or re-evaluate the Fable pins so a degraded tier doesn't pay a dead spawn first.
-  (Adjacent to P13's model-class work, but a config-robustness fix, not the NFR matrix.)
-- [ ] **`worktree-setup.sh` nested-lockfile probe.** The setup script probes only the repo root for a
-  lockfile, so it installs nothing when the package lives in a subdir (`engine/package-lock.json`) — the
-  P9 worktree came up red until a manual `npm ci` in `engine/`. Probe one level deep, or take a
-  configurable deps path. Sibling to the `worktree-teardown.sh` item; rides with the VCS/workspace-adapter phase.
-- [ ] **`node --test` discovery footguns.** (a) `(cd engine && node --test)` vs `node --test engine/test/`
-  from the repo root give wildly different counts (405 vs 1) — easy to misread a baseline. (b) Bare
-  `node --test` auto-runs *every* `.js` under `test/`, so a non-test helper silently becomes a phantom
-  0-assertion passing test (count drifted 409→410 in P9 until the helper was relocated to
-  `engine/test-helpers/`), and a `node --test`-green gate can't catch it. Consider an explicit glob
-  (`test/**/*.test.js`) in `ci.sh` + `engine/package.json`, or a gate that asserts the expected test count.
-- [ ] **`decisions` phase — surface cross-candidate interactions.** AskUserQuestion presents decision
-  candidates independently, but answers can interact (in P9, DC-D putting `engine/src` in play voided
-  DC-A's `engine/src`-0-diff rationale — caught manually and re-ratified before ADRs were authored). The
-  `decisions` skill could prompt the session to check whether ratified choices interact before writing ADRs.
-- [ ] **`run/SKILL.md` step 0a echoes the full brief ~3× verbatim.** The flag-parse step re-prints the
-  entire `$ARGUMENTS` brief multiple times — very noisy for a long brief. Trim to a single reference.
-- [ ] **Review cadence — per-slice vs single phase.** The stated working style ("4-dimension review after
-  every code slice") differs from the pipeline's single `review` phase over the whole change. Decide and
-  document the intended cadence; if a per-slice interleave is wanted, model it (e.g. a `run`/harness knob),
-  cross-linking the "later walk/parallelism pass" noted under *Parked from P8*.
+### Engine/tooling hardening — ✅ DONE (P9.5 hardening batch; surfaced during the P9 dogfood)
+- [x] **Agent model pins + declared fallback.** The fable pins on `craft:designer`/`planner`/`reviewer`
+  were retired to `opus` directly in the live plugin (`4b8f75a`; user-decided, ADR-041/DC-3b), and a named
+  engine **default fallback `sonnet`** was added to `run/SKILL.md`'s model-resolution invariant
+  (`models.fallback` → engine default `sonnet` → session model; ADR-041/DC-3a). No more dead fable spawn; a
+  no-manifest run has a declared fallback.
+- [x] **`worktree-setup.sh` nested-lockfile probe.** A bounded one-level-deep fallback scan installs deps
+  when the lockfile lives in a subdir (`engine/package-lock.json`); a `test/worktree.bats` nested fixture
+  guards it; shellcheck-clean (ADR-047/DC-4).
+- [x] **`node --test` discovery footguns.** `scripts/ci.sh` + `engine/package.json` use the explicit glob
+  `node --test 'test/**/*.test.js'` (excludes phantom non-test `.js`) **and** an `EXPECTED_TESTS` count-assert
+  gate parsing the runner's `# tests` line (catches count drift; bumped per test-changing commit). The ci.sh
+  capture was also hardened to print failing-test output before the gate decides (ADR-046/DC-5a+DC-5b).
+- [x] **`decisions` phase — cross-candidate interaction check.** `skills/decisions/SKILL.md` gained a step
+  (before ADR authoring) prompting the session to check whether a ratified choice's rationale is voided by
+  another (ADR-047/DC-6).
+- [x] **`run/SKILL.md` step 0a brief echo trimmed.** Step 0a references "the input" once; the `Input:` line
+  is the single canonical `$ARGUMENTS` echo (ADR-047/DC-7).
+- [x] **Review cadence — decided + documented.** The single `review` phase is canonical; the per-slice
+  4-dimension interleave is a documented session working-style (`run/SKILL.md`), cross-linked to the
+  Parked-from-P8 walk/parallelism pass (ADR-043/DC-8).
+
+### Parked from P9.5 (follow-ups surfaced during the hardening batch)
+- [ ] **Full-engine mutation baseline + bin coverage.** `npm run mutation` now runs for real (repo-root
+  sandbox; `engine/src/**` scope). The P9.5 run validated only the changed src hunk (per-hunk: `manifest.js`
+  16/16 killed); a full `engine/src` baseline (slow) hasn't been taken. **The bins are not Stryker-coverable**:
+  `engine/bin/*` is exercised via `spawnSync` subprocesses, outside Stryker's import-graph coverage (they
+  report "no coverage" regardless of `coverageAnalysis`). The bin changes (roleExists, parseManifestContent)
+  are covered by `spawnSync` bin tests verified red-on-revert in review. Closing this needs an in-process bin
+  harness (import the bin's logic rather than spawn it) or a separate command-runner mutation pass.
+- [ ] **`roleExists` path-traversal hardening (defense-in-depth).** The bin probe does a read-only
+  `existsSync(join(REPO_ROOT, 'agents', <ref-after-craft:> + '.md'))` on a repo-trusted manifest value; a
+  `craft:../../x` ref could probe outside `agents/`. Real impact is nil (read-only existence bit, trusted
+  input), so it was left as-is; if wanted, reject refs whose name contains a path separator before the probe.
+- [ ] **Nested-lockfile bats test env-coupling.** `test/worktree.bats`'s nested test runs a real `npm install`
+  (against an empty `{}` package.json — a local, network-free install). A PATH `npm` stub would pin the
+  branch-selection + message without depending on npm at all; optional robustness.
 
 ## Notes
 - **Data is the SoT, not the prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.

@@ -15,8 +15,11 @@ Contract:
   with zero context; whatever you omit they pay for in rediscovery.
 - Follow the template schema exactly — `plan-lint.sh` gates the phase on it
   (`## Slice N`, `### Context`, `### TDD steps`, `### Gate`, `### Commit`).
-- Sizing: no standalone test-only slices (fold tests into the slice whose code they
-  exercise); a slice must earn its agent lifecycle; sequential slices share one
+- Sizing: no standalone test-only slices for FEATURE code (fold tests into the slice
+  whose code they exercise) — EXCEPT test-infra-only and docs-only slices (tooling
+  config, test helpers, fixtures, mutation/ADV/property suites, docs/prose) with no
+  `src/` delta, which are legitimately standalone (they have no implementation slice to
+  fold into); a slice must earn its agent lifecycle; sequential slices share one
   working tree and build on each other.
 - **Public-surface decision, up front:** for every NEW exported symbol (type,
   function, command, barrel entry) the plan introduces, decide **public or internal**

@@ -1011,6 +1011,38 @@ test('Given phases.review.harness: { max_cycles: 0 }, when validateManifest runs
   assert.ok(result.errors.some(e => e.includes('max_cycles') && e.includes('integer')));
 });
 
+// ─── ADV-3: empty procedure boundary ─────────────────────────────────────────
+
+test('ADV-3 Given phases.planning.procedure: "" (empty string), when validateManifest runs, then ok:false with procedure error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { planning: { procedure: '' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('phases.planning.procedure') && e.includes('string')),
+    `errors must name the field; got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test('ADV-3 Given phases.planning.procedure: "   " (whitespace-only), when validateManifest runs, then ok:false with procedure error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { planning: { procedure: '   ' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('phases.planning.procedure') && e.includes('string')),
+    `errors must name the field; got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
 test('Given phases.review.harness: { convergence: -1 } (negative), when validateManifest runs, then ok:false', () => {
   const sut = validateManifest;
 

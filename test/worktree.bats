@@ -30,6 +30,15 @@ teardown() {
   [[ "$output" == *"dependency install skipped (noted)"* ]]
 }
 
+@test "Given a worktree with a nested engine/package-lock.json, when setup runs, then it installs via the nested dir" {
+  mkdir "$WT/engine"
+  touch "$WT/engine/package-lock.json"
+  echo '{}' > "$WT/engine/package.json"
+  run bash "${SCRIPTS_DIR}/worktree-setup.sh" "$WT"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"installed in-worktree via npm (nested: engine)"* ]]
+}
+
 # ---------------------------------------------------------------------------
 # worktree-setup.sh — post-setup script branch
 # ---------------------------------------------------------------------------

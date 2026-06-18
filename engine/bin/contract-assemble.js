@@ -2,7 +2,7 @@
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { load } from 'js-yaml';
+import { parseManifestContent } from '../src/frontmatter.js';
 import { parsePipeline } from '../src/descriptor.js';
 import { assembleContract } from '../src/contract.js';
 import { BUNDLE_VOCAB } from '../src/graph.js';
@@ -92,7 +92,7 @@ if (!descriptor) {
 let manifest = {};
 if (args.manifestPath) {
   try {
-    manifest = load(readFileSync(args.manifestPath, 'utf8')) ?? {};
+    manifest = parseManifestContent(readFileSync(args.manifestPath, 'utf8')) ?? {};
   } catch (err) {
     process.stderr.write(`contract-assemble: failed to parse manifest: ${err.message}\n`);
     process.exit(2);

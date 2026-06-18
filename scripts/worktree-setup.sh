@@ -22,7 +22,16 @@ elif [ -f go.mod ];            then go mod download; installed="go"
 elif [ -f Gemfile.lock ];      then bundle install; installed="bundler"
 elif [ -f composer.lock ];     then composer install; installed="composer"
 else
-  echo "craft-setup: no recognized lockfile/manifest — dependency install skipped (noted)."
+  for sub in */; do
+    if [ -d "$sub" ] && [ -f "${sub}package-lock.json" ]; then
+      ( cd "$sub" && (npm ci || npm install) )
+      installed="npm (nested: ${sub%/})"
+      break
+    fi
+  done
+  if [ -z "$installed" ]; then
+    echo "craft-setup: no recognized lockfile/manifest — dependency install skipped (noted)."
+  fi
 fi
 [ -n "$installed" ] && echo "craft-setup: dependencies installed in-worktree via $installed."
 

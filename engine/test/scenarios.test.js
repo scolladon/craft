@@ -278,7 +278,7 @@ test('S2 Given phases.planning.role swapped, when assembleContract runs on plann
   for (const marker of CORE_MARKERS) {
     assert.ok(hasCI(result, marker), `swap dropped core marker: "${marker}"`);
   }
-  assert.ok(hasCI(result, 'Decision-candidates'), 'producer bundle must survive the swap');
+  assert.ok(hasCI(result, 'Decision-candidates section is mandatory'), 'producer bundle must survive the swap');
 });
 
 // ─── S2-proc: default-phase procedure override lands on the descriptor ────────
@@ -1080,4 +1080,21 @@ test('S-harness-validation Given phases.validation.harness: { scope: "per-file" 
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.effective.map(d => d.id), SC1_IDS);
+});
+
+// ─── ADV-1: roleExists filter true-branch count ───────────────────────────────
+
+test('ADV-1 Given a manifest with two role-bearing phases and a probe rejecting only one, when resolvePipeline runs, then exactly one error names the bad phase', () => {
+  const defaults = loadDefault();
+  const manifest = { phases: { planning: { role: 'my:good' }, implementation: { role: 'my:bad' } } };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest, { roleExists: ref => ref !== 'my:bad' });
+
+  assert.equal(result.ok, false, 'a rejected role must fail closed');
+  assert.equal(result.errors.length, 1, `expected exactly 1 error; got: ${JSON.stringify(result.errors)}`);
+  assert.ok(
+    result.errors[0].includes('implementation') && result.errors[0].includes('my:bad'),
+    `error must name the bad phase and ref; got: ${result.errors[0]}`,
+  );
 });

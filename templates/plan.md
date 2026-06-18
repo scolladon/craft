@@ -8,8 +8,11 @@
 ## Sizing rules
 
 - Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices: coverage/interop/property tests fold
-  into the implementation slice whose code they exercise.
+  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
+  tests fold into the implementation slice whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+  mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
+  have no implementation slice to fold into.
 - A slice that would be a pure test pass over already-landed code merges into its
   neighbour.
 

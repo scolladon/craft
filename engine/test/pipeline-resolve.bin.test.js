@@ -106,3 +106,40 @@ test('Given an unknown --flag, when pipeline-resolve runs, then it exits 2 and n
   assert.equal(result.status, 2);
   assert.match(result.stderr, /unknown option --bogus/);
 });
+
+// ─── roleExists: craft: typo rejected ────────────────────────────────────────
+
+test('Given a manifest with a misspelled craft role (craft:plannr), when pipeline-resolve runs, then it exits 2 naming the phase and ref', () => {
+  const sut = run;
+  const badRolePath = join(manifestsDir, 'bad-role.md');
+
+  const result = sut(pipelinePath, badRolePath);
+
+  assert.equal(result.status, 2, `expected exit 2 but got ${result.status}; stderr: ${result.stderr}`);
+  assert.match(result.stderr, /implementation/);
+  assert.match(result.stderr, /craft:plannr/);
+});
+
+// ─── roleExists: valid craft role passes ─────────────────────────────────────
+// (jointly load-bearing with the bad-role test above: exit 0 here discriminates a
+//  resolvable craft ref from "always permissive" only in concert with bad-role's exit-2)
+
+test('Given a manifest with a valid craft role (craft:planner), when pipeline-resolve runs, then it exits 0', () => {
+  const sut = run;
+  const goodRolePath = join(manifestsDir, 'good-role.md');
+
+  const result = sut(pipelinePath, goodRolePath);
+
+  assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
+});
+
+// ─── roleExists: external namespace stays permissive ─────────────────────────
+
+test('Given a manifest with an external role (acme:tdd-specialist), when pipeline-resolve runs, then it exits 0 (permissive for non-craft: refs)', () => {
+  const sut = run;
+  const externalRolePath = join(manifestsDir, 'external-role.md');
+
+  const result = sut(pipelinePath, externalRolePath);
+
+  assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
+});

@@ -18,9 +18,14 @@ ENTIRELY session-owned — never delegated.
 1. No decision candidates from design? Skip honestly (run record: "no user-judgment
    decisions") — never invent questions.
 2. Per candidate: present ≤3 options with the design's recommendation; capture the
-   user's decision as `<adr-dir>/NNN-<title>.md` from the template; commit each as
-   `docs(adr): NNN <title>`.
-3. **Scope-fold rule:** if any decision deviates from the design's recommendation,
+   user's decision.
+3. **Cross-candidate interaction check (before authoring):** once all candidates are
+   ratified, check whether any ratified choice's rationale is voided or altered by
+   another ratified choice (a later choice can invalidate an earlier one's premise).
+   If so, re-surface the affected candidate to the user for re-decision before authoring.
+4. Author each ratified decision as `<adr-dir>/NNN-<title>.md` from the template; commit
+   each as `docs(adr): NNN <title>`.
+5. **Scope-fold rule:** if any decision deviates from the design's recommendation,
    spawn a FRESH **craft:designer** to revise — fed the ADR + design-doc PATHS (the
    committed artifacts, read in-place; never your conversation) — committing
    `docs(design): revise <slug> against ADRs <range>` BEFORE the planning phase.

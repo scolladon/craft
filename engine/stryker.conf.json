@@ -1,0 +1,9 @@
+{
+  "testRunner": "tap",
+  "coverageAnalysis": "perTest",
+  "tap": { "testFiles": ["engine/test/**/*.test.js"] },
+  "mutate": ["engine/src/**/*.js"],
+  "concurrency": 2,
+  "tempDirName": "engine/.stryker-tmp",
+  "reporters": ["clear-text", "progress"]
+}

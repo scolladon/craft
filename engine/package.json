@@ -6,10 +6,15 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test",
-    "ci": "bash ../scripts/ci.sh"
+    "test": "node --test 'test/**/*.test.js'",
+    "ci": "bash ../scripts/ci.sh",
+    "mutation": "cd .. && stryker run engine/stryker.conf.json"
   },
   "dependencies": {
     "js-yaml": "^4.1.0"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "8.7.1",
+    "@stryker-mutator/tap-runner": "8.7.1"
   }
 }

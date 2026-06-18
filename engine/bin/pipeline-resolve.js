@@ -1,9 +1,17 @@
 #!/usr/bin/env node
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parsePipeline } from '../src/descriptor.js';
 import { resolvePipeline } from '../src/resolve.js';
 import { applyCliOverlay } from '../src/cli-overlay.js';
 import { parseManifestContent } from '../src/frontmatter.js';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+const CRAFT_PREFIX = 'craft:';
+const roleExists = ref =>
+  !ref.startsWith(CRAFT_PREFIX) ||
+  existsSync(join(REPO_ROOT, 'agents', ref.slice(CRAFT_PREFIX.length) + '.md'));
 
 /**
  * Parse CLI args into structured options.
@@ -78,7 +86,7 @@ const effectiveManifest = applyCliOverlay(manifest ?? {}, { profile, skip });
 
 let resolution;
 try {
-  resolution = resolvePipeline(defaults, effectiveManifest);
+  resolution = resolvePipeline(defaults, effectiveManifest, { roleExists });
 } catch (err) {
   process.stderr.write(`pipeline-resolve: ${err.message}\n`);
   process.exit(2);

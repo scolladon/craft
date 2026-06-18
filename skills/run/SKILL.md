@@ -16,11 +16,11 @@ Input: `$ARGUMENTS`
 
 ## 0 — Resolve
 
-0a. **Parse craft flags from `$ARGUMENTS`** first: strip any `--profile <name>` and
+0a. **Parse craft flags from the input** first: strip any `--profile <name>` and
    `--skip <id,…>` tokens (they may appear anywhere — lead or trail; comma-split the skip
    ids). Hold them for step 1b. The
    **non-flag remainder is the input brief** consumed at step 2 — a flags-only
-   `$ARGUMENTS` (e.g. `--profile lean`) leaves an empty brief, and step 2 STOPs as
+   input (e.g. `--profile lean`) leaves an empty brief, and step 2 STOPs as
    ambiguous exactly as a zero-argument invocation does. These are per-invocation
    overrides: they win over the manifest's `pipeline.profile`/`pipeline.skip` (the bin
    merges them at highest precedence — ADR-022).
@@ -241,7 +241,8 @@ bring their own `procedure`, dispatched verbatim (step 1).
   param). If a spawn dies on a model-availability error (model down/overloaded/unknown
   — NOT a task blocker, which uses the blocker protocol), mark that model **degraded
   for the rest of the run** and re-resolve to `models.fallback` if declared, else the
-  session's own model (guaranteed available). Record the degradation in the run record,
+  engine default `sonnet`, else the session's own model (guaranteed available). Record
+  the degradation in the run record,
   then respawn from the artifact. Once a tier is known degraded this run, later spawns
   skip straight to the fallback — never pay the same dead spawn twice.
 
@@ -259,6 +260,15 @@ real brief, confirm the inline phases commit artifacts in the same shape as the 
 `engine/test/contract-equivalence.test.js` proves that bound per descriptor), and record
 the result in the run record under `inline-fidelity-check`. Rationale:
 `docs/DESIGN-P6-execution-topology.md`.
+
+## Review cadence — engine vs working-style
+
+The engine cadence is the single `review` phase over the whole change (per-dimension
+convergence, owned by `craft:review`). The "4-dimension review after every code slice"
+is a **session working-style** — a discipline the orchestrator may apply, not an engine
+invariant. A first-class per-slice review cadence (multi-reviewer fan-out, `passes>1`,
+numeric convergence enforcement) is deferred to the later walk/parallelism pass, which is
+its home.
 
 ## Done
 

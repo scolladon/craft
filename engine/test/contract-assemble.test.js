@@ -135,6 +135,28 @@ test('Given --manifest immediately followed by another flag, when contract-assem
   assert.ok(result.stderr.includes('--manifest'), `stderr should name the offending flag; got: ${result.stderr}`);
 });
 
+// ─── fenced manifest via --manifest: frontmatter-only parse ──────────────────
+
+test('Given --descriptor-id design --manifest with-body.md (fenced), when contract-assemble runs, then exits 0 with core markers', () => {
+  const sut = run;
+
+  const result = sut(['--descriptor-id', 'design', '--manifest', 'engine/test/fixtures/manifests/with-body.md']);
+
+  assert.equal(result.status, 0, `Expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
+  assert.ok(result.stdout.toLowerCase().includes('never commit on a red gate'), 'core marker "never commit on a red gate" must be present');
+});
+
+test('Given --descriptor-id design --manifest with-context.md, when contract-assemble runs, then context sentinels are injected and body sentinel is absent', () => {
+  const sut = run;
+
+  const result = sut(['--descriptor-id', 'design', '--manifest', 'engine/test/fixtures/manifests/with-context.md']);
+
+  assert.equal(result.status, 0, `Expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
+  assert.ok(result.stdout.includes('GLOBAL_CONTEXT_SENTINEL'), 'global context sentinel must be injected');
+  assert.ok(result.stdout.includes('DESIGN_CONTEXT_SENTINEL'), 'per-phase context sentinel must be injected for design descriptor');
+  assert.ok(!result.stdout.includes('BODY_SENTINEL'), 'body sentinel must NOT appear — body never reaches the parser');
+});
+
 // ─── review descriptor (harness-read bundle) ─────────────────────────────────
 
 test('Given --descriptor-id review, when contract-assemble runs, then stdout contains harness-read markers', () => {
