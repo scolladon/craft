@@ -25,6 +25,12 @@ program (PRD §17). Each example labels its surfaces.
   (`procedure:`); the engine injects the invariant contract around your worker (G5), so a swap
   changes *who* runs a phase, never *what binds it*. *All-current* (the live install-probe for
   external refs rides a later phase).
+- [`requirements/`](requirements/) — turn ON the default-off `requirements` phase: a
+  spec-driven team captures product requirements as a first-class artifact that `design`
+  consumes (ADR-048/053). *All-current.*
+- [`architecture/`](architecture/) — turn ON the default-off `architecture` phase: an
+  architecture-led team gates the PR on dependency-cruiser; no-ops with a note when no
+  config exists yet (ADR-049/050). *All-current.*
 
 The point: craft stays opinion-free about *what* you inject — it owns only the orchestration
 guarantees (PRD §11). Bring your own rules, agents, and tools; craft wires and gates them.

@@ -1,0 +1,5 @@
+phases:
+  requirements:
+    enabled: true
+  architecture:
+    enabled: true

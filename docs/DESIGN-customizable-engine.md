@@ -195,7 +195,7 @@ per SP4 (old name in parentheses). Artifact names below are the design's canonic
 | `propose` (pr) | delivery | yes | — *(session-owned)* | `change` | — | `pr` | `pr.pre-pr-gate` |
 | `integrate` (merge) | delivery | yes | — *(session-owned)* | `pr` | — | — | — |
 
-¹ default-off; its *agent* is P10 (the descriptor reserves the `role`, the agent body is built later).
+¹ default-off; its agent ships in P10 — `requirements-writer` / `architecture-triager` now exist; enabling the phase dispatches it.
 
 *Notes.* `gate` carries today's placeholder vocabulary (`<touched-files>`, `<touched-tests>`,
 `<gates.phase>`); the empty-set rule (a placeholder resolving empty drops its command) carries
@@ -420,7 +420,7 @@ The to-be `run/SKILL.md` walk, generalised away from hardcoded phase names:
 | `plan-lint.sh` | unchanged (structural slice-schema gate — the shape-robust output model) | — |
 | `worktree-setup/teardown.sh` | unchanged mechanically; **named as the VCS adapter** (isolate/teardown verbs); lock policy is core | P3 (name), P16 (extract) |
 | `hooks/*` | unchanged; **named as the Gate/tool-guard mechanical adapter** | — |
-| `templates/*` | unchanged; `requirements`/`architecture` templates added with their agents | P10 |
+| `templates/*` | unchanged; `templates/requirements.md` added (P10) — `architecture` is a harness and needs no template; `agents/requirements-writer.md` + `agents/architecture-triager.md` + `skills/requirements/` + `skills/architecture/` now ship | P10 |
 | `docs/DESIGN.md` | **split** (§16): this doc becomes the *living engine architecture* SoT; old DESIGN.md → historical migration record (**DC-7**) | P5 |
 
 **P4 rename home.** The rename is a single coordinated change: skill dirs (`skills/branch→
@@ -488,7 +488,9 @@ section specifies the seams it targets.)*
 - **P8 harness-config internals** — the `harness:` *field* and its defaults are designed here;
   how dimensions/passes/cycles/convergence/tool resolve at run time is P8.
 - **P10 new-phase agents** — `requirements`/`architecture` exist as default-off *descriptors*;
-  the `requirements-writer` / `architecture-triager` agent bodies are P10.
+  `requirements-writer` / `architecture-triager` agent bodies, two skill procedures
+  (`skills/requirements/`, `skills/architecture/`), and `templates/requirements.md` now ship (P10);
+  enabling either phase in a manifest dispatches end-to-end.
 - **P11 backlog adapter implementations** — the `resolve`/`complete` *port* is fixed; the gh/
   jira/linear/custom *implementations* are P11.
 - **P14 derived-plugin extension specifics** — the ports admit Tier-2 (SP2 GREEN); the

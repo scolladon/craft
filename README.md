@@ -6,6 +6,17 @@ refactoring → validation → documentation → propose → integrate** — tha
 as-is and customizes through a committed declination manifest. Zero session-memory
 dependence: every load-bearing rule lives in a hook, a script, or versioned instruction text.
 
+## Why craft
+
+- **Industrialize delivery** — one gated phase sequence, repeatable; every load-bearing rule lives in a hook, a script, or versioned instruction text, not session memory.
+- **Declinate per repo** — a committed `.claude/workflow.md` manifest customizes the pipeline (skip / insert / reorder / swap agent or skill / profile / per-phase harness config); no manifest = strong probed defaults.
+- **Manage comprehension debt** — design docs + sliced plans with pre-chewed context blocks capture *what* the change is and *how* it was built, so understanding survives context resets.
+- **Manage intention debt** — ADRs and user-ratified decision candidates capture *why* every load-bearing choice was made.
+- **Formalize the architecture harness with its own lifecycle** — a standalone `architecture` phase (probe → run dependency-cruiser → triage violations → gate the PR), default-off, enabled by one manifest line.
+- **Formalize engineering harnesses with their own lifecycles** — `review` (dimensions / passes / convergence) and `validation` (mutation: tool / scope / triage) are first-class AI harnesses with their own config and gates.
+- **A framework for AI harnesses** — the engine wires and gates whatever harness a repo brings (review, validation, architecture, …) around an engine-owned invariant contract; a harness is pluggable, the contract is not.
+- **Bounded long-running work** — git-worktree isolation + sliced TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
+
 ## Install
 
 ```bash
@@ -39,7 +50,8 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
 - `skills/run` — orchestrator (cross-phase invariants, run record)
 - `skills/<phase>` — one per phase: non-overridable Preamble + overridable Procedure
 - `agents/` — role contracts with pinned models (designer, planner, reviewer,
-  slice-implementer, refactor-executor, validation-triager, docs-writer, backlog-ticker).
+  slice-implementer, refactor-executor, validation-triager, docs-writer, backlog-ticker,
+  requirements-writer, architecture-triager).
   A pinned model that goes down falls back (manifest `models.fallback` → session model)
   and the degraded tier is remembered for the rest of the run.
 - `hooks/` — PreToolUse guards: `git diff/show` without `--no-ext-diff` is denied with

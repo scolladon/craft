@@ -157,6 +157,32 @@ test('Given --descriptor-id design --manifest with-context.md, when contract-ass
   assert.ok(!result.stdout.includes('BODY_SENTINEL'), 'body sentinel must NOT appear — body never reaches the parser');
 });
 
+// ─── requirements descriptor (producer bundle) ───────────────────────────────
+
+test('Given --descriptor-id requirements, when contract-assemble runs, then exits 0 with producer markers', () => {
+  const sut = run;
+
+  const result = sut(['--descriptor-id', 'requirements']);
+
+  assert.equal(result.status, 0, `Expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
+  assert.ok(result.stdout.includes('Decision-candidates'), 'producer marker "Decision-candidates" must be present');
+  assert.ok(result.stdout.includes('Fill the named template'), 'producer marker "Fill the named template" must be present');
+  assert.ok(!result.stdout.includes('survivors or violations'), 'harness-exec marker must NOT leak into the producer bundle');
+});
+
+// ─── architecture descriptor (harness-exec bundle) ───────────────────────────
+
+test('Given --descriptor-id architecture, when contract-assemble runs, then exits 0 with harness-exec markers', () => {
+  const sut = run;
+
+  const result = sut(['--descriptor-id', 'architecture']);
+
+  assert.equal(result.status, 0, `Expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
+  assert.ok(result.stdout.includes('survivors or violations'), 'harness-exec marker "survivors or violations" must be present');
+  assert.ok(result.stdout.includes('Never weaken a test to kill a mutant or clear a violation'), 'harness-exec marker "Never weaken a test to kill a mutant or clear a violation" must be present');
+  assert.ok(!result.stdout.includes('Decision-candidates'), 'producer marker must NOT leak into the harness-exec bundle');
+});
+
 // ─── review descriptor (harness-read bundle) ─────────────────────────────────
 
 test('Given --descriptor-id review, when contract-assemble runs, then stdout contains harness-read markers', () => {

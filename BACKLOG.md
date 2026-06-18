@@ -23,7 +23,8 @@
 | P8.5 | Rename plugin **forge→craft** + namespace propagation (non-PRD interstitial — branding/productization, **not** a PRD §17 phase; §17 numbering unchanged, P9 still next) | ✅ done & green |
 | P9 | Agent/skill swap via manifest — `role:` + new default-phase `procedure:` override + engine `roleExists` guard (seam); S2 hardened walk-level | ✅ done & green |
 | P9.5 | Hardening batch (parked-from-P9 + engine/tooling dogfood gaps) — `roleExists` live-probe wired + Stryker stood up (validation runs for real) + `models.fallback` (`sonnet`) & fable→opus + nested-lockfile probe + `node --test` glob+count-assert + decisions interaction prompt + brief-echo trim + review-cadence doc + `contract-assemble` parse fix + planner test-infra carve-out (item-10 forge-era aliasing DROPPED, ADR-045); ADRs 041–047 | ✅ done & green |
-| **P10–P16** | **new default phases, NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
+| P10 | New default phases & agents — optional `requirements` (`requirements-writer`) + `architecture` harness (`architecture-triager`), both default-off, runnable-when-enabled | ✅ done & green |
+| **P11–P16** | **NFR matrix, backlog/registration ports, … (+ showcase docs)** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -187,16 +188,65 @@
   `roleExists` seam (NOT 0-diff — the deliberate DC-A/DC-D consequence). CI green at every commit, never
   `--no-verify` (409 `node --test` + 42 bats).
 
-## Next — P10+
-- **P10 — new default phases & agents**: optional `requirements` (new `requirements-writer` agent) +
-  `architecture` harness (new `architecture-triager` agent), both default-off. Next up (S4/S5 green).
-- **P10–P16** (PRD §17, in order): P10 new default phases
-  (requirements/architecture) · P11 backlog SoT adapter · **P12 DX** · P13 NFR
+### P10 — new default phases & agents (slices 1–3 + review fixes; SoT `docs/{DESIGN,PLAN}-P10-default-phases.md`, ADRs 048–053; built dogfood via `/craft:run`)
+- [x] **Scope reconciliation (design):** the engine/resolution layer was already built — the
+  `requirements`/`architecture` descriptors have shipped `enabled: false` in `pipeline/default.yml`
+  since P1 (the 13-descriptor data), S4/S5 resolver goldens were green, both contract bundles
+  (`producer`/`harness-exec`) assemble, `paths` is unvalidated-passthrough, and `prd→requirements`
+  aliases. The genuine gap was **dispatch**: no `agents/requirements-writer.md` / `architecture-triager.md`
+  and no `skills/requirements/` / `skills/architecture/` dir, so a live `/craft:run` with either enabled
+  failed closed (`roleExists` exit 2). **No `engine/src` change was needed** — P10 is pure authoring.
+- [x] **Decisions (ADRs 048–053, user-ratified; 2 of 6 diverged):** ADR-048 new `templates/requirements.md`
+  + `docs/requirements/<slug>.md` via `paths.requirements` probe; ADR-049 `architecture` runs **synchronously,
+  no lock** (dependency-cruiser is fast — no `.craft-mutation.lock` clone); ADR-050 report in the run record,
+  exceptions in dependency-cruiser's own config, `<arch gate>` = depcruise exit 0; **ADR-051 ⚑ user OVERRODE
+  rec → both agents pin `model: opus`** (architecture-triage is structural reasoning, not mechanical
+  mutant-killing); ADR-052 test surface (live-bin inverse-RED + contract pins + structural bats); **ADR-053 ⚑
+  user chose to ADD a one-line `skills/design/SKILL.md` note** for consuming a produced `requirements` artifact.
+  Cross-candidate check clean; scope-fold design revision committed before planning.
+- [x] **s1 — requirements vertical:** `templates/requirements.md` + thin `requirements-writer` (opus, mirrors
+  `designer`, G5-clean) + `skills/requirements/SKILL.md` (`# craft:requirements` dispatch heading) + the
+  ADR-053 design-skill note; live-bin inverse-RED test (`enable-requirements` → exit 0) + `contract-assemble`
+  producer pin; `EXPECTED_TESTS` 418→420.
+- [x] **s2 — architecture vertical:** thin `architecture-triager` (opus, mirrors `validation-triager`) +
+  `skills/architecture/SKILL.md` (synchronous, probe-first no-op, NO `.craft-mutation.lock`/background/teardown
+  clause — ADR-049) + `enable-architecture.yml` fixture; live-bin inverse-RED test (`enable-architecture` →
+  exit 0) + `contract-assemble` harness-exec pin; `EXPECTED_TESTS` 420→422.
+- [x] **s3 — structural bats + examples:** `test/p10-structure.bats` (existence + procedure↔dir heading +
+  G5 thinness + no-lock guards) + `examples/requirements/` (S4 persona) + `examples/architecture/` (S5 persona)
+  + `examples/README.md` index rows. Standalone test-infra/docs slice (no `src` delta, no count bump).
+- [x] **4-dim review → converged:** cycle 1 surfaced **2 HIGH** (the bats thinness `@test`s collapsed two
+  `! grep -q` lines, but bats runs without `set -e` so the first probe was DEAD — half-vacuous guard, proven
+  empirically) + 4 LOW (2 agent house-lead descriptions, positive-only contract pins, no both-phases bin test);
+  security/perf zero. All fixed (collapsed to `! grep -qE 'A|B'`, added negative cross-bundle pins +
+  `enable-both` bin case, house leads; `EXPECTED_TESTS` 422→423). Cycle 2 (tests fix-delta) zero → converged.
+- [x] **Refactoring:** NO-OP (justified) — skill/agent boilerplate duplication is inherent to the
+  one-`SKILL.md`-per-phase dispatch model; the shared invariant is already engine-injected (P5/ADR-017).
+- [x] **Validation:** NO-OP for this change — Stryker is configured (`engine/stryker.conf.json`,
+  mutate `engine/src/**/*.js`) but P10 touched ZERO `engine/src` (changed files ∩ mutate-glob = ∅); no mutable
+  surface to score; `propose` validation-gate released (suite green at 423). The P9.5 full-engine baseline
+  (80.03%) stays representative — P10 didn't touch src.
+- [x] **Surface gate held:** `engine/src/**` **0-diff** vs P9.5; `pipeline/default.yml` unchanged (both
+  descriptors already present, `enabled: false`); S4/S5 resolver goldens green; both phases remain default-off;
+  CI green at every commit, never `--no-verify` (423 `node --test` + 53 bats).
+
+## Next — P11+
+- **P11 — backlog SoT adapter**: adapter iface; file default; gh/jira/linear (PRD §17 P11; S6 green). Next up.
+- **P11–P16** (PRD §17, in order): P11 backlog SoT adapter · **P12 DX** · P13 NFR
   hardening · P14 derived-plugin extension · P15 second-instantiation · P16 provider-agnostic.
 - **Showcase / DX docs are P12 — intentionally late**, not next. The illustrated overview (intent,
   hexagon Mermaid, a sample `.claude/workflow.md`, a sample run) documents the *full* customization
   surface, so it lands only after P7–P11 build it; its derived-plugin (Tier-2) half is gated after
   P14 so the catalog never advertises an unproven surface (PRD §17 P12).
+
+### Parked from P10 (surfaced this run)
+- [ ] **Evaluate migrating the `bats` suite to `node --test` (JS) for portability** (user-requested;
+  ADR-052). `bats` requires bash; `node --test` runs anywhere Node does, and a single runner would
+  collapse the current two-counter split (`EXPECTED_TESTS` gates only `node --test`; bats has its own
+  gate). Scope: port `test/*.bats` (worktree/hooks/manifest-lint/smoke/p10-structure) to JS, preserving
+  the shell-behavior coverage (the worktree/hook scripts still need real-process assertions — likely
+  `node:test` + `child_process`). A judgment call on whether the JS port keeps fidelity for the
+  shell-script tests; evaluate before committing to the migration.
 
 ### Parked from P9 — ✅ DONE (P9.5 hardening batch)
 - [x] **`roleExists` live install-probe wired into the bin.** `engine/bin/pipeline-resolve.js` now

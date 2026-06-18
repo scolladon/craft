@@ -12,6 +12,8 @@ description: Craft phase 2 - produce the feature design doc via the designer age
    branch; establish global-context preconditions against the current checkout root.
 2. Probe: design docs directory (`paths.design`, else `docs/design/`, create if
    absent); repo's own design template, else `"${CLAUDE_PLUGIN_ROOT}/templates/design.md"`.
+3. If a `requirements` artifact was produced this run, treat it as a hard input (read
+   it, design against it); else self-supply requirements in the design doc's own section.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

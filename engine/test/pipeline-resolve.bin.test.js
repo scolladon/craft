@@ -159,3 +159,40 @@ test('Given a manifest with a path-traversal craft role (craft:../agents/planner
   assert.match(result.stderr, /implementation/);
   assert.match(result.stderr, /craft:\.\.\/agents\/planner/);
 });
+
+// ─── requirements phase: agent resolves → effective includes requirements ─────
+
+test('Given a manifest with requirements enabled, when pipeline-resolve runs, then it exits 0 and effective includes requirements', () => {
+  const sut = run;
+
+  const result = sut(pipelinePath, join(manifestsDir, 'enable-requirements.yml'));
+
+  assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
+  const resolution = JSON.parse(result.stdout);
+  assert.ok(resolution.effective.map(d => d.id).includes('requirements'));
+});
+
+// ─── architecture phase: agent resolves → effective includes architecture ─────
+
+test('Given a manifest with architecture enabled, when pipeline-resolve runs, then it exits 0 and effective includes architecture', () => {
+  const sut = run;
+
+  const result = sut(pipelinePath, join(manifestsDir, 'enable-architecture.yml'));
+
+  assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
+  const resolution = JSON.parse(result.stdout);
+  assert.ok(resolution.effective.map(d => d.id).includes('architecture'));
+});
+
+// ─── both phases enabled together: both agents resolve → effective includes both ─
+
+test('Given a manifest with requirements and architecture both enabled, when pipeline-resolve runs, then it exits 0 and effective includes both', () => {
+  const sut = run;
+
+  const result = sut(pipelinePath, join(manifestsDir, 'enable-both.yml'));
+
+  assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
+  const ids = JSON.parse(result.stdout).effective.map(d => d.id);
+  assert.ok(ids.includes('requirements'), `requirements should be present; got: ${JSON.stringify(ids)}`);
+  assert.ok(ids.includes('architecture'), `architecture should be present; got: ${JSON.stringify(ids)}`);
+});
