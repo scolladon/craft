@@ -8,7 +8,9 @@
 > "registered" for `roleExists` so an external ref fails closed when unregistered
 > (closes the P9 rider, ADR-037); plan the Tier-2 DX docs (injection-catalog #12 + the
 > #11 caveat). Resolves G8 / SC9 / S7. Gate = S7 green end-to-end.
-> Status: draft → self-reviewed ×3 → accepted
+> Status: draft → self-reviewed ×3 → accepted → revised against ADRs 069–075
+> (DC-1..DC-7 ratified; DC-5 deviates from the recommendation — `extends.phases` MAY
+> override a default id via a full-replace, override-aware insert path, ADR-073)
 
 ## Context
 
@@ -133,11 +135,12 @@ engine change, never a manifest key.
 |---|---|---|
 | R1 | A top-level `craft.extends:` (spelling per DC-1) manifest block registers a derived plugin's **phases**, **agents**, **profiles**, and **backlog-adapters** by namespaced name; descriptor data lives in the manifest (never read from plugin B's files) | new validator sub-fn in `manifest.js` + new `TOP_KEYS` entry |
 | R2 | `validateManifest` shape-checks every `extends` sub-block: phases (descriptor fields + closed bundle vocab + valid archetype), agents (namespaced ref strings), profiles (per-archetype `inline\|agent` maps), backlog-adapters (`{ name, ref }` with a resolvable ref); unknown sub-key or malformed value → loud `ok:false` | `validateExtends` + sub-validators in `manifest.js` |
-| R3 | Registered `extends.phases` feed `resolvePipeline` as inserts (same `applyInserts` path, same graph/strand/gate validation); a registered phase resolves into `effective[]`, carries its contract bundle, and dispatches its namespaced `procedure` | `resolve.js` reads `manifest.extends.phases` into the insert list (DC-2) |
+| R3 | Registered `extends.phases` feed `resolvePipeline` through the single **override-aware** insert path (same `applyInserts` path, same graph/strand/gate validation): a registered id matching a **default** id **replaces** that default descriptor in place; a registered id with **no** default match **inserts** as today; a registered phase resolves into `effective[]`, carries its contract bundle, and dispatches its namespaced `procedure`. `checkUniqueIds` still guards two *new* registrations colliding on a *new* id (it no longer rejects a same-id-as-default registration — that path now replaces) | `resolve.js` normalizes `manifest.extends.phases` into the insert list (DC-2/ADR-070) with an override branch (DC-5/ADR-073); `applyInserts` (`edits.js:101`) / `checkUniqueIds` (`graph.js:30`, called from `validatePipeline` `graph.js:119`) |
+| R3a | Override is a **full descriptor replace, not a field-merge**: a same-id registration supplies the whole descriptor (procedure, role, contract, edges, gate); **unspecified fields are NOT inherited** from the replaced default. The Tier-1 `phases.<id>.role`/`procedure` field-merge surface stays the way to *tweak* (not replace) a default | override branch swaps the descriptor object whole (DC-5/ADR-073); no merge over the default |
 | R4 | `contract-assemble` resolves an inserted/registered `descriptor-id` against the **resolved** descriptor set (inserts + registrations + defaults), not `default.yml` alone — closing "unknown descriptor-id" for `bench`/`acme:bench`/registered ids | new flag carrying the resolved descriptor(s) into `contract-assemble-main.js` (DC-3) |
 | R5 | A registered phase EXECUTES under the engine-owned contract: `assembleContract` emits the core bundle + the phase's declared `contract:` bundles + carve-outs, identical in shape to a default phase | reuse `assembleContract`; descriptor sourced via R4 |
 | R6 | `roleExists` resolves an external ref against the **registered agent set** (`extends.agents` ∪ the `role:` of registered/inserted phases — exact rule per DC-4); an unregistered external ref fails closed (`ok:false`); a registered one passes; craft-native + traversal behavior unchanged | rewire the bin probe in `pipeline-resolve-main.js`; pass the registered set into the closure |
-| R7 | A registered **profile** is selectable by `pipeline.profile`, expanding to its per-archetype map (the harness-archetype `agent` floor still forced); an unknown profile name still STOPs | `expandProfile` consults registered profiles (DC-5 governs SWAP-vs-extend) |
+| R7 | A registered **profile** is selectable by `pipeline.profile`, expanding to its per-archetype map (the harness-archetype `agent` floor still forced); an unknown profile name still STOPs; a registered profile is **full + typed** (all six archetype keys, values ∈ `{inline,agent}`) | `expandProfile` consults registered profiles; `validateExtendsProfiles` enforces full+typed (DC-7/ADR-075) |
 | R8 | A registered **backlog-adapter** is selectable as `backlog.source: <name>` resolving to its `ref` script via the existing `custom`-style port; failure = blocker (SP6 contract unchanged) | `validateBacklog` + `backlogSourceOf` learn registered adapter names |
 | R9 | The invariant core is unbreachable across the boundary: a registered phase's `contract:` is rejected if it names a bundle outside `BUNDLE_VOCAB`; the core bundle is always prepended; `validatePipeline` + gate discipline apply identically (G5/OQ4 proof) | existing `checkBundleVocab` + `assembleContract` core prepend; a negative test pins it |
 | R10 | S7 runs **end-to-end**: a registered/inserted phase resolves, its contract assembles, its role resolves, its gate decides — proven by a CI fixture that exercises the *engine* path without a real second-marketplace install (DC-6) | new scenario fixtures + unit tests + (DC-6) optional `--plugin-dir` smoke |
@@ -156,11 +159,16 @@ engine change, never a manifest key.
   `validateExtendsProfiles`, `validateExtendsBacklogAdapters`). Reuse the closed
   `VALID_ARCHETYPES` + `BUNDLE_VOCAB` for phase-block checks (import from `descriptor.js` /
   `graph.js`, or factor a shared constant — DC governs duplication-vs-import).
-- `engine/src/resolve.js` — fold `manifest.extends.phases` into the insert list **before**
-  `applyInserts` (DC-2 decides "merge into `pipeline.insert`" vs "a parallel registration
-  pass"); make `expandProfile`/the profile lookup aware of `extends.profiles`;
-  make `backlogSourceOf` accept registered adapter names. The 7-export `resolvePipeline`
-  signature is unchanged (registrations arrive inside `manifest`, the existing arg).
+- `engine/src/resolve.js` — normalize `manifest.extends.phases` into the insert list **before**
+  the `applyInserts` call (`resolve.js:194`) per DC-2/ADR-070 (single path, no parallel pass).
+  This normalize step carries the **override-aware branch** (DC-5/ADR-073): a registered id
+  matching a default id replaces that default descriptor in place (against the
+  post-`applyEnableEdits` list); a registered id with no default match flows to `applyInserts`
+  (`edits.js:101`) as a plain insert. `checkUniqueIds` (`graph.js:30`, via `validatePipeline`
+  `graph.js:119`) runs after and still rejects two new registrations colliding on a *new* id.
+  Also make `expandProfile`/the profile lookup aware of `extends.profiles`; make
+  `backlogSourceOf` accept registered adapter names. The 7-export `resolvePipeline` signature
+  is unchanged (registrations arrive inside `manifest`, the existing arg).
 - `engine/src/pipeline-resolve-main.js` — the bin builds the **registered-ref set** from the
   parsed manifest's `extends` (+ inserted phases per DC-4) and threads it into the `roleExists`
   closure; the closure's external-ref branch becomes "resolve against the registered set"
@@ -170,7 +178,7 @@ engine change, never a manifest key.
   `descriptors.find(d => d.id === descriptorId)` searches the **resolved** set; the
   default-path (no flag, default id) behavior is byte-unchanged.
 - `engine/src/profile.js` — `expandProfile` either throws on unknown (today) or consults a
-  registered-profile map passed in (DC-5/DC-7 scope this).
+  registered-profile map passed in; a registered profile is full + typed (DC-7/ADR-075).
 - `pipeline/default.yml` — **untouched** (registrations live in the manifest, never the SoT).
 - `skills/run/SKILL.md` — step 1 + step 3 prose: note that an inserted/registered id now
   resolves at `contract-assemble` (remove the "rides with P14" caveat at lines 109-113);
@@ -192,8 +200,7 @@ declares *what* B contributes and *how it wires*:
 
 ```yaml
 # .claude/workflow.md (repo root) — frontmatter
-# Key spelled `extends:` below per DC-1's recommendation; the user may pick
-# `craft.extends:` (PRD §12 wording) instead — DC-1 owns the final spelling.
+# Key spelled `extends:` (flat top-level) — ratified DC-1/ADR-069.
 extends:
   phases:                           # registered SE steps — descriptor data, manifest-carried
     - id: bench
@@ -230,10 +237,44 @@ toolkit example shows). This keeps the surface gate honest: P14 ships a registra
 + two execution fixes, not a new engine subsystem.
 
 **Relationship to `pipeline.insert`.** A registered phase IS an insert with a richer,
-validated descriptor and a namespaced `role`/`procedure`. DC-2 decides whether
-`extends.phases` is *normalized into* the insert list (one code path, recommended) or runs as
-a parallel pass. Either way the same `applyInserts` → graph → strand → gate machinery applies —
-**no second resolution path**.
+validated descriptor and a namespaced `role`/`procedure`. **DC-2 is ratified (ADR-070):**
+`extends.phases` is *normalized into* the insert list before `applyInserts` — one code path,
+**no second resolution path**. The normalize step sits in `resolve.js` immediately upstream of
+the `applyInserts` call (`resolve.js:194`), where `extends.phases` are folded into the same
+insert list that `pipeline.insert` feeds; the same `applyInserts` → graph → strand → gate
+machinery then applies.
+
+**Override-aware insert (DC-5 ratified — ADR-073, the deviation).** The design originally
+recommended `extends.phases` be *insert-only*; the user ratified the opposite. `extends.phases`
+**MAY override a default phase by reusing its id**, resolved as a **full descriptor replace**
+inside this same single path (ADR-070 + ADR-073) — not a parallel pass, not a field-merge. The
+normalize-into-insert step branches by id:
+
+```
+registered phase whose id == a DEFAULT descriptor's id
+  → REPLACE that default descriptor in place with the registered one (full swap)
+registered phase whose id has NO default match
+  → INSERT as today (applyInserts append/anchor — edits.js:101)
+```
+
+The branch lands where `extends.phases` are normalized into the insert list (`resolve.js`,
+just above `applyInserts` at `resolve.js:194`): a same-id-as-default entry is applied as a
+replace-in-place against the post-`applyEnableEdits` descriptor list rather than appended, so
+it never reaches `applyInserts` as a duplicate. Genuine new-id registrations still flow through
+`applyInserts` unchanged, preserving the existing P7 insert behavior.
+
+**`checkUniqueIds` interaction (explicit).** `checkUniqueIds` (`graph.js:30`, invoked from
+`validatePipeline` at `graph.js:119`) runs *after* the insert/replace step. Under override it
+**no longer rejects a same-id-as-default registration** — that registration replaced the default
+in place, so only one descriptor carries that id when `checkUniqueIds` runs. It **still rejects
+two genuinely-new registrations colliding on the same *new* id** (both inserted, both present →
+duplicate). So the uniqueness guard is unweakened for new ids; only the same-as-default case is
+re-routed from "collide" to "replace" by the upstream override branch.
+
+**Full replace, no field inheritance.** The replace is a whole-descriptor swap: the registered
+phase supplies procedure, role, contract bundles, edges, and gate; **nothing is inherited from
+the replaced default**. To *tweak* (not replace) a default, the author uses the Tier-1
+`phases.<id>.role`/`procedure` field-merge surface — the two surfaces stay distinct (ADR-073).
 
 ### Closing rider #2 — inserted/registered id EXECUTES (`contract-assemble`)
 
@@ -278,12 +319,13 @@ external ref `pluginB:bench-runner`
 craft-native `craft:<role>`  → unchanged (agents/<role>.md probe + traversal guard)
 ```
 
-**DC-4 fixes the exact set.** Candidate rules: (i) the union of `extends.agents` only; (ii)
-`extends.agents` ∪ every registered/inserted phase's `role:`; (iii) presence anywhere a
-namespaced ref is declared. Recommendation leans (ii): a phase declaring `role: pluginB:x`
-*is* a registration of `pluginB:x` for that run, so requiring it to also appear in
-`extends.agents` is redundant friction — but (i) is stricter (single declaration point) and
-catches a phase whose role typos a near-miss of a real agent. The user picks the strictness.
+**DC-4 is ratified (ADR-072 = option (ii)):** the registered set is **`extends.agents` ∪ the
+`role:` of every registered/inserted phase** — including an **overriding** phase's `role:`,
+which joins the set like any registered-phase role (a phase that replaces a default id and
+declares `role: pluginB:x` registers `pluginB:x` for that run). The accepted trade-off: a
+phase whose `role:` is itself a typo registers that typo (the stricter option (i),
+`extends.agents`-only, would have caught it). The bin builds this set from the **parsed
+manifest's `extends`** pre-resolution.
 
 **Why this is fail-closed, not fail-permissive.** Pre-P14, a typo'd `acme:plannr` and a
 deliberate `acme:planner` were indistinguishable (both `true`). Post-P14, only a ref the
@@ -312,15 +354,23 @@ A registered phase cannot lower the floor, by four independent mechanisms alread
    `contract: [my-bespoke-floor]` fails resolution. A registered phase **cannot define a new
    contract bundle** — it draws only from the seven engine-owned ones. (R9 negative test.)
 2. **Core always prepended.** `assembleContract` (`contract.js:94`) pushes `expandCore(...)`
-   first, unconditionally, for every descriptor — registered or default. The registered
-   procedure runs *inside* the core (never commit on red, no suppression, blocker protocol,
-   bounded scope, provenance). It cannot opt out.
+   first, unconditionally, for every descriptor — registered, inserted, default, **or a
+   registered descriptor that REPLACED a default (ADR-073 override)**. The slot's procedure
+   runs *inside* the core (never commit on red, no suppression, blocker protocol, bounded
+   scope, provenance) regardless of which worker/descriptor fills the slot. Override changes
+   *which* descriptor occupies a default's id; it never changes that the core wraps it — the
+   floor is keyed on the descriptor's presence in `effective[]`, not on its origin. It cannot
+   opt out.
 3. **Same graph + gate discipline.** A registered phase flows through `validatePipeline`
    (strand/edge/cycle) and `resolveGatesAndWaivers` identically; a code-producing registered
    phase needs a gate like any other; the walk's gate-cadence invariant binds it.
 4. **No core injection point.** `extends` exposes phases/agents/profiles/backlog-adapters —
    **never** `core`, `contracts/`, the hooks floor, or §11. There is no manifest key that
    reaches the invariant core; changing it stays an engine change (PRD §7 "Not injectable").
+   **Override (ADR-073) introduces no exception:** a replacing descriptor still draws its
+   `contract:` only from the closed `BUNDLE_VOCAB` (mechanism 1), is still wrapped by the core
+   (mechanism 2), and still flows through the same graph + gate discipline (mechanism 3). A
+   derived plugin can re-home a default *slot*; it cannot re-home the *floor*.
 
 OQ4 ("may derived plugins touch the invariant core?") is answered **no, structurally** — not
 by policy prose but because no surface exists to do so.
@@ -328,16 +378,20 @@ by policy prose but because no surface exists to do so.
 ### S7 end-to-end proof shape (SC9 / G8)
 
 The proof must exercise the *engine* path without a real second-marketplace install (cost,
-flakiness, network). DC-6 weighs fidelity vs cost; recommendation:
+flakiness, network). **DC-6 is ratified (ADR-074): engine fixture (CI) + manual smoke.**
 
 - **Primary (CI-gated): pure-manifest engine fixture.** Extend `S7/manifest.yml` to a full
-  `craft.extends:` block (phases + agents + profile + backlog-adapter). Assert, through the
+  `extends:` block (phases + agents + profile + backlog-adapter). Assert, through the
   *real* engine entry points (not mocks): (a) `validateManifest` accepts it; (b)
   `resolvePipeline` lands the registered phase in `effective[]` with its bundle + gate; (c)
   the registered external `role:` passes `roleExists` while an *unregistered* sibling fails
   closed; (d) `contract-assemble --descriptor-id <registered-id> <DC-3 flag>` emits the core +
-  declared bundle (the EXECUTE proof). This runs under `node --test`, deterministic, no plugin
-  install. This is the SC9 "runs under the invariant core" assertion at the engine layer.
+  declared bundle (the EXECUTE proof); (e) **override (ADR-073):** a registered phase reusing a
+  **default id** replaces that default in `effective[]` (default descriptor gone, registered one
+  at that id carrying its own bundle/role/gate), and `contract-assemble --descriptor-id <that
+  default id>` emits the core wrapping the *registered* procedure — proving a re-homed slot still
+  runs under the floor. This runs under `node --test`, deterministic, no plugin install. This is
+  the SC9 "runs under the invariant core" assertion at the engine layer.
 - **Optional (manual smoke, not CI-gated): real `--plugin-dir`.** A throwaway two-plugin
   fixture (mirroring SP2's `/tmp/craft-sp2`) driven by `claude -p --plugin-dir craft
   --plugin-dir pluginB`, asserting the registered phase actually dispatches + spawns. This is
@@ -373,15 +427,19 @@ unproven path (PRD §17 P12; ADR-062).
 
 ## Decision candidates
 
-| # | Choice | Alternatives (≤3) | Recommendation | Why |
-|---|---|---|---|---|
-| DC-1 | Manifest key spelling/shape | (a) top-level `extends:` · (b) `craft.extends:` (a dotted single top-level key, per PRD §12 sample) · (c) nested `craft: { extends: {…} }` | **(a) `extends:`** | The manifest is *already* craft's (`.claude/workflow.md`); a `craft.` prefix is redundant inside craft's own file, and `TOP_KEYS` is a flat set of bare keys (`backlog`, `pipeline`, …). PRD §12's `craft.extends:` reads as "the extends surface of craft," not a literal dotted YAML key. Flat `extends:` matches the existing schema; the PRD prose is satisfied. (User confirms — PRD wording vs schema consistency.) |
-| DC-2 | How `extends.phases` reaches resolution | (a) normalize into the `pipeline.insert` list before `applyInserts` (one code path) · (b) a parallel `applyRegistrations` pass · (c) require the user to *also* write `pipeline.insert` (extends only validates) | **(a) normalize into inserts** | A registered phase *is* an insert with a richer descriptor; reusing `applyInserts` means one graph/strand/gate path, no drift, minimal diff. (b) duplicates machinery; (c) defeats the point of a first-class surface. |
-| DC-3 | How `contract-assemble` learns inserted descriptors | (a) `--descriptor-json <path\|->` (walk passes the one resolved descriptor it holds) · (b) `--resolution <path>` (whole Resolution) · (c) re-resolve from `--manifest` + `default.yml` inside the bin | **(a) `--descriptor-json`** | The walk already parsed the Resolution (step 1b) and holds `effective[]`; passing the matched descriptor is zero-recompute and keeps `contract-assemble` ignorant of the Resolution schema. (c) duplicates the resolver (drift risk). |
-| DC-4 | "Registered" set for `roleExists` external refs | (a) `extends.agents` only (single declaration point) · (b) `extends.agents` ∪ every registered/inserted phase's `role:` · (c) any namespaced ref present anywhere in the manifest | **(b) agents ∪ phase roles** | A phase declaring `role: pluginB:x` *is* registering `pluginB:x` for the run; requiring double-declaration is friction. (a) is stricter (catches a phase-role typo that (b) would silently accept) — a real trade-off the user owns. (c) is too loose (a typo anywhere passes). |
-| DC-5 | May `extends.phases` only INSERT, or also SWAP/override a default phase? | (a) insert-only (default phases swap via existing `phases.<id>.role`/`procedure`) · (b) also allow registering a same-`id` phase that overrides a default · (c) insert + a separate `extends.overrides:` block | **(a) insert-only** | Default-phase swap already has a surface (Tier-1 #10, `role:`/`procedure:`); letting `extends` redefine a default `id` collides with `checkUniqueIds` and muddies the SoT. Keep `extends` additive; swaps stay in `phases.<id>`. (User may want (b) for a fully derived pipeline.) |
-| DC-6 | S7 proof: CI cost vs fidelity | (a) pure-manifest engine fixture only (CI) · (b) engine fixture (CI) + documented manual `--plugin-dir` smoke (SP2-shape, not CI) · (c) real second-plugin install in CI | **(b) engine fixture + manual smoke** | (a) proves every engine invariant deterministically; the manual smoke (like the existing inline-fidelity + model-class checks) adds runtime cross-plugin fidelity without coupling CI to a flaky second install. (c) is high-cost/flaky for marginal gain — SP2 already pinned the dispatch. |
-| DC-7 | Registered-profile validation rigor | (a) require all six archetype keys, values ∈ `{inline,agent}` · (b) allow partial maps (missing archetype → `agent` default) · (c) profiles registration deferred to a follow-up (ship phases/agents/backlog now) | **(a) full + typed** | A profile is a whole-flow contract; a partial map silently agent-defaults a phase the author forgot — surprising. Full + typed fails loud on an incomplete profile. (c) is a viable scope-cut if profile registration proves heavy — but PRD §12 names profiles explicitly, so cutting needs user sign-off. |
+> **Ratified.** The decisions phase recorded DC-1..DC-7 as ADRs 069–075. Six matched the
+> recommendation; **DC-5 deviated** (override now allowed). The "Ratified outcome" column is the
+> binding record; the recommendation column is preserved for provenance.
+
+| # | Choice | Alternatives (≤3) | Recommendation | Ratified outcome | Why |
+|---|---|---|---|---|---|
+| DC-1 | Manifest key spelling/shape | (a) top-level `extends:` · (b) `craft.extends:` (a dotted single top-level key, per PRD §12 sample) · (c) nested `craft: { extends: {…} }` | **(a) `extends:`** | **ADR-069 = (a) flat `extends:` — MATCHES** | The manifest is *already* craft's (`.claude/workflow.md`); a `craft.` prefix is redundant inside craft's own file, and `TOP_KEYS` is a flat set of bare keys (`backlog`, `pipeline`, …). PRD §12's `craft.extends:` reads as "the extends surface of craft," not a literal dotted YAML key. Flat `extends:` matches the existing schema; the PRD prose is satisfied. |
+| DC-2 | How `extends.phases` reaches resolution | (a) normalize into the `pipeline.insert` list before `applyInserts` (one code path) · (b) a parallel `applyRegistrations` pass · (c) require the user to *also* write `pipeline.insert` (extends only validates) | **(a) normalize into inserts** | **ADR-070 = (a) normalize into the insert path — MATCHES** | A registered phase *is* an insert with a richer descriptor; reusing `applyInserts` means one graph/strand/gate path, no drift, minimal diff. (b) duplicates machinery; (c) defeats the point of a first-class surface. The override sub-case (DC-5) is handled by an override-aware branch *within* this same path, not a parallel pass. |
+| DC-3 | How `contract-assemble` learns inserted descriptors | (a) `--descriptor-json <path\|->` (walk passes the one resolved descriptor it holds) · (b) `--resolution <path>` (whole Resolution) · (c) re-resolve from `--manifest` + `default.yml` inside the bin | **(a) `--descriptor-json`** | **ADR-071 = (a) `--descriptor-json` — MATCHES** | The walk already parsed the Resolution (step 1b) and holds `effective[]`; passing the matched descriptor is zero-recompute and keeps `contract-assemble` ignorant of the Resolution schema. (c) duplicates the resolver (drift risk). |
+| DC-4 | "Registered" set for `roleExists` external refs | (a) `extends.agents` only (single declaration point) · (b) `extends.agents` ∪ every registered/inserted phase's `role:` · (c) any namespaced ref present anywhere in the manifest | **(b) agents ∪ phase roles** | **ADR-072 = (b) agents ∪ registered-phase roles — MATCHES** | A phase declaring `role: pluginB:x` *is* registering `pluginB:x` for the run; requiring double-declaration is friction. (a) is stricter (catches a phase-role typo that (b) would silently accept) — a real trade-off the user owned. (c) is too loose (a typo anywhere passes). An overriding phase's `role:` (DC-5) joins this set like any registered-phase role. |
+| DC-5 | May `extends.phases` only INSERT, or also SWAP/override a default phase? | (a) insert-only (default phases swap via existing `phases.<id>.role`/`procedure`) · (b) also allow registering a same-`id` phase that overrides a default · (c) insert + a separate `extends.overrides:` block | **(a) insert-only** | **ADR-073 = (b) override ALLOWED — DEVIATION from rec.** Same-id-as-default → **full descriptor replace** via an **override-aware branch** inside the single normalize-into-insert path (ADR-070); new id → insert; `checkUniqueIds` still guards two new registrations on a *new* id. Override is a **full replace, no field inheritance** — the Tier-1 `phases.<id>` field-merge stays the way to *tweak* a default. The replaced slot still runs under the engine-owned core (R9/G5). | Recommendation was insert-only (swap already has the Tier-1 `role:`/`procedure:` surface; same-id collides with `checkUniqueIds`). The user ratified override to enable a **fully derived pipeline** that re-homes a default slot (procedure + role + contract + edges + gate) to a derived plugin — the override-aware branch routes a same-id-as-default registration from "collide" to "replace-in-place" so `checkUniqueIds` sees one descriptor, not two. |
+| DC-6 | S7 proof: CI cost vs fidelity | (a) pure-manifest engine fixture only (CI) · (b) engine fixture (CI) + documented manual `--plugin-dir` smoke (SP2-shape, not CI) · (c) real second-plugin install in CI | **(b) engine fixture + manual smoke** | **ADR-074 = (b) engine fixture + manual smoke — MATCHES** | (a) proves every engine invariant deterministically; the manual smoke (like the existing inline-fidelity + model-class checks) adds runtime cross-plugin fidelity without coupling CI to a flaky second install. (c) is high-cost/flaky for marginal gain — SP2 already pinned the dispatch. |
+| DC-7 | Registered-profile validation rigor | (a) require all six archetype keys, values ∈ `{inline,agent}` · (b) allow partial maps (missing archetype → `agent` default) · (c) profiles registration deferred to a follow-up (ship phases/agents/backlog now) | **(a) full + typed** | **ADR-075 = (a) full + typed — MATCHES** | A profile is a whole-flow contract; a partial map silently agent-defaults a phase the author forgot — surprising. Full + typed fails loud on an incomplete profile. (c) is a viable scope-cut if profile registration proves heavy — but PRD §12 names profiles explicitly, so cutting needs user sign-off. |
 
 ---
 
@@ -399,6 +457,25 @@ lands in `effective[]` with bundle + gate; registered phase flows through `valid
 (a registered consumer-before-producer → `ok:false`); registered profile selectable via
 `pipeline.profile`; registered backlog adapter surfaces in `record[]`; **SC1 stays
 byte-identical** (the anchor golden); the existing S7 PARTIAL assertions upgrade to full.
+
+**Unit — override-aware insert path (DC-5/ADR-073):**
+- **same-id-as-default → full replace.** A registered phase whose `id` matches a default id
+  replaces it: assert the **default's original descriptor is gone** from `effective[]` (its
+  procedure/role/contract no longer present at that id), the **registered descriptor occupies
+  that id at the right position**, and it carries **its own** contract bundle + role + gate.
+- **`checkUniqueIds` still fails two new registrations sharing a new id.** Two registered
+  phases both declaring a *new* (non-default) id → `ok:false` "Duplicate descriptor id"
+  (`graph.js:35`). The same-as-default path must NOT trip this (replace, not append) — a
+  same-id-as-default registration resolves `ok:true` with one descriptor at that id.
+- **full replace does NOT inherit replaced-default fields.** A same-id registration that omits
+  a field the default had (e.g. an edge or `gate:`) does **not** silently pick up the default's
+  value — the resolved descriptor carries only what the registration declared (plus the
+  `applyInserts` field defaults for genuine inserts; for a replace, the registered descriptor
+  stands alone). Assert a replaced phase that drops the default's `consumes:` resolves with the
+  registration's `consumes:`, not the default's.
+- **override still runs under the core (R9/G5).** The replaced phase's assembled contract still
+  prepends the engine-owned core + only its own `BUNDLE_VOCAB` bundles (the EXECUTE-under-floor
+  proof holds for a replacing descriptor identically — §invariant-core mechanism 2).
 
 **Unit — `pipeline-resolve-main.js` (the bin probe, DC-4):** an external `role:` present in
 the registered set → `ok:true`; an external `role:` NOT registered → `ok:false` naming the
@@ -421,7 +498,13 @@ false`**, and its `contract`/`consumes`/`produces` are whatever YAML shape the a
 (scalar, not list) would reach `checkBundleVocab` as a *string*, iterated character-by-character.
 **Therefore `validateExtends` is the SOLE shape guard for a registered phase** — it must do the
 type/array/vocab/archetype checks `normalizeEntry` would have done, because the insert path won't.
-This is why R2's per-field validation is not optional polish but the load-bearing floor. (A
+This is why R2's per-field validation is not optional polish but the load-bearing floor. **Override
+(ADR-073) REINFORCES this, not weakens it:** a same-id-as-default registration *replaces* a default
+descriptor that was normalized + `deepFreeze`d at `parsePipeline` time with one that is **equally
+unfrozen and uncoerced** — the replacing descriptor never passes through `normalizeEntry` either, so
+it too must be fully shape-validated by `validateExtends` before it can stand in a default's slot. A
+replace therefore cannot rely on inheriting the replaced default's normalized shape (it inherits
+nothing — full replace, ADR-073); every field it stands on must be shape-validated up front. (A
 secondary option the planner may weigh: route `extends.phases` through `normalizeEntry` so
 registered descriptors are normalized+frozen like defaults — but that is a behavior change to the
 shared insert path and must not regress the existing P7 insert tests; keep it a candidate, not a
@@ -455,8 +538,6 @@ gate. The slice that adds the example appends to `ci.sh` per the substrate-gate 
 - **Cross-marketplace dependency allowlisting** (`allowCrossMarketplaceDependenciesOn`) — a
   runtime/install concern (SPIKE.md line 53), not an engine schema concern; the manifest wires
   an already-installed plugin.
-- **Default-phase override via `extends`** (DC-5 (b)/(c)) — deferred unless the user picks it;
-  default swaps stay in `phases.<id>.role`/`procedure` (Tier-1 #10).
 - **A new contract bundle for derived plugins** — explicitly forbidden (R9/G5); `BUNDLE_VOCAB`
   stays closed and engine-owned. Changing the floor is an engine change, never a manifest key.
 - **P15 second-instantiation** (a non-tsgit repo, zero manifest) and **P16 provider-agnostic** —
