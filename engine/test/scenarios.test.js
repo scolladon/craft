@@ -215,6 +215,55 @@ test('SC1 Given no manifest, when resolvePipeline runs, then the per-phase gate 
   assert.equal(gateOf('documentation'), '');
 });
 
+// ─── SC5 ─────────────────────────────────────────────────────────────────────
+
+test('SC5 Given no manifest on a non-tsgit repo, when resolvePipeline runs, then gate strings are language-free placeholders pinned by value', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC5');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const gateOf = id => result.gateDecisions.find(g => g.phaseId === id)?.gate;
+  assert.equal(gateOf('planning'), 'plan-lint');
+  assert.equal(gateOf('implementation'), '<gates.phase>');
+  assert.equal(gateOf('review'), '<gates.phase>');
+  assert.equal(gateOf('refactoring'), '<gates.phase>');
+  assert.equal(gateOf('validation'), '<validation gate>');
+  assert.equal(gateOf('propose'), 'pr.pre-pr-gate');
+  assert.equal(gateOf('workspace'), '');
+  assert.equal(gateOf('documentation'), '');
+});
+
+test('SC5 Given no manifest on a non-tsgit repo, when resolvePipeline runs, then no gate string contains a toolchain-specific token', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC5');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const TOOLCHAIN_TOKENS = /\b(npm|npx|pnpm|yarn|bun|jest|stryker|bats|pytest|cargo|go test|mvn|gradle)\b/;
+  for (const d of result.gateDecisions) {
+    assert.ok(
+      !TOOLCHAIN_TOKENS.test(d.gate),
+      `gate for ${d.phaseId} must be language-free; got: "${d.gate}"`,
+    );
+  }
+});
+
+test('SC5 Given no manifest on a non-tsgit repo, when resolvePipeline runs, then effective phase ids equal SC1_IDS (toolchain-neutral resolution)', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('SC5');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.effective.map(d => d.id), SC1_IDS);
+});
+
 // ─── S1: profile:solo ────────────────────────────────────────────────────────
 
 test('S1 Given profile:solo manifest, when resolvePipeline runs, then non-harness phases run inline', () => {
