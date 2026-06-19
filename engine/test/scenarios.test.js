@@ -244,7 +244,9 @@ test('SC5 Given no manifest on a non-tsgit repo, when resolvePipeline runs, then
   const result = sut(defaults, manifest);
 
   assert.equal(result.ok, true);
-  const TOOLCHAIN_TOKENS = /\b(npm|npx|pnpm|yarn|bun|jest|stryker|bats|pytest|cargo|go test|mvn|gradle)\b/;
+  assert.ok(result.gateDecisions.length > 0, 'gateDecisions must be populated — guards against a vacuous refutation over an empty set');
+  // `node` is the dogfood repo's own command (`node --test …`) — the canonical leak the refutation must catch.
+  const TOOLCHAIN_TOKENS = /\b(node|npm|npx|pnpm|yarn|bun|jest|stryker|bats|pytest|cargo|go test|mvn|gradle)\b/;
   for (const d of result.gateDecisions) {
     assert.ok(
       !TOOLCHAIN_TOKENS.test(d.gate),
