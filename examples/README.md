@@ -23,11 +23,12 @@ real repo the file lives at your project root as `.claude/workflow.md`.
 | 10 | **agent / skill swap** (`role:` / `procedure:`) | [`role-swap/`](role-swap/) | 1 |
 | 11 | **insert** a phase | [`everything-claude-toolkit/`](everything-claude-toolkit/) | 1 |
 | — | enable a default-off phase (`enabled: true`) | [`requirements/`](requirements/) · [`architecture/`](architecture/) | 0 |
-| 12 | **derived-plugin extension surface** | *documented after P14* | 2 |
+| 12 | **derived-plugin extension surface** | [`derived-plugin/`](derived-plugin/) | 2 |
 
-Tier 2 (a derived local plugin registering its own phases/agents) is real — cross-plugin dispatch is
-spike-confirmed — but its how-to is intentionally held until P14 ships the surface, so the catalog
-never advertises an unproven path (PRD §17).
+Tier 2 ships: the `extends:` registration surface is proven end-to-end (engine S7 fixture green).
+[`derived-plugin/`](derived-plugin/) shows a manifest registering a new phase, an agent, and a
+profile via a derived plugin. See [docs/GUIDE-customizing.md §3 Tier 2](../docs/GUIDE-customizing.md)
+for the full how-to.
 
 ## Integrating external skill collections
 

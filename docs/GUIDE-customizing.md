@@ -126,19 +126,66 @@ and [`architecture/`](../examples/architecture/).
 | 10 | **agent / skill swap** (`role:` / `procedure:`) | domain-specific behavior, contract still injected | your agent must do the job | [`role-swap/`](../examples/role-swap/) |
 | 11 | **insert** a phase | a new SE step with full guarantees | you supply its procedure | [`everything-claude-toolkit/`](../examples/everything-claude-toolkit/) † |
 
-† Phase **dispatch** for an inserted phase works today (P7); full inserted-phase *contract execution*
-for a brand-new id lands with P14. The toolkit example shows insert alongside four other points.
+† Phase **dispatch** and *contract execution* for an inserted phase both ship: the walk passes the
+resolved descriptor to `contract-assemble`, so a brand-new inserted id executes under the
+engine-owned contract. The toolkit example shows insert alongside four other points.
 
 ### Tier 2 — a derived local plugin
 
 | # | Point | What it buys | The cost | Sample |
 |---|---|---|---|---|
-| 12 | **extension surface** — register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned | most setup; depends on cross-plugin dispatch | *documented after P14* |
+| 12 | **extension surface** — register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned | most setup; depends on cross-plugin dispatch | [`derived-plugin/`](../examples/derived-plugin/) |
 
-> **Tier 2 is real but not yet documented here.** Cross-plugin dispatch is confirmed (spike SP2,
-> GREEN), so a derived plugin *can* register phases/agents under the invariant core. The full how-to
-> is intentionally held until **P14** ships the extension surface, so this catalog never advertises a
-> surface you can't yet exercise. (See [PRD §7 Tier 2](PRD-customizable-engine.md) and §17.)
+### How Tier 2 works — the `extends:` block
+
+A derived plugin B (`dependencies: ["craft"]`) ships skill and agent *content* addressed by
+namespaced name (e.g. `pluginB:my-phase`, `pluginB:my-agent`). **The content lives in the
+derived plugin; the wiring lives in the repo manifest.** Because a plugin cannot read another
+plugin's files (SP2 file-access constraint), the engine never reads plugin B's files directly —
+the descriptor data is carried by the repo `.claude/workflow.md` that craft already reads.
+
+Add a top-level `extends:` block to your manifest. Four sub-blocks are accepted:
+
+```yaml
+extends:
+  phases:              # registered SE steps — all descriptor data is manifest-carried
+    - id: bench
+      procedure: pluginB:bench        # namespaced dispatch target
+      role: pluginB:bench-runner      # must appear in agents: below
+      archetype: harness              # required; one of setup, specification, construction,
+                                      #   harness, refinement, delivery
+      contract: [harness-exec]        # optional; values drawn from the closed bundle vocab:
+                                      #   core, producer, construction, harness-read,
+                                      #   harness-exec, delivery, refinement
+      consumes: [change]              # optional string arrays
+      produces: [bench-report]
+      after: validation               # optional insert anchor
+      gate: "pluginB-bench --check"   # optional gate command
+  agents:              # registered roles — the roleExists "installed" set
+    - pluginB:bench-runner
+    - pluginB:domain-planner
+  profiles:            # registered whole-flow modes (full + typed — all six archetypes required)
+    audit:
+      setup: inline
+      specification: agent
+      construction: agent
+      harness: agent
+      refinement: agent
+      delivery: inline
+  backlog-adapters:    # registered backlog ports; ref must exist at lint time
+    - name: acme-tracker
+      ref: .claude/workflow/acme-backlog.sh
+```
+
+**Insert vs. replace.** A registered phase whose `id` matches a default phase id *replaces* that
+default wholesale — a full descriptor swap, no field inheritance. A registered phase with a new id
+*inserts* using the same anchor/graph path as `pipeline.insert`. In both cases the engine applies
+the same graph, strand, and gate discipline; the insert or replace never bypasses it.
+
+**The invariant core still binds.** A registered phase's `contract:` must draw only from the
+closed `BUNDLE_VOCAB`; the engine-owned core bundle is always prepended unconditionally. A derived
+plugin can re-home a default slot, but it cannot lower the floor — there is no `extends` key that
+reaches the invariant core (§2).
 
 ### Always available (any tier), and never injectable
 
@@ -176,6 +223,7 @@ Every Tier-0/1 injection point maps to a runnable [`examples/`](../examples/) sa
 | #9 override file | [`override-procedure/`](../examples/override-procedure/) | project-shaped procedure body |
 | #10 agent/skill swap | [`role-swap/`](../examples/role-swap/) | `role:` / `procedure:`, contract preserved |
 | #11 insert a phase | [`everything-claude-toolkit/`](../examples/everything-claude-toolkit/) | five points in one grab-bag |
+| #12 derived-plugin extension | [`derived-plugin/`](../examples/derived-plugin/) | `extends:` block — phases/agents/profiles |
 | enable a default-off phase | [`requirements/`](../examples/requirements/) · [`architecture/`](../examples/architecture/) | `phases.<id>.enabled: true` |
 
 Samples that reference a context/override body keep those files under
@@ -223,5 +271,5 @@ capability probing (lockfile detection, test-script discovery, mutation-config p
 declare only what probing can't infer.
 
 That's the loop: pick the points, write the lines, lint, run. Reach for Tier 1 when one line isn't
-enough (your own agent, your own procedure body, a new phase), and Tier 2 (post-P14) when you want to
-package it as a shareable plugin.
+enough (your own agent, your own procedure body, a new phase), and Tier 2 when you want to package it
+as a shareable plugin — see [`derived-plugin/`](../examples/derived-plugin/) and §3 above.
