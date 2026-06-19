@@ -48,8 +48,8 @@ const BUILTIN_PROFILES = Object.freeze({
  * @returns {Record<string, 'inline' | 'agent'>}
  */
 export function expandProfile(name, registeredProfiles = {}) {
-  if (BUILTIN_PROFILES[name]) return BUILTIN_PROFILES[name];
-  if (registeredProfiles[name]) return registeredProfiles[name];
+  if (Object.hasOwn(BUILTIN_PROFILES, name)) return BUILTIN_PROFILES[name];
+  if (Object.hasOwn(registeredProfiles, name)) return registeredProfiles[name];
   throw new Error(
     `Unknown profile "${name}". Supported profiles: solo, full, lean.`,
   );

@@ -296,6 +296,18 @@ test('Given a manifest with pipeline.profile:typo (unknown), when resolvePipelin
   );
 });
 
+test('Given a manifest with pipeline.profile:constructor (prototype key, no registered constructor), when resolvePipeline is called, then ok is false (unknown profile)', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { profile: 'constructor' } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /unknown profile/i.test(e) || /constructor/i.test(e)),
+    `Expected error for unknown profile "constructor", got: ${result.errors.join('; ')}`,
+  );
+});
+
 // ─── exec-precedence: isolates execution precedence legs ─────────────────────
 
 test('Given exec-precedence manifest, when resolvePipeline is called, then documentation=inline (profile beat top-level agent)', () => {
