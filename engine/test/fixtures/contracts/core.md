@@ -1,4 +1,4 @@
-Never commit on a red gate; never --no-verify.
+Never commit on a red gate.
 Artifact handoff: @@ARTIFACT_HANDOFF@@
 Blocker protocol: { unit, reason, ≤3 options } — never spin or guess.
 No provenance refs in source or test.
