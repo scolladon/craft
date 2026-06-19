@@ -1343,3 +1343,250 @@ test('Given backlog { source: custom, ref: non-string } when validateManifest ru
   assert.equal(result.ok, false);
   assert.ok(result.errors.some(e => e.includes('ref is required')));
 });
+
+// ─── extends block validation ─────────────────────────────────────────────────
+
+test('Given a valid full extends block, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        phases: [
+          {
+            id: 'bench',
+            procedure: 'pluginB:bench',
+            role: 'pluginB:bench-runner',
+            archetype: 'harness',
+            contract: ['harness-exec'],
+            consumes: ['change'],
+            produces: ['bench-report'],
+            after: 'validation',
+            gate: 'pluginB-bench --check',
+          },
+        ],
+        agents: ['pluginB:bench-runner'],
+        profiles: {
+          audit: {
+            setup: 'inline',
+            specification: 'agent',
+            construction: 'agent',
+            harness: 'agent',
+            refinement: 'agent',
+            delivery: 'inline',
+          },
+        },
+        'backlog-adapters': [{ name: 'acme-tracker', ref: '.claude/workflow/acme-backlog.sh' }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends with an unknown sub-key "bogus", when validateManifest runs, then error names "bogus"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { extends: { bogus: 'x' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('bogus')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases with a phase whose contract includes an out-of-vocab bundle, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        phases: [
+          { id: 'bench', procedure: 'pluginB:bench', archetype: 'harness', contract: ['my-bespoke-floor'] },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('my-bespoke-floor')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases with a phase whose contract is a scalar string (not array), when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        phases: [
+          { id: 'bench', procedure: 'pluginB:bench', archetype: 'harness', contract: 'harness-exec' },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.toLowerCase().includes('contract')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases with a phase with an invalid archetype, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        phases: [
+          { id: 'bench', procedure: 'pluginB:bench', archetype: 'bogus', contract: ['harness-exec'] },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('bogus')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases with a phase missing id, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        phases: [
+          { procedure: 'pluginB:bench', archetype: 'harness', contract: [] },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('id')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases with a phase missing procedure, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        phases: [
+          { id: 'bench', archetype: 'harness', contract: [] },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('procedure')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.agents with a non-string element, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { extends: { agents: [42] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('agents')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.profiles with a profile missing an archetype key, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        profiles: {
+          audit: {
+            setup: 'inline',
+            specification: 'agent',
+            construction: 'agent',
+            // harness missing
+            refinement: 'agent',
+            delivery: 'inline',
+          },
+        },
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('harness')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.profiles with a profile value outside {inline,agent}, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        profiles: {
+          audit: {
+            setup: 'bogus',
+            specification: 'agent',
+            construction: 'agent',
+            harness: 'agent',
+            refinement: 'agent',
+            delivery: 'inline',
+          },
+        },
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('bogus') || e.includes('inline|agent')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.backlog-adapters with an entry missing ref, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { extends: { 'backlog-adapters': [{ name: 'acme-tracker' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('ref')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.backlog-adapters with a ref that fileExists rejects, when validateManifest runs, then error contains "references missing file"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { extends: { 'backlog-adapters': [{ name: 'acme-tracker', ref: '.claude/workflow/acme-backlog.sh' }] } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('references missing file')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends block with two distinct faults, when validateManifest runs, then errors accumulate (≥2 errors)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        phases: [
+          { id: 'bench', procedure: 'pluginB:bench', archetype: 'bogus', contract: ['my-bespoke-floor'] },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.length >= 2, `expected ≥2 errors but got: ${JSON.stringify(result.errors)}`);
+});

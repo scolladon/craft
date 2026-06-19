@@ -2,7 +2,7 @@ import { load } from 'js-yaml';
 
 /** @typedef {'setup'|'specification'|'construction'|'harness'|'refinement'|'delivery'} Archetype */
 
-const VALID_ARCHETYPES = new Set([
+export const VALID_ARCHETYPES = new Set([
   'setup', 'specification', 'construction', 'harness', 'refinement', 'delivery',
 ]);
 

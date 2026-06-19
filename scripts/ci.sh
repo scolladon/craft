@@ -7,7 +7,7 @@ set -euo pipefail
 # Resolve from repo root so relative paths and globs are call-site independent.
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-EXPECTED_TESTS=528
+EXPECTED_TESTS=541
 
 node_output="$(cd engine && node --test 'test/**/*.test.js' 2>&1)" && node_status=0 || node_status=$?
 echo "$node_output"
