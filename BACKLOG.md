@@ -27,7 +27,8 @@
 | P11 | Backlog SoT abstraction — two-source port `{ file, custom }` (`resolve`/`complete`); `file` default byte-for-byte + `custom` runtime-resolvable escape hatch (gh/jira/linear become custom recipes); manifest `backlog.{source,ref}` validated; adapter failure = blocker; ADRs 054–060 | ✅ done & green |
 | P12 | DX — single entry guide (`docs/GUIDE-customizing.md`: hexagon mental model + tiered injection catalog) + a lint-clean `examples/` sample per Tier-0/1 point + `examples-lint` anti-rot gate; Tier-2 a gated stub (after P14); ADRs 061–064 | ✅ done & green |
 | P13 | NFR hardening — bin mutation coverage (4 bins → `engine/src/<bin>-main.js`, in-process units + retained child-proc smoke; mutation 85→95.40%) + model-class matrix (deterministic R10 shape-stability guard CI + live cross-tier procedure); **metrics harness-sourced, no engine telemetry**; ADRs 065–068 | ✅ done & green |
-| **P14–P16** | **derived-plugin/registration, second-instantiation, provider-agnostic** | ⬜ **outlined (PRD §17)** |
+| P14 | Derived-plugin extension surface — flat `extends:` registers phases/agents/profiles/backlog-adapters; inserted/registered-phase contract execution (`--descriptor-json`) + same-id override (full replace); external-ref `roleExists` fails closed unless registered; Tier-2 DX docs + example; ADRs 069–075 | ✅ done & green |
+| **P15–P16** | **second-instantiation, provider-agnostic** | ⬜ **outlined (PRD §17)** |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -323,6 +324,36 @@
 - [x] **Surface:** `EXPECTED_TESTS` 448→**528**; CI green at every commit, never `--no-verify`. No git remote
   → `propose` ends at a branch (no PR URL).
 
+### P14 — derived-plugin extension surface (slices 1–7 + review/validation; SoT `docs/{DESIGN,PLAN}-P14-derived-plugin-extension.md`, ADRs 069–075; G8/SC9/S7)
+- [x] **Decisions (ADRs 069–075):** 069 — registration key is flat top-level **`extends:`** (the manifest is
+  craft's own; `TOP_KEYS` is flat); 070 — `extends.phases` normalize into the **single insert path**
+  (`applyInserts`), no parallel resolver; 071 — `contract-assemble` learns inserted/registered descriptors via
+  **`--descriptor-json`** (the walk passes the resolved descriptor; absent flag → default.yml path byte-unchanged);
+  072 — `roleExists` registered set = `extends.agents` ∪ every registered/inserted phase `role:` (external ref
+  **fails closed** unless registered); 073 — **DEVIATION** (user): `extends.phases` MAY override a default id via a
+  **full-replace, override-aware branch** (no field inheritance; `checkUniqueIds` still guards new-id dupes); 074 —
+  S7 proof = CI engine fixture + on-demand `--plugin-dir` smoke; 075 — registered profiles **full + typed** (all six
+  archetypes, harness floor still forced).
+- [x] **Engine (7-export surface frozen; `index.js` untouched; SC1 byte-identical throughout):** `validateExtends`
+  + sub-validators in `manifest.js` (sole shape guard — inserts bypass `normalizeEntry`/`deepFreeze`);
+  `foldRegisteredPhases` override-aware insert in `resolve.js`; `roleExists` registered-set in
+  `pipeline-resolve-main.js`; `--descriptor-json` in `contract-assemble-main.js`; registered `extends.profiles`
+  (`expandProfile`) + `extends.backlog-adapters` (`buildManifestRecords`/`validateBacklog`). Closes the parked
+  **P7 inserted-phase contract-execution** and **P9 external-role registration** riders.
+- [x] **Review (4 dims, low-only):** perf converged clean; code 1 HIGH (archetype now **required** on a registered
+  phase — else the executing-harness gate + harness-agent floor silently miss it) + LOWs (profile prototype-key
+  `Object.hasOwn` fail-closed; `registeredBacklogNames` dedup; dead guard; override anchor-strip); security 1 LOW
+  (`--descriptor-json` takes a path/stdin, not inline JSON — SKILL.md clarified); tests 3 MEDIUM (shape-rejection,
+  malformed-json, optional-field coverage). All applied; fix-delta re-review converged zero.
+- [x] **Validation (Stryker per-hunk, 32 hunks):** 82.70% → **95.97%**; 73 survivors triaged → 17 documented
+  (14 provably-equivalent — the `foldRegisteredPhases` optimization guard, `?? []`/`if(true)` ref-set pollution
+  never queried, `typeof`-redundant-with-`!has`, `utf8`/`""` Buffer-identical reads; + 3 stdin-branch smoke-covered
+  that Stryker's in-process perTest cannot credit). Session's authoritative re-run: surviving == the 17 documented exactly.
+- [x] **Docs:** Tier-2 catalog (`docs/GUIDE-customizing.md` #12 + the #11 footnote) + `examples/derived-plugin/`
+  (lint-clean) written — the gated Tier-2 DX docs (ADR-062) now ship a proven surface.
+- [x] **Surface:** `EXPECTED_TESTS` 528→**631**; CI green at every commit, never `--no-verify`. No git remote
+  → `propose` ends at a branch (no PR URL).
+
 ## Next — P13.5 / P14+
 - **P13.5 — ban-enforcement boundary** (interstitial, user-raised; **NOT** a PRD §17 phase — §17 numbering
   unchanged, like P8.5/P9.5): revisit *every* mechanically- or contract-enforced "ban" and split
@@ -344,16 +375,23 @@
   - **Touches:** PRD §11 (invariant core) + §2.1 (ports/adapters), `hooks/`, `contracts/core.md`, the
     injection catalog (`docs/GUIDE-customizing.md`). Sequencing TBD in the discussion (near the
     adapter-boundary work P16, or the DX/injection surface).
-- **P14–P16** (PRD §17, in order): **P14 derived-plugin extension** · P15 second-instantiation ·
-  P16 provider-agnostic. (P13 NFR hardening ✅ done — see the Done section above.)
+- **P15–P16** (PRD §17, in order): **P15 second-instantiation** (non-tsgit repo, zero manifest, docs
+  refresh → SC5 → ship) · P16 provider-agnostic. (P14 derived-plugin extension ✅ done — see the Done
+  section above.)
+- **Follow-up from P14 (refactoring no-op deferral):** when P15/P16 grow manifest validation further,
+  extract a shared `validators-util` leaf (`checkFileRef`) + the `validateExtends*` cluster into an
+  `extends-validation` module — deferred now because the cluster shares `checkFileRef` with the
+  pre-existing scripts/backlog/phases validators, so a clean cut needs that shared leaf first (and
+  `manifest.js` at ~630 lines is still under the 800 max). Low priority.
 - **Follow-up from P13 (ADR-066 per-bin scope):** convert the remaining two bins
   `engine/bin/{pipeline-lint,contracts-lint}.js` to the extract-to-`engine/src/<bin>-main.js` pattern for
   mutation coverage — P13 skipped them as thin pass-throughs (already smoke-covered by `ci.sh`), but their
   residual glue (`contracts-lint`'s failure-collection loop especially) is `[NoCoverage]` like the others
   were. Low priority; do when their mutation coverage matters.
-- **Tier-2 DX docs are gated after P14** — the derived-plugin half of the injection catalog (point #12)
-  + the #11 inserted-phase contract-execution caveat are written only once P14 ships the extension
-  surface, so the catalog never advertises an unproven surface (PRD §17 P12; ADR-062).
+- **Tier-2 DX docs — ✅ DONE (P14):** the derived-plugin half of the injection catalog (point #12) +
+  the #11 inserted-phase contract-execution footnote now ship in `docs/GUIDE-customizing.md`, with a
+  lint-clean `examples/derived-plugin/` sample — written only once P14 proved the surface end-to-end
+  (PRD §17 P12; ADR-062).
 
 ### Parked from P10 (surfaced this run)
 - [ ] **Evaluate migrating the `bats` suite to `node --test` (JS) for portability** (user-requested;
@@ -367,9 +405,10 @@
 ### Parked from P9 — ✅ DONE (P9.5 hardening batch)
 - [x] **`roleExists` live install-probe wired into the bin.** `engine/bin/pipeline-resolve.js` now
   constructs a real `roleExists` predicate and passes it 3-arg: craft-native `craft:<role>` resolves iff
-  `agents/<role>.md` exists; EXTERNAL `my:`/`acme:` refs stay permissive (P14 registration territory, still
-  punted per ADR-037). `bad-role`/`good-role`/`external-role` bin tests pin it (ADR-047/DC-1). A typo'd craft
-  role now fails closed at resolution (`ok:false`, exit 2) in the real `/craft:run`.
+  `agents/<role>.md` exists; EXTERNAL `my:`/`acme:` refs stayed permissive then (P14 registration territory,
+  punted per ADR-037) — **now closed in P14 (ADR-072): an external ref fails closed unless registered via
+  `extends.agents` ∪ a registered/inserted phase `role:`**. `bad-role`/`good-role`/`external-role` bin tests
+  pin it (ADR-047/DC-1). A typo'd craft role fails closed at resolution (`ok:false`, exit 2) in the real `/craft:run`.
 - [x] **Validation mutation-adequacy — Stryker stood up; validation runs for real.** `@stryker-mutator/core@8.7.1`
   + `tap-runner` configured (repo-root sandbox so the suite's repo-root `contracts/`/`agents/` resolve;
   `engine/src/**` scope, `coverageAnalysis: perTest`). The changed src hunk (`manifest.js` empty-`procedure`
@@ -404,13 +443,12 @@
   walk-judgment knobs. The guide documents the *manifest* form (point #6) + the existing
   `--profile`/`--skip` flags; the `--harness` flag rides the same later pass that enforces the knobs.
 
-### Parked from P7 (scoped out by ADR-025 — ride with P14 derived-plugin/registration)
-- **Inserted-phase contract injection** is not wired: `engine/bin/contract-assemble.js` keys on
-  `pipeline/default.yml` by `--descriptor-id`, so a novel inserted `id` (e.g. `bench`) STOPs at
-  `run/SKILL.md` step 3 with "unknown descriptor-id". P7 landed inserted-phase *dispatch* (step 1)
-  + resolution-layer insert (S3/SC3); full inserted-phase *execution* needs `contract-assemble` to
-  learn the resolved/inserted descriptors (pass the resolved descriptor or read the Resolution),
-  which rides with the P14 registration surface.
+### Parked from P7 — ✅ DONE (P14, ADR-071)
+- [x] **Inserted-phase contract injection** wired: `contract-assemble` now learns the resolved/inserted
+  descriptors via `--descriptor-json` (the walk passes the descriptor it holds from the step-1b
+  Resolution); a novel inserted/registered `id` (e.g. `bench`/`acme:bench`) EXECUTEs under the
+  engine-owned contract. The default-phase path (no flag) is byte-unchanged; an id in neither the
+  flag-set nor `default.yml` still STOPs. `run/SKILL.md` step 1/3 prose + Walk error-paths updated.
 
 ### Parked from P6 — ✅ DONE (this session — doc-contract reconciliation)
 - [x] `run/SKILL.md` step 1b + the "Walk error paths" table reconciled to the engine's real
