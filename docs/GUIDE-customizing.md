@@ -31,6 +31,17 @@ one: an automated, repeatable verification of a single concern, expressed as *a 
 AI triage step*, configurable per repo. Review, validation (default: mutation testing), and
 architecture (default: dependency-cruiser) are all harnesses; you can tune them or add your own.
 
+### Zero-config on any toolchain
+
+The default pipeline runs zero-config on any non-JS repo provided it has a test command the
+gate probe can discover (`pytest`, `go test`, `cargo test`, a `make test`/CI script, …) — the
+precondition every useful repo already satisfies. `validation` (default Stryker) and the
+default-off `architecture` (dependency-cruiser) **no-op with a note** when their JS tools are
+absent; `propose`/`integrate` no-op without a git remote; a repo with no discoverable test
+command hits the gate-floor refusal by design. See
+[docs/SC5-second-instantiation-record.md](SC5-second-instantiation-record.md) for the
+empirical proof on a Python/pytest repo.
+
 ### The hexagon — core, ports, adapter
 
 craft is built **hexagonally**. This is the whole model:

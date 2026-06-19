@@ -39,7 +39,11 @@ the current branch), `/craft:validation` (scoped mutation run + triage), etc.
 
 No manifest = sensible defaults via capability probing (lockfile detection, test-script
 discovery, mutation-config probe, remote probe). The manifest declares only what
-probing can't infer. **Start with [docs/GUIDE-customizing.md](docs/GUIDE-customizing.md)** —
+probing can't infer. Zero-config delivery requires one precondition: **a discoverable
+test/validate command** — a repo with one runs the full default pipeline on any toolchain
+(validated on a non-tsgit Python/pytest repo; see
+[docs/SC5-second-instantiation-record.md](docs/SC5-second-instantiation-record.md)); a
+repo with no test command hits the gate-floor refusal by design (non-negotiable). **Start with [docs/GUIDE-customizing.md](docs/GUIDE-customizing.md)** —
 the mental model (hexagon · ports · the invariant core you can't change) plus the full
 injection catalog (skip / model / gate / execution / profile / harness / backlog /
 context / override / swap / insert), each linked to a runnable [`examples/`](examples/)
