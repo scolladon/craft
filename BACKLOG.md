@@ -28,7 +28,8 @@
 | P12 | DX — single entry guide (`docs/GUIDE-customizing.md`: hexagon mental model + tiered injection catalog) + a lint-clean `examples/` sample per Tier-0/1 point + `examples-lint` anti-rot gate; Tier-2 a gated stub (after P14); ADRs 061–064 | ✅ done & green |
 | P13 | NFR hardening — bin mutation coverage (4 bins → `engine/src/<bin>-main.js`, in-process units + retained child-proc smoke; mutation 85→95.40%) + model-class matrix (deterministic R10 shape-stability guard CI + live cross-tier procedure); **metrics harness-sourced, no engine telemetry**; ADRs 065–068 | ✅ done & green |
 | P14 | Derived-plugin extension surface — flat `extends:` registers phases/agents/profiles/backlog-adapters; inserted/registered-phase contract execution (`--descriptor-json`) + same-id override (full replace); external-ref `roleExists` fails closed unless registered; Tier-2 DX docs + example; ADRs 069–075 | ✅ done & green |
-| **P15–P16** | **second-instantiation, provider-agnostic** | ⬜ **outlined (PRD §17)** |
+| P15 | Second-instantiation validation — a non-tsgit Python/pytest repo runs the default pipeline zero-config (SC5/G9); explicit CI scenario pins resolver toolchain-neutrality; propose-gate releases on a validation runtime no-op (ADR-082); docs refresh; ADRs 076–082 | ✅ done & green |
+| P16 | Provider-agnostic — ports/adapters boundary + non-Claude adapter PoC (target: Pi) | ⬜ outlined (PRD §17) |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -354,6 +355,14 @@
 - [x] **Surface:** `EXPECTED_TESTS` 528→**631**; CI green at every commit, never `--no-verify`. No git remote
   → `propose` ends at a branch (no PR URL).
 
+### P15 — second-instantiation validation (non-tsgit, zero manifest) + docs refresh (branch `feat/p15-second-instantiation`; SoT `docs/DESIGN-P15-second-instantiation.md` + `docs/SC5-second-instantiation-record.md`, ADRs 076–082; SC5/G9)
+- [x] **Decisions (ADRs 076–082):** 076 — SC5 scoped to a non-tsgit repo *with a discoverable test command* (the gate-floor REFUSE on a no-test repo is correct floor behaviour, not an SC5 miss); 077 — target = a real OSS Python/pytest repo, smoke driven by a free-text brief (zero-manifest ⇒ no backlog id); 078 — one explicit `SC5` scenario pins the resolver emits gate **placeholders unchanged and language-free**; 079 — standard docs-refresh scope (README + GUIDE §1 + DESIGN-customizable-engine + SC5 record + backlog); 080 — proof = a committed validation-record doc + an on-demand smoke; 081 — P15 is docs-only (probes already language-neutral); 082 — the propose-gate releases on a **recorded executing-harness runtime no-op**, symmetric to a skip-waiver.
+- [x] **Engine pinned toolchain-neutral:** `pipeline-resolve` (no manifest) resolves the same 11-phase walk on any repo; the `SC5` scenario (`engine/test/scenarios.test.js`) asserts the resolved gate decisions are language-free placeholders (a `node|npm|pytest|cargo|…` refutation over every `gateDecisions[].gate`, hardened in review to include `node`) — proving the resolver never bakes a language command and defers to the repo-probing skill layer. `EXPECTED_TESTS` 631→**634**.
+- [x] **ADR-082 clause shipped:** `skills/run/SKILL.md` propose-gate invariant + `skills/propose/SKILL.md` preamble release the wait on a recorded validation runtime no-op — SC1-neutral (fires only on a runtime no-op, which the Stryker-present tsgit path never hits).
+- [x] **SC5 smoke PASS:** the default pipeline ran zero-config on a real Python/pytest repo (Conway's Game of Life — no manifest, no remote); `worktree-setup` reported the Python skip-noted (no lockfile); the gate probe discovered `pytest` (green, no REFUSE); `validation` no-op'd with a note (no mutation config) and released its propose-gate; the walk reached `propose` without deadlock; propose/integrate no-op'd (no remote). Recorded in `docs/SC5-second-instantiation-record.md`; on-demand procedure in `skills/run/SKILL.md`.
+- [x] **Docs:** README precondition + degradation behaviour; GUIDE §1 "zero-config on any toolchain"; DESIGN-customizable-engine second-instantiation marked validated.
+- [x] **Review/validation:** review 4-dim — tests 1 MEDIUM (`node` token gap) + LOWs applied, fix-delta converged; security/perf clean. Validation per-hunk scope empty (no `engine/src` change) → 0 mutants. CI green at every commit, never `--no-verify`. No git remote → `propose` ends at a branch (no PR URL).
+
 ## Next — P13.5 / P14+
 - **P13.5 — ban-enforcement boundary** (interstitial, user-raised; **NOT** a PRD §17 phase — §17 numbering
   unchanged, like P8.5/P9.5): revisit *every* mechanically- or contract-enforced "ban" and split
@@ -375,9 +384,9 @@
   - **Touches:** PRD §11 (invariant core) + §2.1 (ports/adapters), `hooks/`, `contracts/core.md`, the
     injection catalog (`docs/GUIDE-customizing.md`). Sequencing TBD in the discussion (near the
     adapter-boundary work P16, or the DX/injection surface).
-- **P15–P16** (PRD §17, in order): **P15 second-instantiation** (non-tsgit repo, zero manifest, docs
-  refresh → SC5 → ship) · P16 provider-agnostic. (P14 derived-plugin extension ✅ done — see the Done
-  section above.)
+- **P16** (PRD §17): provider-agnostic — ports/adapters boundary + non-Claude adapter PoC (target: Pi).
+  (**P15 second-instantiation ✅ done** — a non-tsgit Python/pytest repo runs the default pipeline
+  zero-config, SC5 green; see the Done section above and `docs/SC5-second-instantiation-record.md`.)
 - **Follow-up from P14 (refactoring no-op deferral):** when P15/P16 grow manifest validation further,
   extract a shared `validators-util` leaf (`checkFileRef`) + the `validateExtends*` cluster into an
   `extends-validation` module — deferred now because the cluster shares `checkFileRef` with the
