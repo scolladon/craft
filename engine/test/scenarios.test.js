@@ -482,6 +482,45 @@ test('S7 Given extends.phases acme:bench, when resolvePipeline runs, then acme:b
   assert.ok(benchIdx > validationIdx, 'acme:bench must appear after validation');
 });
 
+// ─── S7: registered profile acme-full selectable via pipeline.profile ────────
+
+test('S7 Given extends.profiles.acme-full and pipeline.profile:acme-full, when resolvePipeline runs, then ok:true and construction phase resolves to profile map value', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    ...loadScenarioManifest('S7'),
+    pipeline: { profile: 'acme-full' },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+  const constructionPhase = result.effective.find(d => d.archetype === 'construction');
+  assert.ok(constructionPhase, 'a construction-archetype phase must be present');
+  assert.equal(constructionPhase.execution, 'agent', 'construction must resolve to acme-full map value: agent');
+  const setupPhase = result.effective.find(d => d.archetype === 'setup');
+  assert.ok(setupPhase, 'a setup-archetype phase must be present');
+  assert.equal(setupPhase.execution, 'inline', 'setup must resolve to acme-full map value: inline');
+});
+
+test('S7 Given extends.profiles.acme-full selected via pipeline.profile, when resolvePipeline runs, then harness-archetype phases stay agent (floor enforced)', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    ...loadScenarioManifest('S7'),
+    pipeline: { profile: 'acme-full' },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+  const harnessPhases = result.effective.filter(d => d.archetype === 'harness');
+  assert.ok(harnessPhases.length > 0, 'harness-archetype phases must be present');
+  for (const phase of harnessPhases) {
+    assert.equal(phase.execution, 'agent', `harness phase "${phase.id}" must be forced to agent regardless of acme-full profile map`);
+  }
+});
+
 // ─── S8: models.fallback + degraded tier ─────────────────────────────────────
 
 test('S8 Given models.fallback:haiku, when resolvePipeline runs, then record captures fallback policy', () => {

@@ -213,7 +213,9 @@ export function resolvePipeline(defaults, manifest, opts) {
 
   let profile;
   try {
-    profile = resolved.pipeline?.profile ? expandProfile(resolved.pipeline.profile) : null;
+    profile = resolved.pipeline?.profile
+      ? expandProfile(resolved.pipeline.profile, resolved.extends?.profiles ?? {})
+      : null;
   } catch (e) {
     return { ok: false, errors: [e.message], effective: [], record: [], gateDecisions: [], waivers: [] };
   }

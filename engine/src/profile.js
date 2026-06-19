@@ -1,6 +1,7 @@
 /**
  * Profile expander — maps a named profile to a per-archetype execution map.
- * Closed vocabulary: 'solo', 'full', and 'lean' are valid.
+ * Built-in vocabulary: 'solo', 'full', and 'lean'. Registered profiles from
+ * the manifest's extends.profiles map are also accepted.
  * The harness archetype is unconditionally forced to 'agent' after the map
  * lookup, regardless of what the map says.
  */
@@ -8,54 +9,50 @@
 /** Harness archetype stays agent regardless of profile. */
 export const HARNESS_ARCHETYPE = 'harness';
 
+const BUILTIN_PROFILES = Object.freeze({
+  solo: Object.freeze({
+    setup:         'inline',
+    specification: 'inline',
+    construction:  'inline',
+    harness:       'agent',
+    refinement:    'inline',
+    delivery:      'inline',
+  }),
+  lean: Object.freeze({
+    setup:         'inline',
+    specification: 'inline',
+    construction:  'agent',
+    harness:       'agent',
+    refinement:    'agent',
+    delivery:      'inline',
+  }),
+  full: Object.freeze({
+    setup:         'agent',
+    specification: 'agent',
+    construction:  'agent',
+    harness:       'agent',
+    refinement:    'agent',
+    delivery:      'agent',
+  }),
+});
+
 /**
  * Expand a named profile into a per-archetype execution map.
  * Keys are the six archetype strings; values are 'inline' | 'agent'.
  *
- * Profiles:
- *   solo: setup/specification/construction/refinement/delivery → inline; harness → agent
- *   lean: setup/specification/delivery → inline; construction/refinement/harness → agent
- *   full: all archetypes → agent
- *
- * Throws with a descriptive message for unknown profile names.
+ * Built-in profiles (solo/lean/full) take precedence; registered profiles
+ * from extends.profiles are consulted next. Throws for truly unknown names.
  *
  * @param {string} name
+ * @param {Record<string, Record<string, 'inline' | 'agent'>>} [registeredProfiles]
  * @returns {Record<string, 'inline' | 'agent'>}
  */
-export function expandProfile(name) {
-  switch (name) {
-    case 'solo':
-      return {
-        setup:         'inline',
-        specification: 'inline',
-        construction:  'inline',
-        harness:       'agent',
-        refinement:    'inline',
-        delivery:      'inline',
-      };
-    case 'lean':
-      return {
-        setup:         'inline',
-        specification: 'inline',
-        construction:  'agent',
-        harness:       'agent',
-        refinement:    'agent',
-        delivery:      'inline',
-      };
-    case 'full':
-      return {
-        setup:         'agent',
-        specification: 'agent',
-        construction:  'agent',
-        harness:       'agent',
-        refinement:    'agent',
-        delivery:      'agent',
-      };
-    default:
-      throw new Error(
-        `Unknown profile "${name}". Supported profiles: solo, full, lean.`,
-      );
-  }
+export function expandProfile(name, registeredProfiles = {}) {
+  if (BUILTIN_PROFILES[name]) return BUILTIN_PROFILES[name];
+  if (registeredProfiles[name]) return registeredProfiles[name];
+  throw new Error(
+    `Unknown profile "${name}". Supported profiles: solo, full, lean.`,
+  );
 }
 
 /**

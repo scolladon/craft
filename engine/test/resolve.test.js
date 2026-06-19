@@ -781,3 +781,88 @@ test('Given a registered phase consuming an artifact no prior enabled phase prod
     `Expected an error naming the missing artifact or phase, got: ${result.errors.join('; ')}`,
   );
 });
+
+// ─── extends.profiles: registered profile selectable via pipeline.profile ────
+
+test('Given extends.profiles.audit (full+typed) and pipeline.profile:audit, when resolvePipeline runs, then ok:true and construction-archetype phase resolves to audit map value', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      profiles: {
+        audit: {
+          setup:         'inline',
+          specification: 'inline',
+          construction:  'agent',
+          harness:       'agent',
+          refinement:    'inline',
+          delivery:      'inline',
+        },
+      },
+    },
+    pipeline: { profile: 'audit' },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+  const constructionPhase = result.effective.find(d => d.archetype === 'construction');
+  assert.ok(constructionPhase, 'a construction-archetype phase must be present');
+  assert.equal(constructionPhase.execution, 'agent', 'construction must resolve to audit map value: agent');
+  const refinementPhase = result.effective.find(d => d.archetype === 'refinement');
+  assert.ok(refinementPhase, 'a refinement-archetype phase must be present');
+  assert.equal(refinementPhase.execution, 'inline', 'refinement must resolve to audit map value: inline');
+});
+
+test('Given extends.profiles.audit with harness:inline declared, when resolvePipeline runs, then harness-archetype phase is forced to agent (floor)', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      profiles: {
+        audit: {
+          setup:         'inline',
+          specification: 'inline',
+          construction:  'agent',
+          harness:       'inline',
+          refinement:    'inline',
+          delivery:      'inline',
+        },
+      },
+    },
+    pipeline: { profile: 'audit' },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+  const harnessPhases = result.effective.filter(d => d.archetype === 'harness');
+  assert.ok(harnessPhases.length > 0, 'at least one harness-archetype phase must be present');
+  for (const phase of harnessPhases) {
+    assert.equal(phase.execution, 'agent', `harness phase "${phase.id}" must be forced to agent regardless of profile map`);
+  }
+});
+
+test('Given pipeline.profile:ghost with no registered ghost in extends.profiles, when resolvePipeline runs, then ok:false naming the unknown profile', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      profiles: {
+        audit: {
+          setup: 'inline', specification: 'inline', construction: 'agent',
+          harness: 'agent', refinement: 'inline', delivery: 'inline',
+        },
+      },
+    },
+    pipeline: { profile: 'ghost' },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /ghost/i.test(e)),
+    `Expected error naming "ghost", got: ${result.errors.join('; ')}`,
+  );
+});
