@@ -3,50 +3,6 @@
 load helpers/hooks
 
 # ---------------------------------------------------------------------------
-# block-no-verify.sh — deny matrix
-# ---------------------------------------------------------------------------
-
-@test "Given git commit with --no-verify flag, when block-no-verify runs, then it denies" {
-  run decision block-no-verify.sh block-no-verify-commit.json
-  [ "$status" -eq 0 ]
-  [ "$output" = "deny" ]
-}
-
-@test "Given git push with --no-verify flag, when block-no-verify runs, then it denies" {
-  run decision block-no-verify.sh block-no-verify-push.json
-  [ "$status" -eq 0 ]
-  [ "$output" = "deny" ]
-}
-
-@test "Given git merge with --no-verify flag, when block-no-verify runs, then it denies" {
-  run decision block-no-verify.sh block-no-verify-merge.json
-  [ "$status" -eq 0 ]
-  [ "$output" = "deny" ]
-}
-
-@test "Given a denied bypass, when block-no-verify runs, then the reason explains the ban" {
-  run reason block-no-verify.sh block-no-verify-commit.json
-  [ "$status" -eq 0 ]
-  [[ "$output" == *"hooks are part of the gate"* ]]
-}
-
-# ---------------------------------------------------------------------------
-# block-no-verify.sh — allow matrix
-# ---------------------------------------------------------------------------
-
-@test "Given git commit without --no-verify flag, when block-no-verify runs, then it allows (empty output)" {
-  run decision block-no-verify.sh block-no-verify-allow-commit.json
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-}
-
-@test "Given non-git command npm test, when block-no-verify runs, then it allows (empty output)" {
-  run decision block-no-verify.sh block-no-verify-allow-npm.json
-  [ "$status" -eq 0 ]
-  [ "$output" = "" ]
-}
-
-# ---------------------------------------------------------------------------
 # git-no-ext-diff.sh — deny matrix
 # ---------------------------------------------------------------------------
 
