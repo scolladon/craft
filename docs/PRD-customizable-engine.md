@@ -362,7 +362,7 @@ with detection + precedence and forbids any retrieval opinion leaking into plugi
 ## 11. The invariant core (the guiderail — non-negotiable)
 
 Holds for every phase, profile, inserted step, and derived plugin:
-- Never commit on a red gate. Never `--no-verify`. (hook + orchestrator)
+- Never commit on a red gate. (orchestrator-enforced — the *craft gate*, not the repo's local git hook; `--no-verify` is the consumer's discretion, not framework law)
 - A gate must exist for code-producing phases.
 - **Contract injection itself** — swap the agent, never drop the contract.
 - **Artifact-is-the-handoff** (commit/artifact, never agent context).

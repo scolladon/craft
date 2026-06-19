@@ -88,8 +88,9 @@ questions per phase: *does it run? · which agent/model? · inline or subagent? 
 Some things are **not** injectable, deliberately. They hold for every phase, profile, inserted step,
 and derived plugin — changing them is an *engine* change, not a customization:
 
-- **Never commit on a red gate. Never `--no-verify`.** (enforced by a PreToolUse hook + the
-  orchestrator — mechanical, not session memory.)
+- **Never commit on a red gate.** (orchestrator-enforced — it runs the craft gate at each cadence
+  boundary; this is the *craft gate*, not the repo's local git hook, so `--no-verify` is the
+  consumer's discretion, not framework law.)
 - **A gate must exist** for code-producing phases.
 - **Contract injection itself** — swap the agent, never drop the contract.
 - **Artifact-is-the-handoff** — a phase hands off via a commit/artifact, never via agent context.

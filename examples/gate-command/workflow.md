@@ -9,7 +9,7 @@ gates:
 # Example — supplying a gate command (`gates`)
 
 A **gate** is the pass/fail check the engine runs at a cadence boundary. craft owns the *discipline*
-— never commit on a red gate, never `--no-verify`, a gate *must exist* for code-producing phases
+— never commit on a red gate, a gate *must exist* for code-producing phases
 (§11) — but the **command is yours**: any tech, any toolchain. Here the phase-boundary gate is
 `make ci`.
 

@@ -27,7 +27,7 @@ refactor → mutation → docs → pr → merge`). Three layers (`docs/DESIGN.md
 
 Declination rides a committed `.claude/workflow.md` manifest (YAML frontmatter + prose),
 validated by `scripts/manifest-lint.sh` (a deliberate YAML-subset parser). Mechanical guards
-are PreToolUse hooks (`block-no-verify.sh`, `git-no-ext-diff.sh`). Lifecycle scripts
+are PreToolUse hooks (`git-no-ext-diff.sh`). Lifecycle scripts
 (`worktree-setup.sh`, `worktree-teardown.sh`) isolate the work. `plan-lint.sh` gates the plan
 schema. No automated tests exist — the mechanical layer that *is* the guarantee is unverified
 (PRD §3, two historical `manifest-lint` comma regressions).
@@ -320,7 +320,7 @@ named by the descriptor's `contract:` field:
 
 | Bundle | Applies to | Content (relocated from today's agent defs / §11) |
 |---|---|---|
-| **U — universal core** | every phase, every mode | never commit on red gate; never `--no-verify`; artifact-is-the-handoff; blocker protocol `{ unit, reason, ≤3 options }` — never spin/guess; no provenance refs (phase/ADR/backlog) in source or test; no suppression directives; bounded scope; work only in the given working directory |
+| **U — universal core** | every phase, every mode | never commit on red gate; artifact-is-the-handoff; blocker protocol `{ unit, reason, ≤3 options }` — never spin/guess; no provenance refs (phase/ADR/backlog) in source or test; no suppression directives; bounded scope; work only in the given working directory |
 | **producer** | specification/construction artifact producers (design, requirements, planning) | fill the named template/schema; **Decision-candidates / pre-chewed-context** mandate; self-review to convergence (≤3); state-mutating probes run in a `mktemp` throwaway, never the worktree (generalised from the designer carve-out) |
 | **construction** | implementation slices | RED→GREEN→REFACTOR strictly; gate-before-commit; one atomic commit; G/W/T·AAA·`sut` test conventions absent a context override |
 | **harness-read** | `review` | read-only; structured findings `{file:line, severity, finding, fix}`; zero findings legitimate; fix-delta rounds verify prior + review the fix diff |

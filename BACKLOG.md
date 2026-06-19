@@ -27,6 +27,7 @@
 | P11 | Backlog SoT abstraction — two-source port `{ file, custom }` (`resolve`/`complete`); `file` default byte-for-byte + `custom` runtime-resolvable escape hatch (gh/jira/linear become custom recipes); manifest `backlog.{source,ref}` validated; adapter failure = blocker; ADRs 054–060 | ✅ done & green |
 | P12 | DX — single entry guide (`docs/GUIDE-customizing.md`: hexagon mental model + tiered injection catalog) + a lint-clean `examples/` sample per Tier-0/1 point + `examples-lint` anti-rot gate; Tier-2 a gated stub (after P14); ADRs 061–064 | ✅ done & green |
 | P13 | NFR hardening — bin mutation coverage (4 bins → `engine/src/<bin>-main.js`, in-process units + retained child-proc smoke; mutation 85→95.40%) + model-class matrix (deterministic R10 shape-stability guard CI + live cross-tier procedure); **metrics harness-sourced, no engine telemetry**; ADRs 065–068 | ✅ done & green |
+| P13.5 | Ban-enforcement boundary (interstitial) — free `--no-verify` (consumer discretion); red-gate floor kept as engine-core, decoupled from the git flag; `block-no-verify` hook removed; ADR-083 *(resolved post-P15)* | ✅ done & green |
 | P14 | Derived-plugin extension surface — flat `extends:` registers phases/agents/profiles/backlog-adapters; inserted/registered-phase contract execution (`--descriptor-json`) + same-id override (full replace); external-ref `roleExists` fails closed unless registered; Tier-2 DX docs + example; ADRs 069–075 | ✅ done & green |
 | P15 | Second-instantiation validation — a non-tsgit Python/pytest repo runs the default pipeline zero-config (SC5/G9); explicit CI scenario pins resolver toolchain-neutrality; propose-gate releases on a validation runtime no-op (ADR-082); docs refresh; ADRs 076–082 | ✅ done & green |
 | P16 | Provider-agnostic — ports/adapters boundary + non-Claude adapter PoC (target: Pi) | ⬜ outlined (PRD §17) |
@@ -363,27 +364,26 @@
 - [x] **Docs:** README precondition + degradation behaviour; GUIDE §1 "zero-config on any toolchain"; DESIGN-customizable-engine second-instantiation marked validated.
 - [x] **Review/validation:** review 4-dim — tests 1 MEDIUM (`node` token gap) + LOWs applied, fix-delta converged; security/perf clean. Validation per-hunk scope empty (no `engine/src` change) → 0 mutants. CI green at every commit, never `--no-verify`. No git remote → `propose` ends at a branch (no PR URL).
 
-## Next — P13.5 / P14+
-- **P13.5 — ban-enforcement boundary** (interstitial, user-raised; **NOT** a PRD §17 phase — §17 numbering
-  unchanged, like P8.5/P9.5): revisit *every* mechanically- or contract-enforced "ban" and split
-  **engine-invariant** from **adapter-mechanism**. **Position to discuss (user, IMHO):** the framework should
-  *provide* the hooks but **NOT wire them on by default** — enforcement is user/repo context, not framework
-  law. This item is **discussion-first** (no decision pre-made here). Current ban inventory:
-  - **Hook-enforced (PreToolUse Bash, mechanical — `hooks/hooks.json`):** `block-no-verify.sh` (denies
-    `git commit|push|merge --no-verify`); `git-no-ext-diff.sh` (forces `--no-ext-diff` on git diff/show).
-  - **Contract-text (`contracts/core.md`, injected every phase; PRD §11 core):** never commit on a red gate /
-    never `--no-verify`; no provenance refs in source/test; no suppression directives
-    (`@ts-ignore`/`eslint-disable`/coverage-mutation-ignores/lint-silencing); no swallowed errors; bounded scope.
-  - **Reconciliation seam (§2.1 hexagonal):** the *invariant* "never commit on a red gate" reads as
-    engine-core; the *mechanism* "block `--no-verify`" is the **Claude Code adapter's** enforcement (§11 tags
-    the line `(hook + orchestrator)`). The ban also conflates "the repo's git pre-commit hook == the gate" —
-    true for husky/lefthook repos, not universal (CI-only gating, slow/irrelevant local hooks).
-  - **Caveat the discussion must resolve:** a free opt-out that supplies *no* equivalent mechanical anchor
-    silently degrades the guarantee to honor-system — the exact thing craft beats vs markdown frameworks
-    (PRD §16). Decide whether "ship-but-default-off" must keep an engine-side red-gate refusal as the floor.
-  - **Touches:** PRD §11 (invariant core) + §2.1 (ports/adapters), `hooks/`, `contracts/core.md`, the
-    injection catalog (`docs/GUIDE-customizing.md`). Sequencing TBD in the discussion (near the
-    adapter-boundary work P16, or the DX/injection surface).
+### P13.5 — ban-enforcement boundary: free `--no-verify` (interstitial, user-raised; resolved post-P15; ADR-083)
+- [x] **Decision (ADR-083):** `--no-verify` is the **consumer's discretion**, not framework law — craft no
+  longer blocks it. The engine invariant **"never commit on a red gate" is kept and decoupled**: the
+  orchestrator enforces it by running the *craft gate* (`gates.phase`), not by intercepting the git flag, so
+  the floor is not honor-system (`--no-verify` only bypasses the *repo's* local git hook, which craft never
+  equated with the craft gate).
+- [x] **Removed:** `hooks/block-no-verify.sh` + its `hooks.json` wiring + its bats matrix (6 tests) + 5
+  fixtures; the `; never --no-verify` clause dropped from `contracts/core.md` (+ the engine test fixture).
+  `git-no-ext-diff.sh` and the other core invariants (provenance/suppression/swallowed-errors/bounded-scope)
+  are unchanged.
+- [x] **Docs:** PRD §11, GUIDE §2, DESIGN-customizable-engine (hook list + U-core row), README, the
+  `gate-command` example — reworded to "never commit on a red gate" only, `--no-verify` noted as consumer
+  discretion. CI green at every commit.
+
+## Next — P16+
+- **P13.5 (broader scope) — optionally parked:** the headline `--no-verify` question is ✅ resolved (above).
+  The general "split engine-invariant from adapter-mechanism across *every* ban" stays optional for the
+  remaining inventory — `git-no-ext-diff.sh` (difftastic safety) and the contract bans (provenance refs,
+  suppression directives, swallowed errors) remain engine invariants unless separately revisited. Touches if
+  revisited: PRD §11/§2.1, `hooks/`, `contracts/core.md`, `docs/GUIDE-customizing.md`.
 - **P16** (PRD §17): provider-agnostic — ports/adapters boundary + non-Claude adapter PoC (target: Pi).
   (**P15 second-instantiation ✅ done** — a non-tsgit Python/pytest repo runs the default pipeline
   zero-config, SC5 green; see the Done section above and `docs/SC5-second-instantiation-record.md`.)

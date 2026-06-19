@@ -61,8 +61,8 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
   requirements-writer, architecture-triager).
   A pinned model that goes down falls back (manifest `models.fallback` → session model)
   and the degraded tier is remembered for the rest of the run.
-- `hooks/` — PreToolUse guards: `git diff/show` without `--no-ext-diff` is denied with
-  the corrected command; `--no-verify` is denied flat
+- `hooks/` — PreToolUse guard: `git diff/show` without `--no-ext-diff` is denied with
+  the corrected command (`--no-verify` is the consumer's discretion — craft does not block it)
 - `scripts/` — worktree setup/teardown (mutation run-lock aware), manifest lint, plan lint
 - `templates/` — design / plan (defines the slice schema plan-lint enforces) / ADR
 
