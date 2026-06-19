@@ -201,3 +201,25 @@ test('Given a manifest with requirements and architecture both enabled, when pip
   assert.ok(ids.includes('requirements'), `requirements should be present; got: ${JSON.stringify(ids)}`);
   assert.ok(ids.includes('architecture'), `architecture should be present; got: ${JSON.stringify(ids)}`);
 });
+
+// ─── roleExists bin twins: registered-role → exit 0, unregistered-role → exit 2 ─
+
+test('Given a manifest registering acme:bench-runner via extends.agents and using it as implementation role (registered-role.md), when pipeline-resolve runs, then it exits 0', () => {
+  const sut = run;
+  const registeredRolePath = join(manifestsDir, 'registered-role.md');
+
+  const result = sut(pipelinePath, registeredRolePath);
+
+  assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
+});
+
+test('Given a manifest with extends block not registering acme:plannr (unregistered-role.md), when pipeline-resolve runs, then it exits 2 naming the phase and ref', () => {
+  const sut = run;
+  const unregisteredRolePath = join(manifestsDir, 'unregistered-role.md');
+
+  const result = sut(pipelinePath, unregisteredRolePath);
+
+  assert.equal(result.status, 2, `expected exit 2 but got ${result.status}; stderr: ${result.stderr}`);
+  assert.match(result.stderr, /implementation/);
+  assert.match(result.stderr, /acme:plannr/);
+});

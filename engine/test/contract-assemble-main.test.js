@@ -496,3 +496,31 @@ test('Given --descriptor-id ghost --descriptor-json with no ghost descriptor, wh
   assert.equal(result, 2);
   assert.match(io.stderr.joined(), /unknown descriptor-id "ghost"/);
 });
+
+// ─── --descriptor-json: invalid JSON → exit 2, stderr names parse failure ────
+
+test('Given --descriptor-json pointing at a file with invalid JSON, when main runs, then exits 2 with stderr matching /failed to parse --descriptor-json/', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const tmpDir = makeTmpDir();
+  const jsonPath = join(tmpDir, 'bad.json');
+  writeFileSync(jsonPath, '{not json');
+
+  const result = sut(['--descriptor-id', 'bench', '--descriptor-json', jsonPath], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /failed to parse --descriptor-json/);
+});
+
+// ─── --descriptor-json: nonexistent path → exit 2, stderr names read failure ─
+
+test('Given --descriptor-json pointing at a nonexistent path, when main runs, then exits 2 with stderr matching /failed to read --descriptor-json/', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const nonexistentPath = join(tmpdir(), 'craft-no-such-file-' + Date.now() + '.json');
+
+  const result = sut(['--descriptor-id', 'bench', '--descriptor-json', nonexistentPath], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /failed to read --descriptor-json/);
+});

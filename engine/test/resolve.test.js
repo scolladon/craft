@@ -768,6 +768,29 @@ test('Given a same-id override omitting consumes, when resolvePipeline runs, the
   );
 });
 
+test('Given a same-id override omitting produces and self_supply, when resolvePipeline runs, then both fields resolve to [] (insert default), not the replaced descriptor defaults', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'documentation',
+        procedure: 'acme:docs',
+        archetype: 'delivery',
+        contract: ['delivery'],
+        consumes: [],
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  const docPhase = result.effective.find(d => d.id === 'documentation');
+  assert.ok(docPhase, 'documentation must be present');
+  assert.deepEqual(docPhase.produces, [], 'produces must be [] (insert default), not the original descriptor value');
+  assert.deepEqual(docPhase.self_supply, [], 'self_supply must be [] (insert default), not the original descriptor value');
+});
+
 test('Given a registered phase consuming an artifact no prior enabled phase produces, when resolvePipeline runs, then ok:false (strand check via validatePipeline)', () => {
   const defaults = loadDefault();
   const manifest = {

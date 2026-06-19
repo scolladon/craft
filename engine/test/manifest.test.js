@@ -1645,3 +1645,108 @@ test('Given extends.phases with a phase missing archetype, when validateManifest
   assert.equal(result.ok, false);
   assert.ok(result.errors.some(e => e.includes('archetype')), `errors: ${JSON.stringify(result.errors)}`);
 });
+
+// ─── extends top-level shape-rejection ───────────────────────────────────────
+
+test('Given extends as a string, when validateManifest runs, then ok:false with error matching /extends must be an object/', () => {
+  const result = validateManifest({ extends: 'bad' }, { fileExists: ALWAYS_EXISTS });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /extends must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases as an object (not array), when validateManifest runs, then ok:false with error matching /phases must be an array/', () => {
+  const result = validateManifest({ extends: { phases: { id: 'x' } } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /phases must be an array/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases[0] as a number, when validateManifest runs, then ok:false with error matching /must be an object/', () => {
+  const result = validateManifest({ extends: { phases: [42] } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.agents as a string, when validateManifest runs, then ok:false with error matching /agents must be an array/', () => {
+  const result = validateManifest({ extends: { agents: 'acme:runner' } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /agents must be an array/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.profiles as an array, when validateManifest runs, then ok:false with error matching /profiles must be an object/', () => {
+  const result = validateManifest({ extends: { profiles: [] } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /profiles must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.profiles.audit as a string, when validateManifest runs, then ok:false with error matching /must be an object/', () => {
+  const result = validateManifest({ extends: { profiles: { audit: 'inline' } } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.backlog-adapters as an object, when validateManifest runs, then ok:false with error matching /must be an array/', () => {
+  const result = validateManifest({ extends: { 'backlog-adapters': { name: 'x' } } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /must be an array/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.backlog-adapters entry missing name, when validateManifest runs, then ok:false with error matching /name/', () => {
+  const result = validateManifest(
+    { extends: { 'backlog-adapters': [{ ref: '.claude/workflow/x.sh' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /name/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── extends.phases optional-field validation ─────────────────────────────────
+
+test('Given extends.phases[0] with after: 42 (non-string), when validateManifest runs, then ok:false with error matching /after.*must be a string/', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness', after: 42 }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /after.*must be a string/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases[0] with consumes: "change" (scalar), when validateManifest runs, then ok:false with error matching /consumes.*must be an array/', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness', consumes: 'change' }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /consumes.*must be an array/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases[0] with produces: [42] (non-string element), when validateManifest runs, then ok:false with error matching /produces.*must be a string/', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness', produces: [42] }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /produces.*must be a string/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
