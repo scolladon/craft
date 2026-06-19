@@ -628,3 +628,156 @@ test('Given pipeline.reorder:[validation, implementation] (consumer before produ
   assert.ok(!result.errors.some(e => e.startsWith('Strand:')),
     'the refusal must come from the graph check, not the strand check (no skips here)');
 });
+
+// ─── extends.phases: override-aware insert path ──────────────────────────────
+
+test('Given extends.phases with a new-id registered phase, when resolvePipeline runs, then the registered phase lands in effective with its bundle and gate', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'acme:bench',
+        procedure: 'acme:bench',
+        role: 'acme:bench-runner',
+        archetype: 'harness',
+        contract: ['harness-exec'],
+        after: 'validation',
+        consumes: ['change'],
+        produces: ['acme-bench-report'],
+        gate: 'acme-bench-runner --check',
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+  const bench = result.effective.find(d => d.id === 'acme:bench');
+  assert.ok(bench, 'acme:bench must be in effective');
+  assert.deepEqual(bench.contract, ['harness-exec'], 'must carry harness-exec bundle');
+  assert.equal(bench.procedure, 'acme:bench', 'must carry namespaced procedure');
+  const decision = result.gateDecisions.find(g => g.phaseId === 'acme:bench');
+  assert.ok(decision?.gate, 'acme:bench must have a gate decision');
+});
+
+test('Given extends.phases with a same-id-as-default registered phase, when resolvePipeline runs, then the default descriptor is replaced and the registered one occupies that id', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'documentation',
+        procedure: 'acme:docs',
+        role: 'acme:docs-runner',
+        archetype: 'delivery',
+        contract: ['delivery'],
+        consumes: ['design'],
+        produces: ['docs'],
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+  const docPhase = result.effective.find(d => d.id === 'documentation');
+  assert.ok(docPhase, 'documentation must still be in effective');
+  assert.equal(docPhase.procedure, 'acme:docs', 'replaced descriptor must carry registered procedure');
+  assert.equal(docPhase.role, 'acme:docs-runner', 'replaced descriptor must carry registered role');
+  assert.ok(
+    !result.effective.some(d => d.procedure === 'craft:documentation'),
+    'original craft:documentation procedure must be gone',
+  );
+  const idCount = result.effective.filter(d => d.id === 'documentation').length;
+  assert.equal(idCount, 1, 'exactly one descriptor must occupy the documentation id');
+});
+
+test('Given two new-id registrations colliding on the same new id, when resolvePipeline runs, then ok:false with Duplicate descriptor id error', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [
+        {
+          id: 'acme:new-phase',
+          procedure: 'acme:new-phase',
+          archetype: 'harness',
+          contract: ['harness-exec'],
+          after: 'validation',
+          consumes: ['change'],
+          produces: ['acme-out'],
+        },
+        {
+          id: 'acme:new-phase',
+          procedure: 'acme:new-phase-v2',
+          archetype: 'harness',
+          contract: ['harness-exec'],
+          after: 'validation',
+          consumes: ['change'],
+          produces: ['acme-out-2'],
+        },
+      ],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /duplicate descriptor id/i.test(e) && e.includes('acme:new-phase')),
+    `Expected Duplicate descriptor id error, got: ${result.errors.join('; ')}`,
+  );
+});
+
+test('Given a same-id override omitting consumes, when resolvePipeline runs, then the replaced phase resolves with the registration consumes (not the default)', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'documentation',
+        procedure: 'acme:docs',
+        archetype: 'delivery',
+        contract: ['delivery'],
+        produces: ['docs'],
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  const docPhase = result.effective.find(d => d.id === 'documentation');
+  assert.ok(docPhase, 'documentation must be present');
+  assert.deepEqual(
+    docPhase.consumes,
+    [],
+    'replaced phase must have empty consumes (insert default), not the original [design, change]',
+  );
+});
+
+test('Given a registered phase consuming an artifact no prior enabled phase produces, when resolvePipeline runs, then ok:false (strand check via validatePipeline)', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'acme:bench',
+        procedure: 'acme:bench',
+        archetype: 'harness',
+        contract: ['harness-exec'],
+        after: 'validation',
+        consumes: ['nonexistent-artifact'],
+        produces: ['acme-out'],
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('nonexistent-artifact') || e.includes('acme:bench')),
+    `Expected an error naming the missing artifact or phase, got: ${result.errors.join('; ')}`,
+  );
+});

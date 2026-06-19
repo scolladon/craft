@@ -5,10 +5,10 @@
  * specific slices of the Resolution. Gate/waiver assertions exercise the
  * gate-decision layer that this slice lands.
  *
- * NOTE: S7 (namespaced registration) is PARTIAL — resolution-layer acceptance is
- * asserted, but its full registration UX lands with the derived-plugin extension
- * surface. That gap is intentional — the suite must not be read as "fully covered"
- * for S7. S6 (backlog adapter) is now exercised end-to-end at the resolution layer.
+ * S7 (namespaced registration) exercises the full extends.phases registration surface:
+ * a registered phase lands in effective[], carries its bundle + gate, and flows through
+ * the same graph/strand/gate discipline as default phases. S6 (backlog adapter) is
+ * exercised end-to-end at the resolution layer.
  */
 
 import { test } from 'node:test';
@@ -432,36 +432,54 @@ test('S6 Given backlog { source: file } declared in manifest, when resolvePipeli
   assert.ok(/backlog/i.test(backlogLine), 'the source-naming line must still match /backlog/i');
 });
 
-// ─── S7: namespaced acme:bench phase ─────────────────────────────────────────
-// NOTE: Partial coverage at P1. Full namespaced registration UX lands at P14.
-// This scenario asserts the resolution-layer acceptance of namespaced ids.
+// ─── S7: namespaced acme:bench registered phase (extends block) ───────────────
 
-test('S7 Given namespaced acme:bench insert, when resolvePipeline runs, then it is accepted and in effective pipeline (partial — resolution-layer only)', () => {
-  // Partial coverage: full namespaced registration and UX land in a later phase.
+test('S7 Given extends.phases acme:bench, when resolvePipeline runs, then acme:bench is in effective pipeline with its contract bundle', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S7');
   const sut = resolvePipeline;
 
   const result = sut(defaults, manifest);
 
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
 
   const ids = result.effective.map(d => d.id);
   assert.ok(ids.includes('acme:bench'), 'acme:bench must be accepted in effective pipeline');
+
+  const bench = result.effective.find(d => d.id === 'acme:bench');
+  assert.ok(bench, 'acme:bench descriptor must be present');
+  assert.deepEqual(bench.contract, ['harness-exec'], 'acme:bench must carry harness-exec contract bundle');
+  assert.equal(bench.procedure, 'acme:bench', 'acme:bench must carry its namespaced procedure');
+  assert.equal(bench.role, 'acme:bench-runner', 'acme:bench must carry its namespaced role');
 });
 
-test('S7 Given acme:bench with gate, when resolvePipeline runs, then gateDecisions includes acme:bench with gate', () => {
+test('S7 Given extends.phases acme:bench with gate, when resolvePipeline runs, then gateDecisions includes acme:bench with gate', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S7');
   const sut = resolvePipeline;
 
   const result = sut(defaults, manifest);
 
-  assert.equal(result.ok, true);
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
 
   const decision = result.gateDecisions.find(g => g.phaseId === 'acme:bench');
   assert.ok(decision, 'gateDecisions must include acme:bench');
   assert.ok(decision.gate, 'acme:bench must have a resolved gate');
+});
+
+test('S7 Given extends.phases acme:bench, when resolvePipeline runs, then acme:bench appears after validation in effective', () => {
+  const defaults = loadDefault();
+  const manifest = loadScenarioManifest('S7');
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+
+  const ids = result.effective.map(d => d.id);
+  const validationIdx = ids.indexOf('validation');
+  const benchIdx = ids.indexOf('acme:bench');
+  assert.ok(benchIdx > validationIdx, 'acme:bench must appear after validation');
 });
 
 // ─── S8: models.fallback + degraded tier ─────────────────────────────────────

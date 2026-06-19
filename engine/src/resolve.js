@@ -161,6 +161,38 @@ function buildManifestRecords(manifest) {
   return records;
 }
 
+// ─── fold extends.phases into the insert path ────────────────────────────────
+
+/**
+ * Merge registered phases into the descriptor list and insert list.
+ * - A registered phase whose id matches an existing descriptor → replace in place (full swap).
+ * - A registered phase with no match → append to inserts for applyInserts.
+ *
+ * @param {object[]} descriptors  post-applyEnableEdits list
+ * @param {object[]} registeredPhases  manifest.extends.phases (may be empty)
+ * @returns {{ descriptors: object[], inserts: object[] }}
+ */
+function foldRegisteredPhases(descriptors, registeredPhases) {
+  if (!registeredPhases || registeredPhases.length === 0) {
+    return { descriptors, inserts: [] };
+  }
+  const inserts = [];
+  let result = [...descriptors];
+  for (const reg of registeredPhases) {
+    const idx = result.findIndex(d => d.id === reg.id);
+    if (idx !== -1) {
+      const replaced = {
+        enabled: true, contract: [], consumes: [], produces: [], self_supply: [],
+        execution: DEFAULT_EXECUTION, ...reg,
+      };
+      result = [...result.slice(0, idx), replaced, ...result.slice(idx + 1)];
+    } else {
+      inserts.push(reg);
+    }
+  }
+  return { descriptors: result, inserts };
+}
+
 // ─── main resolver ────────────────────────────────────────────────────────────
 
 /**
@@ -191,7 +223,9 @@ export function resolvePipeline(defaults, manifest, opts) {
   const phaseOverrides = new Map(Object.entries(resolved.phases ?? {}));
 
   const enableResult = applyEnableEdits([...defaults], skipSet, phaseOverrides);
-  const insertResult = applyInserts(enableResult.descriptors, resolved.pipeline?.insert ?? []);
+  const foldResult = foldRegisteredPhases(enableResult.descriptors, resolved.extends?.phases ?? []);
+  const allInserts = [...(resolved.pipeline?.insert ?? []), ...foldResult.inserts];
+  const insertResult = applyInserts(foldResult.descriptors, allInserts);
 
   const reorderList = resolved.pipeline?.reorder ?? [];
   const reorderErrors = checkReorderApplicability(insertResult.descriptors, reorderList);

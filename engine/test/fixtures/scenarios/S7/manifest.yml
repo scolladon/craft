@@ -1,14 +1,27 @@
-pipeline:
-  insert:
+extends:
+  phases:
     - id: acme:bench
+      procedure: acme:bench
+      role: acme:bench-runner
       archetype: harness
       contract:
         - harness-exec
-      procedure: acme:bench
-      role: acme:bench-runner
       after: validation
       consumes:
         - change
       produces:
         - acme-bench-report
       gate: acme-bench-runner --check
+  agents:
+    - acme:bench-runner
+  profiles:
+    acme-full:
+      setup: inline
+      specification: agent
+      construction: agent
+      harness: agent
+      refinement: agent
+      delivery: inline
+  backlog-adapters:
+    - name: acme-tracker
+      ref: .claude/workflow/acme-backlog.sh
