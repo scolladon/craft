@@ -29,7 +29,6 @@ function buildRegisteredRefSet(manifest) {
 }
 
 function craftRoleExists(ref) {
-  if (!ref.startsWith(CRAFT_PREFIX)) return false;
   const name = ref.slice(CRAFT_PREFIX.length);
   // A craft role is a bare name under agents/; a separator means a traversal ref
   // that could probe (and falsely satisfy) a file outside agents/ — reject it.

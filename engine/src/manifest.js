@@ -164,7 +164,7 @@ const NON_BUILTIN_TRACKERS = Object.freeze(new Set(['github-issues', 'jira', 'li
  * @param {unknown} extendsBlock
  * @returns {Set<string>}
  */
-function registeredBacklogNames(extendsBlock) {
+export function registeredBacklogNames(extendsBlock) {
   const adapters = extendsBlock?.['backlog-adapters'];
   if (!Array.isArray(adapters)) return new Set();
   return new Set(adapters.map(a => a?.name).filter(n => typeof n === 'string' && n.trim() !== ''));

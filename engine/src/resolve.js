@@ -14,6 +14,7 @@ import { DEFAULT_EXECUTION, VALID_EXECUTIONS } from './descriptor.js';
 import { applyEnableEdits, applyInserts, applyReorder, checkReorderApplicability } from './edits.js';
 import { checkStrandedConsumers } from './strand.js';
 import { resolveGatesAndWaivers } from './gates.js';
+import { registeredBacklogNames } from './manifest.js';
 
 // ─── step 1: alias-resolve ───────────────────────────────────────────────────
 
@@ -128,17 +129,6 @@ function backlogSourceOf(backlog) {
 }
 
 /**
- * Collect the registered backlog adapter names from the extends block.
- * @param {unknown} extendsBlock
- * @returns {Set<string>}
- */
-function registeredBacklogNames(extendsBlock) {
-  const adapters = extendsBlock?.['backlog-adapters'];
-  if (!Array.isArray(adapters)) return new Set();
-  return new Set(adapters.map(a => a?.name).filter(n => typeof n === 'string' && n.trim() !== ''));
-}
-
-/**
  * Build manifest-level record entries for top-level manifest keys that influence
  * the pipeline resolution but are not phase-level edits.
  *
@@ -197,9 +187,10 @@ function foldRegisteredPhases(descriptors, registeredPhases) {
   for (const reg of registeredPhases) {
     const idx = result.findIndex(d => d.id === reg.id);
     if (idx !== -1) {
+      const { after, before, ...regData } = reg;
       const replaced = {
         enabled: true, contract: [], consumes: [], produces: [], self_supply: [],
-        execution: DEFAULT_EXECUTION, ...reg,
+        execution: DEFAULT_EXECUTION, ...regData,
       };
       result = [...result.slice(0, idx), replaced, ...result.slice(idx + 1)];
     } else {
