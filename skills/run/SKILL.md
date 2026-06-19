@@ -313,6 +313,23 @@ assembled contract). Document the result in the run record. This smoke is on-dem
 CI-gated — the engine path it exercises is CI-proven by the S7 scenario fixture; this smoke
 adds runtime cross-plugin fidelity without coupling CI to a second install.
 
+## SC5 second-instantiation smoke — not CI-gated
+
+On demand / when zero-config fidelity on a non-tsgit toolchain must be confirmed: take a
+second repo with a test command discoverable without a manifest and **no** `.claude/workflow.md`
+(e.g. a small Python + `pytest` project), then drive the default pipeline against it on a small
+free-text brief (zero manifest ⇒ no `backlog:`, so the input is a brief/file, never a backlog
+id). Confirm the per-phase capability-probe matrix: `worktree-setup.sh` detects the ecosystem
+(or reports a noted skip when no lockfile is recognized); the gate probe discovers the repo's
+test command (`pytest`/`go test`/`cargo test`/…) and `implementation` runs rather than hitting
+the gate-floor REFUSE; `validation` no-ops with a note when no mutation tooling is configured
+(and its `propose`-gate entry is released, so the walk reaches `propose`); `propose`/`integrate`
+no-op when there is no remote. Record the target's identity, toolchain, discovered gate command,
+and per-phase outcomes in `docs/SC5-second-instantiation-record.md`. This smoke is on-demand, NOT
+CI-gated — the engine path it exercises (toolchain-neutral resolution) is CI-proven by the `SC5`
+scenario fixture; this smoke adds runtime fidelity on a real second toolchain without coupling CI
+to a non-JS install.
+
 ## Review cadence — engine vs working-style
 
 The engine cadence is the single `review` phase over the whole change (per-dimension
