@@ -106,11 +106,10 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    `pipeline-resolve` exit non-zero at §0 (resolver `ok: false`) — the role case of the existing
    non-zero-exit error-path row — before the walk dispatches anything, uniformly for agent and
    inline. The bin wires a live install-probe for craft-native `craft:<role>` refs (a typo'd role
-   fails closed); external `my:`/`acme:` refs stay permissive pending P14 registration. **Inserted-phase contract injection is not yet wired:** `contract-assemble`
-   (step 3) keys on `pipeline/default.yml`, so a novel inserted `id` STOPs there with
-   "unknown descriptor-id". P7 lands inserted-phase *dispatch* (above) and resolution-layer
-   insert (S3/SC3); full inserted-phase *execution* — teaching `contract-assemble` the resolved
-   inserted descriptors — rides with the derived-plugin registration surface (P14).
+   fails closed); external `my:`/`acme:` refs fail closed unless the ref is registered via
+   `extends` (`extends.agents` ∪ the `role:` of every registered/inserted phase). **Inserted/registered-phase contract execution ships:** the walk passes the resolved descriptor to
+   `contract-assemble` via `--descriptor-json` (step 3), so a novel/registered `id` EXECUTEs
+   under the engine-owned contract — the same core + declared bundles that wrap any default phase.
 
 2. **Resolve execution** — use `phase.execution` (`agent` | `inline`) from the
    Resolution. Apply manifest override (`phases.<id>.override`,
@@ -124,7 +123,12 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
      [--inline]          # only when phase.execution is "inline"
      [--contracts-dir "${CLAUDE_PLUGIN_ROOT}/contracts"]
    ```
-   via Bash, capturing stdout as the **injected contract block**. On non-zero
+   For an inserted or registered phase (any phase whose `id` is not among the engine defaults),
+   append `--descriptor-json <resolved-descriptor>` where `<resolved-descriptor>` is the
+   descriptor the walk already holds from the step-1b Resolution `effective[]` — serialized as
+   JSON (single object or array). The bin resolves `phase.id` against that set so the registered
+   id EXECUTEs; the default-phase path (no flag) is unchanged.
+   Via Bash, capturing stdout as the **injected contract block**. On non-zero
    exit: STOP; surface stderr; refuse to proceed. On **agent** execution the
    block is PREPENDED to the Task spawn prompt. On **inline** execution the
    block is loaded into the session at phase entry and the session follows it.
@@ -284,6 +288,17 @@ agent is asked to report its own usage.
 **Where results land:** fill `docs/model-class-matrix.md` (the committed, diffable
 artifact template) and append a one-line entry to the run record under
 `model-class-matrix`. Rationale: `docs/DESIGN-P13-nfr-hardening.md`.
+
+## Registered-phase dispatch smoke — not CI-gated
+
+On demand / when end-to-end cross-plugin fidelity must be confirmed: spin up a throwaway
+two-plugin fixture (mirroring SP2's `/tmp/craft-sp2`) and drive it with
+`claude -p --plugin-dir craft --plugin-dir <pluginB>`, using a manifest that registers a
+phase via `extends.phases` pointing at a `pluginB:` procedure. Assert the registered phase
+dispatches (the walk reaches step 1 for it) and spawns (an agent is started under the
+assembled contract). Document the result in the run record. This smoke is on-demand, NOT
+CI-gated — the engine path it exercises is CI-proven by the S7 scenario fixture; this smoke
+adds runtime cross-plugin fidelity without coupling CI to a second install.
 
 ## Review cadence — engine vs working-style
 
