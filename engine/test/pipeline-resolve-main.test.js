@@ -154,6 +154,14 @@ test('Given a manifest with an unregistered external role (acme:tdd-specialist, 
   assert.equal(result, 2, `expected 2 but got ${result}; stderr: ${io.stderr.joined()}`);
 });
 
+// EQUIVALENT (mutation survivors) — buildRegisteredRefSet (pipeline-resolve-main.js:21-26).
+// The `?? []` fallbacks (:21, :22, :25) and the `if (phase.role)` guards (:23, :26) only ever
+// add an EXTRA or never-queried entry to the registered Set when extends/insert is absent or a
+// phase has no role. The Set is consulted solely via `registeredSet.has(<a real string role ref>)`
+// (resolve.js filters `d.role && !roleExists(d.role)`), so a polluting `"Stryker was here"` entry,
+// or an `undefined` from `if(true)`, is never the queried value — no real ref's resolution changes.
+// Provably unobservable; no kill test can distinguish these mutants.
+
 // ─── roleExists: registered external ref passes ───────────────────────────────
 
 test('Given a manifest registering acme:bench-runner via extends.agents and using it as implementation role, when main runs, then it returns 0', async () => {

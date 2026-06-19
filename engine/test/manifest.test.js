@@ -1628,6 +1628,12 @@ test('Given extends block with two distinct faults, when validateManifest runs, 
   assert.ok(result.errors.length >= 2, `expected ≥2 errors but got: ${JSON.stringify(result.errors)}`);
 });
 
+// EQUIVALENT (mutation survivor) — the ConditionalExpression at manifest.js:397
+// (`typeof archetype !== 'string' || !VALID_ARCHETYPES.has(archetype)` → `false || …`) is a
+// no-op: `!VALID_ARCHETYPES.has(x)` is already true for EVERY non-valid-archetype value
+// (undefined, number, object, wrong string), so dropping the redundant `typeof` short-circuit
+// yields identical results for all inputs — no test can distinguish it. The check below still
+// pins the behaviour (a missing archetype is rejected); the typeof guard is defensive redundancy.
 test('Given extends.phases with a phase missing archetype, when validateManifest runs, then ok:false with error naming archetype', () => {
   const sut = validateManifest;
 

@@ -567,3 +567,30 @@ test('Given --descriptor-json pointing at a file with a valid descriptor, when m
   // The harness-exec bundle contains "survivors or violations" — content-dependent assertion
   assert.ok(io.stdout.joined().includes('survivors or violations'), 'harness-exec content must appear in stdout');
 });
+
+// ─── --descriptor-json: a single descriptor OBJECT (not an array) is wrapped and matched ──
+// Kills the ArrayDeclaration mutant at contract-assemble-main.js:101 —
+// `Array.isArray(parsed) ? parsed : [parsed]` → `: []`. A bare object must still resolve;
+// `[]` would drop it and STOP "unknown descriptor-id". In-process via a temp FILE (the stdin
+// twin lives in the child-process smoke file, which Stryker's perTest coverage cannot credit).
+test('Given --descriptor-json pointing at a single descriptor object (not an array), when main runs, then it is wrapped and matched (exit 0)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const tmpDir = makeTmpDir();
+  const jsonPath = join(tmpDir, 'single.json');
+  writeFileSync(jsonPath, JSON.stringify(
+    { id: 'bench', archetype: 'harness', enabled: true, contract: ['harness-exec'], consumes: [], produces: [], self_supply: [], execution: 'agent' },
+  ));
+
+  const result = sut(['--descriptor-id', 'bench', '--descriptor-json', jsonPath], io);
+
+  assert.equal(result, 0, `single-object descriptor must resolve; stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().includes('survivors or violations'), 'harness-exec content must appear in stdout');
+});
+
+// EQUIVALENT (mutation survivors) — readFileSync encoding `'utf8'` → `''` at
+// contract-assemble-main.js:93:36 (stdin), :94:30 (file), :150:67 (default.yml).
+// `readFileSync(path, '')` returns a Buffer; JSON.parse(Buffer) and js-yaml load(Buffer) both
+// coerce the bytes to the identical string before parsing — no observable behaviour change, so
+// no test can distinguish the mutant. (Verified: JSON.parse(Buffer.from('[{"id":"x"}]')) deep-equals
+// JSON.parse('[{"id":"x"}]').)

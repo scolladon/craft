@@ -1032,3 +1032,57 @@ test('Given extends.phases replacing an existing phase without specifying contra
   assert.ok(docPhase, 'documentation must be present');
   assert.deepEqual(docPhase.contract, [], 'contract must be [] by default, not a pre-seeded array');
 });
+
+// ─── foldRegisteredPhases: a pure same-id replace adds no spurious insert ─────
+// Kills the ArrayDeclaration mutant at resolve.js:185 — `const inserts = []` →
+// `["Stryker was here"]`. A registration that ONLY replaces an existing id (no new phase) must
+// leave the insert list empty; a seeded array would push a garbage (id-less) descriptor into
+// effective via applyInserts.
+test('Given extends.phases that only replaces an existing id (no new phase), when resolvePipeline runs, then effective ids equal the default set (no spurious insert)', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'documentation',
+        procedure: 'acme:docs',
+        archetype: 'delivery',
+        consumes: [],
+        produces: ['docs'],
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `expected ok; errors: ${JSON.stringify(result.errors)}`);
+  assert.deepEqual(result.effective.map(d => d.id), SC1_IDS, 'a pure replace must not add any phase beyond the default set');
+});
+
+// EQUIVALENT (mutation survivors) — the foldRegisteredPhases early-return guard at resolve.js:182
+// (`if (!registeredPhases || registeredPhases.length === 0) return { descriptors, inserts: [] }`)
+// is a pure optimization: resolvePipeline ALWAYS calls it with `resolved.extends?.phases ?? []`
+// (a defined array), and the body's loop over an empty array already yields
+// `{ descriptors, inserts: [] }`. So `if (false)`, `&&`, `|| false`, and the emptied block all
+// produce identical output — no kill test can distinguish them (the function is module-private,
+// never reached with undefined).
+
+// ─── buildManifestRecords: an unregistered non-null backlog source emits NO record ───
+// Kills the LogicalOperator mutant at resolve.js:153 — `source !== null && registered.has(source)`
+// → `||`. With `||`, any non-null source (even one no adapter registers) would wrongly emit a
+// record line. (The ConditionalExpression mutant `source !== null` → `true` at the same site is
+// EQUIVALENT: `registered.has(null)` is always false, so `true && has(source)` ≡ the original for
+// every input — no test can distinguish it.)
+test('Given a backlog.source that no extends.backlog-adapters registers, when resolvePipeline runs, then no record names that source', () => {
+  const defaults = loadDefault();
+  const manifest = { backlog: { source: 'ghost-tracker', ref: './x.sh' } };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `expected ok; errors: ${JSON.stringify(result.errors)}`);
+  assert.ok(
+    !result.record.some(r => r.includes('ghost-tracker')),
+    `an unregistered source must not emit a record line; got: ${JSON.stringify(result.record)}`,
+  );
+});
