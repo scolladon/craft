@@ -394,8 +394,8 @@ function validateExtendsPhaseEntry(phase, i, errors) {
   if (typeof procedure !== 'string' || procedure.trim() === '') {
     errors.push(`extends.phases[${i}].procedure must be a non-empty string`);
   }
-  if (archetype !== undefined && !VALID_ARCHETYPES.has(archetype)) {
-    errors.push(`extends.phases[${i}].archetype "${archetype}" is not valid (expected one of ${[...VALID_ARCHETYPES].join(', ')})`);
+  if (typeof archetype !== 'string' || !VALID_ARCHETYPES.has(archetype)) {
+    errors.push(`extends.phases[${i}].archetype must be one of ${[...VALID_ARCHETYPES].join(', ')}`);
   }
   validateExtendsPhaseContract(contract, i, errors);
   validateExtendsPhaseStringArray(consumes, `extends.phases[${i}].consumes`, errors);

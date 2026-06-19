@@ -1485,7 +1485,7 @@ test('Given extends.phases with a phase with an invalid archetype, when validate
   );
 
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('bogus')), `errors: ${JSON.stringify(result.errors)}`);
+  assert.ok(result.errors.some(e => e.includes('archetype')), `errors: ${JSON.stringify(result.errors)}`);
 });
 
 test('Given extends.phases with a phase missing id, when validateManifest runs, then ok:false', () => {
@@ -1626,4 +1626,22 @@ test('Given extends block with two distinct faults, when validateManifest runs, 
 
   assert.equal(result.ok, false);
   assert.ok(result.errors.length >= 2, `expected ≥2 errors but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases with a phase missing archetype, when validateManifest runs, then ok:false with error naming archetype', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      extends: {
+        phases: [
+          { id: 'bench', procedure: 'pluginB:bench', contract: [] },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('archetype')), `errors: ${JSON.stringify(result.errors)}`);
 });
