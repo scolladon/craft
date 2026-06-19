@@ -140,3 +140,79 @@ test('Given a profile map that mis-sets harness to inline, when applyProfileToAr
 
   assert.equal(result, 'agent');
 });
+
+// ─── solo profile harness StringLiteral guard ────────────────────────────────
+
+test('Given solo profile, when expandProfile runs, then harness maps to the string "agent" (not empty string)', () => {
+  const sut = expandProfile;
+
+  const result = sut('solo');
+
+  assert.equal(result['harness'], 'agent');
+});
+
+// ─── full profile: ObjectLiteral and harness StringLiteral guards ─────────────
+
+test('Given full profile, when expandProfile runs, then all six archetype keys are present', () => {
+  const sut = expandProfile;
+
+  const result = sut('full');
+
+  for (const key of ['setup', 'specification', 'construction', 'harness', 'refinement', 'delivery']) {
+    assert.ok(Object.hasOwn(result, key), `full profile must have key "${key}"`);
+  }
+});
+
+test('Given full profile, when expandProfile runs, then harness maps to the string "agent" (not empty string)', () => {
+  const sut = expandProfile;
+
+  const result = sut('full');
+
+  assert.equal(result['harness'], 'agent');
+});
+
+test('Given full profile, when expandProfile runs, then setup maps to "agent"', () => {
+  const sut = expandProfile;
+
+  const result = sut('full');
+
+  assert.equal(result['setup'], 'agent');
+});
+
+test('Given full profile, when expandProfile runs, then specification maps to "agent"', () => {
+  const sut = expandProfile;
+
+  const result = sut('full');
+
+  assert.equal(result['specification'], 'agent');
+});
+
+test('Given full profile, when expandProfile runs, then construction maps to "agent"', () => {
+  const sut = expandProfile;
+
+  const result = sut('full');
+
+  assert.equal(result['construction'], 'agent');
+});
+
+test('Given full profile, when expandProfile runs, then refinement maps to "agent"', () => {
+  const sut = expandProfile;
+
+  const result = sut('full');
+
+  assert.equal(result['refinement'], 'agent');
+});
+
+test('Given full profile, when expandProfile runs, then delivery maps to "agent"', () => {
+  const sut = expandProfile;
+
+  const result = sut('full');
+
+  assert.equal(result['delivery'], 'agent');
+});
+
+// ─── applyProfileToArchetype: ?? 'agent' fallback is unreachable via validated path ─
+// EQUIVALENT: validateExtendsProfileEntry (manifest.js:489-494) requires all six archetype
+// keys present before a registered profile can reach applyProfileToArchetype, so
+// profile[archetype] is always defined and the ?? 'agent' branch never executes.
+

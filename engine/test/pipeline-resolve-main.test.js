@@ -419,3 +419,128 @@ test('Given a valid pipeline, when main runs, then stdout output ends with a new
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(io.stdout.joined().endsWith('\n'), 'stdout must end with a trailing newline');
 });
+
+// ─── buildRegisteredRefSet: agents ?? [] fallback ─────────────────────────────
+// Kills: ArrayDeclaration at pipeline-resolve-main.js:21 ("Stryker was here" poison array).
+// A manifest with NO extends.agents but a valid craft role must still pass (poison array would
+// contain "Stryker was here" as a registered ref, which doesn't affect craft role lookup, but
+// the registered-role path via extends.agents must accept an absent agents key).
+
+test('Given a manifest with no extends.agents key and a valid craft role, when main runs, then it returns 0 (absent agents falls back to empty set)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  // Use a manifest that only has extends.phases and no extends.agents
+  const manifestContent = [
+    '---',
+    'phases:',
+    '  implementation:',
+    '    role: craft:planner',
+    'extends:',
+    '  phases: []',
+    '---',
+  ].join('\n');
+  const manifestPath = writeTmp('no-agents.md', manifestContent);
+
+  const result = sut([pipelinePath, manifestPath], io);
+
+  assert.equal(result, 0, `expected 0 — absent extends.agents must not break resolution; stderr: ${io.stderr.joined()}`);
+});
+
+// ─── buildRegisteredRefSet: extends.phases ?? [] fallback ────────────────────
+// Kills: ArrayDeclaration at pipeline-resolve-main.js:22 ("Stryker was here" poison array).
+// A manifest with extends.agents but no extends.phases must still pass.
+
+test('Given a manifest with extends.agents but no extends.phases key, when main runs, then it returns 0 (absent phases falls back to empty iteration)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestContent = [
+    '---',
+    'phases:',
+    '  implementation:',
+    '    role: craft:planner',
+    'extends:',
+    '  agents: []',
+    '---',
+  ].join('\n');
+  const manifestPath = writeTmp('no-phases.md', manifestContent);
+
+  const result = sut([pipelinePath, manifestPath], io);
+
+  assert.equal(result, 0, `expected 0 — absent extends.phases must not break resolution; stderr: ${io.stderr.joined()}`);
+});
+
+// ─── buildRegisteredRefSet: pipeline.insert ?? [] fallback ───────────────────
+// Kills: ArrayDeclaration at pipeline-resolve-main.js:25 ("Stryker was here" poison array).
+// A manifest with no pipeline.insert key must still pass.
+
+test('Given a manifest with extends.agents but no pipeline.insert key, when main runs, then it returns 0 (absent pipeline.insert falls back to empty iteration)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestContent = [
+    '---',
+    'extends:',
+    '  agents: []',
+    '---',
+  ].join('\n');
+  const manifestPath = writeTmp('no-insert.md', manifestContent);
+
+  const result = sut([pipelinePath, manifestPath], io);
+
+  assert.equal(result, 0, `expected 0 — absent pipeline.insert must not break resolution; stderr: ${io.stderr.joined()}`);
+});
+
+// ─── buildRegisteredRefSet: phase.role conditional in extends.phases ──────────
+// Kills: BlockStatement (inner body removed) and ConditionalExpression (true/false) at :22-23.
+// A phase with a role must contribute it to the registered set so the roleExists check passes.
+
+test('Given a manifest with a phase role registered in extends.phases, when main runs, then it returns 0 (phase role is in registered set)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestContent = [
+    '---',
+    'phases:',
+    '  implementation:',
+    '    role: acme:bench-runner',
+    'extends:',
+    '  phases:',
+    '    - id: acme:bench',
+    '      procedure: "acme:bench"',
+    '      archetype: harness',
+    '      role: acme:bench-runner',
+    '      after: validation',
+    '---',
+  ].join('\n');
+  const manifestPath = writeTmp('phase-role.md', manifestContent);
+
+  const result = sut([pipelinePath, manifestPath], io);
+
+  assert.equal(result, 0, `expected 0 — extends.phases role must be registered; stderr: ${io.stderr.joined()}`);
+});
+
+// ─── buildRegisteredRefSet: phase.role conditional in pipeline.insert ─────────
+// Kills: BlockStatement (inner body removed) and ConditionalExpression (true/false) at :25-26.
+// A pipeline.insert phase with a role must contribute it to the registered set.
+
+test('Given a manifest with a role in pipeline.insert phase, when main runs, then it returns 0 (insert phase role is in registered set)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestContent = [
+    '---',
+    'phases:',
+    '  implementation:',
+    '    role: acme:insert-runner',
+    'pipeline:',
+    '  insert:',
+    '    - id: acme:insert',
+    '      procedure: "acme:insert"',
+    '      archetype: harness',
+    '      role: acme:insert-runner',
+    '      after: validation',
+    '---',
+  ].join('\n');
+  const manifestPath = writeTmp('insert-role.md', manifestContent);
+
+  const result = sut([pipelinePath, manifestPath], io);
+
+  assert.equal(result, 0, `expected 0 — pipeline.insert role must be registered; stderr: ${io.stderr.joined()}`);
+});

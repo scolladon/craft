@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateManifest } from '../src/manifest.js';
+import { validateManifest, registeredBacklogNames } from '../src/manifest.js';
 
 const ALWAYS_EXISTS = () => true;
 const NEVER_EXISTS  = () => false;
@@ -1749,4 +1749,348 @@ test('Given extends.phases[0] with produces: [42] (non-string element), when val
 
   assert.equal(result.ok, false);
   assert.ok(result.errors.some(e => /produces.*must be a string/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── registeredBacklogNames: map/filter/optional-chaining survivors ───────────
+
+test('Given registeredBacklogNames with a null adapter entry, when called, then null is excluded from the result set', () => {
+  const sut = registeredBacklogNames;
+
+  const result = sut({ 'backlog-adapters': [null, { name: 'acme-tracker' }] });
+
+  assert.ok(!result.has(undefined), 'null entry must not contribute undefined to the set');
+  assert.ok(result.has('acme-tracker'), 'valid named entry must be present');
+});
+
+test('Given registeredBacklogNames with an empty-string name, when called, then empty string is excluded from the result set', () => {
+  const sut = registeredBacklogNames;
+
+  const result = sut({ 'backlog-adapters': [{ name: '' }, { name: 'acme-tracker' }] });
+
+  assert.ok(!result.has(''), 'empty-string name must be filtered out');
+  assert.ok(result.has('acme-tracker'), 'valid name must remain');
+});
+
+test('Given registeredBacklogNames with a whitespace-only name, when called, then that name is excluded from the result set', () => {
+  const sut = registeredBacklogNames;
+
+  const result = sut({ 'backlog-adapters': [{ name: '   ' }, { name: 'acme-tracker' }] });
+
+  assert.ok(!result.has('   '), 'whitespace-only name must be filtered out by trim check');
+  assert.ok(result.has('acme-tracker'), 'valid name must remain');
+});
+
+test('Given registeredBacklogNames with a non-string name (number), when called, then number is excluded from the result set', () => {
+  const sut = registeredBacklogNames;
+
+  const result = sut({ 'backlog-adapters': [{ name: 42 }, { name: 'acme-tracker' }] });
+
+  assert.ok(!result.has(42), 'non-string name must be filtered out by typeof string check');
+  assert.ok(result.has('acme-tracker'), 'valid string name must remain');
+});
+
+// ─── validateExtendsPhaseOptionalStrings: each field name matters ─────────────
+
+test('Given extends.phases[0] with role: 99 (non-string), when validateManifest runs, then ok:false with error naming "role"', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness', role: 99 }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /role.*must be a string/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases[0] with gate: true (non-string), when validateManifest runs, then ok:false with error naming "gate"', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness', gate: true }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /gate.*must be a string/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases[0] with before: 0 (non-string), when validateManifest runs, then ok:false with error naming "before"', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness', before: 0 }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /before.*must be a string/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── extends.phases: id and procedure trim/whitespace guard ──────────────────
+
+test('Given extends.phases with a phase whose id is whitespace-only, when validateManifest runs, then ok:false with error naming "id"', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: '   ', procedure: 'acme:bench', archetype: 'harness' }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('id') && e.includes('non-empty')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases with a phase whose procedure is whitespace-only, when validateManifest runs, then ok:false with error naming "procedure"', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: '  ', archetype: 'harness' }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('procedure') && e.includes('non-empty')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.phases with a phase whose archetype is a string but not in VALID_ARCHETYPES, when validateManifest runs, then error names each valid archetype', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'invalid-type' }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const archetypeError = result.errors.find(e => e.includes('archetype'));
+  assert.ok(archetypeError, `expected error mentioning archetype; errors: ${JSON.stringify(result.errors)}`);
+  // The join(', ') separator distinguishes from join('') mutant — all six are present
+  assert.ok(archetypeError.includes('setup'), `error must list setup; got: ${archetypeError}`);
+  assert.ok(archetypeError.includes('harness'), `error must list harness; got: ${archetypeError}`);
+  assert.ok(archetypeError.includes(', '), `error must use ", " separator; got: ${archetypeError}`);
+});
+
+// ─── extends.phases contract: BUNDLE_VOCAB join separator and array literal ───
+
+test('Given extends.phases contract with an unknown bundle, when validateManifest runs, then error names the bad bundle AND uses ", " separator in the vocab list', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness', contract: ['not-a-bundle'] }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const contractError = result.errors.find(e => e.includes('not-a-bundle'));
+  assert.ok(contractError, `error must name the bad bundle; errors: ${JSON.stringify(result.errors)}`);
+  // The [...BUNDLE_VOCAB].join(', ') must emit at least one ", " — ArrayDeclaration mutant would emit nothing
+  assert.ok(contractError.includes(', '), `error must include ", " from BUNDLE_VOCAB list; got: ${contractError}`);
+});
+
+// ─── validateExtendsPhaseContract: contract undefined returns early (no error) ─
+
+test('Given extends.phases with a phase omitting contract entirely, when validateManifest runs, then ok:true (contract is optional)', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness' }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `contract: undefined must be fine; errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── validateExtendsPhaseStringArray: value undefined returns early (no error) ─
+
+test('Given extends.phases with a phase omitting consumes entirely, when validateManifest runs, then ok:true (consumes is optional)', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness' }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `consumes: undefined must be fine; errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── extends.agents: whitespace-only ref is rejected ────────────────────────
+
+test('Given extends.agents with a whitespace-only string element, when validateManifest runs, then ok:false with error naming "agents"', () => {
+  const result = validateManifest(
+    { extends: { agents: ['  '] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('agents')), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── extends.profiles: hasOwn archetype check ────────────────────────────────
+
+test('Given extends.profiles.audit omitting harness key, when validateManifest runs, then ok:false with error naming "harness" as missing', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        profiles: {
+          audit: {
+            setup: 'inline',
+            specification: 'agent',
+            construction: 'agent',
+            // harness deliberately omitted
+            refinement: 'agent',
+            delivery: 'inline',
+          },
+        },
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const missingError = result.errors.find(e => e.includes('harness') && e.includes('missing'));
+  assert.ok(missingError, `expected a "missing archetype harness" error; errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── extends.profiles guard: null and non-object inputs ──────────────────────
+
+test('Given extends.profiles as null, when validateManifest runs, then ok:false with error matching /profiles must be an object/', () => {
+  const result = validateManifest(
+    { extends: { profiles: null } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /profiles must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.profiles as a string, when validateManifest runs, then ok:false with error matching /profiles must be an object/', () => {
+  const result = validateManifest(
+    { extends: { profiles: 'lean' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /profiles must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── extends.backlog-adapters guard: null, non-object, array adapter entries ──
+
+test('Given extends.backlog-adapters with a null entry, when validateManifest runs, then ok:false with error matching /must be an object/', () => {
+  const result = validateManifest(
+    { extends: { 'backlog-adapters': [null] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.backlog-adapters with an array entry (nested array), when validateManifest runs, then ok:false with error matching /must be an object/', () => {
+  const result = validateManifest(
+    { extends: { 'backlog-adapters': [['name', 'val']] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given extends.backlog-adapters with a non-object primitive entry (string), when validateManifest runs, then ok:false with error matching /must be an object/', () => {
+  const result = validateManifest(
+    { extends: { 'backlog-adapters': ['plain-string'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => /must be an object/.test(e)), `errors: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── extends.backlog-adapters: name and ref whitespace trim guard ─────────────
+
+test('Given extends.backlog-adapters with a whitespace-only name, when validateManifest runs, then ok:false with error naming "name" and "non-empty"', () => {
+  const result = validateManifest(
+    { extends: { 'backlog-adapters': [{ name: '   ', ref: '.claude/workflow/x.sh' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('name') && e.includes('non-empty')),
+    `errors: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test('Given extends.backlog-adapters with a whitespace-only ref, when validateManifest runs, then ok:false with error naming "ref" and "non-empty"', () => {
+  const result = validateManifest(
+    { extends: { 'backlog-adapters': [{ name: 'acme-tracker', ref: '  ' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('ref') && e.includes('non-empty')),
+    `errors: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+// ─── extends.backlog-adapters: checkFileRef label text ───────────────────────
+
+test('Given extends.backlog-adapters with a ref that fileExists rejects, when validateManifest runs, then error names the adapter label including its index', () => {
+  const result = validateManifest(
+    { extends: { 'backlog-adapters': [{ name: 'acme-tracker', ref: 'missing.sh' }] } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const refError = result.errors.find(e => e.includes('backlog-adapters') && e.includes('[0]'));
+  assert.ok(refError, `error must name the adapter label with index [0]; errors: ${JSON.stringify(result.errors)}`);
+  assert.ok(refError.includes('ref'), `error must include "ref" in the label; got: ${refError}`);
+});
+
+// ─── validateExtends: backlog-adapters absent does not produce spurious error ─
+
+test('Given extends block with only phases (no backlog-adapters key), when validateManifest runs, then ok:true (no spurious backlog-adapters error)', () => {
+  const result = validateManifest(
+    {
+      extends: {
+        phases: [{ id: 'bench', procedure: 'acme:bench', archetype: 'harness' }],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── extends.backlog-adapters error message: must continue after object-guard ─
+
+test('Given extends.backlog-adapters with a null entry at index 1, when validateManifest runs, then error names index 1', () => {
+  const result = validateManifest(
+    { extends: { 'backlog-adapters': [{ name: 'a', ref: 'x.sh' }, null] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('backlog-adapters[1]') && e.includes('must be an object')),
+    `error must name index 1; errors: ${JSON.stringify(result.errors)}`,
+  );
 });

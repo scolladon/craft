@@ -524,3 +524,46 @@ test('Given --descriptor-json pointing at a nonexistent path, when main runs, th
   assert.equal(result, 2);
   assert.match(io.stderr.joined(), /failed to read --descriptor-json/);
 });
+
+// ─── --descriptor-json: null propagation for --descriptor-json flag ───────────
+// Kills: ConditionalExpression(false) at contract-assemble-main.js:53 — the null-check
+// after takeValue for --descriptor-json. With mutant, parseArgs continues after the
+// option error, leaving descriptorJson=null, causing !descriptorId to fire → Usage written.
+
+test('Given --descriptor-json with no following value, when main runs, then returns 2 with option error only (no Usage message)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-json'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /contract-assemble: option --descriptor-json requires a non-flag value/);
+  assert.ok(
+    !io.stderr.joined().includes('Usage:'),
+    `Usage must not appear when parseArgs returns null early; got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── readDescriptorJson: source !== '-' reads file content into a string ──────
+// Kills: Survived StringLiteral at :94 (readFileSync(source, "") → returns Buffer).
+// A test that uses the file path and asserts a content-dependent result kills the
+// Buffer-vs-string distinction, because JSON.parse(Buffer) happens to work too.
+// Instead: assert exit 0 and a SPECIFIC output content derived from the descriptor id.
+// (The existing nonexistent-path test already hits the error path; this hits the success path
+// and asserts that the id from the JSON is correctly matched and the contract is assembled.)
+
+test('Given --descriptor-json pointing at a file with a valid descriptor, when main runs, then exits 0 and stdout contains the assembled contract', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const tmpDir = makeTmpDir();
+  const jsonPath = join(tmpDir, 'valid.json');
+  writeFileSync(jsonPath, JSON.stringify([
+    { id: 'bench', archetype: 'harness', enabled: true, contract: ['harness-exec'], consumes: [], produces: [], self_supply: [], execution: 'agent' },
+  ]));
+
+  const result = sut(['--descriptor-id', 'bench', '--descriptor-json', jsonPath], io);
+
+  assert.equal(result, 0, `expected exit 0; stderr: ${io.stderr.joined()}`);
+  // The harness-exec bundle contains "survivors or violations" — content-dependent assertion
+  assert.ok(io.stdout.joined().includes('survivors or violations'), 'harness-exec content must appear in stdout');
+});

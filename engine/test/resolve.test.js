@@ -901,3 +901,134 @@ test('Given pipeline.profile:ghost with no registered ghost in extends.profiles,
     `Expected error naming "ghost", got: ${result.errors.join('; ')}`,
   );
 });
+
+// ─── buildManifestRecords: registered backlog source branch ──────────────────
+
+test('Given backlog { source: "acme-tracker" } registered in extends.backlog-adapters, when resolvePipeline runs, then record names the registered source', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    backlog: { source: 'acme-tracker', ref: 'scripts/acme.sh' },
+    extends: {
+      'backlog-adapters': [{ name: 'acme-tracker', ref: 'scripts/acme.sh' }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  const backlogLine = result.record.find(r => r.includes('acme-tracker'));
+  assert.ok(backlogLine, `Expected a record line naming "acme-tracker"; record: ${JSON.stringify(result.record)}`);
+  assert.ok(backlogLine.includes('source "acme-tracker"'), `line must name the source; got: ${backlogLine}`);
+});
+
+test('Given backlog { source: "acme-tracker" } with no ref, when resolvePipeline runs, then record line contains "<unspecified>"', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    backlog: { source: 'acme-tracker' },
+    extends: {
+      'backlog-adapters': [{ name: 'acme-tracker', ref: 'scripts/acme.sh' }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  const backlogLine = result.record.find(r => r.includes('acme-tracker'));
+  assert.ok(backlogLine, `Expected a backlog record line; record: ${JSON.stringify(result.record)}`);
+  assert.ok(backlogLine.includes('<unspecified>'), `line must contain "<unspecified>"; got: ${backlogLine}`);
+});
+
+test('Given backlog source "acme-tracker" but null source guard: source that is null does not match registered adapters, when resolvePipeline runs, then no record line emitted', () => {
+  const defaults = loadDefault();
+  // source=null falls out of the if chain; no record expected
+  const manifest = {
+    backlog: { source: null },
+    extends: {
+      'backlog-adapters': [{ name: 'acme-tracker', ref: 'scripts/acme.sh' }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  assert.ok(
+    !result.record.some(r => /source "/.test(r)),
+    `null source must not emit a source record; record: ${JSON.stringify(result.record)}`,
+  );
+});
+
+// ─── foldRegisteredPhases: empty registeredPhases guard ──────────────────────
+
+test('Given extends.phases is empty array, when resolvePipeline runs, then effective matches default SC1 order (empty guard short-circuits)', () => {
+  const defaults = loadDefault();
+  const manifest = { extends: { phases: [] } };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  assert.deepEqual(result.effective.map(d => d.id), SC1_IDS, 'empty extends.phases must leave effective unchanged');
+});
+
+test('Given no extends.phases key, when resolvePipeline runs, then effective matches default SC1 order (undefined guard short-circuits)', () => {
+  const defaults = loadDefault();
+  const manifest = { extends: {} };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  assert.deepEqual(result.effective.map(d => d.id), SC1_IDS, 'absent extends.phases must leave effective unchanged');
+});
+
+// ─── foldRegisteredPhases: inserts initialised as empty array ────────────────
+
+test('Given extends.phases with a new-id phase, when resolvePipeline runs, then inserts list has exactly one entry (not a pre-polluted array)', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'acme:new-phase',
+        procedure: 'acme:new-phase',
+        archetype: 'harness',
+        after: 'validation',
+        consumes: ['change'],
+        produces: ['acme-out'],
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  const inserted = result.effective.find(d => d.id === 'acme:new-phase');
+  assert.ok(inserted, 'acme:new-phase must appear in effective');
+});
+
+// ─── foldRegisteredPhases: replaced descriptor defaults to empty contract ─────
+
+test('Given extends.phases replacing an existing phase without specifying contract, when resolvePipeline runs, then replaced phase has contract:[] (not a pre-populated array)', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'documentation',
+        procedure: 'acme:docs',
+        archetype: 'delivery',
+        consumes: [],
+        produces: ['docs'],
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  const docPhase = result.effective.find(d => d.id === 'documentation');
+  assert.ok(docPhase, 'documentation must be present');
+  assert.deepEqual(docPhase.contract, [], 'contract must be [] by default, not a pre-seeded array');
+});

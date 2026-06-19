@@ -195,3 +195,41 @@ test('Given --descriptor-id review, when contract-assemble runs, then stdout con
   assert.ok(result.stdout.includes('findings'), 'harness-read marker "findings" must be present');
   assert.ok(result.stdout.includes('Zero findings'), 'harness-read marker "Zero findings" must be present');
 });
+
+// ─── --descriptor-json via stdin ("-"): source==='-' guard ───────────────────
+// Kills: Survived ConditionalExpression (text = false) and StringLiteral (source === "")
+// at contract-assemble-main.js:92, plus NoCoverage at :93 ('/dev/stdin' and 'utf8').
+// spawnSync with `input` injects the JSON on stdin so readFileSync('/dev/stdin', 'utf8') reads it.
+
+function runWithStdin(args, stdinContent) {
+  return spawnSync(process.execPath, [binPath, ...args], {
+    cwd: repoRoot,
+    encoding: 'utf8',
+    input: stdinContent,
+  });
+}
+
+test('Given --descriptor-json - (stdin source) with bench descriptor JSON on stdin, when contract-assemble runs, then exits 0 and stdout contains core markers', () => {
+  const sut = runWithStdin;
+  const descriptors = JSON.stringify([
+    { id: 'bench', archetype: 'harness', enabled: true, contract: ['harness-exec'], consumes: [], produces: [], self_supply: [], execution: 'agent' },
+  ]);
+
+  const result = sut(['--descriptor-id', 'bench', '--descriptor-json', '-'], descriptors);
+
+  assert.equal(result.status, 0, `Expected exit 0; stderr: ${result.stderr}`);
+  assert.ok(result.stdout.toLowerCase().includes('never commit on a red gate'), 'core marker must be present when reading from stdin');
+});
+
+test('Given --descriptor-json - (stdin source) with a single-object (non-array) descriptor on stdin, when contract-assemble runs, then exits 0 (object normalised to array)', () => {
+  const sut = runWithStdin;
+  // Single object, not an array — exercises the Array.isArray branch normalisation
+  const descriptor = JSON.stringify(
+    { id: 'bench', archetype: 'harness', enabled: true, contract: ['harness-exec'], consumes: [], produces: [], self_supply: [], execution: 'agent' },
+  );
+
+  const result = sut(['--descriptor-id', 'bench', '--descriptor-json', '-'], descriptor);
+
+  assert.equal(result.status, 0, `Expected exit 0 when normalising single object to array; stderr: ${result.stderr}`);
+  assert.ok(result.stdout.toLowerCase().includes('never commit on a red gate'), 'core marker must be present after normalisation');
+});
