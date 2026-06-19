@@ -431,3 +431,68 @@ test('Given --descriptor-id design --inline, when main runs, then stdout does NO
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(!io.stdout.joined().includes('the role model resolved'), 'agent carve-out must be absent in inline mode');
 });
+
+// ─── --descriptor-json flag: registered id resolves, exits 0 with core + harness-exec markers ──
+
+test('Given --descriptor-id bench --descriptor-json with bench descriptor (contract:[harness-exec]), when main runs, then exits 0 with core and harness-exec bundle markers', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const tmpDir = makeTmpDir();
+  const jsonPath = join(tmpDir, 'descriptors.json');
+  writeFileSync(jsonPath, JSON.stringify([
+    { id: 'bench', archetype: 'harness', enabled: true, contract: ['harness-exec'], consumes: [], produces: [], self_supply: [], execution: 'agent' },
+  ]));
+
+  const result = sut(['--descriptor-id', 'bench', '--descriptor-json', jsonPath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().toLowerCase().includes('never commit on a red gate'), 'core marker must be present');
+  assert.ok(io.stdout.joined().includes('survivors or violations'), 'harness-exec marker must be present');
+});
+
+// ─── --descriptor-json flag: namespaced colon id accepted and matched ─────────
+
+test('Given --descriptor-id acme:bench --descriptor-json with acme:bench descriptor, when main runs, then exits 0', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const tmpDir = makeTmpDir();
+  const jsonPath = join(tmpDir, 'descriptors.json');
+  writeFileSync(jsonPath, JSON.stringify([
+    { id: 'acme:bench', archetype: 'harness', enabled: true, contract: ['harness-exec'], consumes: [], produces: [], self_supply: [], execution: 'agent' },
+  ]));
+
+  const result = sut(['--descriptor-id', 'acme:bench', '--descriptor-json', jsonPath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().toLowerCase().includes('never commit on a red gate'), 'core marker must be present for namespaced id');
+});
+
+// ─── default path byte-unchanged: --descriptor-id design without --descriptor-json ──
+
+test('Given --descriptor-id design WITHOUT --descriptor-json flag, when main runs, then exits 0 with core and producer markers (default path unchanged)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut(['--descriptor-id', 'design'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().toLowerCase().includes('never commit on a red gate'), 'core marker must be present on default path');
+  assert.ok(io.stdout.joined().includes('Decision-candidates'), 'producer marker must be present on default path');
+});
+
+// ─── --descriptor-json flag: id in neither JSON set nor defaults → STOP ─────
+
+test('Given --descriptor-id ghost --descriptor-json with no ghost descriptor, when main runs, then exits 2 with unknown descriptor-id error', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const tmpDir = makeTmpDir();
+  const jsonPath = join(tmpDir, 'descriptors.json');
+  writeFileSync(jsonPath, JSON.stringify([
+    { id: 'bench', archetype: 'harness', enabled: true, contract: ['harness-exec'], consumes: [], produces: [], self_supply: [], execution: 'agent' },
+  ]));
+
+  const result = sut(['--descriptor-id', 'ghost', '--descriptor-json', jsonPath], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /unknown descriptor-id "ghost"/);
+});
