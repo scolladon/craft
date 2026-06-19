@@ -9,7 +9,7 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
 
 1. Manifest read (lint if standalone). **Probe: remote?** none → propose AND integrate
    no-op with a note (work stays on the local branch); the run ends after documentation.
-2. **Cross-phase invariant check:** the validation phase's run has landed, survivors are
+2. **Cross-phase invariant check:** the validation phase's run has landed or recorded a no-op, survivors are
    triaged, `gates.phase` is green. Not yet → wait; never create the PR early.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)

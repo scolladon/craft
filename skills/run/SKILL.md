@@ -219,6 +219,15 @@ bring their own `procedure`, dispatched verbatim (step 1).
   If an executing-harness was waived (skipped via `pipeline.skip`), its gate is
   released — the waiver is in `Resolution.waivers[]` and pre-formatted in
   `Resolution.record[]` — and `propose` may proceed without waiting for it.
+  Likewise, if an awaited executing-harness **records a runtime no-op** — it is
+  enabled and in `effective[]` (so it carries no engine waiver and IS in
+  `awaitingHarnesses`), but at runtime its tool-agnostic probe finds nothing and
+  the phase ends with a note, never landing a run — its `awaitingHarnesses` entry
+  is released, symmetric to the skip-waiver above. This release is NOT an engine
+  waiver (the engine emits waivers for skip/disable only, when the phase is absent
+  from `effective[]`); it is the orchestrator treating a recorded no-op as a
+  release at gate-check time, so `propose` may proceed without waiting for the
+  no-op'd harness.
 
 - **Scope expansion re-enters the harness-read phase**: any feature behavior added
   after a phase with `archetype: harness` and `harness-read ∈ contract` has run —
