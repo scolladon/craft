@@ -160,12 +160,24 @@ function validateScripts(scripts, fileExists, errors) {
 const NON_BUILTIN_TRACKERS = Object.freeze(new Set(['github-issues', 'jira', 'linear']));
 
 /**
+ * Collect the registered backlog adapter names from an extends block.
+ * @param {unknown} extendsBlock
+ * @returns {Set<string>}
+ */
+function registeredBacklogNames(extendsBlock) {
+  const adapters = extendsBlock?.['backlog-adapters'];
+  if (!Array.isArray(adapters)) return new Set();
+  return new Set(adapters.map(a => a?.name).filter(n => typeof n === 'string' && n.trim() !== ''));
+}
+
+/**
  * Validate the `backlog` sub-object.
  * @param {unknown} backlog
  * @param {(path: string) => boolean} fileExists
+ * @param {Set<string>} adapterNames  registered backlog-adapter names from extends
  * @param {string[]} errors
  */
-function validateBacklog(backlog, fileExists, errors) {
+function validateBacklog(backlog, fileExists, adapterNames, errors) {
   if (typeof backlog !== 'object' || backlog === null || Array.isArray(backlog)) {
     errors.push('backlog must be an object { source, ref }');
     return;
@@ -184,7 +196,7 @@ function validateBacklog(backlog, fileExists, errors) {
     return;
   }
 
-  if (!BACKLOG_SOURCES.has(source)) {
+  if (!BACKLOG_SOURCES.has(source) && !adapterNames.has(source)) {
     if (NON_BUILTIN_TRACKERS.has(source)) {
       errors.push(`backlog source '${source}' is not built-in — use source: custom with a ref to a resolver script`);
     } else {
@@ -571,6 +583,7 @@ export function validateManifest(manifest, opts) {
 
   const fileExists = typeof opts?.fileExists === 'function' ? opts.fileExists : () => true;
   const errors = [];
+  const adapterNames = registeredBacklogNames(manifest.extends);
 
   for (const [key, value] of Object.entries(manifest)) {
     if (!TOP_KEYS.has(key)) {
@@ -601,7 +614,7 @@ export function validateManifest(manifest, opts) {
         validatePhases(value, fileExists, errors);
         break;
       case 'backlog':
-        validateBacklog(value, fileExists, errors);
+        validateBacklog(value, fileExists, adapterNames, errors);
         break;
       case 'extends':
         validateExtends(value, fileExists, errors);

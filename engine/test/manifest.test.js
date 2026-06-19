@@ -1344,6 +1344,43 @@ test('Given backlog { source: custom, ref: non-string } when validateManifest ru
   assert.ok(result.errors.some(e => e.includes('ref is required')));
 });
 
+test('Given backlog { source: acme-tracker } with a matching extends.backlog-adapters registration, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      backlog: { source: 'acme-tracker', ref: '.claude/workflow/acme-backlog.sh' },
+      extends: {
+        'backlog-adapters': [
+          { name: 'acme-tracker', ref: '.claude/workflow/acme-backlog.sh' },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given backlog { source: ghost-tracker } with no matching extends.backlog-adapters registration, when validateManifest runs, then ok:false with "unknown backlog source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      backlog: { source: 'ghost-tracker', ref: '.claude/workflow/ghost-backlog.sh' },
+      extends: {
+        'backlog-adapters': [
+          { name: 'acme-tracker', ref: '.claude/workflow/acme-backlog.sh' },
+        ],
+      },
+    },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown backlog source')));
+});
+
 // ─── extends block validation ─────────────────────────────────────────────────
 
 test('Given a valid full extends block, when validateManifest runs, then ok:true', () => {

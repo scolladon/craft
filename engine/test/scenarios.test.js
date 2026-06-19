@@ -521,6 +521,25 @@ test('S7 Given extends.profiles.acme-full selected via pipeline.profile, when re
   }
 });
 
+// ─── S7: registered backlog adapter selected as backlog.source ───────────────
+
+test('S7 Given extends.backlog-adapters acme-tracker selected as backlog.source, when resolvePipeline runs, then record names the adapter and its ref', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    ...loadScenarioManifest('S7'),
+    backlog: { source: 'acme-tracker', ref: '.claude/workflow/acme-backlog.sh' },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok but got errors: ${result.errors?.join('; ')}`);
+
+  const backlogLine = result.record.find(r => r.includes('acme-tracker'));
+  assert.ok(backlogLine, 'record must contain a line naming the adapter "acme-tracker"');
+  assert.ok(backlogLine.includes('.claude/workflow/acme-backlog.sh'), 'record line must include the adapter ref');
+});
+
 // ─── S8: models.fallback + degraded tier ─────────────────────────────────────
 
 test('S8 Given models.fallback:haiku, when resolvePipeline runs, then record captures fallback policy', () => {
