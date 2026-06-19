@@ -88,9 +88,10 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    `acme:bench`). For every craft-native phase the procedure is `craft:<phase.id>` and the
    skill dir name equals `phase.id`, so default phases are unaffected. An **inserted** phase
    carries its own `procedure:` and may name a craft-local skill or a namespaced one — the walk
-   dispatches the string as-is; cross-plugin dispatch is SP2-proven (the derived-plugin
-   *registration* surface, `craft.extends:`, is P14 — P7 only dispatches what the manifest
-   names). `requirements` and `architecture` are default-off and have no skill dir until P10.
+   dispatches the string as-is; cross-plugin dispatch is SP2-proven, and the derived-plugin
+   *registration* surface (`craft.extends:`) registers the phases/agents the walk dispatches —
+   a registered or inserted phase resolves, carries its contract bundle, and executes under the
+   engine-owned contract. `requirements` and `architecture` are default-off and have no skill dir until P10.
    If the skill or plugin a `procedure` names is not installed (no `skills/<id>/` dir for a
    craft-native procedure; no installed plugin for a namespaced one) → the loud STOP
    "procedure `<phase.procedure>` resolves to no installed skill" — the intended guard, not a
