@@ -125,10 +125,13 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
      [--contracts-dir "${CLAUDE_PLUGIN_ROOT}/contracts"]
    ```
    For an inserted or registered phase (any phase whose `id` is not among the engine defaults),
-   append `--descriptor-json <resolved-descriptor>` where `<resolved-descriptor>` is the
-   descriptor the walk already holds from the step-1b Resolution `effective[]` — serialized as
-   JSON (single object or array). The bin resolves `phase.id` against that set so the registered
-   id EXECUTEs; the default-phase path (no flag) is unchanged.
+   append `--descriptor-json <path>` where `<path>` is a temp file the walk writes the
+   resolved descriptor JSON to (single object or array written via `writeFileSync`), or
+   `--descriptor-json -` to pipe the JSON on stdin. The flag value is a **file path** (or
+   the literal `-` for stdin) — the bin reads the content with `readFileSync(path)` / reads
+   stdin; passing JSON text inline as the arg value does not work. The bin resolves
+   `phase.id` against the loaded descriptor set so the registered id EXECUTEs; the
+   default-phase path (no flag) is unchanged.
    Via Bash, capturing stdout as the **injected contract block**. On non-zero
    exit: STOP; surface stderr; refuse to proceed. On **agent** execution the
    block is PREPENDED to the Task spawn prompt. On **inline** execution the
