@@ -6,5 +6,6 @@ phases:
 
 # Repo workflow
 
-This fixture carries an external namespace role (acme:tdd-specialist).
-The bin stays permissive for non-craft: refs — external roles are not probed.
+This fixture carries an external namespace role (acme:tdd-specialist) with no
+extends block to register it. External refs fail closed — an unregistered ref
+is rejected and the bin returns exit 2.

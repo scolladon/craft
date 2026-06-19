@@ -9,14 +9,33 @@ import { parseManifestContent } from './frontmatter.js';
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CRAFT_PREFIX = 'craft:';
 
-const roleExists = ref => {
-  if (!ref.startsWith(CRAFT_PREFIX)) return true;
+/**
+ * Build the registered external-ref set from a parsed manifest.
+ * Collects: extends.agents entries, role of each extends.phases entry,
+ * and role of each pipeline.insert entry.
+ *
+ * @param {object} manifest - parsed manifest object (pre-resolution)
+ * @returns {Set<string>}
+ */
+function buildRegisteredRefSet(manifest) {
+  const refs = new Set(manifest.extends?.agents ?? []);
+  for (const phase of manifest.extends?.phases ?? []) {
+    if (phase.role) refs.add(phase.role);
+  }
+  for (const phase of manifest.pipeline?.insert ?? []) {
+    if (phase.role) refs.add(phase.role);
+  }
+  return refs;
+}
+
+function craftRoleExists(ref) {
+  if (!ref.startsWith(CRAFT_PREFIX)) return false;
   const name = ref.slice(CRAFT_PREFIX.length);
   // A craft role is a bare name under agents/; a separator means a traversal ref
   // that could probe (and falsely satisfy) a file outside agents/ — reject it.
   if (name.includes('/') || name.includes('\\')) return false;
   return existsSync(join(REPO_ROOT, 'agents', name + '.md'));
-};
+}
 
 /**
  * Parse CLI args into structured options, writing errors to io.stderr.
@@ -104,6 +123,12 @@ export function main(argv, io) {
   }
 
   const effectiveManifest = applyCliOverlay(manifest ?? {}, { profile, skip });
+
+  const registeredSet = buildRegisteredRefSet(manifest ?? {});
+  const roleExists = ref =>
+    ref.startsWith(CRAFT_PREFIX)
+      ? craftRoleExists(ref)
+      : registeredSet.has(ref);
 
   let resolution;
   try {

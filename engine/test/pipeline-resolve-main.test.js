@@ -142,16 +142,42 @@ test('Given a manifest with a valid craft role (craft:planner), when main runs, 
   assert.equal(result, 0, `expected 0 but got ${result}; stderr: ${io.stderr.joined()}`);
 });
 
-// ─── roleExists: external namespace stays permissive ─────────────────────────
+// ─── roleExists: unregistered external ref fails closed ──────────────────────
 
-test('Given a manifest with an external role (acme:tdd-specialist), when main runs, then it returns 0', async () => {
+test('Given a manifest with an unregistered external role (acme:tdd-specialist, no extends), when main runs, then it returns 2', async () => {
   const sut = main;
   const io = makeCaptureIo();
   const externalRolePath = join(manifestsDir, 'external-role.md');
 
   const result = sut([pipelinePath, externalRolePath], io);
 
+  assert.equal(result, 2, `expected 2 but got ${result}; stderr: ${io.stderr.joined()}`);
+});
+
+// ─── roleExists: registered external ref passes ───────────────────────────────
+
+test('Given a manifest registering acme:bench-runner via extends.agents and using it as implementation role, when main runs, then it returns 0', async () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const registeredRolePath = join(manifestsDir, 'registered-role.md');
+
+  const result = sut([pipelinePath, registeredRolePath], io);
+
   assert.equal(result, 0, `expected 0 but got ${result}; stderr: ${io.stderr.joined()}`);
+});
+
+// ─── roleExists: unregistered external ref with extends block fails closed ────
+
+test('Given a manifest with extends block not registering acme:plannr, when main runs, then it returns 2 naming the phase and ref', async () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const unregisteredRolePath = join(manifestsDir, 'unregistered-role.md');
+
+  const result = sut([pipelinePath, unregisteredRolePath], io);
+
+  assert.equal(result, 2, `expected 2 but got ${result}; stderr: ${io.stderr.joined()}`);
+  assert.match(io.stderr.joined(), /implementation/);
+  assert.match(io.stderr.joined(), /acme:plannr/);
 });
 
 // ─── roleExists: path-traversal craft ref rejected ───────────────────────────

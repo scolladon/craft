@@ -133,15 +133,20 @@ test('Given a manifest with a valid craft role (craft:planner), when pipeline-re
   assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
 });
 
-// ─── roleExists: external namespace stays permissive ─────────────────────────
+// ─── roleExists: unregistered external ref fails closed ──────────────────────
+// (an external role that no extends registration names is rejected at resolution —
+//  the child-process twin of the in-process fail-closed assertion; the permissive
+//  external branch is gone)
 
-test('Given a manifest with an external role (acme:tdd-specialist), when pipeline-resolve runs, then it exits 0 (permissive for non-craft: refs)', () => {
+test('Given a manifest with an unregistered external role (acme:tdd-specialist), when pipeline-resolve runs, then it exits 2 — fail-closed', () => {
   const sut = run;
   const externalRolePath = join(manifestsDir, 'external-role.md');
 
   const result = sut(pipelinePath, externalRolePath);
 
-  assert.equal(result.status, 0, `expected exit 0 but got ${result.status}; stderr: ${result.stderr}`);
+  assert.equal(result.status, 2, `expected exit 2 but got ${result.status}; stderr: ${result.stderr}`);
+  assert.match(result.stderr, /implementation/);
+  assert.match(result.stderr, /acme:tdd-specialist/);
 });
 
 // ─── roleExists: path-traversal ref rejected before the existence probe ───────
