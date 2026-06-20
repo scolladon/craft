@@ -30,13 +30,24 @@ teardown() {
   [[ "$output" == *"dependency install skipped (noted)"* ]]
 }
 
-@test "Given a worktree with a nested engine/package-lock.json, when setup runs, then it installs via the nested dir" {
+@test "Given a worktree with a nested engine/package-lock.json, when setup runs, then it selects the nested npm branch (npm stubbed, no real install)" {
   mkdir "$WT/engine"
   touch "$WT/engine/package-lock.json"
-  echo '{}' > "$WT/engine/package.json"
+
+  # A PATH npm stub pins branch-selection + message without depending on a real
+  # npm or a network-free install — the script aborts under set -e if the nested
+  # `npm ci || npm install` fails, so the stub exiting 0 keeps the test hermetic.
+  local stub_dir
+  stub_dir="$(mktemp -d "${BATS_TMPDIR}/craft-npmstub-XXXXXX")"
+  printf '#!/bin/sh\nexit 0\n' > "$stub_dir/npm"
+  chmod +x "$stub_dir/npm"
+
+  PATH="$stub_dir:$PATH"
   run bash "${SCRIPTS_DIR}/worktree-setup.sh" "$WT"
   [ "$status" -eq 0 ]
   [[ "$output" == *"installed in-worktree via npm (nested: engine)"* ]]
+
+  rm -rf "$stub_dir"
 }
 
 # ---------------------------------------------------------------------------
@@ -110,4 +121,59 @@ teardown() {
   [ ! -d "$WT" ]
   # Teardown prunes the non-default branch it removed the worktree for.
   ! git -C "$REPO" rev-parse --verify --quiet refs/heads/craft-test-branch
+}
+
+# ---------------------------------------------------------------------------
+# worktree-teardown.sh — no-remote repo (the `git fetch --prune` abort)
+# ---------------------------------------------------------------------------
+
+@test "Given a worktree on a repo with no remote, when teardown runs, then it exits 0 and removes the worktree and branch" {
+  local repo wt
+  repo="$(mktemp -d "${BATS_TMPDIR}/craft-norem-repo-XXXXXX")"
+  wt="$(mktemp -d "${BATS_TMPDIR}/craft-norem-wt-XXXXXX")"
+  rm -rf "$wt"
+  mk_worktree_no_remote "$repo" "$wt" "norem-branch"
+
+  run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$repo" "$wt"
+  [ "$status" -eq 0 ]
+  [[ "$output" == *"worktree removed"* ]]
+  [ ! -d "$wt" ]
+  ! git -C "$repo" rev-parse --verify --quiet refs/heads/norem-branch
+
+  rm -rf "$repo" "$wt"
+}
+
+# ---------------------------------------------------------------------------
+# worktree-teardown.sh — non-canonical PID is not a live process
+# ---------------------------------------------------------------------------
+
+@test "Given a lock whose PID is -1 (kill -0 -1 signals a process group), when teardown runs, then the numeric guard treats it as stale, not live" {
+  printf '%s %s\n' "-1" "2026-01-01T00:00:00Z" > "${WT}/.craft-mutation.lock"
+
+  run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT"
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"REFUSED"* ]]
+  [[ "$output" == *"stale lock"* ]]
+  [ ! -f "${WT}/.craft-mutation.lock" ]
+}
+
+# ---------------------------------------------------------------------------
+# worktree-teardown.sh — realpath guard protects the main checkout
+# ---------------------------------------------------------------------------
+
+@test "Given WT and MAIN that resolve to the same path via different spellings, when teardown runs, then it does not attempt a worktree remove" {
+  local repo
+  repo="$(mktemp -d "${BATS_TMPDIR}/craft-same-XXXXXX")"
+  git init -q "$repo"
+  git -C "$repo" config user.email "test@craft"
+  git -C "$repo" config user.name  "craft-test"
+  git -C "$repo" commit --allow-empty -q -m "init"
+  git -C "$repo" branch -M main
+
+  run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$repo" "$repo/."
+  [ "$status" -eq 0 ]
+  [[ "$output" != *"worktree removed"* ]]
+  [ -d "$repo" ]
+
+  rm -rf "$repo"
 }

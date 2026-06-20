@@ -25,7 +25,9 @@ done
 LOCK="$WT/.craft-mutation.lock"
 if [ -f "$LOCK" ]; then
   read -r PID TS < "$LOCK" || true
-  if [ -n "${PID:-}" ] && kill -0 "$PID" 2>/dev/null; then
+  # Numeric guard before kill -0: a non-numeric or negative PID (e.g. "-1", which
+  # signals a whole process group) must be treated as a dead/invalid lock, never live.
+  if [ -n "${PID:-}" ] && [[ "$PID" =~ ^[0-9]+$ ]] && kill -0 "$PID" 2>/dev/null; then
     if [ "$FORCE" -eq 1 ]; then
       echo "craft-teardown: FORCED past live mutation run (pid=$PID since $TS) — run destroyed."
       rm -f "$LOCK"
@@ -46,12 +48,21 @@ if [ -n "$PRE" ]; then
   echo "craft-teardown: pre-teardown script ran: $PRE"
 fi
 
-git -C "$MAIN" fetch --prune
-if [ "$WT" != "$MAIN" ]; then
+# Only prune against a remote that exists — a local-only repo has none, and on some
+# git versions `fetch --prune` then aborts the script under `set -e` (P11 dogfood).
+if [ -n "$(git -C "$MAIN" remote)" ]; then
+  git -C "$MAIN" fetch --prune
+fi
+
+# realpath both sides so the guard holds when WT and MAIN are the same checkout
+# spelled differently (trailing slash, symlink, "."), never removing the main repo.
+MAIN_REAL="$(realpath "$MAIN")"
+WT_REAL="$(realpath "$WT")"
+if [ "$WT_REAL" != "$MAIN_REAL" ]; then
   git -C "$MAIN" worktree remove "$WT" --force
   echo "craft-teardown: worktree removed: $WT"
 fi
 if [ "$BRANCH" != "main" ] && [ "$BRANCH" != "master" ]; then
-  git -C "$MAIN" branch -D "$BRANCH"
+  git -C "$MAIN" branch -D -- "$BRANCH"
   echo "craft-teardown: local branch deleted: $BRANCH"
 fi
