@@ -30,7 +30,7 @@
 | P13.5 | Ban-enforcement boundary (interstitial) — free `--no-verify` (consumer discretion); red-gate floor kept as engine-core, decoupled from the git flag; `block-no-verify` hook removed; ADR-083 *(resolved post-P15)* | ✅ done & green |
 | P14 | Derived-plugin extension surface — flat `extends:` registers phases/agents/profiles/backlog-adapters; inserted/registered-phase contract execution (`--descriptor-json`) + same-id override (full replace); external-ref `roleExists` fails closed unless registered; Tier-2 DX docs + example; ADRs 069–075 | ✅ done & green |
 | P15 | Second-instantiation validation — a non-tsgit Python/pytest repo runs the default pipeline zero-config (SC5/G9); explicit CI scenario pins resolver toolchain-neutrality; propose-gate releases on a validation runtime no-op (ADR-082); docs refresh; ADRs 076–082 | ✅ done & green |
-| P16 | Provider-agnostic — six port seams documented (`docs/adapters/`), per-role model tier lifted into the descriptor (DC-9), Pi adapter PoC under `adapters/pi/` (deterministic seams unit+mutation-tested); live G13 scenario smoke PENDING (pi not installed in-env); ADRs 084–092 | 🟡 boundary + adapter landed; live Pi run on-demand |
+| P16 | Provider-agnostic — six port seams documented (`docs/adapters/`), per-role model tier lifted into the descriptor (DC-9), Pi adapter PoC under `adapters/pi/` (deterministic seams unit+mutation-tested); **live G13 smoke PASS** — Gemini ran a construction phase through the adapter and committed (`docs/adapters/pi-poc-record.md`); ADRs 084–092 | ✅ done & green (G13 met) |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -394,12 +394,12 @@
   *live* end-to-end smoke — see the dedicated follow-up below. (**P15 second-instantiation ✅ done** — a
   non-tsgit Python/pytest repo runs the default pipeline zero-config, SC5 green;
   see `docs/SC5-second-instantiation-record.md`.)
-- **Follow-up from P16 (live Pi G13 smoke — the literal program gate, on-demand):** run one
-  construction-bearing phase end-to-end through the Pi adapter in a throwaway repo and record the real
-  per-port/per-phase outcome. Deferred because `pi` was not installed in-env at build time; the deterministic
-  adapter + its CI units already landed. Exact on-demand command + entry surface (`runAcceptanceProbe` in
-  `adapters/pi/src/probe.js`) is in `docs/adapters/pi-poc-record.md` (status PENDING). Flip that record to
-  PASS once run.
+- **Follow-up from P16 (live Pi G13 smoke) — ✅ DONE (2026-06-20):** one construction-bearing phase ran
+  end-to-end through the Pi adapter against **Gemini** (`google/gemini-2.5-flash`, free tier) in a
+  git-isolated throwaway; `runAcceptanceProbe` returned `passed: true` with commit `9f6ab07`, all four ports
+  exercised. Verdict + reproduction notes (free-tier accommodations: single-bash-call task, key-in-env,
+  stdin-ignored spawn) in `docs/adapters/pi-poc-record.md`. Anthropic was unavailable (account credit
+  balance), so the `sonnet` tier was mapped to Gemini — which proves provider-agnosticism (G13) directly.
 - **Follow-up from P16 (Pi user entrypoint):** ADR-086 selects a *separate Pi entrypoint*; this run landed
   only the adapter library + on-demand smoke, not a user-facing `craft-pi` bin. Wire the actual entrypoint
   once the live smoke proves the binding. Low priority until a real non-Claude run is wanted.
