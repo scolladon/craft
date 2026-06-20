@@ -1,0 +1,1 @@
+{"testRunner":"tap","coverageAnalysis":"perTest","tap":{"testFiles":["adapters/pi/test/**/*.test.js"]},"mutate":["adapters/pi/src/**/*.js"],"concurrency":2,"tempDirName":"adapters/pi/.stryker-tmp","reporters":["clear-text","progress"]}

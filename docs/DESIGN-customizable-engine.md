@@ -146,11 +146,21 @@ project/user settings, never by the adapter (G14).
 
 **Scope note.** P3–P5 establishes these as the design boundary and *names the seam*. It does
 **not** fully extract every mechanism into a swappable implementation — that is the P16
-adapter work. Two ports are already cleanly extracted (Gate = hooks + manifest gate commands;
-VCS = the lifecycle scripts); the others remain bound inline in the Claude adapter's
-orchestrator/agent text for now, which is allowed — the Claude adapter *is* craft today. The
+adapter work. Two ports were cleanly extracted early (Gate = hooks + manifest gate commands;
+VCS = the lifecycle scripts); the others stayed bound inline in the Claude adapter's
+orchestrator/agent text — allowed, because the Claude adapter *is* craft today. The
 design contract is: the core never *assumes* a mechanism it could instead *name through a
 port*.
+
+P16 now documents all six port seams as adapter-author specs under `docs/adapters/`
+(`execution`, `model`, `gate`, `vcs`, plus the earlier `backlog`) and ships a second adapter —
+a Pi runtime PoC under `adapters/pi/` — that re-binds the ports against `pi`'s SDK/CLI,
+supplying the enforcement Pi omits (sub-agents → sequential per-phase runs, MCP → the backlog
+`custom` seam, permission gates → a `tool_call` predicate + gate-command wrapper). The Pi
+adapter's deterministic seams are unit-tested; the live end-to-end scenario run is an on-demand
+smoke (`docs/adapters/pi-poc-record.md`). Execution and Model are documented seams, not
+executable port-interface modules in `engine/src` — the realised hexagon stays *policy text +
+data + portable Node core*, proven portable by the second adapter actually binding it.
 
 ### Phase descriptor schema
 

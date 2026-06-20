@@ -337,10 +337,28 @@ test('Given default.yml, when parsePipeline runs, then every descriptor has exec
   }
 });
 
-test('Given default.yml, when parsePipeline runs, then no descriptor carries a model field', () => {
+test('Given default.yml, when parsePipeline runs, then role-bearing phases carry their seeded model tier and role-less phases carry no model field', () => {
   const result = parsePipeline(DEFAULT_YAML);
-  for (const d of result) {
-    assert.equal(Object.hasOwn(d, 'model'), false, `Descriptor ${d.id} must not carry model`);
+  const byId = Object.fromEntries(result.map(d => [d.id, d]));
+
+  const ROLE_TIERS = {
+    requirements: 'opus',
+    design: 'opus',
+    planning: 'opus',
+    implementation: 'sonnet',
+    review: 'opus',
+    refactoring: 'sonnet',
+    validation: 'sonnet',
+    architecture: 'opus',
+    documentation: 'sonnet',
+  };
+  for (const [id, tier] of Object.entries(ROLE_TIERS)) {
+    assert.equal(byId[id].model, tier, `Descriptor ${id} must carry model "${tier}"`);
+  }
+
+  const ROLE_LESS_IDS = ['workspace', 'decisions', 'propose', 'integrate'];
+  for (const id of ROLE_LESS_IDS) {
+    assert.equal(Object.hasOwn(byId[id], 'model'), false, `Descriptor ${id} must not carry model`);
   }
 });
 
@@ -349,4 +367,19 @@ test('Given default.yml, when parsePipeline runs, then all archetypes are within
   for (const d of result) {
     assert.ok(VALID_ARCHETYPES.has(d.archetype), `${d.id} has unknown archetype: ${d.archetype}`);
   }
+});
+
+// --- null model field is dropped (mutation-kill: :95 ConditionalExpression) ---
+
+test('Given an entry with model: null, when parsePipeline runs, then model field is absent from the descriptor', () => {
+  const yaml = `
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: craft:workspace
+  produces: [workspace]
+  model: null
+`;
+  const result = parsePipeline(yaml);
+  assert.equal(Object.hasOwn(result[0], 'model'), false);
 });

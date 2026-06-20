@@ -100,6 +100,8 @@ test('SC1 Given no manifest, when resolvePipeline runs, then 11 enabled phases i
   for (const d of result.effective) {
     assert.equal(d.execution, 'agent', `${d.id} should default to agent execution`);
   }
+  assert.equal(result.effective.find(d => d.id === 'implementation').model, 'sonnet');
+  assert.equal(result.effective.find(d => d.id === 'workspace').model, undefined);
 });
 
 test('SC1 Given no manifest, when resolvePipeline runs, then gateDecisions populated for all effective phases', () => {

@@ -30,7 +30,7 @@
 | P13.5 | Ban-enforcement boundary (interstitial) — free `--no-verify` (consumer discretion); red-gate floor kept as engine-core, decoupled from the git flag; `block-no-verify` hook removed; ADR-083 *(resolved post-P15)* | ✅ done & green |
 | P14 | Derived-plugin extension surface — flat `extends:` registers phases/agents/profiles/backlog-adapters; inserted/registered-phase contract execution (`--descriptor-json`) + same-id override (full replace); external-ref `roleExists` fails closed unless registered; Tier-2 DX docs + example; ADRs 069–075 | ✅ done & green |
 | P15 | Second-instantiation validation — a non-tsgit Python/pytest repo runs the default pipeline zero-config (SC5/G9); explicit CI scenario pins resolver toolchain-neutrality; propose-gate releases on a validation runtime no-op (ADR-082); docs refresh; ADRs 076–082 | ✅ done & green |
-| P16 | Provider-agnostic — ports/adapters boundary + non-Claude adapter PoC (target: Pi) | ⬜ outlined (PRD §17) |
+| P16 | Provider-agnostic — six port seams documented (`docs/adapters/`), per-role model tier lifted into the descriptor (DC-9), Pi adapter PoC under `adapters/pi/` (deterministic seams unit+mutation-tested); live G13 scenario smoke PENDING (pi not installed in-env); ADRs 084–092 | 🟡 boundary + adapter landed; live Pi run on-demand |
 
 > ✅ **The engine is now LIVE.** `run/SKILL.md` walks `pipeline-resolve` output (no hardcoded
 > 1→11 table); manifest validation has one deterministic Node home (`validateManifest`);
@@ -384,9 +384,43 @@
   remaining inventory — `git-no-ext-diff.sh` (difftastic safety) and the contract bans (provenance refs,
   suppression directives, swallowed errors) remain engine invariants unless separately revisited. Touches if
   revisited: PRD §11/§2.1, `hooks/`, `contracts/core.md`, `docs/GUIDE-customizing.md`.
-- **P16** (PRD §17): provider-agnostic — ports/adapters boundary + non-Claude adapter PoC (target: Pi).
-  (**P15 second-instantiation ✅ done** — a non-tsgit Python/pytest repo runs the default pipeline
-  zero-config, SC5 green; see the Done section above and `docs/SC5-second-instantiation-record.md`.)
+- **P16** (PRD §17): provider-agnostic — **🟡 boundary + adapter landed** this run (ADRs 084–092;
+  `docs/DESIGN-P16-provider-agnostic.md`). Shipped: all six port seams documented under `docs/adapters/`
+  (`execution`/`model`/`gate`/`vcs` + the earlier `backlog`); the per-role model tier lifted into
+  `pipeline/default.yml` as an adapter-neutral descriptor field (DC-9, Claude spawn re-baselined SC1-equal);
+  a Pi runtime adapter PoC under `adapters/pi/` (engine-bin wrapper, subprocess execution binding,
+  `tool_call` gate predicate, mktemp-isolated acceptance-probe harness) with deterministic seams unit- and
+  mutation-tested (`adapters/pi/stryker.conf.json`). **Remaining for G13 "Pi adapter runs a scenario":** the
+  *live* end-to-end smoke — see the dedicated follow-up below. (**P15 second-instantiation ✅ done** — a
+  non-tsgit Python/pytest repo runs the default pipeline zero-config, SC5 green;
+  see `docs/SC5-second-instantiation-record.md`.)
+- **Follow-up from P16 (live Pi G13 smoke — the literal program gate, on-demand):** run one
+  construction-bearing phase end-to-end through the Pi adapter in a throwaway repo and record the real
+  per-port/per-phase outcome. Deferred because `pi` was not installed in-env at build time; the deterministic
+  adapter + its CI units already landed. Exact on-demand command + entry surface (`runAcceptanceProbe` in
+  `adapters/pi/src/probe.js`) is in `docs/adapters/pi-poc-record.md` (status PENDING). Flip that record to
+  PASS once run.
+- **Follow-up from P16 (Pi user entrypoint):** ADR-086 selects a *separate Pi entrypoint*; this run landed
+  only the adapter library + on-demand smoke, not a user-facing `craft-pi` bin. Wire the actual entrypoint
+  once the live smoke proves the binding. Low priority until a real non-Claude run is wanted.
+- **Follow-up from P16 (git-guard parity — review + validation):** the `--no-ext-diff` / git-invocation guard
+  is bypassable by compound commands, qualified binaries (`/usr/bin/git`), and env-prefixes — **identically in
+  `hooks/git-no-ext-diff.sh` (the Claude binding) and `adapters/pi/src/gate.js` (the Pi binding)**. The Pi
+  predicate deliberately mirrors the hook (parity decision; 19 mutation survivors accepted-by-parity), so any
+  tightening must land in **both** together to preserve adapter fidelity — never Pi-only. It guards
+  output-mangling discipline, not a security boundary. Touches: `hooks/git-no-ext-diff.sh`,
+  `adapters/pi/src/gate.js` + tests. Low priority.
+- **Follow-up from P16 (Pi `tool_call` wrapper slice):** `adapters/pi/src/gate.js` ships the pure
+  `toolCallGuard` predicate only; the live `pi.on("tool_call", …)` wrapper is not yet written. When it is, it
+  MUST (a) wrap the guard in try/catch and return `{ block: true }` on any throw (fail-safe — Pi blocks on
+  handler error), and (b) `realpath`/`lstat` the resolved parent before permitting a write, to defeat symlink
+  escapes the current *lexical* containment check cannot catch. Both are review-flagged and inherited by the
+  wrapper, not the predicate.
+- **Follow-up from P16 (DC-9 registered-phase model seed):** `foldRegisteredPhases` in
+  `engine/src/resolve.js` seeds defaults for registered/inserted phases but does **not** include the new
+  `model` field, so a registered phase replacing a default would not inherit a descriptor model tier. Harmless
+  today (only default phases carry `model:`); extend the seed if/when manifest-level per-phase model overrides
+  for registered phases are wanted. Low priority.
 - **Follow-up from P14 (refactoring no-op deferral):** when P15/P16 grow manifest validation further,
   extract a shared `validators-util` leaf (`checkFileRef`) + the `validateExtends*` cluster into an
   `extends-validation` module — deferred now because the cluster shares `checkFileRef` with the

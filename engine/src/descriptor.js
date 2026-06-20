@@ -92,6 +92,10 @@ function normalizeEntry(raw, index) {
     entry.harness = raw.harness;
   }
 
+  if (raw.model !== undefined && raw.model !== null) {
+    entry.model = String(raw.model);
+  }
+
   return entry;
 }
 

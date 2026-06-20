@@ -259,16 +259,20 @@ bring their own `procedure`, dispatched verbatim (step 1).
      on-disk state rather than re-transcribing it.
   The pre-chew mandate forbids making an agent re-explore the codebase — reading a
   committed plan is not re-exploring.
+  (This block is the Execution port's spawn verb — the Claude binding. See docs/adapters/execution.md.)
 
 - **Model resolution & fallback**: resolve each spawn's model as manifest
-  `models.<agent>` → the agent def's pinned model (pass it as the spawn's model
-  param). If a spawn dies on a model-availability error (model down/overloaded/unknown
-  — NOT a task blocker, which uses the blocker protocol), mark that model **degraded
-  for the rest of the run** and re-resolve to `models.fallback` if declared, else the
-  engine default `sonnet`, else the session's own model (guaranteed available). Record
-  the degradation in the run record,
+  `models.<role>` → the descriptor's `model:` field (the canonical per-role tier;
+  the agent-def frontmatter pin is the Claude binding of that same tier) →
+  `models.fallback` → engine default `sonnet` → session model (pass the resolved
+  tier as the spawn's model param). If a spawn dies on a model-availability error
+  (model down/overloaded/unknown — NOT a task blocker, which uses the blocker
+  protocol), mark that model **degraded for the rest of the run** and re-resolve to
+  `models.fallback` if declared, else the engine default `sonnet`, else the session's
+  own model (guaranteed available). Record the degradation in the run record,
   then respawn from the artifact. Once a tier is known degraded this run, later spawns
   skip straight to the fallback — never pay the same dead spawn twice.
+  (This is the Model port's select/isAvailable — the Claude binding. See docs/adapters/model.md.)
 
 - **Blockers** escalate to the user as `{ phase/slice, reason, ≤3 candidate options }`
   — never spin, never silently abandon.

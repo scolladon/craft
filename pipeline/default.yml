@@ -12,6 +12,7 @@
     - producer
   procedure: craft:requirements
   role: craft:requirements-writer
+  model: opus
   consumes:
     - workspace
   produces:
@@ -23,6 +24,7 @@
     - producer
   procedure: craft:design
   role: craft:designer
+  model: opus
   consumes:
     - workspace
     - requirements
@@ -48,6 +50,7 @@
     - producer
   procedure: craft:planning
   role: craft:planner
+  model: opus
   consumes:
     - design
     - decisions
@@ -64,6 +67,7 @@
     - construction
   procedure: craft:implementation
   role: craft:slice-implementer
+  model: sonnet
   consumes:
     - workspace
     - plan
@@ -77,6 +81,7 @@
     - harness-read
   procedure: craft:review
   role: craft:reviewer
+  model: opus
   consumes:
     - change
   produces:
@@ -94,6 +99,7 @@
     - refinement
   procedure: craft:refactoring
   role: craft:refactor-executor
+  model: sonnet
   consumes:
     - change
   produces:
@@ -106,6 +112,7 @@
     - harness-exec
   procedure: craft:validation
   role: craft:validation-triager
+  model: sonnet
   consumes:
     - change
   produces:
@@ -122,6 +129,7 @@
     - harness-exec
   procedure: craft:architecture
   role: craft:architecture-triager
+  model: opus
   consumes:
     - change
   produces:
@@ -136,6 +144,7 @@
     - delivery
   procedure: craft:documentation
   role: craft:docs-writer
+  model: sonnet
   consumes:
     - design
     - change
