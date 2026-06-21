@@ -185,7 +185,11 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    If gate is empty string: no gate check.
 
 6. **Record outcome** in the run record (appended to the seeded entries). An
-   inline-executed phase is noted: `inline: <phase.id> — ran in-session`.
+   inline-executed phase is noted: `inline: <phase.id> — ran in-session`. A judgment
+   phase (`decisions`/`refactoring`) that records a `NO-OP(<phase>):` line — e.g.
+   `NO-OP(decisions): no user-judgment decisions — …` or `NO-OP(refactoring): nothing
+   cleared the bar — …` — has produced its outcome; it is NOT a missing artifact and
+   never re-runs or escalates as a gap.
 
 7. **On blocker**: escalate `{ phase/slice, reason, ≤3 candidate options }`. Never
    spin, never silently abandon.

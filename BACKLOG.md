@@ -20,6 +20,10 @@ itself tagged *"(next program)"*; anything beyond is un-PRD'd backlog (see *Cand
 (`passes` + named `stop_rule`) on the review descriptor, so `passes`/`convergence` are engine-enforced
 rather than walk-judgment, and a repeatable per-invocation `--harness <phase>.<knob>=<value>` overlay
 lands at CLI-wins precedence (ADRs 096–099; discharges the re-parked ADR-064).
+**P19 delivered 2026-06-21** — "nothing to do" is now a recorded, first-class outcome for both
+judgment phases: `decisions` adopts clear, ADR/principle-aligned recommendations without escalating
+(escalating only genuine forks), and both phases record a single greppable `NO-OP(<phase>):` line
+carried into the PR body (ADRs 100–103).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -45,6 +49,7 @@ lands at CLI-wins precedence (ADRs 096–099; discharges the re-parked ADR-064).
 | P16 | Provider-agnostic — six port seams + Pi adapter PoC; **G13 met** | 084–092 |
 | P17 | Pi adapter productized — `craft-pi` full 11-phase walk bin + live `tool_call` wrapper (first post-PRD candidate) | 093–095 |
 | P18 | Walk/parallelism enforcement — resolver emits a `reviewPlan` on the review descriptor (passes/convergence now engine-enforced) + repeatable per-invocation `--harness` overlay; discharges ADR-064 | 096–099 |
+| P19 | "Nothing to do" as a first-class phase outcome — `decisions` adopts clear ADR-aligned recommendations without escalating; both judgment phases record a greppable `NO-OP(<phase>):` no-op carried into the PR body | 100–103 |
 
 Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
 
@@ -60,25 +65,6 @@ Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
-
-### P19 — "Nothing to do" as a first-class phase outcome (decisions + refactoring)
-
-Make a clean no-op a **recorded, first-class** outcome for both judgment phases, symmetrically —
-not an implicit skip. Today the two phases treat "nothing to do" unevenly:
-
-- **decisions** — `skills/decisions/SKILL.md` only no-ops when design surfaces *zero* candidates
-  ("No decision candidates? Skip honestly"). When candidates exist it forces a per-candidate user
-  conversation, even where every recommendation is clear and aligns with existing ADRs/principles.
-  It should be valid to **adopt clear recommendations without escalating** and record a
-  "no user-judgment decisions" outcome, escalating only genuine forks.
-- **refactoring** — `skills/refactoring/SKILL.md` already permits an honest no-op, but the no-op
-  contract (what is recorded, how the run record/PR body phrases it) is not stated symmetrically
-  with decisions.
-
-Scope: align both skills + their phase docs so "nothing to do" is an explicit, justified,
-recorded result (run-record line + PR-body note), and the orchestrator never reads a no-op as a
-gap. No engine/descriptor change expected — this is phase-skill + docs wording. (Promoted from
-session feedback 2026-06-20.)
 
 ### P20 — Definition-of-Done artifact + DoD-aware verification
 
@@ -207,6 +193,16 @@ session feedback 2026-06-21.)
   (typing, `manifest.js`) both enumerate `passes`/`max_cycles`/`convergence`/`incremental`/`dimensions`.
   A shared knob→type map would let coercion and validation derive from one declaration. Deferred at P18
   as feature-sized (its own design); do it when a knob is added or renamed and the duplication bites.
+- **Extend the `NO-OP(<phase>):` token to `architecture`/`validation`** (P19 follow-up) — those two
+  phases still record a no-op in the older "no-op with a note" idiom; ADR-103 defines the
+  `NO-OP(<phase>):` token as extensible to them. Bringing them under it gives the whole run record one
+  greppable no-op shape. Behaviour-touching (it changes their recorded line, near the
+  propose-gate-release wording of ADR-082), so scoped out of P19 as its own small change.
+- **Mechanical guard for the `NO-OP(<phase>):` token spelling** (P19 follow-up) — the token's
+  grep-symmetry contract is currently unguarded (verified only by one-shot greps at implementation
+  time); a future edit could silently drift one copy's spelling. A tiny repo check (a `package.json`/CI
+  grep asserting each phase's token string is present) would make the symmetry self-enforcing. Deferred
+  to avoid adding a new CI surface inside a wording-only change.
 
 ### Closed — won't-do (rationale recorded)
 

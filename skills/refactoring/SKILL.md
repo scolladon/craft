@@ -16,9 +16,13 @@ description: Craft phase 7 - widen the lens to the whole codebase for structural
    now warranting centralization, responsibilities in the wrong layer, the Nth
    consumer of a pattern that should become shared. Bounded by YAGNI/KISS — no
    speculative abstraction.
-2. **Nothing clears the bar → no-op WITH a 1–3 line written justification** in the run
-   record (what was considered, why nothing changed). Spawning an agent to conclude
-   no-op is forbidden waste. A silent skip is not allowed.
+2. **Nothing clears the bar → first-class no-op.** Record
+   `NO-OP(refactoring): nothing cleared the bar — <justification>` in the run record,
+   the 1–3 line justification stating what was considered and why nothing changed; the
+   run record is carried into the PR body (documentation phase), so the no-op is stated,
+   not hidden. This is a recorded outcome symmetric with the decisions phase's
+   `NO-OP(decisions):` line — same token, kept idiom — not an implicit skip. Spawning an
+   agent merely to conclude no-op is forbidden waste. A silent skip is not allowed.
 3. **Candidates survive → scope each into a precise spec** (what moves where, which
    symbols/files, expected mechanical test changes, blast radius), then spawn
    **craft:refactor-executor** with the specs, gates, and context files.
