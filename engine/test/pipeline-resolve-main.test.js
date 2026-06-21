@@ -552,3 +552,391 @@ test('Given a manifest with a role in pipeline.insert phase, when main runs, the
 
   assert.equal(result, 0, `expected 0 — pipeline.insert role must be registered; stderr: ${io.stderr.joined()}`);
 });
+
+// ─── --harness nested write + coercion (R3/B2) ───────────────────────────────
+
+test('Given --harness review.passes=2, when main runs, then it returns 0 and effective review descriptor has passes=2', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.passes=2'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.effective.find(d => d.id === 'review').harness.passes, 2);
+});
+
+// ─── --harness bad value rejected (R4) ───────────────────────────────────────
+
+test('Given --harness review.passes=bad (non-integer), when main runs, then it returns 2 and stderr contains the typed error (byte-identical to manifest path)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.passes=bad'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /phases\.review\.harness\.passes must be a positive integer/);
+});
+
+// ─── --harness unknown phase rejected (R6 downstream B4) ─────────────────────
+
+test('Given --harness nope.passes=2 (unknown phase), when main runs, then it returns 2 and stderr contains "unknown phase: nope" (byte-identical to manifest path)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'nope.passes=2'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /unknown phase: nope/);
+});
+
+// ─── --harness grammar faults (R6 parse-time) ────────────────────────────────
+
+test('Given --harness review.passes (no =), when main runs, then it returns 2 with grammar message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.passes'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /pipeline-resolve: --harness expects <phase>\.<knob>=<value>/);
+});
+
+test('Given --harness .passes=2 (empty phase), when main runs, then it returns 2 with grammar message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', '.passes=2'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /pipeline-resolve: --harness expects <phase>\.<knob>=<value>/);
+});
+
+test('Given --harness review.=2 (empty knob), when main runs, then it returns 2 with grammar message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.=2'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /pipeline-resolve: --harness expects <phase>\.<knob>=<value>/);
+});
+
+test('Given --harness a.b.c=2 (too many dots), when main runs, then it returns 2 with grammar message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'a.b.c=2'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /pipeline-resolve: --harness expects <phase>\.<knob>=<value>/);
+});
+
+// ─── --harness missing value (R6 takeValue path) ─────────────────────────────
+
+test('Given --harness at end of argv (no value), when main runs, then it returns 2 with "requires non-flag value"', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /option --harness requires a non-flag value/);
+});
+
+// ─── --harness composition with --profile and --skip (R3) ────────────────────
+
+test('Given --profile lean --skip decisions --harness review.passes=2, when main runs, then it returns 0 with all three overlays applied', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--profile', 'lean', '--skip', 'decisions', '--harness', 'review.passes=2'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  const byId = Object.fromEntries(resolution.effective.map(d => [d.id, d]));
+  assert.equal(byId.implementation.execution, 'agent');
+  assert.ok(!resolution.effective.map(d => d.id).includes('decisions'));
+  assert.equal(byId.review.harness.passes, 2);
+});
+
+// ─── --harness coercion table — one case per remaining knob row (B2) ──────────
+
+test('Given --harness review.convergence=low-only, when main runs, then convergence stays the string "low-only" and reviewPlan.stop_rule is low-only', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.convergence=low-only'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const review = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'review');
+  assert.equal(review.harness.convergence, 'low-only');
+  assert.equal(review.harness.reviewPlan.stop_rule, 'low-only');
+});
+
+test('Given --harness review.convergence=3 (numeric), when main runs, then convergence coerces to the number 3 and reviewPlan.stop_rule is non-low-count<=3', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.convergence=3'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const review = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'review');
+  assert.equal(review.harness.convergence, 3);
+  assert.equal(review.harness.reviewPlan.stop_rule, 'non-low-count<=3');
+});
+
+test('Given --harness validation.incremental=true, when main runs, then incremental coerces to the boolean true', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'validation.incremental=true'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const validation = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'validation');
+  assert.equal(validation.harness.incremental, true);
+});
+
+test('Given --harness review.dimensions=code,perf, when main runs, then dimensions coerces to the list [code, perf]', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.dimensions=code,perf'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const review = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'review');
+  assert.deepEqual(review.harness.dimensions, ['code', 'perf']);
+});
+
+test('Given --harness review.dimensions=code, ,perf, (whitespace and empty segments), when main runs, then dimensions trims and drops empties to [code, perf]', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.dimensions=code, ,perf,'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const review = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'review');
+  assert.deepEqual(review.harness.dimensions, ['code', 'perf']);
+});
+
+test('Given --harness review.foo=bar (unknown knob), when main runs, then it returns 0 and the value passes through as the string "bar"', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.foo=bar'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const review = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'review');
+  assert.equal(review.harness.foo, 'bar');
+});
+
+test('Given two --harness flags for the same phase, when main runs, then both knobs accumulate onto the descriptor', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.passes=2', '--harness', 'review.convergence=3'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const review = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'review');
+  assert.equal(review.harness.passes, 2);
+  assert.equal(review.harness.convergence, 3);
+});
+
+test('Given --harness flags for two distinct valid phases, when main runs, then it returns 0 and both phases carry their knob (B4 multi-phase happy path)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'validation.scope=per-file', '--harness', 'review.passes=2'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const byId = Object.fromEntries(JSON.parse(io.stdout.joined()).effective.map(d => [d.id, d]));
+  assert.equal(byId.validation.harness.scope, 'per-file');
+  assert.equal(byId.review.harness.passes, 2);
+});
+
+// ─── --harness reserved-key denylist (fails closed at the parse boundary) ─────
+
+test('Given --harness __proto__.passes=2 (reserved phase name), when main runs, then it returns 2 with the reserved-name message and Object.prototype is untouched', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', '__proto__.passes=2'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /--harness phase\/knob must not be a reserved name/);
+  assert.equal({}.passes, undefined, 'Object.prototype must not be polluted');
+});
+
+test('Given --harness review.__proto__=evil (reserved knob name), when main runs, then it returns 2 with the reserved-name message and Object.prototype is untouched', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.__proto__=evil'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /--harness phase\/knob must not be a reserved name/);
+  assert.equal({}.evil, undefined, 'Object.prototype must not be polluted');
+});
+
+test('Given --harness constructor.passes=2 (reserved phase name), when main runs, then it returns 2 with the reserved-name message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'constructor.passes=2'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /--harness phase\/knob must not be a reserved name/);
+});
+
+test('Given --harness review.prototype=evil (reserved knob name), when main runs, then it returns 2 with the reserved-name message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.prototype=evil'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /--harness phase\/knob must not be a reserved name/);
+});
+
+// ─── 45:128 StringLiteral: reserved-name message includes comma-separated keys ─
+// Kills: StringLiteral(join(',') → join('')) at :45 — mutant joins without separator, producing
+// "__proto__constructorprototype". Asserting the full parenthesised key list distinguishes.
+
+test('Given --harness __proto__.x=1 (reserved phase), when main runs, then stderr contains the full reserved-name message listing the keys with commas', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', '__proto__.x=1'], io);
+
+  assert.equal(result, 2);
+  assert.equal(
+    io.stderr.joined(),
+    'pipeline-resolve: --harness phase/knob must not be a reserved name (__proto__, constructor, prototype)\n',
+    'full reserved-name message must list keys comma-separated',
+  );
+});
+
+// ─── 56:28 / 56:37: max_cycles coercion branch ───────────────────────────────
+// Kills: ConditionalExpression(false) and StringLiteral('') at :56:28/37 — mutant never enters
+// the max_cycles arm. A --harness review.max_cycles=4 must coerce to the integer 4.
+
+test('Given --harness review.max_cycles=4, when main runs, then max_cycles coerces to the integer 4', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.max_cycles=4'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const review = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'review');
+  assert.equal(review.harness.max_cycles, 4, 'max_cycles must be the integer 4, not the string "4"');
+  assert.strictEqual(typeof review.harness.max_cycles, 'number');
+});
+
+// ─── 58:12 ConditionalExpression: round-trip guard rejects non-integer ────────
+// Kills: ConditionalExpression(true) at :58 — mutant always takes the integer branch, so
+// passes=2.5 would return parseInt(2.5)=2 instead of raw '2.5'. Real code returns raw '2.5'
+// which fails B4 validation (must be a positive integer) → exit 2.
+// Mutant returns 2 → passes validation → exit 0. Observable.
+
+test('Given --harness review.passes=2.5 (non-integer decimal), when main runs, then it returns 2 (round-trip guard rejects the float string)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.passes=2.5'], io);
+
+  assert.equal(result, 2, `expected 2 for non-integer passes; stderr: ${io.stderr.joined()}`);
+  assert.match(io.stderr.joined(), /passes must be a positive integer/);
+});
+
+// ─── 61:* convergence: 'none' arm is killable; 'low-only' arm is equivalent ───
+// Kills: ConditionalExpression(false || raw==='none') at :61:31 and StringLiteral('') at :61:39
+// — mutant makes raw==='none' check false; 'none' then falls through to Number('none')=NaN →
+// return raw='none'. Same result. EQUIVALENT — documented below.
+// However, 'none' IS needed to kill the review.stop_rule shape (reviewPlan test).
+
+test('Given --harness review.convergence=none, when main runs, then convergence stays the string "none" and reviewPlan.stop_rule is none', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'review.convergence=none'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const review = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'review');
+  assert.equal(review.harness.convergence, 'none');
+  assert.equal(review.harness.reviewPlan.stop_rule, 'none');
+});
+
+// EQUIVALENT (mutation survivors) — coerceHarnessValue convergence shortcut (pipeline-resolve-main.js:61).
+// All six 61:* mutants (ConditionalExpression×3, LogicalOperator, StringLiteral×2) survive because
+// Number('low-only') and Number('none') are both NaN, so the numeric fallback always returns `raw`
+// for both string values. The early-return shortcut at line 61 and the NaN-fallback at line 63 are
+// observationally identical for these two inputs; no test can distinguish them.
+
+// ─── 66:9 ConditionalExpression + 67:* NoCoverage: incremental=false coerces to boolean false ─
+// Kills: ConditionalExpression(true) at :66 — mutant always returns `true` before reaching :67.
+// Also kills NoCoverage 67:* mutants (ConditionalExpression×2, EqualityOperator,
+// StringLiteral, BooleanLiteral) — first coverage of the `raw==='false'` branch.
+
+test('Given --harness validation.incremental=false, when main runs, then incremental coerces to the boolean false', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'validation.incremental=false'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const validation = JSON.parse(io.stdout.joined()).effective.find(d => d.id === 'validation');
+  assert.strictEqual(validation.harness.incremental, false, 'incremental must be the boolean false, not the string "false"');
+  assert.strictEqual(typeof validation.harness.incremental, 'boolean');
+});
+
+// ─── 67:9 ConditionalExpression(true): unrecognised incremental value passes through as string ─
+// Kills: ConditionalExpression(if(true) return false) at :67 — mutant returns boolean false for
+// any raw value reaching line 67 (i.e. raw !== 'true'). For raw='maybe', real code returns the
+// raw string 'maybe' which B4 rejects (must be boolean) → exit 2.
+// Mutant returns false (boolean) → B4 accepts → exit 0. Observable.
+
+test('Given --harness validation.incremental=maybe (unrecognised value), when main runs, then it returns 2 (raw string passes through and fails boolean validation)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'validation.incremental=maybe'], io);
+
+  assert.equal(result, 2, `expected 2 for unrecognised incremental value; stderr: ${io.stderr.joined()}`);
+  assert.match(io.stderr.joined(), /incremental must be a boolean/);
+});
+
+// ─── 124:11 / 124:22: no-dot LHS triggers grammar error ─────────────────────
+// Kills: ConditionalExpression(false at :124:11) — mutant skips the dotIdx===-1 check. For a
+// no-dot LHS (e.g. 'noDot'), dotIdx=-1 so lastIndexOf('.')=-1 → dotIdx!==lastIndexOf is false →
+// condition false → no grammar error → wrong parse. Also kills UnaryOperator(+1) at :124:22.
+
+test('Given --harness noDot=val (no dot in LHS), when main runs, then it returns 2 with grammar message', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--harness', 'noDot=val'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /pipeline-resolve: --harness expects <phase>\.<knob>=<value>/);
+});
+
+// EQUIVALENT (mutation survivors) — harness B4 guard (pipeline-resolve-main.js:192, 195, 198).
+//
+// 192:18 ConditionalExpression (`harness.length > 0` → `true`) and
+// 192:18 EqualityOperator (`> 0` → `>= 0`):
+//   `harness` is initialised as `undefined` and only ever populated via `.push()`; it is never
+//   an empty array at line 192. The guard `harness && harness.length > 0` is therefore
+//   observationally identical to `harness && true` — no test can produce a non-falsy zero-length
+//   harness array here.
+//
+// 195:30 OptionalChaining (`phases?.[phase]` → `phases[phase]`):
+//   When harness is non-empty, `applyCliOverlay` always writes to `effectiveManifest.phases`
+//   (via `mergeHarnessOverlay`), so `effectiveManifest.phases` is always an object at line 195.
+//   The optional-chaining operator can never take its undefined short-circuit path here.
+//
+// 198:35 ArrowFunction (`() => true` → `() => undefined`) and
+// 198:41 NoCoverage BooleanLiteral (`() => true` → `() => false`):
+//   `validatePhases` calls `fileExists` only for `role` values that look like filesystem paths.
+//   Harness knobs (passes, convergence, incremental, …) never trigger a `fileExists` call inside
+//   `validatePhaseBlock`, so the predicate value is never observed — all three variants are
+//   indistinguishable.

@@ -16,6 +16,10 @@ end-to-end (`docs/adapters/pi-poc-record.md`). The PRD defines **no P17**: §17 
 itself tagged *"(next program)"*; anything beyond is un-PRD'd backlog (see *Candidate phases*).
 **P17 delivered 2026-06-21** — the first post-PRD candidate: the Pi adapter is productized into a
 `craft-pi` full-walk entrypoint + live `tool_call` guard wrapper (ADRs 093–095).
+**P18 delivered 2026-06-21** — walk/parallelism enforcement: the resolver emits a `reviewPlan`
+(`passes` + named `stop_rule`) on the review descriptor, so `passes`/`convergence` are engine-enforced
+rather than walk-judgment, and a repeatable per-invocation `--harness <phase>.<knob>=<value>` overlay
+lands at CLI-wins precedence (ADRs 096–099; discharges the re-parked ADR-064).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -40,6 +44,7 @@ itself tagged *"(next program)"*; anything beyond is un-PRD'd backlog (see *Cand
 | P15 | Second-instantiation — non-tsgit Python/pytest repo, zero-manifest (SC5/G9) | 076–082 |
 | P16 | Provider-agnostic — six port seams + Pi adapter PoC; **G13 met** | 084–092 |
 | P17 | Pi adapter productized — `craft-pi` full 11-phase walk bin + live `tool_call` wrapper (first post-PRD candidate) | 093–095 |
+| P18 | Walk/parallelism enforcement — resolver emits a `reviewPlan` on the review descriptor (passes/convergence now engine-enforced) + repeatable per-invocation `--harness` overlay; discharges ADR-064 | 096–099 |
 
 Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
 
@@ -55,21 +60,6 @@ Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
-
-### P18 — Walk / parallelism enforcement
-
-Three harness knobs validate + reach the descriptor but are honored by walk-judgment, not the
-engine. This phase makes them engine-enforced (documented today in `skills/review/SKILL.md` as
-no-silent-cap parked items):
-
-- **`passes > 1` multi-reviewer fan-out** — N-reviewers-per-dimension parallelism is currently a
-  session-honored constraint, not an engine invariant.
-- **Numeric `convergence: <n>` stopping** — the validator accepts a finite threshold; the exact
-  stop rule (finding-count vs severity-weighted) is left to the review walk.
-- **Per-invocation `--harness` CLI flag** (ADR-064, re-parked) — rides the same pass; its
-  precondition is the two knobs above being engine-enforced. Writes nested
-  `phases.<id>.harness.<knob>` (dotted-path parse + type coercion, beyond the flat profile/skip
-  overlay). Follows the `cli-overlay.js` pattern.
 
 ### P19 — "Nothing to do" as a first-class phase outcome (decisions + refactoring)
 
@@ -156,6 +146,22 @@ deletes, …), how `ask:` surfaces to an interactive orchestrator vs a headless 
 Likely a new policy port + overlay logic following `cli-overlay.js`. (Promoted from session feedback
 2026-06-21.)
 
+### P24 — Rename the "slice" vocabulary to standard software-engineering terminology
+
+The plan decomposes work into **slices** (one atomic TDD commit each). "Slice" reads as craft
+jargon; replace it with a term closer to mainstream software-engineering vocabulary. Candidate
+replacements to weigh in the design: **increment** (Scrum "potentially-shippable increment" — closest
+fit), **work item**, or **work unit**. ("Vertical slice" is the actual industry term but keeps the
+disliked word; "task" collides with issue-tracker tasks.)
+
+Scope is a cross-cutting rename, not a one-file edit — it touches: `templates/plan.md` (`## Slice N`
+headings), `scripts/plan-lint.sh` (keys on the `Slice` heading), the `craft:slice-implementer` agent
+(name + `agents/` def + `skills/implementation`), `skills/planning`, the planner's output prose, and
+the design/plan doc voice. The agent name and the lint keyword are load-bearing — the rename must stay
+mechanically consistent across all of them in one pass. No engine-descriptor change expected (the
+pipeline knows phases, not slices). Decide the exact term in that change's decisions phase. (Promoted
+from session feedback 2026-06-21.)
+
 ---
 
 ## Parked
@@ -174,6 +180,11 @@ Likely a new policy port + overlay logic following `cli-overlay.js`. (Promoted f
 - **Built-in per-tracker backlog adapter** (e.g. first-class `github-issues`) — rides the P14
   derived-plugin surface (a plugin shipping a backlog adapter); the repo-`custom`-script escape
   hatch (P11) already covers the tracker case today.
+- **Single-source the harness-knob type schema** (P18 refactor follow-up) — the knob vocabulary is
+  encoded twice: `coerceHarnessValue` (CLI coercion, `pipeline-resolve-main.js`) and `validateHarness`
+  (typing, `manifest.js`) both enumerate `passes`/`max_cycles`/`convergence`/`incremental`/`dimensions`.
+  A shared knob→type map would let coercion and validation derive from one declaration. Deferred at P18
+  as feature-sized (its own design); do it when a knob is added or renamed and the duplication bites.
 
 ### Closed — won't-do (rationale recorded)
 

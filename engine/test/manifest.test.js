@@ -739,6 +739,36 @@ test('Given phases.review.harness: { max_cycles: 2 }, when validateManifest runs
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
+test('Given a harness block carrying a reserved key (constructor), when validateManifest runs, then ok:false with a reserved-key error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { constructor: 'evil' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /harness: reserved key "constructor" is not allowed/.test(e)),
+    `expected reserved-key error, got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test('Given a harness block carrying a reserved key (prototype), when validateManifest runs, then ok:false with a reserved-key error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { harness: { prototype: 'evil' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => /harness: reserved key "prototype" is not allowed/.test(e)),
+    `expected reserved-key error, got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
 test('Given phases.requirements.enabled: true, when validateManifest runs, then ok:true', () => {
   const sut = validateManifest;
 

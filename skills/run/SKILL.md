@@ -16,14 +16,15 @@ Input: `$ARGUMENTS`
 
 ## 0 — Resolve
 
-0a. **Parse craft flags from the input** first: strip any `--profile <name>` and
-   `--skip <id,…>` tokens (they may appear anywhere — lead or trail; comma-split the skip
-   ids). Hold them for step 1b. The
+0a. **Parse craft flags from the input** first: strip any `--profile <name>`,
+   `--skip <id,…>`, and repeatable `--harness <phase>.<knob>=<value>` tokens (they may
+   appear anywhere — lead or trail; comma-split the skip ids; `--harness` may be repeated
+   for multiple knobs). Hold them for step 1b. The
    **non-flag remainder is the input brief** consumed at step 2 — a flags-only
    input (e.g. `--profile lean`) leaves an empty brief, and step 2 STOPs as
    ambiguous exactly as a zero-argument invocation does. These are per-invocation
-   overrides: they win over the manifest's `pipeline.profile`/`pipeline.skip` (the bin
-   merges them at highest precedence — ADR-022).
+   overrides: they win over the manifest's `pipeline.profile`/`pipeline.skip`/`phases.<id>.harness`
+   (the bin merges them at highest precedence — ADR-022).
 
 1. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh"` (repo manifest:
    `.claude/workflow.md`). It must pass — on INVALID, STOP and surface the errors.
@@ -32,11 +33,13 @@ Input: `$ARGUMENTS`
 
 1b. Run `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/pipeline-resolve.js" \
         "${CLAUDE_PLUGIN_ROOT}/pipeline/default.yml" [manifest-path] \
-        [--profile <name>] [--skip <id,…>]` via Bash, capturing stdout. The manifest
-    path argument is included only when a manifest file was found in step 1; the
-    `--profile`/`--skip` flags are appended only when parsed in step 0a (the bin folds
-    them over the manifest at highest precedence — a bad `--profile` value exits non-zero;
-    stderr names the supported profiles).
+        [--profile <name>] [--skip <id,…>] [--harness <phase>.<knob>=<value>]…` via Bash,
+    capturing stdout. The manifest path argument is included only when a manifest file was
+    found in step 1; the `--profile`/`--skip` flags are appended only when parsed in step 0a;
+    each `--harness` occurrence is forwarded as a separate `--harness <phase>.<knob>=<value>`
+    argument in the order parsed. The bin folds all three over the manifest at highest
+    precedence — CLI `--harness` values win over `phases.<id>.harness` knobs in the manifest
+    (a bad knob value or unknown phase exits non-zero; stderr names the violation).
     - On non-zero exit (this includes resolver `ok: false` — a rejected `role:` or a
       stranded consumer — whose `errors[]` are written to stderr, never as stdout JSON):
       STOP; surface stderr to the user; refuse to proceed.

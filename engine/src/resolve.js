@@ -114,6 +114,24 @@ function resolveExecution(descriptors, phaseOverrides, profile, topLevelDefault,
 
 // ─── manifest-level record entries ───────────────────────────────────────────
 
+/** The read-harness phase whose resolved descriptor carries the engine-owned reviewPlan. */
+const REVIEW_PHASE_ID = 'review';
+
+/**
+ * Derive the engine-owned review plan from a resolved harness block.
+ * Pure projection — no validation, no error path. Input already typed-valid.
+ *
+ * @param {{ passes?: number, convergence?: string|number }} harness
+ * @returns {{ passes: number, stop_rule: string }}
+ */
+function deriveReviewPlan(harness) {
+  const passes = Number.isInteger(harness.passes) ? harness.passes : 1;
+  const { convergence } = harness;
+  if (convergence === 'none') return { passes, stop_rule: 'none' };
+  if (typeof convergence === 'number') return { passes, stop_rule: `non-low-count<=${convergence}` };
+  return { passes, stop_rule: 'low-only' };
+}
+
 /**
  * Returns the backlog source string when backlog is a valid object with a source,
  * else null. Pure; no I/O; never throws.
@@ -275,7 +293,13 @@ export function resolvePipeline(defaults, manifest, opts) {
     return { ok: false, errors: validation.errors, effective: [], record, gateDecisions: [], waivers: [] };
   }
 
-  const effective = execResult.descriptors.filter(d => d.enabled);
+  const effective = execResult.descriptors
+    .filter(d => d.enabled)
+    .map(d =>
+      d.id === REVIEW_PHASE_ID && d.harness
+        ? { ...d, harness: { ...d.harness, reviewPlan: deriveReviewPlan(d.harness) } }
+        : d,
+    );
 
   const roleErrors = effective
     .filter(d => d.role && !roleExists(d.role))

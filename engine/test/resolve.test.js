@@ -1086,3 +1086,97 @@ test('Given a backlog.source that no extends.backlog-adapters registers, when re
     `an unregistered source must not emit a record line; got: ${JSON.stringify(result.record)}`,
   );
 });
+
+// ─── reviewPlan derivation (Layer A — ADR-096 / ADR-097) ─────────────────────
+
+test('Given default pipeline/default.yml resolved with null manifest, when resolvePipeline is called, then review descriptor has reviewPlan with passes:1 and stop_rule:low-only', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  const review = result.effective.find(d => d.id === 'review');
+  assert.ok(review, 'review phase must be in effective list');
+  assert.deepEqual(review.harness.reviewPlan, { passes: 1, stop_rule: 'low-only' });
+});
+
+test('Given manifest with phases.review.harness.passes:2, when resolvePipeline is called, then reviewPlan.passes equals 2 and stop_rule is low-only', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 2 } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const review = result.effective.find(d => d.id === 'review');
+  assert.ok(review, 'review phase must be in effective list');
+  assert.equal(review.harness.reviewPlan.passes, 2);
+  assert.equal(review.harness.reviewPlan.stop_rule, 'low-only');
+});
+
+test('Given manifest with phases.review.harness.convergence:none, when resolvePipeline is called, then reviewPlan.stop_rule is none', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { convergence: 'none' } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const review = result.effective.find(d => d.id === 'review');
+  assert.ok(review, 'review phase must be in effective list');
+  assert.equal(review.harness.reviewPlan.stop_rule, 'none');
+});
+
+test('Given manifest with phases.review.harness.convergence:3 (numeric), when resolvePipeline is called, then reviewPlan.stop_rule is non-low-count<=3', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { convergence: 3 } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const review = result.effective.find(d => d.id === 'review');
+  assert.ok(review, 'review phase must be in effective list');
+  assert.equal(review.harness.reviewPlan.stop_rule, 'non-low-count<=3');
+});
+
+test('Given manifest with phases.review.harness.convergence:0 (numeric zero), when resolvePipeline is called, then reviewPlan.stop_rule is non-low-count<=0', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { convergence: 0 } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const review = result.effective.find(d => d.id === 'review');
+  assert.ok(review, 'review phase must be in effective list');
+  assert.equal(review.harness.reviewPlan.stop_rule, 'non-low-count<=0');
+});
+
+test('Given a non-harness phase descriptor (no harness block), when resolvePipeline is called, then no reviewPlan is attached to it', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  const workspace = result.effective.find(d => d.id === 'workspace');
+  assert.ok(workspace, 'workspace phase must be in effective list');
+  assert.ok(!workspace.harness, 'workspace must have no harness block');
+  assert.ok(!('reviewPlan' in (workspace.harness ?? {})), 'no reviewPlan on non-harness descriptor');
+});
+
+test('Given the default pipeline, when resolvePipeline is called, then a harness-carrying non-review phase (validation) gets no reviewPlan', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.ok(validation, 'validation phase must be in effective list');
+  assert.ok(validation.harness, 'validation must carry a harness block');
+  assert.ok(!('reviewPlan' in validation.harness), 'reviewPlan is review-scoped — must not attach to validation');
+});
+
+test('Given resolved review descriptor, when resolvePipeline is called, then harness is a fresh object (input manifest not mutated)', () => {
+  const sut = loadDefault();
+  const sourceHarness = { passes: 2, convergence: 3 };
+  const manifest = { phases: { review: { harness: sourceHarness } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const review = result.effective.find(d => d.id === 'review');
+  assert.ok(review, 'review phase must be in effective list');
+  assert.notStrictEqual(review.harness, sourceHarness, 'resolved harness must be a fresh object, not the input');
+  assert.ok(!('reviewPlan' in sourceHarness), 'source harness must not be mutated with reviewPlan');
+  assert.equal(sourceHarness.passes, 2, 'source passes unchanged');
+  assert.equal(sourceHarness.convergence, 3, 'source convergence unchanged');
+});

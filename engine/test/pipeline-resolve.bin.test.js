@@ -223,3 +223,28 @@ test('Given a manifest with extends block not registering acme:plannr (unregiste
   assert.match(result.stderr, /implementation/);
   assert.match(result.stderr, /acme:plannr/);
 });
+
+// ─── end-to-end: --harness flows through Layer A+B ───────────────────────────
+
+test('Given --harness review.passes=2, when pipeline-resolve runs, then effective review has passes=2 and reviewPlan.passes=2', () => {
+  const sut = run;
+
+  const result = sut(pipelinePath, '--harness', 'review.passes=2');
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  const resolution = JSON.parse(result.stdout);
+  const review = resolution.effective.find(d => d.id === 'review');
+  assert.equal(review.harness.passes, 2);
+  assert.equal(review.harness.reviewPlan.passes, 2);
+});
+
+test('Given --harness review.convergence=2, when pipeline-resolve runs, then effective review has reviewPlan.stop_rule="non-low-count<=2"', () => {
+  const sut = run;
+
+  const result = sut(pipelinePath, '--harness', 'review.convergence=2');
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  const resolution = JSON.parse(result.stdout);
+  const review = resolution.effective.find(d => d.id === 'review');
+  assert.equal(review.harness.reviewPlan.stop_rule, 'non-low-count<=2');
+});

@@ -213,8 +213,42 @@ reaches the invariant core (§2).
 
 - **Execution:** `phases.<id>.execution` > `pipeline.profile` > top-level `execution:`.
 - **Model:** manifest `models.<agent>` > the agent's pin > `models.fallback` > the session model.
-- **Per-invocation flags** (`--profile`, `--skip`, …) fold over the manifest at **highest**
+- **Per-invocation flags** (`--profile`, `--skip`, `--harness`, …) fold over the manifest at **highest**
   precedence — tailor a single run without editing the file.
+
+#### `--harness <phase>.<knob>=<value>` — per-invocation harness override
+
+Repeatable (one knob per flag; repeat for several). The `.harness.` path segment is implied —
+`--harness review.passes=2` writes `phases.review.harness.passes = 2` for that invocation only,
+winning over both the manifest harness and `pipeline/default.yml`.
+
+**Grammar:** `<phase>.<knob>=<value>` — exactly one dot separating phase from knob, then `=` and the value.
+
+**Coercion** — value is type-coerced by knob name:
+
+| Knob | Coerces to | Note |
+|---|---|---|
+| `passes`, `max_cycles` | integer | non-integer string → rejected |
+| `convergence` | number **or** string | `low-only`/`none` stay as-is; otherwise parsed as a number |
+| `incremental` | boolean | `true`/`false` only; anything else → rejected |
+| `dimensions` | comma-split list | e.g. `code,security,tests` |
+| `tool`, `scope` | string | identity |
+| *(unknown knob)* | string | passes through; `validateHarness` allows unknown sub-keys |
+
+**Fail-closed:** malformed grammar (no `=`, empty phase or knob, more than one `.` before `=`) exits 2
+with `pipeline-resolve: --harness expects <phase>.<knob>=<value>`. Reserved names (`__proto__`,
+`constructor`, `prototype`) as phase or knob also exit 2. An unknown phase id exits 2 with
+`unknown phase: <id>`; a bad knob value (e.g. `passes=2.5`, `passes=0`) exits 2 with the same
+per-knob message a bad manifest produces (e.g. `phases.review.harness.passes must be a positive integer`).
+
+**Example:**
+
+```bash
+/craft:run --harness review.passes=2 --harness review.convergence=3 TICKET-42
+```
+
+Runs the review harness with 2 reviewers per dimension and stops when ≤ 3 non-LOW findings remain
+(numeric convergence, ADR-097), for this invocation only.
 
 ---
 

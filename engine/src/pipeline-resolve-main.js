@@ -5,6 +5,7 @@ import { parsePipeline } from './descriptor.js';
 import { resolvePipeline } from './resolve.js';
 import { applyCliOverlay } from './cli-overlay.js';
 import { parseManifestContent } from './frontmatter.js';
+import { validatePhases, RESERVED_HARNESS_KEYS } from './manifest.js';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CRAFT_PREFIX = 'craft:';
@@ -36,19 +37,56 @@ function craftRoleExists(ref) {
   return existsSync(join(REPO_ROOT, 'agents', name + '.md'));
 }
 
+/** Grammar error message for malformed --harness values. */
+const HARNESS_GRAMMAR_MSG = 'pipeline-resolve: --harness expects <phase>.<knob>=<value>\n';
+
+/** Prototype keys rejected as --harness phase/knob names so the nested overlay write cannot be poisoned. */
+const HARNESS_RESERVED_NAMES = new Set(RESERVED_HARNESS_KEYS);
+const HARNESS_RESERVED_MSG = `pipeline-resolve: --harness phase/knob must not be a reserved name (${RESERVED_HARNESS_KEYS.join(', ')})\n`;
+
+/**
+ * Coerce a raw string value to the appropriate type for the given harness knob.
+ * Best-effort: uncoercible values are returned as the raw string so B4 can reject them.
+ *
+ * @param {string} knob
+ * @param {string} raw
+ * @returns {unknown}
+ */
+function coerceHarnessValue(knob, raw) {
+  if (knob === 'passes' || knob === 'max_cycles') {
+    const n = Number.parseInt(raw, 10);
+    return String(n) === raw ? n : raw;
+  }
+  if (knob === 'convergence') {
+    if (raw === 'low-only' || raw === 'none') return raw;
+    const n = Number(raw);
+    return Number.isNaN(n) ? raw : n;
+  }
+  if (knob === 'incremental') {
+    if (raw === 'true') return true;
+    if (raw === 'false') return false;
+    return raw;
+  }
+  if (knob === 'dimensions') {
+    return raw.split(',').map(s => s.trim()).filter(Boolean);
+  }
+  return raw;
+}
+
 /**
  * Parse CLI args into structured options, writing errors to io.stderr.
  * Returns null and signals the error via io when an option error is encountered.
  *
  * @param {string[]} argv
  * @param {{ stderr: { write(s: string): void } }} io
- * @returns {{ pipelinePath: string|null, manifestPath: string|null, profile: string|undefined, skip: string[]|undefined }|null}
+ * @returns {{ pipelinePath: string|null, manifestPath: string|null, profile: string|undefined, skip: string[]|undefined, harness: Array<{phase: string, knob: string, value: unknown}>|undefined }|null}
  */
 function parseArgs(argv, io) {
   let pipelinePath = null;
   let manifestPath = null;
   let profile;
   let skip;
+  let harness;
 
   const takeValue = (i, flag) => {
     const value = argv[i + 1];
@@ -71,6 +109,34 @@ function parseArgs(argv, io) {
       if (value === null) return null;
       skip = value.split(',').map(s => s.trim()).filter(Boolean);
       i++;
+    } else if (arg === '--harness') {
+      const value = takeValue(i, arg);
+      if (value === null) return null;
+      i++;
+      const eqIdx = value.indexOf('=');
+      if (eqIdx === -1) {
+        io.stderr.write(HARNESS_GRAMMAR_MSG);
+        return null;
+      }
+      const lhs = value.slice(0, eqIdx);
+      const raw = value.slice(eqIdx + 1);
+      const dotIdx = lhs.indexOf('.');
+      if (dotIdx === -1 || dotIdx !== lhs.lastIndexOf('.')) {
+        io.stderr.write(HARNESS_GRAMMAR_MSG);
+        return null;
+      }
+      const phase = lhs.slice(0, dotIdx);
+      const knob = lhs.slice(dotIdx + 1);
+      if (!phase || !knob) {
+        io.stderr.write(HARNESS_GRAMMAR_MSG);
+        return null;
+      }
+      if (HARNESS_RESERVED_NAMES.has(phase) || HARNESS_RESERVED_NAMES.has(knob)) {
+        io.stderr.write(HARNESS_RESERVED_MSG);
+        return null;
+      }
+      harness = harness ?? [];
+      harness.push({ phase, knob, value: coerceHarnessValue(knob, raw) });
     } else if (arg.startsWith('-')) {
       io.stderr.write(`pipeline-resolve: unknown option ${arg}\n`);
       return null;
@@ -81,7 +147,7 @@ function parseArgs(argv, io) {
     }
   }
 
-  return { pipelinePath, manifestPath, profile, skip };
+  return { pipelinePath, manifestPath, profile, skip, harness };
 }
 
 /**
@@ -96,10 +162,10 @@ export function main(argv, io) {
   const parsed = parseArgs(argv, io);
   if (parsed === null) return 2;
 
-  const { pipelinePath, manifestPath, profile, skip } = parsed;
+  const { pipelinePath, manifestPath, profile, skip, harness } = parsed;
 
   if (!pipelinePath) {
-    io.stderr.write('Usage: pipeline-resolve <pipeline.yml> [manifest.yml] [--profile <name>] [--skip <csv>]\n');
+    io.stderr.write('Usage: pipeline-resolve <pipeline.yml> [manifest.yml] [--profile <name>] [--skip <csv>] [--harness <phase>.<knob>=<value>]…\n');
     return 2;
   }
 
@@ -121,7 +187,22 @@ export function main(argv, io) {
     }
   }
 
-  const effectiveManifest = applyCliOverlay(manifest ?? {}, { profile, skip });
+  const effectiveManifest = applyCliOverlay(manifest ?? {}, { profile, skip, harness });
+
+  if (harness && harness.length > 0) {
+    const touchedPhases = {};
+    for (const { phase } of harness) {
+      touchedPhases[phase] = effectiveManifest.phases?.[phase] ?? {};
+    }
+    const revalidationErrors = [];
+    validatePhases(touchedPhases, () => true, revalidationErrors);
+    if (revalidationErrors.length > 0) {
+      for (const error of revalidationErrors) {
+        io.stderr.write(`  - ${error}\n`);
+      }
+      return 2;
+    }
+  }
 
   const registeredSet = buildRegisteredRefSet(manifest ?? {});
   const roleExists = ref =>

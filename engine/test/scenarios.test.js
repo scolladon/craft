@@ -1129,12 +1129,14 @@ test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when reso
   assert.equal(result.ok, true);
   const reviewDesc = result.effective.find(d => d.id === 'review');
   // Pin the WHOLE merged block: max_cycles overridden to 2; dimensions/passes/convergence
-  // all survive the one-level deep-merge.
+  // all survive the one-level deep-merge, and the resolver projects reviewPlan from the
+  // merged knobs (passes echoed, stop_rule named from the default low-only convergence).
   assert.deepEqual(reviewDesc.harness, {
     dimensions: ['code', 'security', 'tests', 'perf'],
     passes: 1,
     max_cycles: 2,
     convergence: 'low-only',
+    reviewPlan: { passes: 1, stop_rule: 'low-only' },
   });
 });
 

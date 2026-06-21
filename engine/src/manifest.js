@@ -54,6 +54,9 @@ const PIPELINE_KEYS = Object.freeze(new Set(['profile', 'skip', 'insert', 'reord
 /** Accepted string values for a harness `convergence` knob (ADR-030). */
 const CONVERGENCE_STRINGS = Object.freeze(new Set(['low-only', 'none']));
 
+/** Prototype-chain keys banned from harness phase/knob names to prevent prototype-pollution. */
+export const RESERVED_HARNESS_KEYS = Object.freeze(['__proto__', 'constructor', 'prototype']);
+
 /** Valid source identifiers for the `backlog` key. */
 const BACKLOG_SOURCES = Object.freeze(new Set(['file', 'custom']));
 
@@ -244,6 +247,11 @@ function validateHarness(harness, phaseName, errors) {
     errors.push(`phases.${phaseName}.harness must be an object`);
     return;
   }
+  for (const reserved of RESERVED_HARNESS_KEYS) {
+    if (Object.hasOwn(harness, reserved)) {
+      errors.push(`phases.${phaseName}.harness: reserved key "${reserved}" is not allowed`);
+    }
+  }
   if (Object.hasOwn(harness, 'dimensions')) {
     const d = harness.dimensions;
     if (!Array.isArray(d) || d.some(item => typeof item !== 'string')) {
@@ -340,11 +348,12 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
 
 /**
  * Validate the `phases` sub-object.
+ * Exported for the --harness B4 re-validation call site (pipeline-resolve-main.js).
  * @param {Record<string, unknown>} phases
  * @param {(path: string) => boolean} fileExists
  * @param {string[]} errors
  */
-function validatePhases(phases, fileExists, errors) {
+export function validatePhases(phases, fileExists, errors) {
   if (!phases || typeof phases !== 'object' || Array.isArray(phases)) return;
   for (const [phaseName, block] of Object.entries(phases)) {
     if (!PHASE_NAMES.has(resolveAlias(phaseName))) {

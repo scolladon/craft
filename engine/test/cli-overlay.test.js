@@ -95,3 +95,133 @@ test('Given a manifest, when applyCliOverlay is called with profile and skip ove
   assert.deepEqual(manifest.pipeline.skip, originalSkip);
   assert.notStrictEqual(result.pipeline, manifest.pipeline, 'result.pipeline must be a fresh object, not the input reference');
 });
+
+// ─── harness nested write + immutability ─────────────────────────────────────
+
+test('Given a manifest and harness overlay setting review.passes=2, when applyCliOverlay is called, then result.phases.review.harness.passes is 2 and input is not mutated', () => {
+  const sut = applyCliOverlay;
+  const manifest = {};
+  const harness = [{ phase: 'review', knob: 'passes', value: 2 }];
+
+  const result = sut(manifest, { harness });
+
+  assert.equal(result.phases.review.harness.passes, 2);
+  assert.equal(manifest.phases, undefined, 'input must not be mutated');
+  assert.notStrictEqual(result.phases, manifest.phases);
+});
+
+// ─── harness deep-merge preserves siblings ────────────────────────────────────
+
+test('Given a manifest with phases.review.harness.convergence="low-only" and harness overlay setting passes=2, when applyCliOverlay is called, then convergence is preserved and passes is added', () => {
+  const sut = applyCliOverlay;
+  const manifest = { phases: { review: { harness: { convergence: 'low-only' } } } };
+  const harness = [{ phase: 'review', knob: 'passes', value: 2 }];
+
+  const result = sut(manifest, { harness });
+
+  assert.equal(result.phases.review.harness.convergence, 'low-only');
+  assert.equal(result.phases.review.harness.passes, 2);
+  assert.notStrictEqual(result.phases.review.harness, manifest.phases.review.harness);
+});
+
+// ─── harness multi-phase overlay ─────────────────────────────────────────────
+
+test('Given harness overlay for two distinct phases, when applyCliOverlay is called, then both phase blocks carry the knob and unrelated phases are untouched', () => {
+  const sut = applyCliOverlay;
+  const manifest = { phases: { design: { harness: { tool: 'jest' } } } };
+  const harness = [
+    { phase: 'review', knob: 'passes', value: 2 },
+    { phase: 'validation', knob: 'incremental', value: true },
+  ];
+
+  const result = sut(manifest, { harness });
+
+  assert.equal(result.phases.review.harness.passes, 2);
+  assert.equal(result.phases.validation.harness.incremental, true);
+  assert.equal(result.phases.design.harness.tool, 'jest');
+});
+
+// ─── harness + profile + skip fold together ───────────────────────────────────
+
+test('Given harness, profile, and skip overlays, when applyCliOverlay is called, then all three are applied', () => {
+  const sut = applyCliOverlay;
+  const manifest = {};
+  const harness = [{ phase: 'review', knob: 'passes', value: 3 }];
+
+  const result = sut(manifest, { profile: 'lean', skip: ['decisions'], harness });
+
+  assert.equal(result.pipeline.profile, 'lean');
+  assert.deepEqual(result.pipeline.skip, ['decisions']);
+  assert.equal(result.phases.review.harness.passes, 3);
+});
+
+// ─── harness idempotence ─────────────────────────────────────────────────────
+
+test('Given the same harness overlay applied twice, when applyCliOverlay is called on each result, then both results are deep-equal', () => {
+  const sut = applyCliOverlay;
+  const manifest = { phases: { review: { harness: { convergence: 'none' } } } };
+  const harness = [{ phase: 'review', knob: 'passes', value: 2 }];
+
+  const first = sut(manifest, { harness });
+  const second = sut(first, { harness });
+
+  assert.deepEqual(first.phases.review.harness, second.phases.review.harness);
+});
+
+// ─── harness empty array identity (guard existing 8 tests) ───────────────────
+
+test('Given an empty harness array, when applyCliOverlay is called, then result is identical to applying no harness overlay', () => {
+  const sut = applyCliOverlay;
+  const manifest = { pipeline: { profile: 'lean' } };
+
+  const withEmpty = sut(manifest, { harness: [] });
+  const withUndefined = sut(manifest, {});
+
+  assert.deepEqual(withEmpty, withUndefined);
+});
+
+// ─── 61:7 early-return path: pipeline cloned when overlay is fully absent ────
+// Kills: ConditionalExpression(false) at cli-overlay.js:61 — mutant bypasses the early-return
+// block, so `base = {...manifest}` is returned without cloning pipeline. The original path returns
+// `{ ...manifest, pipeline: { ...manifest.pipeline } }` (fresh pipeline object), which the mutant
+// does NOT produce; checking reference inequality distinguishes them.
+
+test('Given a manifest with a pipeline key and a fully-absent overlay, when applyCliOverlay is called, then the returned pipeline is a fresh object (not the original reference)', () => {
+  const sut = applyCliOverlay;
+  const manifest = { pipeline: { profile: 'solo', skip: ['planning'] }, context: 'hello' };
+
+  const result = sut(manifest, {});
+
+  assert.notStrictEqual(result.pipeline, manifest.pipeline, 'pipeline must be a fresh object on the early-return path');
+  assert.deepEqual(result.pipeline, manifest.pipeline);
+});
+
+// ─── 67:16 ObjectLiteral: non-phase manifest fields survive a harness-only overlay ──
+// Kills: ObjectLiteral({} at cli-overlay.js:67) — mutant sets base={}, discarding all existing
+// manifest fields. Checking that a non-phase top-level field (context) is preserved distinguishes.
+
+test('Given a manifest with a context field and a harness-only overlay, when applyCliOverlay is called, then the context field is preserved in the result', () => {
+  const sut = applyCliOverlay;
+  const manifest = { context: 'my-context', phases: {} };
+  const harness = [{ phase: 'review', knob: 'passes', value: 2 }];
+
+  const result = sut(manifest, { harness });
+
+  assert.equal(result.context, 'my-context', 'non-phase manifest fields must survive a harness-only overlay');
+});
+
+// ─── 73:7 / 73:32: harness-only overlay must NOT inject a pipeline key ────────
+// Kills: ConditionalExpression(false) and BlockStatement removal at cli-overlay.js:73 — both
+// mutants fall through to the pipeline-merge path, which constructs `mergedPipeline = {}` and
+// returns `{ ...base, pipeline: {} }`, adding a spurious pipeline key. The original early-returns
+// `base` before the pipeline block. A manifest with no pipeline key must stay pipeline-less.
+
+test('Given a manifest with no pipeline key and a harness-only overlay, when applyCliOverlay is called, then the result has no pipeline key', () => {
+  const sut = applyCliOverlay;
+  const manifest = { phases: {} };
+  const harness = [{ phase: 'review', knob: 'passes', value: 2 }];
+
+  const result = sut(manifest, { harness });
+
+  assert.equal(result.pipeline, undefined, 'a harness-only overlay must not inject a pipeline key');
+});
