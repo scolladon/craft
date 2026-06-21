@@ -137,6 +137,7 @@ and [`architecture/`](../examples/architecture/).
 | 9 | **override file** (procedure body) | a fully project-shaped procedure | you own that body; the preamble still binds | [`override-procedure/`](../examples/override-procedure/) |
 | 10 | **agent / skill swap** (`role:` / `procedure:`) | domain-specific behavior, contract still injected | your agent must do the job | [`role-swap/`](../examples/role-swap/) |
 | 11 | **insert** a phase | a new SE step with full guarantees | you supply its procedure | [`everything-claude-toolkit/`](../examples/everything-claude-toolkit/) † |
+| 12 | **DoD artifact** (`docs/DOD.md` or `paths.dod`) | per-criterion acceptance-criteria check in the `validation` phase (default-ON); absence warns, never blocks | you own and maintain the checklist | [`dod-artifact/`](../examples/dod-artifact/) |
 
 † Phase **dispatch** and *contract execution* for an inserted phase both ship: the walk passes the
 resolved descriptor to `contract-assemble`, so a brand-new inserted id executes under the
@@ -146,7 +147,7 @@ engine-owned contract. The toolkit example shows insert alongside four other poi
 
 | # | Point | What it buys | The cost | Sample |
 |---|---|---|---|---|
-| 12 | **extension surface** — register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned | most setup; depends on cross-plugin dispatch | [`derived-plugin/`](../examples/derived-plugin/) |
+| 13 | **extension surface** — register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned | most setup; depends on cross-plugin dispatch | [`derived-plugin/`](../examples/derived-plugin/) |
 
 ### How Tier 2 works — the `extends:` block
 
@@ -269,7 +270,8 @@ Every Tier-0/1 injection point maps to a runnable [`examples/`](../examples/) sa
 | #9 override file | [`override-procedure/`](../examples/override-procedure/) | project-shaped procedure body |
 | #10 agent/skill swap | [`role-swap/`](../examples/role-swap/) | `role:` / `procedure:`, contract preserved |
 | #11 insert a phase | [`everything-claude-toolkit/`](../examples/everything-claude-toolkit/) | five points in one grab-bag |
-| #12 derived-plugin extension | [`derived-plugin/`](../examples/derived-plugin/) | `extends:` block — phases/agents/profiles |
+| #12 DoD artifact | [`dod-artifact/`](../examples/dod-artifact/) | author `docs/DOD.md` or set `paths.dod`; validation asserts it (default-ON) |
+| #13 derived-plugin extension | [`derived-plugin/`](../examples/derived-plugin/) | `extends:` block — phases/agents/profiles |
 | enable a default-off phase | [`requirements/`](../examples/requirements/) · [`architecture/`](../examples/architecture/) | `phases.<id>.enabled: true` |
 
 Samples that reference a context/override body keep those files under

@@ -330,6 +330,65 @@ test('Given a manifest with a scripts field as an array of file paths, when vali
   assert.ok(result.errors.some(e => e.includes('references missing file')));
 });
 
+// ─── paths.dod validation ─────────────────────────────────────────────────────
+
+test('Given a manifest with paths.dod pointing to an existing file, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut({ paths: { dod: 'docs/DOD.md' } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with paths.dod pointing to a missing file, when validateManifest runs, then it returns an error "paths.dod references missing file"', () => {
+  const sut = validateManifest;
+
+  const result = sut({ paths: { dod: 'docs/DOD.md' } }, { fileExists: NEVER_EXISTS });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e === 'paths.dod references missing file: docs/DOD.md'));
+});
+
+test('Given a manifest with paths but no dod key, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut({ paths: { repo: '.' } }, { fileExists: NEVER_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with a non-dod paths key, when validateManifest runs, then it stays inert and returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut({ paths: { foo: 'nope/missing.txt' } }, { fileExists: NEVER_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with paths.dod as an empty-string absent sentinel, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut({ paths: { dod: '' } }, { fileExists: NEVER_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with paths.dod as the home absent sentinel, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut({ paths: { dod: '~' } }, { fileExists: NEVER_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with paths set to null, when validateManifest runs, then it stays inert and never throws', () => {
+  const sut = validateManifest;
+
+  const result = sut({ paths: null }, { fileExists: NEVER_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
 // ─── phase validation ────────────────────────────────────────────────────────
 
 test('Given a manifest with an unknown phase name, when validateManifest runs, then it returns an error containing "unknown phase"', () => {

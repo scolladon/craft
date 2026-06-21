@@ -24,6 +24,13 @@ lands at CLI-wins precedence (ADRs 096–099; discharges the re-parked ADR-064).
 judgment phases: `decisions` adopts clear, ADR/principle-aligned recommendations without escalating
 (escalating only genuine forks), and both phases record a single greppable `NO-OP(<phase>):` line
 carried into the PR body (ADRs 100–103).
+**P20 delivered 2026-06-21** — DoD-aware verification: an optional Definition-of-Done artifact (a
+free-text checklist at `docs/DOD.md`, or wherever `paths.dod` points) folds into the `validation`
+phase (default-ON). It asserts the DoD per criterion, *reads* the gate/mutation results rather than
+re-running them, lets the DoD subsume architecture-alignment with an honest gap-note (the
+`architecture` phase stays default-off), and on absence records a non-blocking `NO-OP(verify): no DoD
+declared` carried into the PR body. `manifest-lint` validates `paths.dod` when declared; the rest of
+`paths.*` stays reserved-but-inert (ADRs 104–110).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -50,6 +57,7 @@ carried into the PR body (ADRs 100–103).
 | P17 | Pi adapter productized — `craft-pi` full 11-phase walk bin + live `tool_call` wrapper (first post-PRD candidate) | 093–095 |
 | P18 | Walk/parallelism enforcement — resolver emits a `reviewPlan` on the review descriptor (passes/convergence now engine-enforced) + repeatable per-invocation `--harness` overlay; discharges ADR-064 | 096–099 |
 | P19 | "Nothing to do" as a first-class phase outcome — `decisions` adopts clear ADR-aligned recommendations without escalating; both judgment phases record a greppable `NO-OP(<phase>):` no-op carried into the PR body | 100–103 |
+| P20 | DoD-aware verification — optional DoD artifact (`docs/DOD.md` / `paths.dod`) folds into `validation` (default-ON); per-criterion assertion, warn-on-absence `NO-OP(verify):`, DoD subsumes (1)/(2), `paths.dod` lint-validated | 104–110 |
 
 Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
 
@@ -65,24 +73,6 @@ Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
-
-### P20 — Definition-of-Done artifact + DoD-aware verification
-
-Introduce an optional **Definition-of-Done (DoD) artifact** a repo can supply (alongside the
-PRD/design), and make verification DoD-aware:
-
-- **DoD artifact** — a declared, referenceable artifact (e.g. `docs/DOD.md` or a manifest
-  `paths.dod`) listing the change's acceptance criteria. **If no DoD is set, raise a warning**
-  (not a hard block — absence is allowed but surfaced).
-- **Verification semantics** — verification should assert: (1) **architecture alignment** (the
-  `architecture` phase's dependency-boundary check), (2) **engineering checks green** (gates /
-  `validation`), and (3) **the DoD is met**. The DoD may *subsume* (1) and (2) — i.e. a repo's DoD
-  can include "architecture clean + checks green" plus feature-specific criteria.
-
-Scope: decide where DoD plugs in (a new `verify` concern, or folded into `validation`/`propose`
-pre-gate), the warning-on-absence path, and how the DoD artifact is authored/consumed. Likely
-touches the verification gate + a new optional artifact + docs. (Promoted from session feedback
-2026-06-21.)
 
 ### P21 — Running craft in a loop (recipe/example, not an engine loop)
 
@@ -203,6 +193,24 @@ session feedback 2026-06-21.)
   time); a future edit could silently drift one copy's spelling. A tiny repo check (a `package.json`/CI
   grep asserting each phase's token string is present) would make the symmetry self-enforcing. Deferred
   to avoid adding a new CI surface inside a wording-only change.
+- **Per-hunk mutation scope must be one comma-separated `--mutate`** (P20 follow-up — real correctness
+  risk). In P20's `validation` phase, scoping per-hunk with two *separate* `--mutate file:range` flags
+  made Stryker honor only the last (under-scoped to one hunk), reporting a falsely-clean 100 % (2
+  mutants) that hid a real survivor; the single combined `--mutate "fileA:r1,fileB:r2"` surfaced 13
+  mutants + 1 survivor. Whatever builds the mutation invocation (the `validation` skill / a helper)
+  should emit ONE comma-separated `--mutate` for multi-hunk scopes — ideally asserting the instrumented
+  mutant count is plausible — so a silent under-scope can't pass the gate on a fake score.
+- **Structured / checkable DoD criteria (DC-5 v2)** (P20 follow-up) — P20 shipped a free-text DoD
+  (ADR-109). A structured schema (each criterion tagged auto-checkable vs judgment, naming a gate
+  command / file-exists assertion) would enable mechanical met-ness for the auto subset, at the cost of
+  a schema + parser a repo must learn. Build only once free-text proves the surface.
+- **DoD trust on contributor branches** (P20 follow-up — surfaced by the security review) — P20 reads
+  the DoD as trusted operator input (sound on a maintainer checkout). If craft is ever run against
+  contributor/PR branches in an automated context, `docs/DOD.md` (or the `paths.dod` target) is editable
+  by an untrusted author who could soften the bar. The fence already stops the DoD being obeyed as
+  engine instructions, and "evidenced by phase results, never re-run" mitigates; document that asserting
+  agents treat criteria as *claims to verify against phase evidence*, not ground truth, and that DoD
+  content is part of the reviewed diff.
 
 ### Closed — won't-do (rationale recorded)
 

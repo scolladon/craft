@@ -189,7 +189,10 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    phase (`decisions`/`refactoring`) that records a `NO-OP(<phase>):` line — e.g.
    `NO-OP(decisions): no user-judgment decisions — …` or `NO-OP(refactoring): nothing
    cleared the bar — …` — has produced its outcome; it is NOT a missing artifact and
-   never re-runs or escalates as a gap.
+   never re-runs or escalates as a gap. The `validation` phase's DoD sub-concern
+   records a `NO-OP(verify): no DoD declared — …` line under the same convention:
+   it has produced its outcome; it is NOT a missing artifact and never re-runs or
+   escalates as a gap.
 
 7. **On blocker**: escalate `{ phase/slice, reason, ≤3 candidate options }`. Never
    spin, never silently abandon.
@@ -234,7 +237,11 @@ bring their own `procedure`, dispatched verbatim (step 1).
   waiver (the engine emits waivers for skip/disable only, when the phase is absent
   from `effective[]`); it is the orchestrator treating a recorded no-op as a
   release at gate-check time, so `propose` may proceed without waiting for the
-  no-op'd harness.
+  no-op'd harness. Clarification for `validation`: the entry may carry two recorded
+  sub-outcomes — the mutation note AND a `NO-OP(verify):` line (DoD sub-concern);
+  the entry is **released** only when no mutation run lands, and is **satisfied** by
+  a landed and triaged mutation run regardless of any `NO-OP(verify):` line — the
+  verify no-op never independently blocks or releases the single gate entry.
 
 - **Scope expansion re-enters the harness-read phase**: any feature behavior added
   after a phase with `archetype: harness` and `harness-read ∈ contract` has run —

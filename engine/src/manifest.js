@@ -144,6 +144,18 @@ function validatePr(pr, errors) {
 }
 
 /**
+ * Validate the `paths` sub-object — checks only the `dod` key as a file-ref;
+ * all other sub-keys remain inert.
+ * @param {Record<string, unknown>} paths
+ * @param {(path: string) => boolean} fileExists
+ * @param {string[]} errors
+ */
+function validatePaths(paths, fileExists, errors) {
+  if (!paths || typeof paths !== 'object' || Array.isArray(paths)) return;
+  checkFileRef('paths.dod', paths.dod, fileExists, errors);
+}
+
+/**
  * Validate the `scripts` sub-object.
  * @param {Record<string, unknown>} scripts
  * @param {(path: string) => boolean} fileExists
@@ -628,7 +640,10 @@ export function validateManifest(manifest, opts) {
       case 'extends':
         validateExtends(value, fileExists, errors);
         break;
-      // paths, retrieval, execution: recognized; no sub-validation
+      case 'paths':
+        validatePaths(value, fileExists, errors);
+        break;
+      // retrieval, execution: recognized; no sub-validation
     }
   }
 
