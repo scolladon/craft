@@ -162,6 +162,28 @@ mechanically consistent across all of them in one pass. No engine-descriptor cha
 pipeline knows phases, not slices). Decide the exact term in that change's decisions phase. (Promoted
 from session feedback 2026-06-21.)
 
+### P25 — Interactive customization generator (the manifest "front door")
+
+A tool/skill that, run *inside a target repo*, scaffolds a **named** craft customization by probing
+the repo's capabilities and interviewing the user, then writing a lint-clean `.claude/workflow.md`
+declination. Today the only way to customize is to hand-author the manifest (P12 documents it,
+`manifest-lint` validates it) — this is the missing onboarding front door. The "name" the user gives is
+the dedicated override's identity.
+
+Load-bearing design questions (decide in its own decisions phase):
+- **Named override shape** — a user-defined `pipeline.profile` entry, or a separate named manifest file?
+  (Profiles are built-in today: `lean`/`solo`; user-defined named profiles is the real extension.)
+- **Interview transport** — interactive only (orchestrator `AskUserQuestion`), or also a headless/
+  flag-driven mode usable from `craft-pi`?
+- **Discovery layer** — reuse the existing capability probes (`worktree-setup.sh`, the gate probe) vs.
+  a purpose-built probe.
+- **Output** — write `.claude/workflow.md` directly vs. emit a draft for review; always run
+  `manifest-lint` before landing.
+
+Likely a new skill (`craft:init`/customize) plus a probe+interview+emit pipeline. Distinct from P22
+(repo memory) and P23 (policy hooks). Best built *through* craft itself (dogfood). (Promoted from
+session feedback 2026-06-21.)
+
 ---
 
 ## Parked
