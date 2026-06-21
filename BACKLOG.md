@@ -14,6 +14,8 @@ Every PRD goal (G1–G14) and success criterion (SC1–SC9) is discharged. **G13
 2026-06-20** — a non-Claude provider (Gemini, via the Pi adapter) ran a construction phase
 end-to-end (`docs/adapters/pi-poc-record.md`). The PRD defines **no P17**: §17 ends at P16,
 itself tagged *"(next program)"*; anything beyond is un-PRD'd backlog (see *Candidate phases*).
+**P17 delivered 2026-06-21** — the first post-PRD candidate: the Pi adapter is productized into a
+`craft-pi` full-walk entrypoint + live `tool_call` guard wrapper (ADRs 093–095).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -37,6 +39,7 @@ itself tagged *"(next program)"*; anything beyond is un-PRD'd backlog (see *Cand
 | P14 | Derived-plugin extension surface (`extends:`; S7/G8) | 069–075 |
 | P15 | Second-instantiation — non-tsgit Python/pytest repo, zero-manifest (SC5/G9) | 076–082 |
 | P16 | Provider-agnostic — six port seams + Pi adapter PoC; **G13 met** | 084–092 |
+| P17 | Pi adapter productized — `craft-pi` full 11-phase walk bin + live `tool_call` wrapper (first post-PRD candidate) | 093–095 |
 
 Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
 
@@ -53,23 +56,6 @@ Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
-### P17 — Pi adapter productization (PRD N4: multi-provider parity)
-
-The P16 PoC proved G13; productizing it is the PRD's own non-goal N4 ("the architecture + a
-PoC, not every adapter"). Two pieces, both `adapters/pi/`:
-
-- **`craft-pi` user entrypoint** (ADR-086 chose a *separate* entrypoint). P16 landed only the
-  adapter library + on-demand smoke; wire the actual user-facing bin. Touches: `adapters/pi/`.
-- **Live `tool_call` wrapper.** `adapters/pi/src/gate.js` ships the pure `toolCallGuard`
-  predicate only; the live `pi.on("tool_call", …)` wrapper is unwritten. It MUST (a) wrap the
-  guard in try/catch and return `{ block: true }` on any throw (fail-safe), and (b)
-  `realpath`/`lstat` the resolved parent before permitting a write (defeat symlink escapes the
-  lexical check can't catch). Both review-flagged as wrapper-level, not predicate-level.
-- **Constraint (not a task):** the git-invocation guard is bypassable by compound commands /
-  qualified binaries / env-prefixes — **identically** in `hooks/git-no-ext-diff.sh` (Claude) and
-  `adapters/pi/src/gate.js` (Pi), deliberately (parity; 19 mutation survivors accepted-by-parity).
-  Any tightening lands in **both** together, never Pi-only. Guards output-mangling, not security.
-
 ### P18 — Walk / parallelism enforcement
 
 Three harness knobs validate + reach the descriptor but are honored by walk-judgment, not the
@@ -84,6 +70,91 @@ no-silent-cap parked items):
   precondition is the two knobs above being engine-enforced. Writes nested
   `phases.<id>.harness.<knob>` (dotted-path parse + type coercion, beyond the flat profile/skip
   overlay). Follows the `cli-overlay.js` pattern.
+
+### P19 — "Nothing to do" as a first-class phase outcome (decisions + refactoring)
+
+Make a clean no-op a **recorded, first-class** outcome for both judgment phases, symmetrically —
+not an implicit skip. Today the two phases treat "nothing to do" unevenly:
+
+- **decisions** — `skills/decisions/SKILL.md` only no-ops when design surfaces *zero* candidates
+  ("No decision candidates? Skip honestly"). When candidates exist it forces a per-candidate user
+  conversation, even where every recommendation is clear and aligns with existing ADRs/principles.
+  It should be valid to **adopt clear recommendations without escalating** and record a
+  "no user-judgment decisions" outcome, escalating only genuine forks.
+- **refactoring** — `skills/refactoring/SKILL.md` already permits an honest no-op, but the no-op
+  contract (what is recorded, how the run record/PR body phrases it) is not stated symmetrically
+  with decisions.
+
+Scope: align both skills + their phase docs so "nothing to do" is an explicit, justified,
+recorded result (run-record line + PR-body note), and the orchestrator never reads a no-op as a
+gap. No engine/descriptor change expected — this is phase-skill + docs wording. (Promoted from
+session feedback 2026-06-20.)
+
+### P20 — Definition-of-Done artifact + DoD-aware verification
+
+Introduce an optional **Definition-of-Done (DoD) artifact** a repo can supply (alongside the
+PRD/design), and make verification DoD-aware:
+
+- **DoD artifact** — a declared, referenceable artifact (e.g. `docs/DOD.md` or a manifest
+  `paths.dod`) listing the change's acceptance criteria. **If no DoD is set, raise a warning**
+  (not a hard block — absence is allowed but surfaced).
+- **Verification semantics** — verification should assert: (1) **architecture alignment** (the
+  `architecture` phase's dependency-boundary check), (2) **engineering checks green** (gates /
+  `validation`), and (3) **the DoD is met**. The DoD may *subsume* (1) and (2) — i.e. a repo's DoD
+  can include "architecture clean + checks green" plus feature-specific criteria.
+
+Scope: decide where DoD plugs in (a new `verify` concern, or folded into `validation`/`propose`
+pre-gate), the warning-on-absence path, and how the DoD artifact is authored/consumed. Likely
+touches the verification gate + a new optional artifact + docs. (Promoted from session feedback
+2026-06-21.)
+
+### P21 — Running craft in a loop (recipe/example, not an engine loop)
+
+Explore driving craft iteratively (re-run against PRD + DoD + config until the DoD is met).
+**Decision lean (user): ship an EXAMPLE/recipe of using craft in a loop rather than baking loop
+semantics into the engine** — keeping the engine generic and the loop a composable, flexible outer
+harness (the operator owns the loop, craft owns one pass). Scope: a documented recipe
+(`docs/GUIDE-*` / `examples/`) showing an external loop that re-invokes `/craft:run` (or `craft-pi`)
+with a DoD-driven stop condition; no engine change. Contrast with the alternative (engine-native
+loop) and record why example-first wins (generality/flexibility). (Promoted from session feedback
+2026-06-21.)
+
+### P22 — Repo-local craft memory (self-improving per repo) — spike + build
+
+A **memory local to the repository** that craft maintains and **improves after each run**, so each
+subsequent run on that repo is better — higher quality, faster, fewer tokens, with recorded
+improvements. The memory accumulates what craft learned about this repo (toolchain quirks, gate
+commands, recurring review findings, slice-sizing that worked, cost/latency per phase) and feeds
+the next run.
+
+Scope: **spike first** (feasibility + shape: where it lives in-repo, what it records, how phases
+read/write it, how it avoids staleness/poisoning), **then build**. Explicitly wanted in the repo as
+a tracked task. Open questions for the spike: per-repo file vs `.claude/`-style store; what each
+phase contributes; how to measure run-over-run improvement (quality/speed/tokens); guardrails so a
+bad memory entry can't degrade a run. (Promoted from session feedback 2026-06-21.)
+
+### P23 — Configurable policy hooks: always / ask / never (user + project precedence)
+
+Expose **three configurable policy hooks** that govern what the craft plugin may do autonomously,
+settable at **both user and project level with the same precedence rule as the manifest** (project
+overrides user; per-invocation could override both, consistent with ADR-022 overlay precedence):
+
+- **`always:`** — actions the plugin should always do without asking (auto-approved).
+- **`ask:`** — actions the plugin must ask the user about before doing (confirmation gate).
+- **`never:`** — actions the plugin must never do (hard prohibition).
+
+This is craft's own permission/policy layer — the engine-level analogue of the harness's
+"confirm before hard-to-reverse/outward actions" discipline, made declarative and per-repo/per-user
+configurable. It dovetails with the headless role-less semantics (e.g. `integrate` stop-before-merge
+becomes an `ask:`/`never:` policy rather than a hardcoded default) and with the HaaS framing
+(a configurable policy seam is part of what makes craft a harness-as-a-service).
+
+Scope: decide the config surface (manifest keys + user-level file, merged at the existing overlay
+precedence), the vocabulary of nameable actions (push, merge, PR-create, external sends, file
+deletes, …), how `ask:` surfaces to an interactive orchestrator vs a headless bin (in headless,
+`ask:` ⇒ treat as `never:`/blocker unless pre-approved), and how each phase consults the policy.
+Likely a new policy port + overlay logic following `cli-overlay.js`. (Promoted from session feedback
+2026-06-21.)
 
 ---
 

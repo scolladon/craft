@@ -6,6 +6,10 @@ refactoring → validation → documentation → propose → integrate** — tha
 as-is and customizes through a committed declination manifest. Zero session-memory
 dependence: every load-bearing rule lives in a hook, a script, or versioned instruction text.
 
+craft applies a **Harness-as-a-Service (HaaS)** pattern: the model (Model port), the runtime
+(Execution port), and each per-phase harness are pluggable; the engine-owned invariant contract is
+not. This is a *pattern* — a reusable, governed layer you install — not a hosted SaaS.
+
 ## Why craft
 
 - **Industrialize delivery** — one gated phase sequence, repeatable; every load-bearing rule lives in a hook, a script, or versioned instruction text, not session memory.
@@ -14,7 +18,7 @@ dependence: every load-bearing rule lives in a hook, a script, or versioned inst
 - **Manage intention debt** — ADRs and user-ratified decision candidates capture *why* every load-bearing choice was made.
 - **Formalize the architecture harness with its own lifecycle** — a standalone `architecture` phase (probe → run dependency-cruiser → triage violations → gate the PR), default-off, enabled by one manifest line.
 - **Formalize engineering harnesses with their own lifecycles** — `review` (dimensions / passes / convergence) and `validation` (mutation: tool / scope / triage) are first-class AI harnesses with their own config and gates.
-- **A framework for AI harnesses** — the engine wires and gates whatever harness a repo brings (review, validation, architecture, …) around an engine-owned invariant contract; a harness is pluggable, the contract is not.
+- **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. `adapters/pi/` (the `craft-pi` bin) drives the same engine core on a non-Claude runtime, proving the Execution port is pluggable (portability proof; on-demand, not CI-gated).
 - **Bounded long-running work** — git-worktree isolation + sliced TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
 
 ## Install
@@ -65,6 +69,7 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
   the corrected command (`--no-verify` is the consumer's discretion — craft does not block it)
 - `scripts/` — worktree setup/teardown (mutation run-lock aware), manifest lint, plan lint
 - `templates/` — design / plan (defines the slice schema plan-lint enforces) / ADR
+- `adapters/pi/` — reference Pi adapter: a separate `craft-pi` entrypoint that drives the full 11-phase walk on a non-Claude runtime via the engine's ports (the HaaS portability proof; on-demand, not CI-gated)
 
 ## Design provenance
 

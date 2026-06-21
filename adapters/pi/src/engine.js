@@ -45,15 +45,31 @@ function run(file, args) {
 }
 
 /**
+ * Return a new args array with manifestPath appended when provided.
+ * Both call sites use this to conditionally thread the committed manifest.
+ *
+ * @param {string[]} args
+ * @param {string|undefined} manifestPath
+ * @returns {string[]}
+ */
+function withManifest(args, manifestPath) {
+  return manifestPath ? [...args, manifestPath] : args;
+}
+
+/**
  * Resolve the effective pipeline by invoking the engine's pipeline-resolve bin.
  * Returns the parsed resolution object:
  *   { ok, effective, record, gateDecisions, waivers }
  * effective[i] carries model after the descriptor model-tier lift.
  *
+ * @param {string} [manifestPath] optional path to a committed manifest; when
+ *   given it is appended as the 2nd positional arg to pipeline-resolve so the
+ *   engine can apply manifest-level skip/gate overrides.
  * @returns {Promise<{ ok: boolean, effective: object[], record: object, gateDecisions: object, waivers: object[] }>}
  */
-export async function resolvePipeline() {
-  const stdout = await run('node', [PIPELINE_RESOLVE_BIN, DEFAULT_PIPELINE]);
+export async function resolvePipeline(manifestPath) {
+  const args = withManifest([PIPELINE_RESOLVE_BIN, DEFAULT_PIPELINE], manifestPath);
+  const stdout = await run('node', args);
   return JSON.parse(stdout);
 }
 
@@ -62,13 +78,18 @@ export async function resolvePipeline() {
  * engine's contract-assemble bin.
  *
  * @param {string} phaseId
+ * @param {string} [manifestPath] optional path to a committed manifest; when
+ *   given it is forwarded as --manifest <path> so the engine injects manifest
+ *   context values into the assembled block.
  * @returns {Promise<string>} the assembled block text
  */
-export async function assembleBlock(phaseId) {
-  const stdout = await run('node', [
+export async function assembleBlock(phaseId, manifestPath) {
+  const baseArgs = [
     CONTRACT_ASSEMBLE_BIN,
     '--descriptor-id', phaseId,
     '--contracts-dir', CONTRACTS_DIR,
-  ]);
+  ];
+  const args = manifestPath ? [...baseArgs, '--manifest', manifestPath] : baseArgs;
+  const stdout = await run('node', args);
   return stdout;
 }

@@ -21,7 +21,7 @@ actual_tests="$(printf '%s\n' "$node_output" | awk '/^# tests / {print $3}')"
   exit 1
 }
 
-EXPECTED_PI_TESTS=86
+EXPECTED_PI_TESTS=202
 
 pi_output="$(cd adapters/pi && node --test 'test/**/*.test.js' 2>&1)" && pi_status=0 || pi_status=$?
 echo "$pi_output"

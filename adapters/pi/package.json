@@ -4,5 +4,8 @@
   "private": true,
   "scripts": {
     "test": "node --test 'test/**/*.test.js'"
+  },
+  "bin": {
+    "craft-pi": "src/cli.js"
   }
 }

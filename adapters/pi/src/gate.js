@@ -1,7 +1,7 @@
 import { resolve, sep } from 'node:path';
 
 // Tools whose file_path writes must stay inside the working directory.
-const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
+export const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 
 // Tools whose Bash command must be checked for git diff/show without --no-ext-diff.
 const BASH_TOOL = 'Bash';

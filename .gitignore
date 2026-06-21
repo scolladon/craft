@@ -6,3 +6,5 @@
 !examples/.claude/
 !examples/.claude/workflow/
 !examples/.claude/workflow/*.md
+!adapters/pi/.claude/
+!adapters/pi/.claude/workflow.md
