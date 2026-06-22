@@ -21,7 +21,9 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
 1. Infer the branch type from the brief (`feat`/`fix`/`chore`, default `feat`).
-2. Strategy `worktree` (default):
+2. **Consult `isolate` action** (default `always`, ADR-127 — proceeds silently unless
+   policy forbids it; see `docs/adapters/policy.md` for surface semantics). Then,
+   strategy `worktree` (default):
    ```bash
    git worktree add ../<repo>-<slug> -b <type>/<slug>
    "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-setup.sh" <abs-worktree-path> [manifest scripts.post-setup]

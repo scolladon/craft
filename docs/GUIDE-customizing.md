@@ -52,7 +52,7 @@ craft is built **hexagonally**. This is the whole model:
    user input ──▶│  contract injection · gate discipline (policy) · model resolution (policy)        │──▶ run record
                  │  harness config (policy) · run record · alias map · default descriptor list        │
                  └───┬───────────┬───────────┬──────────────┬───────────────┬───────────────┬──────────┬──────┘
-        Execution ◀──┘   Model ◀─┘   Gate ◀──┘  Code-access ◀┘   Backlog ◀───┘    VCS ◀───────┘  Memory ◀┘  (7 ports = mechanism)
+        Execution ◀──┘   Model ◀─┘   Gate ◀──┘  Code-access ◀┘   Backlog ◀───┘    VCS ◀───────┘  Memory ◀┘  Policy ◀┘  (8 ports = mechanism)
             │            │            │            │  (env-sourced,        │               │           │
             ▼            ▼            ▼            ▼   NOT adapter)         ▼               ▼           ▼
         Task /        model        Bash gate    runtime+settings        file / gh /     git worktree  .claude/
@@ -64,9 +64,9 @@ craft is built **hexagonally**. This is the whole model:
   guiderail (§2 below), contract injection, gate discipline, model resolution, the run record. It
   knows *what* must happen, never *how* a runtime carries it out. The core decides "plan **consumes**
   design," not "design precedes plan."
-- **Ports (you configure or swap these)** — seven thin seams the core uses to reach a mechanism:
+- **Ports (you configure or swap these)** — eight thin seams the core uses to reach a mechanism:
   **Execution**, **Model**, **Gate**, **Code-access/retrieval**, **Backlog SoT**, **VCS/integration**,
-  **Memory**. A port exposes *mechanism*; the core keeps *policy*. The Model port only
+  **Memory**, **Policy**. A port exposes *mechanism*; the core keeps *policy*. The Model port only
   `select`/`isAvailable` — the core owns the *fallback order*. The Gate port only `run(cmd)` — the
   core owns *never commit on red*. The Memory port only `load`/`save` — the core owns the
   advisory-only invariant (deleting the store changes run cost, never correctness).
@@ -127,6 +127,7 @@ Tiered by effort, cheapest first. Each row links a runnable [`examples/`](../exa
 | 6 | **harness config** | tune rigor per concern (dimensions / passes / cycles / convergence / tool) | mis-tuning over/under-verifies | [`review-harness/`](../examples/review-harness/) |
 | 7 | **backlog source** | use your tracker (`file` or `custom`) | a custom ref is resolved at runtime | [`backlog-custom/`](../examples/backlog-custom/) |
 | 8 | **memory** | per-repo advisory cache (`memory: { source: file, ref }`) — stores mechanically-derived learnings (toolchain, gate commands, findings, slice sizing) so subsequent runs skip re-probing; default store at `.claude/craft-memory.md`, committed via a `.gitignore` re-include. Advisory-only: deleting it changes run cost, never correctness. See [`docs/adapters/memory.md`](adapters/memory.md) for the port contract. | a custom `ref` that escapes the repo root is silently skipped — the port never reads or writes outside the repo | — |
+| 9 | **policy** | per-repo/per-user permission layer over outward/hard-to-reverse VCS-port actions. The `policy:` manifest key accepts `always`, `ask`, and `never` verdict lists over the action vocabulary (`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write` — note `integrate` = merge, `propose` = pr-create). Per-action defaults are keyed by reversibility: local reversible actions (`isolate`, `commit`, `backlog-write`) default to `always`; remote/hard-to-reverse actions (`push`, `propose`, `integrate`, `teardown`, `external-send`) default to `ask`, so an unconfigured repo behaves as today (merge still stops for confirmation). Three scopes fold in one direction (`per-invocation > project > user`): user `~/.claude/craft-policy.md` < project manifest `policy:` < per-invocation `--policy`. An explicit `always` verdict for `integrate` or `propose` supersedes craft's hardcoded merge/PR confirmation, enabling unattended headless auto-merge. The three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are not nameable actions and cannot be reached by any verdict. See [`docs/adapters/policy.md`](adapters/policy.md) for the port contract. | a misconfigured policy (unknown action or verdict, non-list value, intra-scope double-verdict) fails manifest-lint loudly, never silently | — |
 
 Default-off phases turn on the same way (one line): see [`requirements/`](../examples/requirements/)
 and [`architecture/`](../examples/architecture/).
@@ -216,7 +217,7 @@ reaches the invariant core (§2).
 
 - **Execution:** `phases.<id>.execution` > `pipeline.profile` > top-level `execution:`.
 - **Model:** manifest `models.<agent>` > the agent's pin > `models.fallback` > the session model.
-- **Per-invocation flags** (`--profile`, `--skip`, `--harness`, …) fold over the manifest at **highest**
+- **Per-invocation flags** (`--profile`, `--skip`, `--harness`, `--policy`, …) fold over the manifest at **highest**
   precedence — tailor a single run without editing the file.
 
 #### `--harness <phase>.<knob>=<value>` — per-invocation harness override
@@ -252,6 +253,31 @@ per-knob message a bad manifest produces (e.g. `phases.review.harness.passes mus
 
 Runs the review harness with 2 reviewers per dimension and stops when ≤ 3 non-LOW findings remain
 (numeric convergence, ADR-097), for this invocation only.
+
+#### `--policy <action>=<verdict>` — per-invocation policy override
+
+Repeatable (one action per flag; repeat for several). Sets a single action's verdict at highest
+precedence for that run only — overrides both the project manifest `policy:` block and the user
+`~/.claude/craft-policy.md`. The primary use is the **headless pre-approval channel**: an outer
+harness passes `--policy integrate=always` to authorize an unattended merge for that run without
+editing the manifest (ADR-130).
+
+**Grammar:** `<action>=<verdict>` — exactly one `=`; `action` must be one of `POLICY_ACTIONS`
+(`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write`);
+`verdict` must be one of `always`, `ask`, `never`.
+
+**Fail-closed:** missing `=`, an unknown action, or an unknown verdict → exit 2 with
+`pipeline-resolve: --policy expects <action>=<verdict>`.
+
+**Example:**
+
+```bash
+/craft:run --policy integrate=always --policy propose=always TICKET-42
+```
+
+Authorizes unattended merge and PR creation for this invocation only (the headless end-to-end
+auto-merge path). An unconfigured or `ask`-defaulting repo is not changed; only this run is
+affected.
 
 ---
 

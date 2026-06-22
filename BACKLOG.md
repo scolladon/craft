@@ -44,6 +44,17 @@ learnings (toolchain, discovered gate command, recurring findings, slice-sizing,
 Validate-on-read + confidence/decay + merge-before-insert + a newest-window size cap keep it fresh and
 bounded; the content whitelist is document-only; deleting the store changes run *cost*, never
 *correctness*. Configured via a new top-level `memory:` manifest key (ADRs 116–123).
+**P23 delivered 2026-06-22** — configurable policy hooks: a per-repo/per-user permission layer over the
+outward/hard-to-reverse VCS-port actions (`isolate`/`commit`/`push`/`propose`/`integrate`/`teardown` +
+`external-send`/`backlog-write`). Three verdicts — `always`/`ask`/`never` — resolve through the existing
+overlay precedence (per-invocation `--policy <action>=<verdict>` > project manifest `policy:` > user
+`~/.claude/craft-policy.md`), with per-action reversibility-keyed defaults so an unconfigured repo behaves
+exactly as before (merge still confirms). A pure `engine/src/policy.js` module plus a `{claude, pi}`-bound
+Policy port (`docs/adapters/policy.md`) split interactive `AskUserQuestion` from headless
+degrade-to-blocker (pre-approved via a per-invocation `always`); an `always` verdict *supersedes* the
+hardcoded merge/PR confirmation (enabling headless auto-merge), while the three engine floors
+(never-commit-on-red, validation-triage-gates-propose, artifact-handoff) stay non-overridable and
+un-nameable (ADRs 124–130).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -87,29 +98,6 @@ Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
-
-### P23 — Configurable policy hooks: always / ask / never (user + project precedence)
-
-Expose **three configurable policy hooks** that govern what the craft plugin may do autonomously,
-settable at **both user and project level with the same precedence rule as the manifest** (project
-overrides user; per-invocation could override both, consistent with ADR-022 overlay precedence):
-
-- **`always:`** — actions the plugin should always do without asking (auto-approved).
-- **`ask:`** — actions the plugin must ask the user about before doing (confirmation gate).
-- **`never:`** — actions the plugin must never do (hard prohibition).
-
-This is craft's own permission/policy layer — the engine-level analogue of the harness's
-"confirm before hard-to-reverse/outward actions" discipline, made declarative and per-repo/per-user
-configurable. It dovetails with the headless role-less semantics (e.g. `integrate` stop-before-merge
-becomes an `ask:`/`never:` policy rather than a hardcoded default) and with the HaaS framing
-(a configurable policy seam is part of what makes craft a harness-as-a-service).
-
-Scope: decide the config surface (manifest keys + user-level file, merged at the existing overlay
-precedence), the vocabulary of nameable actions (push, merge, PR-create, external sends, file
-deletes, …), how `ask:` surfaces to an interactive orchestrator vs a headless bin (in headless,
-`ask:` ⇒ treat as `never:`/blocker unless pre-approved), and how each phase consults the policy.
-Likely a new policy port + overlay logic following `cli-overlay.js`. (Promoted from session feedback
-2026-06-21.)
 
 ### P24 — Rename the "slice" vocabulary to standard software-engineering terminology
 
@@ -240,7 +228,8 @@ Distinct from P23 (policy governs outward *actions*, not phase necessity) and fr
   so the `verify:` step had no P21-specific acceptance lines to assert against. Decide the intended
   model: reset the per-feature section each change, drop it in favour of per-feature criteria living in
   the design doc's Requirements, or template it. Until then, `verify:` asserts the evergreen sections and
-  records the per-feature section's provenance honestly.
+  records the per-feature section's provenance honestly. (Re-surfaced again in P23's `validation` — the
+  same P20 section was re-asserted; a recurring signal that this needs a per-change convention.)
 - **Repo-local memory hardening** (P22 follow-ups — surfaced by review/validation) — the memory port
   (`docs/adapters/memory.md`, ADRs 116–123) ships deliberate document-only / mechanism-only choices that
   leave clean upgrade paths: (a) the **`custom` memory adapter** binding is reserved in the `memory:` key
@@ -253,6 +242,14 @@ Distinct from P23 (policy governs outward *actions*, not phase necessity) and fr
   smoke yet — an SC5-style on-demand smoke driving load→save→`.claude/craft-metrics.md` across two runs
   would prove the improvement loop end-to-end. None blocking; each is bounded by the advisory-cache
   premise (worst case wasted cost, never wrong correctness).
+- **`realpath`-harden the path-containment helpers** (P23 security follow-up — surfaced by review) — both
+  `containUserPolicyPath` (`engine/src/policy.js`, P23's user-policy file) and `memory.js:resolveStorePath`
+  use *lexical* containment (`resolve` + separator-prefix check), so a symlink planted inside the root
+  (`~/.claude` or the repo's `.claude/`) is followed. Not a privilege escalation — both paths are fixed and
+  anyone who can plant the symlink can write the target directly — and the two helpers are deliberately
+  symmetric, so harden them together (`realpathSync` then re-check containment) as one cross-cutting change
+  if symlink-following ever becomes a concern. Pairs with the memory-hardening item above. Deferred from
+  P23's review (LOW).
 
 ### Closed — won't-do (rationale recorded)
 

@@ -18,8 +18,15 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
    remediation + documented exceptions (both live in the manifest body or a phase
    context file — never memory). Run it; apply the remediation in its own
    conventional commit; re-gate.
-2. Push `-u origin <branch>`.
-3. `pr.creator`: `session` (default when a remote exists) → `gh pr create` with the
-   body drafted in the documentation phase (decisions + ADRs, design path,
-   divergences, pinned behaviours, test plan, run record). `user` → hand the drafted
-   body to the user and stop here.
+2. **Consult `push` action** (see `docs/adapters/policy.md` for surface semantics).
+   Obey the returned surface, then push `-u origin <branch>`.
+3. **Consult `propose` action** (see `docs/adapters/policy.md`). Obey the returned surface:
+   - `ask` (default, ADR-127) — hand the drafted body to the user and stop (`pr.creator: user`
+     behaviour); on approval proceed with `gh pr create`, on decline record
+     `POLICY(ask:propose→declined)` and block.
+   - `never` — refuse; record `POLICY(never:propose)`; phase no-ops.
+   - `always` — create the PR without stopping; record `POLICY(always:propose)`;
+     supersedes the `pr.creator: user` stop (ADR-128 — Supersede).
+
+   `gh pr create` uses the body drafted in the documentation phase (decisions + ADRs,
+   design path, divergences, pinned behaviours, test plan, run record).

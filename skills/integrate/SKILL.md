@@ -14,12 +14,21 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
 
 1. **Monitor CI → fix to green**, ignoring jobs listed in `non-blocking-jobs`. Fixes
    land as conventional commits through the same gates as review fixes.
-2. **The user confirms the merge** — never merge unprompted. Then:
+2. **Consult `integrate` action** (see `docs/adapters/policy.md` for surface semantics).
+   Obey the returned surface:
+   - `ask` (default, ADR-127) — ask the user to confirm the merge, exactly as today;
+     on approval proceed, on decline record `POLICY(ask:integrate→declined)` and block.
+   - `never` — refuse; record `POLICY(never:integrate)`; phase no-ops.
+   - `always` — proceed with no confirmation; record `POLICY(always:integrate)`;
+     supersedes the former hardcoded merge confirmation (ADR-128 — Supersede).
+
+   Then:
    ```bash
    gh pr merge <#> --squash --delete-branch <merge-flags>
    ```
    Always `--delete-branch`: no merged branch lingers on the remote.
-3. **Cleanup:**
+3. **Consult `teardown` action** separately before worktree teardown (per-verb
+   granularity, ADR-126; see `docs/adapters/policy.md`). Then:
    ```bash
    "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \
      [--pre-teardown <manifest scripts.pre-teardown>]

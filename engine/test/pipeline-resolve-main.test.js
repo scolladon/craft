@@ -940,3 +940,350 @@ test('Given --harness noDot=val (no dot in LHS), when main runs, then it returns
 //   Harness knobs (passes, convergence, incremental, …) never trigger a `fileExists` call inside
 //   `validatePhaseBlock`, so the predicate value is never observed — all three variants are
 //   indistinguishable.
+
+// ─── --policy flag: parse, precedence, project-only, no-policy, error cases ───
+
+test('Given --policy integrate=ask, when main runs, then Resolution.policy.integrate is "ask"', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--policy', 'integrate=ask'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.policy.integrate, 'ask');
+});
+
+test('Given project manifest with policy always:[integrate] and --policy integrate=ask, when main runs, then Resolution.policy.integrate is "ask" (per-invocation wins)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestPath = writeTmp('policy-project.md', [
+    '---',
+    'policy:',
+    '  always: [integrate]',
+    '---',
+  ].join('\n'));
+
+  const result = sut([pipelinePath, manifestPath, '--policy', 'integrate=ask'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.policy.integrate, 'ask');
+});
+
+test('Given project manifest with policy always:[integrate] and no --policy flag, when main runs, then Resolution.policy.integrate is "always"', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestPath = writeTmp('policy-project-only.md', [
+    '---',
+    'policy:',
+    '  always: [integrate]',
+    '---',
+  ].join('\n'));
+
+  const result = sut([pipelinePath, manifestPath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.policy.integrate, 'always');
+});
+
+test('Given no policy anywhere, when main runs, then Resolution.policy is present and deeply equals {}', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.deepEqual(resolution.policy, {});
+});
+
+test('Given --policy integrate (no =), when main runs, then it returns 2 and stderr matches /--policy expects/', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--policy', 'integrate'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /--policy expects/);
+});
+
+test('Given --policy integrate=maybe (bad verdict), when main runs, then it returns 2 and stderr names the unknown verdict', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--policy', 'integrate=maybe'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /unknown.*verdict|verdict.*unknown/i);
+});
+
+test('Given --policy bogus=ask (unknown action), when main runs, then it returns 2 and stderr names the unknown action', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--policy', 'bogus=ask'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /unknown.*action|action.*unknown/i);
+});
+
+// ─── user-file load via injected readUserPolicy ───────────────────────────────
+
+test('Given user file with never:[integrate], no project policy, no flag, when main runs, then Resolution.policy.integrate is "never"', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const userContent = '---\npolicy:\n  never: [integrate]\n---\n';
+
+  const result = sut([pipelinePath], io, { readUserPolicy: () => userContent });
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.policy.integrate, 'never');
+});
+
+test('Given user file with never:[integrate] and project manifest with always:[integrate], when main runs, then Resolution.policy.integrate is "always" (project overrides user)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const userContent = '---\npolicy:\n  never: [integrate]\n---\n';
+  const manifestPath = writeTmp('policy-user-vs-project.md', [
+    '---',
+    'policy:',
+    '  always: [integrate]',
+    '---',
+  ].join('\n'));
+
+  const result = sut([pipelinePath, manifestPath], io, { readUserPolicy: () => userContent });
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.policy.integrate, 'always');
+});
+
+test('Given user file with never:[integrate], project always:[integrate], and --policy integrate=ask, when main runs, then Resolution.policy.integrate is "ask" (per-invocation overrides both)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const userContent = '---\npolicy:\n  never: [integrate]\n---\n';
+  const manifestPath = writeTmp('policy-full-chain.md', [
+    '---',
+    'policy:',
+    '  always: [integrate]',
+    '---',
+  ].join('\n'));
+
+  const result = sut([pipelinePath, manifestPath, '--policy', 'integrate=ask'], io, { readUserPolicy: () => userContent });
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.policy.integrate, 'ask');
+});
+
+test('Given user file absent (readUserPolicy returns null), when main runs, then Resolution.policy has no error and is the project/default map', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath], io, { readUserPolicy: () => null });
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.deepEqual(resolution.policy, {});
+});
+
+test('Given malformed user file with unknown verdict maybe:[integrate], when main runs, then it returns 2 and stderr names invalid user policy', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const badContent = '---\npolicy:\n  maybe: [integrate]\n---\n';
+
+  const result = sut([pipelinePath], io, { readUserPolicy: () => badContent });
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /user.*policy|policy.*user/i);
+});
+
+test('Given project manifest policy with one action under two verdicts, when main runs, then it returns 2 and stderr names invalid project policy', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestPath = writeTmp('policy-project-double-verdict.md', [
+    '---',
+    'policy:',
+    '  always: [integrate]',
+    '  never: [integrate]',
+    '---',
+  ].join('\n'));
+
+  const result = sut([pipelinePath, manifestPath], io, { readUserPolicy: () => null });
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /project.*policy/i);
+});
+
+test('Given project manifest policy naming an unknown action, when main runs, then it returns 2 and stderr names invalid project policy', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestPath = writeTmp('policy-project-unknown-action.md', [
+    '---',
+    'policy:',
+    '  always: [bogus-action]',
+    '---',
+  ].join('\n'));
+
+  const result = sut([pipelinePath, manifestPath], io, { readUserPolicy: () => null });
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /project.*policy/i);
+});
+
+test('Given --policy integrate=ask repeated as integrate=never, when main runs, then the last occurrence wins (never)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--policy', 'integrate=ask', '--policy', 'integrate=never'], io, { readUserPolicy: () => null });
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.policy.integrate, 'never');
+});
+
+test('Given two --policy flags for different actions, when main runs, then both verdicts survive (the map is not clobbered per occurrence)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--policy', 'push=ask', '--policy', 'integrate=never'], io, { readUserPolicy: () => null });
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.policy.push, 'ask');
+  assert.equal(resolution.policy.integrate, 'never');
+});
+
+test('Given --policy as the final argument with no value, when main runs, then it returns 2 and stderr requires a non-flag value', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath, '--policy'], io, { readUserPolicy: () => null });
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /option --policy requires a non-flag value/i);
+});
+
+// ─── default reader (no deps): exercises defaultReadUserPolicy code path ──────
+// Kills: NoCoverage ObjectLiteral (line 229 {ok:true,block:null}→{}) and
+//        NoCoverage BooleanLiteral (line 229 ok:true→false) by calling main
+//        without deps so defaultReadUserPolicy runs; no ~/.claude/craft-policy.md
+//        present so result is ok:true with empty policy.
+
+test('Given no deps (real default reader) and no ~/.claude/craft-policy.md, when main runs, then it returns 0 with empty policy', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.ok, true);
+  assert.deepEqual(resolution.policy, {});
+});
+
+// ─── loadUserPolicyBlock: content with no policy key → ok:true block:null ────
+// Kills: OptionalChaining survivor at line 228 (parsed?.policy vs parsed.policy):
+//        empty string content parses to null; ?.policy returns null safely while
+//        .policy would throw TypeError.
+// Also kills: ConditionalExpression survivor at line 229 (userBlock===null guard).
+
+test('Given user file with no policy key (empty content), when main runs, then it returns 0 with empty policy', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const result = sut([pipelinePath], io, { readUserPolicy: () => '' });
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.ok, true);
+  assert.deepEqual(resolution.policy, {});
+});
+
+test('Given user file with frontmatter but no policy key, when main runs, then it returns 0 with empty policy', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const contentWithoutPolicy = '---\nprofile: solo\n---\nbody text\n';
+
+  const result = sut([pipelinePath], io, { readUserPolicy: () => contentWithoutPolicy });
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const resolution = JSON.parse(io.stdout.joined());
+  assert.equal(resolution.ok, true);
+  assert.deepEqual(resolution.policy, {});
+});
+
+// ─── project policy error stderr uses semicolon-space separator ───────────────
+// Kills: StringLiteral survivor at line 280 (errors.join('; ') → errors.join("")).
+// Requires a project policy block with multiple validation errors so the separator
+// appears between them.
+
+test('Given project manifest policy with two unknown verdicts, when main runs, then it returns 2 and stderr joins errors with "; "', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestPath = writeTmp('policy-two-bad-verdicts.md', [
+    '---',
+    'policy:',
+    '  maybe: [integrate]',
+    '  nope: [commit]',
+    '---',
+  ].join('\n'));
+
+  const result = sut([pipelinePath, manifestPath], io, { readUserPolicy: () => null });
+
+  assert.equal(result, 2);
+  const stderr = io.stderr.joined();
+  assert.match(stderr, /project.*policy/i);
+  assert.ok(stderr.includes('; '), `expected "; " separator in stderr: ${stderr}`);
+});
+
+// ─── user policy error stderr uses semicolon-space separator ─────────────────
+// Kills: StringLiteral survivor at line 290 (errors.join('; ') → errors.join("")).
+
+test('Given user file with two unknown verdicts in policy, when main runs, then it returns 2 and stderr joins errors with "; "', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const badContent = '---\npolicy:\n  maybe: [integrate]\n  nope: [commit]\n---\n';
+
+  const result = sut([pipelinePath], io, { readUserPolicy: () => badContent });
+
+  assert.equal(result, 2);
+  const stderr = io.stderr.joined();
+  assert.match(stderr, /user.*policy|policy.*user/i);
+  assert.ok(stderr.includes('; '), `expected "; " separator in stderr: ${stderr}`);
+});
+
+// EQUIVALENT (mutation survivors) — pipeline-resolve-main.js.
+//
+// policy.js:194 StringLiteral (join(homedir(),'.claude')→join(homedir(),"")):
+//   defaultReadUserPolicy computes a different root, but readFileSync still fails
+//   (ENOENT or reading wrong path) and the catch block returns null. Observable
+//   result identical when ~/.claude/craft-policy.md is absent (test env).
+//
+// policy.js:195 StringLiteral (join(USER_POLICY_ROOT,'craft-policy.md')→join(…,"")):
+//   USER_POLICY_PATH becomes USER_POLICY_ROOT itself; containUserPolicyPath
+//   returns it (root is within root); readFileSync on a directory throws; catch
+//   returns null. Observable result identical.
+//
+// pipeline-resolve-main.js:205 ConditionalExpression→false / →true / EqualityOperator:
+//   With the fixed constants USER_POLICY_ROOT / USER_POLICY_PATH, containUserPolicyPath
+//   always returns a non-null path (craft-policy.md is provably inside .claude).
+//   The guard is unreachable dead code; neutralising it does not change the outcome.
+//
+// pipeline-resolve-main.js:207 StringLiteral ('utf8'→""):
+//   ~/.claude/craft-policy.md is absent; readFileSync throws ENOENT regardless of
+//   encoding; catch returns null. Observable result identical.
+//
+// pipeline-resolve-main.js:231 ObjectLiteral {} and ArrowFunction ()=>undefined (line 231/278):
+//   validateManifest({policy:…}, {fileExists:…}) is called with a policy-only manifest;
+//   validatePolicy() never invokes fileExists. Any fileExists value (missing, undefined,
+//   true) produces the same validation result.
+//
+// pipeline-resolve-main.js:278 ObjectLiteral {} and ArrowFunction ()=>undefined:
+//   Same argument — fileExists is never invoked by validatePolicy.
+//
+// NoCoverage pipeline-resolve-main.js:231:82 and 278:98 BooleanLiteral ()=>false:
+//   Same as above — fileExists is never called, so ()=>false ≡ ()=>true here.

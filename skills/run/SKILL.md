@@ -17,13 +17,14 @@ Input: `$ARGUMENTS`
 ## 0 — Resolve
 
 0a. **Parse craft flags from the input** first: strip any `--profile <name>`,
-   `--skip <id,…>`, and repeatable `--harness <phase>.<knob>=<value>` tokens (they may
-   appear anywhere — lead or trail; comma-split the skip ids; `--harness` may be repeated
-   for multiple knobs). Hold them for step 1b. The
+   `--skip <id,…>`, repeatable `--harness <phase>.<knob>=<value>`, and repeatable
+   `--policy <action>=<verdict>` tokens (they may appear anywhere — lead or trail;
+   comma-split the skip ids; `--harness` and `--policy` may each be repeated for multiple
+   knobs/actions). Hold them for step 1b. The
    **non-flag remainder is the input brief** consumed at step 2 — a flags-only
    input (e.g. `--profile lean`) leaves an empty brief, and step 2 STOPs as
    ambiguous exactly as a zero-argument invocation does. These are per-invocation
-   overrides: they win over the manifest's `pipeline.profile`/`pipeline.skip`/`phases.<id>.harness`
+   overrides: they win over the manifest's `pipeline.profile`/`pipeline.skip`/`phases.<id>.harness`/`policy:`
    (the bin merges them at highest precedence — ADR-022).
 
 1. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh"` (repo manifest:
@@ -33,13 +34,16 @@ Input: `$ARGUMENTS`
 
 1b. Run `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/pipeline-resolve.js" \
         "${CLAUDE_PLUGIN_ROOT}/pipeline/default.yml" [manifest-path] \
-        [--profile <name>] [--skip <id,…>] [--harness <phase>.<knob>=<value>]…` via Bash,
+        [--profile <name>] [--skip <id,…>] [--harness <phase>.<knob>=<value>]… \
+        [--policy <action>=<verdict>]…` via Bash,
     capturing stdout. The manifest path argument is included only when a manifest file was
     found in step 1; the `--profile`/`--skip` flags are appended only when parsed in step 0a;
     each `--harness` occurrence is forwarded as a separate `--harness <phase>.<knob>=<value>`
-    argument in the order parsed. The bin folds all three over the manifest at highest
-    precedence — CLI `--harness` values win over `phases.<id>.harness` knobs in the manifest
-    (a bad knob value or unknown phase exits non-zero; stderr names the violation).
+    argument in the order parsed; each `--policy` occurrence is forwarded as a separate
+    `--policy <action>=<verdict>` argument in the order parsed. The bin folds all three over
+    the manifest at highest precedence — CLI `--harness` and `--policy` values win over their
+    manifest counterparts (a bad knob value or unknown phase or unknown action exits non-zero;
+    stderr names the violation).
     - On non-zero exit (this includes resolver `ok: false` — a rejected `role:` or a
       stranded consumer — whose `errors[]` are written to stderr, never as stdout JSON):
       STOP; surface stderr to the user; refuse to proceed.
@@ -310,6 +314,18 @@ bring their own `procedure`, dispatched verbatim (step 1).
 
 - **Blockers** escalate to the user as `{ phase/slice, reason, ≤3 candidate options }`
   — never spin, never silently abandon.
+
+- **Policy consult**: before any phase performs a nameable outward action (a member of
+  `POLICY_ACTIONS` — see `docs/adapters/policy.md`), the session calls
+  `Policy.consult(action, { effectivePolicy: Resolution.policy, binding })` over the
+  held `Resolution.policy` and the active binding, and obeys the returned surface:
+  `proceed` (execute silently), `ask-then-proceed` (raise `AskUserQuestion` then
+  execute on approval), `refuse` (do not execute; no-op or block per reversibility),
+  or `degrade-to-blocker` (headless `ask` with no pre-approval — block and record).
+  One `POLICY(...)` token is appended to the run record per consult (see
+  `docs/adapters/policy.md` greppable record tokens). The three engine floors
+  (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are
+  **not** in `POLICY_ACTIONS` and are never consulted — they remain absolute.
 
 - **Provenance**: no phase/ADR/backlog references inside source or test code, ever.
   Design docs and the PR body carry provenance.

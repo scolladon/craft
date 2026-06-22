@@ -2394,3 +2394,170 @@ test('Given memory { source: custom, ref: empty string }, when validateManifest 
     `empty string ref must be rejected; got: ${JSON.stringify(result.errors)}`,
   );
 });
+
+// ─── policy block validation ──────────────────────────────────────────────────
+
+test('Given policy { always: [integrate] } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { always: ['integrate'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given policy { never: [nonsense-action] } when validateManifest runs, then error includes "unknown policy action"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { never: ['nonsense-action'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown policy action')));
+});
+
+test('Given policy { always: non-list } when validateManifest runs, then error includes "must be a list"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { always: 'integrate' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('must be a list')));
+});
+
+test('Given policy naming an engine floor when validateManifest runs, then error includes "unknown policy action"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { never: ['never-commit-on-red'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown policy action')));
+});
+
+test('Given policy { maybe: [integrate] } when validateManifest runs, then error includes "unknown policy verdict"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { maybe: ['integrate'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown policy verdict')));
+});
+
+test('Given policy as a bare string when validateManifest runs, then error includes "policy must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: 'always' },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('policy must be an object')));
+});
+
+test('Given policy { always: [integrate], ask: [integrate] } (same action in two verdict lists) when validateManifest runs, then error includes "policy action assigned to multiple verdicts"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { always: ['integrate'], ask: ['integrate'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('policy action assigned to multiple verdicts')));
+});
+
+test('Given manifest with no policy key when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'file', ref: 'some/file.md' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `missing policy must not error; got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given policy { always: [integrate, push] } with multiple valid actions when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { always: ['integrate', 'push'], never: ['propose'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given policy { always: [integrate], never: [nonsense-action] } when validateManifest runs, then errors accumulate for both issues', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { always: ['integrate'], never: ['nonsense-action'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown policy action')));
+});
+
+// ─── policy null top-level type guard ────────────────────────────────────────
+
+test('Given policy: null when validateManifest runs, then it returns error "policy must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: null },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('policy must be an object')));
+});
+
+// ─── policy verdict error names valid verdicts with comma-space separator ────
+
+test('Given policy with unknown verdict when validateManifest runs, then error lists valid verdicts with comma-space separation', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { maybe: ['integrate'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const verdictError = result.errors.find(e => e.includes('unknown policy verdict'));
+  assert.ok(verdictError, `expected a verdict error, got: ${JSON.stringify(result.errors)}`);
+  assert.match(verdictError, /always, ask, never|always,ask,never/);
+  assert.ok(verdictError.includes(', '), `expected comma-space separator in: ${verdictError}`);
+});
+
+// ─── policy action error names valid actions with comma-space separator ───────
+
+test('Given policy with unknown action when validateManifest runs, then error lists valid actions with comma-space separation', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { policy: { never: ['bogus-action'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const actionError = result.errors.find(e => e.includes('unknown policy action'));
+  assert.ok(actionError, `expected an action error, got: ${JSON.stringify(result.errors)}`);
+  assert.ok(actionError.includes(', '), `expected comma-space separator in: ${actionError}`);
+  assert.match(actionError, /isolate.*commit|commit.*push|integrate/);
+});

@@ -8,12 +8,13 @@
 import { resolveAlias } from './alias-map.js';
 import { VALID_ARCHETYPES } from './descriptor.js';
 import { BUNDLE_VOCAB } from './graph.js';
+import { POLICY_ACTIONS, VERDICTS } from './policy.js';
 
 /** Known top-level keys (ADR-010 adds pipeline, retrieval, execution). */
 const TOP_KEYS = Object.freeze(new Set([
   'backlog', 'memory', 'paths', 'context', 'gates', 'phases',
   'pr', 'scripts', 'models', 'pipeline', 'retrieval', 'execution',
-  'extends',
+  'extends', 'policy',
 ]));
 
 /**
@@ -267,6 +268,56 @@ function validateMemory(memory, fileExists, errors) {
   } else if (source === 'custom') {
     if (typeof ref !== 'string' || ref.trim() === '') {
       errors.push('memory.ref is required for source custom');
+    }
+  }
+}
+
+/**
+ * Record an action into the seen-actions map; push a conflict error if already seen.
+ * @param {string} action
+ * @param {string} verdict
+ * @param {Map<string, string>} seen action → first verdict
+ * @param {string[]} errors
+ */
+function trackPolicyAction(action, verdict, seen, errors) {
+  if (seen.has(action)) {
+    errors.push(`policy action assigned to multiple verdicts: '${action}' appears in both '${seen.get(action)}' and '${verdict}'`);
+  } else {
+    seen.set(action, verdict);
+  }
+}
+
+/**
+ * Validate `policy` sub-object (three-list YAML shape).
+ * Accumulates errors — no short-circuit after top-level type guard.
+ * @param {unknown} policy
+ * @param {string[]} errors
+ */
+function validatePolicy(policy, errors) {
+  if (typeof policy !== 'object' || policy === null || Array.isArray(policy)) {
+    errors.push('policy must be an object { always, ask, never }');
+    return;
+  }
+
+  const seen = new Map();
+
+  for (const [verdict, actions] of Object.entries(policy)) {
+    if (!VERDICTS.includes(verdict)) {
+      errors.push(`unknown policy verdict: '${verdict}' (expected one of ${VERDICTS.join(', ')})`);
+      continue;
+    }
+
+    if (!Array.isArray(actions)) {
+      errors.push(`policy.${verdict} must be a list of action names`);
+      continue;
+    }
+
+    for (const action of actions) {
+      if (!POLICY_ACTIONS.includes(action)) {
+        errors.push(`unknown policy action: '${action}' (expected one of ${POLICY_ACTIONS.join(', ')})`);
+      } else {
+        trackPolicyAction(action, verdict, seen, errors);
+      }
     }
   }
 }
@@ -681,6 +732,9 @@ export function validateManifest(manifest, opts) {
         break;
       case 'memory':
         validateMemory(value, fileExists, errors);
+        break;
+      case 'policy':
+        validatePolicy(value, errors);
         break;
       case 'extends':
         validateExtends(value, fileExists, errors);
