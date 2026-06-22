@@ -50,6 +50,15 @@ Input: `$ARGUMENTS`
     its initial lines. Subsequent phase outcomes, skip reasons, no-op
     justifications, probe results, and forced actions are appended.
 
+1c-mem. **Load memory store (once per run).** Resolve the store path from the
+    manifest's `memory.ref` (default `.claude/craft-memory.md`, ADR-118/121), rooted
+    at the repo ROOT (the worktree/checkout root — NEVER `${CLAUDE_PLUGIN_ROOT}`, hard
+    constraint). Call `load(repoRoot, deps)` — see `docs/adapters/memory.md` Claude
+    binding. Hold the single `MemoryView` in-session beside the run record for the
+    duration of this run. A cold, absent, or malformed store yields an empty view and
+    records a load no-op — the run proceeds exactly as today (advisory-only, never a
+    blocker; ADR-116/120). `load` is called **once per run, not per phase**.
+
 1d. `Resolution.gateDecisions` is an ARRAY of `{ phaseId, gate, codeProducing }`
     (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose
     `phaseId === "propose"` and store its `awaitingHarnesses[]` in-session as the
@@ -139,6 +148,15 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    exit: STOP; surface stderr; refuse to proceed. On **agent** execution the
    block is PREPENDED to the Task spawn prompt. On **inline** execution the
    block is loaded into the session at phase entry and the session follows it.
+
+   **Memory hint (advisory).** Before assembling the block, slice the in-session
+   `MemoryView` for this phase's concern(s) (see per-phase notes in each phase skill's
+   Preamble). If the slice is non-empty, **prepend it into the injected contract block
+   as part of the pre-chewed context** — this is slot 1 of the **Agent spawns**
+   invariant below (the same slot whether the phase is agent-spawned or inline; no
+   second injection surface is added). A hint that failed validate-on-read was already
+   dropped at `load` — if the slice is empty, the phase probes as today. This read is
+   purely advisory and never gates. See `docs/adapters/memory.md` Claude binding.
 
 4. **Execute** via the resolved execution mode (`phase.execution`).
 
@@ -264,7 +282,9 @@ bring their own `procedure`, dispatched verbatim (step 1).
 - **Agent spawns**: every role-agent spawn is structured as:
   1. **Injected contract block** (from step 3 above, includes the assembled core +
      bundle invariants + derived retrieval note + manifest `context:` appended by
-     the assembler). Do NOT separately re-inject `context:` — the assembler already
+     the assembler; **plus the memory hint prepended** when the MemoryView slice for
+     this phase is non-empty — see step 3 memory-hint clause and `docs/adapters/memory.md`
+     Claude binding). Do NOT separately re-inject `context:` — the assembler already
      appends it; double-injection is a breach.
   2. **Working directory** and **task dynamics** (phase id, slice, gate string).
   3. **Artifact paths**: committed artifacts passed by PATH — the agent reads them
@@ -358,6 +378,24 @@ numeric convergence enforcement) is deferred to the later walk/parallelism pass,
 its home.
 
 ## Done
+
+**Memory save (once per run).** Derive `delta` from the run-record-buffered observations
+(every concern-keyed fact each phase wrote to the run record this run). Resolve the store
+path from `memory.ref` (default `.claude/craft-memory.md`) rooted at the repo ROOT, same
+as `load` (the engine joins `ref` under the repo root and refuses a path that escapes it).
+Call `save(repoRoot, view, delta, deps)` **once**, atomically — `view` is the run-start
+`MemoryView` (so non-re-observed entries decay rather than vanish) and `deps` carries
+`writeStore`/`caps`/`run`/`ref`. A failed save is a recorded
+warning in the run record — **never a blocker** (ADR-120); no locking (last-flush-wins).
+Writes are buffered all run and flushed once here, so a phase that blocked mid-run leaves
+the store unchanged (atomicity; Req 6).
+
+**Metrics artifact (separate, append-only).** For each agent-spawned phase that returned a
+usage block, append one line to `.claude/craft-metrics.md` (ADR-119):
+`<run-id> <phase-id> tokens=<subagent_tokens> duration_ms=<duration_ms> cache=<hit|miss>`.
+Source: the usage block the spawn already returns — exact, zero extra cost. Role-less /
+inline phases have no spawn usage block; omit them. Metrics go to `.claude/craft-metrics.md`
+**only** — never into the learnings store `.claude/craft-memory.md`.
 
 Final message: the PR URL (or branch name if no remote) + one-line summary + the run
 record.

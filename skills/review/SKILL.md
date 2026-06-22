@@ -15,6 +15,15 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    their definitions); `passes` = reviewers per dimension (default `1`); `max_cycles`
    (default `3`); `convergence` (default `low-only`). Gates as in implementation's
    preamble; `gates.review-batch` optional extra.
+3. **Memory read/write surface (advisory).**
+   READS: recurring `findings` entries as advisory **watch-items** — prepended to each
+   reviewer spawn's injected block so reviewers check these locations first. A cached
+   finding pre-empts re-discovery effort; it never replaces the full-diff review.
+   WRITES (buffered to run record, flushed at run end): findings that recurred this run,
+   keyed by `file` + `pattern`, with `severity`. `file` MUST be stored repo-RELATIVE
+   (strip the repoRoot prefix) — never an absolute path, which would leak `$HOME`/username
+   into the committed store. Per ADR-123 whitelist: no provenance refs, no code snippets,
+   no prose explanation body, no PII.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

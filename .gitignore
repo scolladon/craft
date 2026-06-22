@@ -8,3 +8,12 @@
 !examples/.claude/workflow/*.md
 !adapters/pi/.claude/
 !adapters/pi/.claude/workflow.md
+# P22 memory store + metrics — committable even where .claude/ is globally ignored
+!.claude/
+.claude/*
+!.claude/craft-memory.md
+!.claude/craft-metrics.md
+
+# Stryker mutation-testing artifacts (regenerated per run, never committed)
+/reports/
+/engine/.stryker-tmp/

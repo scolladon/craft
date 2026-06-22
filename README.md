@@ -7,8 +7,9 @@ as-is and customizes through a committed declination manifest. Zero session-memo
 dependence: every load-bearing rule lives in a hook, a script, or versioned instruction text.
 
 craft applies a **Harness-as-a-Service (HaaS)** pattern: the model (Model port), the runtime
-(Execution port), and each per-phase harness are pluggable; the engine-owned invariant contract is
-not. This is a *pattern* — a reusable, governed layer you install — not a hosted SaaS.
+(Execution port), the per-repo advisory memory store (Memory port), and each per-phase harness are
+pluggable; the engine-owned invariant contract is not. This is a *pattern* — a reusable, governed
+layer you install — not a hosted SaaS.
 
 ## Why craft
 
@@ -49,7 +50,7 @@ test/validate command** — a repo with one runs the full default pipeline on an
 [docs/SC5-second-instantiation-record.md](docs/SC5-second-instantiation-record.md)); a
 repo with no test command hits the gate-floor refusal by design (non-negotiable). **Start with [docs/GUIDE-customizing.md](docs/GUIDE-customizing.md)** —
 the mental model (hexagon · ports · the invariant core you can't change) plus the full
-injection catalog (skip / model / gate / execution / profile / harness / backlog /
+injection catalog (skip / model / gate / execution / profile / harness / backlog / memory /
 context / override / swap / insert), each linked to a runnable [`examples/`](examples/)
 sample. Deeper schema, declination verbs, and protected phases: see
 [docs/DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md).

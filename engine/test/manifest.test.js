@@ -1433,6 +1433,103 @@ test('Given backlog { source: custom, ref: non-string } when validateManifest ru
   assert.ok(result.errors.some(e => e.includes('ref is required')));
 });
 
+// ─── memory source/shape validation ──────────────────────────────────────────
+
+test('Given memory { source: file, ref: existing } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'file', ref: 'some/file.md' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given memory { source: file, ref: missing } when validateManifest runs with NEVER_EXISTS, then error contains "references missing file" and "memory.ref"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'file', ref: 'nope.md' } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('references missing file')));
+  assert.ok(result.errors.some(e => e.includes('memory.ref')));
+});
+
+test('Given memory { source: custom, ref: non-empty } when validateManifest runs with NEVER_EXISTS, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'custom', ref: './scripts/mem.sh' } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given memory { source: custom } with no ref when validateManifest runs, then error contains "memory.ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'custom' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('memory.ref is required')));
+});
+
+test('Given memory { source: bogus, ref: x } when validateManifest runs, then error contains "unknown memory source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'bogus', ref: 'x' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown memory source')));
+});
+
+test('Given memory { source: file, ref: x, bogus: 1 } when validateManifest runs, then error contains "unknown memory field: bogus"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'file', ref: 'x', bogus: 1 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown memory field: bogus')));
+});
+
+test('Given memory as a bare string when validateManifest runs, then error contains "memory must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: 'x' },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('memory must be an object')));
+});
+
+test('Given memory { ref: x } with no source when validateManifest runs, then error contains "must declare a source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { ref: 'x' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('must declare a source')));
+});
+
 test('Given backlog { source: acme-tracker } with a matching extends.backlog-adapters registration, when validateManifest runs, then ok:true', () => {
   const sut = validateManifest;
 
@@ -2187,5 +2284,113 @@ test('Given extends.backlog-adapters with a null entry at index 1, when validate
   assert.ok(
     result.errors.some(e => e.includes('backlog-adapters[1]') && e.includes('must be an object')),
     `error must name index 1; errors: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+// ─── KILL: validateMemory null guard (L242) ───────────────────────────────────
+// Kills the ConditionalExpression mutant that replaces `memory === null` with false.
+// Without the null guard, Object.keys(null) would throw instead of returning an error.
+
+test('Given memory is null, when validateManifest runs, then it returns an error containing "memory must be an object" and does not throw', () => {
+  const sut = validateManifest;
+
+  let result;
+  assert.doesNotThrow(() => {
+    result = sut(
+      { memory: null },
+      { fileExists: ALWAYS_EXISTS },
+    );
+  }, 'validateManifest must not throw on null memory');
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('memory must be an object')),
+    `expected "memory must be an object" error; got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+// Kills the ConditionalExpression mutant that replaces Array.isArray check with false.
+
+test('Given memory is an array, when validateManifest runs, then error contains "memory must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: [{ source: 'file', ref: 'some/file.md' }] },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('memory must be an object')),
+    `expected "memory must be an object" error; got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+// ─── KILL: validateMemory source === 'file' branch (L267) ─────────────────────
+// Kills the ConditionalExpression mutant that flips source === 'file' to true,
+// which would incorrectly run checkFileRef for custom sources.
+
+test('Given memory { source: custom, ref: non-empty-string } with NEVER_EXISTS fileExists, when validateManifest runs, then ok:true and no file-reference error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'custom', ref: './scripts/custom-mem.sh' } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+  assert.ok(
+    !result.errors.some(e => e.includes('references missing file')),
+    'custom source must not trigger file-existence check',
+  );
+});
+
+// ─── KILL: validateMemory custom ref typeof/trim guards (L268) ────────────────
+// Kills ConditionalExpression (typeof ref !== 'string' → false),
+// StringLiteral (ref.trim() → "" always empty), and
+// MethodExpression (ref.trim() → ref — no trim call).
+
+test('Given memory { source: custom } with ref as a non-string number, when validateManifest runs, then error contains "memory.ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'custom', ref: 42 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('memory.ref is required')),
+    `expected "memory.ref is required" error; got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test('Given memory { source: custom, ref: whitespace-only string }, when validateManifest runs, then error contains "memory.ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'custom', ref: '   ' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('memory.ref is required')),
+    `whitespace-only ref must be rejected; got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test('Given memory { source: custom, ref: empty string }, when validateManifest runs, then error contains "memory.ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { memory: { source: 'custom', ref: '' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('memory.ref is required')),
+    `empty string ref must be rejected; got: ${JSON.stringify(result.errors)}`,
   );
 });

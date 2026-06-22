@@ -32,7 +32,16 @@ description: Craft phase 8 - mutation-test the change, triage survivors (kill or
      blocker `{ verify, "<criterion> unmet", ≤3 options }` escalated to the user —
      never a silent pass and never a silent gate fail. Headless (Pi adapter, no user):
      record the blocker and halt; never degrade to a silent pass.
-3. **Read harness knobs** from `phase.harness` (the resolved descriptor): `tool` names
+3. **Memory read/write surface (advisory).**
+   READS: `mutation-tool` entry — if a mutation tool + config fingerprint was previously
+   recorded for this repo, skip the re-probe for tool presence but **still re-validate
+   config-file presence** (the config-file presence check still runs; the hint only saves
+   the tool-name probe, never the existence check). A miss falls through to the full probe
+   below. This read is purely advisory — it does not entangle the gating probe.
+   WRITES (buffered to run record, flushed at run end): the mutation tool name + config
+   fingerprint discovered this run. Keep distinct from and non-interfering with the
+   gating probe's "phase ends here" exit below.
+4. **Read harness knobs** from `phase.harness` (the resolved descriptor): `tool` names
    which mutation tool to run (absent → the probe below determines it); `scope` (default
    `per-hunk`); `incremental` (default `false`). Then **probe: mutation tooling
    configured?** (stryker/mutmut/cosmic-ray/cargo-mutants config, or whatever the repo

@@ -13,6 +13,16 @@ description: Craft phase 5 - execute the plan slice by slice, one slice-implemen
    nothing exists, REFUSE to run this phase** — a workflow without any gate is not
    this workflow).
 2. The plan must exist and pass `plan-lint.sh` (re-run it; cheap).
+3. **Memory read/write surface (advisory).**
+   READS: `gate-cmd` entry for this repo as an advisory hint — if a gate command was
+   previously recorded, skip re-discovery but **still run it** (the gate is sacred; the
+   hint only saves the probe, never the execution). A miss falls through to full gate
+   probe as today.
+   WRITES (buffered to run record, flushed at run end): the gate/test command discovered
+   this run — stored as the BARE command only, with any leading env/secret assignment
+   prefix stripped (never `TOKEN=… npm test` or a command carrying a credential), since
+   the store is committed; per-slice `size` + pass/blocked `outcome` for each implemented
+   slice.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

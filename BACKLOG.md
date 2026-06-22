@@ -37,6 +37,13 @@ until the DoD is met. Canonical form is Claude Code's `/loop /craft:run`, self-p
 run-record `verify:` verdict; a headless `craft-pi` exit-code variant is documented as a contrast. No
 engine change — craft still runs exactly one gated pass per invocation; the loop composes a Claude
 Code primitive over an existing entry point (ADRs 111–115).
+**P22 delivered 2026-06-22** — repo-local self-improving memory: a 7th port (`docs/adapters/memory.md`)
+whose `load`/`save` verbs maintain an **advisory, never-gating** cache in the TARGET repo
+(`.claude/craft-memory.md`, committed via a `.gitignore` re-include), accumulating mechanically-derived
+learnings (toolchain, discovered gate command, recurring findings, slice-sizing, per-phase metrics).
+Validate-on-read + confidence/decay + merge-before-insert + a newest-window size cap keep it fresh and
+bounded; the content whitelist is document-only; deleting the store changes run *cost*, never
+*correctness*. Configured via a new top-level `memory:` manifest key (ADRs 116–123).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -80,20 +87,6 @@ Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
-
-### P22 — Repo-local craft memory (self-improving per repo) — spike + build
-
-A **memory local to the repository** that craft maintains and **improves after each run**, so each
-subsequent run on that repo is better — higher quality, faster, fewer tokens, with recorded
-improvements. The memory accumulates what craft learned about this repo (toolchain quirks, gate
-commands, recurring review findings, slice-sizing that worked, cost/latency per phase) and feeds
-the next run.
-
-Scope: **spike first** (feasibility + shape: where it lives in-repo, what it records, how phases
-read/write it, how it avoids staleness/poisoning), **then build**. Explicitly wanted in the repo as
-a tracked task. Open questions for the spike: per-repo file vs `.claude/`-style store; what each
-phase contributes; how to measure run-over-run improvement (quality/speed/tokens); guardrails so a
-bad memory entry can't degrade a run. (Promoted from session feedback 2026-06-21.)
 
 ### P23 — Configurable policy hooks: always / ask / never (user + project precedence)
 
@@ -215,6 +208,18 @@ session feedback 2026-06-21.)
   model: reset the per-feature section each change, drop it in favour of per-feature criteria living in
   the design doc's Requirements, or template it. Until then, `verify:` asserts the evergreen sections and
   records the per-feature section's provenance honestly.
+- **Repo-local memory hardening** (P22 follow-ups — surfaced by review/validation) — the memory port
+  (`docs/adapters/memory.md`, ADRs 116–123) ships deliberate document-only / mechanism-only choices that
+  leave clean upgrade paths: (a) the **`custom` memory adapter** binding is reserved in the `memory:` key
+  but only `file` is built; (b) the content whitelist is **document-only** — a **reject-at-write + schema
+  lint** is the documented upgrade if non-mechanical content (abs paths, secrets, prose) ever leaks in
+  practice; (c) `reconcile` does not **dedupe same-key entries on load** (advisory; the write surface
+  normally maintains uniqueness) — a load-time collapse would harden against a hand-edited store; (d)
+  `evictToCaps` re-serializes per drop, an **O(n²) cap-shrink edge** (lowering a cap on an already-large
+  store) a bulk-prune would fix (YAGNI at current bounded sizes); (e) **run-over-run measurement** has no
+  smoke yet — an SC5-style on-demand smoke driving load→save→`.claude/craft-metrics.md` across two runs
+  would prove the improvement loop end-to-end. None blocking; each is bounded by the advisory-cache
+  premise (worst case wasted cost, never wrong correctness).
 
 ### Closed — won't-do (rationale recorded)
 

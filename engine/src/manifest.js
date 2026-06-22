@@ -11,7 +11,7 @@ import { BUNDLE_VOCAB } from './graph.js';
 
 /** Known top-level keys (ADR-010 adds pipeline, retrieval, execution). */
 const TOP_KEYS = Object.freeze(new Set([
-  'backlog', 'paths', 'context', 'gates', 'phases',
+  'backlog', 'memory', 'paths', 'context', 'gates', 'phases',
   'pr', 'scripts', 'models', 'pipeline', 'retrieval', 'execution',
   'extends',
 ]));
@@ -59,6 +59,9 @@ export const RESERVED_HARNESS_KEYS = Object.freeze(['__proto__', 'constructor', 
 
 /** Valid source identifiers for the `backlog` key. */
 const BACKLOG_SOURCES = Object.freeze(new Set(['file', 'custom']));
+
+/** Valid source identifiers for the `memory` key. */
+const MEMORY_SOURCES = Object.freeze(new Set(['file', 'custom']));
 
 /**
  * Sentinel values that indicate an absent path (no file-existence check needed).
@@ -225,6 +228,45 @@ function validateBacklog(backlog, fileExists, adapterNames, errors) {
   } else if (source === 'custom') {
     if (typeof ref !== 'string' || ref.trim() === '') {
       errors.push('backlog.ref is required for source custom');
+    }
+  }
+}
+
+/**
+ * Validate the `memory` sub-object.
+ * @param {unknown} memory
+ * @param {(path: string) => boolean} fileExists
+ * @param {string[]} errors
+ */
+function validateMemory(memory, fileExists, errors) {
+  if (typeof memory !== 'object' || memory === null || Array.isArray(memory)) {
+    errors.push('memory must be an object { source, ref }');
+    return;
+  }
+
+  for (const k of Object.keys(memory)) {
+    if (k !== 'source' && k !== 'ref') {
+      errors.push(`unknown memory field: ${k}`);
+    }
+  }
+
+  const { source, ref } = memory;
+
+  if (source === undefined) {
+    errors.push('memory must declare a source (one of file, custom)');
+    return;
+  }
+
+  if (!MEMORY_SOURCES.has(source)) {
+    errors.push(`unknown memory source: ${source} (expected one of file, custom)`);
+    return;
+  }
+
+  if (source === 'file') {
+    checkFileRef('memory.ref', ref, fileExists, errors);
+  } else if (source === 'custom') {
+    if (typeof ref !== 'string' || ref.trim() === '') {
+      errors.push('memory.ref is required for source custom');
     }
   }
 }
@@ -636,6 +678,9 @@ export function validateManifest(manifest, opts) {
         break;
       case 'backlog':
         validateBacklog(value, fileExists, adapterNames, errors);
+        break;
+      case 'memory':
+        validateMemory(value, fileExists, errors);
         break;
       case 'extends':
         validateExtends(value, fileExists, errors);

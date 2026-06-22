@@ -11,6 +11,12 @@ description: Craft phase 4 - produce the sliced TDD implementation plan via the 
 2. Probe: plan directory (`paths.plan`, else `docs/plan/`, create if absent); **design
    doc present?** present → hard input; absent → the planner's mandatory input is the
    resolved brief and it performs its own exploration (slower, never blocked).
+3. **Memory read/write surface (advisory).**
+   READS: `slice-sizing` entries from prior runs as a weak planner hint (no per-use
+   re-check; confidence-weighted). Prepended to the planner spawn's injected block when
+   non-empty.
+   WRITES: none directly from this phase — slice sizing is observed at implementation when
+   each slice's pass/blocked outcome is known.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

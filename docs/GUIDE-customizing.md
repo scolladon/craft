@@ -51,12 +51,12 @@ craft is built **hexagonally**. This is the whole model:
                  │  pipeline walk · phase model + dependency graph + self_supply · §11 guiderail     │
    user input ──▶│  contract injection · gate discipline (policy) · model resolution (policy)        │──▶ run record
                  │  harness config (policy) · run record · alias map · default descriptor list        │
-                 └───┬───────────┬───────────┬──────────────┬───────────────┬───────────────┬────────┘
-        Execution ◀──┘   Model ◀─┘   Gate ◀──┘  Code-access ◀┘   Backlog ◀───┘    VCS ◀───────┘   (6 ports = mechanism)
-            │            │            │            │  (env-sourced,        │               │
-            ▼            ▼            ▼            ▼   NOT adapter)         ▼               ▼
-        Task /        model        Bash gate    runtime+settings        file / gh /     git worktree
-        in-thread     param        + hooks      (LSP/RAG/RTK/Serena      jira / linear   + gh CLI
+                 └───┬───────────┬───────────┬──────────────┬───────────────┬───────────────┬──────────┬──────┘
+        Execution ◀──┘   Model ◀─┘   Gate ◀──┘  Code-access ◀┘   Backlog ◀───┘    VCS ◀───────┘  Memory ◀┘  (7 ports = mechanism)
+            │            │            │            │  (env-sourced,        │               │           │
+            ▼            ▼            ▼            ▼   NOT adapter)         ▼               ▼           ▼
+        Task /        model        Bash gate    runtime+settings        file / gh /     git worktree  .claude/
+        in-thread     param        + hooks      (LSP/RAG/RTK/Serena      jira / linear   + gh CLI    craft-memory.md
         (Claude Code adapter)                    /native Read+Grep)      / custom        (Claude Code adapter)
 ```
 
@@ -64,11 +64,12 @@ craft is built **hexagonally**. This is the whole model:
   guiderail (§2 below), contract injection, gate discipline, model resolution, the run record. It
   knows *what* must happen, never *how* a runtime carries it out. The core decides "plan **consumes**
   design," not "design precedes plan."
-- **Ports (you configure or swap these)** — six thin seams the core uses to reach a mechanism:
-  **Execution**, **Model**, **Gate**, **Code-access/retrieval**, **Backlog SoT**, **VCS/integration**.
-  A port exposes *mechanism*; the core keeps *policy*. The Model port only `select`/`isAvailable` —
-  the core owns the *fallback order*. The Gate port only `run(cmd)` — the core owns *never commit on
-  red*.
+- **Ports (you configure or swap these)** — seven thin seams the core uses to reach a mechanism:
+  **Execution**, **Model**, **Gate**, **Code-access/retrieval**, **Backlog SoT**, **VCS/integration**,
+  **Memory**. A port exposes *mechanism*; the core keeps *policy*. The Model port only
+  `select`/`isAvailable` — the core owns the *fallback order*. The Gate port only `run(cmd)` — the
+  core owns *never commit on red*. The Memory port only `load`/`save` — the core owns the
+  advisory-only invariant (deleting the store changes run cost, never correctness).
 - **Adapter (you don't touch this)** — the binding of those ports to concrete Claude Code primitives
   (Task subagents, the model param, Bash + PreToolUse hooks, `gh`/git, the Skill tool). **craft *is*
   the Claude Code adapter today.** Code-access is the deliberate exception: it is environment-sourced
@@ -125,6 +126,7 @@ Tiered by effort, cheapest first. Each row links a runnable [`examples/`](../exa
 | 5 | **profile** | a whole-flow mode in one word (`solo`/`lean`/`full`) | coarse — a preset, not a scalpel | [`lean-profile/`](../examples/lean-profile/) |
 | 6 | **harness config** | tune rigor per concern (dimensions / passes / cycles / convergence / tool) | mis-tuning over/under-verifies | [`review-harness/`](../examples/review-harness/) |
 | 7 | **backlog source** | use your tracker (`file` or `custom`) | a custom ref is resolved at runtime | [`backlog-custom/`](../examples/backlog-custom/) |
+| 8 | **memory** | per-repo advisory cache (`memory: { source: file, ref }`) — stores mechanically-derived learnings (toolchain, gate commands, findings, slice sizing) so subsequent runs skip re-probing; default store at `.claude/craft-memory.md`, committed via a `.gitignore` re-include. Advisory-only: deleting it changes run cost, never correctness. See [`docs/adapters/memory.md`](adapters/memory.md) for the port contract. | a custom `ref` that escapes the repo root is silently skipped — the port never reads or writes outside the repo | — |
 
 Default-off phases turn on the same way (one line): see [`requirements/`](../examples/requirements/)
 and [`architecture/`](../examples/architecture/).

@@ -10,6 +10,13 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
 1. `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh"` must pass; read the manifest.
 2. Probe: git repo present (else STOP — craft needs one); default branch
    (`origin/HEAD` → `main` → `master` → ask once).
+3. **Memory read/write surface (advisory).**
+   READS: last `toolchain` entry for this repo (ecosystem + lockfile fingerprint). If the
+   fingerprint matches the current lockfile, skip re-detection for the already-known
+   ecosystem — still re-detect on a miss or a changed fingerprint.
+   WRITES (buffered to run record, flushed at run end): the detected ecosystem + lockfile
+   fingerprint produced by `scripts/worktree-setup.sh` lockfile detection. The hint never
+   gates — a miss falls through to full detection as today.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
