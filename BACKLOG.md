@@ -149,6 +149,39 @@ Likely a new skill (`craft:init`/customize) plus a probe+interview+emit pipeline
 (repo memory) and P23 (policy hooks). Best built *through* craft itself (dogfood). (Promoted from
 session feedback 2026-06-21.)
 
+### P26 — Auto-skip phases craft evaluates as unnecessary (config `required:` override)
+
+Today craft skips a phase only when **told to** — `--skip`/`pipeline.skip` (operator waiver), a
+default-off descriptor (`enabled: false`, e.g. requirements/architecture), or a runtime **no-op**
+(P19: `decisions`/`refactoring` find nothing to do, `validation`'s DoD sub-concern). What it does
+**not** do is *evaluate, up front, whether a phase is even needed for this change* and skip it when
+it provably has nothing to do.
+
+Add a pre-phase **necessity evaluation**: before entering a phase, craft decides — from the actual
+change (diff shape, the artifacts the phase consumes/produces, the capability probe already run) —
+whether the phase has any work. If it provably does not, **auto-skip** it and record why — **unless
+the phase is marked `required:` in config**, which forces it to run regardless. `required:` is the
+operator's escape hatch against a wrong evaluation, and the safe pin for any phase an operator never
+wants silently dropped.
+
+This **generalizes the P19 runtime no-op** (phase ran, found nothing) into a cheaper
+*didn't-need-to-run* decision, and it is the inverse of `pipeline.skip` (operator skips a phase craft
+would run; here craft skips a phase the operator didn't pin). Load-bearing design questions (own
+decisions phase):
+- **Evaluation signal per phase** — what makes a phase provably empty (no consumed artifact changed?
+  empty diff in the phase's scope? probe finds no tooling?), and which phases are even *eligible*
+  (the three non-overridable floors and producer phases are likely never auto-skippable).
+- **`required:` config surface** — a per-phase manifest knob (`phases.<id>.required: true`), its
+  precedence vs `--skip`/`enabled:false`, and the default (opt-in vs opt-out per phase).
+- **Surfacing** — auto-skip is **not** an operator waiver: it needs its own run-record token /
+  `Resolution` signal (e.g. `auto-skip: <phase> — evaluated unnecessary (<signal>)`), distinct from
+  `WAIVER:` and `NO-OP(<phase>)`.
+- **Consumer-strand safety** — an auto-skip must respect the resolver's stranded-consumer guard:
+  never skip a phase whose `produces` a later enabled phase `consumes`.
+
+Distinct from P23 (policy governs outward *actions*, not phase necessity) and from P25 (which
+*authors* a manifest; this *evaluates at run time*). (Promoted from session feedback 2026-06-22.)
+
 ---
 
 ## Parked
