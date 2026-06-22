@@ -31,6 +31,12 @@ re-running them, lets the DoD subsume architecture-alignment with an honest gap-
 `architecture` phase stays default-off), and on absence records a non-blocking `NO-OP(verify): no DoD
 declared` carried into the PR body. `manifest-lint` validates `paths.dod` when declared; the rest of
 `paths.*` stays reserved-but-inert (ADRs 104–110).
+**P21 delivered 2026-06-21** — running craft in a loop: a docs + example recipe (`examples/loop/` plus
+a GUIDE §4 "use-pattern" subsection) for an operator-owned OUTER loop that re-invokes one craft pass
+until the DoD is met. Canonical form is Claude Code's `/loop /craft:run`, self-paced on the printed
+run-record `verify:` verdict; a headless `craft-pi` exit-code variant is documented as a contrast. No
+engine change — craft still runs exactly one gated pass per invocation; the loop composes a Claude
+Code primitive over an existing entry point (ADRs 111–115).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -58,6 +64,7 @@ declared` carried into the PR body. `manifest-lint` validates `paths.dod` when d
 | P18 | Walk/parallelism enforcement — resolver emits a `reviewPlan` on the review descriptor (passes/convergence now engine-enforced) + repeatable per-invocation `--harness` overlay; discharges ADR-064 | 096–099 |
 | P19 | "Nothing to do" as a first-class phase outcome — `decisions` adopts clear ADR-aligned recommendations without escalating; both judgment phases record a greppable `NO-OP(<phase>):` no-op carried into the PR body | 100–103 |
 | P20 | DoD-aware verification — optional DoD artifact (`docs/DOD.md` / `paths.dod`) folds into `validation` (default-ON); per-criterion assertion, warn-on-absence `NO-OP(verify):`, DoD subsumes (1)/(2), `paths.dod` lint-validated | 104–110 |
+| P21 | Running craft in a loop — operator-owned outer-loop recipe (`/loop /craft:run` self-paced on the run-record verdict; headless `craft-pi` exit-code contrast); docs + `examples/loop/`, no engine change | 111–115 |
 
 Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
 
@@ -73,17 +80,6 @@ Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
-
-### P21 — Running craft in a loop (recipe/example, not an engine loop)
-
-Explore driving craft iteratively (re-run against PRD + DoD + config until the DoD is met).
-**Decision lean (user): ship an EXAMPLE/recipe of using craft in a loop rather than baking loop
-semantics into the engine** — keeping the engine generic and the loop a composable, flexible outer
-harness (the operator owns the loop, craft owns one pass). Scope: a documented recipe
-(`docs/GUIDE-*` / `examples/`) showing an external loop that re-invokes `/craft:run` (or `craft-pi`)
-with a DoD-driven stop condition; no engine change. Contrast with the alternative (engine-native
-loop) and record why example-first wins (generality/flexibility). (Promoted from session feedback
-2026-06-21.)
 
 ### P22 — Repo-local craft memory (self-improving per repo) — spike + build
 
@@ -211,6 +207,14 @@ session feedback 2026-06-21.)
   engine instructions, and "evidenced by phase results, never re-run" mitigates; document that asserting
   agents treat criteria as *claims to verify against phase evidence*, not ground truth, and that DoD
   content is part of the reviewed diff.
+- **`docs/DOD.md` "Feature-acceptance criteria (current change)" section goes stale** (P21 follow-up —
+  surfaced in P21's `validation`) — the repo DoD's evergreen sections (General / Mutation / Gates /
+  Architecture) apply to every change, but the "current change" section is still P20's feature criteria;
+  P21 deliberately did not touch `docs/DOD.md` (the loop example ships its own `examples/loop/DOD.md`),
+  so the `verify:` step had no P21-specific acceptance lines to assert against. Decide the intended
+  model: reset the per-feature section each change, drop it in favour of per-feature criteria living in
+  the design doc's Requirements, or template it. Until then, `verify:` asserts the evergreen sections and
+  records the per-feature section's provenance honestly.
 
 ### Closed — won't-do (rationale recorded)
 

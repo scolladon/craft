@@ -278,6 +278,19 @@ Samples that reference a context/override body keep those files under
 [`examples/.claude/workflow/`](../examples/.claude/workflow/) so each manifest lints as-is; in your
 repo they'd sit at your project root's `.claude/workflow/`.
 
+### Running craft in a loop — a use-pattern
+
+The loop is an operator-owned outer harness, not an engine feature: craft runs one gated pass per
+invocation and does not loop internally. The canonical interactive form is Claude Code's `/loop`
+self-paced over the printed run record, e.g. `/loop /craft:run TICKET-42`; after each pass the model
+reads the run record's `verify:` verdict — stop on `verify: DoD met`, run another pass on a
+`verify: … unmet`, surface-and-halt on any other blocker or a `NO-OP(verify):`. The headless form
+(no model in the loop) drives `craft-pi`, which prints no run record — the operator's harness keys
+on its binary exit code (`0` = met, `2` = another pass needed or blocked) under a DoD-presence
+precondition that makes `exit 0 ⇒ met` sound. Both forms are bounded and loud: a small iteration cap prevents an infinite
+spin; non-convergence is surfaced, never swallowed. See the recipe for the full stop-condition tables
+and the engine-native-loop rejection: [examples/loop/](../examples/loop/).
+
 ---
 
 ## 5. Tailor in one sitting

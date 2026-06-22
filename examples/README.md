@@ -49,6 +49,15 @@ point:
   swap *who* runs a phase, or *the steps* it runs, and the engine still injects the invariant contract
   around your worker — a swap can't drop what binds the phase.
 
+## A use-pattern: running craft in a loop
+
+The loop composes a Claude Code primitive (`/loop`) over an existing craft entry point
+(`/craft:run`). It injects nothing into craft — no manifest key, no injection point — and therefore
+does not appear in the injection-point table above. The recipe covers the interactive form (Claude
+Code `/loop` self-paced on the run record) and the headless form (`craft-pi` exit-code driven under a
+DoD-presence precondition). See [`loop/`](loop/) for the operator instructions and DoD-driven exit
+condition.
+
 ## A note on the sample context/override files
 
 Samples that reference a `context:` or `override:` body keep those files under

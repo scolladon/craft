@@ -41,3 +41,31 @@ ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 @test "Given the architecture skill is synchronous, when it is checked for mutation-lock clones, then craft-mutation.lock is absent" {
   ! grep -q 'craft-mutation.lock' "${ROOT}/skills/architecture/SKILL.md"
 }
+
+@test "Given the loop recipe is authored, when the workflow file is checked, then it exists" {
+  [ -f "${ROOT}/examples/loop/workflow.md" ]
+}
+
+@test "Given the loop recipe is authored, when the DoD file is checked, then it exists" {
+  [ -f "${ROOT}/examples/loop/DOD.md" ]
+}
+
+@test "Given the loop recipe is authored, when the README file is checked, then it exists" {
+  [ -f "${ROOT}/examples/loop/README.md" ]
+}
+
+@test "Given the loop recipe is catalog-indexed, when the GUIDE is checked, then it references examples/loop/" {
+  grep -q 'examples/loop/' "${ROOT}/docs/GUIDE-customizing.md"
+}
+
+@test "Given the loop recipe is catalog-indexed, when the examples README is checked, then it references loop/" {
+  grep -q 'loop/' "${ROOT}/examples/README.md"
+}
+
+@test "Given the loop workflow file is provenance-clean, when it is checked for plan references, then no P21 or ADR tokens appear" {
+  ! grep -qE 'P21|ADR' "${ROOT}/examples/loop/workflow.md"
+}
+
+@test "Given the loop DoD file is provenance-clean, when it is checked for plan references, then no P21 or ADR tokens appear" {
+  ! grep -qE 'P21|ADR' "${ROOT}/examples/loop/DOD.md"
+}
