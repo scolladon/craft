@@ -35,10 +35,16 @@ Dev loop: `claude --plugin-dir /path/to/craft`.
 
 ```
 /craft:run <backlog-id | path/to/spec.md | "feature description">
+/craft:run --config <name> <backlog-id | path/to/spec.md | "feature description">
 ```
 
+`--config <name>` loads `.claude/craft-<name>.md` as the manifest for that run (distinct
+from `--profile`, which sets the execution map inside whichever manifest is read). An
+absent `--config` target is a loud stop — it never silently falls back to `.claude/workflow.md`.
+
 Phase skills also run standalone: `/craft:review` (multi-dimension review battery on
-the current branch), `/craft:validation` (scoped mutation run + triage), etc.
+the current branch), `/craft:validation` (scoped mutation run + triage),
+`/craft:init` (interview-driven named-manifest generator — writes `.claude/craft-<name>.md`), etc.
 
 ## Customize — `.claude/workflow.md` in your repo
 

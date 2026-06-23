@@ -10,29 +10,37 @@ WT="${1:?usage: worktree-setup.sh <worktree-path> [post-setup-script]}"
 POST="${2:-}"
 cd "$WT"
 
+SCRIPTS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/detect-ecosystem.sh
+source "${SCRIPTS_DIR}/detect-ecosystem.sh"
+
 installed=""
-if   [ -f package-lock.json ]; then npm ci || npm install; installed="npm"
-elif [ -f pnpm-lock.yaml ];    then pnpm install --frozen-lockfile; installed="pnpm"
-elif [ -f yarn.lock ];         then yarn install --frozen-lockfile; installed="yarn"
-elif [ -f bun.lockb ] || [ -f bun.lock ]; then bun install; installed="bun"
-elif [ -f uv.lock ];           then uv sync; installed="uv"
-elif [ -f poetry.lock ];       then poetry install; installed="poetry"
-elif [ -f Cargo.toml ];        then cargo fetch; installed="cargo"
-elif [ -f go.mod ];            then go mod download; installed="go"
-elif [ -f Gemfile.lock ];      then bundle install; installed="bundler"
-elif [ -f composer.lock ];     then composer install; installed="composer"
-else
-  for sub in */; do
-    if [ -d "$sub" ] && [ -f "${sub}package-lock.json" ]; then
-      ( cd "$sub" && (npm ci || npm install) )
-      installed="npm (nested: ${sub%/})"
-      break
+installed="$(detect_ecosystem .)" || installed=""
+
+case "$installed" in
+  npm)      npm ci || npm install ;;
+  pnpm)     pnpm install --frozen-lockfile ;;
+  yarn)     yarn install --frozen-lockfile ;;
+  bun)      bun install ;;
+  uv)       uv sync ;;
+  poetry)   poetry install ;;
+  cargo)    cargo fetch ;;
+  go)       go mod download ;;
+  bundler)  bundle install ;;
+  composer) composer install ;;
+  "")
+    for sub in */; do
+      if [ -d "$sub" ] && [ -f "${sub}package-lock.json" ]; then
+        ( cd "$sub" && (npm ci || npm install) )
+        installed="npm (nested: ${sub%/})"
+        break
+      fi
+    done
+    if [ -z "$installed" ]; then
+      echo "craft-setup: no recognized lockfile/manifest — dependency install skipped (noted)."
     fi
-  done
-  if [ -z "$installed" ]; then
-    echo "craft-setup: no recognized lockfile/manifest — dependency install skipped (noted)."
-  fi
-fi
+    ;;
+esac
 [ -n "$installed" ] && echo "craft-setup: dependencies installed in-worktree via $installed."
 
 if [ -n "$POST" ]; then

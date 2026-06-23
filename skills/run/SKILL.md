@@ -20,15 +20,31 @@ Input: `$ARGUMENTS`
    `--skip <id,…>`, repeatable `--harness <phase>.<knob>=<value>`, and repeatable
    `--policy <action>=<verdict>` tokens (they may appear anywhere — lead or trail;
    comma-split the skip ids; `--harness` and `--policy` may each be repeated for multiple
-   knobs/actions). Hold them for step 1b. The
+   knobs/actions). Also strip `--config <name>` when present (at most one occurrence);
+   hold the name for manifest-path resolution below.
+   **`--config` is distinct from `--profile`**: `--config` selects *which manifest file
+   is read*; `--profile` sets the *execution map inside* that manifest. The two compose —
+   both may be present in the same invocation. Hold `--profile`/`--skip`/`--harness`/`--policy`
+   for step 1b. The
    **non-flag remainder is the input brief** consumed at step 2 — a flags-only
    input (e.g. `--profile lean`) leaves an empty brief, and step 2 STOPs as
    ambiguous exactly as a zero-argument invocation does. These are per-invocation
    overrides: they win over the manifest's `pipeline.profile`/`pipeline.skip`/`phases.<id>.harness`/`policy:`
-   (the bin merges them at highest precedence — ADR-022).
+   (the bin merges them at highest precedence).
 
-1. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh"` (repo manifest:
-   `.claude/workflow.md`). It must pass — on INVALID, STOP and surface the errors.
+0b. **Resolve the manifest path.** When `--config <name>` was parsed in step 0a:
+   run `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-config.js" <name>` via Bash.
+   - On non-zero exit (bad name or traversal attempt): STOP; surface stderr to the user;
+     refuse to proceed.
+   - On exit 0: the bin prints the resolved relative path to stdout — hold it as
+     `<manifest-path>`. Then check that the file exists (`[ -f <manifest-path> ]`);
+     if it does not exist: STOP with the message "`--config <name>`: no manifest at
+     `.claude/craft-<name>.md`". Never silently fall back to `.claude/workflow.md`.
+   When `--config` is absent: use `.claude/workflow.md` as `<manifest-path>` (today's
+   behaviour, unchanged).
+
+1. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh" <manifest-path>` (passing the
+   resolved path from step 0b). It must pass — on INVALID, STOP and surface the errors.
    Read the manifest (frontmatter = config, body = policy rationale). No manifest =
    pure defaults via each phase's capability probe.
 
@@ -36,14 +52,14 @@ Input: `$ARGUMENTS`
         "${CLAUDE_PLUGIN_ROOT}/pipeline/default.yml" [manifest-path] \
         [--profile <name>] [--skip <id,…>] [--harness <phase>.<knob>=<value>]… \
         [--policy <action>=<verdict>]…` via Bash,
-    capturing stdout. The manifest path argument is included only when a manifest file was
-    found in step 1; the `--profile`/`--skip` flags are appended only when parsed in step 0a;
-    each `--harness` occurrence is forwarded as a separate `--harness <phase>.<knob>=<value>`
-    argument in the order parsed; each `--policy` occurrence is forwarded as a separate
-    `--policy <action>=<verdict>` argument in the order parsed. The bin folds all three over
-    the manifest at highest precedence — CLI `--harness` and `--policy` values win over their
-    manifest counterparts (a bad knob value or unknown phase or unknown action exits non-zero;
-    stderr names the violation).
+    capturing stdout. The manifest path argument (the resolved path from step 0b) is
+    included only when a manifest file was found in step 1; the `--profile`/`--skip` flags
+    are appended only when parsed in step 0a; each `--harness` occurrence is forwarded as a
+    separate `--harness <phase>.<knob>=<value>` argument in the order parsed; each `--policy`
+    occurrence is forwarded as a separate `--policy <action>=<verdict>` argument in the order
+    parsed. The bin folds all three over the manifest at highest precedence — CLI `--harness`
+    and `--policy` values win over their manifest counterparts (a bad knob value or unknown
+    phase or unknown action exits non-zero; stderr names the violation).
     - On non-zero exit (this includes resolver `ok: false` — a rejected `role:` or a
       stranded consumer — whose `errors[]` are written to stderr, never as stdout JSON):
       STOP; surface stderr to the user; refuse to proceed.

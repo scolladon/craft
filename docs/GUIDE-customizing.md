@@ -217,8 +217,11 @@ reaches the invariant core (§2).
 
 - **Execution:** `phases.<id>.execution` > `pipeline.profile` > top-level `execution:`.
 - **Model:** manifest `models.<agent>` > the agent's pin > `models.fallback` > the session model.
-- **Per-invocation flags** (`--profile`, `--skip`, `--harness`, `--policy`, …) fold over the manifest at **highest**
+- **Per-invocation flags** (`--profile`, `--skip`, `--harness`, `--policy`, `--config`, …) fold over the manifest at **highest**
   precedence — tailor a single run without editing the file.
+  - **`--config <name>`** selects *which manifest file is read* for the run: loads `.claude/craft-<name>.md` instead of
+    `.claude/workflow.md`. It does not fold a knob inside the manifest — it chooses which file the other flags fold over.
+    `--config` and `--profile` compose: both may appear together. An absent target is a loud stop, never a silent fallback.
 
 #### `--harness <phase>.<knob>=<value>` — per-invocation harness override
 
@@ -306,6 +309,8 @@ Samples that reference a context/override body keep those files under
 [`examples/.claude/workflow/`](../examples/.claude/workflow/) so each manifest lints as-is; in your
 repo they'd sit at your project root's `.claude/workflow/`.
 
+To generate a manifest covering the full catalog interactively rather than hand-writing it, use `craft:init` (see §5).
+
 ### Running craft in a loop — a use-pattern
 
 The loop is an operator-owned outer harness, not an engine feature: craft runs one gated pass per
@@ -362,3 +367,24 @@ declare only what probing can't infer.
 That's the loop: pick the points, write the lines, lint, run. Reach for Tier 1 when one line isn't
 enough (your own agent, your own procedure body, a new phase), and Tier 2 when you want to package it
 as a shareable plugin — see [`derived-plugin/`](../examples/derived-plugin/) and §3 above.
+
+### Interactive alternative — `craft:init`
+
+Rather than hand-authoring, run `craft:init` inside the repo to get an interview-driven guided
+on-ramp. It probes the repo (ecosystem, test command, remote, mutation/architecture tooling), walks
+you through the full Tier-0/1 catalog with probe-grounded defaults, and writes a **named** manifest
+`.claude/craft-<name>.md` — a complete, lint-clean sibling of `.claude/workflow.md`:
+
+```bash
+# Generate a named customization interactively.
+/craft:init
+
+# Load it for a run.
+/craft:run --config <name> "<backlog-id | path/to/spec.md | feature description>"
+```
+
+Named configs coexist as siblings of `.claude/workflow.md`; the live default manifest is never
+touched by a named run. Multiple named configs can coexist in one repo (e.g. `ci`, `strict-review`,
+`solo`). Re-running `craft:init` for an existing name regenerates that file in place; a failed lint
+leaves the prior version untouched. The hand-author path above is still the direct route if you know
+exactly what you want — `craft:init` is the guided on-ramp for exploring or bootstrapping.

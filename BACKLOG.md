@@ -70,6 +70,19 @@ is now pinned by a test (the `'refactor-executor'` survivor is killed); the `IMP
 predicate's `=> true` survivor is documented inline as a provable equivalent (the discriminating-field
 family); and `docs/DOD.md` was reduced to durable criteria only, with per-change criteria moving to the
 design doc — ending the recurring "feature-acceptance section goes stale" item (P21/P23/P24).
+**P25 delivered 2026-06-23** — interactive customization generator (the manifest "front door"): a new
+standalone skill `craft:init` that, run inside a target repo, probes its capabilities, interviews the user
+over the full Tier-0/1 catalog, and writes a lint-clean **named manifest** `.claude/craft-<name>.md`
+(direct write, emit→temp→lint→move-on-exit-0; an INVALID emit never lands). A named config is a *full*
+manifest (frontmatter + prose, the shape `validateManifest` accepts), a sibling of `.claude/workflow.md` —
+multiple coexist and the live default is never touched. The consumption path ships too: a new
+per-invocation `--config <name>` token on `/craft:run` resolves `.claude/craft-<name>.md` as the manifest
+for that run, **distinct** from `--profile` (which sets the execution-archetype map) and composing with it;
+an absent target is a loud STOP. Pure `engine/src/{init-emit,init-config}.js` cores + their bins, a
+read-only `scripts/detect-ecosystem.sh` factored out of and shared with `worktree-setup.sh`, and
+orchestrator-only `--config` wiring — **no new runtime port, no engine bin change** (both manifest bins
+already accept an arbitrary path). 97% mutation score on the new cores; the emit→lint round-trip is the
+load-bearing property (ADRs 136–142).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -113,28 +126,6 @@ Per-part history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/`
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
-
-### P25 — Interactive customization generator (the manifest "front door")
-
-A tool/skill that, run *inside a target repo*, scaffolds a **named** craft customization by probing
-the repo's capabilities and interviewing the user, then writing a lint-clean `.claude/workflow.md`
-declination. Today the only way to customize is to hand-author the manifest (P12 documents it,
-`manifest-lint` validates it) — this is the missing onboarding front door. The "name" the user gives is
-the dedicated override's identity.
-
-Load-bearing design questions (decide in its own decisions phase):
-- **Named override shape** — a user-defined `pipeline.profile` entry, or a separate named manifest file?
-  (Profiles are built-in today: `lean`/`solo`; user-defined named profiles is the real extension.)
-- **Interview transport** — interactive only (orchestrator `AskUserQuestion`), or also a headless/
-  flag-driven mode usable from `craft-pi`?
-- **Discovery layer** — reuse the existing capability probes (`worktree-setup.sh`, the gate probe) vs.
-  a purpose-built probe.
-- **Output** — write `.claude/workflow.md` directly vs. emit a draft for review; always run
-  `manifest-lint` before landing.
-
-Likely a new skill (`craft:init`/customize) plus a probe+interview+emit pipeline. Distinct from P22
-(repo memory) and P23 (policy hooks). Best built *through* craft itself (dogfood). (Promoted from
-session feedback 2026-06-21.)
 
 ### P26 — Auto-skip phases craft evaluates as unnecessary (config `required:` override)
 
@@ -240,6 +231,20 @@ Distinct from P23 (policy governs outward *actions*, not phase necessity) and fr
   symmetric, so harden them together (`realpathSync` then re-check containment) as one cross-cutting change
   if symlink-following ever becomes a concern. Pairs with the memory-hardening item above. Deferred from
   P23's review (LOW).
+- **Interactive generator hardening** (P25 follow-ups — surfaced by review/validation) — `craft:init`
+  shipped deliberate scope edges that leave clean upgrade paths: (a) **headless/answer-file interview
+  mode** for `craft-pi`/non-Claude onboarding (interactive-only today; the interview is a conversation
+  and `craft-pi` has no interactive stdin — ship when a concrete non-Claude onboarding need exists);
+  (b) **merge-into-existing named config** (the generator direct-overwrites a named file today, never
+  merges; precedence-aware frontmatter reconciliation is its own feature); (c) **deterministic land
+  helper + executable test for the emit→temp→lint→move sequence** — that safety sequence lives in
+  `skills/init/SKILL.md` prose (covered by a manual smoke, not an executable test); a small bin taking
+  the *validated* path as argv would make the lint-then-move gate deterministic and unit-testable
+  (review noted the move-gate is prose-only); (d) **a shipped `examples/named-config/` sample + an
+  on-demand end-to-end smoke** running `craft:init` then `/craft:run --config <name>` (mirroring the
+  SC5 second-instantiation smoke) to prove the generate→consume loop. None blocking; each is a bounded
+  edge of an advisory-cost feature (worst case: a manual step, never wrong output — every emit is
+  lint-gated before it lands).
 ### Closed — won't-do (rationale recorded)
 
 - **DC-9 registered-phase model seed** — *resolved by design, not implemented.* The walk

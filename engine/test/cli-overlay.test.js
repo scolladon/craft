@@ -225,3 +225,49 @@ test('Given a manifest with no pipeline key and a harness-only overlay, when app
 
   assert.equal(result.pipeline, undefined, 'a harness-only overlay must not inject a pipeline key');
 });
+
+// ─── named-config precedence: CLI --profile wins over named manifest ──────────
+
+test('Given named config pipeline.profile "full" and CLI --profile "lean", when applyCliOverlay folds, then pipeline.profile is lean (CLI wins over named manifest)', () => {
+  const sut = applyCliOverlay;
+  const manifest = { pipeline: { profile: 'full' } };
+
+  const result = sut(manifest, { profile: 'lean' });
+
+  assert.equal(result.pipeline.profile, 'lean');
+});
+
+// ─── named-config precedence: no CLI profile → named manifest honoured ────────
+
+test('Given named config pipeline.profile "full" and no CLI profile, when applyCliOverlay folds, then pipeline.profile stays full (named manifest honoured)', () => {
+  const sut = applyCliOverlay;
+  const manifest = { pipeline: { profile: 'full' } };
+
+  const result = sut(manifest, {});
+
+  assert.equal(result.pipeline.profile, 'full');
+});
+
+// ─── named-config precedence: CLI --skip applies over named manifest ──────────
+
+test('Given named config and CLI --skip, when applyCliOverlay folds, then skip applies over named manifest', () => {
+  const sut = applyCliOverlay;
+  const manifest = { pipeline: { profile: 'full', skip: ['decisions'] } };
+
+  const result = sut(manifest, { skip: ['review'] });
+
+  assert.deepEqual(result.pipeline.skip, ['decisions', 'review']);
+  assert.equal(result.pipeline.profile, 'full');
+});
+
+// ─── named-config precedence: non-profile keys survive a profile-only overlay ─
+
+test('Given named config with context key and CLI --profile overlay, when applyCliOverlay folds, then non-profile keys survive in result', () => {
+  const sut = applyCliOverlay;
+  const manifest = { pipeline: { profile: 'full' }, context: 'docs/rules.md' };
+
+  const result = sut(manifest, { profile: 'lean' });
+
+  assert.equal(result.pipeline.profile, 'lean');
+  assert.equal(result.context, 'docs/rules.md');
+});
