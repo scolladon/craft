@@ -47,3 +47,17 @@ p25-interactive-manifest-generator review-tests-cycle2 tokens=123151 duration_ms
 p25-interactive-manifest-generator review-code-cycle3 tokens=101047 duration_ms=108110 cache=na
 p25-interactive-manifest-generator validation-triage tokens=122266 duration_ms=1203861 cache=na
 p25-interactive-manifest-generator documentation tokens=92871 duration_ms=166589 cache=na
+p26-auto-skip-unnecessary-phases design tokens=179708 duration_ms=560159 cache=na
+p26-auto-skip-unnecessary-phases planning tokens=191794 duration_ms=563103 cache=na
+p26-auto-skip-unnecessary-phases implementation-part1 tokens=103585 duration_ms=771696 cache=na
+p26-auto-skip-unnecessary-phases implementation-part2 tokens=81513 duration_ms=352805 cache=na
+p26-auto-skip-unnecessary-phases implementation-part3-timeout tokens=0 duration_ms=382866 cache=na
+p26-auto-skip-unnecessary-phases implementation-part3 tokens=127613 duration_ms=356833 cache=na
+p26-auto-skip-unnecessary-phases implementation-part4 tokens=95527 duration_ms=152461 cache=na
+p26-auto-skip-unnecessary-phases review-code tokens=170779 duration_ms=149815 cache=na
+p26-auto-skip-unnecessary-phases review-security tokens=120991 duration_ms=142484 cache=na
+p26-auto-skip-unnecessary-phases review-tests tokens=156001 duration_ms=215809 cache=na
+p26-auto-skip-unnecessary-phases review-perf tokens=92189 duration_ms=40161 cache=na
+p26-auto-skip-unnecessary-phases review-tests-cycle2 tokens=104119 duration_ms=160733 cache=na
+p26-auto-skip-unnecessary-phases validation-triage tokens=84124 duration_ms=576565 cache=na
+p26-auto-skip-unnecessary-phases documentation tokens=91304 duration_ms=282766 cache=na
