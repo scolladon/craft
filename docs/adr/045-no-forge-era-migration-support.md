@@ -25,7 +25,7 @@ craft is single-tenant — there are no external consumers and our own configs a
 the canonical vocabulary. There is no migration to plan; craft behaves as if it always existed. So
 NEITHER the `assembleContract` old-vocab aliasing NOR a migration warn-lint is added: `assembleContract`
 stays canonical-only, which is the consistent posture for a system with no forge-era inputs. Item 10
-(the `s-asm-alias` slice) is dropped from the batch. The pre-existing P4 vocabulary aliasing in
+(the `s-asm-alias` part) is dropped from the batch. The pre-existing P4 vocabulary aliasing in
 `resolve.js`/`manifest.js` (the frozen `ALIAS_MAP`/`resolveAlias` exports) is left untouched — ripping
 it out is a separate, larger change against the frozen surface and was not undertaken here.
 

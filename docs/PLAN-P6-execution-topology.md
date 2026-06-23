@@ -1,16 +1,16 @@
 # Plan — P6: execution topology
 
 > Source: design doc `docs/DESIGN-P6-execution-topology.md` · ADRs `020, 021, 022, 023`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices: coverage/interop/property tests fold
-  into the implementation slice whose code they exercise.
-- A slice that would be a pure test pass over already-landed code merges into its
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts: coverage/interop/property tests fold
+  into the implementation part whose code they exercise.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
 ## Decision-candidates
@@ -25,11 +25,11 @@ None — fully pre-decided by ADRs 020–023.
 - `engine/src/contract.js` carve-out lines are frozen (P5).
 - S1 + SC1 + `engine/test/contract-equivalence.test.js` must stay green at every commit.
 - `scripts/ci.sh` must pass at every commit; never `--no-verify`.
-- Each engine slice is TDD: RED test commit first, then GREEN implementation commit.
+- Each engine part is TDD: RED test commit first, then GREEN implementation commit.
 
 ---
 
-## Slice 1 — `lean` profile + per-archetype expansion
+## Part 1 — `lean` profile + per-archetype expansion
 
 ### Context
 
@@ -150,7 +150,7 @@ is exported from `profile.js` directly and imported where needed (already done i
 
 ---
 
-## Slice 2 — `applyCliOverlay` pure helper + bin `--profile`/`--skip` flags
+## Part 2 — `applyCliOverlay` pure helper + bin `--profile`/`--skip` flags
 
 ### Context
 
@@ -247,13 +247,13 @@ is additive. `pipeline/default.yml` untouched. `resolvePipeline` untouched.
 
 ---
 
-## Slice 3 — run/SKILL.md: inline dispatch + flag forwarding + brief remainder
+## Part 3 — run/SKILL.md: inline dispatch + flag forwarding + brief remainder
 
 ### Context
 
 **File to modify:** `skills/run/SKILL.md`
 
-This is a PROSE-ONLY slice (judgment-fused, no engine code). No new unit tests.
+This is a PROSE-ONLY part (judgment-fused, no engine code). No new unit tests.
 Gate = `scripts/ci.sh` green (manifest-lint, bats, shellcheck, pipeline-resolve smoke).
 
 **Current state of `skills/run/SKILL.md`:**
@@ -343,7 +343,7 @@ Add a new subsection `### Manual acceptance check` at the end of the walk (befor
 
 ### TDD steps
 
-This is a prose-only slice. There is no RED/GREEN cycle in the TDD sense. Instead:
+This is a prose-only part. There is no RED/GREEN cycle in the TDD sense. Instead:
 
 **Prose draft:**
 1. Edit `skills/run/SKILL.md`:
@@ -363,7 +363,7 @@ This is a prose-only slice. There is no RED/GREEN cycle in the TDD sense. Instea
      roles skip craft load.
    - The inline record line is distinct from the agent path record line.
    - The manual acceptance check procedure is actionable and mentions `--profile lean`.
-   - No engine code or test is touched in this slice.
+   - No engine code or test is touched in this part.
 
 **Gate run:**
 3. Run `scripts/ci.sh` — manifest-lint, bats, shellcheck, pipeline-resolve smoke must
@@ -380,7 +380,7 @@ This is a prose-only slice. There is no RED/GREEN cycle in the TDD sense. Instea
 
 ---
 
-## Slice 4 — DX: DESIGN-customizable-engine.md + examples/lean-profile + ADR-023 check
+## Part 4 — DX: DESIGN-customizable-engine.md + examples/lean-profile + ADR-023 check
 
 ### Context
 
@@ -437,7 +437,7 @@ This is the documented procedure referenced in the SKILL.md acceptance check not
 
 ### TDD steps
 
-This is a docs-only slice. No RED/GREEN cycle.
+This is a docs-only part. No RED/GREEN cycle.
 
 **Prose draft:**
 1. Edit `docs/DESIGN-customizable-engine.md` with the four targeted updates listed above.

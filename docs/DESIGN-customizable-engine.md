@@ -196,7 +196,7 @@ per SP4 (old name in parentheses). Artifact names below are the design's canonic
 | `design` | specification | yes | `craft:designer` | `workspace, requirements` | `requirements` | `design` | — |
 | `decisions` (adr) | specification | yes | — *(session-owned)* | `design` | `design` | `decisions` | — |
 | `planning` (plan) | specification | yes | `craft:planner` | `design, decisions` | `design, decisions` | `plan` | `plan-lint` |
-| `implementation` (implement) | construction | yes | `craft:slice-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
+| `implementation` (implement) | construction | yes | `craft:part-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
 | `review` | harness | yes | `craft:reviewer` | `change` | — | `review-report` | `<gates.phase>` per round |
 | `refactoring` (refactor) | refinement | yes | `craft:refactor-executor` | `change` | — | `change` | `<gates.phase>` |
 | `validation` (mutation) | harness | yes | `craft:validation-triager` | `change` | — | `validation-report` | `<validation gate>` · `harness: {tool: stryker, scope: per-hunk}` |
@@ -332,7 +332,7 @@ named by the descriptor's `contract:` field:
 |---|---|---|
 | **U — universal core** | every phase, every mode | never commit on red gate; artifact-is-the-handoff; blocker protocol `{ unit, reason, ≤3 options }` — never spin/guess; no provenance refs (phase/ADR/backlog) in source or test; no suppression directives; bounded scope; work only in the given working directory |
 | **producer** | specification/construction artifact producers (design, requirements, planning) | fill the named template/schema; **Decision-candidates / pre-chewed-context** mandate; self-review to convergence (≤3); state-mutating probes run in a `mktemp` throwaway, never the worktree (generalised from the designer carve-out) |
-| **construction** | implementation slices | RED→GREEN→REFACTOR strictly; gate-before-commit; one atomic commit; G/W/T·AAA·`sut` test conventions absent a context override |
+| **construction** | implementation parts | RED→GREEN→REFACTOR strictly; gate-before-commit; one atomic commit; G/W/T·AAA·`sut` test conventions absent a context override |
 | **harness-read** | `review` | read-only; structured findings `{file:line, severity, finding, fix}`; zero findings legitimate; fix-delta rounds verify prior + review the fix diff |
 | **harness-exec** | `validation`, `architecture`, security/perf… | a tool runs, the AI triages survivors/violations (kill or prove-equivalent / fix or justify); never weaken a test; gate-green before commit |
 | **delivery** | documentation, backlog, propose, integrate | content traceable to committed artifacts/shipped surface; touch only listed targets; the session owns synthesis records |
@@ -352,7 +352,7 @@ injected block by concatenating, in order:
 [derived retrieval-strategy note]                    (project > env > user > native — §10.1)
 [manifest global context: files, verbatim]
 [manifest per-phase context: file(s), verbatim]
-[dynamics: working dir, output paths, diff range, slice block, gate command, commit message]
+[dynamics: working dir, output paths, diff range, part block, gate command, commit message]
 ```
 
 - **agent**: the block is prepended to the Task spawn prompt (the agent def supplies only role
@@ -371,7 +371,7 @@ context files appended; assert the inline variant swaps exactly the two carve-ou
 **Output shape (R10) — principle in core, parser deferred.** SP5 showed structured output
 *shape* varies by model (Haiku emitted review findings as JSON, not one-per-line). The **core
 principle** (this design): every structured-output bundle (harness-read findings; U blocker
-protocol; producer plan-slice headings) **pins a canonical field set**, and any consumer **keys
+protocol; producer plan-part headings) **pins a canonical field set**, and any consumer **keys
 on the fields** (`severity`, `file:line`, `reason`, `### Context`) **never on the layout** —
 tolerating a JSON array or a per-line list interchangeably; where a *script* parses (plan-lint),
 the schema stays **structural** (required headings), the most shape-robust form. The concrete
@@ -401,12 +401,12 @@ The to-be `run/SKILL.md` walk, generalised away from hardcoded phase names:
      `gate-only` harness (no `role`) runs its tool + gate with no triage spawn;
    - **verify the artifact** (commit exists; artifact present) — artifact-is-the-handoff; a dead
      agent → fresh respawn fed from the artifact, never a continuation;
-   - **run the gate** via the Gate port — *targeted* gate per fix commit (`gates.slice` over
+   - **run the gate** via the Gate port — *targeted* gate per fix commit (`gates.part` over
      touched files + `gates.review-batch` if declared); the *phase* gate **once per round**;
      never commit on a known-red gate;
    - **record** the outcome (incl. any skip/insert/swap/inline/override/degradation) in the run
      record;
-   - on a **blocker** → escalate `{ phase/slice, reason, ≤3 options }`, never spin;
+   - on a **blocker** → escalate `{ phase/part, reason, ≤3 options }`, never spin;
    - on a **model-down** error (not a task blocker) → mark the tier degraded for the run,
      re-resolve to fallback, respawn from the artifact.
 3. **Cross-cutting invariants**, applied uniformly and expressed by *archetype* (not phase
@@ -427,7 +427,7 @@ The to-be `run/SKILL.md` walk, generalised away from hardcoded phase names:
 | `agents/<role>.md` carrying full contracts | **thin** role defs (identity + craft); invariant text relocated to the engine **contract store**; agents renamed to concern names (`mutation-triager→validation-triager`, …) | P4,P5 |
 | `manifest-lint.sh` (shape, static `PROTECTED`, old `PHASE_NAMES`) | extended for new keys; reads the shared **alias map** (ADR-004); static `PROTECTED` removed (the graph computes stranding); P2 hardens it (yq + fallback) under test — **or folds into the Node core** (ADR-002 follow-up) | P2,P3,P4 |
 | — (no resolver) | **new portable Node core module** (ADR-002): parse `pipeline/default.yml`, alias-resolve, expand profile, apply edits, validate the graph, assemble the injected block — the deterministic core functions, P1-unit-tested with a Node runner | P3,P5 |
-| `plan-lint.sh` | unchanged (structural slice-schema gate — the shape-robust output model) | — |
+| `plan-lint.sh` | unchanged (structural part-schema gate — the shape-robust output model) | — |
 | `worktree-setup/teardown.sh` | unchanged mechanically; **named as the VCS adapter** (isolate/teardown verbs); lock policy is core | P3 (name), P16 (extract) |
 | `hooks/*` | unchanged; **named as the Gate/tool-guard mechanical adapter** | — |
 | `templates/*` | unchanged; `templates/requirements.md` added (P10) — `architecture` is a harness and needs no template; `agents/requirements-writer.md` + `agents/architecture-triager.md` + `skills/requirements/` + `skills/architecture/` now ship | P10 |

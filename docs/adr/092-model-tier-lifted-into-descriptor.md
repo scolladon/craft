@@ -31,6 +31,6 @@ is the descriptor field.
 - **Re-baseline obligation (load-bearing):** the change must be proven equivalent on the Claude
   side — SC1 golden walk + R8 agent-output baseline + the `node --test` count guard must be
   re-baselined so the resolved spawn model per phase is provably identical to today. A silent
-  tier drift is a breach. The planner MUST carry a dedicated slice for this with the re-baseline
+  tier drift is a breach. The planner MUST carry a dedicated part for this with the re-baseline
   in its gate.
 - Every present and future adapter reads one tier source; resolution order stays core policy.

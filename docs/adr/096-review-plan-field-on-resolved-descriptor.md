@@ -43,7 +43,7 @@ case (and the existing `low-only` / `none` cases for those).
 
 - The resolve path gains a pure `reviewPlan` derivation from the harness block; a resolution
   test pins its shape and values. Layer A is therefore **not** SKILL-only — it carries engine
-  code (this reconciles the slice-1 description in ADR-099).
+  code (this reconciles the part-1 description in ADR-099).
 - `skills/review/SKILL.md` reads `phase.harness.reviewPlan` rather than re-deriving the
   fan-out count or stop threshold; the parked-note block is removed.
 - Commits us to the resolved-descriptor shape carrying `reviewPlan`; a future review-plan knob

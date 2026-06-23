@@ -171,8 +171,8 @@ probe. Old names ship as **back-compat aliases** (manifest-lint resolves them; N
 | Specification | `requirements` *(opt, off)* | prd | PRD/spec doc |
 | Specification | `design` | — | design doc |
 | Specification | `decisions` | adr | ADR records |
-| Specification | `planning` | plan | sliced TDD plan + plan-lint |
-| Construction | `implementation` | implement | TDD slices |
+| Specification | `planning` | plan | part-based TDD plan + plan-lint |
+| Construction | `implementation` | implement | TDD parts |
 | Harness — *reading* | `review` | — | AI multi-dimension diff read |
 | Harness — *executing* | `validation` | mutation | mutation testing (stryker/mutmut/cargo-mutants) |
 | Harness — *executing* | `architecture` *(opt, off)* | — | dependency/layering rules (dependency-cruiser/ArchUnit/import-linter) |
@@ -281,9 +281,9 @@ sub-runs (`env -u ANTHROPIC_API_KEY claude -p "<probe>" --model <tier> --append-
 "$(cat agents/<agent>.md)" --allowedTools "" --output-format text`) and score adherence.
 Probes (text-in/out, mostly mechanical):
 - **A — planner/plan-schema:** plan a `slugify` util → `scripts/plan-lint.sh` PASSes.
-- **B — slice TDD + no-suppression:** `isEven` RED-before-GREEN, no suppression directives.
+- **B — part TDD + no-suppression:** `isEven` RED-before-GREEN, no suppression directives.
 - **C — reviewer structured findings:** review a planted off-by-one diff → severity-tagged + catches the bug.
-- **D — blocker protocol:** an under-specified slice → returns `{slice, reason, ≤3 options}`, doesn't guess.
+- **D — blocker protocol:** an under-specified part → returns `{part, reason, ≤3 options}`, doesn't guess.
 
 12 runs → a tier×probe PASS/PARTIAL/FAIL matrix → `proposed-class` = lowest all-PASS tier.
 Full operator prompt is in the PR thread / session; result pasted back here on completion.
@@ -298,7 +298,7 @@ haiku=claude-haiku-4-5-20251001.
 | sonnet (claude-sonnet-4-6) | PASS | PASS | PASS | PASS |
 | haiku (claude-haiku-4-5-20251001) | PASS | PASS | PASS | PASS |
 
-**Supported class: Haiku-4.5 and up.** Every load-bearing contract — plan slice schema,
+**Supported class: Haiku-4.5 and up.** Every load-bearing contract — plan part schema,
 TDD + no-suppression, structured review (catches the planted index bug), blocker protocol —
 holds across the entire Claude tier ladder, down to the cheapest tier. Strong evidence for
 G12: contract adherence does not require top-tier reasoning.

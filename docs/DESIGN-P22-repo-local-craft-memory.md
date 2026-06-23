@@ -1,10 +1,10 @@
 # Design — P22: repo-local craft memory (self-improving per repo)
 
 > Brief: a memory store craft maintains **inside the repo it runs against**, accumulating per-repo
-> learnings (toolchain quirks, discovered gate/test commands, recurring review findings, slice-sizing
+> learnings (toolchain quirks, discovered gate/test commands, recurring review findings, part-sizing
 > that worked, per-phase cost/latency) so each subsequent run on that repo is higher-quality, faster,
 > and cheaper. Each run **reads** the store at start (skip re-probing, pre-empt known findings, size
-> slices) and **writes back** what it learned at end.
+> parts) and **writes back** what it learned at end.
 > Status: accepted (ADRs 116-123) — draft → self-reviewed ×3 → refined (load/update lifecycle + memory constraints) → decisions ratified (advisory-cache premise + DC-1..DC-8 → ADRs 116-123). Three decisions deviated from the recommendation and are folded in below: ADR-118 (location → `.claude/craft-memory.md`, committed via re-include), ADR-122 (size bound = both caps, merge-before-insert, newest-window eviction), ADR-123 (whitelist enforced document-only).
 
 This is a **spike-first, then build** task (BACKLOG P22). The spike below resolves the four open
@@ -101,7 +101,7 @@ producers:
 | Discovered gate/test command | implementation gate probe ("discovers the repo's test command → `pytest`") | `skills/implementation/SKILL.md:10-11`; `docs/SC5-second-instantiation-record.md:50` |
 | Mutation tool present/absent | validation tool probe (no config → recorded no-op) | `docs/SC5-second-instantiation-record.md:53`; ADR-082 |
 | Recurring review findings | `review` → normalized `Finding[]` `{file,line,severity,finding,fix?}` | `skills/review/SKILL.md`; `engine/bin/normalize-findings.js` |
-| Slice-sizing that worked | `planning` slices + `implementation` per-slice pass/blocked outcomes | `skills/implementation/SKILL.md:19-28` |
+| Part-sizing that worked | `planning` parts + `implementation` per-part pass/blocked outcomes | `skills/implementation/SKILL.md:19-28` |
 | Per-phase cost / latency | `subagent_tokens` + `duration_ms` from each **agent spawn's** usage block | `skills/run/SKILL.md:315-317` ("Numbers are harness-sourced … exact, zero-cost. No agent is asked to report its own usage") |
 
 Note the source boundary: token/latency numbers come from **the usage block a spawn returns**, so they
@@ -221,8 +221,8 @@ phase *would otherwise re-derive*:
 - "Which findings recur?" — answered by `review`. Cached as advisory *watch-items* the reviewer is told
   to look for first; the reviewer still reviews the full diff (a cached finding pre-empts, never
   replaces, review).
-- "What slice size landed cleanly?" — answered by planning+implementation outcomes. Cached as a planner
-  hint ("slices of ~N touched files passed first-try last run"); the planner still plans.
+- "What part size landed cleanly?" — answered by planning+implementation outcomes. Cached as a planner
+  hint ("parts of ~N touched files passed first-try last run"); the planner still plans.
 
 This is why deleting the store changes only cost: every entry is a memo of a computation the run can
 still perform. This advisory-cache-with-provenance framing — the store is never a source of truth that
@@ -234,7 +234,7 @@ gates a decision — is the load-bearing premise the whole design rests on; it i
 `load(repoRoot)` is called **once, at run start** — folded into the run's existing setup, right after the
 run record is seeded (`skills/run/SKILL.md:49-51, 81`) and before the first phase walks. It is **not**
 re-called per phase. The single returned `MemoryView` is held in-session beside the run record; each phase,
-at its entry, reads only its concern-slice from that already-validated view (the per-phase Reads column in
+at its entry, reads only its concern-part from that already-validated view (the per-phase Reads column in
 §Per-phase read/write contract). The hint is injected through the existing pre-chewed-context path — slot 1
 of the **Agent spawns** structure (`skills/run/SKILL.md:264-275`): block PREPENDED to the Task prompt for
 agent-mode phases, loaded at phase entry for inline phases. No new injection surface, no new orchestrator
@@ -325,7 +325,7 @@ precondition (content whitelist) named in §Update semantics.
 | gate-cmd | the literal command string + phase | command still resolvable? | command *output*, logs |
 | mutation-tool | tool id + config-file fingerprint | config file still present? | mutation results |
 | findings | `file + severity + pattern` (a normalized `Finding` shape) | file still exists? | code snippets, diff hunks, the finding's prose body, any PII |
-| slice-sizing | numeric size + pass/blocked outcome | (used as a weak planner hint; no per-use re-check) | file contents, slice rationale |
+| part-sizing | numeric size + pass/blocked outcome | (used as a weak planner hint; no per-use re-check) | file contents, part rationale |
 | metrics | `tokens`, `duration_ms`, hit/miss counts (harness-sourced) | (append-only history in the separate `.claude/craft-metrics.md` artifact; not decayed, exempt from the cap — ADR-119) | self-reported numbers |
 
 The hard ban: **no free-form, semantic, or LLM-inferred content** — no "this codebase prefers pattern X",
@@ -385,9 +385,9 @@ The build adds `docs/adapters/memory.md` with this schema:
 
 - `load(repoRoot) → MemoryView` — read the store rooted at `repoRoot` and return a validated view:
   each entry passed through validate-on-read, surviving entries grouped by concern (toolchain, gate-cmd,
-  findings, slice-sizing, metrics). **Called exactly once per run, at run start** (see §Read lifecycle) —
+  findings, part-sizing, metrics). **Called exactly once per run, at run start** (see §Read lifecycle) —
   one filesystem read, one validation pass; the single returned `MemoryView` is held in-session and each
-  phase consults its concern-slice at entry. **pre:** `repoRoot` is the resolved worktree/checkout root
+  phase consults its concern-part at entry. **pre:** `repoRoot` is the resolved worktree/checkout root
   (never the plugin dir). **post:** the view contains only entries that passed validation *or* are flagged
   advisory-only-low-confidence; an absent/empty/malformed store yields an **empty view**, never an error
   (Req 2) — a malformed store is recorded as a no-op-load note, not a blocker.
@@ -413,7 +413,7 @@ adapter:
 
 **`## Claude binding`** — `load`/`save` are filesystem reads/writes against `repoRoot` performed by the
 session orchestrator: **`load` once at run start, `save` once at run end**. The single `MemoryView` is
-held in-session (alongside the run record); at each phase's entry the orchestrator slices the concern this
+held in-session (alongside the run record); at each phase's entry the orchestrator parts the concern this
 phase reads and **prepends it into the step-3 injected contract block as part of the pre-chewed context** —
 the same slot, assembled the same way, whether the phase spawns an agent (block PREPENDED to the Task
 prompt) or runs inline (block loaded at phase entry) — `skills/run/SKILL.md:140-148, 264-275` ("Agent
@@ -442,8 +442,8 @@ at run end (Req 4). The contract per phase:
 | Phase | Reads (advisory hint at entry) | Writes (buffered → flushed at end) |
 |---|---|---|
 | `workspace` | last ecosystem/toolchain → skip re-detect if lockfile unchanged | detected ecosystem, lockfile fingerprint |
-| `planning` | slice-sizing that landed cleanly last run | (none directly; sizing observed at implementation) |
-| `implementation` | discovered gate/test command → skip re-discovery (still **runs** it) | gate/test command, per-slice size + pass/blocked outcome |
+| `planning` | part-sizing that landed cleanly last run | (none directly; sizing observed at implementation) |
+| `implementation` | discovered gate/test command → skip re-discovery (still **runs** it) | gate/test command, per-part size + pass/blocked outcome |
 | `review` | recurring `Finding[]` as watch-items reviewers check first | findings that recurred this run (file/severity/pattern, **not** provenance refs) |
 | `validation` | mutation tool present/absent → skip re-probe (still re-validates presence) | mutation tool + config fingerprint |
 | all spawned (cross-cutting) | — | per-spawned-phase `tokens` + `duration_ms` + cache hit/miss (usage-block-sourced; agent-mode phases only) |

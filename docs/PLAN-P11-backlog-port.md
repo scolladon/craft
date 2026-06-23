@@ -1,40 +1,40 @@
 # Plan — backlog-sot-adapter (P11)
 
 > Source: design doc `docs/DESIGN-P11-backlog-port.md` · ADRs `054, 055, 056, 057, 058, 059, 060`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
 ## Slicing rationale (read once, applies to all three)
 
-Three slices, derived from the design's two-layer split (`Design → CORE deltas` + `PORT/ADAPTER deltas`):
+Three parts, derived from the design's two-layer split (`Design → CORE deltas` + `PORT/ADAPTER deltas`):
 
-- **Slice 1 — `validateBacklog`** (`engine/src/manifest.js`, mutation-scored). Its node tests
-  fold in (FEATURE code, no standalone test slice). The bats fixtures + the `valid-basic.workflow.md`
-  migration fold into **this** slice — NOT a separate test-infra slice — because they exercise the
+- **Part 1 — `validateBacklog`** (`engine/src/manifest.js`, mutation-scored). Its node tests
+  fold in (FEATURE code, no standalone test part). The bats fixtures + the `valid-basic.workflow.md`
+  migration fold into **this** part — NOT a separate test-infra part — because they exercise the
   *same* `validateBacklog` behaviour through the `manifest-lint.js` CLI, and because ADR-054's
   hard-reject makes the existing `backlog: my-backlog` bats fixture go red the instant `validateBacklog`
   lands. Migrating `valid-basic` must be atomic with the validator or the phase-boundary `bats test/`
   has a red window. Folding them costs nothing and removes that window.
-- **Slice 2 — `backlogSourceOf` + `buildManifestRecords`** (`engine/src/resolve.js`, mutation-scored).
-  Its node tests + the S6 scenario strengthen + the S6 fixture migration fold in. Slice 1 leaves
+- **Part 2 — `backlogSourceOf` + `buildManifestRecords`** (`engine/src/resolve.js`, mutation-scored).
+  Its node tests + the S6 scenario strengthen + the S6 fixture migration fold in. Part 1 leaves
   `resolve.js` untouched, so S6 (a bare-string fixture flowing only through `resolvePipeline`, never
-  `validateManifest`) stays green after Slice 1; Slice 2 migrates the S6 fixture and rewrites
-  `buildManifestRecords` together, atomically — no cross-slice red window.
-- **Slice 3 — adapter spec doc + skill wiring** (`docs/adapters/backlog.md`, `skills/run/SKILL.md`,
+  `validateManifest`) stays green after Part 1; Part 2 migrates the S6 fixture and rewrites
+  `buildManifestRecords` together, atomically — no cross-part red window.
+- **Part 3 — adapter spec doc + skill wiring** (`docs/adapters/backlog.md`, `skills/run/SKILL.md`,
   `skills/documentation/SKILL.md`). Docs-only, standalone, **no `src/` delta**, **no `EXPECTED_TESTS`
-  bump**. Per the template's exception, a docs/prose slice with no implementation slice to fold into is
+  bump**. Per the template's exception, a docs/prose part with no implementation part to fold into is
   legitimately standalone.
 
 **Public-surface decision (settled up front):** both new symbols — `validateBacklog` and
@@ -42,14 +42,14 @@ Three slices, derived from the design's two-layer split (`Design → CORE deltas
 file-local helper in `manifest.js` exercised through the already-exported `validateManifest`;
 `backlogSourceOf` is a file-local helper in `resolve.js` exercised through the already-exported
 `resolvePipeline`. `engine/src/index.js` (the barrel) re-exports only `validateManifest` /
-`resolvePipeline` and is **NOT touched** by any slice. The one genuinely new public artifact is the doc
-surface `docs/adapters/backlog.md` + its two skill pointers, owned by Slice 3. There is no
+`resolvePipeline` and is **NOT touched** by any part. The one genuinely new public artifact is the doc
+surface `docs/adapters/backlog.md` + its two skill pointers, owned by Part 3. There is no
 barrel/facade/exhaustiveness/API-report/registry gate to pre-pay for either helper.
 
-**Provenance rule (all slices):** no phase/ADR/backlog numbers in source or test (design docs carry
+**Provenance rule (all parts):** no phase/ADR/backlog numbers in source or test (design docs carry
 provenance). Error strings and test titles name behaviour, never `ADR-0xx`.
 
-## Slice 1 — validateBacklog: object-shape + two-source validation (manifest.js)
+## Part 1 — validateBacklog: object-shape + two-source validation (manifest.js)
 
 ### Context
 
@@ -165,9 +165,9 @@ inline maps like `pr: { creator: auto }`.)
 Place the new bats `@test` blocks after the existing renamed-agent-model block (end of file, lines
 131–137), under a new comment banner `# --- backlog source/shape validation ---`.
 
-**`scripts/ci.sh` count bump:** this slice adds N node `test()` cases to `manifest.test.js` (the
+**`scripts/ci.sh` count bump:** this part adds N node `test()` cases to `manifest.test.js` (the
 migrated line-53 case is edited-in-place, NOT new; count only the genuinely NEW `test(...)` calls you
-write). `EXPECTED_TESTS=423` at `scripts/ci.sh:10` MUST become `423 + N` in this slice. bats tests are
+write). `EXPECTED_TESTS=423` at `scripts/ci.sh:10` MUST become `423 + N` in this part. bats tests are
 NOT counted in `EXPECTED_TESTS` (they have their own `bats test/` gate). Compute N from the GREEN test
 list below.
 
@@ -222,7 +222,7 @@ strings beyond the user-facing error text). Confirm no provenance refs leaked in
 
 ### Gate
 
-Slice gate (targeted): `cd engine && node --test test/manifest.test.js` (must be green) AND
+Part gate (targeted): `cd engine && node --test test/manifest.test.js` (must be green) AND
 `bats test/manifest-lint.bats` (from the worktree root: `bats test/manifest-lint.bats` — must be green,
 all migrated + new fixtures pass). Run both before committing; never commit on red.
 
@@ -230,7 +230,7 @@ all migrated + new fixtures pass). Run both before committing; never commit on r
 
 `feat(engine): validate backlog as object with file|custom source`
 
-## Slice 2 — backlogSourceOf + record line names the active adapter (resolve.js)
+## Part 2 — backlogSourceOf + record line names the active adapter (resolve.js)
 
 ### Context
 
@@ -308,9 +308,9 @@ backlog: { source: file, ref: BACKLOG.md }
 (`ref` is not existence-checked in the scenario path — `resolvePipeline` does not call `fileExists` —
 so any path string is fine; `BACKLOG.md` is this repo's real backlog file and reads naturally.)
 
-**`scripts/ci.sh` count bump:** this slice adds M new node `test()` cases to `resolve.test.js` (the S6
+**`scripts/ci.sh` count bump:** this part adds M new node `test()` cases to `resolve.test.js` (the S6
 strengthen is an edit-in-place to an existing test, NOT a new test — do NOT count it). Bump
-`EXPECTED_TESTS` (whatever Slice 1 left it at) by M.
+`EXPECTED_TESTS` (whatever Part 1 left it at) by M.
 
 ### TDD steps
 
@@ -351,18 +351,18 @@ nesting > 2); ensure the two source labels are the only string literals and the 
 
 ### Gate
 
-Slice gate (targeted): `cd engine && node --test test/resolve.test.js test/scenarios.test.js` (both
+Part gate (targeted): `cd engine && node --test test/resolve.test.js test/scenarios.test.js` (both
 green). Run before committing; never commit on red.
 
 ### Commit
 
 `feat(engine): record line names the resolved backlog source`
 
-## Slice 3 — backlog adapter spec doc + skill source-dispatch wiring
+## Part 3 — backlog adapter spec doc + skill source-dispatch wiring
 
 ### Context
 
-**Docs-only, standalone, NO `src/` delta, NO `EXPECTED_TESTS` bump, NO new tests.** This slice writes one
+**Docs-only, standalone, NO `src/` delta, NO `EXPECTED_TESTS` bump, NO new tests.** This part writes one
 new doc and edits two skill prose bodies. No engine code, no mutation surface, no node/bats test changes.
 
 **New file — `docs/adapters/backlog.md`** (the `docs/adapters/` directory does not exist yet — create
@@ -451,7 +451,7 @@ it still gates whether any backlog work runs; only the tick *mechanism* gains th
 
 ### TDD steps
 
-This is a docs/prose slice with NO `src/` delta and NO test surface, so there is no RED/GREEN/REFACTOR
+This is a docs/prose part with NO `src/` delta and NO test surface, so there is no RED/GREEN/REFACTOR
 code cycle. The verification is the phase-boundary gate (below) plus a content checklist (treated as the
 "GREEN" acceptance):
 
@@ -473,9 +473,9 @@ code cycle. The verification is the phase-boundary gate (below) plus a content c
 
 ### Gate
 
-Slice gate (targeted): no node/bats tests change, so the targeted gate is the phase-boundary gate run
+Part gate (targeted): no node/bats tests change, so the targeted gate is the phase-boundary gate run
 from the worktree root: `bash scripts/ci.sh` (it must stay green — `EXPECTED_TESTS` is unchanged at the
-value Slice 2 left it, node + bats + shellcheck + pipeline-lint + pipeline-resolve + contracts-lint all
+value Part 2 left it, node + bats + shellcheck + pipeline-lint + pipeline-resolve + contracts-lint all
 green; the new doc and skill prose introduce no lint regressions). Confirm green before committing.
 
 ### Commit

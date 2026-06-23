@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { buildPiArgs, parseUsage } from '../src/execution.js';
 
 const INJECTED_BLOCK = 'You are a coding agent.\n## Task\nImplement the feature.';
-const DYNAMICS = { phaseId: 'implementation', slice: '5', gate: 'node --test', commitMessage: 'feat: add feature' };
+const DYNAMICS = { phaseId: 'implementation', part: '5', gate: 'node --test', commitMessage: 'feat: add feature' };
 
 describe('buildPiArgs() — prompt-only mode', () => {
   it('Given an injected block and jsonMode false, when args built, then returns array of length 2', () => {
@@ -70,7 +70,7 @@ describe('buildPiArgs() — json stream mode', () => {
 });
 
 describe('buildPiArgs() — prompt contains dynamics header and formatted lines', () => {
-  it('Given dynamics with phaseId and slice, when args built, then prompt contains ## Phase dynamics header verbatim', () => {
+  it('Given dynamics with phaseId and part, when args built, then prompt contains ## Phase dynamics header verbatim', () => {
     const sut = buildPiArgs;
 
     const result = sut(INJECTED_BLOCK, DYNAMICS, { jsonMode: false });
@@ -78,13 +78,13 @@ describe('buildPiArgs() — prompt contains dynamics header and formatted lines'
     assert.ok(result[1].includes('## Phase dynamics'), 'prompt must contain ## Phase dynamics header');
   });
 
-  it('Given dynamics with phaseId and slice, when args built, then prompt contains key: value formatted dynamics lines', () => {
+  it('Given dynamics with phaseId and part, when args built, then prompt contains key: value formatted dynamics lines', () => {
     const sut = buildPiArgs;
 
     const result = sut(INJECTED_BLOCK, DYNAMICS, { jsonMode: false });
 
     assert.ok(result[1].includes('phaseId: implementation'), 'prompt must contain phaseId: implementation');
-    assert.ok(result[1].includes('slice: 5'), 'prompt must contain slice: 5');
+    assert.ok(result[1].includes('part: 5'), 'prompt must contain part: 5');
   });
 
   it('Given dynamics, when args built with jsonMode true, then json-mode prompt also contains ## Phase dynamics header', () => {
@@ -112,7 +112,7 @@ describe('buildPiArgs() — prompt contains dynamics header and formatted lines'
     const dynamicsSection = prompt.split('## Phase dynamics\n')[1];
     const lines = dynamicsSection.split('\n');
     assert.ok(lines.some(l => l === 'phaseId: implementation'), 'phaseId must be on its own line');
-    assert.ok(lines.some(l => l === 'slice: 5'), 'slice must be on its own line');
+    assert.ok(lines.some(l => l === 'part: 5'), 'part must be on its own line');
     assert.ok(lines.some(l => l === 'gate: node --test'), 'gate must be on its own line');
   });
 });

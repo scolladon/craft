@@ -31,5 +31,5 @@ writer-prose flips with them.
 
 No back-compat reader, consistent with the clean-break stance of
 [033](033-no-namespace-alias.md). The lock rename is behavior-bearing (the protocol must keep
-working), so it lands as a 4-dimension-reviewed slice with the script + bats together. No
+working), so it lands as a 4-dimension-reviewed part with the script + bats together. No
 installed users means no orphaned `.forge-mutation.lock` to worry about.

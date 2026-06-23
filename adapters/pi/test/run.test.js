@@ -23,7 +23,7 @@ const CANNED_EFFECTIVE = [
   { id: 'design',         archetype: 'specification',  role: 'craft:designer',             model: 'opus',   gate: ''                  },
   { id: 'decisions',      archetype: 'specification',  role: undefined, model: undefined,  gate: ''                  },
   { id: 'planning',       archetype: 'specification',  role: 'craft:planner',              model: 'opus',   gate: 'plan-lint'         },
-  { id: 'implementation', archetype: 'construction',   role: 'craft:slice-implementer',    model: 'sonnet', gate: '<gates.phase>'     },
+  { id: 'implementation', archetype: 'construction',   role: 'craft:part-implementer',    model: 'sonnet', gate: '<gates.phase>'     },
   { id: 'review',         archetype: 'harness',        role: 'craft:reviewer',             model: 'opus',   gate: '<gates.phase>'     },
   { id: 'refactoring',    archetype: 'refinement',     role: 'craft:refactor-executor',    model: 'sonnet', gate: '<gates.phase>'     },
   { id: 'validation',     archetype: 'harness',        role: 'craft:validation-triager',   model: 'sonnet', gate: '<validation gate>' },

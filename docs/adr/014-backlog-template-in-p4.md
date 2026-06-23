@@ -21,7 +21,7 @@ whether to fold the missing doc template(s) in now or keep P4 a pure rename.
 
 ## Decision
 
-`templates/backlog.md` ships in P4 as a documentation slice. It captures the `BACKLOG.md`
+`templates/backlog.md` ships in P4 as a documentation part. It captures the `BACKLOG.md`
 section contract so future backlog-port work (and humans) have a canonical structure to fill.
 The **structure-lint scripts** named as "optional" in the decision remain deferred: a
 `backlog-lint`/`design-lint` is its own TDD build (script + bats fixtures + CI wiring) and is

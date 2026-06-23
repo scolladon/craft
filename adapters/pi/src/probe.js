@@ -68,7 +68,7 @@ function evaluateTrace(trace, throwawayPath) {
 }
 
 /**
- * Build the evidence object returned to the caller (and recorded by slice 7).
+ * Build the evidence object returned to the caller (and recorded by part 7).
  *
  * @param {object} trace
  * @param {string} targetPath

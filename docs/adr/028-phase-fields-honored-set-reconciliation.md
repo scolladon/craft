@@ -21,13 +21,13 @@ Scenario tests miss it because they call `resolvePipeline` directly, bypassing `
 
 1. **Add only `harness` now** — minimal diff; leaves execution/enabled/role/model rejected,
    so the documented catalog (§7 #4) still fails lint and P9 re-touches `manifest.js`.
-2. **Reconcile the whole honored set in one slice** — add `harness, execution, enabled, role,
+2. **Reconcile the whole honored set in one part** — add `harness, execution, enabled, role,
    model` to `PHASE_FIELDS` together. Same fix-class, one coherent change, closes the real bug
    and smooths the P9 agent-swap. *(user choice)*
 
 ## Decision
 
-`PHASE_FIELDS` is extended to the full honored set in one slice. Acceptance + shape checks land
+`PHASE_FIELDS` is extended to the full honored set in one part. Acceptance + shape checks land
 per field: `role`/`model` must be strings, `enabled` must be a boolean, `harness` is shape-checked
 by a named `validateHarness` (ADR-030). **`execution` is accepted shape-only** — its VALUE is
 already validated by `validateExecutionValues` in `resolve.js`, and the existing top-level

@@ -4,12 +4,12 @@
 
 - `spawn(role, ctx) → result` — launch a worker with the given identity and run context; the
   adapter maps `role` to its own worker primitive and runs the phase under the injected block.
-  - **role**: a registered worker identity (e.g. `craft:slice-implementer`) — the adapter maps it
+  - **role**: a registered worker identity (e.g. `craft:part-implementer`) — the adapter maps it
     to its own worker primitive (Claude: a Task subagent typed `craft:<role>`; Pi: a fresh `pi`
     run).
   - **ctx**: the assembled run context — the engine-assembled **injected block**
     (`contract-assemble` output: core + bundles + retrieval note + manifest context), the working
-    directory, the task dynamics (phase id, slice text, gate string, commit message, artifact
+    directory, the task dynamics (phase id, part text, gate string, commit message, artifact
     paths), and the resolved **model** (from the Model port).
   - **pre**: `ctx.injectedBlock` is non-empty (assembled at phase entry); the working dir is an
     isolated workspace (VCS `isolate` ran).

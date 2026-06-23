@@ -1,4 +1,4 @@
-# Definition of Done — craft-dod-aware-verification
+# Definition of Done — craft
 
 Applies to every craft change in this repo. The `validation` phase reads this file verbatim
 and records a per-criterion outcome; an unmet criterion is a blocker, never a silent pass.
@@ -33,7 +33,7 @@ and records a per-criterion outcome; an unmet criterion is a blocker, never a si
 - [ ] `bash scripts/ci.sh` passes in full: engine node:test count matches `EXPECTED_TESTS`,
   pi adapter tests match `EXPECTED_PI_TESTS`, bats suite passes, shellcheck clean,
   pipeline-lint and contracts-lint clean.
-- [ ] Nothing committed on a red gate; every slice is gated before commit.
+- [ ] Nothing committed on a red gate; every part is gated before commit.
 
 ---
 
@@ -45,31 +45,19 @@ and records a per-criterion outcome; an unmet criterion is a blocker, never a si
 
 ---
 
-## Feature-acceptance criteria (current change)
+## Per-change acceptance criteria
 
-- [ ] The DoD assertion runs independently of the mutation-tooling no-op: when mutation
-  tooling is absent the mutation sub-concern emits its own no-op note AND the verify
-  sub-concern still records its `verify: DoD met — …` outcome (the two are decoupled).
-- [ ] `NO-OP(verify): no DoD declared` is distinct from the mutation-absent note: the two
-  outcomes are separately greppable (`grep -F 'NO-OP('` and `grep 'verify'` yield
-  non-colliding results within one phase record).
-- [ ] `paths.dod` file-ref is validated when declared: if a manifest declares `paths.dod`
-  pointing to a missing file, `manifest-lint` emits
-  `paths.dod references missing file: <path>` and returns `ok: false`.
-- [ ] Absent `paths.dod` lints clean: a manifest with `paths.dod` omitted (or `paths`
-  omitted entirely) passes manifest-lint without error.
-- [ ] Per-criterion outcomes are recorded by the validation phase: each checklist line
-  produces a distinct `verify: DoD met — …` or blocker entry in the run record.
-- [ ] An unmet criterion is a blocker: the phase emits `{ verify, "<criterion> unmet",
-  ≤3 options }` and escalates to the user; under the headless Pi adapter it records the
-  blocker and halts — never degrades to a silent pass.
-- [ ] Engineering-check criteria (gates green, mutation triaged) are read from the phase's
-  own results — never re-run.
-- [ ] When no DoD is declared, the validation phase pairs `NO-OP(verify): no DoD declared`
-  with an honest gap-note when the architecture phase is OFF, rather than fabricating
-  alignment.
+Per-change acceptance criteria are **not** listed here. They belong to the change's own design
+doc (`docs/DESIGN-<change>.md`), where they are authored and reviewed for that change, and are
+verified by that change's TDD plan, review, and tests — not as DoD checklist lines.
+
+This file holds **only** the durable, every-change bar above. A change-specific section here is
+what kept going stale (the criteria for one change were re-asserted, unchanged, against the next
+across P21–P24); keeping per-change criteria in the design doc removes that staleness by
+construction. The `validation` phase asserts the durable criteria from this file verbatim; the
+design doc is where a change states what "done" means for itself.
 
 ---
 
-_References (kept out of the verbatim-asserted checklist lines above): this DoD mechanism is
-specified in `docs/DESIGN-P20-dod-aware-verification.md` and ADRs 104–110._
+_Reference (kept out of the verbatim-asserted checklist lines above): the DoD-assertion mechanism
+is specified in `docs/DESIGN-P20-dod-aware-verification.md` and ADRs 104–110._

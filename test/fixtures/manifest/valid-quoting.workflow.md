@@ -2,7 +2,7 @@
 paths: { repo: "https://host:8080/org/repo", notes: "value with: colon" }
 gates:
   phase: "make test && make lint"
-  slice: "npm run build:check"
+  part: "npm run build:check"
 phases:
   design:
     context: manifest/stubs/a.md # trailing comment must be stripped

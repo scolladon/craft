@@ -34,7 +34,7 @@ const PHASE_FIELDS = Object.freeze(new Set([
 ]));
 
 /** Fields accepted under the `gates` key. */
-const GATE_FIELDS = Object.freeze(new Set(['slice', 'phase', 'review-batch']));
+const GATE_FIELDS = Object.freeze(new Set(['part', 'phase', 'review-batch']));
 
 /** Fields accepted under the `pr` key. */
 const PR_FIELDS = Object.freeze(new Set(['creator', 'pre-pr-gate']));
@@ -45,7 +45,7 @@ const SCRIPT_FIELDS = Object.freeze(new Set(['post-setup', 'pre-teardown']));
 /** Agent/role names accepted under the `models` key. */
 const MODELS_KEYS = Object.freeze(new Set([
   'fallback', 'designer', 'planner', 'reviewer',
-  'slice-implementer', 'refactor-executor', 'validation-triager',
+  'part-implementer', 'refactor-executor', 'validation-triager',
   'docs-writer', 'backlog-ticker',
 ]));
 

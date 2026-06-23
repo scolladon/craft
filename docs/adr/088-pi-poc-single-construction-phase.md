@@ -11,7 +11,7 @@ proof value.
 
 ## Options
 1. **Single construction-bearing phase** (e.g. `implementation` on a tiny free-text brief) — pros: exercises the load-bearing ports together (Execution, Model, Gate, VCS), is the literal gate, needs no Pi sub-agents / cons: not a full pipeline. *(designer's recommendation, chosen)*
-2. **Short multi-phase slice (design→implementation)** — pros: more of the pipeline / cons: multiplies integration surface for no extra portability proof.
+2. **Short multi-phase part (design→implementation)** — pros: more of the pipeline / cons: multiplies integration surface for no extra portability proof.
 3. **Full default pipeline** — pros: maximal / cons: forces the sequential-fan-out story for review before it is needed; flaky external surface.
 
 ## Decision

@@ -15,12 +15,12 @@ layer you install — not a hosted SaaS.
 
 - **Industrialize delivery** — one gated phase sequence, repeatable; every load-bearing rule lives in a hook, a script, or versioned instruction text, not session memory.
 - **Declinate per repo** — a committed `.claude/workflow.md` manifest customizes the pipeline (skip / insert / reorder / swap agent or skill / profile / per-phase harness config); no manifest = strong probed defaults.
-- **Manage comprehension debt** — design docs + sliced plans with pre-chewed context blocks capture *what* the change is and *how* it was built, so understanding survives context resets.
+- **Manage comprehension debt** — design docs + parted plans with pre-chewed context blocks capture *what* the change is and *how* it was built, so understanding survives context resets.
 - **Manage intention debt** — ADRs and user-ratified decision candidates capture *why* every load-bearing choice was made.
 - **Formalize the architecture harness with its own lifecycle** — a standalone `architecture` phase (probe → run dependency-cruiser → triage violations → gate the PR), default-off, enabled by one manifest line.
 - **Formalize engineering harnesses with their own lifecycles** — `review` (dimensions / passes / convergence) and `validation` (mutation: tool / scope / triage) are first-class AI harnesses with their own config and gates.
 - **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. `adapters/pi/` (the `craft-pi` bin) drives the same engine core on a non-Claude runtime, proving the Execution port is pluggable (portability proof; on-demand, not CI-gated).
-- **Bounded long-running work** — git-worktree isolation + sliced TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
+- **Bounded long-running work** — git-worktree isolation + parted TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
 
 ## Install
 
@@ -62,14 +62,14 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
 - `skills/run` — orchestrator (cross-phase invariants, run record)
 - `skills/<phase>` — one per phase: non-overridable Preamble + overridable Procedure
 - `agents/` — role contracts with pinned models (designer, planner, reviewer,
-  slice-implementer, refactor-executor, validation-triager, docs-writer, backlog-ticker,
+  part-implementer, refactor-executor, validation-triager, docs-writer, backlog-ticker,
   requirements-writer, architecture-triager).
   A pinned model that goes down falls back (manifest `models.fallback` → session model)
   and the degraded tier is remembered for the rest of the run.
 - `hooks/` — PreToolUse guard: `git diff/show` without `--no-ext-diff` is denied with
   the corrected command (`--no-verify` is the consumer's discretion — craft does not block it)
 - `scripts/` — worktree setup/teardown (mutation run-lock aware), manifest lint, plan lint
-- `templates/` — design / plan (defines the slice schema plan-lint enforces) / ADR
+- `templates/` — design / plan (defines the part schema plan-lint enforces) / ADR
 - `adapters/pi/` — reference Pi adapter: a separate `craft-pi` entrypoint that drives the full 11-phase walk on a non-Claude runtime via the engine's ports (the HaaS portability proof; on-demand, not CI-gated)
 
 ## Design provenance

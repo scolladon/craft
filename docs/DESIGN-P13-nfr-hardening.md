@@ -38,7 +38,7 @@ R10. P12's `DESIGN-P12-dx.md` is the nearest altitude precedent (tight, decision
   numeric token or timing field anywhere in the resolution or the ledger — the orchestrator records
   harness-surfaced numbers into it on demand (ADR-065).
 - **The scenario set is pure, deterministic, zero-token.** `engine/test/scenarios.test.js`
-  (S1–S9 + the SC1 anchor) runs `resolvePipeline` against manifest fixtures and asserts slices of
+  (S1–S9 + the SC1 anchor) runs `resolvePipeline` against manifest fixtures and asserts parts of
   the `Resolution` (effective pipeline, gate decisions, waivers). Sub-second, no LLM, no spend.
 - **Mutation scope is src-only.** `engine/stryker.conf.json`: `mutate:
   ["engine/src/**/*.js"]`, `testRunner: tap`, `coverageAnalysis: perTest`, `tap.testFiles:
@@ -56,14 +56,14 @@ R10. P12's `DESIGN-P12-dx.md` is the nearest altitude precedent (tight, decision
   `node --test`'s `# tests` line (verified: `# tests 448`), then `bats test/`, `shellcheck`,
   `pipeline-lint`, `pipeline-resolve`, `contracts-lint`. **Any** new `node --test` test changes
   the 448 count and must bump `EXPECTED_TESTS` in the same commit. The file's banner mandates
-  slices append to it "so CI never references a binary before it exists."
+  parts append to it "so CI never references a binary before it exists."
 - **House precedent for un-gated procedures.** `skills/run/SKILL.md` already carries a
   "Manual acceptance check (inline fidelity) — **not CI-gated**" section: a documented,
   on-demand procedure whose result is logged to the run record. The model-class matrix has the
   same shape.
 
 **SP5 already pinned the portability floor.** Twelve contract-adherence probes (planner /
-slice-TDD / structured-review / blocker) all PASS across opus/sonnet/haiku → class = Haiku-4.5
+part-TDD / structured-review / blocker) all PASS across opus/sonnet/haiku → class = Haiku-4.5
 and up; the fallback chain is contract-safe (degrades quality, never breaks a contract). The
 caveat (R10, §14 SP5): these are *short isolated contract probes, not full multi-phase runs*, and
 output **shape** varies by model (Haiku emitted review findings as JSON, not one-per-line). PRD

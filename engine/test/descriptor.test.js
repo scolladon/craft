@@ -210,7 +210,7 @@ const EXPECTED_DESCRIPTORS = [
     enabled: true,
     contract: ['construction'],
     procedure: 'craft:implementation',
-    role: 'craft:slice-implementer',
+    role: 'craft:part-implementer',
     consumes: ['workspace', 'plan'],
     self_supply: [],
     produces: ['change'],

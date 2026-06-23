@@ -1,17 +1,17 @@
 # Plan — P15: second-instantiation validation (non-tsgit, zero manifest) — code-touching parts
 
 > Source: design doc `docs/DESIGN-P15-second-instantiation.md` · ADRs `076`–`082` (all ratified)
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Scope of this plan
 
 This run plans **only the two code/CI-touching parts** of P15, as scoped by the user:
 
-- **Slice 1 (ADR-078, Part A):** the explicit SC5 CI scenario — a resolver-toolchain-neutrality
+- **Part 1 (ADR-078, Part A):** the explicit SC5 CI scenario — a resolver-toolchain-neutrality
   guard test (test-infra-only, no `src/` delta).
-- **Slice 2 (ADR-082, Part B):** the propose-gate-on-runtime-no-op clause — a bounded
+- **Part 2 (ADR-082, Part B):** the propose-gate-on-runtime-no-op clause — a bounded
   orchestrator-prose edit across two skill files (docs/prose, no `src/` delta).
 
 **Deferred, NOT planned here** (until the user names the Python repo): the real-repo SC5 smoke
@@ -21,32 +21,32 @@ parts of P15 and are out of scope for this plan.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
-**Both slices are legitimately standalone under the EXCEPTION:** P15 adds **no `src/` /
+**Both parts are legitimately standalone under the EXCEPTION:** P15 adds **no `src/` /
 `engine/src/` / `pipeline/default.yml` / `contracts/` change** (Design §"Files this touches":
-the engine resolution layer is already toolchain-neutral — R1). Slice 1 is a test-infra-only
-regression guard for already-correct resolver behaviour; Slice 2 is an orchestrator-prose edit
+the engine resolution layer is already toolchain-neutral — R1). Part 1 is a test-infra-only
+regression guard for already-correct resolver behaviour; Part 2 is an orchestrator-prose edit
 whose runtime guard is the deferred SC5 smoke (ADR-082 §Consequences: "no `node --test`
-surface"). Neither has an implementation slice to fold into. They are independent and may land
+surface"). Neither has an implementation part to fold into. They are independent and may land
 in either order; the plan keeps the audit order (A then B).
 
 ## Public-surface decision
 
 P15 introduces **no new exported symbol** — no engine API, no new bin, no new barrel entry, no
-new skill, no new command. Slice 1 adds a fixture directory + test cases inside an existing
-suite (`engine/test/scenarios.test.js`) and bumps one constant (`EXPECTED_TESTS`); Slice 2 edits
+new skill, no new command. Part 1 adds a fixture directory + test cases inside an existing
+suite (`engine/test/scenarios.test.js`) and bumps one constant (`EXPECTED_TESTS`); Part 2 edits
 prose inside two existing `SKILL.md` files. There is **no public surface to gate** (no
 exhaustiveness switch, no generated API report, no README/registry surface touched). The
 only mechanical surface gate in play is `scripts/ci.sh`'s `EXPECTED_TESTS` test-count assertion,
-which Slice 1 pre-pays in-slice (see its Context).
+which Part 1 pre-pays in-part (see its Context).
 
 ## Decision candidates
 
@@ -62,12 +62,12 @@ SC5 fixture shape (an empty manifest = `# comment` only) is fixed by the SC1 pre
 assertion content (mirror the SC1 gate-string pin + add a language-freedom refutation) is fixed
 by ADR-078's "placeholders unchanged and language-free" wording.
 
-## Slice 1 — SC5 CI scenario: resolver toolchain-neutrality guard
+## Part 1 — SC5 CI scenario: resolver toolchain-neutrality guard
 
 ### Context
 
 **Nature:** test-infra-only regression/characterization guard. No `src/` delta. The resolver
-is *already* toolchain-neutral (Design R1, pinned); this slice makes that neutrality a named,
+is *already* toolchain-neutral (Design R1, pinned); this part makes that neutrality a named,
 diffable CI guarantee per ADR-078, distinct from SC1's value-pin.
 
 **Files to create / touch (exact paths):**
@@ -125,10 +125,10 @@ resolution to the repo-probing skill layer). Note the empty-string gates (`works
 `documentation`) and the placeholder/internal gates (`<gates.phase>`, `<validation gate>`,
 `plan-lint`, `pr.pre-pr-gate`) all trivially pass the refutation — that is the proof.
 
-**`EXPECTED_TESTS` surface gate (pre-pay in this slice):** `scripts/ci.sh:10` pins
+**`EXPECTED_TESTS` surface gate (pre-pay in this part):** `scripts/ci.sh:10` pins
 `EXPECTED_TESTS=631`; `ci.sh:12-22` runs `cd engine && node --test 'test/**/*.test.js'` and
 asserts the awk-extracted `# tests` count equals `EXPECTED_TESTS`, else exits 1 on drift. Adding
-N `test()` cases REQUIRES bumping `EXPECTED_TESTS` to `631 + N` in the **same** slice/commit,
+N `test()` cases REQUIRES bumping `EXPECTED_TESTS` to `631 + N` in the **same** part/commit,
 else `scripts/ci.sh` (the phase gate) goes red. Pick the case count deliberately and bump to
 match. Suggested split (3 cases, → `EXPECTED_TESTS=634`): (a) gate-string value pin mirroring
 SC1; (b) the language-freedom refutation over all `gateDecisions`; (c) a shape assertion that
@@ -144,22 +144,22 @@ count, set `EXPECTED_TESTS` to `631 + (your count)`.
 
 ### TDD steps
 
-This slice is a **regression guard for already-correct behaviour** — the resolver is already
+This part is a **regression guard for already-correct behaviour** — the resolver is already
 toolchain-neutral. Honest RED/GREEN framing (two RED layers, both mechanical):
 
-- **RED (slice gate):** Write the SC5 test cases FIRST, before creating the fixture. Run the
-  slice gate (`node --test 'test/scenarios.test.js'`). Expected failure: `loadScenarioManifest('SC5')`
+- **RED (part gate):** Write the SC5 test cases FIRST, before creating the fixture. Run the
+  part gate (`node --test 'test/scenarios.test.js'`). Expected failure: `loadScenarioManifest('SC5')`
   throws `ENOENT` reading `fixtures/scenarios/SC5/manifest.yml` — the test errors because the
   fixture does not exist yet. This proves the cases are wired to the real fixture loader.
-- **GREEN (slice gate):** Create `engine/test/fixtures/scenarios/SC5/manifest.yml` (the
-  one-comment empty manifest above). Re-run the slice gate — the new cases now pass (the resolver
+- **GREEN (part gate):** Create `engine/test/fixtures/scenarios/SC5/manifest.yml` (the
+  one-comment empty manifest above). Re-run the part gate — the new cases now pass (the resolver
   is already neutral, so the assertions hold immediately; that is correct for a guard test — it
   would only go RED against a *future* mutation that bakes a command into a gate string).
 - **RED→GREEN (phase gate / surface gate):** Run `scripts/ci.sh`. It fails with
   `ci: test count drift — expected 631, got 634` because the new cases landed without the
   constant bump. Bump `EXPECTED_TESTS` in `scripts/ci.sh` from `631` to `631 + N` (e.g. `634` for
   3 cases) in this same commit. Re-run `scripts/ci.sh` — green: all cases pass and the count
-  reconciles. (This is the `EXPECTED_TESTS` surface gate pre-paid in-slice.)
+  reconciles. (This is the `EXPECTED_TESTS` surface gate pre-paid in-part.)
 - **REFACTOR:** Factor the `gateOf` accessor and the `TOOLCHAIN_TOKENS` regex to module-top
   consts only if it improves the section's readability without touching SC1's block; keep each
   test single-assert-intent and AAA. No magic values — name the token regex. Do not extend the
@@ -168,7 +168,7 @@ toolchain-neutral. Honest RED/GREEN framing (two RED layers, both mechanical):
 
 ### Gate
 
-Slice gate (engine-default capability probe, no manifest — `gates.slice` → repo test runner
+Part gate (engine-default capability probe, no manifest — `gates.part` → repo test runner
 over touched files):
 
 ```
@@ -188,7 +188,7 @@ bash /Users/scolladon/workspace/perso/craft-p15-second-instantiation/scripts/ci.
 test(engine): pin SC5 resolver toolchain-neutrality
 ```
 
-## Slice 2 — propose-gate releases on a recorded executing-harness runtime no-op
+## Part 2 — propose-gate releases on a recorded executing-harness runtime no-op
 
 ### Context
 
@@ -267,7 +267,7 @@ write (ADR-082 is explicit). Honest framing:
 
 ### Gate
 
-Structural gate — the markdown edit must not break any test or lint (there is no per-slice test
+Structural gate — the markdown edit must not break any test or lint (there is no per-part test
 runner over a `.md` edit; the substrate gate is the guard):
 
 ```

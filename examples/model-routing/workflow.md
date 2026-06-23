@@ -27,7 +27,7 @@ fail the run — it falls back, and the **degraded tier is remembered** for the 
 run record shows exactly where quality was traded. Routing the wrong tier hurts quality, not safety:
 the contract and gates bind regardless of model.
 
-Valid agent keys are the craft agents (`designer`, `planner`, `reviewer`, `slice-implementer`,
+Valid agent keys are the craft agents (`designer`, `planner`, `reviewer`, `part-implementer`,
 `refactor-executor`, `validation-triager`, `docs-writer`, `backlog-ticker`) plus `fallback`.
 
 > In your real repo this file lives at the project root as `.claude/workflow.md`.

@@ -9,7 +9,7 @@ const USAGE_EVENT_TYPE = 'usage';
  * into a shell string (untrusted-input discipline: execFile, not exec).
  *
  * @param {string} injectedBlock  The assembled injected contract block.
- * @param {object} dynamics       Phase dynamics (phaseId, slice, gate, commitMessage, …).
+ * @param {object} dynamics       Phase dynamics (phaseId, part, gate, commitMessage, …).
  * @param {{ jsonMode: boolean }} opts
  * @returns {string[]} argv array suitable for execFile('pi', args)
  */

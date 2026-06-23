@@ -1,30 +1,30 @@
 # Plan — Craft customizable engine: P1 foundational net + P2 manifest-lint hardening (P3–P5 outlined)
 
 > Source: design doc `docs/DESIGN-customizable-engine.md` (accepted, commit b6a37c0) · ADRs `001–008`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start with
-> zero context: whatever a slice block omits is paid later as agent rediscovery. `plan-lint.sh`
-> enforces the per-slice schema — the plan phase cannot close without it.
+> The plan is the implementation script AND the knowledge handoff. Part agents start with
+> zero context: whatever a part block omits is paid later as agent rediscovery. `plan-lint.sh`
+> enforces the per-part schema — the plan phase cannot close without it.
 
 ## Scope & ordering
 
-This plan **fully slices P1** (the characterization + scenario test net + CI, GREEN before any
+This plan **fully parts P1** (the characterization + scenario test net + CI, GREEN before any
 abstraction — SC1, SC4) and **P2** (harden `manifest-lint`). P3–P5 are **outlined** at lower
-resolution (a non-`## Slice` section `plan-lint` does not gate) because OQ7 makes them
+resolution (a non-`## Part` section `plan-lint` does not gate) because OQ7 makes them
 dogfoodable once P1 is green; each may be replanned per-workstream via `/craft:design` +
 `/craft:plan`.
 
 Build order (linear, dependency-respecting): `1` (substrate) → `2,3,4` (bash characterization,
 mutually independent) → `5,6,7,8,9` (Node core deterministic seams) → `10` (gate/waiver +
-scenario capstone) → `11` (P2 hardening). Slices 1–10 = P1; slice 11 = P2.
+scenario capstone) → `11` (P2 hardening). Parts 1–10 = P1; part 11 = P2.
 
-## Why characterization slices are legitimate here (sizing-rule note)
+## Why characterization parts are legitimate here (sizing-rule note)
 
-The template's "no standalone test-only slices" rule targets *feature* TDD — don't write a
-test-only slice for code this plan also adds. P1's entire mandate (PRD §13, SC4) is the
+The template's "no standalone test-only parts" rule targets *feature* TDD — don't write a
+test-only part for code this plan also adds. P1's entire mandate (PRD §13, SC4) is the
 opposite: lay a net over **pre-existing, untested** bash (`manifest-lint`, hooks, worktree
-scripts) and the new deterministic core. Slices 2–4 pin pre-existing behavior; each earns its
-lifecycle (distinct fixtures, distinct script, distinct failure modes). Slices 5–10 are not
-test-only — each lands a deterministic function *and* the fixtures that exercise it in one slice
+scripts) and the new deterministic core. Parts 2–4 pin pre-existing behavior; each earns its
+lifecycle (distinct fixtures, distinct script, distinct failure modes). Parts 5–10 are not
+test-only — each lands a deterministic function *and* the fixtures that exercise it in one part
 (the fold the rule prescribes). The live orchestrator (`run/SKILL.md`) is **not** rewired in
 P1; it keeps its hardcoded 1→11 table. The Node core exists and is unit-green but unconsumed, so
 runtime behavior is unchanged — SC1 holds trivially, and the golden fixtures *assert* the
@@ -35,21 +35,21 @@ resolver equals today's pipeline so P3's rewire is identical by construction.
 The deterministic core is one **portable ESM Node module** at `engine/` (`package.json` with
 `"type": "module"`; tested by built-in `node --test`, Node ≥18; `js-yaml` the only runtime dep).
 The public surface is re-exported from `engine/src/index.js`. The **shape below is frozen by
-slice 5** (no later slice may change a signature), but the *file grows incrementally* — each slice
+part 5** (no later part may change a signature), but the *file grows incrementally* — each part
 adds **only** its own re-export, never references a module that does not yet exist (a premature
-re-export would break that slice's `node --test` gate with `ERR_MODULE_NOT_FOUND`). Slice 5 lands
+re-export would break that part's `node --test` gate with `ERR_MODULE_NOT_FOUND`). Part 5 lands
 the first three lines (`parsePipeline`, `validatePipeline`, `ALIAS_MAP/resolveAlias` — the last
-stubbed until slice 6); slices 6→9 each wire in their line. Every Node slice that touches the
+stubbed until part 6); parts 6→9 each wire in their line. Every Node part that touches the
 surface carries a *surface gate* line naming the export it locks.
 
 ```js
-// engine/src/index.js — END-STATE public surface (signatures frozen at slice 5; file built up across slices 5→9)
-export { parsePipeline }            from './descriptor.js' // (yamlText:string) => Descriptor[]   (throws on malformed)   [slice 5]
-export { validatePipeline }         from './graph.js'      // (Descriptor[]) => { ok:boolean, errors:string[] }            [slice 5]
-export { ALIAS_MAP, resolveAlias }  from './alias-map.js'  // resolveAlias(name:string) => canonicalId:string              [slice 6]
-export { resolvePipeline }          from './resolve.js'    // (defaults:Descriptor[], manifest:Manifest) => Resolution     [slice 7]
-export { assembleContract }         from './contract.js'   // (descriptor, manifest, fragments, opts) => injectedBlock     [slice 8]
-export { normalizeFindings }        from './findings.js'   // (raw:string) => Finding[]                                    [slice 9]
+// engine/src/index.js — END-STATE public surface (signatures frozen at part 5; file built up across parts 5→9)
+export { parsePipeline }            from './descriptor.js' // (yamlText:string) => Descriptor[]   (throws on malformed)   [part 5]
+export { validatePipeline }         from './graph.js'      // (Descriptor[]) => { ok:boolean, errors:string[] }            [part 5]
+export { ALIAS_MAP, resolveAlias }  from './alias-map.js'  // resolveAlias(name:string) => canonicalId:string              [part 6]
+export { resolvePipeline }          from './resolve.js'    // (defaults:Descriptor[], manifest:Manifest) => Resolution     [part 7]
+export { assembleContract }         from './contract.js'   // (descriptor, manifest, fragments, opts) => injectedBlock     [part 8]
+export { normalizeFindings }        from './findings.js'   // (raw:string) => Finding[]                                    [part 9]
 ```
 
 Shapes (JSDoc typedefs, no TS — `types > runtime checks` applied via JSDoc + schema validation
@@ -60,37 +60,37 @@ at the parse boundary):
 - **Resolution** `{ effective:Descriptor[], waivers:Waiver[], gateDecisions:GateDecision[], record:string[] }` — `effective` is the walked order; `waivers` records every skip/disable that releases a propose-gate (ADR-005); `gateDecisions` is the per-phase resolved gate + the code-producing floor; `record` is the human-readable run-record lines.
 - **Finding** `{ file, line, severity, finding, fix }` — the canonical field set consumers key on, never on layout (R10).
 
-CLI entrypoints (ADR-002), added with the slice that first needs them:
-`engine/bin/pipeline-lint.js <default.yml> [manifest]` (validate; exit 0/2 — slice 5) and
+CLI entrypoints (ADR-002), added with the part that first needs them:
+`engine/bin/pipeline-lint.js <default.yml> [manifest]` (validate; exit 0/2 — part 5) and
 `engine/bin/pipeline-resolve.js <default.yml> [manifest]` (emit effective Resolution as JSON —
-slice 10). These are the seams the orchestrator/CI invoke; the orchestrator wiring is P3.
+part 10). These are the seams the orchestrator/CI invoke; the orchestrator wiring is P3.
 
 ## Gates (no manifest → probe-derived)
 
-craft ships **no** `.claude/workflow.md`, so gates resolve by capability probe, not `gates.slice`:
-- **Node slice** → `node --test engine/test/<file>.test.js` (targeted).
-- **Bash slice** → `bats test/<file>.bats` + `shellcheck <touched .sh>`.
+craft ships **no** `.claude/workflow.md`, so gates resolve by capability probe, not `gates.part`:
+- **Node part** → `node --test engine/test/<file>.test.js` (targeted).
+- **Bash part** → `bats test/<file>.bats` + `shellcheck <touched .sh>`.
 - **Phase-boundary gate (P1 close, run once):**
-  `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml` — the GitHub Actions workflow grows into this exact command: slice 1 commits the substrate legs (`node --test`, `bats`, `shellcheck`), slice 5 appends `pipeline-lint` (binary now exists), slice 10 appends `pipeline-resolve`. CI is never red on a not-yet-created binary.
+  `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml` — the GitHub Actions workflow grows into this exact command: part 1 commits the substrate legs (`node --test`, `bats`, `shellcheck`), part 5 appends `pipeline-lint` (binary now exists), part 10 appends `pipeline-resolve`. CI is never red on a not-yet-created binary.
 Never commit on a red gate; never `--no-verify` (the repo's own `block-no-verify` hook forbids it).
 
-## Slice 1 — Test-harness substrate + CI + shellcheck baseline
+## Part 1 — Test-harness substrate + CI + shellcheck baseline
 
 ### Context
 Walking skeleton for the whole net; nothing tests product logic yet beyond a smoke assertion,
-but it lands the gate substrate every later slice rides and brings existing bash to
+but it lands the gate substrate every later part rides and brings existing bash to
 shellcheck-clean (real GREEN). No `engine/`, `test/`, `.github/` exist (probed absent).
 - **Create** `engine/package.json` → `{ "name":"@craft/engine", "type":"module", "private":true, "engines":{"node":">=18"}, "scripts":{"test":"node --test"}, "dependencies":{"js-yaml":"^4.1.0"} }`. Add `engine/.gitignore` for `node_modules/`.
 - **Create** `engine/test/smoke.test.js` — one `node:test` (`import { test } from 'node:test'; import assert from 'node:assert/strict'`) asserting `1+1===2`, proving the runner + ESM resolution work.
 - **Create** `test/smoke.bats` — `bats-core` smoke (`@test "bats runs" { run true; [ "$status" -eq 0 ]; }`); confirms bats on PATH (verified: `/opt/homebrew/bin/bats`).
-- **Create** `.github/workflows/ci.yml` — on push/PR: checkout; `actions/setup-node@v4` (node 22); `cd engine && npm ci`; install `bats` (`bats-core/bats-action` or `npm i -g bats`) + `shellcheck` (`ludeeus/action-shellcheck` or apt) + `jq`/`yq`. **Run only the substrate gate at this slice** — `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh`. The `pipeline-lint`/`pipeline-resolve` steps are **added to the workflow in slices 5 and 10** when those binaries first exist, so CI is never red on a non-existent file through slices 2–4 ("never commit on a red gate" stays literally true). Single `ci` job, fail-fast.
-- **shellcheck baseline**: run `shellcheck scripts/*.sh hooks/*.sh` against **every** file the gate glob matches — `scripts/{manifest-lint,plan-lint,worktree-setup,worktree-teardown}.sh` + `hooks/{block-no-verify,git-no-ext-diff}.sh` (note `scripts/*.sh` includes `plan-lint.sh`); fix every finding minimally (or annotate with a justified `# shellcheck disable=...` carrying a why-comment). These are touched-but-behavior-preserving edits — pin the parsers under slices 2–4 next.
-- **Surface gate**: this slice fixes the repo layout invariant `engine/` = Node home, `test/` = bats home, `.github/workflows/ci.yml` = the single CI mirror of the phase gate. Later slices add files under these, never relocate them.
+- **Create** `.github/workflows/ci.yml` — on push/PR: checkout; `actions/setup-node@v4` (node 22); `cd engine && npm ci`; install `bats` (`bats-core/bats-action` or `npm i -g bats`) + `shellcheck` (`ludeeus/action-shellcheck` or apt) + `jq`/`yq`. **Run only the substrate gate at this part** — `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh`. The `pipeline-lint`/`pipeline-resolve` steps are **added to the workflow in parts 5 and 10** when those binaries first exist, so CI is never red on a non-existent file through parts 2–4 ("never commit on a red gate" stays literally true). Single `ci` job, fail-fast.
+- **shellcheck baseline**: run `shellcheck scripts/*.sh hooks/*.sh` against **every** file the gate glob matches — `scripts/{manifest-lint,plan-lint,worktree-setup,worktree-teardown}.sh` + `hooks/{block-no-verify,git-no-ext-diff}.sh` (note `scripts/*.sh` includes `plan-lint.sh`); fix every finding minimally (or annotate with a justified `# shellcheck disable=...` carrying a why-comment). These are touched-but-behavior-preserving edits — pin the parsers under parts 2–4 next.
+- **Surface gate**: this part fixes the repo layout invariant `engine/` = Node home, `test/` = bats home, `.github/workflows/ci.yml` = the single CI mirror of the phase gate. Later parts add files under these, never relocate them.
 
 ### TDD steps
 - RED: `npm ci` + `node --test engine/` + `bats test/` + `shellcheck scripts/*.sh hooks/*.sh` all fail/missing (no package, no runner config, latent shellcheck findings).
 - GREEN: add `engine/package.json` + smoke tests + CI workflow; clear/annotate every shellcheck finding on existing scripts until `shellcheck scripts/*.sh hooks/*.sh` exits 0; both smoke suites pass.
-- REFACTOR: factor the substrate gate into a shared definition (`engine/package.json` `scripts.ci` or `scripts/ci.sh`) so CI and local share one string; slices 5/10 append the `pipeline-lint`/`pipeline-resolve` steps to that one definition (it grows with the binaries, never references them ahead of their creation).
+- REFACTOR: factor the substrate gate into a shared definition (`engine/package.json` `scripts.ci` or `scripts/ci.sh`) so CI and local share one string; parts 5/10 append the `pipeline-lint`/`pipeline-resolve` steps to that one definition (it grows with the binaries, never references them ahead of their creation).
 
 ### Gate
 `node --test engine/ && bats test/ && shellcheck scripts/*.sh hooks/*.sh`
@@ -98,14 +98,14 @@ shellcheck-clean (real GREEN). No `engine/`, `test/`, `.github/` exist (probed a
 ### Commit
 `test(harness): node:test + bats runners, shellcheck-clean, CI skeleton`
 
-## Slice 2 — Characterize `manifest-lint.sh` (valid/invalid + historical regressions)
+## Part 2 — Characterize `manifest-lint.sh` (valid/invalid + historical regressions)
 
 ### Context
 Pins `scripts/manifest-lint.sh` (read in full) behavior as the SC4 regression net **before** P2
 rewrites its parser. Key current behavior to lock: exit 0 + `"$MF valid."` on a good manifest;
 exit 2 + `"INVALID manifest"` + bullet list on a bad one; exit 0 with a "pure defaults" note when
 the file or frontmatter is absent (lines 13–23). The two historical bugs are *already fixed* by
-the `¦` comma-protection (lines 68–70 and 99–101) — this slice locks that they stay fixed.
+the `¦` comma-protection (lines 68–70 and 99–101) — this part locks that they stay fixed.
 - **Create** `test/manifest-lint.bats` invoking `scripts/manifest-lint.sh <fixture>` with `run`, asserting `$status` + `$output` substrings.
 - **Create fixtures** under `test/fixtures/manifest/`:
   - `valid-basic.workflow.md` — frontmatter using `backlog paths context gates phases pr scripts models` (the `TOP_KEYS`, line 25) with simple values → expect exit 0.
@@ -129,7 +129,7 @@ the `¦` comma-protection (lines 68–70 and 99–101) — this slice locks that
 ### Commit
 `test(manifest-lint): characterize valid/invalid incl. comma+quoting regressions`
 
-## Slice 3 — Characterize the PreToolUse hooks (deny/allow matrices)
+## Part 3 — Characterize the PreToolUse hooks (deny/allow matrices)
 
 ### Context
 Pins `hooks/block-no-verify.sh` and `hooks/git-no-ext-diff.sh` (both read in full) — synthetic
@@ -153,7 +153,7 @@ PreToolUse JSON on stdin, assert the emitted decision.
 ### Commit
 `test(hooks): characterize no-verify + no-ext-diff deny/allow matrices`
 
-## Slice 4 — Characterize worktree setup/teardown (install + lock protocol)
+## Part 4 — Characterize worktree setup/teardown (install + lock protocol)
 
 ### Context
 Pins `scripts/worktree-setup.sh` and `scripts/worktree-teardown.sh` (both read in full) — the VCS
@@ -179,7 +179,7 @@ protocol**; setup's lockfile-detection branch is characterizable without a real 
 ### Commit
 `test(worktree): characterize setup install branch + teardown lock protocol`
 
-## Slice 5 — Engine module: descriptor parse + default pipeline data + graph validation
+## Part 5 — Engine module: descriptor parse + default pipeline data + graph validation
 
 ### Context
 Introduces `engine/` and **freezes the public surface** (above). Lands the deterministic
@@ -188,7 +188,7 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
 - **Create** `pipeline/default.yml` — the **13-descriptor** default list (11 enabled + 2
   default-off). The DESIGN §"Phase descriptor schema" table (lines ~183–196) carries only **8** of
   the fields; the design's bundle table (lines 308–316) and the agent frontmatter pins supply the
-  rest. **Enumerated here so the slice agent never re-derives** (concern-named `id`s; `execution`
+  rest. **Enumerated here so the part agent never re-derives** (concern-named `id`s; `execution`
   omitted → defaults `agent`; **`model` omitted by design** — the descriptor default is "the role's
   frontmatter pin," resolved by the Model port, *not* carried in the data nor read by the Node core
   at P1; `procedure`/`role` are **concern-named to-be refs** — the Node core validates structure,
@@ -203,7 +203,7 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
   | `design` | specification | true | `[producer]` | `craft:design` | `craft:designer` | `workspace, requirements` | `requirements` | `design` | — |
   | `decisions` | specification | true | `[]` | `craft:decisions` | — *(session-owned)* | `design` | `design` | `decisions` | — |
   | `planning` | specification | true | `[producer]` | `craft:planning` | `craft:planner` | `design, decisions` | `design, decisions` | `plan` | `plan-lint` |
-  | `implementation` | construction | true | `[construction]` | `craft:implementation` | `craft:slice-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
+  | `implementation` | construction | true | `[construction]` | `craft:implementation` | `craft:part-implementer` | `workspace, plan` | — | `change` | `<gates.phase>` |
   | `review` | harness | true | `[harness-read]` | `craft:review` | `craft:reviewer` | `change` | — | `review-report` | `<gates.phase>` per round |
   | `refactoring` | refinement | true | `[]` | `craft:refactoring` | `craft:refactor-executor` | `change` | — | `change` | `<gates.phase>` |
   | `validation` | harness | true | `[harness-exec]` | `craft:validation` | `craft:validation-triager` | `change` | — | `validation-report` | `<validation gate>` · `harness: {tool: stryker, scope: per-hunk}` |
@@ -215,7 +215,7 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
   Bundle mapping resolves the design's `harness`-archetype ambiguity explicitly: **`review` →
   `[harness-read]`**, **`validation`/`architecture` → `[harness-exec]`** (design lines 313–314);
   producers (`design`/`requirements`/`planning`) → `[producer]`; `implementation` → `[construction]`
-  (the design scopes `construction` to "implementation slices" only — line 312); the `delivery`
+  (the design scopes `construction` to "implementation parts" only — line 312); the `delivery`
   cluster → `[delivery]`; `workspace`/`decisions`/**`refactoring`** carry only the implicit U
   (`[]`). **`refactoring` is deliberately U-only:** the design bundle table provides **no**
   `refinement` bundle, and the construction bundle's RED→GREEN/test-authoring contract is *wrong*
@@ -223,12 +223,12 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
   green). Its behavior-preserving discipline stays **agent-side role craft** at P5 (only invariant
   contract relocates; role-specific craft stays in the thin agent). A future `refinement` bundle,
   if wanted, is a design follow-up — not asserted here. **Model→pin reference** (the Model port resolves these from agent
-  frontmatter downstream — listed for traceability + slice-10 S8, *not* stored in the data):
-  designer/planner/reviewer = `fable`; slice-implementer/refactor-executor/validation-triager
+  frontmatter downstream — listed for traceability + part-10 S8, *not* stored in the data):
+  designer/planner/reviewer = `fable`; part-implementer/refactor-executor/validation-triager
   (today `mutation-triager`)/docs-writer = `sonnet`; backlog-ticker = `haiku`.
 - **Append** `node engine/bin/pipeline-lint.js pipeline/default.yml` to the shared CI definition
   (`scripts.ci` / `.github/workflows/ci.yml`) — the first engine binary now exists, so CI starts
-  mirroring it here (slice 1 deferred this step until the binary existed).
+  mirroring it here (part 1 deferred this step until the binary existed).
 - **Create** `engine/src/descriptor.js` → `parsePipeline(yamlText)`: `js-yaml` `load`, then per
   entry apply defaults (`enabled:true`, `execution:'agent'`, list-normalize `contract`, default
   `consumes/produces/self_supply` to `[]`), validate required fields (`id, archetype, contract,
@@ -254,7 +254,7 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
   sole consumer lists the artifact in `self_supply` → `{ok:true}`; `bad-archetype.yml`;
   `selfsupply-not-subset.yml`).
 - **Surface gate**: locks `parsePipeline`, `validatePipeline`, `ALIAS_MAP/resolveAlias` (stubbed
-  empty here, filled slice 6), and the Descriptor shape. Downstream slices import, never redefine.
+  empty here, filled part 6), and the Descriptor shape. Downstream parts import, never redefine.
 
 ### TDD steps
 - RED: `engine/test/descriptor.test.js` asserts `parsePipeline(default)` yields 13 descriptors with defaults applied and `validatePipeline` returns `{ok:true}` **even with `requirements`/`architecture` default-off** (the `self_supply` exemption); the invalid fixtures (incl. `dangling-consume.yml`) return `{ok:false}` with the specific error, and `disabled-producer-absorbed.yml` returns `{ok:true}` — all fail (no module).
@@ -267,16 +267,16 @@ SC1 *data* characterization (the default list encodes today's pipeline exactly).
 ### Commit
 `feat(engine): descriptor parse + graph validation + default pipeline data`
 
-## Slice 6 — Engine module: old→new phase alias map (DC-4)
+## Part 6 — Engine module: old→new phase alias map (DC-4)
 
 ### Context
-The single shared old→new alias map (ADR-004) consulted by *both* the resolver walk (slice 7)
+The single shared old→new alias map (ADR-004) consulted by *both* the resolver walk (part 7)
 and, at P4, `manifest-lint`. Lands as data + a pure resolver; the lint-side consumer is P4.
 **Deliberate pull-forward:** DESIGN line 287 / ADR-004 say "the map lands when the rename
 executes (P4)" — that refers to the **rename execution + lint-side wiring + the alias fixture in
 the lint suite**, all of which stay P4 (see the P4 outline). The *engine-internal map + pure
-`resolveAlias`* land here in P1 because slice 7's resolver consumes it (`mutation:` → `validation`,
-slice 7 step 1). No contradiction once the consumer/fixture split is stated.
+`resolveAlias`* land here in P1 because part 7's resolver consumes it (`mutation:` → `validation`,
+part 7 step 1). No contradiction once the consumer/fixture split is stated.
 - **Create** `engine/src/alias-map.js` → `export const ALIAS_MAP` = the frozen table from
   DESIGN §"Manifest & alias resolution" / PRD §6.4: `branch→workspace, prd→requirements,
   adr→decisions, plan→planning, implement→implementation, mutation→validation,
@@ -287,7 +287,7 @@ slice 7 step 1). No contradiction once the consumer/fixture split is stated.
 - **Create** `engine/test/alias-map.test.js`: table-test every old name → its new id; round-trip
   stability (`resolveAlias(resolveAlias(x)) === resolveAlias(x)`); a canonical id maps to itself;
   the map has exactly the 10 documented entries (guard against silent drift).
-- Re-export `ALIAS_MAP, resolveAlias` from `index.js` (replacing the slice-5 stub).
+- Re-export `ALIAS_MAP, resolveAlias` from `index.js` (replacing the part-5 stub).
 - **Surface gate**: locks `resolveAlias`/`ALIAS_MAP`; the resolver and the future lint consumer
   bind to this one home — no second copy (the DC-4 anti-drift guarantee).
 
@@ -302,12 +302,12 @@ slice 7 step 1). No contradiction once the consumer/fixture split is stated.
 ### Commit
 `feat(engine): shared old→new phase alias map`
 
-## Slice 7 — Engine module: pipeline resolution (profile, edits, precedence, strand refusal)
+## Part 7 — Engine module: pipeline resolution (profile, edits, precedence, strand refusal)
 
 ### Context
 The structural resolver — `(defaults, manifest) → effective pipeline` — the DC-5 graph-only
-strictness and the ADR-008 execution precedence. Gate/waiver *accountability* output is slice 10;
-this slice owns *which phases, in what order, in what execution mode*.
+strictness and the ADR-008 execution precedence. Gate/waiver *accountability* output is part 10;
+this part owns *which phases, in what order, in what execution mode*.
 - **Create** `engine/src/profile.js` → `expandProfile(name)` returning an edit-set: `solo` =
   every phase `execution:inline` + lean harness knobs, **except phases of `archetype: harness`
   stay `agent`** (the SP1 parallelism caveat, encoded as a static archetype rule since the
@@ -357,12 +357,12 @@ this slice owns *which phases, in what order, in what execution mode*.
 ### Commit
 `feat(engine): pipeline resolution — profile, edits, precedence, strand refusal`
 
-## Slice 8 — Engine module: engine-owned contract assembly (the P5 crux, function only)
+## Part 8 — Engine module: engine-owned contract assembly (the P5 crux, function only)
 
 ### Context
 The pure assembler `(descriptor, manifest, fragments, opts) → injectedBlock` from DESIGN
 §"Engine-owned contract injection" / §"Assembly path". The **real** `contracts/*.md` fragments
-and the relocation out of agent defs + wiring into the live walk are **P5**; this slice locks
+and the relocation out of agent defs + wiring into the live walk are **P5**; this part locks
 the *function contract* against **fixture** fragments so the seam is unit-pinned now (R-contract,
 R-shape, R-retrieval, S9).
 - **Create** `engine/src/contract.js` → `assembleContract(descriptor, manifest, fragments, opts)`
@@ -400,13 +400,13 @@ R-shape, R-retrieval, S9).
 ### Commit
 `feat(engine): engine-owned contract assembly with inline carve-outs`
 
-## Slice 9 — Engine module: shape-agnostic findings normalizer (R10)
+## Part 9 — Engine module: shape-agnostic findings normalizer (R10)
 
 ### Context
 The `findings-normalize` seam (DESIGN §"Output shape (R10)") — raw role output → the canonical
 `Finding` field set, tolerating a **JSON array** and a **per-line list** interchangeably (SP5
 showed Haiku emits review findings as JSON, others per-line). The *consumers* (review at P5,
-per-harness specifics at P8) wire it in later; this slice pins the normalizer.
+per-harness specifics at P8) wire it in later; this part pins the normalizer.
 - **Create** `engine/src/findings.js` → `normalizeFindings(raw)`: if `raw` parses as a JSON array
   of `{file,line,severity,finding,fix}` → map to `Finding[]`; else parse the documented per-line
   form (`<severity> <file>:<line> — <finding> | <fix>` or the design's `{file:line, severity,
@@ -431,10 +431,10 @@ per-harness specifics at P8) wire it in later; this slice pins the normalizer.
 ### Commit
 `feat(engine): shape-agnostic findings normalizer`
 
-## Slice 10 — Gate/waiver decision layer + S1–S9 scenario golden suite (capstone)
+## Part 10 — Gate/waiver decision layer + S1–S9 scenario golden suite (capstone)
 
 ### Context
-The accountability layer over slice 7's structural resolver: per-phase **gate resolution**, the
+The accountability layer over part 7's structural resolver: per-phase **gate resolution**, the
 **code-producing-gate floor**, **harness-waiver → propose-gate release** (ADR-005), and the
 **S1–S9 scenario goldens** that assert *pipeline resolution + gate decisions* (PRD §13 — never
 LLM prose). Adds `pipeline-resolve` CLI. This is real new code (the gate/waiver output), not a
@@ -458,9 +458,9 @@ test pass — the scenarios exercise it end-to-end at the resolution layer.
   to stdout (the seam P3's orchestrator + CI consume).
 - **Append** `node engine/bin/pipeline-resolve.js pipeline/default.yml` to the shared CI
   definition (`scripts.ci` / `.github/workflows/ci.yml`) — CI now mirrors the full P1
-  phase-boundary gate (substrate + `pipeline-lint` from slice 5 + this resolve smoke).
+  phase-boundary gate (substrate + `pipeline-lint` from part 5 + this resolve smoke).
 - **Create** `engine/test/scenarios.test.js` + `engine/test/fixtures/scenarios/{S1..S9}/`
-  (`workflow.md` manifest + `expected.json` golden of the relevant Resolution slice). What each
+  (`workflow.md` manifest + `expected.json` golden of the relevant Resolution part). What each
   asserts **now** and the phase that completes it (PRD §17 traceability):
   - **S1** `profile: solo` → execution inline (multi-dim harness stays agent); lean harness knobs. *(e2e P6)*
   - **S2** `phases.planning.role: my:domain-planner` → `Resolution` golden shows the role swapped; **plus** a separate `assembleContract(planningDescriptor, manifest, fragments, {})` assertion that U + `[producer]` still inject around the swapped role (this assertion runs against `assembleContract`'s output, **not** the Resolution golden — `Resolution` carries no contract block). *(e2e P9)*
@@ -471,7 +471,7 @@ test pass — the scenarios exercise it end-to-end at the resolution layer.
   - **S7** namespaced inserted phase/role (`acme:bench`) → accepted/validated. *(registration P14)*
   - **S8** `models.fallback` present + a degraded tier → `gateDecisions`/`record` capture the fallback re-resolution policy. *(NFR matrix P13)*
   - **S9** derived `retrieval:` → an `assembleContract(descriptor, manifest, fragments, {})` assertion (again on `assembleContract`'s output, not the Resolution golden) that the derived strategy note injects and **zero** retrieval strings live in the bundle fixtures. *(e2e P5)*
-  - **SC1** the `none`/zero-config golden (from slice 7) re-asserted here as the suite's anchor: the 11 enabled phases (of the 13-descriptor list) in today's order/roles.
+  - **SC1** the `none`/zero-config golden (from part 7) re-asserted here as the suite's anchor: the 11 enabled phases (of the 13-descriptor list) in today's order/roles.
 - **Note (no silent caps):** S6/S7 are *partial* at P1 (resolution-layer only — their ports/UX
   land at P11/P14); the scenario file `log`s this so the suite never reads as "fully covered."
 
@@ -493,22 +493,22 @@ test pass — the scenarios exercise it end-to-end at the resolution layer.
 ### Commit
 `feat(engine): gate/waiver decisions + S1–S9 scenario golden suite`
 
-## Slice 11 — (P2) Harden `manifest-lint.sh`: yq parse + subset-parser fallback
+## Part 11 — (P2) Harden `manifest-lint.sh`: yq parse + subset-parser fallback
 
 ### Context
 P2: re-implement `scripts/manifest-lint.sh`'s YAML parse on **`yq`** (verified on PATH:
 `/opt/homebrew/bin/yq`) with the **existing sed/awk subset parser as the fallback** when `yq` is
-absent, **behavior-preserving** — the slice-2 characterization + historical-regression suite is
+absent, **behavior-preserving** — the part-2 characterization + historical-regression suite is
 the guard rail (must stay green throughout). The two historical regressions (comma-in-array,
 quoting) become *structurally impossible* under `yq`, not just patched. Then **evaluate** the
 ADR-002 follow-up (fold shape validation into the Node core) and record the decision.
 - **Touch** `scripts/manifest-lint.sh`: front a `parse_frontmatter()` that uses `yq` when
   available (`yq -o=props` / `yq '.. | …'` to enumerate keys + values), else falls through to the
   current line-walk (lines 53–123, kept intact as the fallback path). Preserve every current
-  message string + exit code (slice-2 fixtures assert them) — `TOP_KEYS`, `PHASE_NAMES`,
+  message string + exit code (part-2 fixtures assert them) — `TOP_KEYS`, `PHASE_NAMES`,
   `PROTECTED`, dangling-file, unknown-key, skip-on-protected all unchanged at P2 (`PROTECTED`
-  removal is **P3**, alias-map reading is **P4** — out of this slice).
-- **Extend** `test/manifest-lint.bats` (slice 2) with a `yq`-absent run (shim `PATH` without `yq`)
+  removal is **P3**, alias-map reading is **P4** — out of this part).
+- **Extend** `test/manifest-lint.bats` (part 2) with a `yq`-absent run (shim `PATH` without `yq`)
   asserting the fallback path produces **identical** verdicts on every fixture — proving the two
   parsers agree (the anti-regression property).
 - **Decision artifact**: append a short note to ADR-002's consequences (or a one-paragraph
@@ -521,7 +521,7 @@ ADR-002 follow-up (fold shape validation into the Node core) and record the deci
 - RED: add the `yq`-absent fallback-equivalence cases to `test/manifest-lint.bats`; they fail
   (no fallback branch / parser divergence on the comma+quoting fixtures).
 - GREEN: introduce the `yq`-backed parse with the subset parser as fallback until the full
-  slice-2 + slice-11 suite is green under **both** `yq`-present and `yq`-absent PATHs.
+  part-2 + part-11 suite is green under **both** `yq`-present and `yq`-absent PATHs.
 - REFACTOR: isolate `parse_frontmatter()` as the single parse seam; the validation logic consumes
   its normalized output regardless of backend (one responsibility per function); shellcheck-clean.
 
@@ -541,38 +541,38 @@ the surface gates they must honor.
   the Node core: replace the hardcoded 1→11 table (lines 32–46) with a walk over
   `pipeline-resolve` output; the §11 cross-phase invariants stay but generalise **by archetype**
   (not phase name). Remove the static `PROTECTED` from `manifest-lint` (the graph now computes
-  stranding). **Surface gate:** the slice-7/10 golden Resolution is the contract — the rewired
-  walk must reproduce it; the slice-1 phase-boundary gate + scenario suite stay green
-  (behavior-identical by construction). Likely slices: walk-skeleton over resolved data; gate
-  cadence wiring; `PROTECTED` removal under the slice-2 suite; run-record emission from
+  stranding). **Surface gate:** the part-7/10 golden Resolution is the contract — the rewired
+  walk must reproduce it; the part-1 phase-boundary gate + scenario suite stay green
+  (behavior-identical by construction). Likely parts: walk-skeleton over resolved data; gate
+  cadence wiring; `PROTECTED` removal under the part-2 suite; run-record emission from
   `Resolution.record`.
 - **P4 — Generic vocabulary (rename + aliases; SC1 still green).** The single coordinated rename:
   skill dirs (`skills/branch→workspace, adr→decisions, plan→planning, implement→implementation,
   mutation→validation, refactor→refactoring, docs→documentation, pr→propose, merge→integrate`),
   agent files (`mutation-triager→validation-triager`, …), the default descriptor ids (already
-  concern-named in `pipeline/default.yml`), and **wiring `manifest-lint` to read the slice-6
-  `ALIAS_MAP`** (one source of truth — DC-4). Add the alias-resolution fixture to the slice-2
+  concern-named in `pipeline/default.yml`), and **wiring `manifest-lint` to read the part-6
+  `ALIAS_MAP`** (one source of truth — DC-4). Add the alias-resolution fixture to the part-2
   suite (PRD §13). `requirements`/`architecture` stay new (no dir to rename); `prd` stays a
   registered alias. **Surface gate:** `resolveAlias` is the only alias home — no second copy.
 - **P5 — Engine-owned injection (relocate contract; thin agents; doc split).** Create the real
   `contracts/{core,producer,construction,harness-read,harness-exec,delivery}.md` fragments
-  (content relocated from the agent defs + §11), feed them as the slice-8 `assembleContract`
+  (content relocated from the agent defs + §11), feed them as the part-8 `assembleContract`
   `fragments` map, and wire assembly into the walk (spawn **and** inline). Strip the relocated
   contract from `agents/*.md` (thin role craft only — e.g. `agents/designer.md` keeps the craft,
   drops the universal invariants). Derive + inject the retrieval-strategy note (S9; **zero**
   retrieval strings in plugin content — SC8). Re-baseline the fixed-prompt **agent-output diff**
   (R8) — the one deliberate, re-baselined change. Execute the **DESIGN split** (ADR-007):
   `docs/DESIGN.md → docs/DESIGN-history.md`; `DESIGN-customizable-engine.md` is the living SoT;
-  fix cross-references. **Surface gate:** `assembleContract`'s signature is frozen (slice 8) —
-  P5 supplies data + call sites only; the slice-8 assertions (U always present, inline swaps
+  fix cross-references. **Surface gate:** `assembleContract`'s signature is frozen (part 8) —
+  P5 supplies data + call sites only; the part-8 assertions (U always present, inline swaps
   exactly two lines) must stay green.
 
 ## Blockers / open items
 
 - **None blocking P1.** Toolchain verified present (Node 22 `node --test`, bats, shellcheck, yq).
 - **CI runner tools** — the GitHub Actions image must provide `bats`, `shellcheck`, `jq`, `yq`
-  (slice 1 wires the install steps; called out so the workflow author doesn't assume them).
+  (part 1 wires the install steps; called out so the workflow author doesn't assume them).
 - **P8/P10/P11/P14 boundaries are honored, not crossed** — `harness:` internals, the
   `requirements`/`architecture` agent bodies, backlog adapter impls, and derived-plugin
-  registration are out of P1–P5 scope; the scenario suite asserts only the resolution-layer slice
+  registration are out of P1–P5 scope; the scenario suite asserts only the resolution-layer part
   that exists today and logs the partial coverage (no silent caps).

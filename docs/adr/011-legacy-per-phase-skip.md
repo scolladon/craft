@@ -29,7 +29,7 @@ by graph stranding; the legacy surface fails fast with a migration pointer.
 
 ## Consequences
 
-The slice-2 `invalid-skip-protected` fixture (`phases.plan.skip: true`) is re-baselined: it stays
+The part-2 `invalid-skip-protected` fixture (`phases.plan.skip: true`) is re-baselined: it stays
 **exit 2**, but the asserted message changes from "skip: is refused on protected phase" to the new
 inert-field guidance. This is the one deliberate, expected bats regression in P3. "Skip any phase"
 (G1) is fully delivered through `pipeline.skip`; no skip path silently does nothing.

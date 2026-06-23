@@ -36,4 +36,4 @@ independent assembly tests).
 
 One assembly home, swap-safe; `Resolution` stays byte-identical (SC1 green); the store is shape-
 guarded every commit. The walk pays one deterministic CLI call per phase. `ci.sh` gains a
-`contracts-lint` line (the slice that adds the binary appends it, per the ci.sh convention).
+`contracts-lint` line (the part that adds the binary appends it, per the ci.sh convention).

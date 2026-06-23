@@ -1,48 +1,48 @@
 # Plan — P16: provider-agnostic ports/adapters boundary + Pi adapter PoC
 
 > Source: design doc `docs/DESIGN-P16-provider-agnostic.md` · ADRs `084, 085, 086, 087, 088, 089, 090, 091, 092`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
 ## Ordering (ADR-084)
 
-ALL boundary slices (1–3) land first; THEN all Pi slices (4–7). The Pi slices `consume`
-the committed port-spec docs from slices 2–3 as pre-chewed input. If the Pi runtime proves
-un-installable at implementation time, slices 1–3 still ship as a coherent change and the
-Pi slices escalate as a blocker (ADR-084 consequence), never sinking the run.
+ALL boundary parts (1–3) land first; THEN all Pi parts (4–7). The Pi parts `consume`
+the committed port-spec docs from parts 2–3 as pre-chewed input. If the Pi runtime proves
+un-installable at implementation time, parts 1–3 still ship as a coherent change and the
+Pi parts escalate as a blocker (ADR-084 consequence), never sinking the run.
 
 ## Gate placeholders (resolved here)
 
-- **Engine src/test slice gate** (slices 1, 4, 5, 6): `cd engine && node --test 'test/**/*.test.js'`
-- **Adapters/pi slice gate** (slices 4, 5, 6 also run): `cd adapters/pi && node --test 'test/**/*.test.js'`
-- **Docs-only slice gate** (slices 2, 3, 7): `bash scripts/ci.sh` (no engine src/test delta — the full
-  substrate gate is the cheapest honest proof a docs slice changed no behaviour; it also runs
+- **Engine src/test part gate** (parts 1, 4, 5, 6): `cd engine && node --test 'test/**/*.test.js'`
+- **Adapters/pi part gate** (parts 4, 5, 6 also run): `cd adapters/pi && node --test 'test/**/*.test.js'`
+- **Docs-only part gate** (parts 2, 3, 7): `bash scripts/ci.sh` (no engine src/test delta — the full
+  substrate gate is the cheapest honest proof a docs part changed no behaviour; it also runs
   `pipeline-lint`/`pipeline-resolve`/`contracts-lint`/`shellcheck`/`bats`).
-- **Phase-boundary / full substrate gate** (run once after slice 7): `bash scripts/ci.sh`
+- **Phase-boundary / full substrate gate** (run once after part 7): `bash scripts/ci.sh`
   (engine `node --test` + `EXPECTED_TESTS` count guard + `bats test/` + `shellcheck scripts/*.sh
   hooks/*.sh` + `pipeline-lint`/`pipeline-resolve` on `pipeline/default.yml` + `contracts-lint`).
 
 ## EXPECTED_TESTS ledger (the 634-count guard — `scripts/ci.sh` line 10)
 
 Baseline (verified this checkout): `EXPECTED_TESTS=634`, all green. Per CRITICAL fact 1, EVERY
-slice that adds/removes a `node --test` test under `engine/test/**` MUST update `EXPECTED_TESTS`
-in `scripts/ci.sh` in the SAME commit. Pi-adapter tests live OUTSIDE `engine/test/` (slice 4
+part that adds/removes a `node --test` test under `engine/test/**` MUST update `EXPECTED_TESTS`
+in `scripts/ci.sh` in the SAME commit. Pi-adapter tests live OUTSIDE `engine/test/` (part 4
 establishes their separate home + their own count guard `EXPECTED_PI_TESTS`), so they never touch
-`EXPECTED_TESTS`. Per-slice deltas:
+`EXPECTED_TESTS`. Per-part deltas:
 
-| Slice | engine/test Δ | `EXPECTED_TESTS` after | adapters/pi test Δ | `EXPECTED_PI_TESTS` after |
+| Part | engine/test Δ | `EXPECTED_TESTS` after | adapters/pi test Δ | `EXPECTED_PI_TESTS` after |
 |---|---|---|---|---|
 | 1 (DC-9) | 0 (guard test repurposed in place, net 0) | **634** (unchanged) | — | — |
 | 2 (docs) | 0 | 634 | — | — |
@@ -52,16 +52,16 @@ establishes their separate home + their own count guard `EXPECTED_PI_TESTS`), so
 | 6 (pi probe runner) | 0 | 634 | **+N₆** | **N₄+N₅+N₆** |
 | 7 (pi-poc-record docs) | 0 | 634 | 0 | unchanged |
 
-N₄/N₅/N₆ are the concrete counts the slice agent writes; each adapters/pi slice states the exact new
+N₄/N₅/N₆ are the concrete counts the part agent writes; each adapters/pi part states the exact new
 `EXPECTED_PI_TESTS` value in its gate after counting its own `# tests` line.
 
 ---
 
-## Slice 1 — DC-9: lift per-role model tier into the descriptor + Claude re-baseline
+## Part 1 — DC-9: lift per-role model tier into the descriptor + Claude re-baseline
 
 ### Context
 
-This is the ONE behaviour-touching boundary slice (ADR-092). It moves the canonical per-role model
+This is the ONE behaviour-touching boundary part (ADR-092). It moves the canonical per-role model
 tier from `agents/*.md` frontmatter (Claude-only) into `pipeline/default.yml` as an adapter-neutral
 `model:` descriptor field, surfaces it on the resolved descriptor, and re-documents the resolution
 order — then PROVES the Claude spawn-model per phase is byte-identical to today.
@@ -83,7 +83,7 @@ the spread carries it (see TDD step 2).
 | requirements | craft:requirements-writer | agents/requirements-writer.md | `opus` |
 | design | craft:designer | agents/designer.md | `opus` |
 | planning | craft:planner | agents/planner.md | `opus` |
-| implementation | craft:slice-implementer | agents/slice-implementer.md | `sonnet` |
+| implementation | craft:part-implementer | agents/part-implementer.md | `sonnet` |
 | review | craft:reviewer | agents/reviewer.md | `opus` |
 | refactoring | craft:refactor-executor | agents/refactor-executor.md | `sonnet` |
 | validation | craft:validation-triager | agents/validation-triager.md | `sonnet` |
@@ -199,11 +199,11 @@ descriptor shape; spot-checked, no full-descriptor deep-equal exists elsewhere):
 
 ---
 
-## Slice 2 — docs/adapters: execution.md + model.md port specs + run/SKILL.md seam anchors
+## Part 2 — docs/adapters: execution.md + model.md port specs + run/SKILL.md seam anchors
 
 ### Context
 
-Docs-only slice (no `src/` delta) — standalone per the sizing EXCEPTION (ADR-087: Execution/Model are
+Docs-only part (no `src/` delta) — standalone per the sizing EXCEPTION (ADR-087: Execution/Model are
 DOCUMENTED SEAMS, no `engine/src` shim). Writes the two new port-author specs and adds the one-line
 "(this is the port's verb — Claude binding)" anchors in `run/SKILL.md`.
 
@@ -216,7 +216,7 @@ copy-paste reference bindings. Each new doc follows this exact rhythm.
 **`docs/adapters/execution.md`** — port verbs from DESIGN §"Execution port spec" (lines 171–202):
 - `spawn(role, ctx) → result` — role = a registered worker identity (`craft:<role>`); ctx = the
   engine-assembled injected block (`contract-assemble` output: core + bundles + retrieval note +
-  manifest context) + working dir + task dynamics (phase id, slice, gate string, commit message,
+  manifest context) + working dir + task dynamics (phase id, part, gate string, commit message,
   artifact paths) + the resolved model (from the Model port). **pre**: `ctx.injectedBlock` non-empty;
   working dir is an isolated workspace (VCS `isolate` ran). **post**: a worker ran the phase under the
   injected block; the contribution is in a COMMITTED ARTIFACT (artifact-is-the-handoff, port-agnostic
@@ -243,7 +243,7 @@ copy-paste reference bindings. Each new doc follows this exact rhythm.
 - `isAvailable(model) → bool` — adapter probe; lets core skip a known-down tier.
 - **Core policy retained:** resolution order **manifest `models.<role>` → descriptor `model:` field →
   `models.fallback` → engine default sonnet → session** (this is the DC-9 order — keep it identical to
-  the slice-1 SKILL.md prose, single source of truth); degraded-tier memory for the run; supported class
+  the part-1 SKILL.md prose, single source of truth); degraded-tier memory for the run; supported class
   is **Haiku-4.5-and-up** (SP5). The port exposes only bind + probe.
 - **Documented bindings:** **Claude** = the Task `model` param + the descriptor `model:` tier (canonical)
   whose Claude binding is each `agents/<role>.md` frontmatter pin. **Pi** = `model:`/`scopedModels:` on
@@ -256,9 +256,9 @@ copy-paste reference bindings. Each new doc follows this exact rhythm.
 **`run/SKILL.md` anchors (one line each, additive — no behaviour change):**
 - In the "**Agent spawns**" invariant block (lines 250–261): append one line —
   `(This block is the Execution port's spawn verb — the Claude binding. See docs/adapters/execution.md.)`
-- In the "**Model resolution & fallback**" block (now edited by slice 1, lines ~263–271): append one
+- In the "**Model resolution & fallback**" block (now edited by part 1, lines ~263–271): append one
   line — `(This is the Model port's select/isAvailable — the Claude binding. See docs/adapters/model.md.)`
-  Do NOT re-touch the resolution-order sentence slice 1 wrote.
+  Do NOT re-touch the resolution-order sentence part 1 wrote.
 
 ### TDD steps
 
@@ -280,11 +280,11 @@ zero behaviour change: prose docs + two one-line anchors, no `src`/`pipeline`/`c
 
 ---
 
-## Slice 3 — docs/adapters: vcs.md + gate.md (transcribe extracted mechanisms)
+## Part 3 — docs/adapters: vcs.md + gate.md (transcribe extracted mechanisms)
 
 ### Context
 
-Docs-only slice (no `src/` delta) — standalone per the sizing EXCEPTION (ADR-091/DC-8: complete the
+Docs-only part (no `src/` delta) — standalone per the sizing EXCEPTION (ADR-091/DC-8: complete the
 four-doc `docs/adapters/` set). `vcs.md` and `gate.md` TRANSCRIBE already-extracted mechanisms — they
 introduce NO new extraction and re-decide NO semantics (ADR-091 consequence). Same `backlog.md`
 house shape (verbs · binding set · pre/postconditions · failure→blocker via the injected protocol).
@@ -314,7 +314,7 @@ and skim `engine/src/gates.js` `resolveGate` to transcribe accurately.) Document
   `pi.on("tool_call", h) → { block: true, reason }` extension hook (Pi's pre-tool veto; the veto shape
   is EXACTLY `{ block: true }`, there is no `permission: "deny"`; handler errors block fail-safe) PLUS
   the engine-owned gate command run as a normal subprocess WRAPPER (Pi has no harness-hook concept —
-  DESIGN line 264). Forward-reference: the deterministic `tool_call` predicate is unit-tested in slice 5.
+  DESIGN line 264). Forward-reference: the deterministic `tool_call` predicate is unit-tested in part 5.
 - `## Failure → blocker`: a gate that exits non-zero blocks the commit (never a silent pass); a
   `tool_call` veto is enforcement, not a blocker.
 
@@ -336,23 +336,23 @@ change; `EXPECTED_TESTS` stays 634).
 
 ---
 
-## Slice 4 — adapters/pi: scaffold + engine-bin invocation wrapper + CI test-home
+## Part 4 — adapters/pi: scaffold + engine-bin invocation wrapper + CI test-home
 
 ### Context
 
-First Pi slice (ADR-085: code lives under a NEW top-level `adapters/pi/` tree; `engine/**` stays
-core-only; adapters depend on engine, never the reverse). This slice establishes (a) the `adapters/pi/`
+First Pi part (ADR-085: code lives under a NEW top-level `adapters/pi/` tree; `engine/**` stays
+core-only; adapters depend on engine, never the reverse). This part establishes (a) the `adapters/pi/`
 tree + its package, (b) the wrapper that drives the engine core unchanged via its bins, and (c) the CI
 test-home + count guard for Pi units (CRITICAL fact 3). Consumes the committed port specs from
-slices 2–3.
+parts 2–3.
 
 **Tree to create (ADR-085):**
 ```
 adapters/pi/
   package.json        # { "name": "@craft/adapter-pi", "type": "module", "private": true,
                       #   "scripts": { "test": "node --test 'test/**/*.test.js'" } }
-  src/engine.js       # the engine-bin invocation wrapper (this slice)
-  test/engine.test.js # unit tests for the wrapper (this slice)
+  src/engine.js       # the engine-bin invocation wrapper (this part)
+  test/engine.test.js # unit tests for the wrapper (this part)
 ```
 Mirror `engine/package.json` shape (READ it: `{"name":"@craft/engine","type":"module","private":true,
 "scripts":{"test":"node --test 'test/**/*.test.js'"}}`). The Pi adapter is Node so its deterministic
@@ -364,7 +364,7 @@ shape", lines 252–267):
 - `resolvePipeline()` → run `node <repoRoot>/engine/bin/pipeline-resolve.js <repoRoot>/pipeline/default.yml`
   via `execFile` (argv array, NO shell — untrusted-input discipline from `backlog.md`), parse stdout
   JSON → return `resolution` (the `{ ok, effective, record, gateDecisions, waivers }` object;
-  `effective[i]` now carries `model` after slice 1). Non-zero exit → blocker (surface stderr).
+  `effective[i]` now carries `model` after part 1). Non-zero exit → blocker (surface stderr).
 - `assembleBlock(phaseId)` → run `node <repoRoot>/engine/bin/contract-assemble.js` for the phase
   (READ `engine/bin/contract-assemble.js` and `engine/src/contract-assemble-main.js` for the exact
   flag surface: `--descriptor-id <id>`, `--inline`, `--contracts-dir`, and the `--descriptor-json`
@@ -376,11 +376,11 @@ shape", lines 252–267):
 - Pure orchestration: no business logic duplicated from the engine — the adapter REUSES the core
   byte-for-byte (the load-bearing P16 thesis). Backlog/VCS reuse is config (DESIGN matrix): document in
   a header comment that Backlog `file`/`custom` and the SP8 worktree scripts are called directly,
-  unchanged — but binding those is slices 5–6, not here.
+  unchanged — but binding those is parts 5–6, not here.
 
 **Public-surface decision (up front):** every symbol exported from `adapters/pi/src/**`
 (`resolvePipeline`, `assembleBlock` here; `buildPiArgs`/`runPhase`/`parseUsage`/`toolCallGuard` in
-slice 5; `runAcceptanceProbe` in slice 6) is **internal to the `@craft/adapter-pi` package** —
+part 5; `runAcceptanceProbe` in part 6) is **internal to the `@craft/adapter-pi` package** —
 consumed only by that package's own bin/tests. The package is `private: true`; this repo has NO
 adapter barrel, facade, generated API report, exhaustiveness switch, or registry that an adapter
 export must register with (the engine's `engine/src/index.js` re-export surface is core-only and the
@@ -393,24 +393,24 @@ internal. Do NOT add an `adapters/pi/index.js` barrel (YAGNI: one consumer).
   invariant is untouched (ADR-085 — adapter code must not perturb the core test contract). Insert after
   the engine block (before the `bats … && shellcheck …` chain on line 24):
   ```bash
-  EXPECTED_PI_TESTS=<N₄>   # this slice's adapters/pi test count
+  EXPECTED_PI_TESTS=<N₄>   # this part's adapters/pi test count
   pi_output="$(cd adapters/pi && node --test 'test/**/*.test.js' 2>&1)" && pi_status=0 || pi_status=$?
   echo "$pi_output"
   [ "$pi_status" -eq 0 ] || { echo "ci: adapters/pi node --test failed (exit ${pi_status})" >&2; exit "$pi_status"; }
   actual_pi_tests="$(printf '%s\n' "$pi_output" | awk '/^# tests / {print $3}')"
   [ "$actual_pi_tests" = "$EXPECTED_PI_TESTS" ] || { echo "ci: pi test count drift — expected ${EXPECTED_PI_TESTS}, got ${actual_pi_tests}" >&2; exit 1; }
   ```
-  Set `<N₄>` to the exact `# tests` count this slice's `adapters/pi/test` emits. The engine
+  Set `<N₄>` to the exact `# tests` count this part's `adapters/pi/test` emits. The engine
   `EXPECTED_TESTS=634` line is NOT touched.
-- `scripts/ci.sh` shellcheck glob is `scripts/*.sh hooks/*.sh` — if this slice adds ANY `.sh` under
-  `adapters/pi/`, extend the glob to include `adapters/pi/**/*.sh` (this slice is Node-only, so likely
+- `scripts/ci.sh` shellcheck glob is `scripts/*.sh hooks/*.sh` — if this part adds ANY `.sh` under
+  `adapters/pi/`, extend the glob to include `adapters/pi/**/*.sh` (this part is Node-only, so likely
   no glob change — state which in the commit). The ci.sh edit itself must pass `shellcheck scripts/*.sh`.
 
 ### TDD steps
 
 - **RED** — `adapters/pi/test/engine.test.js`: assert `resolvePipeline()` returns an object with
   `ok === true` and `effective` containing a phase whose `id === 'implementation'` and `model === 'sonnet'`
-  (proving it reuses the slice-1 descriptor surfacing through the real bin), and that `assembleBlock('design')`
+  (proving it reuses the part-1 descriptor surfacing through the real bin), and that `assembleBlock('design')`
   returns a non-empty string containing a known core marker (e.g. the blocker-protocol phrase
   `{ unit, reason, ≤3 options }` — READ `contracts/core.md` to pin an exact substring). Run
   `cd adapters/pi && node --test 'test/**/*.test.js'` → fails (`src/engine.js` does not exist).
@@ -433,11 +433,11 @@ internal. Do NOT add an `adapters/pi/index.js` barrel (YAGNI: one consumer).
 
 ---
 
-## Slice 5 — adapters/pi: subprocess Execution binding + tool_call gate predicate
+## Part 5 — adapters/pi: subprocess Execution binding + tool_call gate predicate
 
 ### Context
 
-Builds on slice 4's wrapper. Binds the two CI-DETERMINISTIC Pi seams (ADR-089: these ARE unit-tested in
+Builds on part 4's wrapper. Binds the two CI-DETERMINISTIC Pi seams (ADR-089: these ARE unit-tested in
 CI; the LIVE Pi run is not): the subprocess Execution binding (ADR-090: `pi -p` / `--mode json`) and
 the `tool_call` gate predicate (DESIGN §"Pi adapter shape" Gate row + §"Test strategy" gate-guard unit
 check, lines 336–337). Pinned Pi surface (DESIGN lines 66–116 — do NOT re-derive from memory):
@@ -448,23 +448,23 @@ check, lines 336–337). Pinned Pi surface (DESIGN lines 66–116 — do NOT re-
   shape. `tool_call` handler errors BLOCK the tool (fail-safe). The hook fires after
   `tool_execution_start`, before the tool executes.
 
-**Files (extend the slice-4 tree):**
+**Files (extend the part-4 tree):**
 - `adapters/pi/src/execution.js` — `buildPiArgs(injectedBlock, dynamics, { jsonMode }) → string[]`: the
   PURE subprocess-arg shaper returning the argv array for `pi` (`['-p', prompt]` or `['--mode','json','-p',prompt]`).
   Untrusted-input discipline (`backlog.md`): the prompt is a single discrete argv element, never
   interpolated into a shell string; `execFile('pi', args)` not `exec`. Plus `runPhase(phaseId, ctx)` that
-  composes slice-4's `assembleBlock` + `buildPiArgs` + `execFile`, returning `{ finalMessage, usage,
+  composes part-4's `assembleBlock` + `buildPiArgs` + `execFile`, returning `{ finalMessage, usage,
   exitCode }`; non-zero exit → blocker. The `usage` parse from `--mode json` JSONL is a pure function
   `parseUsage(jsonlText) → usage|null` (split on `\n` only — strict LF, DESIGN line 86).
 - `adapters/pi/src/gate.js` — `toolCallGuard(event) → { block: boolean, reason?: string }`: the PURE
   predicate enforcing the mechanical guards Claude does via PreToolUse hooks. Seed it with the same
-  guards `gate.md` (slice 3) documents: (i) a `git diff`/`git show` tool call lacking `--no-ext-diff` →
+  guards `gate.md` (part 3) documents: (i) a `git diff`/`git show` tool call lacking `--no-ext-diff` →
   `{ block: true, reason }` (mirrors `hooks/git-no-ext-diff.sh` — READ it for the exact match logic);
   (ii) a tool call writing a path OUTSIDE the working dir → `{ block: true }`. A permitted call →
   `{ block: false }`. This is "the one deterministically-testable seam of the adapter" (DESIGN line 337).
   Keep it a pure function of the event (no live Pi session) so it is fully unit-testable.
 
-These are FEATURE seams → their tests FOLD into this slice (sizing rule: no standalone test-only slice
+These are FEATURE seams → their tests FOLD into this part (sizing rule: no standalone test-only part
 for feature code). All live under `adapters/pi/test/` → count goes into `EXPECTED_PI_TESTS`, never
 `EXPECTED_TESTS`.
 
@@ -484,7 +484,7 @@ for feature code). All live under `adapters/pi/test/` → count goes into `EXPEC
   no nesting >2) and `execution.js` (`buildPiArgs` pure; `parseUsage` pure; `runPhase` composing
   `assembleBlock` + `execFile('pi', …)`). Re-run → green.
 - **REFACTOR** — dedupe any guard-flag constants shared with the `gate.md` doc intent; update
-  `scripts/ci.sh` `EXPECTED_PI_TESTS` to the new total (slice-4 N₄ + this slice's added tests). Run
+  `scripts/ci.sh` `EXPECTED_PI_TESTS` to the new total (part-4 N₄ + this part's added tests). Run
   `bash scripts/ci.sh` → engine 634 unchanged, adapters/pi new total green.
 
 ### Gate
@@ -499,17 +499,17 @@ untouched). Never commit on red.
 
 ---
 
-## Slice 6 — adapters/pi: acceptance-probe harness (one construction phase, mktemp-isolated)
+## Part 6 — adapters/pi: acceptance-probe harness (one construction phase, mktemp-isolated)
 
 ### Context
 
-Builds on slices 4–5. Implements the acceptance-probe RUNNER that drives ONE construction-bearing phase
+Builds on parts 4–5. Implements the acceptance-probe RUNNER that drives ONE construction-bearing phase
 end-to-end through the Pi adapter (ADR-088/DC-5: a single construction phase is the literal program gate
-R-pi-scenario). Per ADR-089/DC-6 the LIVE Pi run is an ON-DEMAND smoke, NOT CI-gated — so this slice
+R-pi-scenario). Per ADR-089/DC-6 the LIVE Pi run is an ON-DEMAND smoke, NOT CI-gated — so this part
 lands the runner + its DETERMINISTIC parts (unit-tested in CI) and the structural assertions; actually
-EXECUTING the live Pi run is on-demand (slice 7 records its evidence). **If Pi cannot be installed
+EXECUTING the live Pi run is on-demand (part 7 records its evidence). **If Pi cannot be installed
 in-env, the runner + deterministic tests still land; the live invocation escalates as a blocker
-(ADR-084) — it does not block this slice's commit, which gates on the deterministic units.**
+(ADR-084) — it does not block this part's commit, which gates on the deterministic units.**
 
 **Safety (DESIGN §Acceptance probe line 295; SP8; the state-mutating-probe rule):** the entire probe
 runs in a `mktemp` throwaway repo, NEVER the worktree. Pi's `tool_call`/exec surface and any
@@ -517,20 +517,20 @@ runs in a `mktemp` throwaway repo, NEVER the worktree. Pi's `tool_call`/exec sur
 `isolate` it (VCS port — `git init` / the worktree script), run the phase there, and assert mutations
 stayed inside it.
 
-**Files (extend the slice-4/5 tree):**
+**Files (extend the part-4/5 tree):**
 - `adapters/pi/src/probe.js` — `runAcceptanceProbe({ piRunner, fsOps }) → { passed, evidence }`. It:
   1. `mktemp -d` a throwaway repo, `isolate` it (VCS `isolate`).
-  2. Assemble the `construction`/`implementation` injected block via slice-4 `assembleBlock` +
+  2. Assemble the `construction`/`implementation` injected block via part-4 `assembleBlock` +
      a tiny free-text brief as dynamics.
   3. `select` a Pi model tier→provider via the Model binding (map `implementation`'s `sonnet` tier).
-  4. `spawn` ONE Pi run via slice-5 `runPhase` under the injected `construction` contract, with the
-     slice-5 `toolCallGuard` armed + the engine-owned gate command wrapped as a subprocess gate.
+  4. `spawn` ONE Pi run via part-5 `runPhase` under the injected `construction` contract, with the
+     part-5 `toolCallGuard` armed + the engine-owned gate command wrapped as a subprocess gate.
   5. Assert STRUCTURE only (DESIGN line 288–292 — NEVER LLM prose, because Pi runs a different model
-     and content differs): a RED→GREEN→commit slice landed; the gate ran and was GREEN before the commit
+     and content differs): a RED→GREEN→commit part landed; the gate ran and was GREEN before the commit
      (never-commit-on-red); the working tree mutated ONLY inside the throwaway; a committed artifact
      exists as the handoff.
   6. Return `evidence` (target identity, Pi version, model, ports exercised, per-phase outcome) for
-     slice 7's record doc.
+     part 7's record doc.
 - The Pi process invocation + filesystem ops are INJECTED (`piRunner`, `fsOps`) so the assertion logic
   is unit-testable WITHOUT a live Pi session (mirror the engine's IO-injection idiom — READ
   `engine/test-helpers/capture-io.js` for the pattern). The structural-assertion functions
@@ -540,7 +540,7 @@ stayed inside it.
 **Test split:** the structural-assertion functions + the probe orchestration over an INJECTED fake
 `piRunner`/`fsOps` are unit-tested in `adapters/pi/test/probe.test.js` (CI, deterministic — count into
 `EXPECTED_PI_TESTS`). The LIVE Pi run is NOT in CI (ADR-089) — it is the on-demand smoke recorded in
-slice 7.
+part 7.
 
 ### TDD steps
 
@@ -555,8 +555,8 @@ slice 7.
   the three pure structural-assertion functions. Re-run → green.
 - **REFACTOR** — extract the structural-assertion helpers into small pure functions (early returns, no
   nesting >2); update `scripts/ci.sh` `EXPECTED_PI_TESTS` to the new total. Run `bash scripts/ci.sh` →
-  engine 634 unchanged, adapters/pi new total green. (The live smoke is NOT run here — it is slice 7's
-  on-demand evidence; this slice's gate is the deterministic units only.)
+  engine 634 unchanged, adapters/pi new total green. (The live smoke is NOT run here — it is part 7's
+  on-demand evidence; this part's gate is the deterministic units only.)
 
 ### Gate
 
@@ -570,11 +570,11 @@ Never commit on red.
 
 ---
 
-## Slice 7 — docs/adapters/pi-poc-record.md (on-demand smoke evidence)
+## Part 7 — docs/adapters/pi-poc-record.md (on-demand smoke evidence)
 
 ### Context
 
-Docs-only slice (no `src/` delta) — standalone per the sizing EXCEPTION. The evidence doc for the Pi
+Docs-only part (no `src/` delta) — standalone per the sizing EXCEPTION. The evidence doc for the Pi
 PoC on-demand smoke (ADR-089/DC-6), mirroring `docs/SC5-second-instantiation-record.md` and ADR-080's
 record pattern. This is the diffable proof of R-pi-scenario, refreshed when the smoke is re-run.
 
@@ -589,12 +589,12 @@ Pi record's fields (DESIGN line 291–293):
   never-commit-on-red held), VCS (`isolate` the throwaway, `commit` the handoff);
 - per-phase outcome: RED→GREEN→commit landed, gate green before commit, mutations confined to the
   throwaway, committed artifact = the handoff.
-- A `> not CI-gated` note pointing at the slice-6 runner and explaining the live run is on-demand.
+- A `> not CI-gated` note pointing at the part-6 runner and explaining the live run is on-demand.
 
 **Honest-state caveat (carry it explicitly in the doc):** if the live Pi smoke was run, record the
 real outcome. If Pi could not be installed in-env at implementation time (the ADR-084 blocker case),
 the record states **PENDING** with the reason and the exact on-demand command to run later — the
-deterministic adapter + its CI units (slices 4–6) are the landed proof of the seams; the live run is the
+deterministic adapter + its CI units (parts 4–6) are the landed proof of the seams; the live run is the
 runtime-fidelity smoke that this doc captures when executed. Do NOT fabricate a PASS for a run that did
 not happen (mirrors `backlog.md`'s "complete path was not exercised live" honesty).
 

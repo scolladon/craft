@@ -22,7 +22,7 @@
 ## Done
 
 <!-- Shipped work in chronological order (oldest phase first), grouped by phase/milestone.
-     Each entry is a checked box `[x]` with a one-line outcome; nest sub-bullets per slice.
+     Each entry is a checked box `[x]` with a one-line outcome; nest sub-bullets per part.
      Record the ADRs/design docs each phase resolved against so the trail is followable. -->
 
 ### <phase> — <title>

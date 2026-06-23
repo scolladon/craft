@@ -6,7 +6,7 @@
  * published bins via execFile (argv-array, never interpolated shell strings).
  *
  * Backlog file/custom sources and the worktree VCS scripts are called directly,
- * unchanged — binding those seams to Pi is handled in subsequent slices, not here.
+ * unchanged — binding those seams to Pi is handled in subsequent parts, not here.
  */
 
 import { execFile } from 'node:child_process';

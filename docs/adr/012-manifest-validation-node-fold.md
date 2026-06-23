@@ -30,14 +30,14 @@ Manifest shape-validation **moves into the Node core**. `validateManifest` is a 
 (shape/known-keys/phase-names/legacy-skip — file existence injected via `opts` or checked at the
 CLI boundary so the core stays I/O-free, mirroring `resolvePipeline`). The CLI binary owns I/O;
 `scripts/manifest-lint.sh` stays the stable entry point as a thin delegating wrapper. The
-behavior-preserving migration is guarded by the slice-2 `test/manifest-lint.bats` characterization
+behavior-preserving migration is guarded by the part-2 `test/manifest-lint.bats` characterization
 suite — identical exit codes and message substrings for every fixture except the deliberate
 ADR-011 re-baseline.
 
 ## Consequences
 
 One deterministic validation home (Node), aligned with the resolver — ADR-002's follow-up is
-closed. **The P2 slice-11 yq + sed/awk subset-parser dual backend is superseded** by `js-yaml`:
+closed. **The P2 part-11 yq + sed/awk subset-parser dual backend is superseded** by `js-yaml`:
 the backend-equivalence (yq-present vs yq-absent) bats tests lose their meaning and are retired;
 the behavioral (exit-code + message) tests stay, now pointed at the node-backed wrapper. Phase
 *name* aliasing remains P4 — `validateManifest` keeps the old phase-name set to hold the bats

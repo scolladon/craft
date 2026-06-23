@@ -57,8 +57,8 @@ After the P5 thin, genuine role craft remains in agent bodies:
 |---|---|
 | `agents/designer.md` | "design within the house style"; "pin empirically — run the real thing"; empirical-pinning method |
 | `agents/reviewer.md` | `--no-ext-diff` git hygiene; "do NOT perform mutation analysis" boundary; final-message shape |
-| `agents/planner.md` | public-surface-decision discipline; sizing rules (no test-only slices); plan-lint schema mandate |
-| `agents/slice-implementer.md` | "the slice, the whole slice, nothing but the slice" discipline (implicit) |
+| `agents/planner.md` | public-surface-decision discipline; sizing rules (no test-only parts); plan-lint schema mandate |
+| `agents/part-implementer.md` | "the part, the whole part, nothing but the part" discipline (implicit) |
 | `agents/refactor-executor.md` | "never decide WHAT, only carry out HOW" identity |
 | `agents/docs-writer.md` | "match each page's voice, structure, and depth" |
 

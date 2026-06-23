@@ -26,7 +26,7 @@ versioned mechanism, placed by the enforcement hierarchy:
 | Segregation | **Three layers**: thin orchestrator command (resolve input, parse+validate manifest, run phase sequence, hold gates) → **one skill per phase** (default handler text, loaded just-in-time = progressive disclosure; independently invocable standalone, e.g. `/craft:review` on any branch) → **role agents** spawned per the phase skills' instructions |
 | Declination | **Manifest + override files**: committed `.claude/workflow.md` (YAML frontmatter + prose); long handlers as referenced files; no manifest = pure defaults via capability probing |
 | Role contracts | **Plugin agent definitions** (model pinned in frontmatter, invariant contract in body); invocations pass only dynamic context |
-| Agent naming | **Plain roles, no prefix** (`designer`, `planner`, `reviewer`, `slice-implementer`, `refactor-executor`, `mutation-triager`, `docs-writer`, `backlog-ticker`) — the plugin namespace supplies `craft:` |
+| Agent naming | **Plain roles, no prefix** (`designer`, `planner`, `reviewer`, `part-implementer`, `refactor-executor`, `mutation-triager`, `docs-writer`, `backlog-ticker`) — the plugin namespace supplies `craft:` |
 | Docs delegation | **Sonnet for all doc pages**; **haiku only for the backlog tick**, guarded (see Docs phase) |
 | Entry point | **Plugin entry point only** (`/craft:run <input>`); no repo alias; legacy trigger phrases ("apply the workflow", "use my default workflow") map to it via the repo/global CLAUDE.md pointers |
 | Manifest format | **Markdown + YAML frontmatter** — machine fields parse deterministically, prose carries the why |
@@ -53,9 +53,9 @@ craft/
 │   └── merge/SKILL.md
 ├── agents/                       # surface namespaced as craft:<name> — no prefix needed
 │   ├── designer.md               # fable — design doc, self-review ≤3, decision candidates
-│   ├── planner.md                # fable — plan with pre-chewed per-slice context blocks
+│   ├── planner.md                # fable — plan with pre-chewed per-part context blocks
 │   ├── reviewer.md               # fable — read-only, dimension passed as parameter
-│   ├── slice-implementer.md      # sonnet — TDD contract, slice gate, blocker protocol
+│   ├── part-implementer.md      # sonnet — TDD contract, part gate, blocker protocol
 │   ├── refactor-executor.md      # sonnet — behavior-preserving, spec-scoped (never judges)
 │   ├── mutation-triager.md       # sonnet — kill or document-equivalent
 │   ├── docs-writer.md            # sonnet — affected pages only, content from design doc
@@ -66,7 +66,7 @@ craft/
 │   └── block-no-verify.sh        # PreToolUse(Bash): block git commit/push --no-verify
 ├── templates/
 │   ├── design.md                 # design doc skeleton (decision-candidates section required)
-│   ├── plan.md                   # plan skeleton — defines the slice schema plan-lint checks
+│   ├── plan.md                   # plan skeleton — defines the part schema plan-lint checks
 │   └── adr.md                    # ADR skeleton (used when the repo has no own template)
 └── scripts/
     ├── worktree-setup.sh         # detect package manager → install deps (never symlink)
@@ -75,7 +75,7 @@ craft/
     │                             #   then prune worktree/branch; run declination pre-teardown
     ├── manifest-lint.sh          # validate manifest fields/values — shared by run + every
     │                             #   standalone phase skill (no duplicated parse rules)
-    └── plan-lint.sh              # validate each slice against templates/plan.md's schema
+    └── plan-lint.sh              # validate each part against templates/plan.md's schema
 ```
 
 The `resolve` step has no own skill — it opens the orchestrator (it must run before any
@@ -105,11 +105,11 @@ invocation (explicit user intent wins; the preamble surfaces the skip note and
 proceeds); the run record exists only in pipeline mode.
 
 `plan-lint.sh` is only possible because `templates/plan.md` defines a machine-checkable
-slice schema (required headings per slice: context block, TDD steps, gate, commit
+part schema (required headings per part: context block, TDD steps, gate, commit
 message) — the planner fills the template, the script lints the structure.
 
 - **Session remains the orchestrator** (unchanged from today): input resolution, branch
-  setup, ADR conversation, slice verification, review-fix application, phase-boundary
+  setup, ADR conversation, part verification, review-fix application, phase-boundary
   gates, synthesis artifacts (follow-ups, PR body), CI monitoring, merge + cleanup.
   Phase skills execute **in the main conversation** (that is what makes session-owned
   phases possible); they are never pushed into subagents wholesale.
@@ -125,9 +125,9 @@ message) — the planner fills the template, the script lints the structure.
   `override:` can never drop it); `override:` swaps the loaded skill's procedure body
   for the repo file (the preamble still runs). Skill text itself is never
   parameterized — the session applies declination *around* it, by design.
-- **Agent defs carry the invariant contract** (TDD steps, blocker protocol `{slice,
+- **Agent defs carry the invariant contract** (TDD steps, blocker protocol `{part,
   reason, ≤3 options}`, no-suppression rules, artifact-is-the-handoff). The invocation
-  carries only dynamics: worktree path, slice context block, diff range, declination
+  carries only dynamics: worktree path, part context block, diff range, declination
   context files. Subagents can die mid-flight and cannot be continued — every phase is
   designed so its committed artifact, not agent context, is the handoff, and the
   recovery is always a **fresh respawn fed from that artifact**, never a continuation.
@@ -156,7 +156,7 @@ backlog: docs/BACKLOG.md                  # enables backlog-id input resolution 
 paths: { design: docs/design, adr: docs/adr, plan: docs/plan }
 context: .claude/workflow/serena.md       # GLOBAL: injected into EVERY agent invocation
 gates:  # placeholder vocabulary defined below, substituted by the executor at run time
-  slice: "npx vitest run <touched-tests> && npm run check:types && npx biome check <touched-files>"
+  part: "npx vitest run <touched-tests> && npm run check:types && npx biome check <touched-files>"
   phase: "npm run validate"
   review-batch: "npm run check:spelling"  # extra per-batch gate before each fix commit
 phases:
@@ -180,7 +180,7 @@ standalone alike), plus **skip: <reason>** (no-op, reason recorded
 in the run record — the orchestrator-maintained record defined above, landing in the
 final summary and PR body). **Protected phases refuse `skip:`** — branch, **plan**, implement,
 review, refactor, and the mutation *probe* (the probe may conclude no-op; a manifest may
-not pre-empt it). Plan is protected because implement's slice prompts are assembled FROM
+not pre-empt it). Plan is protected because implement's part prompts are assembled FROM
 the plan's context blocks — skipping it strands a protected phase (sequence-editing
 through a dependency hole). Design stays skippable WITHOUT stranding plan: the plan
 preamble probes for a design doc — present → hard input; absent → the planner's
@@ -195,7 +195,7 @@ jobs) is plain frontmatter.
 
 **Gate placeholder vocabulary** (defined by the engine, substituted by the executor):
 `<touched-files>` = files changed by the unit of work being gated; `<touched-tests>` =
-test files among them **plus the tests covering the touched source files** (the slice's
+test files among them **plus the tests covering the touched source files** (the part's
 plan block names them; review batches reuse the round's reviewed set). Empty-set rule:
 a placeholder that resolves empty drops its command from the gate chain — it never
 silently passes a runner invoked with no matching files, and never blocks on vacuity.
@@ -205,7 +205,7 @@ silently passes a runner invoked with no matching files, and never blocks on vac
 | # | Surface | Injects | Lands |
 |---|---|---|---|
 | 1 | Policy fields (frontmatter) | Facts probing can't infer (merge flags, PR creator, non-blocking jobs, paths, models) | Orchestrator behavior at resolve time |
-| 2 | `gates:` commands | The repo's engineering harness, any technology | Executed verbatim at slice/phase/review-batch gates |
+| 2 | `gates:` commands | The repo's engineering harness, any technology | Executed verbatim at part/phase/review-batch gates |
 | 3 | `context:` files (global / per-phase) | Additive constraints: tool mandates, domain invariants, extra contract lines | Appended verbatim to agent invocation prompts; read by the session for session-owned work |
 | 4 | `override:` files (per-phase) | A full replacement procedure for genuinely project-shaped work | Replaces the phase skill's procedure body (the preamble still runs) |
 | 5 | `skip: <reason>` | An honest no-op (non-protected phases only) | Phase skipped; reason in the run record (final summary + PR body) |
@@ -226,7 +226,7 @@ refuses to run — misconfiguration fails loudly, never silently.
 |---|---|---|
 | Package manager / deps | lockfiles (`package-lock`, `pnpm-lock`, `yarn.lock`, `Cargo.toml`, `uv.lock`, `go.mod`, …) | skip dep install, note it |
 | `gates.phase` | repo-declared scripts (`validate`/`check`/`test` in package scripts, `Makefile`, `justfile`) | gate = build+test best-effort; if none, REFUSE to run implement (a workflow without any gate is not this workflow) |
-| `gates.slice` | test runner config (vitest/jest/pytest/cargo/go test) | fall back to `gates.phase` per slice (slower, never gateless) |
+| `gates.part` | test runner config (vitest/jest/pytest/cargo/go test) | fall back to `gates.phase` per part (slower, never gateless) |
 | Mutation config | `stryker.config.*`, `mutmut`/`cosmic-ray` config, `cargo-mutants` | phase no-ops with note |
 | Remote / PR | `git remote`, `gh` availability | pr + merge no-op with note |
 | Default branch | `origin/HEAD`, `main`/`master` | ask the user once, record in manifest |
@@ -240,9 +240,9 @@ refuses to run — misconfiguration fails loudly, never silently.
 | **branch** | `git worktree add ../<repo>-<slug> -b <type>/<slug>` (`<type>` inferred from the brief — feat/fix/chore, default feat) → run `worktree-setup.sh` (deps installed in-worktree, never symlinked) → apply declination context | global `serena.md` context (reaches every agent): activate on worktree, symbol-tools-default mandate, stale-activation recovery (mkdir placeholder → activate → rmdir); `serena-prune.sh` as pre-teardown script |
 | **design** | `craft:designer` (fable): read existing design/ADR docs, write `docs/design/<slug>.md`, self-review ≤3, return decision candidates (never decides them), commit | Context adds: git-faithfulness — pin real git empirically (scrubbed env, signing off), record the matrix |
 | **adr** | Session-owned. ≤3 options per decision; `docs/adr/NNN-<title>.md`; skip honestly if none. **Scope-fold rule:** decisions deviating from the design → fresh design-revision agent fed the ADRs + existing doc (artifacts, not agent context, are the handoff) | default |
-| **plan** | `craft:planner` (fable): plan with **pre-chewed per-slice context blocks** (files, symbol paths, signatures, fixtures, pinned bytes); slice sizing rules (no test-only slices). **Gate: `plan-lint.sh`** validates every slice carries its block before the phase closes | default |
-| **implement** | One `craft:slice-implementer` (sonnet) per slice, sequential, shared worktree. Slice gate from manifest `gates.slice`; session verifies each commit; full `gates.phase` once after the last slice | gates as in manifest above |
-| **review** | Parallel read-only `craft:reviewer` (fable) per dimension — default set: code, security, tests, perf (perf calibrates to the diff; zero findings legitimate). The tests dimension **excludes mutation analysis** (deferred to the mutation phase — never anticipated or duplicated here), with one carve-out: reviewers MAY flag **suspected-equivalent mutants as advisory notes** — that prediction is precisely the input the mutation triager's prompt consumes; only the full analysis is deferred. Session applies all fixes, batches per dimension; each batch gates on the targeted checks (`gates.slice`) + `gates.review-batch` before its commit; `gates.phase` per round. Convergence: LOW-only → done, no relaunch; MEDIUM+ → fresh reviewer scoped to the fix delta only; ≤3 cycles. HIGH/CRITICAL security → user sees the fix diff before commit | review-batch spelling gate; perf dimension scoped to CLAUDE.md §Performance |
+| **plan** | `craft:planner` (fable): plan with **pre-chewed per-part context blocks** (files, symbol paths, signatures, fixtures, pinned bytes); part sizing rules (no test-only parts). **Gate: `plan-lint.sh`** validates every part carries its block before the phase closes | default |
+| **implement** | One `craft:part-implementer` (sonnet) per part, sequential, shared worktree. Part gate from manifest `gates.part`; session verifies each commit; full `gates.phase` once after the last part | gates as in manifest above |
+| **review** | Parallel read-only `craft:reviewer` (fable) per dimension — default set: code, security, tests, perf (perf calibrates to the diff; zero findings legitimate). The tests dimension **excludes mutation analysis** (deferred to the mutation phase — never anticipated or duplicated here), with one carve-out: reviewers MAY flag **suspected-equivalent mutants as advisory notes** — that prediction is precisely the input the mutation triager's prompt consumes; only the full analysis is deferred. Session applies all fixes, batches per dimension; each batch gates on the targeted checks (`gates.part`) + `gates.review-batch` before its commit; `gates.phase` per round. Convergence: LOW-only → done, no relaunch; MEDIUM+ → fresh reviewer scoped to the fix delta only; ≤3 cycles. HIGH/CRITICAL security → user sees the fix diff before commit | review-batch spelling gate; perf dimension scoped to CLAUDE.md §Performance |
 | **refactor** | Session owns judgment (in-thread candidate scan seeded by the diff, scoped specs); `craft:refactor-executor` (sonnet) executes; behavior-preserving, integrate-don't-defer, no-op needs written justification; re-review scoped to refactor diff; runs **before** mutation | default |
 | **mutation** | **Probe (preamble):** mutation config present? Absent → no-op with note. Present → background run scoped to the PR's touched code, **writing a run-lock file in the worktree** (cleared when the run lands); **docs phase may run in parallel while it grinds**; PR waits for triage (orchestrator invariant); `craft:mutation-triager` (sonnet) kills or documents equivalents — **reviewer-predicted equivalent mutants are passed verbatim into its prompt** (assembly rule + triager agent contract, both non-overridable homes). **Never destroy the worktree while a run is alive** — mechanically backed by `worktree-teardown.sh` refusing on the lock (lock carries PID + timestamp; teardown auto-clears a dead-PID lock, otherwise requires an explicit force flag — recorded in the run record in pipeline mode; standalone, the flag itself is the explicit user intent and the script echoes what it destroyed) | `mutation.md` override (body only): Stryker line-range scoping recipe, `--incremental`, vitest-4 false-survivor triage (hand-apply mutant → run named test), post-refactor scope = whole files + triage filters to feature-changed logic, concurrency safety (run only after sandbox copy completes; never `npm install` during the run) |
 | **docs** | Runs **in parallel with the background mutation run**. `craft:docs-writer` (sonnet) for affected pages only (skip honestly if none). **Backlog tick:** `craft:backlog-ticker` (haiku) flips `[ ]`→`[x]` + appends refs ONLY — **session guard: accept only if the diff touches exactly the expected lines, else redo in-session** (a delegated agent has rewritten entry bodies before). Session keeps synthesis: follow-up backlog entries, PR body | Backlog follow-ups placed in dependency order (manifest body note) |
@@ -254,7 +254,7 @@ commit on a red gate, never `--no-verify` (hook-blocked), never suppression dire
 (tsgit: hook-blocked in-repo), never phase/ADR refs in code (tsgit: hook-blocked),
 **never skip the review dimensions**, **never skip the refactor pass** (its honest
 no-op-with-justification is the only out), **mutation triage gates the PR**,
-artifact-is-the-handoff, escalate blockers as `{slice, reason, ≤3 options}`.
+artifact-is-the-handoff, escalate blockers as `{part, reason, ≤3 options}`.
 
 ## Memory-to-harness mapping
 
@@ -312,7 +312,7 @@ migration, final homes:
      43-min dead spawn + manual override on every agent → **model-fallback invariant**
      (run skill) + `models.fallback`; (b) planner hedged public-vs-internal on a new
      export → a surface-gate fix round leaked to phase-boundary validate → **planner
-     now decides visibility up front + lists surface gates in the slice context**;
+     now decides visibility up front + lists surface gates in the part context**;
      (c) a phase needed two contexts → **`context:` accepts a list**.
    - *clobber:* the designer ran `git config` writes in the worktree, wiping the
      common-dir `.git/config` → **designer contract: write-probes run in a `mktemp`

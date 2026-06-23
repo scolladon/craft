@@ -1,8 +1,8 @@
 # Plan — P10: make `requirements` & `architecture` default phases runnable
 
 > Source: design doc `docs/DESIGN-P10-default-phases.md` · ADRs 048, 049, 050, 051, 052, 053
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Constraints and risks
@@ -20,7 +20,7 @@ The only gaps are the four authored files (2 agents + 2 skills), one one-line ed
 The "public surface" here is the plugin's authored files + the manifest-visible phase
 enablement. There is no barrel/facade/registry to update — descriptors are the SoT and are
 **unchanged**. The downstream surface gates that pre-pay this surface are already enumerated
-and run in each slice's gate: `plan-lint`/`ci.sh` `EXPECTED_TESTS` count, `bats test/`,
+and run in each part's gate: `plan-lint`/`ci.sh` `EXPECTED_TESTS` count, `bats test/`,
 `shellcheck`, `pipeline-lint`, `contracts-lint`. No new gate is introduced.
 
 ### Frozen surfaces (must stay green / byte-identical at every commit)
@@ -42,12 +42,12 @@ and run in each slice's gate: `plan-lint`/`ci.sh` `EXPECTED_TESTS` count, `bats 
 `scripts/ci.sh:10` `EXPECTED_TESTS=418` is asserted by the `ci.sh` gate (line 18–22: parses
 `# tests <N>` from `node --test` output and fails on drift). The count lives ONLY in
 `scripts/ci.sh`; `engine/package.json`'s `test` script is the bare glob with NO count
-(verified). **Every slice that adds `node --test` cases MUST bump `EXPECTED_TESTS` in that
-same slice, or its own `ci.sh` gate goes red.** `bats` cases are counted by the SEPARATE
-`bats test/` gate, NOT by this node counter — bats-only slices do NOT bump `EXPECTED_TESTS`.
+(verified). **Every part that adds `node --test` cases MUST bump `EXPECTED_TESTS` in that
+same part, or its own `ci.sh` gate goes red.** `bats` cases are counted by the SEPARATE
+`bats test/` gate, NOT by this node counter — bats-only parts do NOT bump `EXPECTED_TESTS`.
 
 Pinned baseline (run this session): `node --test` = **418**, `bats test/` = **43**.
-Per-slice deltas: S1 `+2` node (→420), S2 `+2` node (→422), S3 `+0` node (bats only).
+Per-part deltas: S1 `+2` node (→420), S2 `+2` node (→422), S3 `+0` node (bats only).
 
 ### Mirror map (exact files to clone the shape from)
 
@@ -78,14 +78,14 @@ NONE open. ADRs 048–053 settle every load-bearing fork the design surfaced:
 
 ### Sizing rules & dependency order
 
-- S1 (requirements vertical) and S2 (architecture vertical) are FEATURE slices: each lands an
+- S1 (requirements vertical) and S2 (architecture vertical) are FEATURE parts: each lands an
   agent file, and its inverse-RED bin test flips RED→GREEN exactly when that agent file lands —
-  so the bin test + contract pin fold INTO the slice that creates the agent (no standalone
-  test-only slice). Each bumps `EXPECTED_TESTS` in-slice.
+  so the bin test + contract pin fold INTO the part that creates the agent (no standalone
+  test-only part). Each bumps `EXPECTED_TESTS` in-part.
 - S3 (structural bats + examples + README) is **test-infra/docs-only** — no `src/` delta, and
   the bats file is auto-discovered structural coverage of the four authored files plus the
   two new agents' thinness. It is a legitimate standalone per the template's test-infra/docs
-  exception (ADR-044/ADR-052): there is no implementation slice to fold it into (it asserts
+  exception (ADR-044/ADR-052): there is no implementation part to fold it into (it asserts
   ACROSS S1+S2's authored files), it adds no `node --test` case, and the examples/README are
   pure prose. It earns its lifecycle by guarding all four files' existence, the procedure↔dir
   name contract, and the G5 agent-thinness invariant in one pass.
@@ -95,7 +95,7 @@ NONE open. ADRs 048–053 settle every load-bearing fork the design surfaced:
 
 ---
 
-## Slice 1 — requirements vertical: template + producer agent + skill + design-skill note + bin/contract tests
+## Part 1 — requirements vertical: template + producer agent + skill + design-skill note + bin/contract tests
 
 ### Context
 
@@ -185,7 +185,7 @@ sut(['--descriptor-id', 'requirements'])`; assert `result.status === 0`; assert
 template')` (the exact producer-bundle marker bytes verified this session). Regression pin —
 GREEN today; guards against a descriptor edit silently changing the bundle.
 
-**File 7 — EDIT `scripts/ci.sh:10`** — `EXPECTED_TESTS=418` → `EXPECTED_TESTS=420` (this slice
+**File 7 — EDIT `scripts/ci.sh:10`** — `EXPECTED_TESTS=418` → `EXPECTED_TESTS=420` (this part
 adds exactly 2 `node --test` cases: File 5 + File 6).
 
 ### TDD steps
@@ -208,7 +208,7 @@ adds exactly 2 `node --test` cases: File 5 + File 6).
 ### Gate
 
 - Targeted (per the JS/bin changes): `cd engine && node --test 'test/pipeline-resolve.bin.test.js' && node --test 'test/contract-assemble.test.js'`.
-- Phase boundary (once for this slice): `scripts/ci.sh` (asserts `# tests` == 420, then bats
+- Phase boundary (once for this part): `scripts/ci.sh` (asserts `# tests` == 420, then bats
   + shellcheck + pipeline-lint + pipeline-resolve + contracts-lint). All must be green before
   commit; never `--no-verify`.
 
@@ -218,7 +218,7 @@ adds exactly 2 `node --test` cases: File 5 + File 6).
 
 ---
 
-## Slice 2 — architecture vertical: harness-triager agent + skill + enable-architecture fixture + bin/contract tests
+## Part 2 — architecture vertical: harness-triager agent + skill + enable-architecture fixture + bin/contract tests
 
 ### Context
 
@@ -310,9 +310,9 @@ markers'`. Body: `const result = sut(['--descriptor-id', 'architecture'])`; asse
 `result.stdout.includes('Never weaken a test to kill a mutant or clear a violation')` (exact
 harness-exec marker bytes verified this session). Regression pin — GREEN today.
 
-**File 6 — EDIT `scripts/ci.sh:10`** — `EXPECTED_TESTS=420` → `EXPECTED_TESTS=422` (this slice
+**File 6 — EDIT `scripts/ci.sh:10`** — `EXPECTED_TESTS=420` → `EXPECTED_TESTS=422` (this part
 adds exactly 2 `node --test` cases: File 4 + File 5). NOTE: S1 already moved it from 418→420;
-this slice moves 420→422.
+this part moves 420→422.
 
 ### TDD steps
 
@@ -331,7 +331,7 @@ this slice moves 420→422.
 ### Gate
 
 - Targeted: `cd engine && node --test 'test/pipeline-resolve.bin.test.js' && node --test 'test/contract-assemble.test.js'`.
-- Phase boundary (once for this slice): `scripts/ci.sh` (asserts `# tests` == 422, then bats
+- Phase boundary (once for this part): `scripts/ci.sh` (asserts `# tests` == 422, then bats
   + shellcheck + pipeline-lint + pipeline-resolve + contracts-lint). All green before commit;
   never `--no-verify`.
 
@@ -341,13 +341,13 @@ this slice moves 420→422.
 
 ---
 
-## Slice 3 — structural bats + examples + README index (test-infra/docs-only, standalone)
+## Part 3 — structural bats + examples + README index (test-infra/docs-only, standalone)
 
 ### Context
 
 **Standalone, test-infra/docs-only — NO `src/` delta, NO `node --test` case, NO
 `EXPECTED_TESTS` bump.** Justification against the template's exception (ADR-044/ADR-052): the
-bats file asserts ACROSS the files S1 and S2 authored (it has no single implementation slice
+bats file asserts ACROSS the files S1 and S2 authored (it has no single implementation part
 to fold into); the examples + README are pure prose. It guards the four authored files'
 existence, the procedure↔dir-name contract, and the G5 agent-thinness invariant in one
 auto-discovered structural pass. Builds on S1+S2's working tree.
@@ -442,7 +442,7 @@ list (lines 17–28), matching the existing bullet style
   + template exist and the existence/dir-match/thinness cases PASS. To prove the bats file is
   a real RED-on-revert guard (not a no-op), mentally verify each `@test` would FAIL if the
   asserted file were deleted or if an agent body restated an injected-core line — that is the
-  guard's value (ADR-052: "red-on-revert"). (No JS test; this slice adds NO `node --test`
+  guard's value (ADR-052: "red-on-revert"). (No JS test; this part adds NO `node --test`
   case, so NO `EXPECTED_TESTS` bump.)
 - GREEN: create File 2, File 3 (the two examples), and apply File 4 (the README rows). These
   are prose; their correctness is checked by `shellcheck`/`pipeline-lint`/`contracts-lint`
@@ -454,10 +454,10 @@ list (lines 17–28), matching the existing bullet style
 
 ### Gate
 
-- Targeted (this slice's changes are bats + markdown): `bats test/` (the new structural file
+- Targeted (this part's changes are bats + markdown): `bats test/` (the new structural file
   is auto-discovered; existing bats stay green).
-- Phase boundary (once for this slice): `scripts/ci.sh` (asserts `# tests` == 422 — UNCHANGED
-  from S2, since this slice adds NO `node --test` case; then `bats test/` now includes the new
+- Phase boundary (once for this part): `scripts/ci.sh` (asserts `# tests` == 422 — UNCHANGED
+  from S2, since this part adds NO `node --test` case; then `bats test/` now includes the new
   structural file, shellcheck, pipeline-lint, pipeline-resolve, contracts-lint). All green
   before commit; never `--no-verify`.
 

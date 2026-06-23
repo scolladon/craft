@@ -1,8 +1,8 @@
 # Plan — P7: pipeline editing
 
 > Source: design doc `docs/DESIGN-P7-pipeline-editing.md` · ADRs 024, 025, 026, 027
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Constraints and risks
@@ -22,7 +22,7 @@ from `index.js`. `resolve.js` imports them directly (as it imports `applyEnableE
 `resolvePipeline`'s signature `(defaults, manifest)` and return shape
 `{ ok, errors, effective, record, gateDecisions, waivers }` stay unchanged.
 `pipeline/default.yml` (13 descriptors), `graph.js`'s `validatePipeline(descriptors)`,
-`contract.js`'s `assembleContract`, and `engine/src/index.js` are untouched by every slice.
+`contract.js`'s `assembleContract`, and `engine/src/index.js` are untouched by every part.
 
 ### Surface-gate tests that must stay green at every commit
 
@@ -34,17 +34,17 @@ The design's §SC3 works the example with 12-position indices (omitting `require
 `architecture` which are default-off), so its "slot 5 = review, slot 7 = validation" language
 uses enabled-only indices. `applyReorder` operates on the **full 14-descriptor post-insert
 list** (including disabled `requirements`, `refactoring`, `architecture`). The plan pre-derives
-the correct full-list slot indices in Slice 4's Context block.
+the correct full-list slot indices in Part 4's Context block.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle — it must earn it. No standalone test-only slices.
-- Sequential slices share one working tree; each builds on the prior.
+- Every part costs a full agent lifecycle — it must earn it. No standalone test-only parts.
+- Sequential parts share one working tree; each builds on the prior.
 
-## Prose follow-ups (session-direct, not plan slices)
+## Prose follow-ups (session-direct, not plan parts)
 
-These two changes have no RED/GREEN TDD cycle and violate plan-lint's `## Slice` schema —
-they are tracked here for the session-direct pass after the 4 slices land:
+These two changes have no RED/GREEN TDD cycle and violate plan-lint's `## Part` schema —
+they are tracked here for the session-direct pass after the 4 parts land:
 
 1. **`skills/run/SKILL.md` step-1 walk change** (ADR-025): relax dispatch target from
    `craft:<phase.id>` to `phase.procedure` verbatim (namespace-agnostic). Update the "Walk
@@ -57,7 +57,7 @@ they are tracked here for the session-direct pass after the 4 slices land:
 
 ---
 
-## Slice 1 — manifest.js: accept and shape-validate `pipeline.reorder`
+## Part 1 — manifest.js: accept and shape-validate `pipeline.reorder`
 
 ### Context
 
@@ -228,7 +228,7 @@ feat(manifest): accept and shape-validate pipeline.reorder sub-key
 
 ---
 
-## Slice 2 — edits.js: `applyReorder` (pure transform) + `checkReorderApplicability` (CQS query)
+## Part 2 — edits.js: `applyReorder` (pure transform) + `checkReorderApplicability` (CQS query)
 
 ### Context
 
@@ -236,7 +236,7 @@ feat(manifest): accept and shape-validate pipeline.reorder sub-key
 
 **Current file structure** (128 lines): imports `DEFAULT_EXECUTION` from `./descriptor.js`;
 exports `applyEnableEdits` (line 39) and `applyInserts` (line 89). No edits.test.js exists
-today — edits are covered via `resolve.test.js`. This slice adds **`engine/test/edits.test.js`**
+today — edits are covered via `resolve.test.js`. This part adds **`engine/test/edits.test.js`**
 as a dedicated unit test file for the two new functions. Rationale: `applyReorder` and
 `checkReorderApplicability` are pure functions with rich edge-case surfaces (empty list, unknown
 id, non-enabled, duplicate, alias-resolved); folding them into `resolve.test.js` would bloat
@@ -465,7 +465,7 @@ feat(edits): add applyReorder pure transform and checkReorderApplicability CQS q
 
 ---
 
-## Slice 3 — resolve.js: wire reorder into the pipeline resolver
+## Part 3 — resolve.js: wire reorder into the pipeline resolver
 
 ### Context
 
@@ -641,11 +641,11 @@ feat(resolve): wire checkReorderApplicability + applyReorder between insert and 
 
 ---
 
-## Slice 4 — scenarios: SC3 composed golden + S-reorder positive + reorder-refused negative
+## Part 4 — scenarios: SC3 composed golden + S-reorder positive + reorder-refused negative
 
 ### Context
 
-**This slice is the P7 gate (SC3 green).**
+**This part is the P7 gate (SC3 green).**
 
 **New fixture files:**
 
@@ -945,12 +945,12 @@ Correct RED sequence:
 2. Run `cd engine && node --test` → S-reorder and SC3 tests throw `ENOENT` (fixtures missing) — RED confirmed.
 3. Create fixture dirs and YAML files.
 4. Re-run `cd engine && node --test` → tests now exercise the resolver; some may fail if prior
-   slices are already wired; all must pass after GREEN edits.
+   parts are already wired; all must pass after GREEN edits.
 
 **GREEN:**
 
 The fixture files created in step 3 above are the primary GREEN action for S-reorder and SC3
-(assuming Slices 1–3 landed correctly). The inline reorder-refused negative test requires no
+(assuming Parts 1–3 landed correctly). The inline reorder-refused negative test requires no
 fixture. Run `cd engine && node --test` → all tests green.
 
 **REFACTOR:** Verify the `SC3_EFFECTIVE_IDS` constant is declared once (not repeated per test).

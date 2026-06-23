@@ -1,8 +1,8 @@
 # Plan — P19: "Nothing to do" first-class phase outcome (skill-prose only)
 
 > Source: design doc `docs/DESIGN-P19-noop-first-class-phase-outcome.md` · ADRs `100, 101, 102, 103`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start with zero
-> context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start with zero
+> context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Surface gate (binding — holds at every commit)
@@ -23,17 +23,17 @@
 
 ## Sizing rules
 
-- These are **docs-only / prose slices with no `src/` delta** — per the template's sizing
-  exception they are legitimately standalone (each skill file has no implementation slice to fold
+- These are **docs-only / prose parts with no `src/` delta** — per the template's sizing
+  exception they are legitimately standalone (each skill file has no implementation part to fold
   into). There is **no `node --test` surface for markdown**; do NOT invent unit tests for prose.
-- Each slice is one skill file = one atomic conventional commit. RED for each slice is the
+- Each part is one skill file = one atomic conventional commit. RED for each part is the
   **mechanical positive+negative grep** that must flip from failing to passing, plus the existing
   engine suite that must stay green (the behavior-preserving guardrail). GREEN is the wording edit.
-- Slices 1 and 2 touch disjoint files and are order-free. Slice 3 (`run`) names the
-  `NO-OP(decisions):`/`NO-OP(refactoring):` tokens that Slices 1 & 2 introduce; its clause is
+- Parts 1 and 2 touch disjoint files and are order-free. Part 3 (`run`) names the
+  `NO-OP(decisions):`/`NO-OP(refactoring):` tokens that Parts 1 & 2 introduce; its clause is
   self-contained prose, but it reads most naturally last — keep the 1→2→3 order.
 
-## Slice 1 — decisions: adopt-or-escalate triage + first-class `NO-OP(decisions):` no-op + ADR-author every settled choice
+## Part 1 — decisions: adopt-or-escalate triage + first-class `NO-OP(decisions):` no-op + ADR-author every settled choice
 
 ### Context
 <!-- Pre-chewed, exhaustive — the agent must NOT need to re-explore. -->
@@ -145,7 +145,7 @@ Then the mechanical checks: positive greps above all match; negative greps retur
 ### Commit
 `feat(decisions): adopt-without-escalation triage and first-class NO-OP(decisions) outcome`
 
-## Slice 2 — refactoring: state the no-op contract symmetrically with `NO-OP(refactoring):` + PR-body carry
+## Part 2 — refactoring: state the no-op contract symmetrically with `NO-OP(refactoring):` + PR-body carry
 
 ### Context
 Touch **only** `skills/refactoring/SKILL.md`. Single-step edit: rewrite step 2 of the default
@@ -173,7 +173,7 @@ while preserving the existing "forbidden waste" and "no silent skip" rules):
 ```
 Note (do NOT add an analog to decisions): the "spawning an agent … forbidden waste" rule has no
 decisions-side analog because decisions is `ENTIRELY session-owned — never delegated` (no agent to
-forbid). That asymmetry is intentional — Slice 1 adds no such clause.
+forbid). That asymmetry is intentional — Part 1 adds no such clause.
 
 ### TDD steps
 - RED (mechanical, must fail before the edit):
@@ -188,7 +188,7 @@ forbid). That asymmetry is intentional — Slice 1 adds no such clause.
 - GREEN: apply the step-2 replacement above (verbatim).
 - REFACTOR: confirm steps 1, 3, 4, 5 are byte-unchanged. Dash fidelity: the `NO-OP(refactoring):
   nothing cleared the bar — <justification>` token separator is an em-dash `—` (U+2014, matching the
-  `NO-OP(decisions):` token in Slice 1); the preserved `1–3 line justification` keeps its en-dash `–`
+  `NO-OP(decisions):` token in Part 1); the preserved `1–3 line justification` keeps its en-dash `–`
   (U+2013) exactly as the live file already has it. Do not swap one for the other.
 
 ### Gate
@@ -198,7 +198,7 @@ match; negative grep returns nothing; `git diff --stat` shows only `skills/refac
 ### Commit
 `feat(refactoring): symmetric first-class NO-OP(refactoring) contract carried into PR body`
 
-## Slice 3 — run: orchestrator reads a recorded judgment no-op as a first-class terminal outcome
+## Part 3 — run: orchestrator reads a recorded judgment no-op as a first-class terminal outcome
 
 ### Context
 Touch **only** `skills/run/SKILL.md`. Single-clause edit: APPEND one sentence to phase-walk step 6

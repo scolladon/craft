@@ -32,6 +32,6 @@ runner output) is a construction detail for the plan.
 ## Consequences
 
 The phantom-file footgun is closed by the glob alone; the count-assert adds drift detection at a
-per-slice maintenance cost (every test-count-changing slice updates the expected number in-commit).
+per-part maintenance cost (every test-count-changing part updates the expected number in-commit).
 The glob string becomes the single source the Stryker `tap.testFiles` config (item 2) reuses, so it
 is settled before that config references it.

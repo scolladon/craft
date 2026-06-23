@@ -1,13 +1,13 @@
 #!/usr/bin/env bash
 # Substrate gate — the single shared definition that CI and local both run.
-# Slices that add new binaries append to this file so CI never references a
+# Parts that add new binaries append to this file so CI never references a
 # binary before it exists.
 set -euo pipefail
 
 # Resolve from repo root so relative paths and globs are call-site independent.
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-EXPECTED_TESTS=941
+EXPECTED_TESTS=942
 
 node_output="$(cd engine && node --test 'test/**/*.test.js' 2>&1)" && node_status=0 || node_status=$?
 echo "$node_output"

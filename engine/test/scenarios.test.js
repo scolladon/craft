@@ -2,8 +2,8 @@
  * Scenario golden suite — S1..S9 + SC1 anchor.
  *
  * Each scenario runs resolvePipeline against a manifest fixture and asserts
- * specific slices of the Resolution. Gate/waiver assertions exercise the
- * gate-decision layer that this slice lands.
+ * specific parts of the Resolution. Gate/waiver assertions exercise the
+ * gate-decision layer that this part lands.
  *
  * S7 (namespaced registration) exercises the full extends.phases registration surface:
  * a registered phase lands in effective[], carries its bundle + gate, and flows through
@@ -680,7 +680,7 @@ test('Given a code-producing phase with no gate in descriptor or manifest, when 
     '  archetype: construction',
     '  contract: [construction]',
     '  procedure: craft:implementation',
-    '  role: craft:slice-implementer',
+    '  role: craft:part-implementer',
     '  consumes: [workspace]',
     '  produces: [change]',
   ].join('\n');

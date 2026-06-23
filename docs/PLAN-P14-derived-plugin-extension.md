@@ -1,22 +1,22 @@
 # Plan — P14: derived-plugin extension surface
 
 > Source: design doc `docs/DESIGN-P14-derived-plugin-extension.md` · ADRs `069–075`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
-## Shared substrate (read once — applies to every slice)
+## Shared substrate (read once — applies to every part)
 
 **The 7-export surface is FROZEN** (`engine/src/index.js`): `parsePipeline`,
 `validatePipeline`, `ALIAS_MAP`/`resolveAlias`, `resolvePipeline`, `assembleContract`,
@@ -25,22 +25,22 @@
 + its sub-validators live in `manifest.js` (reached via `validateManifest`); the
 override-aware normalize helper lives in `resolve.js` (reached via `resolvePipeline`); the
 registered-ref-set builder lives in `pipeline-resolve-main.js` (a bin, never exported); the
-descriptor-set lookup change lives in `contract-assemble-main.js` (a bin). **No slice adds a
-barrel export and no slice edits `engine/src/index.js`.** Each slice's Context re-states this
+descriptor-set lookup change lives in `contract-assemble-main.js` (a bin). **No part adds a
+barrel export and no part edits `engine/src/index.js`.** Each part's Context re-states this
 for the symbol it introduces.
 
 **`EXPECTED_TESTS` counter** (`scripts/ci.sh:10`, currently **528**): the phase-boundary gate
 (`bash scripts/ci.sh`) asserts the EXACT `node --test` count via
-`awk '/^# tests / {print $3}'` against `EXPECTED_TESTS`. EVERY slice that adds `node --test`
+`awk '/^# tests / {print $3}'` against `EXPECTED_TESTS`. EVERY part that adds `node --test`
 cases MUST bump `EXPECTED_TESTS` by the number of cases it adds, **in the same commit**, or
-`ci.sh` fails on count drift. Each slice's TDD steps name the exact delta. (Confirmed live:
+`ci.sh` fails on count drift. Each part's TDD steps name the exact delta. (Confirmed live:
 `cd engine && node --test 'test/**/*.test.js'` → `# tests 528`, `# pass 528`.)
 
 **SC1 byte-identical invariant**: the no-manifest resolution record/output stays
 byte-identical (anchored by the SC1 golden in `engine/test/scenarios.test.js`). Every new
 branch this plan adds fires ONLY when `extends`/a non-`craft:` ref/the `--descriptor-json`
 flag is present. A no-manifest run carries no `extends` → empty registered set → the new
-branches are never consulted. No slice may touch the default path. Each feature slice asserts
+branches are never consulted. No part may touch the default path. Each feature part asserts
 SC1 stays green via its phase-boundary gate (which re-runs the SC1 golden).
 
 **Inserts bypass descriptor normalization (verified in worktree).** `applyInserts`
@@ -50,9 +50,9 @@ execution:DEFAULT_EXECUTION, ...phaseData }`) but does **NOT** call `normalizeEn
 `deepFreeze` (those run only in `parsePipeline`, `engine/src/descriptor.js:105-119`). A
 resolved inserted/registered descriptor is therefore **unfrozen** and its `contract`/`consumes`/
 `produces` are whatever YAML shape the author wrote — **not** coerced to string arrays.
-Consequence: **`validateExtends` (Slice 1) is the SOLE shape guard** for a registered phase —
+Consequence: **`validateExtends` (Part 1) is the SOLE shape guard** for a registered phase —
 it must do the type/array/vocab/archetype checks `normalizeEntry` would have done, because the
-insert path won't. This makes Slice 1 foundational, not polish, and is why Slices 2–6 may
+insert path won't. This makes Part 1 foundational, not polish, and is why Parts 2–6 may
 trust an `extends` block's shape (lint ran first — design §"Validation ordering").
 
 **House style for validators** (`engine/src/manifest.js`): errors **ACCUMULATE** into the
@@ -62,7 +62,7 @@ Match this exactly — every `validateExtends*` sub-validator pushes onto the sh
 
 ---
 
-## Slice 1 — `validateExtends` schema + `TOP_KEYS` entry
+## Part 1 — `validateExtends` schema + `TOP_KEYS` entry
 
 ### Context
 
@@ -73,7 +73,7 @@ change (`engine/src/index.js` untouched).
 
 **File to change:** `engine/src/manifest.js` (395 lines, fully read).
 - `TOP_KEYS` (line 11-14): `Object.freeze(new Set([...]))` — add `'extends'`.
-- `validateManifest` switch (line 364-390): add a `case 'extends': validateExtends(value, fileExists, errors); break;`. The loop already rejects any key not in `TOP_KEYS` (line 359-362), so without the `TOP_KEYS` add a manifest carrying `extends:` errors `unknown top-level key: extends` — Slice-1 RED leverages exactly that.
+- `validateManifest` switch (line 364-390): add a `case 'extends': validateExtends(value, fileExists, errors); break;`. The loop already rejects any key not in `TOP_KEYS` (line 359-362), so without the `TOP_KEYS` add a manifest carrying `extends:` errors `unknown top-level key: extends` — Part-1 RED leverages exactly that.
 - Existing sub-validator pattern to mirror: `validateBacklog` (line 165-200), `validateScripts` (line 146-154), `validatePhaseBlock` (line 293-324). All take `errors` and push; none throw.
 - `checkFileRef(label, value, fileExists, errors)` (line 85-93) — reuse verbatim for the backlog-adapter `ref` existence check (it skips absent sentinels, iterates arrays, pushes `${label} references missing file: ${path}`).
 
@@ -137,7 +137,7 @@ helper if it appears ≥3×; keep functions ≤20 lines (extract per-phase-field
 phase validator grows past that).
 
 EXPECTED_TESTS: bump `scripts/ci.sh:10` by the exact number of `test(...)` cases added in
-this slice (count them — one per RED bullet that lands as a distinct `test(...)`).
+this part (count them — one per RED bullet that lands as a distinct `test(...)`).
 
 ### Gate
 
@@ -150,7 +150,7 @@ manifest-lint still resolves an existing fixture). Run from repo root for the li
 
 `feat(manifest): validate extends registration block`
 
-## Slice 2 — `extends.phases` → override-aware insert path + S7 resolution
+## Part 2 — `extends.phases` → override-aware insert path + S7 resolution
 
 ### Context
 
@@ -188,7 +188,7 @@ branch makes the same-id-as-default case present once; the new-id collision case
 phase keeps `id: acme:bench`, `procedure: acme:bench`, `role: acme:bench-runner`, `archetype:
 harness`, `contract: [harness-exec]`, `after: validation`, `consumes: [change]`, `produces:
 [acme-bench-report]`, `gate: acme-bench-runner --check`. Add `agents: [acme:bench-runner]` so
-the role is registered (consumed by Slice 3). Keep `consumes: [change]` resolvable: `change` is
+the role is registered (consumed by Part 3). Keep `consumes: [change]` resolvable: `change` is
 produced by an earlier default phase (the implementation/construction descriptors produce it —
 the current PARTIAL S7 already resolves green with this consume, so it is satisfied).
 
@@ -204,7 +204,7 @@ phase" wording.
 - same-id-as-default → full replace: the default's original descriptor is GONE from `effective[]` (its procedure/role/contract no longer at that id), the registered descriptor occupies that id at the right position, carrying its own contract bundle + role + gate.
 - `checkUniqueIds` still fails two new registrations sharing a NEW id → `ok:false` `Duplicate descriptor id`.
 - full replace does NOT inherit replaced-default fields: a same-id registration omitting a field the default had (e.g. `consumes:`) resolves with the registration's value (or the insert field-default), NOT the default's.
-- override still runs under the core: a replaced phase's `contract:` is still drawn from `BUNDLE_VOCAB` and the assembled contract still prepends core (asserted fully in Slice 4 via `contract-assemble`; here assert the descriptor's `contract` is its own and graph-valid).
+- override still runs under the core: a replaced phase's `contract:` is still drawn from `BUNDLE_VOCAB` and the assembled contract still prepends core (asserted fully in Part 4 via `contract-assemble`; here assert the descriptor's `contract` is its own and graph-valid).
 
 ### TDD steps
 
@@ -237,7 +237,7 @@ default no-manifest path still resolves, SC1 sanity).
 
 `feat(resolve): fold extends.phases into override-aware insert path`
 
-## Slice 3 — `roleExists` registered set (external-ref fail-closed)
+## Part 3 — `roleExists` registered set (external-ref fail-closed)
 
 ### Context
 
@@ -248,7 +248,7 @@ behavior unchanged. INTERNAL only — the change is inside the bin
 `pipeline-resolve-main.js`; nothing exported, no barrel change.
 
 **File to change:** `engine/src/pipeline-resolve-main.js` (125 lines, fully read).
-- The current probe (line 12-19): `const roleExists = ref => { if (!ref.startsWith(CRAFT_PREFIX)) return true; … existsSync(join(REPO_ROOT, 'agents', name + '.md')); }`. **Line 13 (`return true`) is the permissive external branch this slice replaces.**
+- The current probe (line 12-19): `const roleExists = ref => { if (!ref.startsWith(CRAFT_PREFIX)) return true; … existsSync(join(REPO_ROOT, 'agents', name + '.md')); }`. **Line 13 (`return true`) is the permissive external branch this part replaces.**
 - `main()` (line 77-125) parses the manifest at line 96-104 (`manifest = parseManifestContent(readFileSync(manifestPath, 'utf8'))`), THEN `applyCliOverlay` (line 106), THEN `resolvePipeline(defaults, effectiveManifest, { roleExists })` (line 110). The registered set must be built from the **parsed manifest's `extends`** (pre-resolution) and the `roleExists` closure rebuilt to consult it — so `roleExists` is constructed inside `main()` (or a factory) after the manifest is parsed, NOT as the current module-level const. `roleExists` is injected INTO `resolvePipeline`, so it must not read from the Resolution it helps produce (design §"Validation ordering").
 
 **DC-4 / ADR-072 — the registered set rule (option ii, ratified):** the registered set is
@@ -267,10 +267,10 @@ craft:<role>              → unchanged (separator guard + agents/<role>.md exis
 
 **Fixtures** (`engine/test/fixtures/manifests/` — directory listed; `external-role.md`,
 `good-role.md`, `bad-role.md`, `traversal-role.md` read):
-- `external-role.md` currently registers `role: acme:tdd-specialist` with NO `extends` block and prose stating "the bin stays permissive for non-craft: refs." Under this slice that ref is now **unregistered** → the existing test (`pipeline-resolve-main.test.js:147-155`, expects exit 0) **flips** to expect exit 2 (fail-closed). Update both the fixture prose and the test, OR (cleaner) add two new fixtures and repurpose:
+- `external-role.md` currently registers `role: acme:tdd-specialist` with NO `extends` block and prose stating "the bin stays permissive for non-craft: refs." Under this part that ref is now **unregistered** → the existing test (`pipeline-resolve-main.test.js:147-155`, expects exit 0) **flips** to expect exit 2 (fail-closed). Update both the fixture prose and the test, OR (cleaner) add two new fixtures and repurpose:
   - `registered-role.md`: an `extends.agents: [acme:bench-runner]` (or a registered phase carrying `role: acme:bench-runner`) plus `phases.implementation.role: acme:bench-runner` → the external ref IS registered → exit 0.
   - `unregistered-role.md`: `phases.implementation.role: acme:plannr` (a typo) with an `extends` block that does NOT register it → exit 2 naming the phase + ref.
-- Keep `good-role.md` (craft:planner → exit 0), `bad-role.md` (craft:plannr typo → exit 2), `traversal-role.md` (separator guard → exit 2) tests green — craft-native behavior is unchanged by this slice.
+- Keep `good-role.md` (craft:planner → exit 0), `bad-role.md` (craft:plannr typo → exit 2), `traversal-role.md` (separator guard → exit 2) tests green — craft-native behavior is unchanged by this part.
 
 **Test home:** `engine/test/pipeline-resolve-main.test.js` (395 lines). The roleExists tests
 are the `// ─── roleExists: … ───` sections at lines 119-169. The `external namespace stays
@@ -311,7 +311,7 @@ EXPECTED_TESTS: bump `scripts/ci.sh:10` by the count of NET-NEW `test(...)` case
 
 `feat(resolve): roleExists fails closed on unregistered external refs`
 
-## Slice 4 — `contract-assemble --descriptor-json` (inserted/registered id EXECUTEs)
+## Part 4 — `contract-assemble --descriptor-json` (inserted/registered id EXECUTEs)
 
 ### Context
 
@@ -375,7 +375,7 @@ still emits a block, byte-unchanged sanity) PLUS
 
 `feat(contract): resolve descriptor-id against passed --descriptor-json set`
 
-## Slice 5 — `extends.profiles` registration (full + typed, selectable)
+## Part 5 — `extends.profiles` registration (full + typed, selectable)
 
 ### Context
 
@@ -383,7 +383,7 @@ still emits a block, byte-unchanged sanity) PLUS
 expanding to its per-archetype map (the harness-archetype `agent` floor still forced); an
 unknown profile name still STOPs. INTERNAL only — `expandProfile` gains an awareness of
 registered profiles passed in from `resolve.js`; nothing exported, no barrel change.
-(`validateExtendsProfiles` already landed in Slice 1 — this slice wires the *expansion*.)
+(`validateExtendsProfiles` already landed in Part 1 — this part wires the *expansion*.)
 
 **Files to change:**
 - `engine/src/profile.js` (74 lines, fully read). `expandProfile(name)` (line 25-59) is a closed `switch` over `solo`/`lean`/`full`, throwing on `default` (line 54-57). It currently takes ONLY `name`. To consult registered profiles, it must accept the registered-profile map: `expandProfile(name, registeredProfiles)` — when `name` is not a built-in, look it up in `registeredProfiles` (the validated `extends.profiles` map); if present, return it (it is already a full+typed per-archetype map — DC-7); else throw the existing unknown-profile error (now listing built-ins; a registered name that isn't there still STOPs). `applyProfileToArchetype` (line 71-74) is unchanged — it already forces `harness → agent` (line 72) regardless of the map, so the harness floor holds for a registered profile for free.
@@ -392,12 +392,12 @@ registered profiles passed in from `resolve.js`; nothing exported, no barrel cha
 
 **The harness floor** (design R7, `profile.js:72`): `applyProfileToArchetype` returns `'agent'`
 for `HARNESS_ARCHETYPE` before consulting the map — so even a registered profile that sets
-`harness: inline` is forced to `agent`. The Slice-1 `validateExtendsProfiles` requires the
+`harness: inline` is forced to `agent`. The Part-1 `validateExtendsProfiles` requires the
 profile to DECLARE all six keys including `harness` (full+typed), but the runtime floor
 re-forces `agent` regardless. Assert both: validation requires the key; resolution forces agent.
 
 **Test homes:**
-- `engine/test/scenarios.test.js` — the S7 fixture (upgraded in Slice 2) already carries an `extends.profiles` block. Add a test selecting it via `pipeline.profile: <registered-name>` and asserting the per-archetype execution lands on `effective[]` (e.g. a `construction` phase resolves to the profile's value; a `harness` phase stays `agent`). Use `loadScenarioManifest('S7')` + set `pipeline.profile` (or add a dedicated fixture under `fixtures/manifests/`).
+- `engine/test/scenarios.test.js` — the S7 fixture (upgraded in Part 2) already carries an `extends.profiles` block. Add a test selecting it via `pipeline.profile: <registered-name>` and asserting the per-archetype execution lands on `effective[]` (e.g. a `construction` phase resolves to the profile's value; a `harness` phase stays `agent`). Use `loadScenarioManifest('S7')` + set `pipeline.profile` (or add a dedicated fixture under `fixtures/manifests/`).
 - `engine/test/resolve.test.js` — a focused unit: `resolvePipeline(defaults, { extends:{profiles:{audit:{…}}}, pipeline:{profile:'audit'} })` resolves a phase's execution per the registered map; an unknown profile name (`pipeline.profile: ghost`, not registered) → `ok:false` naming the unknown profile.
 
 ### TDD steps
@@ -426,7 +426,7 @@ a built-in profile still resolves, regression sanity).
 
 `feat(resolve): select registered extends.profiles via pipeline.profile`
 
-## Slice 6 — `extends.backlog-adapters` registration (selectable backlog source)
+## Part 6 — `extends.backlog-adapters` registration (selectable backlog source)
 
 ### Context
 
@@ -435,7 +435,7 @@ a built-in profile still resolves, regression sanity).
 a failure stays a blocker (SP6 contract unchanged). INTERNAL only — `backlogSourceOf` /
 `buildManifestRecords` / `validateBacklog` learn registered adapter names; nothing exported, no
 barrel change. (`validateExtendsBacklogAdapters` already validated the adapter *shape* in
-Slice 1 — this slice wires the *selection*.)
+Part 1 — this part wires the *selection*.)
 
 **Files to change:**
 - `engine/src/resolve.js`:
@@ -448,10 +448,10 @@ Slice 1 — this slice wires the *selection*.)
 `["resolve", id]` (design §run/SKILL.md step 2, lines 64-73). The resolver's job here is only
 to (a) accept the source name in validation and (b) surface a `backlog:` record line naming the
 adapter + ref so the walk knows to invoke it. The actual script invocation is the walk's, not
-the engine's — this slice does NOT add script execution (no I/O in the pure resolver).
+the engine's — this part does NOT add script execution (no I/O in the pure resolver).
 
 **Test homes:**
-- `engine/test/scenarios.test.js` — the S7 fixture (Slice 2) carries an `extends.backlog-adapters` block. Add a test: a manifest with `extends.backlog-adapters: [{name: acme-tracker, ref: …}]` + `backlog: { source: acme-tracker, ref: … }` → `resolvePipeline` ok:true and `record[]` contains a line naming `acme-tracker` + its ref (mirror the S6 backlog test at `scenarios.test.js:421-433`, which asserts a `record.find(r => r.includes('file'))`).
+- `engine/test/scenarios.test.js` — the S7 fixture (Part 2) carries an `extends.backlog-adapters` block. Add a test: a manifest with `extends.backlog-adapters: [{name: acme-tracker, ref: …}]` + `backlog: { source: acme-tracker, ref: … }` → `resolvePipeline` ok:true and `record[]` contains a line naming `acme-tracker` + its ref (mirror the S6 backlog test at `scenarios.test.js:421-433`, which asserts a `record.find(r => r.includes('file'))`).
 - `engine/test/manifest.test.js` — in the backlog section (line 1127+): a manifest with `backlog.source: acme-tracker` AND a matching `extends.backlog-adapters` registration → `ok:true`; a `backlog.source: ghost-tracker` with NO matching registration → `ok:false unknown backlog source`.
 
 ### TDD steps
@@ -480,15 +480,15 @@ PLUS `node engine/bin/manifest-lint.js engine/test/fixtures/scenarios/S6/manifes
 
 `feat(backlog): select registered extends.backlog-adapters as source`
 
-## Slice 7 — run/SKILL.md prose: inserted/registered id EXECUTEs + manual smoke note (docs-only)
+## Part 7 — run/SKILL.md prose: inserted/registered id EXECUTEs + manual smoke note (docs-only)
 
 ### Context
 
 **Goal.** Update the walk's prose so an inserted/registered id is described as EXECUTE-able
 (rider #2 closed) and add the on-demand `--plugin-dir` manual-smoke note (ADR-074). **Docs-only,
 standalone** — no `src/` delta, no `node --test` cases, so `EXPECTED_TESTS` is NOT touched. This
-slice exists because there is no engine slice to fold prose into (the prose describes the
-end-to-end surface Slices 1–6 land, and `skills/run/SKILL.md` is the walk's contract). **Out of
+part exists because there is no engine part to fold prose into (the prose describes the
+end-to-end surface Parts 1–6 land, and `skills/run/SKILL.md` is the walk's contract). **Out of
 scope (documentation phase owns them, per the brief): `docs/GUIDE-customizing.md` Tier-2 #12/#11,
 `examples/derived-plugin/`, `examples/README.md` row #12** — do NOT author those here.
 
@@ -498,7 +498,7 @@ scope (documentation phase owns them, per the brief): `docs/GUIDE-customizing.md
   `pipeline/default.yml`, so a novel inserted `id` STOPs there with "unknown descriptor-id". …
   full inserted-phase *execution* … rides with the derived-plugin registration surface (P14)."
   Rewrite this to state that inserted/registered-phase contract execution now ships: the walk
-  passes the resolved descriptor to `contract-assemble` via `--descriptor-json` (Slice 4) so a
+  passes the resolved descriptor to `contract-assemble` via `--descriptor-json` (Part 4) so a
   novel/registered `id` EXECUTEs under the engine-owned contract. Drop "rides with P14."
 - **Step 3 prose** (lines 122-131, the `contract-assemble` invocation block): note that for an
   inserted/registered phase the walk appends `--descriptor-json <resolved-descriptor>` (the
@@ -506,7 +506,7 @@ scope (documentation phase owns them, per the brief): `docs/GUIDE-customizing.md
   resolves. Keep the existing default-phase invocation (no flag) intact.
 - **The "external `my:`/`acme:` refs stay permissive pending P14 registration" line** (line 109,
   inside the swap-fidelity paragraph): update — external refs now fail closed unless registered
-  via `extends` (Slice 3). Drop "pending P14 registration."
+  via `extends` (Part 3). Drop "pending P14 registration."
 - **The Walk error paths table** (lines 190-200, read): the table has no explicit inserted-id
   STOP row today (the inserted-id deferral is prose at 108-113, not a table row) — verify and,
   if a row implies "unknown descriptor-id" for an inserted id, update it to EXECUTE. The
@@ -526,21 +526,21 @@ update behaviorally, e.g. "inserted/registered phases execute under the engine c
 
 ### TDD steps
 
-This is a docs-only slice — no RED/GREEN test cycle (no executable behavior changes; the
-engine behavior it describes was test-driven in Slices 1–6). The "test" is the prose-lint /
+This is a docs-only part — no RED/GREEN test cycle (no executable behavior changes; the
+engine behavior it describes was test-driven in Parts 1–6). The "test" is the prose-lint /
 markdown gate:
 - REFACTOR-equivalent: edit the three prose regions + add the smoke note; re-read to confirm no dangling "rides with P14" / "stays permissive" / "not yet wired" deferrals remain (grep for them).
 - No `EXPECTED_TESTS` change (no `node --test` cases added).
 
 ### Gate
 
-`bash scripts/ci.sh` is the phase-boundary gate and will run once after this slice; for the
-slice itself the relevant surface check is the bats suite that exercises shell/skill surfaces
+`bash scripts/ci.sh` is the phase-boundary gate and will run once after this part; for the
+part itself the relevant surface check is the bats suite that exercises shell/skill surfaces
 plus a grep sanity that the stale deferrals are gone:
-`bats test/manifest-lint.bats test/examples-lint.bats` (these pass unchanged — the slice
+`bats test/manifest-lint.bats test/examples-lint.bats` (these pass unchanged — the part
 touches no manifest/example) AND
 `grep -n 'rides with P14\|stays permissive\|not yet wired' skills/run/SKILL.md` returns nothing
-(run from repo root). No `node --test` for this slice.
+(run from repo root). No `node --test` for this part.
 
 ### Commit
 
@@ -552,29 +552,29 @@ touches no manifest/example) AND
 
 > Two genuinely-undecided, load-bearing implementation choices the ADRs/design left to the
 > planner-or-implementer. Each carries a recommendation; the session decides — the planner does
-> not. Both are wired into the relevant slice's Context so the slice is actionable on either
+> not. Both are wired into the relevant part's Context so the part is actionable on either
 > outcome.
 
 | # | Choice | Alternatives (≤3) | Recommendation |
 |---|---|---|---|
-| DC-A | Source of `VALID_ARCHETYPES` for the Slice-1 phase-block archetype check. `VALID_ARCHETYPES` is module-private in `engine/src/descriptor.js:5-7` (not exported); `validateExtends` in `manifest.js` needs it. | (a) **export** `VALID_ARCHETYPES` from `descriptor.js` and import it in `manifest.js` (single source of truth) · (b) factor the set into a small new shared module both import · (c) duplicate the literal set in `manifest.js` (DRY violation, drift risk) | **(a) export from `descriptor.js`.** It is a closed engine vocabulary already living next to `normalizeEntry`; exporting a constant (not a function) does not widen the *public 7-export surface* (that's `index.js`'s barrel — `descriptor.js`'s `VALID_EXECUTIONS`/`DEFAULT_EXECUTION` are already cross-imported by `resolve.js` the same way, see `resolve.js:13`). Lowest drift, mirrors the existing `BUNDLE_VOCAB` export from `graph.js`. (c) is rejected on sight — two copies of a floor vocabulary will drift. |
-| DC-B | Where the override-aware replace branch (Slice 2) physically lives. The design (R3, §"Files that change", §"Override-aware insert", and the edits.js note) names BOTH `resolve.js`'s normalize step AND `applyInserts` as candidate homes and explicitly defers the placement to the planner. | (a) **in `resolve.js`** — the normalize step between `applyEnableEdits` and `applyInserts` does the replace-in-place; only genuine new-ids reach `applyInserts` (which stays byte-unchanged) · (b) **inside `applyInserts`** (`edits.js`) — teach it to detect a same-id descriptor and replace rather than append · (c) a second `normalizeEntry`-routing of `extends.phases` so registered descriptors are normalized+frozen like defaults (the design's flagged "secondary option") | **(a) in `resolve.js`.** Keeps `applyInserts` (the P7-tested insert primitive, `edits.js:101`) byte-unchanged — its existing tests in `resolve.test.js` carry zero risk of regression, satisfying the brief's "override branch keeps P7 insert tests green." The replace is a list `map`-and-swap against `enableResult.descriptors`, naturally expressed in `resolve.js` where that list already lives. (b) couples replace semantics into the shared insert primitive (broader blast radius). (c) is a behavior change to the shared insert path that risks regressing P7 inserts (the design itself flags it "must not regress" and keeps it a candidate, not a given) — defer unless a later slice needs frozen registered descriptors. |
+| DC-A | Source of `VALID_ARCHETYPES` for the Part-1 phase-block archetype check. `VALID_ARCHETYPES` is module-private in `engine/src/descriptor.js:5-7` (not exported); `validateExtends` in `manifest.js` needs it. | (a) **export** `VALID_ARCHETYPES` from `descriptor.js` and import it in `manifest.js` (single source of truth) · (b) factor the set into a small new shared module both import · (c) duplicate the literal set in `manifest.js` (DRY violation, drift risk) | **(a) export from `descriptor.js`.** It is a closed engine vocabulary already living next to `normalizeEntry`; exporting a constant (not a function) does not widen the *public 7-export surface* (that's `index.js`'s barrel — `descriptor.js`'s `VALID_EXECUTIONS`/`DEFAULT_EXECUTION` are already cross-imported by `resolve.js` the same way, see `resolve.js:13`). Lowest drift, mirrors the existing `BUNDLE_VOCAB` export from `graph.js`. (c) is rejected on sight — two copies of a floor vocabulary will drift. |
+| DC-B | Where the override-aware replace branch (Part 2) physically lives. The design (R3, §"Files that change", §"Override-aware insert", and the edits.js note) names BOTH `resolve.js`'s normalize step AND `applyInserts` as candidate homes and explicitly defers the placement to the planner. | (a) **in `resolve.js`** — the normalize step between `applyEnableEdits` and `applyInserts` does the replace-in-place; only genuine new-ids reach `applyInserts` (which stays byte-unchanged) · (b) **inside `applyInserts`** (`edits.js`) — teach it to detect a same-id descriptor and replace rather than append · (c) a second `normalizeEntry`-routing of `extends.phases` so registered descriptors are normalized+frozen like defaults (the design's flagged "secondary option") | **(a) in `resolve.js`.** Keeps `applyInserts` (the P7-tested insert primitive, `edits.js:101`) byte-unchanged — its existing tests in `resolve.test.js` carry zero risk of regression, satisfying the brief's "override branch keeps P7 insert tests green." The replace is a list `map`-and-swap against `enableResult.descriptors`, naturally expressed in `resolve.js` where that list already lives. (b) couples replace semantics into the shared insert primitive (broader blast radius). (c) is a behavior change to the shared insert path that risks regressing P7 inserts (the design itself flags it "must not regress" and keeps it a candidate, not a given) — defer unless a later part needs frozen registered descriptors. |
 
 ---
 
 ## Self-review (3 passes — recorded)
 
-- **Pass 1 (dependency order):** Slice 1 (`validateExtends`) lands before any consumer; Slice 2
-  consumes a validated `extends.phases`; Slice 3 a validated `extends.agents`; Slice 5 a
-  validated `extends.profiles` (validator in Slice 1, expansion here); Slice 6 a validated
-  `extends.backlog-adapters` (validator in Slice 1, selection here). Slice 4 depends on Slice 2
+- **Pass 1 (dependency order):** Part 1 (`validateExtends`) lands before any consumer; Part 2
+  consumes a validated `extends.phases`; Part 3 a validated `extends.agents`; Part 5 a
+  validated `extends.profiles` (validator in Part 1, expansion here); Part 6 a validated
+  `extends.backlog-adapters` (validator in Part 1, selection here). Part 4 depends on Part 2
   only for its S7 fixture data, not for code. Order is correct.
-- **Pass 2 (test-folding + EXPECTED_TESTS):** every feature slice (1–6) folds its tests into the
+- **Pass 2 (test-folding + EXPECTED_TESTS):** every feature part (1–6) folds its tests into the
   same commit as its code and bumps `EXPECTED_TESTS` by its net-new case count; no standalone
-  test-only feature slice exists. Slice 7 is docs-only (no `src/` delta, no `node --test`, no
+  test-only feature part exists. Part 7 is docs-only (no `src/` delta, no `node --test`, no
   `EXPECTED_TESTS` bump) — a legitimate standalone per the sizing exception.
 - **Pass 3 (invariants):** SC1 preservation stated in the shared substrate and re-checked by each
-  feature slice's phase-boundary gate (the SC1 golden); the override branch's placement (DC-B(a))
+  feature part's phase-boundary gate (the SC1 golden); the override branch's placement (DC-B(a))
   keeps `applyInserts` and its P7 tests untouched; every new symbol is INTERNAL (no `index.js`
-  edit in any slice); each slice's Context cites real files + line anchors verified against the
-  read source. No contradiction found across slices.
+  edit in any part); each part's Context cites real files + line anchors verified against the
+  read source. No contradiction found across parts.

@@ -185,7 +185,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    Session-owned responsibilities by archetype:
    - `setup`: workspace preparation and setup
    - `specification`: verify artifact; conversation if no `role` field (decisions)
-   - `construction`: verify each slice; run phase gate per gate-cadence invariant
+   - `construction`: verify each part; run phase gate per gate-cadence invariant
    - `harness` (`harness-read ∈ contract`): apply ALL findings; converge per the
      `phase.harness` knobs (dimensions/passes/max_cycles/convergence — `craft:review` reads them)
    - `refinement`: judgment (scan + scoping); apply ALL findings
@@ -216,7 +216,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    it has produced its outcome; it is NOT a missing artifact and never re-runs or
    escalates as a gap.
 
-7. **On blocker**: escalate `{ phase/slice, reason, ≤3 candidate options }`. Never
+7. **On blocker**: escalate `{ phase/part, reason, ≤3 candidate options }`. Never
    spin, never silently abandon.
 
 8. **On model-down** (not a task blocker): mark tier degraded; re-resolve to
@@ -277,7 +277,7 @@ bring their own `procedure`, dispatched verbatim (step 1).
   committed artifact before the phase closes. A dead agent = fresh respawn fed from
   the artifact, never a continuation.
 
-- **Gates**: each fix commit gates on the TARGETED check (`gates.slice` over the
+- **Gates**: each fix commit gates on the TARGETED check (`gates.part` over the
   touched files + `gates.review-batch` if declared); the full phase-boundary gate
   runs ONCE per round — after each code-producing phase, after each
   `harness`/`refinement` fix round, and before push — not after every intra-round
@@ -290,7 +290,7 @@ bring their own `procedure`, dispatched verbatim (step 1).
      this phase is non-empty — see step 3 memory-hint clause and `docs/adapters/memory.md`
      Claude binding). Do NOT separately re-inject `context:` — the assembler already
      appends it; double-injection is a breach.
-  2. **Working directory** and **task dynamics** (phase id, slice, gate string).
+  2. **Working directory** and **task dynamics** (phase id, part text, gate string).
   3. **Artifact paths**: committed artifacts passed by PATH — the agent reads them
      in-place. The prompt embeds the pre-chewed context and the load-bearing deltas,
      not a second verbatim copy. A respawn from a partial artifact points at the
@@ -312,7 +312,7 @@ bring their own `procedure`, dispatched verbatim (step 1).
   skip straight to the fallback — never pay the same dead spawn twice.
   (This is the Model port's select/isAvailable — the Claude binding. See docs/adapters/model.md.)
 
-- **Blockers** escalate to the user as `{ phase/slice, reason, ≤3 candidate options }`
+- **Blockers** escalate to the user as `{ phase/part, reason, ≤3 candidate options }`
   — never spin, never silently abandon.
 
 - **Policy consult**: before any phase performs a nameable outward action (a member of
@@ -344,7 +344,7 @@ the result in the run record under `inline-fidelity-check`. Rationale:
 On demand / when a maintainer wants the full-pipeline + output-quality matrix: run the
 full pipeline across the Claude class — opus (`claude-opus-4-8`), sonnet
 (`claude-sonnet-4-6`), haiku (`claude-haiku-4-5-20251001`) — on a representative brief,
-record a tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / slice-TDD /
+record a tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / part-TDD /
 structured-review / blocker / full-pipeline-completion), and capture the per-phase
 tokens + wall-clock into the committed artifact and the run record.
 
@@ -387,9 +387,9 @@ to a non-JS install.
 ## Review cadence — engine vs working-style
 
 The engine cadence is the single `review` phase over the whole change (per-dimension
-convergence, owned by `craft:review`). The "4-dimension review after every code slice"
+convergence, owned by `craft:review`). The "4-dimension review after every code part"
 is a **session working-style** — a discipline the orchestrator may apply, not an engine
-invariant. A first-class per-slice review cadence (multi-reviewer fan-out, `passes>1`,
+invariant. A first-class per-part review cadence (multi-reviewer fan-out, `passes>1`,
 numeric convergence enforcement) is deferred to the later walk/parallelism pass, which is
 its home.
 

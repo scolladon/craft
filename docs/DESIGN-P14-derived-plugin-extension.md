@@ -523,7 +523,7 @@ The `examples/derived-plugin/workflow.md` (R12) is lint-gated by `examples-lint`
 
 **Harness bookkeeping:** every new `node --test` case bumps `EXPECTED_TESTS` in `scripts/ci.sh`
 (currently 528); any new `test/*.bats` (e.g. an `examples-lint` row) is counted by the bats
-gate. The slice that adds the example appends to `ci.sh` per the substrate-gate convention.
+gate. The part that adds the example appends to `ci.sh` per the substrate-gate convention.
 
 **ADRs:** the design surfaces DC-1…DC-7; the decisions phase records the chosen ones as ADRs
 069+ (next free number) per `templates/adr.md`. No provenance refs land in source/test.

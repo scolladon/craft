@@ -41,7 +41,7 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    canonical `Finding[]` (`{file, line, severity, finding, fix?}`). Key on these
    fields — never on whether the reviewer emitted a JSON array or a per-line list.
 3. **Fixes — session-owned:** apply every accepted finding yourself, batched per
-   dimension; each batch gates on the targeted checks (`gates.slice` over touched
+   dimension; each batch gates on the targeted checks (`gates.part` over touched
    files) + `gates.review-batch` before its conventional commit (e.g.
    `refactor(<scope>): apply code-review fixes`); `gates.phase` after the round.
 4. **Converge per dimension, up to `max_cycles` cycles** (default 3), per

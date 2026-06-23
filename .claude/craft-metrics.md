@@ -14,3 +14,19 @@ p23-policy-hooks review-tests tokens=138319 duration_ms=158247 cache=na
 p23-policy-hooks review-perf tokens=95139 duration_ms=45499 cache=na
 p23-policy-hooks validation-triager tokens=114064 duration_ms=549366 cache=na
 p23-policy-hooks documentation tokens=101158 duration_ms=185815 cache=na
+
+p24-rename-slice-vocabulary design tokens=176828 duration_ms=2002136 cache=na
+p24-rename-slice-vocabulary design-revision tokens=192659 duration_ms=875744 cache=na
+p24-rename-slice-vocabulary planning tokens=151096 duration_ms=421594 cache=na
+p24-rename-slice-vocabulary implementation-s1 tokens=71168 duration_ms=105764 cache=na
+p24-rename-slice-vocabulary implementation-s2 tokens=71280 duration_ms=223424 cache=na
+p24-rename-slice-vocabulary implementation-s3 tokens=69887 duration_ms=212068 cache=na
+p24-rename-slice-vocabulary implementation-s4 tokens=95009 duration_ms=566504 cache=na
+p24-rename-slice-vocabulary implementation-s5 tokens=74195 duration_ms=234912 cache=na
+p24-rename-slice-vocabulary implementation-s6 tokens=126248 duration_ms=842843 cache=na
+p24-rename-slice-vocabulary implementation-s7 tokens=110193 duration_ms=477108 cache=na
+p24-rename-slice-vocabulary review-code tokens=134966 duration_ms=341529 cache=na
+p24-rename-slice-vocabulary review-security tokens=99170 duration_ms=102603 cache=na
+p24-rename-slice-vocabulary review-tests tokens=108379 duration_ms=185442 cache=na
+p24-rename-slice-vocabulary review-perf tokens=93791 duration_ms=74514 cache=na
+p24-rename-slice-vocabulary review-code-cycle2 tokens=63144 duration_ms=17644 cache=na

@@ -1,8 +1,8 @@
 # Plan — P9: agent/skill swap via manifest
 
 > Source: design doc `docs/DESIGN-P9-agent-swap.md` · ADRs 037, 038, 039, 040
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Constraints and risks
@@ -30,7 +30,7 @@ current 2-arg call keeps working; the guard no-ops to "present".
 
 `pipeline/default.yml` (13 descriptors, default `role`/`procedure` values, enabled/disabled
 state), `graph.js`'s `validatePipeline(descriptors)`, `contract.js`'s `assembleContract`, and
-`engine/bin/contract-assemble.js` are untouched by every slice. SC1 (no-manifest resolution)
+`engine/bin/contract-assemble.js` are untouched by every part. SC1 (no-manifest resolution)
 stays byte-identical: it carries no swapped role/procedure, so `roleExists` is never consulted
 and `applyAllowedOverrides` copies no `procedure`.
 
@@ -39,16 +39,16 @@ and `applyAllowedOverrides` copies no `procedure`.
 SC1, S1, S2, S3, S4, S5, S6, S7, S8, S9, S-lean, S-full, S-reorder, SC3, S-harness-review,
 S-harness-validation, contract-equivalence. CI: `bash scripts/ci.sh` (405 node + 42 bats today).
 
-### Risk: not every descriptor carries a `role` (binding for Slice 2)
+### Risk: not every descriptor carries a `role` (binding for Part 2)
 
 Verified against `pipeline/default.yml`: `workspace`, `decisions`, `propose`, `integrate` are
-**role-less** (no `role:` field). The Slice-2 guard MUST therefore consult `roleExists` ONLY for
+**role-less** (no `role:` field). The Part-2 guard MUST therefore consult `roleExists` ONLY for
 descriptors that carry a truthy `role` (`if (d.role && !roleExists(d.role))`). Probing a role-less
 descriptor would call the stub on `undefined` and a strict stub (`ref => ref.startsWith('craft:')`)
 would wrongly reject the role-less phases — breaking SC1's default-true no-op and every swap
 scenario. The guard is "for every effective descriptor that *carries* a `role`" (design §037).
 
-### Risk: the S2 contract test assembles against FIXTURE bundles, not the real `contracts/` (binding for Slice 3)
+### Risk: the S2 contract test assembles against FIXTURE bundles, not the real `contracts/` (binding for Part 3)
 
 `engine/test/scenarios.test.js` builds a module-level `FRAGMENTS` const (lines 40–52) from the
 **fixture** bundle dir `engine/test/fixtures/contracts/` — deliberately minimal bundles that test
@@ -57,19 +57,19 @@ the assembly *machinery*. That fixture `core.md` OMITS the "No swallowed errors"
 includes `'swallowed'` because it assembles against the REAL `contracts/`. The shared `FRAGMENTS`
 const is ALSO consumed by the S9 tests (lines 465, 482, 489) — it must NOT be mutated, and the
 fixture `core.md` must NOT be edited (it would break the byte-identical fixture surface and the S9
-assertions). Slice 3 resolves this by assembling the hardened S2 contract assertion against a
+assertions). Part 3 resolves this by assembling the hardened S2 contract assertion against a
 SEPARATE local fragments map sourced from the REAL `contracts/` dir (the contract-equivalence
 source), so the full 8-marker `CORE_MARKERS` survives honestly without re-listing markers and
-without touching the shared `FRAGMENTS` or any fixture. Detail is pre-chewed in Slice 3's Context.
+without touching the shared `FRAGMENTS` or any fixture. Detail is pre-chewed in Part 3's Context.
 
 ### Sizing rules
 
-- Every slice costs a full agent lifecycle — it must earn it. No standalone test-only slices,
-  except the ratified ADR-038 hardening (Slice 3), which is the phase deliverable, not a pass over
+- Every part costs a full agent lifecycle — it must earn it. No standalone test-only parts,
+  except the ratified ADR-038 hardening (Part 3), which is the phase deliverable, not a pass over
   incidentally-already-green code: it converts a two-marker spot-check into a full-core regression
   guard and adds an id-unchanged pin.
-- Sequential slices share one working tree; each builds on the prior. Engine slices (1, 2) land
-  before the prose/example that document them (4, 5). Slice 3 is independent.
+- Sequential parts share one working tree; each builds on the prior. Engine parts (1, 2) land
+  before the prose/example that document them (4, 5). Part 3 is independent.
 
 ### Dependency order
 
@@ -81,20 +81,20 @@ engine/test surfaces; s4/s5 are prose/example and reference the behaviour s1/s2 
 NONE open. ADRs 037–040 settle the four originally-open forks; DC-E (per-call inline stub for the
 role-not-found negative) is settled to option (a). The two risks above (role-less descriptors,
 fixture-bundle marker gap) are construction details the ADRs' spirit determines, pre-chewed into the
-relevant slices — not new design forks.
+relevant parts — not new design forks.
 
 ---
 
-## Slice 1 — Engine: default-phase `procedure:` override field (ADR-040)
+## Part 1 — Engine: default-phase `procedure:` override field (ADR-040)
 
 ### Context
 
-**Shape:** TDD / slice-implementer.
+**Shape:** TDD / part-implementer.
 
 **Goal:** make `phases.<id>.procedure` a first-class per-phase override on a *default* phase —
 lint accepts a string-shaped value, and `applyAllowedOverrides` copies it onto the effective
 descriptor (exactly the path `role` already takes). The walk dispatches it verbatim (ADR-025,
-unchanged — no walk touch in this slice).
+unchanged — no walk touch in this part).
 
 **File to edit 1:** `engine/src/manifest.js`
 
@@ -257,11 +257,11 @@ feat(manifest): accept and copy default-phase procedure override field
 
 ---
 
-## Slice 2 — Engine: `roleExists` resolution guard (ADR-037)
+## Part 2 — Engine: `roleExists` resolution guard (ADR-037)
 
 ### Context
 
-**Shape:** TDD / slice-implementer.
+**Shape:** TDD / part-implementer.
 
 **Goal:** a swap to a non-existent / uninstalled role surfaces LOUDLY at the engine resolution
 layer — `resolvePipeline` returns `ok:false` with a role-not-found error naming the phase and the
@@ -325,8 +325,8 @@ phases:
 
 **Test file to extend 2:** `engine/test/scenarios.test.js`
 
-Add the S2-neg negative in the S2 neighbourhood (after the S2-proc positive from Slice 1). Helpers
-`loadDefault()` / `loadScenarioManifest()` as in Slice 1. DC-E(a) — the negative supplies `roleExists`
+Add the S2-neg negative in the S2 neighbourhood (after the S2-proc positive from Part 1). Helpers
+`loadDefault()` / `loadScenarioManifest()` as in Part 1. DC-E(a) — the negative supplies `roleExists`
 as a PER-CALL inline stub (the third arg); the two existing S2 positive tests (lines 238–269) and the
 S2-proc positive keep their 2-arg calls (probe defaults true — the no-op path stays exercised).
 
@@ -336,7 +336,7 @@ default `craft:<role>` refs on every other effective descriptor pass). Equivalen
 wrong reason and reject any legitimate external swap; the `!==` form is the minimal, intention-clear
 stub. Use the `!==` form.
 
-**Surface check (assert in this slice, no separate test):** `index.js` 7-export surface unchanged;
+**Surface check (assert in this part, no separate test):** `index.js` 7-export surface unchanged;
 SC1 still byte-identical (the existing SC1 golden tests already pin `effective` ids + `record[]`; they
 stay green because the default path carries no swapped role and the probe defaults true — nothing to
 reject). The two existing S2 positive tests stay green (2-arg calls, default-true probe accepts
@@ -404,16 +404,16 @@ feat(resolve): guard swapped roles against an injected roleExists probe
 
 ---
 
-## Slice 3 — S2 hardening: id-unchanged + full CORE_MARKERS survival (ADR-038)
+## Part 3 — S2 hardening: id-unchanged + full CORE_MARKERS survival (ADR-038)
 
 ### Context
 
-**Shape:** TDD / slice-implementer. This is the ADR-038 deliverable — it converts the two-marker
+**Shape:** TDD / part-implementer. This is the ADR-038 deliverable — it converts the two-marker
 spot-check into a full-core regression guard and pins id-unchanged. It is NOT a pass over
 incidentally-already-green code: the new assertions are not asserted anywhere today.
 
 **File to edit:** `engine/test/scenarios.test.js` — the TWO existing S2 tests. Identify them by
-title (line numbers have drifted: Slices 1–2 inserted S2-proc + S2-neg in the same neighbourhood):
+title (line numbers have drifted: Parts 1–2 inserted S2-proc + S2-neg in the same neighbourhood):
 - **Test 1 (resolution):** `'S2 Given phases.planning.role:my:domain-planner, when resolvePipeline runs, then Resolution shows swapped role'` (originally lines 238–250).
 - **Test 2 (contract):** `'S2 Given phases.planning.role swapped, when assembleContract runs on planning descriptor, then U core and producer bundle still inject'` (originally lines 252–269).
 No engine src change. No fixture change: `engine/test/fixtures/scenarios/S2/manifest.yml`
@@ -524,7 +524,7 @@ load-bearing, not decorative): temporarily point the new Test 2 at the module-le
 assertion FAILS (the fixture `core.md` omits that line). That failing run is the RED signal: it
 demonstrates the full-marker set genuinely exercises the contract. Then switch Test 2 back to
 `REAL_FRAGMENTS` for GREEN. The temporary fixture-source swap is a scratch probe — it MUST NOT be
-committed (the committed Test 2 assembles against `REAL_FRAGMENTS`; `git status` for this slice shows
+committed (the committed Test 2 assembles against `REAL_FRAGMENTS`; `git status` for this part shows
 only `engine/test/scenarios.test.js`, and the fixture `core.md` is untouched).
 
 **GREEN:** with Test 2 assembling against `REAL_FRAGMENTS` and Test 1 carrying the id-unchanged pin,
@@ -543,7 +543,7 @@ cd engine && node --test
 
 Spot-check: `engine/test/fixtures/scenarios/S2/manifest.yml` and
 `engine/test/fixtures/contracts/core.md` are unchanged (`git status` shows only
-`engine/test/scenarios.test.js` modified for this slice).
+`engine/test/scenarios.test.js` modified for this part).
 
 ### Commit
 
@@ -553,11 +553,11 @@ test(scenarios): harden S2 to id-unchanged + full core-marker survival
 
 ---
 
-## Slice 4 — Walk/UX prose: named swap-fidelity (G5) + procedure axis + engine-loud role-not-found (no engine touch)
+## Part 4 — Walk/UX prose: named swap-fidelity (G5) + procedure axis + engine-loud role-not-found (no engine touch)
 
 ### Context
 
-**Shape:** session-direct prose edit (no RED/GREEN TDD cycle). No `node --test` gate — the slice
+**Shape:** session-direct prose edit (no RED/GREEN TDD cycle). No `node --test` gate — the part
 gate is `bash scripts/ci.sh` (the file is shell/skill, covered by bats + shellcheck adjacency, and
 the prose must not break pipeline-lint/resolve). Gets a focused consistency review, not 4-dimension
 code review.
@@ -580,7 +580,7 @@ code review.
   - Procedure-not-installed routes through the EXISTING "procedure resolves to no installed skill"
     row (line 180) — ADR-040 reuses it for default-phase procedure overrides. Do NOT add a new row.
 
-**Three prose edits (content fixed by the design §"swap-fidelity note"; final wording is this slice's
+**Three prose edits (content fixed by the design §"swap-fidelity note"; final wording is this part's
 craft):**
 
 1. **Named swap-fidelity guarantee (G5)** — near the step-4 agent/inline branches (or tightening the
@@ -607,7 +607,7 @@ the existing inline-mode local/non-local role branch wording (ADR-020) and the "
 (or the manifest-swapped role)" line.
 
 **Scope honesty (binding) — do NOT overclaim the bin wiring.** P9 ships the ENGINE seam (the
-`roleExists` guard, Slice 2) + its test coverage. The shipped `engine/bin/pipeline-resolve.js` still
+`roleExists` guard, Part 2) + its test coverage. The shipped `engine/bin/pipeline-resolve.js` still
 calls `resolvePipeline(defaults, manifest)` 2-arg (verified at `pipeline-resolve.js:81`), so the
 probe defaults to true and the bin does NOT itself reject a bad role in P9 — wiring the walk's real
 probe into the bin is a later phase (design §"the roleExists seam": "the `pipeline-resolve` bin until
@@ -648,11 +648,11 @@ docs(run): name swap-fidelity G5, document procedure axis and engine-loud role-n
 
 ---
 
-## Slice 5 — Example + README: `examples/role-swap/workflow.md` (ADR-039) + README row
+## Part 5 — Example + README: `examples/role-swap/workflow.md` (ADR-039) + README row
 
 ### Context
 
-**Shape:** session-direct prose/example (no RED/GREEN TDD cycle). Slice gate `bash scripts/ci.sh`.
+**Shape:** session-direct prose/example (no RED/GREEN TDD cycle). Part gate `bash scripts/ci.sh`.
 Focused consistency review. NO engine touch. No automated test asserts example content (consistent
 with `lean-profile`).
 
@@ -714,7 +714,7 @@ lead-narrative above; add the README bullet. Then verify consistency.
 REFACTOR (consistency check):
 - `examples/role-swap/` contains EXACTLY one file (`workflow.md`) — mirrors `lean-profile/`.
 - The frontmatter manifest is lint-clean: `implementation.role: acme:tdd-specialist` is a string —
-  `validateManifest` accepts it (the Slice-1/prior `role` shape-check passes a string).
+  `validateManifest` accepts it (the Part-1/prior `role` shape-check passes a string).
 - The prose LEADS with external/contract-only-inline (ADR-020) + fail-closed (ADR-037), not the
   gentle local-swap path.
 - The closing `.claude/workflow.md` line is present and matches lean-profile's wording.
@@ -751,8 +751,8 @@ The following must hold at every commit in this phase:
 | `graph.js` `validatePipeline(descriptors)` | unchanged |
 | `contract.js` `assembleContract` | unchanged |
 | `engine/bin/contract-assemble.js` | unchanged |
-| `engine/test/fixtures/contracts/*` and the module-level `FRAGMENTS` in scenarios.test.js | unchanged (Slice 3 uses a separate REAL_FRAGMENTS map; the shared FRAGMENTS and S9 tests are untouched) |
-| `engine/test/fixtures/scenarios/S2/manifest.yml` | unchanged (Slice 3 asserts, never edits the fixture) |
+| `engine/test/fixtures/contracts/*` and the module-level `FRAGMENTS` in scenarios.test.js | unchanged (Part 3 uses a separate REAL_FRAGMENTS map; the shared FRAGMENTS and S9 tests are untouched) |
+| `engine/test/fixtures/scenarios/S2/manifest.yml` | unchanged (Part 3 asserts, never edits the fixture) |
 | SC1 run-record byte-identical | unchanged (no-manifest resolution carries no swapped role/procedure → `roleExists` never consulted, no override copied) |
 | `engine/src` delta | MINIMUM: (i) `procedure` in `PHASE_FIELDS` + a shape-check branch (`manifest.js`) and in `ALLOWED_PHASE_OVERRIDE_FIELDS` (`edits.js`); (ii) the `roleExists` guard + optional `opts` (`resolve.js`) — nothing else |
 | `procedure` / `roleExists` | internal — no new export from `index.js`; `roleExists` is a guard inside `resolvePipeline`, not an exported function |

@@ -47,7 +47,7 @@ primitive* is the adapter:
 | `backlog.md` `file`/`custom` + `gh`/Atlassian-MCP recipes | **Backlog SoT** |
 | the runtime's Read/Grep/LSP/Serena (env), engine injects only the note | **Code-access** (env-sourced) |
 
-The agents are already **thin** (P5): `slice-implementer.md`, `reviewer.md`, … carry only role
+The agents are already **thin** (P5): `part-implementer.md`, `reviewer.md`, … carry only role
 identity + craft; the invariant contract is assembled by `engine/bin/contract-assemble.js` from
 `contracts/core.md` + the descriptor's `contract:` bundles and *prepended by the orchestrator*, so a
 swap cannot drop it. This is load-bearing for P16: a second adapter reuses **the same** core,
@@ -174,11 +174,11 @@ The seam already exists conceptually in §2.1; P16 documents it as the adapter c
 Claude binding behind it. **Signatures and pre/postconditions:**
 
 - `spawn(role, ctx) → result`
-  - **role**: a registered worker identity (e.g. `craft:slice-implementer`) — the adapter maps it to
+  - **role**: a registered worker identity (e.g. `craft:part-implementer`) — the adapter maps it to
     its own worker primitive (Claude: a Task subagent typed `craft:<role>`; Pi: a fresh `pi` run).
   - **ctx**: the assembled run context — the engine-assembled **injected block** (`contract-assemble`
     output: core + bundles + retrieval note + manifest context), the working directory, the task
-    dynamics (phase id, slice text, gate string, commit message, artifact paths), and the resolved
+    dynamics (phase id, part text, gate string, commit message, artifact paths), and the resolved
     **model** (from the Model port).
   - **pre**: `ctx.injectedBlock` is non-empty (assembled at phase entry); the working dir is an
     isolated workspace (VCS `isolate` ran). **post**: a worker ran the phase to completion under the
@@ -210,7 +210,7 @@ agent|inline` field already drives it.
   supported **class is Haiku-4.5-and-up** (SP5). The port exposes only *bind* + *probe*.
 
 **Claude binding (re-expressed):** the Task `model` param + each agent's frontmatter `model:` pin
-(opus: designer/planner/reviewer/requirements-writer/architecture-triager; sonnet: slice-implementer/
+(opus: designer/planner/reviewer/requirements-writer/architecture-triager; sonnet: part-implementer/
 refactor-executor/docs-writer/validation-triager; haiku: backlog-ticker). The pin tier is a craft-class
 name (`opus|sonnet|haiku`, the SP5 class), not a Claude SKU — but **it lives in `agents/*.md`
 frontmatter, which is the Claude adapter, not the reused core**: `pipeline/default.yml` carries **no**
@@ -286,7 +286,7 @@ Execution (`spawn` a Pi run under the injected `construction` contract), Model (
 Gate (the `tool_call` guard fires + the gate-command wrapper runs + **never commit on red**), VCS
 (`isolate` the workspace, `commit` the handoff). The probe **passes** on **mechanism/shape, never LLM
 prose** (Pi runs a different provider/model — content will differ, and comparing model prose is
-forbidden here): the assertions are structural — a RED→GREEN→commit slice landed, the gate ran and was
+forbidden here): the assertions are structural — a RED→GREEN→commit part landed, the gate ran and was
 green before the commit, the working tree mutated only inside the isolated workspace, and a committed
 artifact exists as the handoff. Recorded in a `docs/adapters/pi-poc-record.md` evidence doc
 mirroring `SC5-second-instantiation-record.md` (target identity, Pi version, model, ports exercised,
@@ -299,11 +299,11 @@ exec surface and any `commit`/`git` verb mutate only the throwaway, per the stat
 
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
 |---|---|---|---|---|
-| DC-1 | **Scope/sequencing** of the two deliverables within this run | (a) one change: boundary-extraction + Pi-PoC together; (b) two sub-slices in this run (boundary first, then Pi PoC); (c) boundary now, Pi-PoC deferred to a follow-up program | **(b)** — boundary-extraction is a near-no-op on Claude (doc-framing) and is the *precondition* the Pi adapter consumes; landing it first gives the PoC a clean, reviewed seam to bind, and keeps the diff legible | the two have a hard dependency (PoC binds the named seams) but very different risk profiles (one inert, one runtime-integration); splitting isolates the risk |
+| DC-1 | **Scope/sequencing** of the two deliverables within this run | (a) one change: boundary-extraction + Pi-PoC together; (b) two sub-parts in this run (boundary first, then Pi PoC); (c) boundary now, Pi-PoC deferred to a follow-up program | **(b)** — boundary-extraction is a near-no-op on Claude (doc-framing) and is the *precondition* the Pi adapter consumes; landing it first gives the PoC a clean, reviewed seam to bind, and keeps the diff legible | the two have a hard dependency (PoC binds the named seams) but very different risk profiles (one inert, one runtime-integration); splitting isolates the risk |
 | DC-2 | **Where adapter code lives** | (a) new top-level `adapters/<name>/` tree, `engine/` stays core-only; (b) under `engine/adapters/`; (c) a separate repo/package per adapter | **(a)** — preserves the invariant that `engine/src/**` is the provider-neutral core (every requirement and the CI test-count rest on that); a sibling `adapters/` tree makes the hexagon visible on disk | mixing adapter code into `engine/` would blur the exact boundary P16 exists to sharpen and risk the 634-test core contract |
 | DC-3 | **How an adapter is selected** | (a) a manifest key (`adapter: claude\|pi`, default `claude`); (b) a separate entrypoint per adapter (`/craft:run` = Claude; a `craft-pi` bin = Pi); (c) an env var | **(b)** for the PoC — a separate Pi entrypoint keeps the Claude slash-command path byte-identical (R-sc1) and needs no manifest schema change; revisit a manifest key when a 2nd+ adapter ships | the PoC must not perturb the default Claude run; a distinct entrypoint is the smallest, most reversible selection mechanism |
 | DC-4 | **How far to extract Execution/Model now** | (a) document-the-seam-only (spec docs + prose anchors, no `engine/src` change); (b) also lift a thin executable shim into `engine/src` (e.g. a port-interface module the orchestrator calls); (c) full inversion (orchestrator calls an adapter object) | **(a)** — the realised hexagon is *policy text + data + portable Node core* (ADR-002), not a class graph; the seam is a documented discipline, and the Pi adapter is the empirical proof it holds — a `src` shim with one consumer would be speculative generality (YAGNI) | matches the established "how the hexagon is realised" design (§2.1) and the two already-extracted ports (Gate/VCS are scripts+specs, not `src` interfaces) |
-| DC-5 | **Pi integration depth for the PoC** | (a) a single representative phase (construction-bearing) end-to-end; (b) a short multi-phase slice (design→implementation); (c) the full default pipeline | **(a)** — it is exactly the program's gate ("runs *a* scenario"), exercises the load-bearing ports together, and is achievable without Pi sub-agents; (b)/(c) multiply runtime-integration surface for no extra proof of *portability* | the gate is existence-of-portability, not feature-parity; (c) would also force the sequential-fan-out story for review before it is needed |
+| DC-5 | **Pi integration depth for the PoC** | (a) a single representative phase (construction-bearing) end-to-end; (b) a short multi-phase part (design→implementation); (c) the full default pipeline | **(a)** — it is exactly the program's gate ("runs *a* scenario"), exercises the load-bearing ports together, and is achievable without Pi sub-agents; (b)/(c) multiply runtime-integration surface for no extra proof of *portability* | the gate is existence-of-portability, not feature-parity; (c) would also force the sequential-fan-out story for review before it is needed |
 | DC-6 | **Pi as a CI dependency** | (a) on-demand smoke only (like the SC5 / model-class matrix smokes — record in an evidence doc, not CI-gated); (b) a hard CI job that installs Pi and runs the scenario; (c) a recorded transcript fixture asserted in CI, live run on-demand | **(a)** — consistent with every other runtime-fidelity proof in this repo (`run/SKILL.md` lists SC5, model-class, registered-phase as *not CI-gated*); a live external-provider run in CI is flaky and key-dependent | the engine path is CI-proven by fixtures; the Pi run adds *runtime* fidelity, which the repo deliberately keeps out of CI to avoid coupling to external installs/keys |
 | DC-7 | **Pi execution binding form** | (a) headless CLI subprocess (`pi -p` / `--mode json`); (b) SDK embed (`createAgentSession`/`session.prompt`); (c) RPC mode (`--mode rpc`) | **(a)** for the PoC — a subprocess is the smallest, most language-agnostic binding (mirrors the backlog `custom` seam), needs no Node-in-Node embedding, and the `--mode json` event stream yields the usage block; keep (b) as the documented richer binding | the PoC proves portability; a subprocess keeps the adapter thin and the failure modes obvious (exit code = blocker), matching the repo's existing subprocess-gate idioms |
 | DC-8 | **VCS spec consolidation** | (a) write `docs/adapters/execution.md` + `model.md` only, leave SP8/Gate where they are; (b) also add `vcs.md` + `gate.md` for a complete `docs/adapters/` set | **(b)** — a complete adapter-spec directory is the adapter-author's contract surface and the Pi PoC reuses all four; the VCS verbs are already pinned (SP8) so `vcs.md` is transcription, not new design | a half-documented port set forces the next adapter author back into prose archaeology; symmetry is cheap here |

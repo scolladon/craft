@@ -1,35 +1,35 @@
 # Plan — Running craft in a loop (recipe/example, P21)
 
 > Source: design doc `docs/DESIGN-P21-loop-recipe.md` · ADRs `111, 112, 113, 114, 115`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
-### P21-specific scope facts (read once, applies to every slice)
+### P21-specific scope facts (read once, applies to every part)
 
 This is a **docs + example feature, no engine change** (ADR-111/115). There is **zero
 `src/` delta**: nothing under `engine/`, `pipeline/`, `contracts/`, `skills/`, `agents/`,
 `scripts/`, `adapters/` changes. No shell script ships (ADR-115 — the decisions phase
 explicitly rejected `loop.sh`). No new manifest key (`loop:` would be `unknown top-level
-key` → an engine change, forbidden by ADR-111). Every slice is docs-only or docs+test-infra
+key` → an engine change, forbidden by ADR-111). Every part is docs-only or docs+test-infra
 and is legitimately standalone per the Sizing-rules EXCEPTION.
 
 - **No new exported code symbol.** The only "public surface" this feature adds is *catalog
   visibility*: the `examples/loop/` dir made discoverable through `examples/README.md` + the
   `docs/GUIDE-customizing.md` §4 index, and gated against rot by the existing `examples-lint`
-  CI gate. Those surface gates are pre-paid in-slice (Slice 1 satisfies `examples-lint`;
-  Slice 3 wires both index surfaces and adds the doc-link guard). No barrels/facades/
+  CI gate. Those surface gates are pre-paid in-part (Part 1 satisfies `examples-lint`;
+  Part 3 wires both index surfaces and adds the doc-link guard). No barrels/facades/
   registries/exhaustiveness switches apply — there is no code module.
 
 - **Phase-boundary gate (`gates.phase`) = `bash scripts/ci.sh`**, run from the worktree
@@ -41,7 +41,7 @@ and is legitimately standalone per the Sizing-rules EXCEPTION.
   pipeline/default.yml`; `node engine/bin/pipeline-resolve.js pipeline/default.yml`;
   `node engine/bin/contracts-lint.js contracts`.
 
-- **The 706 / 202 counts MUST NOT move.** No slice adds a test under `engine/test/` or
+- **The 706 / 202 counts MUST NOT move.** No part adds a test under `engine/test/` or
   `adapters/pi/test/`, so `EXPECTED_TESTS` stays **706** and `EXPECTED_PI_TESTS` stays
   **202** — and `scripts/ci.sh` is **not edited** (it is a shell file under `scripts/`;
   editing it would also engage `shellcheck` for no reason). The only mechanical test this
@@ -53,14 +53,14 @@ and is legitimately standalone per the Sizing-rules EXCEPTION.
   and asserts **every** one passes `manifest-lint` (`run_lint` exits 0 and output contains
   `valid.`). The moment `examples/loop/workflow.md` exists it is in that glob — so the
   manifest **and** the `DOD.md` it references via `paths.dod` MUST land in the **same
-  commit** (Slice 1). Landing `workflow.md` without `DOD.md` would fail `examples-lint`
-  (`paths.dod references missing file`). Slices are sequential, sharing one working tree;
-  Slice 3's doc-link guard asserts the `examples/loop/` files exist and are referenced, so
-  it MUST land after Slices 1–2.
+  commit** (Part 1). Landing `workflow.md` without `DOD.md` would fail `examples-lint`
+  (`paths.dod references missing file`). Parts are sequential, sharing one working tree;
+  Part 3's doc-link guard asserts the `examples/loop/` files exist and are referenced, so
+  it MUST land after Parts 1–2.
 
 - **No-provenance contract (binding).** The shipped `examples/loop/workflow.md` and
   `examples/loop/DOD.md` carry **NO** `P21` / `ADR` tokens (provenance lives only in the
-  design doc, the ADRs, and GUIDE/README *prose*). Slice 3's guard asserts this mechanically.
+  design doc, the ADRs, and GUIDE/README *prose*). Part 3's guard asserts this mechanically.
 
 ### Empirically pinned facts (verified in a mktemp throwaway against the real linter — reproduce verbatim)
 
@@ -79,15 +79,15 @@ Run in `/tmp`, never the worktree. Confirmed against `node engine/bin/manifest-l
   `INVALID manifest …: - paths.dod references missing file: <path>`, **exit 2**. The sample
   `DOD.md` must actually exist on disk.
 
-## Slice 1 — `examples/loop/` runnable artifact: lint-clean manifest + sample DoD (ADR-115)
+## Part 1 — `examples/loop/` runnable artifact: lint-clean manifest + sample DoD (ADR-115)
 
 ### Context
 
-The only slice with a code gate. It lands the catalog-visible, lint-gated runnable pair so
-`examples-lint` protects the example from rot. Docs+example slice, **no `src/` delta**.
+The only part with a code gate. It lands the catalog-visible, lint-gated runnable pair so
+`examples-lint` protects the example from rot. Docs+example part, **no `src/` delta**.
 
 - **New dir:** `examples/loop/` with **exactly two files in this commit** (the README is
-  Slice 2):
+  Part 2):
   - `examples/loop/workflow.md` — a lint-clean craft manifest, **recognized keys only**.
   - `examples/loop/DOD.md` — the small sample DoD the manifest's `paths.dod` points at.
 - **Pinned passing manifest body** (reproduce verbatim — empirically lints `valid.`, exit 0;
@@ -119,7 +119,7 @@ The only slice with a code gate. It lands the catalog-visible, lint-gated runnab
   The prose-after-frontmatter shape mirrors `examples/dod-artifact/workflow.md` and
   `examples/lean-profile/workflow.md` (a YAML frontmatter block, then a `# Example — …`
   heading and short prose). **No `P21`/`ADR` token anywhere in this file** (no-provenance
-  contract — Slice 3 guards it).
+  contract — Part 3 guards it).
 - **Pinned sample DoD** (`examples/loop/DOD.md`) — mirror the shape of
   `examples/dod-artifact/DOD.md` (a `# Definition of Done` heading + free-text `- [ ]`
   checklist lines, read verbatim; no schema, no fences). Keep it small and self-contained;
@@ -139,7 +139,7 @@ The only slice with a code gate. It lands the catalog-visible, lint-gated runnab
   `helpers/manifest-lint` and calls `run_lint "$manifest"` → `bash scripts/manifest-lint.sh
   <manifest>`, asserting `status -eq 0` and `output == *"valid."*`. The wrapper prints
   `craft-manifest: <abs>/examples/loop/workflow.md valid.` for the pinned body (verified).
-- **Do NOT** create `examples/loop/README.md` here (Slice 2). Do NOT add a `loop:` key (CONTROL
+- **Do NOT** create `examples/loop/README.md` here (Part 2). Do NOT add a `loop:` key (CONTROL
   A → invalid). Do NOT point `paths.dod` at a non-existent file (CONTROL B → invalid). Do NOT
   edit `scripts/ci.sh`, `test/examples-lint.bats`, or any other example.
 
@@ -156,7 +156,7 @@ The only slice with a code gate. It lands the catalog-visible, lint-gated runnab
 - GREEN — author both files in `examples/loop/`:
   1. `examples/loop/DOD.md` first (so the ref resolves), then `examples/loop/workflow.md`
      with the pinned frontmatter + prose above.
-  2. Run the slice gate (below) → `examples-lint` green; the new manifest reports `valid.`.
+  2. Run the part gate (below) → `examples-lint` green; the new manifest reports `valid.`.
 - REFACTOR — re-read both files: confirm recognized-keys-only (`paths.dod` is the sole
   config key); confirm the frontmatter prose matches the `dod-artifact`/`lean-profile`
   voice and length; confirm `grep -nE 'P21|ADR' examples/loop/workflow.md examples/loop/DOD.md`
@@ -164,7 +164,7 @@ The only slice with a code gate. It lands the catalog-visible, lint-gated runnab
 
 ### Gate
 
-- Targeted (slice, `gates.slice`):
+- Targeted (part, `gates.part`):
   `node engine/bin/manifest-lint.js examples/loop/workflow.md` → prints
   `… examples/loop/workflow.md valid.`, exit 0; **and** `bats test/examples-lint.bats` →
   all cases green (the new manifest is in the glob and lints clean).
@@ -176,13 +176,13 @@ The only slice with a code gate. It lands the catalog-visible, lint-gated runnab
 
 `docs(examples): add examples/loop runnable artifact — lint-clean manifest + sample DoD (ADR-115)`
 
-## Slice 2 — `examples/loop/README.md`: the recipe's prose home (ADR-111/112/113/114)
+## Part 2 — `examples/loop/README.md`: the recipe's prose home (ADR-111/112/113/114)
 
 ### Context
 
-Docs-only slice (no `src/` delta), legitimately standalone. This is the **prose home** of
+Docs-only part (no `src/` delta), legitimately standalone. This is the **prose home** of
 the recipe — the design's "README prose is what makes the dir an example." It depends on
-Slice 1's dir existing (sequential, shared tree).
+Part 1's dir existing (sequential, shared tree).
 
 - **New file:** `examples/loop/README.md`. No existing `examples/*/README.md` exists in the
   repo (verified — every other example carries its prose inline in `workflow.md`). So there
@@ -255,12 +255,12 @@ Slice 1's dir existing (sequential, shared tree).
   no-provenance rule binds only `workflow.md` and `DOD.md`). Keep it readable, not a spec
   dump.
 - **Do NOT** ship a `loop.sh`, a `classify()` function, or any fixture (ADR-115 — no script
-  to lint/test). Do NOT edit `examples/loop/workflow.md` or `DOD.md` (Slice 1's artifact).
+  to lint/test). Do NOT edit `examples/loop/workflow.md` or `DOD.md` (Part 1's artifact).
 
 ### TDD steps
 
-- RED — `test -f examples/loop/README.md` is **false** before this slice (the dir from
-  Slice 1 holds only `workflow.md` + `DOD.md`). Confirm it is absent.
+- RED — `test -f examples/loop/README.md` is **false** before this part (the dir from
+  Part 1 holds only `workflow.md` + `DOD.md`). Confirm it is absent.
 - GREEN — author `examples/loop/README.md` with the three content blocks above (canonical
   `/loop /craft:run` recipe + stop-condition table + bound + stable-input note; headless
   `craft-pi` contrast with the precondition, the exit-code rules, and the honest limits;
@@ -275,7 +275,7 @@ Slice 1's dir existing (sequential, shared tree).
 
 ### Gate
 
-- Targeted (slice, `gates.slice`): pure-docs file — no code gate. Doc-presence + content
+- Targeted (part, `gates.part`): pure-docs file — no code gate. Doc-presence + content
   check: `test -f examples/loop/README.md` **and** the README names all three pillars —
   `grep -Fq '/loop /craft:run' examples/loop/README.md` (canonical recipe),
   `grep -Fq 'craft-pi' examples/loop/README.md` (headless contrast), and
@@ -288,15 +288,15 @@ Slice 1's dir existing (sequential, shared tree).
 
 `docs(examples): add the loop recipe README — canonical /loop, headless craft-pi contrast, engine-native rejection (ADR-112)`
 
-## Slice 3 — index the loop in the catalog (GUIDE + examples/README) + doc-link & no-provenance guard (ADR-115)
+## Part 3 — index the loop in the catalog (GUIDE + examples/README) + doc-link & no-provenance guard (ADR-115)
 
 ### Context
 
-Docs + test-infra slice (no `src/` delta), legitimately standalone. It makes the example
+Docs + test-infra part (no `src/` delta), legitimately standalone. It makes the example
 **catalog-visible** (the public-surface gate for this feature) and adds the mechanical
 guard the design's Test-strategy calls for (doc-link integrity + no-provenance-leak). MUST
-land after Slices 1–2 — the guard asserts the `examples/loop/` files exist and are
-referenced, and the references it asserts are added in this same slice.
+land after Parts 1–2 — the guard asserts the `examples/loop/` files exist and are
+referenced, and the references it asserts are added in this same part.
 
 - **Edit 1 — `docs/GUIDE-customizing.md`: add a "Running craft in a loop" section.**
   - Pinned structure (read in-worktree): the GUIDE is FLAT-numbered. §4 "Examples index — a
@@ -313,7 +313,7 @@ referenced, and the references it asserts are added in this same slice.
     in one sitting` section (line 283). Do NOT open a new top-level `## 6` (it would dangle
     after §5's walkthrough). Match the GUIDE's heading style (`###` sentence-case headings,
     compact prose, a small table only where it earns its place).
-  - Content (the mental model + the contrast, sourced from the design and Slice 2's README —
+  - Content (the mental model + the contrast, sourced from the design and Part 2's README —
     keep it short; the README is the deep home): the loop is an **operator-owned outer
     harness**, not an engine feature (craft runs one gated pass per invocation, ADR-111);
     the **canonical** form is Claude Code's `/loop /craft:run` self-paced on the printed run
@@ -363,7 +363,7 @@ referenced, and the references it asserts are added in this same slice.
   `bats test/p10-structure.bats`. Before Edits 1–2 land, the doc-link assertions FAIL
   (`grep 'examples/loop/' docs/GUIDE-customizing.md` and `grep 'loop/' examples/README.md`
   return nothing — the catalog does not yet reference the dir). Confirm the failure. (The
-  existence + no-provenance assertions already pass against Slices 1–2's files; the doc-link
+  existence + no-provenance assertions already pass against Parts 1–2's files; the doc-link
   pair is the true RED that drives Edits 1–2.)
 - GREEN —
   1. Edit 1: insert the `### Running craft in a loop — a use-pattern` subsection into
@@ -382,7 +382,7 @@ referenced, and the references it asserts are added in this same slice.
 
 ### Gate
 
-- Targeted (slice, `gates.slice`): `bats test/p10-structure.bats` (the new existence,
+- Targeted (part, `gates.part`): `bats test/p10-structure.bats` (the new existence,
   doc-link, and no-provenance cases all pass against the landed `examples/loop/` files and
   the just-added catalog references).
 - Phase-boundary: `bash scripts/ci.sh` (the extended bats file is picked up by `bats test/`

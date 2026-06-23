@@ -1,25 +1,25 @@
 # Plan — Definition-of-Done artifact + DoD-aware verification (P20)
 
 > Source: design doc `docs/DESIGN-P20-dod-aware-verification.md` · ADRs `104, 105, 106, 107, 108, 109, 110`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
-### P20-specific scope facts (read once, applies to every slice)
+### P20-specific scope facts (read once, applies to every part)
 
-- **The ONLY `src/` delta is Slice 1** (`engine/src/manifest.js`). Slices 2–3 are skill
-  prose; Slices 4–5 are docs + a docs guard. No new descriptor, contract bundle, gate,
+- **The ONLY `src/` delta is Part 1** (`engine/src/manifest.js`). Parts 2–3 are skill
+  prose; Parts 4–5 are docs + a docs guard. No new descriptor, contract bundle, gate,
   resolver path, or `awaitingHarnesses` entry (ADR-104 folds into existing `validation`;
   Out-of-scope in the design). Do not touch `pipeline/default.yml`, `engine/src/gates.js`,
   `contracts/`, `skills/documentation/SKILL.md`, or `skills/propose/SKILL.md`.
@@ -30,17 +30,17 @@
   `bats test/`; `shellcheck scripts/*.sh hooks/*.sh`; `node engine/bin/pipeline-lint.js
   pipeline/default.yml`; `node engine/bin/pipeline-resolve.js pipeline/default.yml`;
   `node engine/bin/contracts-lint.js contracts`.
-- **EXPECTED_TESTS bump rule:** any slice that adds engine `node --test` cases MUST update
+- **EXPECTED_TESTS bump rule:** any part that adds engine `node --test` cases MUST update
   `EXPECTED_TESTS` in `scripts/ci.sh` in the SAME commit, or `ci.sh` fails on count drift.
-  Only Slice 1 adds engine tests (current count: `# tests 699`; Slice 1 adds 4 → 703).
-  No slice touches `adapters/pi`, so `EXPECTED_PI_TESTS` stays 202. **`bats test/` has NO
-  count gate** — adding a new bats file (Slice 5) needs no count bump.
-- **Ordering keeps CI green at every commit.** Slices 1–3 leave `bash scripts/ci.sh` green
-  on their own. Slice 5 (a bats guard that asserts `docs/DOD.md` exists) MUST land after
-  Slice 4 (which authors `docs/DOD.md`) — never before. Sequential slices share one
+  Only Part 1 adds engine tests (current count: `# tests 699`; Part 1 adds 4 → 703).
+  No part touches `adapters/pi`, so `EXPECTED_PI_TESTS` stays 202. **`bats test/` has NO
+  count gate** — adding a new bats file (Part 5) needs no count bump.
+- **Ordering keeps CI green at every commit.** Parts 1–3 leave `bash scripts/ci.sh` green
+  on their own. Part 5 (a bats guard that asserts `docs/DOD.md` exists) MUST land after
+  Part 4 (which authors `docs/DOD.md`) — never before. Sequential parts share one
   working tree and build on each other.
 
-## Slice 1 — manifest-lint validates `paths.dod` file-ref (ADR-110)
+## Part 1 — manifest-lint validates `paths.dod` file-ref (ADR-110)
 
 ### Context
 
@@ -86,7 +86,7 @@ The single `src/` delta of P20. Today `paths` is a recognized-but-inert top-leve
     new `validatePaths` must keep that green (it only ever reads `dod`). The inert
     regression test below proves it under `NEVER_EXISTS` so `paths.repo`/`paths.foo`
     can't be made to error.
-- Gate file: `scripts/ci.sh` — `EXPECTED_TESTS=699` (line ~12). This slice adds **exactly
+- Gate file: `scripts/ci.sh` — `EXPECTED_TESTS=699` (line ~12). This part adds **exactly
   4** engine tests, so the literal becomes **703** (699 + 4). Update it in the same commit.
   Confirmed current count: `cd engine && node --test 'test/**/*.test.js'` prints
   `# tests 699`.
@@ -95,7 +95,7 @@ The single `src/` delta of P20. Today `paths` is a recognized-but-inert top-leve
   `test/manifest-lint.bats`. The bats suite is fixture-driven (`load helpers/manifest-lint`,
   `run_lint "${FIXTURES}/…"`); the unit suite is the direct `validateManifest` surface and
   matches the `scripts:`/`context:` file-ref precedent. No bats fixture is added — the
-  mechanical requirement is fully met by the unit cases, and this keeps the slice tight.
+  mechanical requirement is fully met by the unit cases, and this keeps the part tight.
 
 ### TDD steps
 
@@ -138,9 +138,9 @@ The single `src/` delta of P20. Today `paths` is a recognized-but-inert top-leve
 
 ### Gate
 
-- Targeted (slice): `cd engine && node --test 'test/**/*.test.js'` (asserts the 4 new
+- Targeted (part): `cd engine && node --test 'test/**/*.test.js'` (asserts the 4 new
   cases pass and the suite stays green).
-- Phase-boundary (after the last slice, but valid here too): `bash scripts/ci.sh`
+- Phase-boundary (after the last part, but valid here too): `bash scripts/ci.sh`
   (verifies the `EXPECTED_TESTS=703` bump matches and shellcheck stays clean — note
   `ci.sh` is shell, so the edit must keep `shellcheck scripts/*.sh` clean: edit only the
   numeric literal, no syntax change).
@@ -149,7 +149,7 @@ The single `src/` delta of P20. Today `paths` is a recognized-but-inert top-leve
 
 `feat(manifest): validate paths.dod file-ref when declared (ADR-110)`
 
-## Slice 2 — fold the DoD assertion into the validation preamble (ADR-104/107/108/109)
+## Part 2 — fold the DoD assertion into the validation preamble (ADR-104/107/108/109)
 
 ### Context
 
@@ -209,7 +209,7 @@ behavioural decoupling ADR-104 demands lives entirely in this prose.
   declared` line is the DoD sub-concern's recorded outcome — it never *blocks* propose, and
   it only *drives* release in the case where the mutation sub-concern ALSO no-op'd. The
   prose here must NOT claim the verify no-op releases the gate on its own. (The matching
-  run-skill gate-release wording is Slice 3 — keep the two consistent.)
+  run-skill gate-release wording is Part 3 — keep the two consistent.)
 - House-style anchor: the no-op token family + carry-to-PR-body model is P19
   (`docs/DESIGN-P19-noop-first-class-phase-outcome.md`); reuse the exact `NO-OP(<phase>):`
   shape, do not invent a new severity channel.
@@ -217,10 +217,10 @@ behavioural decoupling ADR-104 demands lives entirely in this prose.
   MECHANICAL"): the restructured file must contain, in textual order, the DoD probe step
   BEFORE the mutation "the phase ends here" exit; a `verify: DoD met` outcome; a
   `NO-OP(verify):` absent-DoD line distinct from the mutation note. There is NO automated
-  prose-grep test harness in this repo for skill bodies, so the gate for this slice is the
+  prose-grep test harness in this repo for skill bodies, so the gate for this part is the
   substrate gate plus a self-verified `grep` checklist (below) — no new test file is added
   (adding one would be a standalone prose-only artifact the design does not call for here;
-  the `docs/DOD.md` existence guard in Slice 5 is the only new mechanical guard P20 adds).
+  the `docs/DOD.md` existence guard in Part 5 is the only new mechanical guard P20 adds).
 
 ### TDD steps
 
@@ -253,11 +253,11 @@ behavioural decoupling ADR-104 demands lives entirely in this prose.
   (neither nested inside the other's terminal branch); confirm no provenance refs leak as
   engine instructions (ADR/phase numbers are fine in prose context but the tokens must be
   the bare `NO-OP(verify):` / `verify:` forms); confirm the gate satisfaction-vs-release
-  wording matches Slice 3.
+  wording matches Part 3.
 
 ### Gate
 
-- Targeted (slice): the self-verified grep checklist above (all five assertions pass), read
+- Targeted (part): the self-verified grep checklist above (all five assertions pass), read
   back against `skills/validation/SKILL.md`.
 - Phase-boundary: `bash scripts/ci.sh` (prose edit to a `.md` under `skills/` changes no
   executable surface; ci must stay green — confirms no accidental shell/test/pipeline
@@ -267,7 +267,7 @@ behavioural decoupling ADR-104 demands lives entirely in this prose.
 
 `feat(validation): fold DoD-met assertion into the preamble, decoupled from the mutation no-op (ADR-104)`
 
-## Slice 3 — name the validation `NO-OP(verify):` sub-outcome in the run no-op vocabulary (ADR-107)
+## Part 3 — name the validation `NO-OP(verify):` sub-outcome in the run no-op vocabulary (ADR-107)
 
 ### Context
 
@@ -317,7 +317,7 @@ delta, no `gates.js` edit (ADR-104: no new gate entry).
   - Confirm the runtime-no-op release clause (lines ~229–237) gained the
     "validation carries two recorded sub-outcomes; the entry releases only when no run
     lands" clarification, and that it does NOT assert the verify no-op releases the gate on
-    its own (consistency with Slice 2's satisfaction-vs-release wording).
+    its own (consistency with Part 2's satisfaction-vs-release wording).
 - GREEN — minimal prose edits:
   1. In §Walk step 6, add `NO-OP(verify): no DoD declared — …` to the named first-class
      no-op vocabulary (the `validation` phase's DoD sub-concern), stated as "produced its
@@ -328,14 +328,14 @@ delta, no `gates.js` edit (ADR-104: no new gate entry).
      the entry is **released** only when no mutation run lands, and is **satisfied** by a
      landed+triaged run regardless of the verify line — the verify no-op never independently
      blocks or releases the single gate entry.
-- REFACTOR — re-read both edited regions; confirm wording is consistent with Slice 2's
+- REFACTOR — re-read both edited regions; confirm wording is consistent with Part 2's
   matrix; confirm `grep -F 'NO-OP('` semantics still hold (one grep finds every no-op
   including the new verify one); confirm no new severity channel or gate entry was
   introduced.
 
 ### Gate
 
-- Targeted (slice): the self-verified grep checklist above against `skills/run/SKILL.md`.
+- Targeted (part): the self-verified grep checklist above against `skills/run/SKILL.md`.
 - Phase-boundary: `bash scripts/ci.sh` (prose edit to a `.md`; no executable surface
   changes; ci stays green).
 
@@ -343,11 +343,11 @@ delta, no `gates.js` edit (ADR-104: no new gate entry).
 
 `feat(run): name the validation NO-OP(verify) sub-outcome in the no-op vocabulary (ADR-107)`
 
-## Slice 4 — author this repo's own `docs/DOD.md` (ADR-105/108/109) — docs-only
+## Part 4 — author this repo's own `docs/DOD.md` (ADR-105/108/109) — docs-only
 
 ### Context
 
-Docs-only slice (no `src/` delta), legitimately standalone. Because the DoD check is
+Docs-only part (no `src/` delta), legitimately standalone. Because the DoD check is
 default-ON (ADR-105) and folds into the always-enabled `validation` phase (ADR-104), this
 repo's own craft runs would otherwise record `NO-OP(verify): no DoD declared` on every run.
 Authoring `docs/DOD.md` at the **default probe path** makes those runs clean.
@@ -361,7 +361,7 @@ Authoring `docs/DOD.md` at the **default probe path** makes those runs clean.
   lines 288–306; ADR-105/108/109):
   - **Mutation testing** line — survivors all triaged (killed or proven equivalent) +
     mutation-score / per-hunk-survivors-triaged language. **This line is mandatory** — it is
-    the concrete instance of a DoD subsuming engineering-check (2), and Slice 5's guard
+    the concrete instance of a DoD subsuming engineering-check (2), and Part 5's guard
     asserts a mutation-testing line is present.
   - **Gates green** line — `gates.phase` passes; nothing committed on red.
   - **Architecture boundaries** line — stated explicitly **N/A** for this repo (the
@@ -379,37 +379,37 @@ Authoring `docs/DOD.md` at the **default probe path** makes those runs clean.
 
 ### TDD steps
 
-- RED — the guard that fails on this file's absence is authored in Slice 5; for this
-  docs-only slice the "test" is the design's content contract verified by reading the file
-  back: `test -f docs/DOD.md` is false before this slice; after authoring, the file exists,
+- RED — the guard that fails on this file's absence is authored in Part 5; for this
+  docs-only part the "test" is the design's content contract verified by reading the file
+  back: `test -f docs/DOD.md` is false before this part; after authoring, the file exists,
   is a non-empty markdown checklist, and contains a mutation-testing line
   (`grep -i 'mutation' docs/DOD.md` matches). Confirm each was failing before the write.
 - GREEN — write `docs/DOD.md` with the four content blocks above (mutation testing; gates
   green; architecture boundaries N/A with the gap stated; P20 feature-acceptance criteria),
   as `- [ ]`/`- [x]` checklist lines under short headings.
 - REFACTOR — re-read: confirm the architecture line is an explicit N/A (no fabricated
-  alignment); confirm the mutation line is present and unambiguous (Slice 5 greps for it);
+  alignment); confirm the mutation line is present and unambiguous (Part 5 greps for it);
   confirm it is free-text (no schema/fences) and self-contained.
 
 ### Gate
 
-- Targeted (slice): `test -f docs/DOD.md && grep -qi 'mutation' docs/DOD.md` (the file
+- Targeted (part): `test -f docs/DOD.md && grep -qi 'mutation' docs/DOD.md` (the file
   exists and carries a mutation-testing line).
 - Phase-boundary: `bash scripts/ci.sh` (adding a docs file changes no executable surface;
-  ci stays green — note Slice 5's guard is not yet present, so ci is green here regardless).
+  ci stays green — note Part 5's guard is not yet present, so ci is green here regardless).
 
 ### Commit
 
 `docs(dod): author this repo's own DoD checklist at the default probe path (ADR-105)`
 
-## Slice 5 — guard that `docs/DOD.md` exists and is a non-empty checklist with a mutation line (ADR-105) — test-infra
+## Part 5 — guard that `docs/DOD.md` exists and is a non-empty checklist with a mutation line (ADR-105) — test-infra
 
 ### Context
 
-Test-infra-only slice (no `src/` delta), legitimately standalone. Adds a structure guard so
+Test-infra-only part (no `src/` delta), legitimately standalone. Adds a structure guard so
 this repo's default-ON DoD probe can never silently regress to `NO-OP(verify): no DoD
 declared` — the guard fails CI if `docs/DOD.md` is deleted, emptied, or loses its
-mutation-testing line. MUST land after Slice 4 (the file it guards must already exist).
+mutation-testing line. MUST land after Part 4 (the file it guards must already exist).
 
 - New file: `test/p20-dod.bats` (new bats file; gated by `bats test/` in `scripts/ci.sh`).
   **`bats test/` has NO count gate** — no `EXPECTED_TESTS` change, no `scripts/ci.sh` edit.
@@ -430,7 +430,7 @@ mutation-testing line. MUST land after Slice 4 (the file it guards must already 
 
 - RED — author `test/p20-dod.bats` with the four `@test` cases below; run
   `bats test/p20-dod.bats`. To prove the guard bites, RED is demonstrated by reasoning the
-  guard against an absent/empty/mutation-less `docs/DOD.md` (the Slice-4 file satisfies it,
+  guard against an absent/empty/mutation-less `docs/DOD.md` (the Part-4 file satisfies it,
   so the guard is GREEN once both land — the RED demonstration is: temporarily point one
   assertion at a non-existent path in a `mktemp` scratch copy, confirm it fails, then revert;
   never mutate the worktree's `docs/DOD.md`).
@@ -439,14 +439,14 @@ mutation-testing line. MUST land after Slice 4 (the file it guards must already 
   - `@test` 3: it is a markdown checklist — `grep -qE '^- \[[ xX]\] ' "${ROOT}/docs/DOD.md"`.
   - `@test` 4: it includes a mutation-testing line —
     `grep -qi 'mutation' "${ROOT}/docs/DOD.md"`.
-- GREEN — with Slice 4's `docs/DOD.md` in place, `bats test/p20-dod.bats` passes all four.
+- GREEN — with Part 4's `docs/DOD.md` in place, `bats test/p20-dod.bats` passes all four.
 - REFACTOR — confirm G/W/T-style `@test` titles ("Given the repo ships a DoD, the DoD file
   is checked, then it exists", etc.); confirm `ROOT` resolution matches the p10 precedent;
   confirm no assertion mutates the worktree.
 
 ### Gate
 
-- Targeted (slice): `bats test/p20-dod.bats` (all four cases pass against the landed
+- Targeted (part): `bats test/p20-dod.bats` (all four cases pass against the landed
   `docs/DOD.md`).
 - Phase-boundary: `bash scripts/ci.sh` (the new bats file is picked up by `bats test/`; no
   count gate; ci stays green).

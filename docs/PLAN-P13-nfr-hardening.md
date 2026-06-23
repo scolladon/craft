@@ -1,19 +1,19 @@
 # Plan — P13: NFR hardening (bin mutation coverage · model-class matrix)
 
 > Source: design doc `docs/DESIGN-P13-nfr-hardening.md` · ADRs `065, 066, 067, 068`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
 ## Decision candidates
@@ -35,10 +35,10 @@ killable branches; SKIP when it is a bare-arg pass-through already smoke-covered
 
 | Bin | Ruling | One-line why |
 |---|---|---|
-| `pipeline-resolve.js` | **CONVERT** (Slice 1) | Richest glue: `REPO_ROOT`, `roleExists` craft-prefix + `/`,`\` traversal guard + `existsSync`, `parseArgs`/`takeValue` (positional fill, `--profile`/`--skip` csv split·trim·filter, unknown-flag, flag-as-value), the `!resolution.ok` error loop, the usage branch. |
-| `contract-assemble.js` | **CONVERT** (Slice 2) | Multi-flag `parseArgs`/`takeValue` (4 flags, `--`-prefixed-value guard), `loadFragments` over `BUNDLE_VOCAB`, descriptor `.find` + unknown-id error listing known ids, missing-`--descriptor-id` usage, `inline`→`opts.execution` mapping. |
-| `manifest-lint.js` | **CONVERT** (Slice 3) | Real glue with NO existing bin test: `resolveManifestPath` default, `isRegularFile` try/catch predicate, `buildFileExists` `dirname(dirname())` ROOT + join-or-bare fallback, frontmatter-null branch, YAML-parse catch, `failInvalid` block. |
-| `normalize-findings.js` | **CONVERT** (Slice 4, lean) | Small but mutation-worthy: `argv[2] || null` empty-string→stdin nuance, `readFileSync(0)` fd-0 vs file branch, the `fail` helper, two try/catch exits. Smoke test exists to retain. |
+| `pipeline-resolve.js` | **CONVERT** (Part 1) | Richest glue: `REPO_ROOT`, `roleExists` craft-prefix + `/`,`\` traversal guard + `existsSync`, `parseArgs`/`takeValue` (positional fill, `--profile`/`--skip` csv split·trim·filter, unknown-flag, flag-as-value), the `!resolution.ok` error loop, the usage branch. |
+| `contract-assemble.js` | **CONVERT** (Part 2) | Multi-flag `parseArgs`/`takeValue` (4 flags, `--`-prefixed-value guard), `loadFragments` over `BUNDLE_VOCAB`, descriptor `.find` + unknown-id error listing known ids, missing-`--descriptor-id` usage, `inline`→`opts.execution` mapping. |
+| `manifest-lint.js` | **CONVERT** (Part 3) | Real glue with NO existing bin test: `resolveManifestPath` default, `isRegularFile` try/catch predicate, `buildFileExists` `dirname(dirname())` ROOT + join-or-bare fallback, frontmatter-null branch, YAML-parse catch, `failInvalid` block. |
+| `normalize-findings.js` | **CONVERT** (Part 4, lean) | Small but mutation-worthy: `argv[2] || null` empty-string→stdin nuance, `readFileSync(0)` fd-0 vs file branch, the `fail` helper, two try/catch exits. Smoke test exists to retain. |
 | `pipeline-lint.js` | **SKIP** | Glue is a bare `argv[2]` + usage guard + `!ok` error loop — pure pass-through to `parsePipeline`/`validatePipeline`; no closures, no parsing. Not mutation-worthy; already smoke-exercised by `ci.sh` line 24. |
 | `contracts-lint.js` | **SKIP** | Residual is `resolve(argv[2] ?? 'contracts')` + a failures loop; the bundle-validation logic already lives behind `BUNDLE_VOCAB` and is thoroughly child-process-tested in `contracts-lint.test.js`. Not worth a module. |
 
@@ -56,7 +56,7 @@ in this repo that enumerates src modules — the only surface gate is Stryker's 
 do NOT touch `engine/stryker.conf.json`, do NOT widen to `engine/bin/**`). So no surface gate to
 pre-pay beyond keeping each `main` out of `index.js`.
 
-## Provenance rule (all slices)
+## Provenance rule (all parts)
 
 No phase/ADR/backlog numbers in source or test (design docs carry provenance). Error strings keep
 their existing `<bin>:` prefixes; test titles and JSDoc name behaviour, never `ADR-0xx`/`P13`.
@@ -64,16 +64,16 @@ their existing `<bin>:` prefixes; test titles and JSDoc name behaviour, never `A
 ## EXPECTED_TESTS bookkeeping (binding)
 
 `scripts/ci.sh` line 10 is `EXPECTED_TESTS=448` (verified: `node --test 'test/**/*.test.js'` →
-`# tests 448`). The ONLY edit any slice makes to `ci.sh` is this number (ADR-066/067: the converted
+`# tests 448`). The ONLY edit any part makes to `ci.sh` is this number (ADR-066/067: the converted
 bins keep their existing paths, so `ci.sh` line 24 already references them — add NO new `ci.sh`
-invocation). **Each test-adding slice, in its own landing commit: run the slice gate, read the
-`# tests` line, set `EXPECTED_TESTS` to that exact number.** The per-slice counts below are
+invocation). **Each test-adding part, in its own landing commit: run the part gate, read the
+`# tests` line, set `EXPECTED_TESTS` to that exact number.** The per-part counts below are
 projections to size the work; the authoritative number is whatever `node --test` prints for that
-slice. Projected trajectory: 448 → ~460 (S1) → ~470 (S2) → ~479 (S3) → ~485 (S4) → ~491 (S5);
-S6 is docs-only, no bump. **Projected final `EXPECTED_TESTS` ≈ 491** (each slice reconciles to the
+part. Projected trajectory: 448 → ~460 (S1) → ~470 (S2) → ~479 (S3) → ~485 (S4) → ~491 (S5);
+S6 is docs-only, no bump. **Projected final `EXPECTED_TESTS` ≈ 491** (each part reconciles to the
 real count).
 
-## Slice 1 — pipeline-resolve: extract glue to src/pipeline-resolve-main.js
+## Part 1 — pipeline-resolve: extract glue to src/pipeline-resolve-main.js
 
 ### Context
 
@@ -165,7 +165,7 @@ assertion that the real entrypoint exits with the right `process.exit` code and 
 
 `refactor(engine): extract pipeline-resolve glue to src for mutation coverage`
 
-## Slice 2 — contract-assemble: extract glue to src/contract-assemble-main.js
+## Part 2 — contract-assemble: extract glue to src/contract-assemble-main.js
 
 ### Context
 
@@ -173,7 +173,7 @@ assertion that the real entrypoint exits with the right `process.exit` code and 
 
 **File to create — `engine/src/contract-assemble-main.js`** exporting `export function main(argv, io)`
 → exit code. Move ALL top-level logic out of `engine/bin/contract-assemble.js` (read it whole,
-120 lines). Same `process.* → io/return` rewrite as Slice 1; `parseArgs`/`takeValue` must take `io`
+120 lines). Same `process.* → io/return` rewrite as Part 1; `parseArgs`/`takeValue` must take `io`
 so no `process.*` survives in src. Preserve byte-identical behaviour:
 
 - `__dir = dirname(fileURLToPath(import.meta.url))`, `REPO_ROOT = join(__dir, '..', '..')` (verify the
@@ -197,7 +197,7 @@ Imports the module needs: `readFileSync` from `node:fs`; `join, dirname` from `n
 `fileURLToPath` from `node:url`; `parseManifestContent` from `./frontmatter.js`; `parsePipeline` from
 `./descriptor.js`; `assembleContract` from `./contract.js`; `BUNDLE_VOCAB` from `./graph.js`.
 
-**File to shrink — `engine/bin/contract-assemble.js`** → the thin guard (same shape as Slice 1,
+**File to shrink — `engine/bin/contract-assemble.js`** → the thin guard (same shape as Part 1,
 importing `../src/contract-assemble-main.js`).
 
 **New test file — `engine/test/contract-assemble-main.test.js`** (in-process units). Import `main`;
@@ -240,12 +240,12 @@ test process `cwd` is `engine/`).
 
 `refactor(engine): extract contract-assemble glue to src for mutation coverage`
 
-## Slice 3 — manifest-lint: extract glue to src/manifest-lint-main.js
+## Part 3 — manifest-lint: extract glue to src/manifest-lint-main.js
 
 ### Context
 
 **Mutation-scored** target (`engine/src/**/*.js`). New module auto-covered. **No existing bin test**
-for `manifest-lint` — this slice is the first coverage of its glue (in-process units are the primary
+for `manifest-lint` — this part is the first coverage of its glue (in-process units are the primary
 layer; a thin child-process smoke is added too, per ADR-067).
 
 **File to create — `engine/src/manifest-lint-main.js`** exporting `export function main(argv, io)` →
@@ -319,7 +319,7 @@ branches.
 
 `refactor(engine): extract manifest-lint glue to src for mutation coverage`
 
-## Slice 4 — normalize-findings: extract glue to src/normalize-findings-main.js
+## Part 4 — normalize-findings: extract glue to src/normalize-findings-main.js
 
 ### Context
 
@@ -382,13 +382,13 @@ exit-code end-to-end through the real entrypoint).
 
 `refactor(engine): extract normalize-findings glue to src for mutation coverage`
 
-## Slice 5 — model-class deterministic R10 shape-stability guard
+## Part 5 — model-class deterministic R10 shape-stability guard
 
 ### Context
 
-**Standalone test-infra slice — NO `src/` delta.** A property/characterization suite over the already
+**Standalone test-infra part — NO `src/` delta.** A property/characterization suite over the already
 -exported `assembleContract` (`engine/src/contract.js`) and `normalizeFindings`
-(`engine/src/findings.js`). It does NOT fold into a feature slice because it touches no implementation;
+(`engine/src/findings.js`). It does NOT fold into a feature part because it touches no implementation;
 it discharges R10 (ADR-068's deterministic, CI-gated half). It DOES add `node --test` tests → bump
 `EXPECTED_TESTS`.
 
@@ -453,11 +453,11 @@ if a pin needs an assembly the real fragments don't cover; they do, so none is a
 
 `test(engine): deterministic model-class shape-stability guard (R10)`
 
-## Slice 6 — live model-class matrix procedure + artifact template (docs-only)
+## Part 6 — live model-class matrix procedure + artifact template (docs-only)
 
 ### Context
 
-**Docs-only standalone slice — NO `src/` delta, NO test, NO `EXPECTED_TESTS` bump.** Authors the
+**Docs-only standalone part — NO `src/` delta, NO test, NO `EXPECTED_TESTS` bump.** Authors the
 documented, NOT-CI-gated live cross-tier procedure (ADR-068's live half) plus a committed matrix
 artifact template that is the single durable home for the harness-surfaced per-phase tokens +
 wall-clock numbers (ADR-065 — these are READ from the harness usage block by the orchestrator and
@@ -487,14 +487,14 @@ must state:
 **`docs/model-class-matrix.md`** as the committed template (a sibling of the `docs/DESIGN-*`/`PLAN-*`
 docs — the repo has no dedicated artifacts dir, and `docs/` is where committed, diffable, prose-plus-
 table records already live). The template carries: a header naming the three pins; a tier×dimension
-PASS/PARTIAL/FAIL table (dimensions = the SP5 contract-adherence axes: planner / slice-TDD /
+PASS/PARTIAL/FAIL table (dimensions = the SP5 contract-adherence axes: planner / part-TDD /
 structured-review / blocker, plus a full-pipeline-completion row); and a per-phase
 tokens/wall-clock table (columns: phase, tier, `subagent_tokens`, `duration_ms`). Fill it with a
 `— (not yet run)` placeholder row per cell so the template is committable and diffable; a maintainer
 overwrites cells on a real run. The SKILL.md section points to `docs/model-class-matrix.md` as the
 artifact home.
 
-No source/test/`ci.sh` changes — this slice edits only `skills/run/SKILL.md` and creates
+No source/test/`ci.sh` changes — this part edits only `skills/run/SKILL.md` and creates
 `docs/model-class-matrix.md`.
 
 ### TDD steps

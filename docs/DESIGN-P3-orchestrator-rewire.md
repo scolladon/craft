@@ -43,7 +43,7 @@ reproduce today's zero-config behavior by construction. The following suites mus
 every commit:
 
 - `engine/test/scenarios.test.js` (S1–S9 + SC1 goldens, `node --test`)
-- `test/manifest-lint.bats` (slice-2 characterization suite, `bats`)
+- `test/manifest-lint.bats` (part-2 characterization suite, `bats`)
 - `scripts/ci.sh` end-to-end; never `--no-verify`
 
 The one deliberate behavior change: the `invalid-skip-protected` fixture/test currently pins the
@@ -77,7 +77,7 @@ Running `node engine/bin/pipeline-resolve.js pipeline/default.yml` emits:
 | design | specification | craft:design | craft:designer | — |
 | decisions | specification | craft:decisions | — | — |
 | planning | specification | craft:planning | craft:planner | plan-lint |
-| implementation | construction | craft:implementation | craft:slice-implementer | `<gates.phase>` |
+| implementation | construction | craft:implementation | craft:part-implementer | `<gates.phase>` |
 | review | harness | craft:review | craft:reviewer | `<gates.phase>` |
 | refactoring | refinement | craft:refactoring | craft:refactor-executor | `<gates.phase>` |
 | validation | harness | craft:validation | craft:validation-triager | `<validation gate>` |
@@ -173,11 +173,11 @@ no alias entry (`design`, `review`) resolve to themselves, and `skills/design/` 
 8. **R8 — Manifest validation folds into Node (ADR-012).** Shape-validation moves to a pure
    `validateManifest` export + an `engine/bin/manifest-lint.js` CLI; `scripts/manifest-lint.sh`
    becomes a thin wrapper. `PROTECTED` is not ported (ADR-005); the new top-level keys are
-   accepted (ADR-010); the legacy per-phase `skip:` is rejected loudly (ADR-011). The slice-2
+   accepted (ADR-010); the legacy per-phase `skip:` is rejected loudly (ADR-011). The part-2
    `test/manifest-lint.bats` suite is the behavior-preserving guard.
 
 9. **R9 — Bats re-baseline + yq-backend retirement.** The `invalid-skip-protected` test stays
-   exit-2 with the new legacy-skip message (ADR-011). The slice-11 yq-present/yq-absent
+   exit-2 with the new legacy-skip message (ADR-011). The part-11 yq-present/yq-absent
    equivalence tests are retired (`js-yaml` is now the single parser — ADR-012); the behavioral
    exit-code/message tests stay, exercising the node-backed wrapper.
 
@@ -231,7 +231,7 @@ Walk each phase descriptor in Resolution.effective[] order. For each phase:
    archetype:
    - setup: setup and workspace preparation
    - specification: verify artifact; conversation if no role (decisions)
-   - construction: verify each slice; phase gate
+   - construction: verify each part; phase gate
    - harness (harness-read): apply ALL findings, convergence
    - refinement: judgment (scan + scoping); apply ALL findings
    - harness (harness-exec): start background; gate propose on triage
@@ -249,7 +249,7 @@ Walk each phase descriptor in Resolution.effective[] order. For each phase:
 
 6. Record outcome in the run record.
 
-7. On blocker: escalate { phase/slice, reason, ≤3 options }. Never spin.
+7. On blocker: escalate { phase/part, reason, ≤3 options }. Never spin.
 
 8. On model-down (not a task blocker): mark tier degraded; re-resolve to fallback;
    respawn from artifact. Record degradation in run record.
@@ -299,7 +299,7 @@ them with archetype-driven language:
 ### Work item 2 (revised — ADR-010/011/012): fold manifest validation into the Node core
 
 Per ADR-012 the bash subset-parser is **retired**; manifest shape-validation becomes a pure Node
-function guarded by the existing slice-2 bats suite (behavior-preserving migration, the P2
+function guarded by the existing part-2 bats suite (behavior-preserving migration, the P2
 pattern). Three new/changed artifacts:
 
 1. **`engine/src/manifest.js` → `validateManifest(manifest, opts)`** — pure, no I/O. Returns
@@ -333,7 +333,7 @@ The full bash parsing logic (`parse_frontmatter`, `_subset_parser_props`, `_emit
   guidance (e.g. `"per-phase skip: is inert — use top-level pipeline.skip: [plan]"`). Both the
   fixture title and the assertion update; the fixture content stays (it still demonstrates the
   per-phase `skip:` field). This is the **one deliberate, expected** bats regression in P3.
-- **yq-present vs yq-absent equivalence tests** (slice-11): the fold makes `js-yaml` the single
+- **yq-present vs yq-absent equivalence tests** (part-11): the fold makes `js-yaml` the single
   parser — the dual-backend property no longer exists, so these equivalence assertions are
   **retired** (ADR-012). The behavioral tests (exit codes + message substrings on every fixture)
   stay, now exercising the node-backed wrapper. The PATH-shimming `setup`/helpers for the
@@ -411,9 +411,9 @@ candidate table is retained for the options/rationale.
 | # | Choice | Alt A | Alt B | Alt C | Recommendation | Why |
 |---|---|---|---|---|---|---|
 | DC-P3-1 | **Procedure → skill bridge** | (A) Walk inverts ALIAS_MAP at runtime to map canonical `id` → old skill dir — single alias home honored (DC-4) | (B) A separate concern→skill lookup table lives inside the walk (duplicates alias data — violates DC-4) | (C) Pull P4 skill-dir rename into P3 (concern names become actual dir names; no bridge needed) | **A** | DC-4 is a hard constraint. B violates it. C is a valid accelerator but expands P3 scope significantly (11 dir renames + agent file renames + lint wiring + fixture re-baseline) — better kept atomic in P4 where it is planned. A is minimal, safe, and explicit. |
-| DC-P3-2 | **manifest-lint new-key scope at P3** | (A) P3 removes PROTECTED only; `pipeline:`, `retrieval:`, `execution:` top-level keys and `pipeline.skip` list are NOT added to `TOP_KEYS`/`PHASE_FIELDS` — a manifest that drives the new resolver will fail lint on unknown keys until P4 | (B) P3 also extends `TOP_KEYS` with `pipeline`, `retrieval`, `execution`; adds `pipeline.skip` array recognition — a new-style manifest lints clean at P3 | (C) P3 removes PROTECTED and folds shape validation into the Node core (`validateManifest` export), replacing the bash check for new keys with a Node call | **B** | A leaves a usability gap: any repo that adopts the new `pipeline.skip:` syntax will get a lint refusal ("unknown top-level key: pipeline") immediately after P3, breaking their manifest before P4 ships. B is a small, additive change to `TOP_KEYS` that removes the gap. C (fold into Node) is the ADR-002 follow-up but it is structurally heavier and better timed as its own slice. B's risk is extending `manifest-lint.sh` without adding full semantic validation for the new keys — acceptable because semantic validation (strand-checking) is already in the resolver. |
+| DC-P3-2 | **manifest-lint new-key scope at P3** | (A) P3 removes PROTECTED only; `pipeline:`, `retrieval:`, `execution:` top-level keys and `pipeline.skip` list are NOT added to `TOP_KEYS`/`PHASE_FIELDS` — a manifest that drives the new resolver will fail lint on unknown keys until P4 | (B) P3 also extends `TOP_KEYS` with `pipeline`, `retrieval`, `execution`; adds `pipeline.skip` array recognition — a new-style manifest lints clean at P3 | (C) P3 removes PROTECTED and folds shape validation into the Node core (`validateManifest` export), replacing the bash check for new keys with a Node call | **B** | A leaves a usability gap: any repo that adopts the new `pipeline.skip:` syntax will get a lint refusal ("unknown top-level key: pipeline") immediately after P3, breaking their manifest before P4 ships. B is a small, additive change to `TOP_KEYS` that removes the gap. C (fold into Node) is the ADR-002 follow-up but it is structurally heavier and better timed as its own part. B's risk is extending `manifest-lint.sh` without adding full semantic validation for the new keys — acceptable because semantic validation (strand-checking) is already in the resolver. |
 | DC-P3-3 | **Post-PROTECTED bats re-baseline behavior** | (A) Keep `skip` in `PHASE_FIELDS`; after PROTECTED removal, `phases.plan.skip: true` lints valid (exit 0); re-baseline the fixture to assert exit 0 | (B) Remove `skip` from `PHASE_FIELDS` too; per-phase `skip:` is now an unknown field (exit 2, "unknown field"); fixture asserts that | (C) Rename the fixture to `valid-plan-skip` (moving it to the valid suite); add a new `invalid-strand-skip` fixture that exercises a stranding skip via the resolver (requires calling the engine from lint — not a P3 capability) | **A** | The `skip` field in `PHASE_FIELDS` is the old per-phase skip mechanism. Keeping it recognized (but not acted on by `PROTECTED` logic) is backward-compatible — old manifests using per-phase skip continue to lint without error. The engine ignores this field anyway (it reads `pipeline.skip` only). C requires the engine inside lint (not planned until later). B is defensible but removes backward compat for no gain. A is the minimal, non-breaking re-baseline. |
-| DC-P3-4 | **ADR-002 fold: should P3 fold `manifest-lint` shape-validation into the Node core?** | (A) Keep `manifest-lint.sh` bash-backed; P3 only removes PROTECTED and (if DC-P3-2=B) adds new top-level keys — no architecture change | (B) P3 exports a `validateManifest(manifest)` function from `engine/src/` and calls it from a thin bash wrapper replacing the current `validate_props` loop — one deterministic parse home | (C) P3 replaces `manifest-lint.sh` entirely with a Node script (`engine/bin/manifest-lint.js`) that validates shape + calls `resolvePipeline` for semantic checks | **A** | The P2 hardening made `manifest-lint.sh` shellcheck-clean with `yq`+fallback. It is now a stable interim home (ADR-002 explicitly states this). P3's coordinating concern is the PROTECTED removal, not the parser migration. B and C are architecturally sound but add migration surface that belongs in a dedicated slice (as ADR-002 originally scoped). Fold this into P4 or as a standalone P2.5/P3.5 slice after P3 ships and CI is green. |
+| DC-P3-4 | **ADR-002 fold: should P3 fold `manifest-lint` shape-validation into the Node core?** | (A) Keep `manifest-lint.sh` bash-backed; P3 only removes PROTECTED and (if DC-P3-2=B) adds new top-level keys — no architecture change | (B) P3 exports a `validateManifest(manifest)` function from `engine/src/` and calls it from a thin bash wrapper replacing the current `validate_props` loop — one deterministic parse home | (C) P3 replaces `manifest-lint.sh` entirely with a Node script (`engine/bin/manifest-lint.js`) that validates shape + calls `resolvePipeline` for semantic checks | **A** | The P2 hardening made `manifest-lint.sh` shellcheck-clean with `yq`+fallback. It is now a stable interim home (ADR-002 explicitly states this). P3's coordinating concern is the PROTECTED removal, not the parser migration. B and C are architecturally sound but add migration surface that belongs in a dedicated part (as ADR-002 originally scoped). Fold this into P4 or as a standalone P2.5/P3.5 part after P3 ships and CI is green. |
 
 ---
 

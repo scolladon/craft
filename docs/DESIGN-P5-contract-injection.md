@@ -45,8 +45,8 @@ already set in `pipeline/default.yml` and validates against the vocabulary.
 Invariant that **must survive an agent swap** → a bundle (or U). Method/identity particular to one
 role → stays as **craft** in the thinned agent. Examples that stay craft: designer's
 empirical-pinning method and "design within the house style"; planner's public-surface-decision
-discipline and sizing rules; slice-implementer's "the slice, the whole slice, nothing but the
-slice"; reviewer's `--no-ext-diff` git hygiene and "tests dimension: no mutation analysis";
+discipline and sizing rules; part-implementer's "the part, the whole part, nothing but the
+part"; reviewer's `--no-ext-diff` git hygiene and "tests dimension: no mutation analysis";
 validation-triager's per-survivor triage procedure; refactor-executor's "execute HOW, never decide
 WHAT"; docs-writer's "match each page's voice"; backlog-ticker's single-edit discipline.
 
@@ -61,7 +61,7 @@ WHAT"; docs-writer's "match each page's voice"; backlog-ticker's single-edit dis
 [derived retrieval note]                  ← engine-derived; never stored in a fragment
 [manifest global context, verbatim]
 [manifest per-phase context, verbatim]
-[dynamics: wd, paths, diff range, slice, gate cmd, commit msg]   ← appended by the caller, not assembleContract
+[dynamics: wd, paths, diff range, part, gate cmd, commit msg]   ← appended by the caller, not assembleContract
 ```
 
 The **two inline carve-outs** live in `core` as markers (`@@ARTIFACT_HANDOFF@@`,
@@ -105,18 +105,18 @@ pre-P4 vocabulary inside it (old phase names, the retired `skills/mutation/` ·
 `agents/mutation-triager.md` paths) is **correct-as-history** and is *not* rewritten — that was P4's
 deliberate deferral. `docs/DESIGN-customizable-engine.md` remains the living SoT.
 
-## 7 — Slice plan (routed by shape)
+## 7 — Part plan (routed by shape)
 
-| # | Slice | Shape / agent | Gate-critical assertions |
+| # | Part | Shape / agent | Gate-critical assertions |
 |---|---|---|---|
-| 1 | `refinement` vocabulary + data wiring | slice-implementer (TDD) | `BUNDLE_VOCAB` accepts `refinement`; `default.yml` `refactoring.contract:[refinement]` validates; `[refinement]` assembles core+refinement; SC1/scenario suite still green |
-| 2 | author the 7 production `contracts/*.md` + `contracts-lint` | slice-implementer (content + lint TDD) | lint: 7 present, non-empty, no `retrieval`, names ⊆ vocab; ci.sh wired |
-| 3 | `contract-assemble.js` bin + R8 block-equivalence test + walk wiring | slice-implementer (TDD) + the `run/SKILL.md` step-3 edit | per-phase block carries its invariant set; inline swaps exactly 2 lines |
+| 1 | `refinement` vocabulary + data wiring | part-implementer (TDD) | `BUNDLE_VOCAB` accepts `refinement`; `default.yml` `refactoring.contract:[refinement]` validates; `[refinement]` assembles core+refinement; SC1/scenario suite still green |
+| 2 | author the 7 production `contracts/*.md` + `contracts-lint` | part-implementer (content + lint TDD) | lint: 7 present, non-empty, no `retrieval`, names ⊆ vocab; ci.sh wired |
+| 3 | `contract-assemble.js` bin + R8 block-equivalence test + walk wiring | part-implementer (TDD) + the `run/SKILL.md` step-3 edit | per-phase block carries its invariant set; inline swaps exactly 2 lines |
 | 4 | thin the 8 agent defs | refactor-executor (behavior-preserving) | R8 equivalence holds; no invariant text left in any agent body |
-| 5 | `normalize-findings` wiring for review + DESIGN split | slice-implementer (R10 wire) + session-direct (relabel) | review path keys on fields; `DESIGN-history.md` exists; cross-refs fixed |
+| 5 | `normalize-findings` wiring for review + DESIGN split | part-implementer (R10 wire) + session-direct (relabel) | review path keys on fields; `DESIGN-history.md` exists; cross-refs fixed |
 
-A 4-dimension review (perf / security / code / test) follows **every** slice; every fix lands
-before the next slice. `scripts/ci.sh` green at every commit; never `--no-verify`.
+A 4-dimension review (perf / security / code / test) follows **every** part; every fix lands
+before the next part. `scripts/ci.sh` green at every commit; never `--no-verify`.
 
 ## 8 — Surface gate (P5)
 

@@ -9,7 +9,7 @@
  * MUST never throw and MUST never yield a gating value — it returns an empty-or-
  * filtered MemoryView. Entries that fail validate-on-read are moved to evicted[].
  *
- * slice-sizing has no per-use re-check (weak planner hint) — its validator
+ * part-sizing has no per-use re-check (weak planner hint) — its validator
  * defaults to () => true when absent from the deps.validators map.
  */
 
@@ -52,7 +52,7 @@ export const CONCERNS = Object.freeze([
   'gate-cmd',
   'mutation-tool',
   'findings',
-  'slice-sizing',
+  'part-sizing',
 ]);
 
 /**
@@ -220,7 +220,7 @@ export function load(repoRoot, deps) {
 /**
  * Apply per-concern validate-on-read predicates.
  * Entries that fail are removed from the returned entries and appended to evicted.
- * slice-sizing defaults to () => true when no validator is provided.
+ * part-sizing defaults to () => true when no validator is provided.
  *
  * @param {{ [concern: string]: object[] }} allEntries
  * @param {{ [concern: string]: (entry: object) => boolean }} validators
@@ -267,7 +267,7 @@ const KEY_FIELDS = Object.freeze({
   'gate-cmd': ['phase'],
   'mutation-tool': ['tool'],
   findings: ['file', 'pattern'],
-  'slice-sizing': ['size'],
+  'part-sizing': ['size'],
 });
 
 /**
@@ -295,17 +295,21 @@ const SEVERITY_RANK = Object.freeze({ low: 1, medium: 2, high: 3, critical: 4 })
  *   toolchain     — lockfile fingerprint changed
  *   mutation-tool — config fingerprint changed
  *   gate-cmd      — discovered command changed (the newer command is current truth)
- *   slice-sizing  — outcome changed (the newer outcome is current truth)
+ *   part-sizing  — outcome changed (the newer outcome is current truth)
  */
 const IMPROVES_BY = Object.freeze({
   // equivalent mutant (>=): same-severity rewrite spreads identical value; stored data unchanged
   findings: (o, n) => (SEVERITY_RANK[n.severity] ?? 0) > (SEVERITY_RANK[o.severity] ?? 0),
-  // equivalent mutant (=> true): same-value rewrite {...entry, ...obs.payload} when payload
-  // fields match stored entry is identity — refreshedEntry spreads identical values over entry
+  // equivalent mutant (=> true) for the whole discriminating-field family below
+  // (toolchain, mutation-tool, gate-cmd, part-sizing): each predicate's tested field is the
+  // ONLY non-key payload field, so when it is unchanged the rewrite {...entry, ...obs.payload}
+  // spreads values identical to the stored entry — an identity. The re-observation already
+  // matched on the key field, so a same-field payload equals the stored entry. Not killable
+  // without violating a concern's payload schema; documented here per the triage convention.
   toolchain: (o, n) => n.lockfileFingerprint !== o.lockfileFingerprint,
   'mutation-tool': (o, n) => n.configFingerprint !== o.configFingerprint,
   'gate-cmd': (o, n) => n.command !== o.command,
-  'slice-sizing': (o, n) => n.outcome !== o.outcome,
+  'part-sizing': (o, n) => n.outcome !== o.outcome,
 });
 
 /**

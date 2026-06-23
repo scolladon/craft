@@ -1,28 +1,28 @@
 # Plan — P18: Walk / parallelism enforcement
 
 > Source: design doc `docs/DESIGN-P18-walk-parallelism-enforcement.md` · ADRs `096, 097, 098, 099`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
-> **Scope is fixed by ADR-099:** exactly two slices, Layer A before Layer B. Slice 1
+> **Scope is fixed by ADR-099:** exactly two parts, Layer A before Layer B. Part 1
 > (Layer A) carries engine code under ADR-096 (the `reviewPlan` emission) — it is NOT
-> SKILL-only. Slice order satisfies item 3's precondition (the `--harness` flag rides on
+> SKILL-only. Part order satisfies item 3's precondition (the `--harness` flag rides on
 > the two knobs being engine-enforced). The coupled SKILL/backlog prose changes ride their
-> engine slice (they read fields the same slice emits) — not standalone.
+> engine part (they read fields the same part emits) — not standalone.
 
-## Slice 1 — Layer A: emit `reviewPlan` on the resolved review descriptor + un-park `passes`/`convergence`
+## Part 1 — Layer A: emit `reviewPlan` on the resolved review descriptor + un-park `passes`/`convergence`
 
 ### Context
 
@@ -54,7 +54,7 @@ the parked block). Engine fact + coupled prose. R1, R2, R7. ADR-096, ADR-097.
   `buildManifestRecords` at line 138), module-private (NOT exported). CQS: a pure query, no
   error path, no validation. It performs NO validation — `harness` is already typed-valid
   (manifest path is linted at `skills/run/SKILL.md` §1 by `manifest-lint`; the `--harness`
-  overlay is re-validated by Slice 2's B4 before `resolvePipeline`).
+  overlay is re-validated by Part 2's B4 before `resolvePipeline`).
 
 **`deriveReviewPlan(harness)` shape (design-pinned, ADR-096/ADR-097):**
 ```
@@ -78,8 +78,8 @@ stop_rule = 'low-only'              when harness.convergence === 'low-only' OR a
 convergence: low-only }`. So the default resolved review descriptor yields
 `reviewPlan { passes: 1, stop_rule: 'low-only' }`.
 
-**File 2 — `skills/review/SKILL.md` (coupled prose, rides this slice — reads the field this
-slice emits, no separate test):**
+**File 2 — `skills/review/SKILL.md` (coupled prose, rides this part — reads the field this
+part emits, no separate test):**
 - **Delete the parked block at lines 45–49** (the `> **Harness-knob fidelity (parked, not a
   silent cap):** …` blockquote). No silent cap may remain (R1).
 - **Step 1 (line 21, fan-out):** today reads "fan out `passes` read-only **craft:reviewer**
@@ -150,14 +150,14 @@ REFACTOR:
 
 ### Gate
 
-- Slice: `cd engine && node --test test/resolve.test.js`
+- Part: `cd engine && node --test test/resolve.test.js`
 - Phase-boundary: `cd engine && npm run ci`
 
 ### Commit
 
 `feat(engine): emit reviewPlan on resolved review descriptor; un-park passes/convergence`
 
-## Slice 2 — Layer B: `--harness` per-invocation overlay (parse, coerce, nested-write, re-validate, forward)
+## Part 2 — Layer B: `--harness` per-invocation overlay (parse, coerce, nested-write, re-validate, forward)
 
 ### Context
 
@@ -165,9 +165,9 @@ REFACTOR:
 parse + type-coercion in `pipeline-resolve-main.js`, a nested-write deep-merge path in
 `applyCliOverlay`, a new re-validation call site (R4) via an exported `validatePhases`, and
 the coupled run-SKILL forwarding + backlog status prose. R3–R8. ADR-098, ADR-022, ADR-029/031,
-ADR-030. Builds on Slice 1 in the same working tree (Layer A already landed).
+ADR-030. Builds on Part 1 in the same working tree (Layer A already landed).
 
-**PUBLIC-SURFACE DECISION (up front):** Slice 2 introduces ONE new exported symbol —
+**PUBLIC-SURFACE DECISION (up front):** Part 2 introduces ONE new exported symbol —
 `validatePhases` is exported from `engine/src/manifest.js` (currently module-private at line
 347). Decision: **export it (or a thin `validateTouchedPhases` wrapper) — public module
 export.** This is the design's "one small surface addition" (DESIGN B4). It is explicitly
@@ -175,7 +175,7 @@ export.** This is the design's "one small surface addition" (DESIGN B4). It is e
 resolver exports in `resolve.js` — a different module). Downstream surface gates for this
 export (the repo has NO engine barrel/index.js and NO generated API report — exports are
 consumed by direct `import { … } from '../src/manifest.js'`): the single new consumer is
-`engine/src/pipeline-resolve-main.js`. Pre-pay it in this slice (the import is part of B4
+`engine/src/pipeline-resolve-main.js`. Pre-pay it in this part (the import is part of B4
 below). No other registry/facade/exhaustiveness switch touches this symbol.
 
 **File 1 — `engine/src/manifest.js` (export `validatePhases`).**
@@ -270,7 +270,7 @@ exit codes + `io.stderr.joined()` / `io.stdout.joined()`.
 **Test file C — `engine/test/pipeline-resolve.bin.test.js`** (spawn-based, `run(...args)` →
 `spawnSync`, lines 12–14; `result.status` / `result.stdout`) for the end-to-end bin tie.
 
-**Coupled prose (rides this slice — forwards the flag this slice parses):**
+**Coupled prose (rides this part — forwards the flag this part parses):**
 - `skills/run/SKILL.md` §0a (**lines 19–26**): add repeatable `--harness <phase>.<knob>=<value>`
   to the strip list (may appear multiple times, lead/trail) alongside `--profile`/`--skip`;
   add the CLI-wins precedence note (`--harness` wins over manifest harness and over
@@ -278,7 +278,7 @@ exit codes + `io.stderr.joined()` / `io.stdout.joined()`.
   bin invocation; update the usage line.
 - `BACKLOG.md` P18 section (**lines 59–72**): add a status line noting P18 shipped and the
   ADR-064 `--harness` follow-up is discharged (R8). (Prose/status — exact wording finalized
-  at the docs phase; the slice records the discharge.)
+  at the docs phase; the part records the discharge.)
 
 ### TDD steps
 
@@ -306,7 +306,7 @@ RED — **pipeline-resolve-main.test.js** (run, fail because `--harness` is an u
 current exit 2 for wrong reason / no coercion):
 7. **Coercion table, one case per row** (assert via resolved `effective[review].harness` or
    the parsed overlay effect): `review.passes=2`→int 2; `review.passes=two`→string then B4
-   rejects (step 9); `review.convergence=3`→number 3 (and Slice-1 `reviewPlan.stop_rule ===
+   rejects (step 9); `review.convergence=3`→number 3 (and Part-1 `reviewPlan.stop_rule ===
    'non-low-count<=3'`); `review.convergence=low-only`→string `'low-only'`;
    `validation.incremental=true`→bool true; `review.dimensions=code,perf`→`['code','perf']`;
    unknown knob (e.g. `review.foo=bar`)→string passthrough (accepted, ADR-030).
@@ -330,7 +330,7 @@ RED — **pipeline-resolve.bin.test.js** (spawn):
     `--harness review.passes=2` → `effective[review].harness.passes === 2` AND
     `effective[review].harness.reviewPlan.passes === 2`; and `--harness review.convergence=2`
     → `effective[review].harness.reviewPlan.stop_rule === 'non-low-count<=2'` (proves the CLI
-    override flows through `validateHarness` into the Slice-1-recomputed plan — no extra
+    override flows through `validateHarness` into the Part-1-recomputed plan — no extra
     wiring).
 
 GREEN:
@@ -350,7 +350,7 @@ REFACTOR:
 
 ### Gate
 
-- Slice: `cd engine && node --test test/cli-overlay.test.js test/pipeline-resolve-main.test.js`
+- Part: `cd engine && node --test test/cli-overlay.test.js test/pipeline-resolve-main.test.js`
   (add `test/pipeline-resolve.bin.test.js` for the end-to-end tie, or fold it into the same
   `node --test` invocation).
 - Phase-boundary: `cd engine && npm run ci`

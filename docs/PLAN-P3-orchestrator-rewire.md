@@ -1,23 +1,23 @@
 # Plan — P3: rewire the live orchestrator to consume the Node engine
 
 > Source: design doc `docs/DESIGN-P3-orchestrator-rewire.md` · ADRs `009, 010, 011, 012`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices: coverage/interop/property tests fold
-  into the implementation slice whose code they exercise.
-- A slice that would be a pure test pass over already-landed code merges into its
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts: coverage/interop/property tests fold
+  into the implementation part whose code they exercise.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
-## Slice 1 — validateManifest pure module + barrel export
+## Part 1 — validateManifest pure module + barrel export
 
 ### Context
 
-**What this slice builds:** the new `engine/src/manifest.js` module exporting
+**What this part builds:** the new `engine/src/manifest.js` module exporting
 `validateManifest(manifest, opts)`, plus tests, plus the barrel update.
 
 **Surface gate (PUBLIC EXPORT):** `engine/src/index.js` currently has 6 lines. The
@@ -52,10 +52,10 @@ This is a new public export — add it in the same commit, not later.
 **Known PHASE_FIELDS** (from `manifest-lint.sh` line 27, MINUS `skip` — `skip` now triggers the ADR-011 loud error instead of PROTECTED check):
 `context override strategy merge-flags non-blocking-jobs`
 
-**Known GATE_FIELDS** (line 28): `slice phase review-batch`
+**Known GATE_FIELDS** (line 28): `part phase review-batch`
 **Known PR_FIELDS** (line 29): `creator pre-pr-gate`
 **Known SCRIPT_FIELDS** (line 30): `post-setup pre-teardown`
-**Known MODELS_KEYS** (line 31): `fallback designer planner reviewer slice-implementer refactor-executor mutation-triager docs-writer backlog-ticker`
+**Known MODELS_KEYS** (line 31): `fallback designer planner reviewer part-implementer refactor-executor mutation-triager docs-writer backlog-ticker`
 
 **Validation rules (reproduce faithfully — the bats suite guards a subset):**
 1. Top-level key not in TOP_KEYS → error `"unknown top-level key: <key>"`
@@ -122,7 +122,7 @@ export { normalizeFindings }       from './findings.js';
 
 **REFACTOR:**
 - Extract constants into named frozen Sets at top of file
-- Confirm all error message substrings match what the bats suite asserts (see Slice 2 for the exact strings the bats helpers check)
+- Confirm all error message substrings match what the bats suite asserts (see Part 2 for the exact strings the bats helpers check)
 - Functions <20 lines, no nesting >2, early returns
 
 ### Gate
@@ -144,11 +144,11 @@ feat(engine): validateManifest pure module + barrel export (ADR-010/011/012)
 
 ---
 
-## Slice 2 — manifest-lint.js CLI + thin shell wrapper + bats reconciliation
+## Part 2 — manifest-lint.js CLI + thin shell wrapper + bats reconciliation
 
 ### Context
 
-**What this slice builds:**
+**What this part builds:**
 1. CREATE `engine/bin/manifest-lint.js` — the Node CLI that owns I/O, calls `validateManifest`
 2. REWRITE `scripts/manifest-lint.sh` to a thin `exec node` wrapper (~3 lines)
 3. EDIT `test/manifest-lint.bats` — re-baseline one test, retire 9 yq-equivalence tests + `run_lint_no_yq` helper
@@ -156,7 +156,7 @@ feat(engine): validateManifest pure module + barrel export (ADR-010/011/012)
 5. CREATE `test/fixtures/manifest/valid-pipeline-skip.workflow.md` — ADR-010 coverage
 6. CREATE `test/fixtures/manifest/invalid-legacy-skip.workflow.md` — optional, or reuse `invalid-skip-protected` (content unchanged: `phases: { plan: { skip: true } }`)
 
-**Slice 1 must land before this slice** — `validateManifest` must exist.
+**Part 1 must land before this part** — `validateManifest` must exist.
 
 **`engine/bin/manifest-lint.js` — exact I/O contract (the bats suite asserts these strings):**
 
@@ -249,7 +249,7 @@ Delete the entire `run_lint_no_yq()` function block (lines ~14–38 in the curre
 - valid-pipeline-skip (new) → exit 0, `"valid."`
 
 **`valid-basic.workflow.md` fixture (already exists — must stay valid):**
-Contains: `backlog`, `paths`, `context: ~`, `gates` (with `slice`/`phase`/`review-batch`), `pr`, `scripts`, `models`, `phases` with `branch`/`design`/`docs`. All in OLD phase names — they must still pass after the fold.
+Contains: `backlog`, `paths`, `context: ~`, `gates` (with `part`/`phase`/`review-batch`), `pr`, `scripts`, `models`, `phases` with `branch`/`design`/`docs`. All in OLD phase names — they must still pass after the fold.
 
 **`valid-inline-array.workflow.md`** uses `scripts.post-setup: [manifest/stubs/a.md, manifest/stubs/b.md]` — the node CLI must handle array values for file refs (check each element).
 
@@ -261,7 +261,7 @@ Contains: `backlog`, `paths`, `context: ~`, `gates` (with `slice`/`phase`/`revie
 ```bash
 (cd engine && node --test) && bats test/ && shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml
 ```
-After this slice, `shellcheck scripts/manifest-lint.sh` must pass on the new 3-line wrapper.
+After this part, `shellcheck scripts/manifest-lint.sh` must pass on the new 3-line wrapper.
 
 ### TDD steps
 
@@ -301,16 +301,16 @@ feat(manifest-lint): fold shape-validation into Node core, retire yq backend (AD
 
 ---
 
-## Slice 3 — rewrite `skills/run/SKILL.md` — dynamic walk + archetype-generalized invariants
+## Part 3 — rewrite `skills/run/SKILL.md` — dynamic walk + archetype-generalized invariants
 
 ### Context
 
-**What this slice builds:** a complete rewrite of `skills/run/SKILL.md` replacing:
+**What this part builds:** a complete rewrite of `skills/run/SKILL.md` replacing:
 1. The hardcoded `1→11` phase table (lines 32–46 of the current file)
 2. The §"Cross-phase invariants" section (lines 55–97) — generalize by archetype
 3. §0 Resolve (lines 17–30) — add engine invocation + run-record seeding
 
-**This slice touches ONE file:** `skills/run/SKILL.md` at
+**This part touches ONE file:** `skills/run/SKILL.md` at
 `/Users/scolladon/workspace/perso/craft/skills/run/SKILL.md`
 
 No compiled code changes. No new test files. The gate is `scripts/ci.sh` staying green
@@ -380,7 +380,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    archetype:
    - `setup`: workspace preparation and setup
    - `specification`: verify artifact; conversation if no `role` field (decisions)
-   - `construction`: verify each slice; run phase gate per gate-cadence invariant
+   - `construction`: verify each part; run phase gate per gate-cadence invariant
    - `harness` (`harness-read ∈ contract`): apply ALL findings; convergence
    - `refinement`: judgment (scan + scoping); apply ALL findings
    - `harness` (`harness-exec ∈ contract`): start background run; gate `propose`
@@ -400,7 +400,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 
 6. **Record outcome** in the run record (appended to the seeded entries).
 
-7. **On blocker**: escalate `{ phase/slice, reason, ≤3 candidate options }`. Never
+7. **On blocker**: escalate `{ phase/part, reason, ≤3 candidate options }`. Never
    spin, never silently abandon.
 
 8. **On model-down** (not a task blocker): mark tier degraded; re-resolve to
@@ -459,7 +459,7 @@ Replace lines 55–97 with:
   committed artifact before the phase closes. A dead agent = fresh respawn fed from
   the artifact, never a continuation.
 
-- **Gates**: each fix commit gates on the TARGETED check (`gates.slice` over the
+- **Gates**: each fix commit gates on the TARGETED check (`gates.part` over the
   touched files + `gates.review-batch` if declared); the full phase-boundary gate
   runs ONCE per round — after each code-producing phase, after each
   `harness`/`refinement` fix round, and before push — not after every intra-round
@@ -483,7 +483,7 @@ Replace lines 55–97 with:
   then respawn from the artifact. Once a tier is known degraded this run, later spawns
   skip straight to the fallback — never pay the same dead spawn twice.
 
-- **Blockers** escalate to the user as `{ phase/slice, reason, ≤3 candidate options }`
+- **Blockers** escalate to the user as `{ phase/part, reason, ≤3 candidate options }`
   — never spin, never silently abandon.
 
 - **Provenance**: no phase/ADR/backlog references inside source or test code, ever.
@@ -517,12 +517,12 @@ invariants:
 - `## Done` section: unchanged
 
 **No unit test is possible** for this markdown file — it is LLM policy text. The gate is:
-1. `scripts/ci.sh` stays green (this slice touches no tested code)
+1. `scripts/ci.sh` stays green (this part touches no tested code)
 2. Manual structural review: the walk section references `Resolution.effective[]`, `gateDecisions`, `record[]`, `waivers[]` consistently with the pinned SC1 output; the ALIAS_MAP inverse table covers all 11 SC1 phase ids without a gap; ADR-009/010/011/012 semantics are reflected.
 
 ### TDD steps
 
-This slice rewrites LLM policy markdown, not compiled code. The TDD framing applies
+This part rewrites LLM policy markdown, not compiled code. The TDD framing applies
 to structural correctness, not automated tests:
 
 **RED — before edit:** `scripts/ci.sh` is green; `skills/run/SKILL.md` still references
@@ -549,8 +549,8 @@ the hardcoded table and phase numbers.
 bash scripts/ci.sh
 ```
 
-This slice touches no compiled code — `node --test engine/` and `bats test/` pass
-unchanged; `shellcheck scripts/*.sh hooks/*.sh` passes (this slice touches no `.sh`
+This part touches no compiled code — `node --test engine/` and `bats test/` pass
+unchanged; `shellcheck scripts/*.sh hooks/*.sh` passes (this part touches no `.sh`
 files). The gate confirms no regression was introduced.
 
 ### Commit

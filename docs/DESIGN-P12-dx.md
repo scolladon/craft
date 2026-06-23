@@ -4,7 +4,7 @@
 > it legible so a newcomer can tailor the pipeline *from the docs alone in one sitting* (SC7). Scope is
 > the **Tier-0/1** docs now; **Tier-2** docs are gated behind P14 by design.
 > Status: docs-only phase, implemented directly (craft conventions) — no `engine/src` change, no TDD
-> slices, no mutation run (validation is a no-op for markdown). This doc is the provenance; the build
+> parts, no mutation run (validation is a no-op for markdown). This doc is the provenance; the build
 > script is the approved plan.
 
 ## Why this is docs-only

@@ -44,7 +44,7 @@ adapter:
   An adapter persists/loads bytes; it never decides what, how much, or how an entry is re-checked.
 
 - **Validate-on-read policy**: each concern carries a cheap predicate the engine evaluates on
-  every loaded entry. `slice-sizing` defaults to `() => true` when no validator is provided
+  every loaded entry. `part-sizing` defaults to `() => true` when no validator is provided
   (weak planner hint — no stable re-check). The validate-on-read map is injected at call-site
   via `deps.validators`; the adapter applies it but does not define it.
 
@@ -142,7 +142,7 @@ defines the schemas and forbids non-mechanical content; each phase's documented 
 trusted to comply; human review of the diffable store is the final check.
 
 Concerns are the five keys exported as `CONCERNS` from `engine/src/memory.js`:
-`toolchain`, `gate-cmd`, `mutation-tool`, `findings`, `slice-sizing`.
+`toolchain`, `gate-cmd`, `mutation-tool`, `findings`, `part-sizing`.
 
 | Concern | Entry shape (fields) | Merge key | Validate-on-read re-check | Explicitly NOT stored |
 |---|---|---|---|---|
@@ -150,7 +150,7 @@ Concerns are the five keys exported as `CONCERNS` from `engine/src/memory.js`:
 | `gate-cmd` | `{ phase, command }` | `phase` | `phase` is a non-empty string; `command` is a non-empty BARE command (no leading env/secret assignment prefix) | exit codes, timing, command output, env/secret prefixes (e.g. `TOKEN=…`) |
 | `mutation-tool` | `{ tool, configFingerprint }` | `tool` | `tool` is a non-empty string; `configFingerprint` is a non-empty string | config contents, mutation scores, test output |
 | `findings` | `{ file, severity, pattern }` | `file` + `pattern` | `file` is a non-empty repo-RELATIVE path (never absolute — no `$HOME`/username); `severity` is one of `low\|medium\|high\|critical`; `pattern` is a non-empty string | file content, stack traces, prose explanations, absolute paths, PII |
-| `slice-sizing` | `{ size, outcome }` | `size` | no stable re-check (defaults to `() => true`) | rationale, effort estimates, free-form notes |
+| `part-sizing` | `{ size, outcome }` | `size` | no stable re-check (defaults to `() => true`) | rationale, effort estimates, free-form notes |
 
 Every entry also carries the engine-managed fields `confidence` (integer `FLOOR`..`CEILING`) and
 `provenance: { run, commit, date }` (SHA + ISO date). These are written by the reconciler, not

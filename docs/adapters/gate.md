@@ -58,7 +58,7 @@ there is no `permission: "deny"` field. Handler errors block fail-safe (an unhan
 handler is treated as a veto). Pi has no harness-hook concept — the `pi.on("tool_call", ...)` hook
 is Pi's equivalent of the PreToolUse mechanism, not a hook file on disk. The deterministic
 `tool_call` predicate (the Pi-side equivalent of `git-no-ext-diff.sh`'s regex logic) is
-unit-tested separately (slice 5).
+unit-tested separately (part 5).
 
 **gate-command**: Pi has no harness-hook concept for gate execution; the resolved gate string is
 run as a normal subprocess via `execFile` or equivalent (argv array, no shell). The never-commit-

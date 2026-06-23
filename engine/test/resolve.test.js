@@ -41,7 +41,7 @@ const SC1_ROLES = {
   design:         'craft:designer',
   decisions:      undefined,
   planning:       'craft:planner',
-  implementation: 'craft:slice-implementer',
+  implementation: 'craft:part-implementer',
   review:         'craft:reviewer',
   refactoring:    'craft:refactor-executor',
   validation:     'craft:validation-triager',

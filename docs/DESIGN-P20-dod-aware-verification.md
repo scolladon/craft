@@ -292,7 +292,7 @@ craft runs would record `NO-OP(verify): no DoD declared` on every run** until it
 ships stryker, so the mutation sub-concern does *not* no-op — but the DoD sub-concern would). Shipping
 `docs/DOD.md` is therefore part of P20: it keeps this repo's default-ON runs clean **and** is the canonical
 dogfooding instance of a DoD subsuming engineering-check (2). Its shape is a free-text checklist (the
-planning phase slices its authoring); content outline:
+planning phase parts its authoring); content outline:
 
 - **Mutation testing** — survivors triaged (killed or proven equivalent); a mutation score line, or a
   "per-hunk survivors all triaged" line — the criterion evidenced by the very `validation` phase that hosts

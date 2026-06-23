@@ -32,7 +32,7 @@ The store is the always-on **`core` (U)** plus **6** bundles: `producer`, `const
 behavior-preserving invariants relocated from `refactor-executor`; `refactoring.contract` becomes
 `[refinement]`. **Boundary rule:** an invariant that **must survive an agent swap** → a bundle (or
 U); a **method or identity particular to one role** (designer's empirical-pinning method,
-slice-implementer's "the slice, the whole slice", refactor-executor's "you execute HOW, never
+part-implementer's "the part, the whole part", refactor-executor's "you execute HOW, never
 decide WHAT") → agent craft. `BUNDLE_VOCAB` grows to 7 (`core` + 6).
 
 ## Consequences

@@ -3,7 +3,7 @@ backlog: { source: file, ref: manifest/stubs/a.md }
 paths: { repo: https://example.com }
 context: ~
 gates:
-  slice: cargo test
+  part: cargo test
   phase: npm test
   review-batch: make ci
 pr: { creator: auto }

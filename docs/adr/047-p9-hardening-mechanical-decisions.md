@@ -45,5 +45,5 @@ The following are ratified as recommended:
 ## Consequences
 
 Each is internal/minimal-surface; none touches the 7-export engine surface or `pipeline/default.yml`
-descriptors. The slice-level pre-chewed context for each lives in the design's slice table, ready for
+descriptors. The part-level pre-chewed context for each lives in the design's part table, ready for
 the plan phase.

@@ -36,7 +36,7 @@ Phases fall into a few **archetypes**:
 |---|---|---|
 | **Setup** | `workspace` | isolate the work |
 | **Specification** | `requirements` *(opt)* · `design` · `decisions` · `planning` | produce the knowledge artifacts |
-| **Construction** | `implementation` (TDD slices) | produce the change |
+| **Construction** | `implementation` (TDD parts) | produce the change |
 | **Harness** | `review` · `validation` · `architecture` · *(security/perf…)* | verify one concern, gate on it |
 | **Refinement** | `refactoring` | improve structure, behavior-preserving |
 | **Delivery** | `documentation` · backlog · `propose` · `integrate` | ship and record |

@@ -1,18 +1,18 @@
 # Plan — P5: engine-owned contract injection + DESIGN split
 
 > Source: design doc `docs/DESIGN-P5-contract-injection.md` · ADRs `015–019` (on 003/006/007)
-> The plan is the implementation script AND the knowledge handoff. Slice agents start with zero
-> context: whatever a slice block omits is paid later as agent rediscovery.
-> Repo has no manifest → engine defaults. Slice gate: `cd engine && node --test` (+ `shellcheck
+> The plan is the implementation script AND the knowledge handoff. Part agents start with zero
+> context: whatever a part block omits is paid later as agent rediscovery.
+> Repo has no manifest → engine defaults. Part gate: `cd engine && node --test` (+ `shellcheck
 > scripts/*.sh hooks/*.sh` and/or `bats test/` when shell is touched). Phase-boundary gate:
 > `bash scripts/ci.sh`. Never `--no-verify`.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle — it must earn it. No standalone test-only slices.
-- Slices are sequential; they share one working tree and build on each other.
+- Every part costs a full agent lifecycle — it must earn it. No standalone test-only parts.
+- Parts are sequential; they share one working tree and build on each other.
 
-## Slice 1 — `refinement` bundle vocabulary + `default.yml` wiring
+## Part 1 — `refinement` bundle vocabulary + `default.yml` wiring
 
 ### Context
 The 6th bundle (ADR-015) is added here, proving golden-safety before any content lands.
@@ -35,20 +35,20 @@ The 6th bundle (ADR-015) is added here, proving golden-safety before any content
 ### Commit
 `feat(engine): add refinement contract bundle to the closed vocabulary (ADR-015)`
 
-## Slice 2 — author the 7 production `contracts/*.md` + `contracts-lint`
+## Part 2 — author the 7 production `contracts/*.md` + `contracts-lint`
 
 ### Context
 Author the **real** contract store at repo-root `contracts/` (ADR-003/016), sourced verbatim-in-
 meaning from the agent bodies + `run/SKILL.md` §"Cross-phase invariants" + the §2.1 mapping table
 in the design doc. These are *production* files, distinct from the `engine/test/fixtures/contracts/`
 mechanism stubs (which stay minimal).
-- **Source A — agent bodies** (`agents/*.md`, the `Contract:` sections): `designer.md` → producer; `planner.md` → producer; `slice-implementer.md` → construction (+ the "Forbidden, always" list → core); `reviewer.md` → harness-read; `refactor-executor.md` → refinement; `validation-triager.md` → harness-exec; `docs-writer.md` + `backlog-ticker.md` → delivery.
+- **Source A — agent bodies** (`agents/*.md`, the `Contract:` sections): `designer.md` → producer; `planner.md` → producer; `part-implementer.md` → construction (+ the "Forbidden, always" list → core); `reviewer.md` → harness-read; `refactor-executor.md` → refinement; `validation-triager.md` → harness-exec; `docs-writer.md` + `backlog-ticker.md` → delivery.
 - **Source B — `skills/run/SKILL.md:127-180`** ("Cross-phase invariants"): artifact-handoff, blocker protocol, gates, model resolution, provenance → core (generalised).
 - **Carve-out markers (core only):** the two lines must embed `@@ARTIFACT_HANDOFF@@` and `@@MODEL_RESOLUTION@@` verbatim — `engine/src/contract.js:1-17` defines them and `expandCore` rewrites them per mode. The agent-variant text the engine emits is `'the agent commit is the handoff; a dead agent respawns from the artifact'` and `'the role model resolved from manifest→agent-pin→fallback'`; author the core lines so the *surrounding* prose reads correctly once the marker is substituted (e.g. `Artifact handoff: @@ARTIFACT_HANDOFF@@`).
 - **No `retrieval` string anywhere** in any fragment (engine derives it — `contract.js:54-56` `deriveRetrievalNote`; guarded by `contract.test.js:118-126`).
 - **Bundle contents** = the §2.1 table rows. Mirror the fixture decomposition (`engine/test/fixtures/contracts/*.md`, already the right shape) but with the full real text.
 - **New bin `engine/bin/contracts-lint.js`** — model on `engine/bin/pipeline-lint.js` (`engine/bin/pipeline-lint.js` is 673B: read a path, validate, exit 0/2 with stderr). It must: resolve `contracts/` relative to a passed dir arg (default the repo `contracts/`); assert all 7 files (`core` + the 6 in `BUNDLE_VOCAB`) exist + non-empty; assert no file contains `retrieval` (case-insensitive); exit 2 with a clear message on any failure. Import `BUNDLE_VOCAB`? It's not exported — either export it from `graph.js` (additive, surface-safe — it's not one of the 7 index exports) or inline the 7 names in the lint with a comment pointing at `graph.js`. **Prefer exporting** `BUNDLE_VOCAB` from `graph.js` and re-using it (one vocab home).
-- **`scripts/ci.sh:11`** — the single pipeline line. Append ` && node engine/bin/contracts-lint.js contracts` to it (the ci.sh convention: "slices that add new binaries append to this file").
+- **`scripts/ci.sh:11`** — the single pipeline line. Append ` && node engine/bin/contracts-lint.js contracts` to it (the ci.sh convention: "parts that add new binaries append to this file").
 
 ### TDD steps
 - RED: `engine/test/contracts-lint.test.js` — spawn `contracts-lint.js` against a temp dir missing a bundle → exit 2; against a dir with a `retrieval` string → exit 2; against the real `contracts/` → exit 0. Fails: bin doesn't exist / fragments don't exist.
@@ -62,7 +62,7 @@ mechanism stubs (which stay minimal).
 ### Commit
 `feat(contracts): author the 7-fragment engine contract store + contracts-lint (ADR-003/016)`
 
-## Slice 3 — `contract-assemble.js` bin + R8 block-equivalence + walk wiring
+## Part 3 — `contract-assemble.js` bin + R8 block-equivalence + walk wiring
 
 ### Context
 Wire the pure assembler to disk and into the orchestrator (ADR-016/018).
@@ -84,21 +84,21 @@ Wire the pure assembler to disk and into the orchestrator (ADR-016/018).
 ### Commit
 `feat(engine): contract-assemble bin + deterministic R8 block-equivalence; wire the walk (ADR-016/018)`
 
-## Slice 4 — thin the 8 agent defs to identity + craft
+## Part 4 — thin the 8 agent defs to identity + craft
 
 ### Context
 Behavior-preserving relocation (ADR-017): the invariant text now lives in `contracts/` and is
-injected by slice 3's wiring, so it is **removed** from the agent bodies. Guarded by slice 3's R8
+injected by part 3's wiring, so it is **removed** from the agent bodies. Guarded by part 3's R8
 equivalence test (the union — injected block + thin agent — still carries every invariant).
-- **Files:** `agents/{designer,planner,slice-implementer,reviewer,refactor-executor,validation-triager,docs-writer,backlog-ticker}.md`. Each currently has a `Contract:` section.
+- **Files:** `agents/{designer,planner,part-implementer,reviewer,refactor-executor,validation-triager,docs-writer,backlog-ticker}.md`. Each currently has a `Contract:` section.
 - **Remove** every line whose content is now an engine invariant (per §2.1): "never commit on red", "--no-verify", artifact-handoff, blocker protocol `{ ... ≤3 options }`, provenance, suppression directives, swallowed errors, bounded scope, model resolution, the bundle-specific invariants (template-fill, convergence, RED→GREEN, read-only-findings, behavior-preserving, etc.).
-- **Keep** (craft, per §2.2): role identity (the opening "You write the design document…" / "You execute refactor specs…" sentence), the role's *method* particulars (designer's empirical-pinning + house-style; planner's public-surface-decision + sizing; slice-implementer's "the slice, the whole slice"; reviewer's `--no-ext-diff` hygiene + tests-dimension caveat + the findings *format line*; validation-triager's per-survivor triage procedure; docs-writer's voice-matching + source-traceability-to-design; backlog-ticker's single-edit discipline), and each agent's **Final message:** format line.
+- **Keep** (craft, per §2.2): role identity (the opening "You write the design document…" / "You execute refactor specs…" sentence), the role's *method* particulars (designer's empirical-pinning + house-style; planner's public-surface-decision + sizing; part-implementer's "the part, the whole part"; reviewer's `--no-ext-diff` hygiene + tests-dimension caveat + the findings *format line*; validation-triager's per-survivor triage procedure; docs-writer's voice-matching + source-traceability-to-design; backlog-ticker's single-edit discipline), and each agent's **Final message:** format line.
 - **Frontmatter unchanged** (`name`, `description`, `model`). The `model:` pins stay (designer/planner/reviewer are `fable`; others sonnet/haiku) — out of scope for P5.
 - **No pointer stub** (ADR-017): do not add "see contracts/" prose.
-- This is a `refactor-executor`-shaped slice: pre-scoped, behavior-preserving, no test logic changes. The "test" that must stay green is the R8 equivalence + the full suite.
+- This is a `refactor-executor`-shaped part: pre-scoped, behavior-preserving, no test logic changes. The "test" that must stay green is the R8 equivalence + the full suite.
 
 ### TDD steps
-- (refactor slice — no new RED) Pre-condition: slice 3's R8 test is green with the *current* fat agents (the engine already carries the invariants; the agents are now redundant copies).
+- (refactor part — no new RED) Pre-condition: part 3's R8 test is green with the *current* fat agents (the engine already carries the invariants; the agents are now redundant copies).
 - Execute: strip the `Contract:` invariant lines from each of the 8 agents, leaving identity + craft + final-message.
 - Verify: `cd engine && node --test` green (R8 unaffected — it reads `contracts/`, not agents); manually confirm no agent body still contains an invariant substring (grep the §2.1 markers across `agents/` → only craft remains).
 
@@ -108,7 +108,7 @@ equivalence test (the union — injected block + thin agent — still carries ev
 ### Commit
 `refactor(agents): thin all 8 role defs to identity + craft; invariants now engine-injected (ADR-017)`
 
-## Slice 5 — `normalize-findings` wiring for review + DESIGN split
+## Part 5 — `normalize-findings` wiring for review + DESIGN split
 
 ### Context
 Two small, independent finishers (ADR-019 + ADR-007/DC-18).

@@ -1,7 +1,7 @@
 ---
 # Injection point #3 (PRD §7): gates.<cadence> — supply the command the engine runs as a gate.
 # Your harness, any tech: the engine owns the *cadence* (never commit on red; phase gate once per
-# round), the command is yours. Three cadences: slice, phase, review-batch. All-current.
+# round), the command is yours. Three cadences: part, phase, review-batch. All-current.
 gates:
   phase: "make ci"
 ---
@@ -15,7 +15,7 @@ A **gate** is the pass/fail check the engine runs at a cadence boundary. craft o
 
 | Cadence key | When it runs | This manifest |
 |---|---|---|
-| `slice` | after each TDD slice | default (probed test command) |
+| `part` | after each TDD part | default (probed test command) |
 | `phase` | once per phase round | **`make ci`** |
 | `review-batch` | after a review fix batch | default |
 

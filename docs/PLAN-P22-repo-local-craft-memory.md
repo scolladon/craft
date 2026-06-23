@@ -1,34 +1,34 @@
 # Plan — Repo-local craft memory (self-improving per repo) (P22)
 
 > Source: design doc `docs/DESIGN-P22-repo-local-craft-memory.md` · ADRs `116, 117, 118, 119, 120, 121, 122, 123`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
-### P22-specific scope facts (read once, applies to every slice)
+### P22-specific scope facts (read once, applies to every part)
 
-- **The `src/` delta is exactly Slices 1–3** (`engine/src/manifest.js` in S1; a new
-  `engine/src/memory.js` in S2 + S3). Slice 4 is the port doc (docs-only). Slice 5 is
-  orchestration prose (`skills/`, no `src/`). Slice 6 is config wiring (`.gitignore`) + a
+- **The `src/` delta is exactly Parts 1–3** (`engine/src/manifest.js` in S1; a new
+  `engine/src/memory.js` in S2 + S3). Part 4 is the port doc (docs-only). Part 5 is
+  orchestration prose (`skills/`, no `src/`). Part 6 is config wiring (`.gitignore`) + a
   bats guard (no `src/`). **No new engine bin, no pipeline descriptor, no contract bundle,
   no gate, no `awaitingHarnesses` entry** — the design loads via the orchestrator session,
   not a new descriptor (Design §"Why a port", §Read/Update lifecycle). Do NOT touch
   `pipeline/default.yml`, `engine/src/gates.js`, `contracts/`, or `engine/bin/`.
 - **Dogfooding boundary (HARD — do not trip):** this feature modifies craft's OWN
   engine/skills. Its *runtime artifact* (`.claude/craft-memory.md`) lands in whatever repo
-  craft runs against. **No slice writes a live `.claude/craft-memory.md` (or
-  `.claude/craft-metrics.md`) into THIS repo.** Slices build the mechanism + the
+  craft runs against. **No part writes a live `.claude/craft-memory.md` (or
+  `.claude/craft-metrics.md`) into THIS repo.** Parts build the mechanism + the
   default-config re-include + tests with fixtures in `mktemp`/temp dirs only. The store
   resolves against the target repo's ROOT (`dirname(dirname(manifest))`), never
   `${CLAUDE_PLUGIN_ROOT}` (Req 1). State-mutating probes run in `mktemp` throwaways, never
@@ -36,7 +36,7 @@
 - **Advisory-only is the load-bearing invariant (ADR-116):** the store NEVER gates. `load`
   of any malformed/poisoned/absent store must **never throw and never yield a gating
   decision** — it yields an empty-or-filtered `MemoryView` (Req 2, Req 6). This is the
-  make-or-break property; Slice 2 owns its dedicated suite.
+  make-or-break property; Part 2 owns its dedicated suite.
 - **Phase-boundary gate = `bash scripts/ci.sh`** (this repo has no manifest, so the engine
   probes defaults; the substrate gate is `scripts/ci.sh`). It runs, in order:
   `cd engine && node --test 'test/**/*.test.js'` with a hard `EXPECTED_TESTS` count-drift
@@ -44,27 +44,27 @@
   `shellcheck scripts/*.sh hooks/*.sh`; `node engine/bin/pipeline-lint.js
   pipeline/default.yml`; `node engine/bin/pipeline-resolve.js pipeline/default.yml`;
   `node engine/bin/contracts-lint.js contracts`.
-- **EXPECTED_TESTS bump rule (the easy CI breaker):** any slice that adds engine
+- **EXPECTED_TESTS bump rule (the easy CI breaker):** any part that adds engine
   `node --test` cases MUST update `EXPECTED_TESTS` in `scripts/ci.sh` (line 10) in the SAME
   commit, or `ci.sh` fails on count drift. **Current count: `# tests 706`.** The running
-  total below — bump in each test-adding slice, never skip:
+  total below — bump in each test-adding part, never skip:
   - S1 adds **8** → `714`.
   - S2 adds **15** → `729`.
   - S3 adds **15** → `744`.
   - S4/S5/S6 add **0** engine tests (S4 docs, S5 prose, S6 `.gitignore` + bats). `bats
     test/` has **no count gate** — adding a bats file (S6) needs no bump.
-  - No slice touches `adapters/pi`, so `EXPECTED_PI_TESTS` stays **202** (do not touch it).
+  - No part touches `adapters/pi`, so `EXPECTED_PI_TESTS` stays **202** (do not touch it).
   - The 8/15/15 figures are the *intended* case count — write the cases the TDD steps name;
     if you add or drop a case, set `EXPECTED_TESTS` to the number the test runner actually
     prints (`cd engine && node --test 'test/**/*.test.js'` → `# tests <N>`), not the figure
     here. The figure is a target, the runner is the source of truth.
-- **Ordering keeps CI green at every commit, and each slice builds on the prior tree.**
+- **Ordering keeps CI green at every commit, and each part builds on the prior tree.**
   S2 ships `engine/src/memory.js` with the store-shape + read path; S3 extends the SAME
   module with the write path (it imports S2's serializer + entry shape). S6's bats guard
   asserts the `.gitignore` re-include lines S6 itself adds — it is self-contained, no cross
   ordering needed beyond landing after the file exists in the same commit.
 
-## Slice 1 — manifest validates the top-level `memory:` key like `backlog` (ADR-121)
+## Part 1 — manifest validates the top-level `memory:` key like `backlog` (ADR-121)
 
 ### Context
 
@@ -170,7 +170,7 @@ the orchestrator's concern).
 
 ### Gate
 
-- Targeted (slice): `cd engine && node --test 'test/manifest.test.js'` (the 8 new cases
+- Targeted (part): `cd engine && node --test 'test/manifest.test.js'` (the 8 new cases
   pass; the suite stays green).
 - Phase-boundary (valid here too): `bash scripts/ci.sh` (verifies `EXPECTED_TESTS=714`
   matches the runner and shellcheck stays clean on the one-line `ci.sh` edit).
@@ -179,16 +179,16 @@ the orchestrator's concern).
 
 `feat(manifest): validate the top-level memory key like backlog (ADR-121)`
 
-## Slice 2 — memory store read path: parse, validate-on-read, advisory empty-view (ADR-116/117)
+## Part 2 — memory store read path: parse, validate-on-read, advisory empty-view (ADR-116/117)
 
 ### Context
 
 The first half of the pure-mechanics heart — a **new module** `engine/src/memory.js` and a
-**new test file** `engine/test/memory.test.js`. This slice ships the store SHAPE, the
+**new test file** `engine/test/memory.test.js`. This part ships the store SHAPE, the
 `parse`/`serialize` round-trip (single markdown + YAML frontmatter, ADR-117), and `load`'s
 **validate-on-read** filtering with the **make-or-break advisory safety property**: a `load`
 of any absent/empty/malformed/poisoned store NEVER throws and NEVER yields a gating decision
-— it yields an empty-or-filtered `MemoryView` (Req 2, Req 6, ADR-116). Slice 3 extends this
+— it yields an empty-or-filtered `MemoryView` (Req 2, Req 6, ADR-116). Part 3 extends this
 same module with the `save`/update-semantics write path.
 
 - **No existing memory module** — confirmed (`grep -rl 'MemoryView\|craft-memory'
@@ -205,7 +205,7 @@ same module with the `save`/update-semantics write path.
   source of truth and the body never drifts).
 - **Store shape (frontmatter), pinned to Design §Constraints content-whitelist table.** A
   top-level object with per-concern entry lists. Each entry is one of exactly six concerns
-  (toolchain, gate-cmd, mutation-tool, findings, slice-sizing — metrics live in the
+  (toolchain, gate-cmd, mutation-tool, findings, part-sizing — metrics live in the
   SEPARATE artifact, ADR-119, NOT in this store, so the store module never serializes
   metrics). Every entry carries common metadata: `confidence` (number), `provenance`
   (`{ run, commit, date }`), plus its concern-specific payload + the field used as the
@@ -216,7 +216,7 @@ same module with the `save`/update-semantics write path.
   | gate-cmd | `{ phase, command }` |
   | mutation-tool | `{ tool, configFingerprint }` |
   | findings | `{ file, severity, pattern }` |
-  | slice-sizing | `{ size, outcome }` (`pass`|`blocked`) |
+  | part-sizing | `{ size, outcome }` (`pass`|`blocked`) |
   Keep the exact concern ids and field names above as named constants
   (`const CONCERNS = Object.freeze([...])`) — they are the cross-module contract S3 and the
   port doc (S4) must match byte-for-byte. **No free-form/prose/snippet/PII field on any
@@ -232,7 +232,7 @@ same module with the `save`/update-semantics write path.
     absent/unreadable — NEVER throws), and `deps.validators` — a map keyed by concern of
     cheap re-check predicates `(entry) => boolean` (toolchain → lockfile fingerprint still
     matches; gate-cmd → command still resolvable; mutation-tool → config file still
-    present; findings → file still exists). slice-sizing has **no** per-use re-check (Design
+    present; findings → file still exists). part-sizing has **no** per-use re-check (Design
     §Constraints: "used as a weak planner hint; no per-use re-check") → its validator
     defaults to `() => true`.
   - **post:** `MemoryView` = `{ entries: { <concern>: Entry[] }, evicted: Entry[],
@@ -244,7 +244,7 @@ same module with the `save`/update-semantics write path.
     load no-op).
   - **Never throws:** wrap the parse in try/catch; any parse failure → empty view +
     `loadNote: 'malformed store'`. This is the make-or-break property's read side.
-- **No metrics in this slice** — metrics are the separate append-only artifact (ADR-119),
+- **No metrics in this part** — metrics are the separate append-only artifact (ADR-119),
   orchestrator-prose-filled (like model-class-matrix), with NO engine function. Do not add
   a metrics serializer here or in S3 (avoid dead code; Design §Run-over-run "No new
   measurement machinery").
@@ -253,7 +253,7 @@ same module with the `save`/update-semantics write path.
   Build fixture stores as in-memory markdown strings (frontmatter + body) and inject
   `deps.readStore = () => fixtureString` and `deps.validators` stubs — **no mktemp needed
   for unit tests** (pure injection). Reserve mktemp only for any FS-touching probe (none in
-  this slice).
+  this part).
 
 ### TDD steps
 
@@ -284,9 +284,9 @@ same module with the `save`/update-semantics write path.
 - RED 9 — *fresh entries survive*: "Given a store whose entries all pass validate-on-read,
   when load runs, then every entry is in entries (grouped by concern) and evicted is empty"
   — validators all `true`; assert grouping + counts.
-- RED 10 — *slice-sizing has no re-check*: "Given a slice-sizing entry and no slice-sizing
+- RED 10 — *part-sizing has no re-check*: "Given a part-sizing entry and no part-sizing
   validator, when load runs, then it survives (weak hint, no per-use re-check)" — omit the
-  slice-sizing validator; assert it is kept.
+  part-sizing validator; assert it is kept.
 - RED 11 — *empty frontmatter block → empty view*: "Given a store with a fenced but empty
   frontmatter block, when load runs, then empty view + loadNote" (mirror `extractFrontmatter`
   returning null → empty view path).
@@ -310,7 +310,7 @@ same module with the `save`/update-semantics write path.
 
 ### Gate
 
-- Targeted (slice): `cd engine && node --test 'test/memory.test.js'` (15 cases pass).
+- Targeted (part): `cd engine && node --test 'test/memory.test.js'` (15 cases pass).
 - Phase-boundary: `bash scripts/ci.sh` (verifies `EXPECTED_TESTS=729`; new file is picked
   up by the `test/**/*.test.js` glob).
 
@@ -318,7 +318,7 @@ same module with the `save`/update-semantics write path.
 
 `feat(memory): store read path — parse, validate-on-read, advisory empty-view (ADR-116/117)`
 
-## Slice 3 — memory store write path: update semantics, merge-before-insert, both-caps eviction (ADR-122)
+## Part 3 — memory store write path: update semantics, merge-before-insert, both-caps eviction (ADR-122)
 
 ### Context
 
@@ -339,7 +339,7 @@ injected dep so the function stays node:test-able).
     gate-cmd keyed by `phase`; toolchain keyed by `ecosystem`; mutation-tool keyed by
     `tool`; findings keyed by `file+pattern` (**severity is mutable payload, NOT key** — a
     recurrence at the same `file+pattern` with changed severity is a REFRESH, not a new
-    entry — Design §Update-semantics); slice-sizing keyed by `size`. Encode these as a
+    entry — Design §Update-semantics); part-sizing keyed by `size`. Encode these as a
     `keyOf(concern, payload)` function with a per-concern field list constant.
   - **Per-entry transition (the state machine — Design §Update-semantics table):**
     - **ADDED** — observed, no matching entry at load → new entry, `confidence = FLOOR + 1
@@ -449,7 +449,7 @@ injected dep so the function stays node:test-able).
 
 ### Gate
 
-- Targeted (slice): `cd engine && node --test 'test/memory.test.js'` (the new save cases +
+- Targeted (part): `cd engine && node --test 'test/memory.test.js'` (the new save cases +
   S2's read cases all pass).
 - Phase-boundary: `bash scripts/ci.sh` (verifies `EXPECTED_TESTS=744`).
 
@@ -457,11 +457,11 @@ injected dep so the function stays node:test-able).
 
 `feat(memory): store write path — update semantics, merge-before-insert, both-caps eviction (ADR-122)`
 
-## Slice 4 — author the memory port doc `docs/adapters/memory.md` (ADR-117/121/123) — docs-only
+## Part 4 — author the memory port doc `docs/adapters/memory.md` (ADR-117/121/123) — docs-only
 
 ### Context
 
-Docs-only slice (no `src/` delta), legitimately standalone — it has no implementation slice
+Docs-only part (no `src/` delta), legitimately standalone — it has no implementation part
 to fold into and IS the whitelist enforcement surface (ADR-123: the whitelist is enforced
 **document-only** via this spec + write-surface discipline, NOT a runtime guard). Mirror the
 existing port-doc schema exactly.
@@ -494,7 +494,7 @@ existing port-doc schema exactly.
   - `## Binding set` — `{ claude, pi }`.
   - `## Claude binding` — `load` once at run start, `save` once at run end; both are
     filesystem reads/writes against `repoRoot` performed by the session orchestrator. The
-    single `MemoryView` is held in-session; at each phase's entry the orchestrator slices the
+    single `MemoryView` is held in-session; at each phase's entry the orchestrator parts the
     concern this phase reads and **prepends it into the step-3 injected contract block as
     part of the pre-chewed context** (`skills/run/SKILL.md` §"Agent spawns" slot 1) — the
     same slot whether the phase spawns (block PREPENDED to the Task prompt) or runs inline
@@ -519,7 +519,7 @@ existing port-doc schema exactly.
     trusted to comply; there is **no reject-at-write code and no schema lint**.
 - **Concern ids + field names MUST match S2/S3 byte-for-byte** (toolchain
   `{ecosystem,lockfileFingerprint}`, gate-cmd `{phase,command}`, mutation-tool
-  `{tool,configFingerprint}`, findings `{file,severity,pattern}`, slice-sizing
+  `{tool,configFingerprint}`, findings `{file,severity,pattern}`, part-sizing
   `{size,outcome}`) — this doc is the contract the module implements; a drift here is a real
   defect (the make-or-break cheap-validation guarantee rests on the doc and code agreeing).
 - **No-provenance discipline (Design §Test strategy "No-provenance-leak"):** the doc's prose
@@ -534,7 +534,7 @@ existing port-doc schema exactly.
 ### TDD steps
 
 - RED — the file does not exist (`test -f docs/adapters/memory.md` is false) and the S6 bats
-  guard (next slice) will fail against its absence. For this docs-only slice the "test" is the
+  guard (next part) will fail against its absence. For this docs-only part the "test" is the
   schema contract verified by reading the file back: confirm before writing that
   `grep -l 'Port interface' docs/adapters/memory.md` matches nothing (file absent).
 - GREEN — author `docs/adapters/memory.md` with the seven sections above, mirroring
@@ -549,7 +549,7 @@ existing port-doc schema exactly.
 
 ### Gate
 
-- Targeted (slice): `test -f docs/adapters/memory.md && grep -q '## Port interface'
+- Targeted (part): `test -f docs/adapters/memory.md && grep -q '## Port interface'
   docs/adapters/memory.md && grep -q '## Failure → blocker' docs/adapters/memory.md` (the
   file exists and carries the port-doc schema).
 - Phase-boundary: `bash scripts/ci.sh` (adding a docs file changes no executable surface; ci
@@ -559,14 +559,14 @@ existing port-doc schema exactly.
 
 `docs(adapters): add the memory port spec with the document-only content whitelist (ADR-117/123)`
 
-## Slice 5 — wire the memory port into the orchestrator + per-phase read/write contract (ADR-116/118/119) — prose
+## Part 5 — wire the memory port into the orchestrator + per-phase read/write contract (ADR-116/118/119) — prose
 
 ### Context
 
-Prose-only slice (no `src/` delta), legitimately standalone — the orchestration is skill
+Prose-only part (no `src/` delta), legitimately standalone — the orchestration is skill
 prose, not engine code (Design §Read/Update lifecycle: `load`/`save` are
 session-orchestrator filesystem ops, no new bin/descriptor). Wires the one-time `load` at run
-start, the one-time `save` at run end, the per-phase concern-slice injection, and the
+start, the one-time `save` at run end, the per-phase concern-part injection, and the
 per-phase read/write surface notes. Land AFTER the port doc (S4) so the prose can cite it.
 
 - **File 1: `skills/run/SKILL.md`** (363 lines). Anchors pinned:
@@ -582,7 +582,7 @@ per-phase read/write surface notes. Land AFTER the port doc (S4) so the prose ca
     blocker, ADR-116/120). State that `load` is **once per run, not per phase** (Design
     §Read lifecycle rationale).
   - **Phase-walk step 3 "Assemble the injected block" (lines 122–142)** is the injection
-    surface. **Add a clause:** at each phase's entry the orchestrator slices THIS phase's
+    surface. **Add a clause:** at each phase's entry the orchestrator parts THIS phase's
     concern from the held `MemoryView` (per the per-phase Reads table below) and **prepends
     it into the step-3 injected contract block as part of the pre-chewed context** — the
     SAME slot for agent (block PREPENDED to the Task prompt) and inline (block loaded at
@@ -617,12 +617,12 @@ per-phase read/write surface notes. Land AFTER the port doc (S4) so the prose ca
     WRITES the detected ecosystem + lockfile fingerprint (the
     `scripts/worktree-setup.sh` lockfile detection already produces this — pnpm/yarn/bun/uv/
     poetry/cargo/go/bundler/composer/npm, lines 15–33). Hint never gates.
-  - **`skills/planning/SKILL.md`** (Preamble, after line 13): READS slice-sizing that landed
+  - **`skills/planning/SKILL.md`** (Preamble, after line 13): READS part-sizing that landed
     cleanly last run as a weak planner hint (no per-use re-check); WRITES none directly
     (sizing is observed at implementation).
   - **`skills/implementation/SKILL.md`** (Preamble, after line 14): READS the discovered
     gate/test command → skip re-discovery but **still RUNS it** (the gate is sacred — Req 2);
-    WRITES the gate/test command + per-slice size + pass/blocked outcome.
+    WRITES the gate/test command + per-part size + pass/blocked outcome.
   - **`skills/review/SKILL.md`** (Preamble, after line 17): READS recurring `Finding[]` as
     advisory **watch-items** the reviewers check FIRST (a cached finding pre-empts, never
     replaces, the full-diff review); WRITES findings that recurred this run
@@ -663,7 +663,7 @@ per-phase read/write surface notes. Land AFTER the port doc (S4) so the prose ca
     tool present' skills/{workspace,planning,implementation,review,validation}/SKILL.md` →
     each of the five files matches its read/write-surface note. Fail before edit.
 - GREEN — make the prose edits per Context: the `load` step in run §0 setup; the per-phase
-  concern-slice clause in phase-walk step 3 (citing §"Agent spawns" slot 1 +
+  concern-part clause in phase-walk step 3 (citing §"Agent spawns" slot 1 +
   `docs/adapters/memory.md`); the `save` + metrics-append step at §Done; the five per-phase
   read/write-surface notes. Keep every read advisory (never gating); keep writes buffered to
   the run record, flushed once at run end.
@@ -676,7 +676,7 @@ per-phase read/write surface notes. Land AFTER the port doc (S4) so the prose ca
 
 ### Gate
 
-- Targeted (slice): the self-verified grep checklist above against `skills/run/SKILL.md` and
+- Targeted (part): the self-verified grep checklist above against `skills/run/SKILL.md` and
   the five phase skills (all assertions pass).
 - Phase-boundary: `bash scripts/ci.sh` (prose edits to `.md` files under `skills/` change no
   executable surface; ci stays green).
@@ -685,11 +685,11 @@ per-phase read/write surface notes. Land AFTER the port doc (S4) so the prose ca
 
 `feat(run): wire the memory port — load at start, save at end, per-phase advisory read/write (ADR-116/118/119)`
 
-## Slice 6 — emit the `.gitignore` re-include + guard the store-path config wiring (ADR-118/119) — config + test-infra
+## Part 6 — emit the `.gitignore` re-include + guard the store-path config wiring (ADR-118/119) — config + test-infra
 
 ### Context
 
-Config-wiring + test-infra slice (no `src/` delta), legitimately standalone — it ships the
+Config-wiring + test-infra part (no `src/` delta), legitimately standalone — it ships the
 default-config storage wiring (the `.gitignore` re-include the build "emits/maintains" per
 ADR-118) and a bats structure guard so the wiring + the port doc's no-provenance discipline
 can't silently regress. **It does NOT create a live store** (dogfooding boundary) — only the
@@ -725,9 +725,9 @@ guard over the re-include + the port doc.
     `!.claude/*` (that would re-include `.claude/workflow.md` and anything else, beyond P22's
     scope).
   - **Dogfooding caveat:** these lines do not CREATE a store; they only re-include the paths
-    if/when a store file exists. This repo has no `.claude/craft-memory.md` (and this slice
+    if/when a store file exists. This repo has no `.claude/craft-memory.md` (and this part
     must not create one) — the lines are inert until craft runs against this repo and writes
-    one. Confirm `git status` shows no new `.claude/craft-memory.md` after this slice.
+    one. Confirm `git status` shows no new `.claude/craft-memory.md` after this part.
 - **File 2: `test/p22-memory.bats`** (new bats file; gated by `bats test/` in
   `scripts/ci.sh` — **no count gate**, so NO `EXPECTED_TESTS`/`scripts/ci.sh` edit). Precedent
   to mirror exactly: **`test/p10-structure.bats`** (the repo's structure-guard pattern):
@@ -754,8 +754,8 @@ guard over the re-include + the port doc.
   - **Do NOT add a standing `[ ! -f .claude/craft-memory.md ]` guard.** A real
     craft-on-craft run legitimately writes a live store into this repo (it is then the
     target) — a permanent absence guard would break the first honest dogfooding run, which
-    contradicts the design. The dogfooding boundary is a **build-time, slice-scoped**
-    constraint (this slice must not author a live store), verified once in this slice's
+    contradicts the design. The dogfooding boundary is a **build-time, part-scoped**
+    constraint (this part must not author a live store), verified once in this part's
     REFACTOR via `git status`, NOT a CI invariant.
 
   The guard is **five** `@test` cases (1–5 above).
@@ -779,7 +779,7 @@ guard over the re-include + the port doc.
 
 ### Gate
 
-- Targeted (slice): `bats test/p22-memory.bats` (all five cases pass against the edited
+- Targeted (part): `bats test/p22-memory.bats` (all five cases pass against the edited
   `.gitignore`, the landed port doc, and the clean source).
 - Phase-boundary: `bash scripts/ci.sh` (the new bats file is picked up by `bats test/`; no
   count gate; shellcheck unaffected; ci stays green).

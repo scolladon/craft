@@ -11,7 +11,7 @@ into the engine-owned contract store (ADR-003/015). A **spawn** therefore carrie
 the engine-injected contract block (prepended to the Task prompt) *and* the thin agent-def body
 (the craft ADR-015 deliberately KEPT in the agent — designer's empirical-pinning + "design within
 the house style"; reviewer's `--no-ext-diff` git hygiene + the no-mutation-in-tests boundary;
-planner's sizing rules; slice-implementer's "the slice, the whole slice"). That craft lives in no
+planner's sizing rules; part-implementer's "the part, the whole part"). That craft lives in no
 contract bundle. P6's `execution: inline` runs the phase body in-thread with **no Task spawn**, so
 the session receives the injected block (assembled with `--inline`) but, unlike a spawn, nothing
 automatically hands it the agent craft. Where does an inline phase get it?

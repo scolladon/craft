@@ -354,7 +354,7 @@ The four originally-open candidates (DC-A…DC-D) are RATIFIED — no open candi
 
 ### New decision candidate surfaced by the revision
 
-The re-slice for the engine work uncovered ONE small load-bearing test-construction fork the ADRs
+The re-decomposition into parts for the engine work uncovered ONE small load-bearing test-construction fork the ADRs
 do not pin (ADR-037 mandates the engine guard but not how the test supplies the probe):
 
 | # | Choice | Options | Recommendation |
@@ -469,13 +469,13 @@ the review phase requests a fixture-load assertion.
 
 ---
 
-## Slice shape (for the plan phase)
+## Part shape (for the plan phase)
 
-Re-sliced for the engine work. Each slice carries the pre-chewed context below and is one atomic
-TDD commit (Red→Green→Refactor, Given/When/Then). Slices are ordered so the engine field lands
+Re-decomposed into parts for the engine work. Each part carries the pre-chewed context below and is one atomic
+TDD commit (Red→Green→Refactor, Given/When/Then). Parts are ordered so the engine field lands
 before its UX prose and example.
 
-| Slice | Scope (one line) | Pre-chewed context |
+| Part | Scope (one line) | Pre-chewed context |
 |---|---|---|
 | **s1** | Engine: default-phase `procedure:` override field — lint accepts it + `applyAllowedOverrides` copies it onto the descriptor (ADR-040) | **manifest.js:** add `'procedure'` to `PHASE_FIELDS` (Set at `:27–30`); add shape check in `validatePhaseBlock` next to `:263` role/model branches — `else if (field === 'procedure' && typeof value !== 'string')`. **edits.js:** add `'procedure'` to `ALLOWED_PHASE_OVERRIDE_FIELDS` (`:12`); the generic loop in `applyAllowedOverrides` (`:29–40`) copies it (scalar branch, not the harness deep-merge). **Tests:** `manifest.test.js` (mirror role/model shape tests — `:263` style; consts `ALWAYS_EXISTS` at `:10`); new fixture `engine/test/fixtures/scenarios/S2-procedure/manifest.yml`; S2-proc positive in `scenarios.test.js` (use `loadScenarioManifest`/`loadDefault` at `:31–38`). No `index.js`/`default.yml` touch. Red: lint rejects `procedure` as unknown field / override not copied; Green: both pass. |
 | **s2** | Engine: `roleExists` guard — `resolvePipeline` takes an injected predicate; a rejected swapped role → `ok:false` (ADR-037) | **resolve.js:** `resolvePipeline(defaults, manifest)` at `:152` → add optional 3rd `opts` param; read `const roleExists = typeof opts?.roleExists === 'function' ? opts.roleExists : () => true;` (mirror `manifest.js:304`). Add a guard over `effective` (computed at `:213` — the enabled descriptors, each carrying its resolved `role`), placed after the `effective` filter and before the gate resolution / `ok:true` return (`:213–234`), that pushes a role-not-found error + returns `ok:false` when an effective descriptor's `role` ref is rejected (excludes default-off phases by construction). **Anchors:** `validateManifest` opts shape `manifest.js:301–304` (the injection precedent); existing early-return shape `resolve.js:204–211`. **Tests:** new fixture `engine/test/fixtures/scenarios/S2-bad-role/manifest.yml` (`planning.role: my:does-not-exist`); S2-neg in `scenarios.test.js` with per-call stub `{ roleExists: ref => ref !== 'my:does-not-exist' }` (DC-E(a)). Surface check: `index.js` 7 exports unchanged; SC1 still byte-identical (probe defaults true, no swapped role). Red: bad-role manifest resolves `ok:true` today; Green: `ok:false` with naming error. |
@@ -483,7 +483,7 @@ before its UX prose and example.
 | **s4** | Walk/UX prose: swap-fidelity guarantee (G5) + `procedure:`-axis doc + role-not-found-is-engine-loud note in `skills/run/SKILL.md` (no NEW error-paths row) | `skills/run/SKILL.md:89–92` (existing G5 prose to tighten + name both axes), `:117` (agent-mode swap line), `:122–133` (inline-mode local/non-local branch, ADR-020), `:78–88` (procedure verbatim-dispatch — document the default-phase `procedure:` override rides it), Walk error-paths table `:173–184` (NO new row: role case → existing `ok:false` row `:177`; procedure case → existing procedure-STOP row `:180`). No engine touch. Consistency: match the "resolves to no installed skill" idiom verbatim; do not invent an inline "ask". |
 | **s5** | Example + README: `examples/role-swap/workflow.md` (`implementation.role: acme:tdd-specialist`) mirroring `lean-profile` exactly + README row (ADR-039) | `examples/lean-profile/workflow.md` (structure to mirror — single file, frontmatter + prose, closing "in your real repo this lives at `.claude/workflow.md`" line); `examples/README.md` (the three-column table + the bulleted Examples list — add a `role:`-swap row labelled *all-current*); ADR-039 for the external/contract-only-inline + fail-closed narrative; ADR-020 for the inline-contract-only prose; ADR-037 for the fail-closed note. No engine touch. |
 
-**Slice ordering note:** s1 and s2 are the engine slices (independent of each other — different
+**Part ordering note:** s1 and s2 are the engine parts (independent of each other — different
 files; s1 touches `manifest.js`/`edits.js`, s2 touches `resolve.js`). s3 hardens S2 (independent
 of s1/s2 — it asserts the already-passing structural property). s4 (walk prose) and s5
 (example/README) document what s1/s2 shipped and should land after them so the prose references

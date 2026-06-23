@@ -18,7 +18,7 @@ the most demanding case: `implementation`, the code producer, handed to an exter
 
 | | default | swapped here |
 |---|---|---|
-| `implementation` runs | `craft:slice-implementer` | `acme:tdd-specialist` |
+| `implementation` runs | `craft:part-implementer` | `acme:tdd-specialist` |
 | injected contract | the `construction` bundle + core | **unchanged** — assembled from the descriptor `id`, which the swap leaves alone |
 
 ## Contract survives the swap (G5)

@@ -1,38 +1,38 @@
 # Plan — P9 hardening batch
 
 > Source: design doc `docs/DESIGN-P9-hardening.md` · ADRs `041, 042, 043, 044, 045, 046, 047`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise.
-- **ADR-044 carve-out (applies to THIS plan):** test-infra-only slices (Stryker config +
-  deps + ADV suites with no `src/` delta) and docs/prose-only slices (skill/agent/template
-  prose) ARE exempt from the no-test-only rule — they have no implementation slice to fold
-  into. Slices **s-decisions, s-echo, s-cadence, s-planner-heuristic** ship as prose-only;
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise.
+- **ADR-044 carve-out (applies to THIS plan):** test-infra-only parts (Stryker config +
+  deps + ADV suites with no `src/` delta) and docs/prose-only parts (skill/agent/template
+  prose) ARE exempt from the no-test-only rule — they have no implementation part to fold
+  into. Parts **s-decisions, s-echo, s-cadence, s-planner-heuristic** ship as prose-only;
   the Stryker tooling rides inside **s-stryker** alongside the one real `src` change it
   carries (ADV-3, the empty-`procedure` lint guard).
-- A slice that would be a pure test pass over already-landed code merges into its neighbour.
+- A part that would be a pure test pass over already-landed code merges into its neighbour.
 
 ### Surface gate (FROZEN — every commit honours it)
 
 - The 7-export engine barrel (`engine/src/index.js`: `parsePipeline, validatePipeline,
   ALIAS_MAP, resolveAlias, resolvePipeline, assembleContract, normalizeFindings,
-  validateManifest`) is UNCHANGED by every slice. No slice adds, removes, or re-signs an export.
+  validateManifest`) is UNCHANGED by every part. No part adds, removes, or re-signs an export.
 - SC1 (no-manifest resolution) stays byte-identical; all scenario goldens (S1..S9, SC1/SC3,
   S-lean/full/reorder, S-harness-*, contract-equivalence) stay green.
 - CI = `bash scripts/ci.sh`; never `--no-verify`; never commit on a red gate.
 - **Count-assert maintenance (ADR-046):** `scripts/ci.sh` holds `EXPECTED_TESTS` and asserts
-  the `node --test` runner's `# tests <N>` line equals it. **Baseline = 409.** Every slice that
+  the `node --test` runner's `# tests <N>` line equals it. **Baseline = 409.** Every part that
   adds/removes node `.test.js` cases bumps `EXPECTED_TESTS` IN THE SAME COMMIT so CI is green at
   every commit. bats tests do NOT count toward `EXPECTED_TESTS` (separate runner). Running tally:
   s-glob establishes 409 → s-roleexists 412 → s-stryker 414 → s-asm-parse 416.
 
-### Dependency order (honoured by the slice numbering below)
+### Dependency order (honoured by the part numbering below)
 
 1. **s-glob first** — settles the `node --test 'test/**/*.test.js'` glob shape that s-stryker's
    `stryker.conf.json` `tap.testFiles` reuses, and stands up the `EXPECTED_TESTS=409` gate.
@@ -43,15 +43,15 @@
 3. **s-roleexists before the mutation run** — its bin probe + ADV-1 (in s-stryker) are what the
    on-demand `npm run mutation` confirms kill; wire the live seam, then add the config that
    measures it.
-4. **s-asm-parse + the 4 prose slices** are independent and land after the tooling spine.
+4. **s-asm-parse + the 4 prose parts** are independent and land after the tooling spine.
 
 ---
 
-## Slice 1 — s-glob: explicit `.test.js` glob + count-assert gate
+## Part 1 — s-glob: explicit `.test.js` glob + count-assert gate
 
 ### Context
 
-**Shape:** TDD / slice-implementer — but the "test" here is CI self-proof (the gate IS the
+**Shape:** TDD / part-implementer — but the "test" here is CI self-proof (the gate IS the
 behaviour). No new `.test.js` file; the RED is a deliberate scratch non-test `.js` proven excluded,
 then the count-assert pinned at the current baseline.
 
@@ -72,7 +72,7 @@ Two changes, both in `ci.sh`:
 
 ### TDD steps
 
-- **RED (manual scratch proof, NOT committed):** during the slice, create a throwaway non-test file `engine/test/zz-scratch.js` containing a bare `console.log`/no `test()` call. Confirm bare `node --test` would auto-run it (the phantom) while `node --test 'test/**/*.test.js'` excludes it (count stays 409). Delete the scratch file before committing — it must never be staged.
+- **RED (manual scratch proof, NOT committed):** during the part, create a throwaway non-test file `engine/test/zz-scratch.js` containing a bare `console.log`/no `test()` call. Confirm bare `node --test` would auto-run it (the phantom) while `node --test 'test/**/*.test.js'` excludes it (count stays 409). Delete the scratch file before committing — it must never be staged.
 - **RED (count-assert):** temporarily set `EXPECTED_TESTS=408` and run `bash scripts/ci.sh` → it must FAIL with `test count drift — expected 408, got 409`, proving the gate fires on drift. Reset to 409.
 - **GREEN:** with the glob in both files and `EXPECTED_TESTS=409`, `bash scripts/ci.sh` passes (409 discovered, count matches, all downstream steps green).
 - **REFACTOR:** ensure the count parse is a single named step with a clear failure message; no duplicated `node --test` invocation (run once, reuse the captured output).
@@ -93,11 +93,11 @@ ci: explicit node --test glob and EXPECTED_TESTS count-assert gate
 
 ---
 
-## Slice 2 — s-worktree: nested-lockfile probe + bats net
+## Part 2 — s-worktree: nested-lockfile probe + bats net
 
 ### Context
 
-**Shape:** test-infra-adjacent but with a real `scripts/` behaviour change — TDD / slice-implementer (bats RED→GREEN). Lands BEFORE s-stryker so the `engine/package-lock.json` that slice creates is already handled.
+**Shape:** test-infra-adjacent but with a real `scripts/` behaviour change — TDD / part-implementer (bats RED→GREEN). Lands BEFORE s-stryker so the `engine/package-lock.json` that part creates is already handled.
 
 **Items:** item 4 (ADR-047, DC-4 = one-level-deep fallback scan).
 
@@ -132,7 +132,7 @@ Add a **bounded one-level-deep fallback** that fires ONLY when the root probe fo
 ```
 Note: `npm ci` in a bare `touch`ed (empty) lockfile dir will fail and fall back to `npm install`; with no `package.json` `npm install` succeeds (creates none) and exits 0 — assert on the install-reported message, not on installed packages. The existing no-lockfile test (`:27`) and the two teardown tests (`:52,:70,:87`) stay green.
 
-**Surface:** no engine touch; bats only (NOT counted in `EXPECTED_TESTS` — separate runner). No `EXPECTED_TESTS` bump this slice.
+**Surface:** no engine touch; bats only (NOT counted in `EXPECTED_TESTS` — separate runner). No `EXPECTED_TESTS` bump this part.
 
 ### TDD steps
 
@@ -156,11 +156,11 @@ fix(worktree): probe one level deep for a nested lockfile (engine/package-lock.j
 
 ---
 
-## Slice 3 — s-roleexists: bin wires a real `roleExists` predicate
+## Part 3 — s-roleexists: bin wires a real `roleExists` predicate
 
 ### Context
 
-**Shape:** TDD / slice-implementer.
+**Shape:** TDD / part-implementer.
 
 **Items:** item 1 (ADR-047, DC-1a bin-only, DC-1b derive-from-bin-location, DC-1c filesystem-existence).
 
@@ -184,7 +184,7 @@ calling 2-arg.
   const roleExists = ref =>
     !ref.startsWith('craft:') || existsSync(join(REPO_ROOT, 'agents', ref.slice(6) + '.md'));
   ```
-  Rationale pinned in the design: `'craft:'.length === 6`; a craft-native `craft:<role>` resolves IFF `agents/<role>.md` exists at the plugin root (`<root>/agents/`, two levels up from `engine/bin/`); any non-`craft:` (external `my:`/`acme:`) ref STAYS PERMISSIVE (returns `true`) — external-ref "installed" is P14 territory (out of scope). The 8 craft agents: backlog-ticker, designer, docs-writer, planner, refactor-executor, reviewer, slice-implementer, validation-triager.
+  Rationale pinned in the design: `'craft:'.length === 6`; a craft-native `craft:<role>` resolves IFF `agents/<role>.md` exists at the plugin root (`<root>/agents/`, two levels up from `engine/bin/`); any non-`craft:` (external `my:`/`acme:`) ref STAYS PERMISSIVE (returns `true`) — external-ref "installed" is P14 territory (out of scope). The 8 craft agents: backlog-ticker, designer, docs-writer, planner, refactor-executor, reviewer, part-implementer, validation-triager.
 - At `:81`, change `resolution = resolvePipeline(defaults, effectiveManifest);` → `resolution = resolvePipeline(defaults, effectiveManifest, { roleExists });`.
 - No walk edit (DC-1a): `run/SKILL.md:186` already routes role-not-found through the existing `ok:false` row. No other bin change.
 
@@ -223,11 +223,11 @@ feat(pipeline-resolve): wire a real roleExists install-probe into the bin
 
 ---
 
-## Slice 4 — s-stryker: Stryker tooling + 3 ADV tests + empty-`procedure` lint guard
+## Part 4 — s-stryker: Stryker tooling + 3 ADV tests + empty-`procedure` lint guard
 
 ### Context
 
-**Shape:** test-infra (Stryker config + deps + ADV suites) carrying ONE real `src` change (ADV-3). ADR-044 exemption applies to the tooling; the `src` guard makes it a legitimate TDD slice regardless. Lands AFTER s-glob (reuses its glob) and s-worktree (its `engine/package-lock.json` is the nested lockfile that probe now handles).
+**Shape:** test-infra (Stryker config + deps + ADV suites) carrying ONE real `src` change (ADV-3). ADR-044 exemption applies to the tooling; the `src` guard makes it a legitimate TDD part regardless. Lands AFTER s-glob (reuses its glob) and s-worktree (its `engine/package-lock.json` is the nested lockfile that probe now handles).
 
 **Items:** item 2 (ADRs 047/042; DC-2a `core@8.7.1`, DC-2b `tap-runner@8.7.1`, DC-2c on-demand script, DC-2d=ADR-042 reject empty `procedure` at lint).
 
@@ -244,7 +244,7 @@ feat(pipeline-resolve): wire a real roleExists install-probe into the bin
 ```
 `tap.testFiles` REUSES s-glob's `test/**/*.test.js` glob verbatim. `mutate` is `src/**/*.js` only (bins/tests/helpers excluded). `concurrency` modest. No source change from the config itself.
 
-**File 3 — `engine/src/manifest.js` (ADV-3, the ONLY `src` change in this slice):** the shape-check ladder at `:259–273` in `validatePhaseBlock` has, at `:267–268`:
+**File 3 — `engine/src/manifest.js` (ADV-3, the ONLY `src` change in this part):** the shape-check ladder at `:259–273` in `validatePhaseBlock` has, at `:267–268`:
 ```js
     } else if (field === 'procedure' && typeof value !== 'string') {
       errors.push(`phases.${phaseName}.procedure must be a string`);
@@ -294,13 +294,13 @@ test(engine): stand up Stryker (8.7.1 + tap-runner), ADV-1/2/3, and reject empty
 
 ---
 
-## Slice 5 — s-asm-parse: contract-assemble adopts `parseManifestContent`
+## Part 5 — s-asm-parse: contract-assemble adopts `parseManifestContent`
 
 ### Context
 
-**Shape:** TDD / slice-implementer. Independent of every other slice (no shared anchor); lands here after the tooling spine.
+**Shape:** TDD / part-implementer. Independent of every other part (no shared anchor); lands here after the tooling spine.
 
-**Items:** item 9 (ADR-047, DC-9 adopt the shared helper). Item 10 is DROPPED (ADR-045) — NO alias slice.
+**Items:** item 9 (ADR-047, DC-9 adopt the shared helper). Item 10 is DROPPED (ADR-045) — NO alias part.
 
 **The bug (pinned):** `engine/bin/contract-assemble.js:95` does `load(readFileSync(args.manifestPath, 'utf8')) ?? {}` on the ENTIRE `.claude/workflow.md` (frontmatter + markdown body). js-yaml throws on any real fenced manifest (a `---` thematic break → `expected a single document in the stream, but found more`; the `with-body.md` fixture → `can not read a block mapping entry…`). The other two bins go through the shared `engine/src/frontmatter.js#parseManifestContent` (`pipeline-resolve.js:6,70`; `manifest-lint.js` via `extractFrontmatter`). `contract-assemble.js` (oldest bin) never adopted it.
 
@@ -357,11 +357,11 @@ fix(contract-assemble): parse manifest frontmatter via parseManifestContent (dro
 
 ---
 
-## Slice 6 — s-decisions: cross-candidate interaction prompt (prose)
+## Part 6 — s-decisions: cross-candidate interaction prompt (prose)
 
 ### Context
 
-**Shape:** prose-only (ADR-044 carve-out — no implementation slice to fold into). No RED/GREEN; the gate is `bash scripts/ci.sh` + consistency review.
+**Shape:** prose-only (ADR-044 carve-out — no implementation part to fold into). No RED/GREEN; the gate is `bash scripts/ci.sh` + consistency review.
 
 **Items:** item 6 (ADR-047, DC-6 = new step 2.5 between ratify and ADR-author).
 
@@ -398,7 +398,7 @@ docs(decisions): add a cross-candidate interaction check before ADR authoring
 
 ---
 
-## Slice 7 — s-echo: trim step 0a brief echo (prose)
+## Part 7 — s-echo: trim step 0a brief echo (prose)
 
 ### Context
 
@@ -434,17 +434,17 @@ docs(run): trim step 0a brief echo to a single canonical Input reference
 
 ---
 
-## Slice 8 — s-cadence: document canonical review cadence (prose/doc)
+## Part 8 — s-cadence: document canonical review cadence (prose/doc)
 
 ### Context
 
 **Shape:** prose/doc-only (ADR-044 carve-out). No RED/GREEN; gate is `bash scripts/ci.sh` + consistency.
 
-**Items:** item 8 (ADR-043, DC-8 = single `review` phase is canonical; per-slice interleave is a documented session working-style; cross-link the Parked-from-P8 walk/parallelism pass).
+**Items:** item 8 (ADR-043, DC-8 = single `review` phase is canonical; per-part interleave is a documented session working-style; cross-link the Parked-from-P8 walk/parallelism pass).
 
-**File 1 — `skills/run/SKILL.md`:** add a short note (near the orchestration/working-style prose) stating that the ENGINE cadence is the single `review` phase over the whole change (per-dimension convergence — `review/SKILL.md:21,34–35`), and that the per-slice "4-dimension review after each code slice" is a SESSION working-style/discipline, not an engine invariant; cross-link the later walk/parallelism pass as the home for a future per-slice cadence knob (`passes>1` / numeric-convergence parallelism, Parked from P8). Phrase abstractly — no ADR/phase numbers in the shipped prose; refer to "the walk/parallelism pass" by name, not by number.
+**File 1 — `skills/run/SKILL.md`:** add a short note (near the orchestration/working-style prose) stating that the ENGINE cadence is the single `review` phase over the whole change (per-dimension convergence — `review/SKILL.md:21,34–35`), and that the per-part "4-dimension review after each code part" is a SESSION working-style/discipline, not an engine invariant; cross-link the later walk/parallelism pass as the home for a future per-part cadence knob (`passes>1` / numeric-convergence parallelism, Parked from P8). Phrase abstractly — no ADR/phase numbers in the shipped prose; refer to "the walk/parallelism pass" by name, not by number.
 
-**File 2 — `BACKLOG.md`:** the cadence item lives at `:278–281` ("**Review cadence — per-slice vs single phase.**"); the cross-link target is the Parked-from-P8 entry at `:228` ("Would harden in a later walk/parallelism pass"); the working-style note is at `:289–293`. Record the DECISION on the `:278–281` item: mark it resolved (the canonical cadence = single `review` phase; per-slice interleave = documented session working-style; per-slice knob deferred to the walk/parallelism pass), cross-linking `:228`. Tick the checkbox `- [ ]` → `- [x]` for that item if the house convention ticks resolved-and-documented items (verify against the file's existing tick style; the docs phase's backlog-ticker normally owns the tick — here the decision is the deliverable, so record the resolution text and leave the formal tick to the docs phase if that is the repo convention).
+**File 2 — `BACKLOG.md`:** the cadence item lives at `:278–281` ("**Review cadence — per-part vs single phase.**"); the cross-link target is the Parked-from-P8 entry at `:228` ("Would harden in a later walk/parallelism pass"); the working-style note is at `:289–293`. Record the DECISION on the `:278–281` item: mark it resolved (the canonical cadence = single `review` phase; per-part interleave = documented session working-style; per-part knob deferred to the walk/parallelism pass), cross-linking `:228`. Tick the checkbox `- [ ]` → `- [x]` for that item if the house convention ticks resolved-and-documented items (verify against the file's existing tick style; the docs phase's backlog-ticker normally owns the tick — here the decision is the deliverable, so record the resolution text and leave the formal tick to the docs phase if that is the repo convention).
 
 **Surface:** pure prose/doc; no engine/data/lint touch; no `EXPECTED_TESTS` change.
 
@@ -463,33 +463,33 @@ Green (doc-only; `# tests` unchanged at 416).
 ### Commit
 
 ```
-docs(run): document single-phase review as canonical, per-slice as a session working-style
+docs(run): document single-phase review as canonical, per-part as a session working-style
 ```
 
 ---
 
-## Slice 9 — s-planner-heuristic: test-infra/docs-only carve-out (prose)
+## Part 9 — s-planner-heuristic: test-infra/docs-only carve-out (prose)
 
 ### Context
 
-**Shape:** prose-only (ADR-044 carve-out). Independent of every other slice — gates nothing, nothing gates it. No RED/GREEN; gate is `bash scripts/ci.sh` + consistency.
+**Shape:** prose-only (ADR-044 carve-out). Independent of every other part — gates nothing, nothing gates it. No RED/GREEN; gate is `bash scripts/ci.sh` + consistency.
 
 **Items:** item 11 (ADR-044, DC-11 = prose carve-out; the live planner contract this batch's own planning had to override — item 11 writes the exemption down).
 
 **File 1 — `agents/planner.md:18`** (the Sizing bullet): current text —
-> "- Sizing: no standalone test-only slices (fold tests into the slice whose code they exercise); a slice must earn its agent lifecycle; sequential slices share one working tree and build on each other."
+> "- Sizing: no standalone test-only parts (fold tests into the part whose code they exercise); a part must earn its agent lifecycle; sequential parts share one working tree and build on each other."
 
-Add an exemption clause keeping the FEATURE-code rule intact, e.g. append: "— EXCEPT test-infra-only and docs-only slices (tooling config, test helpers, fixtures, ADV/property suites with no `src/` delta), which are legitimately test-only and have no implementation slice to fold into."
+Add an exemption clause keeping the FEATURE-code rule intact, e.g. append: "— EXCEPT test-infra-only and docs-only parts (tooling config, test helpers, fixtures, ADV/property suites with no `src/` delta), which are legitimately test-only and have no implementation part to fold into."
 
 **File 2 — `templates/plan.md:10–14`** (the `## Sizing rules` bullets): current —
-> "- ... No standalone test-only slices: coverage/interop/property tests fold into the implementation slice whose code they exercise.
-> - A slice that would be a pure test pass over already-landed code merges into its neighbour."
+> "- ... No standalone test-only parts: coverage/interop/property tests fold into the implementation part whose code they exercise.
+> - A part that would be a pure test pass over already-landed code merges into its neighbour."
 
-Add a third bullet (or a clause on the first) carving out test-infra/docs-only slices, mirroring the `agents/planner.md` wording: "- Test-infra-only and docs-only slices (tooling config, test helpers, fixtures, docs/prose) are EXEMPT from the no-test-only rule — they have no implementation slice to fold into." Keep the FEATURE-code rule and the merge-into-neighbour rule intact.
+Add a third bullet (or a clause on the first) carving out test-infra/docs-only parts, mirroring the `agents/planner.md` wording: "- Test-infra-only and docs-only parts (tooling config, test helpers, fixtures, docs/prose) are EXEMPT from the no-test-only rule — they have no implementation part to fold into." Keep the FEATURE-code rule and the merge-into-neighbour rule intact.
 
 DC-11 chose (a) prose; NO `### Kind:` schema flag, NO `plan-lint.sh` branch (those are DC-11 alt (b), rejected). So `scripts/plan-lint.sh` is UNCHANGED.
 
-**Surface:** pure prose; no engine/schema/lint touch; no `EXPECTED_TESTS` change. (Self-note: THIS plan already applies the carve-out — its prose slices ship as test/doc-only per ADR-044; s-planner-heuristic makes that exemption part of the standing contract.)
+**Surface:** pure prose; no engine/schema/lint touch; no `EXPECTED_TESTS` change. (Self-note: THIS plan already applies the carve-out — its prose parts ship as test/doc-only per ADR-044; s-planner-heuristic makes that exemption part of the standing contract.)
 
 ### TDD steps
 
@@ -506,5 +506,5 @@ Green (prose-only; `plan-lint.sh` schema unchanged; `# tests` unchanged at 416).
 ### Commit
 
 ```
-docs(planner): carve out test-infra and docs-only slices from the no-test-only rule
+docs(planner): carve out test-infra and docs-only parts from the no-test-only rule
 ```

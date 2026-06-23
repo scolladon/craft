@@ -50,10 +50,10 @@ Each item's BACKLOG anchor was verified against source before designing:
 | 5 | `node --test` discovery | `engine/package.json:9` + `scripts/ci.sh:10` both `(cd engine && node --test)` (bare). All 18 files under `engine/test/` end `.test.js`; helpers live OUTSIDE in `engine/test-helpers/`. No count-assert gate exists. | Empirically pinned (Node v22.22.3): bare `node --test` auto-runs every `.js`; `node --test 'test/**/*.test.js'` excludes non-`.test.js`; `node --test test/` treats the dir as a file and **fails** (1 test, 1 fail) — the "405 vs 1" footgun. |
 | 6 | decisions cross-candidate prompt | `skills/decisions/SKILL.md:14–26` — the Procedure has no step prompting an interaction check before authoring ADRs. The P9 DC-D voided DC-A's rationale (caught manually). | Pure-prose insertion; no engine touch. |
 | 7 | step 0a brief echo | `skills/run/SKILL.md:15` (`Input: $ARGUMENTS`), `:19` ("Parse craft flags from `$ARGUMENTS`"), `:23` ("a flags-only `$ARGUMENTS`") — the rendered brief inlines `$ARGUMENTS` 3×. | Pure prose; behaviour identical. |
-| 8 | review cadence | `skills/review/SKILL.md:21,34–35` = a single `review` phase over the whole change (per-dimension convergence). The per-slice "4-dimension review after every code slice" working style lives only in `BACKLOG.md:289–293` (Notes/Working style) and `:278–281` (the item). Cross-link target: `BACKLOG.md:228` "later walk/parallelism pass" (Parked from P8). | A process/doc decision; nothing in the skills states the canonical cadence. |
+| 8 | review cadence | `skills/review/SKILL.md:21,34–35` = a single `review` phase over the whole change (per-dimension convergence). The per-part "4-dimension review after every code part" working style lives only in `BACKLOG.md:289–293` (Notes/Working style) and `:278–281` (the item). Cross-link target: `BACKLOG.md:228` "later walk/parallelism pass" (Parked from P8). | A process/doc decision; nothing in the skills states the canonical cadence. |
 | 9 | contract-assemble parses WHOLE manifest as YAML | `engine/bin/contract-assemble.js:95` does `load(readFileSync(args.manifestPath, 'utf8')) ?? {}` on the entire `.claude/workflow.md` (frontmatter **+** markdown body). The shared `engine/src/frontmatter.js#parseManifestContent` (extracts ONLY the fence) is imported by the *other two* bins — `pipeline-resolve.js:6,70` and (`extractFrontmatter`) `manifest-lint.js:6,68` — but NOT by this one (the oldest bin). | **Empirically pinned (mktemp, Node v22.22.3):** raw `load()` on a fenced manifest whose body holds a `---` thematic break throws `expected a single document in the stream, but found more` (sibling of the BACKLOG-quoted "…or a document separator is expected"; both from js-yaml's multi-document path). `parseManifestContent` on the same file returns the frontmatter object clean. ⇒ `--manifest` is **dead** on every real fenced manifest → global **and** per-phase `context:` injection is dead whenever a manifest exists. The P9 run dodged it: the craft repo has no manifest, so the orchestrator called `contract-assemble` WITHOUT `--manifest`. **Why it survived the suite:** the fixture `test/fixtures/manifests/with-body.md` (fenced, real markdown body) EXISTS but `contract-assemble.test.js` only exercises `--manifest` on the flag-without-value error path (`:129`) — it never assembles a contract from a fenced manifest, so the happy-path throw was never asserted. (Pinned: that very fixture throws `can not read a block mapping entry…(13:9)` under today's raw load.) |
 | 10 | ~~assembleContract aliasing~~ **(DROPPED — ADR-045; evidence retained)** | `engine/src/contract.js:108` looks up `manifest?.phases?.[descriptor.id]?.context` by the **canonical** `descriptor.id` with NO `resolveAlias`. But `resolve.js:30` (`aliasResolve`, the `Object.fromEntries(Object.entries(manifest.phases).map(([k,v]) => [resolveAlias(k), v]))` idiom) AND `manifest.js:284` (`!PHASE_NAMES.has(resolveAlias(phaseName))`) BOTH alias forge-era keys. `resolveAlias` lives in `engine/src/alias-map.js:29` (already barrel-exported alongside `ALIAS_MAP`). | **Empirically pinned (engine cwd):** a manifest keyed `phases.plan` (forge-era alias of `planning`) binds per-phase `context:` → `false` today; aliasing the manifest's phases keys before lookup → `true`; a **canonical** `phases.planning` key → STILL `true` after the fix (`resolveAlias` returns canonical keys unchanged → existing canonical-key callers unperturbed). #9 hides #10: you can't reach the lookup until parsing works. |
-| 11 | "no test-only slices" heuristic vs a legit test-only entry | `agents/planner.md:18` ("Sizing: **no standalone test-only slices** (fold tests into the slice whose code they exercise)…") + `templates/plan.md:11–14` ("No standalone test-only slices: coverage/interop/property tests fold into the implementation slice…"). | Sound default for FEATURE code, but a **test-infra/docs-only** change (this batch's own Stryker config + ADV tests, or pure test-helper work) is legitimately test-only with no `src/`. In the separate run the orchestrator had to explicitly OVERRIDE the heuristic — friction the heuristic should absorb itself. |
+| 11 | "no test-only parts" heuristic vs a legit test-only entry | `agents/planner.md:18` ("Sizing: **no standalone test-only parts** (fold tests into the part whose code they exercise)…") + `templates/plan.md:11–14` ("No standalone test-only parts: coverage/interop/property tests fold into the implementation part…"). | Sound default for FEATURE code, but a **test-infra/docs-only** change (this batch's own Stryker config + ADV tests, or pure test-helper work) is legitimately test-only with no `src/`. In the separate run the orchestrator had to explicitly OVERRIDE the heuristic — friction the heuristic should absorb itself. |
 
 ### Empirically pinned external matrix (Stryker — item 2)
 
@@ -113,11 +113,11 @@ What must be true when this batch ships (verifiable, not aspirational). Grouped 
 | R8 | `ci.sh` + `engine/package.json` discover exactly the intended `.test.js` set (no phantom non-test `.js`); a count drift or a non-test `.js` cannot silently pass. | 5 |
 | R9 | The `decisions` skill prompts the session to check ratified choices for cross-candidate interaction BEFORE authoring ADRs. | 6 |
 | R10 | `run/SKILL.md` step 0a references the input once; behaviour identical. | 7 |
-| R11 | The canonical review cadence (per-slice vs single phase) is decided and documented in a single named home, cross-linked to the Parked-from-P8 walk/parallelism pass. | 8 |
+| R11 | The canonical review cadence (per-part vs single phase) is decided and documented in a single named home, cross-linked to the Parked-from-P8 walk/parallelism pass. | 8 |
 | R12 | Surface gate held: 7-export surface unchanged; SC1 byte-identical; all scenario goldens + 42 bats green at every commit; new tooling deps added with a lockfile; never `--no-verify`. | all |
 | R13 | `contract-assemble.js --manifest <fenced .claude/workflow.md>` parses the frontmatter ONLY (markdown body, incl. a `---` thematic break, never reaches the YAML parser) and injects global + per-phase `context:`; a fence-less fixture still parses whole; a no-`--manifest` call is byte-identical to today. | 9 |
 | ~~R14~~ | **DROPPED (ADR-045)** — no `assembleContract` forge-era aliasing; the assembler stays canonical-only. Item 9's parse fix is unaffected. | 10 |
-| R15 | The planner heuristic RECOGNIZES test-infra/docs-only changes as a legitimate exemption from the no-standalone-test-only rule (no orchestrator override needed); FEATURE-code test-only slices stay forbidden. | 11 |
+| R15 | The planner heuristic RECOGNIZES test-infra/docs-only changes as a legitimate exemption from the no-standalone-test-only rule (no orchestrator override needed); FEATURE-code test-only parts stay forbidden. | 11 |
 
 ## Design
 
@@ -130,7 +130,7 @@ gap is that `pipeline-resolve.js:81` calls 2-arg. The design: the bin constructs
 **The predicate's contract (the disambiguator).** A `role` ref resolves IFF:
 - it is a **craft-native** ref (`craft:<role>`) AND `agents/<role>.md` exists in the plugin root
   (the 8 agents: backlog-ticker, designer, docs-writer, planner, refactor-executor, reviewer,
-  slice-implementer, validation-triager); OR
+  part-implementer, validation-triager); OR
 - it is an **external** ref (any non-`craft:` namespace, e.g. `my:`/`acme:`) — STAYS PERMISSIVE
   ("installed" is P14 registration territory; ADR-037 punts it to the caller). The probe returns
   `true` for external refs.
@@ -243,7 +243,7 @@ probe one level deep as a fallback, OR take a configurable deps path. Two shapes
 - **(b) Configurable deps path:** a 3rd positional arg / env (`CRAFT_DEPS_DIR`) the caller sets;
   explicit, no scan. Needs the walk/manifest to supply it.
 
-Either stays shellcheck-clean (the existing `set -euo pipefail` + the slice-2 bats net in `test/`
+Either stays shellcheck-clean (the existing `set -euo pipefail` + the part-2 bats net in `test/`
 guards it). **R7 net:** extend `test/worktree.bats` with a nested-lockfile fixture
 (`mk_worktree` + `mkdir engine && touch engine/package-lock.json`, assert the install path reports
 the nested dir). The existing no-lockfile test (`:27`) stays green.
@@ -262,12 +262,12 @@ Pinned behaviour (above): bare `node --test` auto-runs non-test `.js` (the phant
   discovered test count equals an expected pinned number, catching silent count *drift* (not just a
   phantom file). **Mechanism (pre-chewed for the plan):** after `node --test 'test/**/*.test.js'`,
   parse the runner's `# tests <N>` summary line and compare to an expected count held as a single
-  constant (e.g. an `EXPECTED_TESTS` var in `scripts/ci.sh`). Every slice that adds/removes tests
+  constant (e.g. an `EXPECTED_TESTS` var in `scripts/ci.sh`). Every part that adds/removes tests
   bumps that number IN THE SAME COMMIT, so CI stays green at every commit; the expected count lands
-  at its FINAL post-batch value as the last test-changing slice settles.
+  at its FINAL post-batch value as the last test-changing part settles.
 
 The glob closes the phantom-file footgun (the P9 409→410 drift root cause); the count-assert adds
-drift detection at the per-slice maintenance cost the user accepted (ADR-046).
+drift detection at the per-part maintenance cost the user accepted (ADR-046).
 
 ### Item 6 — decisions cross-candidate interaction prompt
 
@@ -288,16 +288,16 @@ keeper, since that is a one-line judgment).
 
 ### Item 8 — review cadence (canonical decision + home)
 
-The skills describe a single `review` phase (`review/SKILL.md:21,34–35`); the per-slice
-"4-dimension review after every code slice" working style lives only in `BACKLOG.md`. The design
+The skills describe a single `review` phase (`review/SKILL.md:21,34–35`); the per-part
+"4-dimension review after every code part" working style lives only in `BACKLOG.md`. The design
 DECIDES the canonical cadence and DOCUMENTS it in one named home, cross-linked to the
 Parked-from-P8 walk/parallelism pass (`BACKLOG.md:228`). Three homes/shapes (DC-8):
 
-- **(a) Single phase is canonical; per-slice is a working-style note** — document in `run/SKILL.md`
-  that the engine cadence is the single `review` phase; the per-slice interleave is a session
+- **(a) Single phase is canonical; per-part is a working-style note** — document in `run/SKILL.md`
+  that the engine cadence is the single `review` phase; the per-part interleave is a session
   discipline, not an engine invariant (cross-link the P8 parallelism pass for a future knob).
-- **(b) Model per-slice as a harness/run knob** — a `run`/harness knob (`review.cadence:
-  per-slice|phase`) the walk honors; bigger surface (engine + data + walk), defers to the
+- **(b) Model per-part as a harness/run knob** — a `run`/harness knob (`review.cadence:
+  per-part|phase`) the walk honors; bigger surface (engine + data + walk), defers to the
   parallelism pass.
 - **(c) BACKLOG-note only** — record the decision in BACKLOG, no skill change.
 
@@ -394,20 +394,20 @@ silent consistent aliasing alone.
 
 ### Item 11 — planner heuristic vs a legitimately test-only entry
 
-`agents/planner.md:18` + `templates/plan.md:11–14` forbid standalone test-only slices — a sound
-default for FEATURE code (a test with no production code is usually a missing slice). But a
+`agents/planner.md:18` + `templates/plan.md:11–14` forbid standalone test-only parts — a sound
+default for FEATURE code (a test with no production code is usually a missing part). But a
 **test-infra/docs-only** change (this batch's own Stryker config + ADV tests; pure test-helper work;
 a docs-only refresh) is legitimately test-only with no `src/` touch, and in the separate run the
 orchestrator had to explicitly OVERRIDE the heuristic. The refinement: let the heuristic RECOGNIZE
 test-infra/docs-only changes so no override is needed. Three shapes (DC-11):
 
 - **(a) Prose carve-out** in `agents/planner.md:18` + `templates/plan.md:11–14`: the rule keeps
-  "no standalone test-only slices for FEATURE code" and adds "test-infra-only and docs-only slices
+  "no standalone test-only parts for FEATURE code" and adds "test-infra-only and docs-only parts
   (tooling config, test helpers, fixtures, ADV/property suites with no `src/` delta) ARE exempt —
-  they have no implementation slice to fold into." Pure prose; no schema/lint change; mirrors how
+  they have no implementation part to fold into." Pure prose; no schema/lint change; mirrors how
   the other planner sizing rules live as prose.
-- **(b) Structured slice-kind/archetype flag** the plan template carries (e.g. `### Kind:
-  feature|test-infra|docs` per slice; `plan-lint.sh` exempts non-`feature` kinds from the
+- **(b) Structured part-kind/archetype flag** the plan template carries (e.g. `### Kind:
+  feature|test-infra|docs` per part; `plan-lint.sh` exempts non-`feature` kinds from the
   no-test-only check). Adds template schema + a lint branch — bigger surface.
 - **(c) Leave as-is** — orchestrator overrides per run (the status quo friction).
 
@@ -439,7 +439,7 @@ no engine). The plan template's own `## Sizing rules` is the natural home for th
 - **Item 9 stands alone (item 10 DROPPED — ADR-045).** s-asm-parse touches only
   `contract-assemble.js`'s body (adopt `parseManifestContent`), changes no exported signature, and is
   independent of items 1–8 and 11. It is test-pinned by a fenced-manifest bin test. The former
-  item-10 alias slice is dropped; nothing now depends on it.
+  item-10 alias part is dropped; nothing now depends on it.
 - **Item 11 is independent prose** (`agents/planner.md` + `templates/plan.md`) of every other item;
   it gates nothing and nothing gates it. Land any time.
 
@@ -469,13 +469,13 @@ single-tenant + migrated, behaves as if it always existed). **DC-3a → (a) walk
 | **DC-3b** ✅ CLOSED (user-decided) | Re-evaluate the fable pins on designer/planner/reviewer | — | **RESOLVED: replace fable→opus.** designer/planner/reviewer now pin `model: opus` (`agents/{designer,planner,reviewer}.md:4`, commit `4b8f75a`). NOT "keep fable + fallback". | The user retired the unavailable fable pin directly in the live plugin; no intermittent-Fable pin remains to dead-spawn. DC-3a (default fallback) STAYS OPEN as the standing model-down mitigation. |
 | **DC-4** | worktree-setup.sh nested-lockfile probe shape | (a) Fixed one-level-deep fallback scan after the root miss. (b) Configurable deps path (3rd arg / `CRAFT_DEPS_DIR`). (c) Both — scan, with the env as an override. | **(a) One-level-deep fallback.** Zero-config, covers `engine/package-lock.json`, bounded to one level (KISS); no walk/manifest plumbing. | The pain is purely "lockfile in a subdir"; a bounded one-level scan fixes it with no new config surface. |
 | **DC-5a** | node --test discovery fix | (a) Explicit glob `node --test 'test/**/*.test.js'` in `ci.sh` + `engine/package.json`. (b) A count-assert gate only. (c) Both glob + count-assert. | **(a) Glob.** Structurally excludes non-`.test.js` (the phantom root cause); confirmed working under Node v22. | The glob fixes the actual footgun (phantom file); a count-assert alone still runs the phantom. |
-| **DC-5b** | Add a test-count-assert gate (drift detection) | (a) No — glob suffices. (b) Yes — assert the discovered count == an expected number. | **(a) No.** The glob removes the phantom; a count-assert adds per-slice maintenance (update the number every slice). | Drift from legitimate new tests is normal and noisy to gate; the phantom (the real bug) is already closed by the glob. |
+| **DC-5b** | Add a test-count-assert gate (drift detection) | (a) No — glob suffices. (b) Yes — assert the discovered count == an expected number. | **(a) No.** The glob removes the phantom; a count-assert adds per-part maintenance (update the number every part). | Drift from legitimate new tests is normal and noisy to gate; the phantom (the real bug) is already closed by the glob. |
 | **DC-6** | Placement of the decisions cross-candidate interaction prompt | (a) New step 2.5 between ratify and ADR-author. (b) Fold into the existing scope-fold rule (step 3). | **(a) New step 2.5.** Interaction-check must happen BEFORE authoring (the P9 lesson); the scope-fold rule fires AFTER a deviation, too late. | The voided-rationale case (DC-D voids DC-A) must be caught before ADRs are written, not after. |
 | **DC-7** | Which `$ARGUMENTS` reference is the canonical keeper in run/SKILL.md | (a) Keep the `Input:` line (`:15`); make step 0a reference "the input". (b) Keep step 0a's first mention; drop the `Input:` line. | **(a) Keep `Input:` line.** It is the documented argument-hint echo; step 0a then refers to "the input" abstractly. | The `Input:` line pairs with the frontmatter `argument-hint`; step 0a's job is flag-parsing, not echoing. |
-| **DC-8** | Canonical review cadence + its documentation home | (a) Single `review` phase is canonical; per-slice is a documented session working-style (home: `run/SKILL.md`, cross-link P8 parallelism pass). (b) Model per-slice as a `run`/harness knob (engine + data + walk). (c) BACKLOG-note only. | **(a) Single phase canonical + working-style note.** No code behaviour change; honest about the engine cadence; defers the per-slice knob to the named parallelism pass. | The engine's cadence IS the single phase; the per-slice interleave is a discipline. Modeling it as a knob (b) is the parallelism pass's job, not this batch's. |
+| **DC-8** | Canonical review cadence + its documentation home | (a) Single `review` phase is canonical; per-part is a documented session working-style (home: `run/SKILL.md`, cross-link P8 parallelism pass). (b) Model per-part as a `run`/harness knob (engine + data + walk). (c) BACKLOG-note only. | **(a) Single phase canonical + working-style note.** No code behaviour change; honest about the engine cadence; defers the per-part knob to the named parallelism pass. | The engine's cadence IS the single phase; the per-part interleave is a discipline. Modeling it as a knob (b) is the parallelism pass's job, not this batch's. |
 | **DC-9** | How `contract-assemble.js` parses the manifest | (a) Adopt the shared `parseManifestContent` from `frontmatter.js` (mirror `pipeline-resolve.js:70` exactly; drop the `js-yaml` `load` import). (b) Inline a one-off fence-strip in the bin (no shared helper). | **(a) Adopt `parseManifestContent`.** Single home, identical to the other two bins; the bug is precisely that this bin diverged from the shared helper. | DRY + house "single home both bins share" (frontmatter.js docstring); inlining re-introduces the divergence that caused the bug. |
 | **DC-10** | Where the per-phase `resolveAlias` normalization lives + whether to add a migration warn-lint | (a) Normalize inside `assembleContract`'s body (reuse the `resolve.js:30` idiom); aliasing alone closes the binding bug. (b) (a) PLUS a `manifest-lint` WARN on forge-era phase keys (migration nicety). (c) Normalize in the bin only (`contract-assemble.js`), leaving the export canonical-only. | **⚠ OVERRIDDEN → item 10 DROPPED (ADR-045): no aliasing, no warn-lint** (craft is single-tenant + migrated). ~~Original rec: (a) normalize in the body; no warn-lint.~~ | The body normalization mirrors the established `aliasResolve` idiom and makes aliasing consistent across all three consumers; (c) leaves the export buggy for any future caller; the warn-lint (b) is scope the binding fix doesn't need. (If the user wants migration nudges, (b) is the home — but it is additive, not load-bearing.) |
-| **DC-11** | How the planner heuristic models a legit test-infra/docs-only slice | (a) Prose carve-out in `agents/planner.md:18` + `templates/plan.md` ("test-infra-only and docs-only slices are exempt from the no-test-only rule"). (b) A structured slice-kind/archetype flag the plan template carries (`### Kind: feature\|test-infra\|docs`), `plan-lint.sh` exempts non-feature kinds. (c) Leave as-is; orchestrator overrides per run. | **(a) Prose carve-out.** Closes the friction with zero schema/lint surface; mirrors how the other sizing rules live as prose; the exemption is a judgment the planner already makes, just now written down. | The override pain is purely "the rule has no exception clause"; a prose clause fixes it. (b) adds template+lint surface for a distinction the planner can read from the slice's own `### Context` (no `src/` delta); (c) keeps the friction. |
+| **DC-11** | How the planner heuristic models a legit test-infra/docs-only part | (a) Prose carve-out in `agents/planner.md:18` + `templates/plan.md` ("test-infra-only and docs-only parts are exempt from the no-test-only rule"). (b) A structured part-kind/archetype flag the plan template carries (`### Kind: feature\|test-infra\|docs`), `plan-lint.sh` exempts non-feature kinds. (c) Leave as-is; orchestrator overrides per run. | **(a) Prose carve-out.** Closes the friction with zero schema/lint surface; mirrors how the other sizing rules live as prose; the exemption is a judgment the planner already makes, just now written down. | The override pain is purely "the rule has no exception clause"; a prose clause fixes it. (b) adds template+lint surface for a distinction the planner can read from the part's own `### Context` (no `src/` delta); (c) keeps the friction. |
 
 ## Test strategy
 
@@ -505,15 +505,15 @@ existing parse path (`parseManifestContent`, already round-trip-proven by `pipel
 `manifest-lint.js` tests) rather than introducing one — no new property surface. Item 10 is dropped
 (ADR-045), so no new alias-normalization property surface is introduced.
 
-## Slice shape (for the plan phase)
+## Part shape (for the plan phase)
 
-Pre-chewed per-item context so the plan phase can size slices. Each slice is one atomic TDD commit
+Pre-chewed per-item context so the plan phase can size parts. Each part is one atomic TDD commit
 (Red→Green→Refactor, Given/When/Then, `sut` body) unless it is pure prose. House convention
-(per `docs/PLAN-P9-agent-swap.md`): each slice carries exact file paths, symbol name-paths, current
-signatures, and the fixtures/helpers to extend. Final slice sequencing is the plan phase's job;
+(per `docs/PLAN-P9-agent-swap.md`): each part carries exact file paths, symbol name-paths, current
+signatures, and the fixtures/helpers to extend. Final part sequencing is the plan phase's job;
 the dependency-order note above constrains it.
 
-| Slice candidate | Scope (one line) | Pre-chewed context |
+| Part candidate | Scope (one line) | Pre-chewed context |
 |---|---|---|
 | **s-roleexists** (item 1) | Bin constructs + passes a real `roleExists` predicate (DC-1*) | **`engine/bin/pipeline-resolve.js`:** `:81` `resolvePipeline(defaults, effectiveManifest)` → add 3rd arg `{ roleExists }`. Build `roleExists` near the top using the `contract-assemble.js:10–11` idiom: `import { existsSync } from 'node:fs'; import { join, dirname } from 'node:path'; import { fileURLToPath } from 'node:url'; const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');` then `const roleExists = ref => !ref.startsWith('craft:') || existsSync(join(REPO_ROOT, 'agents', ref.slice(6) + '.md'));` (DC-1b/1c). **Guard already in `resolve.js:216–221`** — do NOT touch it. **Test:** extend `engine/test/pipeline-resolve.bin.test.js` (the bin harness; spawns the bin via child_process). Fixtures: reuse/add manifests under `engine/test/fixtures/`. Red: typo'd `craft:plannr` resolves `ok:true` (exit 0) today; Green: exit 2 + naming stderr. SC1 bin test unchanged. |
 | **s-stryker** (item 2) | Stryker config + deps + 3 ADV tests + on-demand script (DC-2*) | **`engine/package.json`:** add devDeps `@stryker-mutator/core@8.7.1` + `@stryker-mutator/tap-runner@8.7.1`; add script `"mutation":"stryker run"`; (the `"test"` script switches to the glob in s-glob). **NEW `engine/stryker.conf.json`:** `testRunner:"tap"`, `tap.testFiles:["test/**/*.test.js"]`, `mutate:["src/**/*.js"]`. **NEW `engine/package-lock.json`** (generated — never hand-edited; run `npm install` in the worktree). **Tests:** ADV-1 in `scenarios.test.js` (exactly-one-error through a rejecting probe — construct a 2-role-phase manifest, probe rejects one, assert `errors.length===1`); ADV-2 strengthen the producer assertion in `scenarios.test.js`/`contract.test.js`; ADV-3 in `manifest.test.js` (empty-`procedure` reject per DC-2d, mirroring the `role`/`model` shape tests). Surface: `engine/src` shape-checks may gain the empty-string guard (DC-2d) — that is the only `src` touch. |
@@ -521,10 +521,10 @@ the dependency-order note above constrains it.
 | **s-glob** (item 5) | Explicit `.test.js` glob + count-assert gate (DC-5a + DC-5b) | **`scripts/ci.sh:10`:** `(cd engine && node --test)` → `(cd engine && node --test 'test/**/*.test.js')`. **`engine/package.json:9`:** `"test":"node --test"` → `"test":"node --test 'test/**/*.test.js'"`. Confirmed under Node v22 the glob discovers the same 409. **ALSO add the count-assert gate (ADR-046):** in `scripts/ci.sh`, after the glob run, parse `# tests <N>` and assert `== EXPECTED_TESTS` (a constant in `ci.sh`); bump `EXPECTED_TESTS` in every commit that changes the count. Settle the glob shape FIRST — s-stryker's `stryker.conf.json` `tap.testFiles` reuses it. |
 | **s-decisions** (item 6) | Cross-candidate interaction step in decisions skill (DC-6) | **`skills/decisions/SKILL.md`:** insert a step 2.5 (between ratify-each-candidate `:21–22` and the scope-fold rule `:23–26`): "Before authoring ADRs, check whether any ratified choice's rationale is voided or altered by another ratified choice; if so, re-surface the affected candidate to the user." Pure prose; no engine touch. |
 | **s-echo** (item 7) | Trim step 0a brief echo (DC-7) | **`skills/run/SKILL.md`:** `:19` "Parse craft flags from `$ARGUMENTS`" → "from the input"; `:23` "a flags-only `$ARGUMENTS`" → "a flags-only input"; keep the `Input: $ARGUMENTS` line at `:15` as the single canonical echo. Pure prose; behaviour identical. |
-| **s-cadence** (item 8) | Document canonical review cadence (DC-8) | **`skills/run/SKILL.md`** (if DC-8=(a)): a note that the engine cadence is the single `review` phase; the per-slice 4-dimension interleave is a session working-style, with a cross-link to the Parked-from-P8 walk/parallelism pass (`BACKLOG.md:228`). Update `BACKLOG.md:278–281` to record the decision. Pure prose/doc. |
+| **s-cadence** (item 8) | Document canonical review cadence (DC-8) | **`skills/run/SKILL.md`** (if DC-8=(a)): a note that the engine cadence is the single `review` phase; the per-part 4-dimension interleave is a session working-style, with a cross-link to the Parked-from-P8 walk/parallelism pass (`BACKLOG.md:228`). Update `BACKLOG.md:278–281` to record the decision. Pure prose/doc. |
 | **s-asm-parse** (item 9) | contract-assemble adopts `parseManifestContent` (DC-9) | **`engine/bin/contract-assemble.js`:** at `:5` REMOVE `import { load } from 'js-yaml';`; ADD `import { parseManifestContent } from '../src/frontmatter.js';` (mirror `pipeline-resolve.js:6`). At `:95` `manifest = load(readFileSync(args.manifestPath, 'utf8')) ?? {};` → `manifest = parseManifestContent(readFileSync(args.manifestPath, 'utf8')) ?? {};` (mirror `pipeline-resolve.js:70`; `parseManifestContent` sig `(content) => object\|null`, `frontmatter.js:50`). The `try/catch` at `:94–99` + its `failed to parse manifest` message STAY. Confirm `load` is unused elsewhere in the bin (it is — `:5` import + `:95` call are the only uses). **Test:** EXTEND `engine/test/contract-assemble.test.js` (bin harness, `spawnSync` at `:3,8,12`). RED: `--manifest test/fixtures/manifests/with-body.md --descriptor-id <id>` → exit 2 today (raw load throws); GREEN: exit 0 + assembled block. Reuse `with-body.md`; optionally add a `context:`-bearing fenced fixture under `test/fixtures/manifests/` to assert injection lines in stdout. **No `src` change; no export change.** (The former s-asm-alias dependent is dropped — land any time after s-roleexists.) |
 | ~~s-asm-alias~~ (item 10) — **DROPPED (ADR-045), DO NOT PLAN** | item 10 is out of scope (no forge-era aliasing); the original pre-chew that follows is MOOT | **`engine/src/contract.js`:** ADD `import { resolveAlias } from './alias-map.js';` (already barrel-exported — no new surface). At `:108`, replace `const phaseCtx = extractContext(manifest?.phases?.[descriptor.id]?.context);` with a normalize-then-lookup: build `const phaseMap = manifest?.phases ? Object.fromEntries(Object.entries(manifest.phases).map(([k, v]) => [resolveAlias(k), v])) : undefined;` (the EXACT `resolve.js:30` `aliasResolve` idiom) then `const phaseCtx = extractContext(phaseMap?.[descriptor.id]?.context);`. Global-context lookup at `:105–106` UNCHANGED. **Exported signature `(descriptor, manifest, fragments, opts)` UNCHANGED** — body-only. **Test:** EXTEND `engine/test/contract.test.js` mirroring the per-phase-context test at `:142–156`: manifest `{phases:{plan:{context: …}}}` on the `planning` descriptor → per-phase context appears verbatim (RED today: absent). Add a canonical-key regression assertion (`phases.planning` still binds). contract-equivalence/S2/S9 unaffected (canonical keys self-alias — pinned). DC-10=(b)? Add a `manifest-lint` WARN test only if the user picks the warn-lint. Land AFTER s-asm-parse. |
-| **s-planner-heuristic** (item 11) | Planner heuristic carve-out for test-infra/docs-only (DC-11) | **`agents/planner.md:18`** (the "Sizing: no standalone test-only slices…" bullet) + **`templates/plan.md:11–14`** (the "No standalone test-only slices…" bullet under `## Sizing rules`): if DC-11=(a), add an exemption clause — "test-infra-only and docs-only slices (tooling config, test helpers, fixtures, ADV/property suites with no `src/` delta) ARE exempt; they have no implementation slice to fold into." Keep the FEATURE-code rule intact. Pure prose; no engine/schema touch. If DC-11=(b): also add `### Kind:` to the template schema + a `plan-lint.sh` exemption branch (bigger surface — only if the user picks it). |
+| **s-planner-heuristic** (item 11) | Planner heuristic carve-out for test-infra/docs-only (DC-11) | **`agents/planner.md:18`** (the "Sizing: no standalone test-only parts…" bullet) + **`templates/plan.md:11–14`** (the "No standalone test-only parts…" bullet under `## Sizing rules`): if DC-11=(a), add an exemption clause — "test-infra-only and docs-only parts (tooling config, test helpers, fixtures, ADV/property suites with no `src/` delta) ARE exempt; they have no implementation part to fold into." Keep the FEATURE-code rule intact. Pure prose; no engine/schema touch. If DC-11=(b): also add `### Kind:` to the template schema + a `plan-lint.sh` exemption branch (bigger surface — only if the user picks it). |
 
 ## Out of scope
 
@@ -536,5 +536,5 @@ the dependency-order note above constrains it.
 | Per-invocation `--harness`/`--role`/`--procedure` CLI flags | Would follow the `cli-overlay.js` pattern in a later phase (Parked from P8); not in this batch. |
 | Worktree-teardown.sh production hardening (PID-before-kill, realpath guard) | Deferred to the VCS-adapter phase (`BACKLOG.md:250`); item 4 touches setup, not teardown. |
 | Mutation testing of `scripts/`/`hooks/`/`skills/` (non-engine) | Stryker is scoped to `engine/src` (the only Node source); shell + prose are guarded by bats + review. |
-| Making per-slice review an engine invariant (a cadence knob) | DC-8 recommends documenting the single-phase cadence as canonical; the knob is the parallelism pass's job. |
+| Making per-part review an engine invariant (a cadence knob) | DC-8 recommends documenting the single-phase cadence as canonical; the knob is the parallelism pass's job. |
 | Forge-era / old-vocabulary phase-key support (`assembleContract` aliasing, migration warn-lint) | DROPPED per ADR-045 — craft is single-tenant and migrated; the assembler stays canonical-only. The pre-existing P4 `resolve.js`/`manifest.js` aliasing (frozen `ALIAS_MAP`/`resolveAlias`) is left untouched. |

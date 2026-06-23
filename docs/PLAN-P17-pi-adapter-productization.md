@@ -1,33 +1,33 @@
 # Plan — P17: Pi adapter productization
 
 > Source: design doc `docs/DESIGN-P17-pi-adapter-productization.md` · ADRs `093, 094, 095`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
-## Ordering and the phase-gate count contract (READ FIRST — every slice)
+## Ordering and the phase-gate count contract (READ FIRST — every part)
 
 All P17 code lives under `adapters/pi/` (incl. the one allowed edit to
 `adapters/pi/src/engine.js`). Two gates apply at every commit:
 
-- **Slice gate** (uniform, run by the slice-implementer): `cd adapters/pi && node --test 'test/**/*.test.js'`.
+- **Part gate** (uniform, run by the part-implementer): `cd adapters/pi && node --test 'test/**/*.test.js'`.
   This does NOT check the test count.
 - **Phase-boundary gate** (the substrate gate CI runs): `bash scripts/ci.sh`. This
   HARD-ASSERTS `EXPECTED_PI_TESTS` against the live `adapters/pi` count and FAILS on drift.
 
-Because `node --test` is count-blind but `scripts/ci.sh` is not, a slice can be slice-green
-yet phase-red. **Therefore every slice that changes the `adapters/pi` test count MUST, in the
+Because `node --test` is count-blind but `scripts/ci.sh` is not, a part can be part-green
+yet phase-red. **Therefore every part that changes the `adapters/pi` test count MUST, in the
 same commit, edit `EXPECTED_PI_TESTS` in `scripts/ci.sh` to the exact new total.** The
 never-commit-on-red invariant applies to the phase gate too: a commit that leaves
 `scripts/ci.sh` red has violated it.
@@ -36,25 +36,25 @@ never-commit-on-red invariant applies to the phase gate too: a commit that leave
   confirmed: `adapters/pi` currently reports `# tests 86`). The `engine/` package
   (`EXPECTED_TESTS=650`) is UNAFFECTED — the `engine.js` P17 edits is the adapter's
   `adapters/pi/src/engine.js`, NOT the `engine/` package; do not touch `EXPECTED_TESTS`.
-- The running total threads through the slices below: 86 → 90 → 93 → 98 → 101 → 104 → 109 →
-  115 → 122 → 133 → 136. Each slice's `### Gate` block restates its exact bump. These targets
+- The running total threads through the parts below: 86 → 90 → 93 → 98 → 101 → 104 → 109 →
+  115 → 122 → 133 → 136. Each part's `### Gate` block restates its exact bump. These targets
   match the `it(...)` cases the plan's TDD steps enumerate. The printed count is the SOURCE OF
   TRUTH: if your RED step lands a different number of cases than the plan predicted (e.g. you
   split or merge a table-driven case), set `EXPECTED_PI_TESTS` to the number `node --test`
   actually prints (`# tests N`) for `adapters/pi`, not the plan's nominal target. Never commit
   with `scripts/ci.sh` reporting a count drift.
 
-Dependencies land before consumers: `engine.js` (slice 1), the committed manifest
-(slice 2), `tool-call-hook.js` (slices 3–4), and `roleless.js` (slices 5–6) all land
-before `run.js` (slices 7–9) wires them; `cli.js` + the `bin` field land last (slice 10).
+Dependencies land before consumers: `engine.js` (part 1), the committed manifest
+(part 2), `tool-call-hook.js` (parts 3–4), and `roleless.js` (parts 5–6) all land
+before `run.js` (parts 7–9) wires them; `cli.js` + the `bin` field land last (part 10).
 
-> Out of plan (delivered separately, NOT slice-gated): `docs/adapters/pi-poc-record.md`
+> Out of plan (delivered separately, NOT part-gated): `docs/adapters/pi-poc-record.md`
 > is refreshed on-demand to record the live 11-phase smoke (ADR-089/090 keep the live Pi
 > walk an on-demand smoke, never CI-gated). It is under `docs/`, not `adapters/pi/`, so it
-> carries no slice gate and no `EXPECTED_PI_TESTS` bump. The design's "Acceptance / runtime"
-> bullet is that artifact, handled at integrate-time, not a slice here.
+> carries no part gate and no `EXPECTED_PI_TESTS` bump. The design's "Acceptance / runtime"
+> bullet is that artifact, handled at integrate-time, not a part here.
 
-## Slice 1 — Thread the committed-manifest path through engine.js
+## Part 1 — Thread the committed-manifest path through engine.js
 
 ### Context
 
@@ -127,7 +127,7 @@ these exact RED hooks, they genuinely fail today and pass once the args are thre
 
 ### Gate
 
-`cd adapters/pi && node --test 'test/**/*.test.js'` (slice gate — must be green).
+`cd adapters/pi && node --test 'test/**/*.test.js'` (part gate — must be green).
 Phase gate: set `EXPECTED_PI_TESTS` in `scripts/ci.sh` to **90** (86 + 4 new cases:
 skip-resolve, context-assemble, 11-phase resolve guard, non-empty assemble guard). Set it to the
 printed `# tests N` if your RED count differs. Then `bash scripts/ci.sh` must be green before commit.
@@ -136,12 +136,12 @@ printed `# tests N` if your RED count differs. Then `bash scripts/ci.sh` must be
 
 `feat(pi): thread committed-manifest path through engine resolve and assemble`
 
-## Slice 2 — Ship the committed manifest and prove it lint-clean
+## Part 2 — Ship the committed manifest and prove it lint-clean
 
 ### Context
 
-This is a data-file + test-infra slice (no new `src/` logic): it ships the manifest the bin
-will resolve against (slice 9) and proves it lint-clean in CI, since the bin does NOT re-lint
+This is a data-file + test-infra part (no new `src/` logic): it ships the manifest the bin
+will resolve against (part 9) and proves it lint-clean in CI, since the bin does NOT re-lint
 at runtime (design §The committed manifest).
 
 Targets:
@@ -158,7 +158,7 @@ Targets:
   ---
   # craft-pi manifest (policy rationale in prose body — never reaches the YAML parser)
   ```
-  `gates` accepts EXACTLY `{ slice, phase, review-batch }` (`engine/src/manifest.js` `GATE_FIELDS`,
+  `gates` accepts EXACTLY `{ part, phase, review-batch }` (`engine/src/manifest.js` `GATE_FIELDS`,
   line 36). No `adapter:` key, no provider/model pin (out of scope; DC-3).
 - NEW `adapters/pi/test/manifest.test.js`.
 
@@ -168,7 +168,7 @@ Engine seams the test reuses (read, do not re-implement):
 - `validateManifest(manifest, opts?)` — `engine/src/manifest.js:581-627`. Pure; never throws;
   returns `{ ok, errors[] }`. `opts.fileExists` defaults to "assume present" when omitted — for the
   committed manifest's `gates`-only content there are no file refs, so the default is correct.
-- `resolvePipeline` (from `adapters/pi/src/engine.js`, now manifest-aware after slice 1) — to prove
+- `resolvePipeline` (from `adapters/pi/src/engine.js`, now manifest-aware after part 1) — to prove
   full resolution against the committed manifest yields `ok: true`.
 
 Resolve the manifest path in the test the way the bin will (module-relative absolute):
@@ -191,7 +191,7 @@ Given/When/Then, AAA, `sut`, consts.
   Fails until the file exists and is lint-clean.
 - RED — `it('Given the committed manifest, when the full pipeline is resolved against it, then ok is
   true and gates.phase is resolvable')` — call `resolvePipeline(manifestPath)`, assert `result.ok ===
-  true` (proves the DC-G floor is satisfiable: a non-empty `gates.phase` exists to substitute in slice 7).
+  true` (proves the DC-G floor is satisfiable: a non-empty `gates.phase` exists to substitute in part 7).
 - GREEN — create `adapters/pi/.claude/workflow.md` with the exact fenced contents above.
 - REFACTOR — none expected (data file). Confirm the prose body line is present so the fenced/no-fence
   branch in `parseManifestContent` keys correctly (content opens with `---`).
@@ -205,21 +205,21 @@ Phase gate: `EXPECTED_PI_TESTS` → **93** (90 + 3: parse, validate, resolve). T
 
 `feat(pi): ship committed gate manifest and assert it lint-clean`
 
-## Slice 3 — Tool-call hook: Pi-event adapter, fail-safe, veto shape
+## Part 3 — Tool-call hook: Pi-event adapter, fail-safe, veto shape
 
 ### Context
 
 NEW module `adapters/pi/src/tool-call-hook.js`; NEW test `adapters/pi/test/tool-call-hook.test.js`.
-This slice lands the factory + the Pi→guard adapter + the fail-safe try/catch + the exact veto shape.
-The symlink re-check is slice 4 — in THIS slice `symlinkRecheck` is a write-branch passthrough that
+This part lands the factory + the Pi→guard adapter + the fail-safe try/catch + the exact veto shape.
+The symlink re-check is part 4 — in THIS part `symlinkRecheck` is a write-branch passthrough that
 returns `{ block: false }` for any tool (so the wrapper compiles and the non-symlink paths are proven),
-and slice 4 replaces its body with the runtime resolution.
+and part 4 replaces its body with the runtime resolution.
 
 Reused pure predicate (DO NOT modify — R-pure): `toolCallGuard(event)` from
 `adapters/pi/src/gate.js:28-40`. Shape it expects: `{ tool, tool_input: { command?, file_path? },
 working_dir }` → `{ block: boolean, reason? }`. `WRITE_TOOLS = new Set(['Write','Edit','NotebookEdit'])`
 (gate.js:4); reuse the same membership notion in the hook (re-declare a local `WRITE_TOOLS` const in
-the hook module — slice 4 needs it for the write-branch check; do not import a non-exported const).
+the hook module — part 4 needs it for the write-branch check; do not import a non-exported const).
 
 Factory shape (design §Tool-call wrapper, pinned):
 ```
@@ -229,7 +229,7 @@ export function toolCallHook(guard = toolCallGuard) {
       const guardEvent = adaptPiEvent(event, ctx);
       const verdict = guard(guardEvent);
       if (verdict.block) return verdict;          // { block:true, reason? }
-      return await symlinkRecheck(guardEvent);    // slice 4 fills this; slice 3 = passthrough
+      return await symlinkRecheck(guardEvent);    // part 4 fills this; part 3 = passthrough
     } catch {
       return { block: true };                     // R-failsafe — any throw → block
     }
@@ -243,7 +243,7 @@ export function toolCallHook(guard = toolCallGuard) {
 event — a field-name mismatch is caught by the fixture, never in production.
 
 Veto shape (gate.md, pinned): exactly `{ block: true, reason? }` — NEVER a `permission: "deny"` field.
-`block:false` is returned only by passing the predicate's `{ block:false }` through (after slice 4's
+`block:false` is returned only by passing the predicate's `{ block:false }` through (after part 4's
 re-check clears). The handler is `async` (Pi handler signature is `async (event, ctx) => …`).
 
 House style: model fixtures as top-of-file consts (a `piToolCallEvent` builder like `gate.test.js`'s
@@ -267,7 +267,7 @@ async, tests `await sut(event, ctx)`.
   guard receives tool and tool_input.command')` — pass a recording guard double capturing its arg,
   assert it received `{ tool: 'Bash', tool_input: { command: '…' }, working_dir: '…' }`.
 - GREEN — implement `toolCallHook`, `adaptPiEvent`, and a passthrough `symlinkRecheck`
-  (`async () => ({ block: false })` for now). Local `WRITE_TOOLS` const declared for slice 4.
+  (`async () => ({ block: false })` for now). Local `WRITE_TOOLS` const declared for part 4.
 - REFACTOR — keep functions <20 lines; `adaptPiEvent` uses early returns / nullish coalescing, no nesting >2.
 
 ### Gate
@@ -279,11 +279,11 @@ Phase gate: `EXPECTED_PI_TESTS` → **98** (93 + 5). Then `bash scripts/ci.sh` g
 
 `feat(pi): add tool-call hook with Pi-event adapter and fail-safe veto`
 
-## Slice 4 — Tool-call hook: runtime symlink re-check on the write branch
+## Part 4 — Tool-call hook: runtime symlink re-check on the write branch
 
 ### Context
 
-Target: `adapters/pi/src/tool-call-hook.js` — replace slice 3's passthrough `symlinkRecheck` with the
+Target: `adapters/pi/src/tool-call-hook.js` — replace part 3's passthrough `symlinkRecheck` with the
 runtime resolution, and add `resolveExistingAncestorRealpath` (DC-5). Extend
 `adapters/pi/test/tool-call-hook.test.js` with a `mktemp` symlink fixture (state-mutating-probe rule:
 NEVER the worktree — use `fs.mkdtemp(os.tmpdir() + sep)`).
@@ -312,7 +312,7 @@ recursing/looping on `dirname(p)` until `fs.realpath` succeeds (terminates at th
 which always exists). Keep <20 lines, early-return, no nesting >2.
 
 Imports: `import { realpath } from 'node:fs/promises'`; `import { resolve, dirname, sep } from
-'node:path'`. The fail-safe outer try/catch in `toolCallHook` (slice 3) already converts any throw
+'node:path'`. The fail-safe outer try/catch in `toolCallHook` (part 3) already converts any throw
 from `symlinkRecheck` (e.g. an unexpected non-ENOENT `lstat`/`realpath` error) into `{ block: true }`
 (R-failsafe) — do not swallow inside `symlinkRecheck`; let it throw to the wrapper.
 
@@ -328,7 +328,7 @@ cleaned up in a `finally`/`after`:
 - RED — `it('Given a Write through a symlink whose realpath escapes the working dir, when the hook
   runs, then it returns block:true (the case the lexical guard misses)')` — build the
   `${tmp}/link → /etc` fixture, Write to `${tmp}/link/x`, `await sut(event, ctx)`, assert `block:true`.
-  Fails: slice 3's passthrough returns `{ block:false }`.
+  Fails: part 3's passthrough returns `{ block:false }`.
 - RED — `it('Given a Write into a not-yet-existing subdir inside the working dir, when the hook runs,
   then it returns block:false (DC-5 nearest-existing-ancestor is contained)')` — assert `block:false`.
 - RED — `it('Given a non-write tool with an outside file_path, when the hook runs, then it returns
@@ -348,16 +348,16 @@ Phase gate: `EXPECTED_PI_TESTS` → **101** (98 + 3). Then `bash scripts/ci.sh` 
 
 `feat(pi): runtime symlink re-check defeats lexical write-guard escapes`
 
-## Slice 5 — Role-less steps: workspace and decisions
+## Part 5 — Role-less steps: workspace and decisions
 
 ### Context
 
-NEW module `adapters/pi/src/roleless.js`; NEW test `adapters/pi/test/roleless.test.js`. This slice lands
-the two simplest DI'd headless steps; propose + integrate are slice 6. Each step is a small DI'd function
+NEW module `adapters/pi/src/roleless.js`; NEW test `adapters/pi/test/roleless.test.js`. This part lands
+the two simplest DI'd headless steps; propose + integrate are part 6. Each step is a small DI'd function
 so it unit-tests without touching real FS / git / gh (design §Role-less phases; ADR-095).
 
 Export shape: a `rolelessSteps` object (or individual named exports) keyed by phase id — `run.js`
-(slice 9) calls `deps.rolelessSteps.<id>(...)`. Each step returns a recorded outcome object
+(part 9) calls `deps.rolelessSteps.<id>(...)`. Each step returns a recorded outcome object
 `{ ok: boolean, record: string, blocker? }` (immutable). Never an LLM run, never a silent skip.
 
 - `workspace` (DC-WS, ADR-095): assume the bin runs inside an already-prepared checkout. DI a git probe
@@ -371,8 +371,8 @@ Export shape: a `rolelessSteps` object (or individual named exports) keyed by ph
 
 Signature: each step takes a single DI deps bag (e.g. `workspace({ gitProbe })`, `decisions()` or
 `decisions({})`), returns the outcome synchronously or as a Promise — pick one shape and keep it uniform
-across all four steps (slice 6 must match). Recommended: all four `async`, returning a Promise, for a
-uniform `await deps.rolelessSteps[id](...)` call site in slice 9.
+across all four steps (part 6 must match). Recommended: all four `async`, returning a Promise, for a
+uniform `await deps.rolelessSteps[id](...)` call site in part 9.
 
 House style: `node:test`, `assert/strict`, Given/When/Then, AAA, `sut`, DI doubles as inline consts
 (mirror `probe.test.js`'s `makeFsOps`/`piRunner` double idiom, probe.test.js:11-15).
@@ -388,7 +388,7 @@ House style: `node:test`, `assert/strict`, Given/When/Then, AAA, `sut`, DI doubl
   spawn')` — `sut = decisions`, call with no spawn dep, assert `result.ok === true` and `result.record`
   contains "no-op".
 - GREEN — implement `workspace` and `decisions` in `roleless.js`; export `rolelessSteps` (with the two
-  keys so far; slice 6 adds the rest).
+  keys so far; part 6 adds the rest).
 - REFACTOR — factor a tiny `recorded(ok, record, blocker?)` outcome builder if both steps share the
   shape; immutable, <20 lines.
 
@@ -401,12 +401,12 @@ Phase gate: `EXPECTED_PI_TESTS` → **104** (101 + 3). Then `bash scripts/ci.sh`
 
 `feat(pi): headless workspace and decisions role-less steps`
 
-## Slice 6 — Role-less steps: propose and integrate
+## Part 6 — Role-less steps: propose and integrate
 
 ### Context
 
 Target: `adapters/pi/src/roleless.js` — add `propose` and `integrate` to `rolelessSteps`. Extend
-`adapters/pi/test/roleless.test.js`. Match slice 5's outcome shape and async/sync choice exactly.
+`adapters/pi/test/roleless.test.js`. Match part 5's outcome shape and async/sync choice exactly.
 
 - `propose` (DC-PROP, ADR-095): deterministic push + PR **iff** remote+`gh`+auth are present, else a
   recorded no-op. DI a deps bag, e.g. `{ hasRemote, ghAvailable, ghAuthed, gitPush, ghPrCreate }`
@@ -451,11 +451,11 @@ Phase gate: `EXPECTED_PI_TESTS` → **109** (104 + 5). Then `bash scripts/ci.sh`
 
 `feat(pi): headless propose (push/PR iff remote) and stop-before-merge integrate`
 
-## Slice 7 — run.js: resolveGateCommand placeholder substitution + code-producing floor
+## Part 7 — run.js: resolveGateCommand placeholder substitution + code-producing floor
 
 ### Context
 
-NEW module `adapters/pi/src/run.js`; NEW test `adapters/pi/test/run.test.js`. This slice lands ONLY
+NEW module `adapters/pi/src/run.js`; NEW test `adapters/pi/test/run.test.js`. This part lands ONLY
 `resolveGateCommand` (pure) — no spawn, no walk yet. It replicates what the Claude orchestrator does:
 turn the engine's literal placeholder gate strings into real commands from the committed manifest (DC-G,
 ADR-094; supersedes old DC-8).
@@ -483,10 +483,10 @@ AND `codeProducing`. (design §Five load-bearing facts, fact 1; gates.js `resolv
 
 Code-producing floor (DC-G, never-commit-on-red): the substitution itself returns the command; the
 FLOOR check (empty resolved command on a `codeProducing` phase → blocker) is enforced at the call site
-in slice 9's walk. In THIS slice, prove the substitution + a helper that classifies "empty resolved gate
-on a code-producing phase" so slice 9 can call it. Recommended: `resolveGateCommand` returns the string;
+in part 9's walk. In THIS part, prove the substitution + a helper that classifies "empty resolved gate
+on a code-producing phase" so part 9 can call it. Recommended: `resolveGateCommand` returns the string;
 add a tiny pure helper the floor check uses, OR return `{ command, codeProducing }` — pick the shape
-slice 9 consumes and document it here. Keep `resolveGateCommand` pure (no I/O); it takes the phase
+part 9 consumes and document it here. Keep `resolveGateCommand` pure (no I/O); it takes the phase
 (with `id`), the parsed `manifest`, and the `gateDecisions` entry (or the whole resolution).
 
 House style: `node:test`, `assert/strict`, Given/When/Then, AAA, `sut`, table-driven cases against a
@@ -503,7 +503,7 @@ and canned `gateDecisions` entries. No DI doubles needed (pure function).
 - RED — `it('Given a code-producing phase whose resolved gate is empty (manifest has no gates.phase),
   when classified, then it is flagged as a floor violation')` — manifest `{}`, implementation
   gateDecisions `{ codeProducing: true, gate: '<gates.phase>' }` → resolved command empty AND
-  `codeProducing` true → the floor helper returns true (slice 9 turns this into a `{ unit: gate }`
+  `codeProducing` true → the floor helper returns true (part 9 turns this into a `{ unit: gate }`
   blocker). Pin the exact observable the floor helper exposes.
 - GREEN — implement `resolveGateCommand` + the floor-classification helper in `run.js`. Map-driven
   substitution (a `const SUBSTITUTIONS` object), early returns, immutable.
@@ -520,13 +520,13 @@ split rows differently, set to the printed `# tests N`). Then `bash scripts/ci.s
 
 `feat(pi): resolve gate placeholders from the committed manifest with a code-producing floor`
 
-## Slice 8 — run.js: spawnPi and runGate subprocess runners
+## Part 8 — run.js: spawnPi and runGate subprocess runners
 
 ### Context
 
-Target: `adapters/pi/src/run.js` — add the two subprocess runners `main` (slice 9) wires: `spawnPi(argv,
+Target: `adapters/pi/src/run.js` — add the two subprocess runners `main` (part 9) wires: `spawnPi(argv,
 opts)` (the ONE place `pi` is launched) and `runGate(command, opts)` (runs a resolved gate command).
-Landing both here gives the REAL defaults unit coverage; slice 9 then injects DI doubles for the walk
+Landing both here gives the REAL defaults unit coverage; part 9 then injects DI doubles for the walk
 tests, so the production runners are not left uncovered. Extend `adapters/pi/test/run.test.js`. DI the
 spawner (`execFile`) so the options object is asserted without a live `pi`/gate — pass `execFile` (or a
 thin `runner`) via the deps bag; the production default is `node:child_process` `execFile`.
@@ -535,11 +535,11 @@ Both runners share `engine.js`'s private `run` idiom (engine.js:34-45): Promise-
 argv-array (never a shell string), non-zero exit rejects with a `{ unit: <…>, reason: <stderr|message> }`
 blocker error, success resolves stdout.
 
-`runGate(command, opts)` — the resolved gate command (slice 7) is a string like `"node --test"`. Split
+`runGate(command, opts)` — the resolved gate command (part 7) is a string like `"node --test"`. Split
 it into file + args for `execFile` (e.g. `command.split(/\s+/)` → `[file, ...args]`; no shell, no
 `shell:true` — R-argv discipline identical to `spawnPi`). Non-zero exit → `{ unit: gate, reason }`
 blocker (never-commit-on-red); exit 0 → resolves. `runGate` is the `deps.runGate` default `main` uses for
-the gate-before-commit floor (slice 9 step f).
+the gate-before-commit floor (part 9 step f).
 
 Spawn shape (design §Spawn discipline, pinned):
 ```
@@ -599,19 +599,19 @@ differs. Then `bash scripts/ci.sh` green.
 
 `feat(pi): spawnPi and runGate subprocess runners with non-zero exit as blocker`
 
-## Slice 9 — run.js: main full 11-phase walk wiring
+## Part 9 — run.js: main full 11-phase walk wiring
 
 ### Context
 
 Target: `adapters/pi/src/run.js` — add `main(argv, io, deps)`, the full-walk orchestration that wires
-everything from slices 1–8 and the role-less steps from 5–6. Extend `adapters/pi/test/run.test.js`. This
-is the largest slice but is glue + I/O only (no new business logic) — all seams are DI'd, no live `pi`/FS.
+everything from parts 1–8 and the role-less steps from 5–6. Extend `adapters/pi/test/run.test.js`. This
+is the largest part but is glue + I/O only (no new business logic) — all seams are DI'd, no live `pi`/FS.
 
 `main(argv, io, deps)` (design §Entrypoint shape, pinned):
 - `io = { stdout, stderr }` (injected; NEVER `process.*` inside `main`).
 - `deps = { resolvePipeline, assembleBlock, spawnPi, runGate, loadManifest, rolelessSteps, env }` —
   defaults wire the real `engine.js` exports (`resolvePipeline`/`assembleBlock` from `./engine.js`),
-  the real `spawnPi` and `runGate` (both from slice 8 — argv, no shell, non-zero blocks), the real
+  the real `spawnPi` and `runGate` (both from part 8 — argv, no shell, non-zero blocks), the real
   manifest load
   (module-relative path to `adapters/pi/.claude/workflow.md` via the `REPO_ROOT` idiom: from
   `adapters/pi/src/run.js`, `join(__dir, '..', '.claude', 'workflow.md')`), and `rolelessSteps` from
@@ -620,9 +620,9 @@ is the largest slice but is glue + I/O only (no new business logic) — all seam
   exited non-zero / a gate red / an empty gate on a code-producing phase / a role-less step blocked).
 
 Reused (R-reuse): `buildPiArgs`, `parseUsage` from `./execution.js` (execution.js:16, 33). `resolveGateCommand`
-+ floor helper (slice 7), `spawnPi` + `runGate` (slice 8). This slice adds NO new subprocess runner — it
++ floor helper (part 7), `spawnPi` + `runGate` (part 8). This part adds NO new subprocess runner — it
 only wires the ones already landed; the gate-red tests inject a `runGate` double, the real default is the
-one unit-covered in slice 8.
+one unit-covered in part 8.
 
 Walk algorithm (design §Phase walk, pinned):
 1. Load committed manifest (path + parsed object); call `resolvePipeline(manifestPath)`. On
@@ -633,7 +633,7 @@ Walk algorithm (design §Phase walk, pinned):
      documentation):
      a. `block = await deps.assembleBlock(phase.id, manifestPath)` (reject = `{ unit: engine-bin }`
         blocker → return `2`).
-     b. `gateCmd = resolveGateCommand(phase, manifest, gateDecisionsEntry)` (slice 7).
+     b. `gateCmd = resolveGateCommand(phase, manifest, gateDecisionsEntry)` (part 7).
      c. `dynamics = { phaseId: phase.id, model: phase.model, gate: gateCmd, … }`.
      d. `argv = buildPiArgs(block, dynamics, { jsonMode: true })`.
      e. `result = await deps.spawnPi(argv, { cwd, env })`; non-zero `pi` exit (reject) → `{ unit: pi-run }`
@@ -643,7 +643,7 @@ Walk algorithm (design §Phase walk, pinned):
         via `deps.runGate`; non-zero → return `2` (never commit on red). EMPTY resolved gate on a
         `codeProducing` phase → `{ unit: gate, reason: 'code-producing phase <id> has no resolvable
         gate — supply gates.phase in the committed manifest' }` blocker, return `2`, BEFORE any commit
-        (DC-G floor, slice 7's floor helper).
+        (DC-G floor, part 7's floor helper).
    - **Role-less** (no `role`: workspace, decisions, propose, integrate): call
      `deps.rolelessSteps[phase.id](...)` (NOT `spawnPi`). A step returning `ok:false` (blocker) → surface
      and return `2`.
@@ -656,7 +656,7 @@ Walk algorithm (design §Phase walk, pinned):
 
 `cwd`/`env` for the subprocess runners: `cwd` is the launch checkout (DC-WS — the bin runs inside an
 already-prepared checkout). Source it from `deps.env`/an injected cwd, defaulting to `process.cwd()` at
-the `cli.js` boundary (slice 10) and threaded into `deps` — `main` itself never reads `process.*` (use
+the `cli.js` boundary (part 10) and threaded into `deps` — `main` itself never reads `process.*` (use
 the injected value). `env` is the child env carrying any operator-supplied provider key (DC-3 passthrough).
 
 Run record: `main` accumulates a per-phase record (model, gate command, usage, role-less outcome) and
@@ -713,11 +713,11 @@ printed `# tests N` if your RED count differs. Then `bash scripts/ci.sh` green.
 
 `feat(pi): main drives the full 11-phase walk with gates and role-less steps`
 
-## Slice 10 — cli.js thin bin and the package bin field
+## Part 10 — cli.js thin bin and the package bin field
 
 ### Context
 
-This is a packaging slice (the design names `cli.js` "the only un-unit-tested line"). It holds NO logic:
+This is a packaging part (the design names `cli.js` "the only un-unit-tested line"). It holds NO logic:
 it parses argv, calls `main`, maps the result to an exit code — mirroring the engine thin-bin idiom
 (`engine/bin/pipeline-resolve.js:1-7`, `engine/bin/contract-assemble.js:1-7`: shebang, `import { main }
 from '../src/...'`, guard on `process.argv[1] === fileURLToPath(import.meta.url)`, `process.exit(...)`).
@@ -726,13 +726,13 @@ Targets:
 - NEW `adapters/pi/src/cli.js` — shebang `#!/usr/bin/env node`; `import { main } from './run.js'`;
   `import { fileURLToPath } from 'node:url'`; guard `if (process.argv[1] === fileURLToPath(import.meta.url))
   { process.exit(await main(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr })); }`.
-  `main` is async (slice 9) so use a top-level `await` (the module is ESM, `"type": "module"` in
+  `main` is async (part 9) so use a top-level `await` (the module is ESM, `"type": "module"` in
   `adapters/pi/package.json`) or wrap in an async IIFE.
 - EDIT `adapters/pi/package.json` — add `"bin": { "craft-pi": "src/cli.js" }` (DC-2, ADR-086). Current
   package.json (pinned): `{ "name": "@craft/adapter-pi", "type": "module", "private": true, "scripts":
   { "test": "node --test 'test/**/*.test.js'" } }`.
 - NEW `adapters/pi/test/cli.test.js` — a STRUCTURAL test (the bin is not unit-DI-tested; assert the
-  packaging contract). It is a test-infra slice (it exercises the packaging, not new src logic), so it
+  packaging contract). It is a test-infra part (it exercises the packaging, not new src logic), so it
   is legitimately standalone.
 
 The structural test reads files via the module-relative path (`join(dirname(fileURLToPath(import.meta.url)),

@@ -249,7 +249,7 @@ test('Given a manifest with known gates fields, when validateManifest runs, then
   const sut = validateManifest;
 
   const result = sut(
-    { gates: { slice: 'npm test', phase: 'npm run ci', 'review-batch': 'npm run review' } },
+    { gates: { part: 'npm test', phase: 'npm run ci', 'review-batch': 'npm run review' } },
     { fileExists: ALWAYS_EXISTS },
   );
 
@@ -588,7 +588,7 @@ test('Given a manifest with multiple validation errors, when validateManifest ru
   assert.ok(result.errors.some(e => e.includes('pipeline.skip')));
 });
 
-// ─── review fixes: faithful-port coverage the slice-2 bats fixtures depend on ──
+// ─── review fixes: faithful-port coverage the part-2 bats fixtures depend on ──
 
 test('Given a missing opts argument, when validateManifest runs on a path-bearing manifest, then it does not throw (never-throws contract)', () => {
   const sut = validateManifest;
@@ -666,11 +666,34 @@ test('Given a known phase with non-blocking-jobs and merge-flags fields, when va
   assert.deepEqual(result, { ok: true, errors: [] });
 });
 
-test('Given a non-fallback models key (slice-implementer), when validateManifest runs, then it returns ok', () => {
+test('Given a non-fallback models key (part-implementer), when validateManifest runs, then it returns ok', () => {
   const sut = validateManifest;
 
   const result = sut(
-    { models: { 'slice-implementer': 'haiku', reviewer: 'sonnet' } },
+    { models: { 'part-implementer': 'haiku', reviewer: 'sonnet' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a models map naming every valid agent role key, when validateManifest runs, then it returns ok (pins the full MODELS_KEYS membership)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      models: {
+        fallback: 'sonnet',
+        designer: 'opus',
+        planner: 'opus',
+        reviewer: 'opus',
+        'part-implementer': 'sonnet',
+        'refactor-executor': 'sonnet',
+        'validation-triager': 'sonnet',
+        'docs-writer': 'sonnet',
+        'backlog-ticker': 'sonnet',
+      },
+    },
     { fileExists: ALWAYS_EXISTS },
   );
 

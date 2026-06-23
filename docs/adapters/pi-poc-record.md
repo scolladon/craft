@@ -35,14 +35,14 @@ gated artifact.
 |---|---|---|
 | Execution | `resolvePipeline()` + `assembleBlock()` (engine-bin wrapper) → `buildPiArgs()` (arg-shaper) → `spawn pi` (subprocess, argv-array, no shell, stdin ignored) | Pi ran the construction phase; `resolvePipeline` returned `ok:true`, `implementation.model = sonnet` |
 | Model | descriptor `model: sonnet` → adapter mapped the craft tier to `google/gemini-2.5-flash`; key supplied via `GEMINI_API_KEY` in the child env | Pi session bound to the resolved model; phase ran on it |
-| Gate | engine-owned gate command (`node --test`) run on the committed state; the slice's own `node --test && git commit` chain enforces green-before-commit | Gate green; never-commit-on-red held |
+| Gate | engine-owned gate command (`node --test`) run on the committed state; the part's own `node --test && git commit` chain enforces green-before-commit | Gate green; never-commit-on-red held |
 | VCS | throwaway isolated via `git init`; Pi's mutations confined to the throwaway; committed artifact = the handoff | Mutations stayed inside; commit `9f6ab07 feat: add function` created |
 
 ## Per-phase outcome
 
 | Step | Expected | Actual |
 |---|---|---|
-| RED → GREEN → commit landed | One construction-phase slice committed inside throwaway | ✅ `9f6ab07 feat: add function` (`add.mjs` + `add.test.mjs`, 5 insertions) |
+| RED → GREEN → commit landed | One construction-phase part committed inside throwaway | ✅ `9f6ab07 feat: add function` (`add.mjs` + `add.test.mjs`, 5 insertions) |
 | Gate green before commit | `assertGateGreenBeforeCommit` true; never-commit-on-red held | ✅ `node --test` green on the committed state |
 | Mutations confined to throwaway | `assertMutationsInsideThrowaway` true | ✅ both files under the throwaway path |
 | Committed artifact = handoff | `assertCommittedArtifact` true; non-empty | ✅ `add.mjs` committed |

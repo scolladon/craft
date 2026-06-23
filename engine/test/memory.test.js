@@ -45,8 +45,8 @@ const FINDINGS_ENTRY = {
   provenance: { run: 'r1', commit: 'c1', date: '2024-01-01' },
 };
 
-const SLICE_SIZING_ENTRY = {
-  concern: 'slice-sizing',
+const PART_SIZING_ENTRY = {
+  concern: 'part-sizing',
   size: 8,
   outcome: 'pass',
   confidence: 2,
@@ -69,7 +69,7 @@ const ALL_PASS_VALIDATORS = {
   'gate-cmd': () => true,
   'mutation-tool': () => true,
   findings: () => true,
-  'slice-sizing': () => true,
+  'part-sizing': () => true,
 };
 
 const ALL_FAIL_VALIDATORS = {
@@ -77,7 +77,7 @@ const ALL_FAIL_VALIDATORS = {
   'gate-cmd': () => false,
   'mutation-tool': () => false,
   findings: () => false,
-  'slice-sizing': () => false,
+  'part-sizing': () => false,
 };
 
 // ─── RED 1 — round-trip ───────────────────────────────────────────────────────
@@ -236,7 +236,7 @@ test('Given store with mutation-tool entry whose config file is no longer presen
 
 test('Given store whose entries all pass validate-on-read, when load runs, then every entry is in entries grouped by concern and evicted is empty', () => {
   const sut = load;
-  const allEntries = [TOOLCHAIN_ENTRY, GATE_CMD_ENTRY, MUTATION_TOOL_ENTRY, FINDINGS_ENTRY, SLICE_SIZING_ENTRY];
+  const allEntries = [TOOLCHAIN_ENTRY, GATE_CMD_ENTRY, MUTATION_TOOL_ENTRY, FINDINGS_ENTRY, PART_SIZING_ENTRY];
   const storeContent = makeStoreContent(allEntries);
 
   const result = sut('/repo', { readStore: () => storeContent, validators: ALL_PASS_VALIDATORS });
@@ -245,27 +245,27 @@ test('Given store whose entries all pass validate-on-read, when load runs, then 
   assert.equal(result.entries['gate-cmd'].length, 1);
   assert.equal(result.entries['mutation-tool'].length, 1);
   assert.equal(result.entries.findings.length, 1);
-  assert.equal(result.entries['slice-sizing'].length, 1);
+  assert.equal(result.entries['part-sizing'].length, 1);
   assert.deepEqual(result.evicted, []);
   assert.equal(result.loadNote, null);
 });
 
-// ─── RED 10 — slice-sizing has no re-check ───────────────────────────────────
+// ─── RED 10 — part-sizing has no re-check ───────────────────────────────────
 
-test('Given slice-sizing entry with no slice-sizing validator provided, when load runs, then it survives (weak hint, no per-use re-check)', () => {
+test('Given part-sizing entry with no part-sizing validator provided, when load runs, then it survives (weak hint, no per-use re-check)', () => {
   const sut = load;
-  const storeContent = makeStoreContent([SLICE_SIZING_ENTRY]);
-  const validatorsWithoutSliceSizing = {
+  const storeContent = makeStoreContent([PART_SIZING_ENTRY]);
+  const validatorsWithoutPartSizing = {
     toolchain: () => true,
     'gate-cmd': () => true,
     'mutation-tool': () => true,
     findings: () => true,
-    // no slice-sizing key
+    // no part-sizing key
   };
 
-  const result = sut('/repo', { readStore: () => storeContent, validators: validatorsWithoutSliceSizing });
+  const result = sut('/repo', { readStore: () => storeContent, validators: validatorsWithoutPartSizing });
 
-  assert.equal(result.entries['slice-sizing'].length, 1);
+  assert.equal(result.entries['part-sizing'].length, 1);
   assert.deepEqual(result.evicted, []);
 });
 
@@ -884,34 +884,34 @@ test('Given a gate-cmd entry re-observed with a CHANGED command for the same pha
   assert.equal(reparsed.entries['gate-cmd'][0].command, 'npm test');
 });
 
-// ─── slice-sizing through the save path ───────────────────────────────────────
+// ─── part-sizing through the save path ───────────────────────────────────────
 
-test('Given an empty store and a new slice-sizing observation, when save runs, then it is added under slice-sizing with confidence FLOOR+STEP', () => {
+test('Given an empty store and a new part-sizing observation, when save runs, then it is added under part-sizing with confidence FLOOR+STEP', () => {
   const sut = save;
   const view = makeLoadedView([]);
-  const delta = [{ concern: 'slice-sizing', payload: { size: 8, outcome: 'pass' } }];
+  const delta = [{ concern: 'part-sizing', payload: { size: 8, outcome: 'pass' } }];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_path, content) => captured.push(content) });
 
   sut('/repo', view, delta, deps);
 
   const reparsed = parseStore(captured[0]);
-  assert.equal(reparsed.entries['slice-sizing'].length, 1);
-  assert.equal(reparsed.entries['slice-sizing'][0].confidence, FLOOR + STEP);
+  assert.equal(reparsed.entries['part-sizing'].length, 1);
+  assert.equal(reparsed.entries['part-sizing'][0].confidence, FLOOR + STEP);
 });
 
-test('Given a slice-sizing entry re-observed with a CHANGED outcome for the same size, when save runs, then the stored outcome is updated', () => {
+test('Given a part-sizing entry re-observed with a CHANGED outcome for the same size, when save runs, then the stored outcome is updated', () => {
   const sut = save;
-  const view = makeLoadedView([{ concern: 'slice-sizing', size: 8, outcome: 'pass', confidence: 2, provenance: { run: 'r0', commit: 'c0', date: '2024-01-01' } }]);
-  const delta = [{ concern: 'slice-sizing', payload: { size: 8, outcome: 'blocked' } }];
+  const view = makeLoadedView([{ concern: 'part-sizing', size: 8, outcome: 'pass', confidence: 2, provenance: { run: 'r0', commit: 'c0', date: '2024-01-01' } }]);
+  const delta = [{ concern: 'part-sizing', payload: { size: 8, outcome: 'blocked' } }];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_path, content) => captured.push(content) });
 
   sut('/repo', view, delta, deps);
 
   const reparsed = parseStore(captured[0]);
-  assert.equal(reparsed.entries['slice-sizing'].length, 1);
-  assert.equal(reparsed.entries['slice-sizing'][0].outcome, 'blocked');
+  assert.equal(reparsed.entries['part-sizing'].length, 1);
+  assert.equal(reparsed.entries['part-sizing'][0].outcome, 'blocked');
 });
 
 // ─── configurable store path (memory.ref) + traversal containment ─────────────
@@ -1037,8 +1037,8 @@ test('Given a view with all concerns empty, when serializeStore runs, then every
 test('Given a view with multiple concern keys, when serializeStore runs, then YAML frontmatter keys appear in CONCERNS declaration order not alphabetical order', () => {
   const view = { entries: groupByConcern([]), evicted: [], loadNote: null };
   const result = serializeStore(view);
-  // CONCERNS order: toolchain, gate-cmd, mutation-tool, findings, slice-sizing
-  // Alphabetical order: findings, gate-cmd, mutation-tool, slice-sizing, toolchain
+  // CONCERNS order: toolchain, gate-cmd, mutation-tool, findings, part-sizing
+  // Alphabetical order: findings, gate-cmd, mutation-tool, part-sizing, toolchain
   // With sortKeys:true, 'findings' would appear before 'toolchain' in YAML
   // With sortKeys:false (correct), 'toolchain' appears first (as declared in CONCERNS)
   const toolchainIdx = result.indexOf('toolchain:');
@@ -1263,11 +1263,11 @@ test('Given two findings observations with different file+pattern combos, when s
   assert.equal(reparsed.entries.findings.length, 2, 'different file fields must produce 2 entries');
 });
 
-test('Given two slice-sizing observations with different sizes, when save runs, then they produce two separate entries (size is the key)', () => {
+test('Given two part-sizing observations with different sizes, when save runs, then they produce two separate entries (size is the key)', () => {
   const view = makeLoadedView([]);
   const delta = [
-    { concern: 'slice-sizing', payload: { size: 4, outcome: 'pass' } },
-    { concern: 'slice-sizing', payload: { size: 8, outcome: 'pass' } },
+    { concern: 'part-sizing', payload: { size: 4, outcome: 'pass' } },
+    { concern: 'part-sizing', payload: { size: 8, outcome: 'pass' } },
   ];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
@@ -1275,7 +1275,7 @@ test('Given two slice-sizing observations with different sizes, when save runs, 
   save('/repo', view, delta, deps);
 
   const reparsed = parseStore(captured[0]);
-  assert.equal(reparsed.entries['slice-sizing'].length, 2, 'different sizes must produce 2 entries');
+  assert.equal(reparsed.entries['part-sizing'].length, 2, 'different sizes must produce 2 entries');
 });
 
 // ─── KILL: keyOf join separator (L280) ───────────────────────────────────────
@@ -1347,9 +1347,9 @@ test('Given a findings entry at severity "critical" re-observed at severity "hig
   assert.equal(reparsed.entries.findings[0].severity, 'critical', 'high must not override critical');
 });
 
-test('Given a concern with no IMPROVES_BY rule (unknown concern in delta, treated via reconcile), when save with a slice-sizing re-observation with unchanged outcome, when save runs, then outcome is not rewritten', () => {
-  const view = makeLoadedView([{ concern: 'slice-sizing', size: 8, outcome: 'pass', confidence: 2, provenance: { run: 'r0', commit: 'c0', date: '2024-01-01' } }]);
-  const delta = [{ concern: 'slice-sizing', payload: { size: 8, outcome: 'pass' } }];
+test('Given a concern with no IMPROVES_BY rule (unknown concern in delta, treated via reconcile), when save with a part-sizing re-observation with unchanged outcome, when save runs, then outcome is not rewritten', () => {
+  const view = makeLoadedView([{ concern: 'part-sizing', size: 8, outcome: 'pass', confidence: 2, provenance: { run: 'r0', commit: 'c0', date: '2024-01-01' } }]);
+  const delta = [{ concern: 'part-sizing', payload: { size: 8, outcome: 'pass' } }];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
 
@@ -1357,8 +1357,8 @@ test('Given a concern with no IMPROVES_BY rule (unknown concern in delta, treate
 
   const reparsed = parseStore(captured[0]);
   // same outcome → improves is false, payload NOT rewritten, count stays 1
-  assert.equal(reparsed.entries['slice-sizing'].length, 1);
-  assert.equal(reparsed.entries['slice-sizing'][0].outcome, 'pass');
+  assert.equal(reparsed.entries['part-sizing'].length, 1);
+  assert.equal(reparsed.entries['part-sizing'][0].outcome, 'pass');
 });
 
 // ─── KILL: entryKey separator (L331) ─────────────────────────────────────────
@@ -1399,7 +1399,7 @@ test('Given delta with observations for multiple concerns, when save runs, then 
   assert.equal(reparsed.entries.findings.length, 1);
   assert.equal(reparsed.entries['gate-cmd'].length, 0);
   assert.equal(reparsed.entries['mutation-tool'].length, 0);
-  assert.equal(reparsed.entries['slice-sizing'].length, 0);
+  assert.equal(reparsed.entries['part-sizing'].length, 0);
 });
 
 // ─── KILL: flattenEntries sort comparator (L452-455) ─────────────────────────
@@ -1717,17 +1717,17 @@ test('Given store with existing findings entry for file=a.js+pattern=unused, and
   assert.equal(reparsed.entries.findings.length, 2, 'different patterns must remain as separate entries');
 });
 
-test('Given store with existing slice-sizing entry for size=4, and new observation for size=8, when save runs, then both sizes exist in store', () => {
-  const existing = { ...SLICE_SIZING_ENTRY, size: 4, confidence: 3 };
+test('Given store with existing part-sizing entry for size=4, and new observation for size=8, when save runs, then both sizes exist in store', () => {
+  const existing = { ...PART_SIZING_ENTRY, size: 4, confidence: 3 };
   const view = makeLoadedView([existing]);
-  const delta = [{ concern: 'slice-sizing', payload: { size: 8, outcome: 'pass' } }];
+  const delta = [{ concern: 'part-sizing', payload: { size: 8, outcome: 'pass' } }];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
 
   save('/repo', view, delta, deps);
 
   const reparsed = parseStore(captured[0]);
-  assert.equal(reparsed.entries['slice-sizing'].length, 2, 'different sizes must remain as separate entries');
+  assert.equal(reparsed.entries['part-sizing'].length, 2, 'different sizes must remain as separate entries');
 });
 
 // ─── KILL: keyOf '\x00' separator (L280) ─────────────────────────────────────
@@ -2312,7 +2312,7 @@ test('Given no caps provided in deps, when save runs with two entries, then both
 
 // ─── EQUIVALENT: L302-305 ConditionalExpression (=> true) ─────────────────────
 // L302 toolchain (o,n) => true, L303 mutation-tool (o,n) => true,
-// L304 gate-cmd (o,n) => true, L305 slice-sizing (o,n) => true.
+// L304 gate-cmd (o,n) => true, L305 part-sizing (o,n) => true.
 // PROVABLY EQUIVALENT: refreshedEntry spreads obs.payload over entry only when improves=true.
 // When obs.payload contains the same key-field values as the stored entry,
 // spreading identical values produces the same stored object — REFRESH confidence bump happens regardless.

@@ -1,62 +1,62 @@
 # Plan — Configurable policy hooks: always / ask / never
 
 > Source: design doc `docs/DESIGN-P23-configurable-policy-hooks.md` · ADRs `124–130`
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
-  must earn it. No standalone test-only slices for FEATURE code: coverage/interop/property
-  tests fold into the implementation slice whose code they exercise. EXCEPTION:
-  test-infra-only and docs-only slices (tooling config, test helpers, fixtures,
+- Every part costs a full agent lifecycle (spin-up, zero-context rebuild, gate) — it
+  must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
+  tests fold into the implementation part whose code they exercise. EXCEPTION:
+  test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
   mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
-  have no implementation slice to fold into.
-- A slice that would be a pure test pass over already-landed code merges into its
+  have no implementation part to fold into.
+- A part that would be a pure test pass over already-landed code merges into its
   neighbour.
 
 ## Ordering rationale (read first)
 
-Five slices, dependency-ordered so the pure module lands first and each later slice builds
+Five parts, dependency-ordered so the pure module lands first and each later part builds
 on a committed predecessor in the same worktree:
 
 1. **`policy.js` pure module + its full unit suite** (resolvePolicy, mergePolicyScopes,
    DEFAULT_VERDICT, floors-not-nameable, Supersede surface, headless degradation) + the
    `engine/src/index.js` export surface. Everything downstream imports from here.
-2. **`validatePolicy`** in `manifest.js` — depends on `POLICY_ACTIONS`/`VERDICTS` from slice 1.
+2. **`validatePolicy`** in `manifest.js` — depends on `POLICY_ACTIONS`/`VERDICTS` from part 1.
 3. **Resolve + per-invocation `--policy` flag** in `pipeline-resolve-main.js` — depends on
-   `mergePolicyScopes` (slice 1) and `validatePolicy` (slice 2).
+   `mergePolicyScopes` (part 1) and `validatePolicy` (part 2).
 4. **User-file load** (`~/.claude/craft-policy.md`) in `pipeline-resolve-main.js` — depends
-   on slice 2's validator and slice 3's merge wiring (it adds the third/lowest scope).
+   on part 2's validator and part 3's merge wiring (it adds the third/lowest scope).
 5. **Docs + orchestrator prose** (port spec `policy.md`, `run/SKILL.md` consult invariant +
    `--policy` flag-strip, the four outward-action skill rewrites) — docs/prose-only, no
    `src/` delta, legitimately standalone; sequenced last so the prose describes shipped code.
 
-### EXPECTED_TESTS reconciliation (the phase-boundary trap — applies to slices 1–4)
+### EXPECTED_TESTS reconciliation (the phase-boundary trap — applies to parts 1–4)
 
 `scripts/ci.sh` (the phase-boundary gate, run via `bash scripts/ci.sh`) asserts an EXACT
-engine test count: `EXPECTED_TESTS=843` today. Slices 1–4 each ADD tests, so each MUST, **in
+engine test count: `EXPECTED_TESTS=843` today. Parts 1–4 each ADD tests, so each MUST, **in
 its own commit**, update `EXPECTED_TESTS` in `scripts/ci.sh` to the new total. The
-forget-proof procedure for every code slice:
+forget-proof procedure for every code part:
 
-1. Write the slice's tests + code.
+1. Write the part's tests + code.
 2. Run `cd engine && node --test 'test/**/*.test.js' 2>&1 | grep '^# tests'` to read the new
    total `N` the suite now reports.
 3. Set `EXPECTED_TESTS=N` in `scripts/ci.sh` (replace the prior literal) in the SAME commit.
 4. Confirm with `bash scripts/ci.sh` before committing (it must print no "test count drift").
 
-The per-slice gate (`cd engine && node --test 'test/**/*.test.js'`) does NOT check the count,
-so the drift only bites at the phase boundary — every code slice below restates this in its
+The per-part gate (`cd engine && node --test 'test/**/*.test.js'`) does NOT check the count,
+so the drift only bites at the phase boundary — every code part below restates this in its
 Gate block so it is impossible to forget. **`EXPECTED_PI_TESTS=202` does NOT change**: P23
 adds no `adapters/pi` test and no pi `src/` delta (pi's `engine.js:resolvePipeline` shells out
 to the engine bin and forwards the resolution JSON verbatim, so the additive `Resolution.policy`
-field rides through untouched). The starting `EXPECTED_TESTS=843` is the literal that slice 1
-edits first; slices 2–4 each edit whatever literal the prior slice left.
+field rides through untouched). The starting `EXPECTED_TESTS=843` is the literal that part 1
+edits first; parts 2–4 each edit whatever literal the prior part left.
 
 ---
 
-## Slice 1 — policy.js pure module + unit suite
+## Part 1 — policy.js pure module + unit suite
 
 ### Context
 
@@ -88,11 +88,11 @@ Exports to add (all frozen where they are data; pure functions otherwise):
   shape `{ always:[a,b], ask:[c], never:[d] }` into `{ a:'always', b:'always', c:'ask', d:'never' }`.
   Pure; absent/empty block → `{}`; an absent verdict key contributes nothing. Lives in `policy.js`
   (beside `mergePolicyScopes`, which consumes its output) because it is pure data-shape logic that
-  belongs with the merge it feeds; slice 3's bin and slice 4's user-file load both import it from
-  here. **It assumes a VALIDATED block** (no double-verdict — `validatePolicy` in slice 2 has already
+  belongs with the merge it feeds; part 3's bin and part 4's user-file load both import it from
+  here. **It assumes a VALIDATED block** (no double-verdict — `validatePolicy` in part 2 has already
   rejected those before this runs); a stray double-verdict would simply last-key-wins, which never
   occurs on a validated block. **Public-surface decision: PUBLIC** — added to the `index.js` barrel
-  in this slice (same gate as the other exports).
+  in this part (same gate as the other exports).
 - `consult(action, ctx)` → `{ verdict, surface }` (design D5 seam signature). PURE QUERY (CQS —
   never performs the side-effect). `ctx` carries `{ effectivePolicy, binding }` where `binding ∈
   {'claude','pi'}`. Compute `verdict = resolvePolicy(action, ctx.effectivePolicy)`. Map verdict +
@@ -104,17 +104,17 @@ Exports to add (all frozen where they are data; pure functions otherwise):
     per-invocation `--policy <action>=always` is already folded into `effectivePolicy` upstream,
     so under `pi` a live `ask` means "not pre-approved" → degrade).
   Pre-condition `action ∈ POLICY_ACTIONS` (design D5 pre); an unknown action is a programming
-  error here (config-level unknown-action is caught earlier by `validatePolicy`, slice 2) — guard
+  error here (config-level unknown-action is caught earlier by `validatePolicy`, part 2) — guard
   with an early return/throw consistent with the module's pure style; do NOT swallow.
 
 **`engine/src/index.js`** (current 7-export barrel, all `export { x } from './y.js'` one-liners —
 see file) — add `export { resolvePolicy, mergePolicyScopes, normalizePolicyBlock, POLICY_ACTIONS, VERDICTS, DEFAULT_VERDICT, consult } from './policy.js';`.
 **Public-surface decision: these symbols are PUBLIC** (the engine `src/index.js` barrel is the
-engine's public surface; `validatePolicy` in slice 2 and the bin wiring in slices 3–4 import the
+engine's public surface; `validatePolicy` in part 2 and the bin wiring in parts 3–4 import the
 named exports from `./policy.js` directly, but the barrel is the documented entry point and must
 enumerate them). The barrel is the only surface gate in this repo for engine src exports — there
 is no generated API report, no exhaustiveness switch over exports, no separate facade. Adding the
-seven names to `index.js` in THIS slice pre-pays that gate. (Note: `pipeline/default.yml` is a
+seven names to `index.js` in THIS part pre-pays that gate. (Note: `pipeline/default.yml` is a
 frozen surface, but `policy.js` is `engine/src`, not that surface — design D6 confirms.)
 
 **New test file `engine/test/policy.test.js`** — mirror `engine/test/cli-overlay.test.js` exactly:
@@ -164,7 +164,7 @@ first line, one behaviour per test (see `cli-overlay.test.js:7-15`). Cover (desi
 
 ### Gate
 
-- **Slice gate:** `cd engine && node --test 'test/**/*.test.js'` (must be green; does NOT check count).
+- **Part gate:** `cd engine && node --test 'test/**/*.test.js'` (must be green; does NOT check count).
 - **EXPECTED_TESTS reconciliation (REQUIRED in THIS commit):** after green, run
   `cd engine && node --test 'test/**/*.test.js' 2>&1 | grep '^# tests'` to read new total `N`, then
   set `EXPECTED_TESTS=N` in `scripts/ci.sh` (replacing `843`). Verify with `bash scripts/ci.sh` — no drift.
@@ -175,7 +175,7 @@ first line, one behaviour per test (see `cli-overlay.test.js:7-15`). Cover (desi
 
 ---
 
-## Slice 2 — validatePolicy in manifest.js
+## Part 2 — validatePolicy in manifest.js
 
 ### Context
 
@@ -211,9 +211,9 @@ and `validateBacklog` (`manifest.js:198`). Three edits:
 
 **Note on the flat-map normalization:** `validatePolicy` validates the THREE-LIST YAML shape
 (`{ always:[...], ask:[...], never:[...] }`) and does NOT normalize — the flat `{ action: verdict }`
-map is produced by `normalizePolicyBlock` (landed in `policy.js` in slice 1, already public on the
-barrel). This slice's validator works directly on the three-list shape; the normalizer is invoked
-later by the bin (slice 3) and the user-file load (slice 4). No new normalizer decision here.
+map is produced by `normalizePolicyBlock` (landed in `policy.js` in part 1, already public on the
+barrel). This part's validator works directly on the three-list shape; the normalizer is invoked
+later by the bin (part 3) and the user-file load (part 4). No new normalizer decision here.
 
 **Tests — extend `engine/test/manifest.test.js`** (the validator suite; imports
 `import { validateManifest, registeredBacklogNames } from '../src/manifest.js';` at top,
@@ -231,7 +231,7 @@ one behaviour per test, `const sut = validateManifest;`:
 - `{ policy: 'x' }` (bare string) → error includes `'policy must be an object'`.
 - `{}` (no policy block) → `ok: true` (missing policy is NOT an error — engine defaults, R7).
 
-(`normalizePolicyBlock` is already landed and unit-tested in slice 1 — this slice does not touch it.)
+(`normalizePolicyBlock` is already landed and unit-tested in part 1 — this part does not touch it.)
 
 ### TDD steps
 
@@ -245,10 +245,10 @@ one behaviour per test, `const sut = validateManifest;`:
 
 ### Gate
 
-- **Slice gate:** `cd engine && node --test 'test/**/*.test.js'`.
+- **Part gate:** `cd engine && node --test 'test/**/*.test.js'`.
 - **EXPECTED_TESTS reconciliation (REQUIRED in THIS commit):** read the new total via
   `cd engine && node --test 'test/**/*.test.js' 2>&1 | grep '^# tests'` and set `EXPECTED_TESTS` in
-  `scripts/ci.sh` to it (replacing slice 1's literal). Verify `bash scripts/ci.sh` — no drift.
+  `scripts/ci.sh` to it (replacing part 1's literal). Verify `bash scripts/ci.sh` — no drift.
 
 ### Commit
 
@@ -256,7 +256,7 @@ one behaviour per test, `const sut = validateManifest;`:
 
 ---
 
-## Slice 3 — resolve path + per-invocation --policy flag
+## Part 3 — resolve path + per-invocation --policy flag
 
 ### Context
 
@@ -285,11 +285,11 @@ per-invocation `--policy <action>=<verdict>` flag. Pin against the real file:
    "mergePolicyScopes runs in the resolve path right after applyCliOverlay"), compute the effective
    policy and attach it to the resolution:
    - Extract the PROJECT-scope policy from the manifest: `manifest?.policy` is the three-list block;
-     normalize it via `normalizePolicyBlock` (from slice 1, `./policy.js`) → flat project map (empty
+     normalize it via `normalizePolicyBlock` (from part 1, `./policy.js`) → flat project map (empty
      `{}` when absent). Import `mergePolicyScopes`, `normalizePolicyBlock`, `POLICY_ACTIONS`, `VERDICTS`
      from `./policy.js` at the top of `pipeline-resolve-main.js`.
-   - USER scope is added in slice 4 — for THIS slice, user scope is `{}` (a literal empty map; slice 4
-     replaces it with the loaded user-file map). Leave a clear seam: `const userPolicy = {}; // slice 4: load ~/.claude/craft-policy.md`.
+   - USER scope is added in part 4 — for THIS part, user scope is `{}` (a literal empty map; part 4
+     replaces it with the loaded user-file map). Leave a clear seam: `const userPolicy = {}; // part 4: load ~/.claude/craft-policy.md`.
    - `const effectivePolicy = mergePolicyScopes(userPolicy, projectPolicy, perInvocationPolicy ?? {});`
    - Attach as an ADDITIVE top-level field on the resolution AFTER `resolvePipeline` succeeds and
      BEFORE `io.stdout.write(JSON.stringify(resolution, …))` at `:228`:
@@ -340,9 +340,9 @@ primary coverage and keep the suite fast — prefer extending `pipeline-resolve-
 
 ### Gate
 
-- **Slice gate:** `cd engine && node --test 'test/**/*.test.js'`.
+- **Part gate:** `cd engine && node --test 'test/**/*.test.js'`.
 - **EXPECTED_TESTS reconciliation (REQUIRED in THIS commit):** read the new total and set
-  `EXPECTED_TESTS` in `scripts/ci.sh` (replacing slice 2's literal). Verify `bash scripts/ci.sh` — no
+  `EXPECTED_TESTS` in `scripts/ci.sh` (replacing part 2's literal). Verify `bash scripts/ci.sh` — no
   drift. Also confirm the full phase gate's tail (`node engine/bin/pipeline-resolve.js pipeline/default.yml`)
   still exits 0 — the additive `policy: {}` field must not break the no-manifest resolve path.
 
@@ -352,11 +352,11 @@ primary coverage and keep the suite fast — prefer extending `pipeline-resolve-
 
 ---
 
-## Slice 4 — user-file load (~/.claude/craft-policy.md)
+## Part 4 — user-file load (~/.claude/craft-policy.md)
 
 ### Context
 
-**`engine/src/pipeline-resolve-main.js`** — replace slice 3's `userPolicy = {}` seam with a real
+**`engine/src/pipeline-resolve-main.js`** — replace part 3's `userPolicy = {}` seam with a real
 load of the user-level policy file `~/.claude/craft-policy.md` (ADR-124), validated by the SAME
 `validatePolicy` (one validator, two call sites) and normalized by the same `normalizePolicyBlock`,
 with the SAME traversal-containment discipline as `memory.js:resolveStorePath` (`memory.js:37-42`).
@@ -399,7 +399,7 @@ Pin the read pattern against the real code:
   path) and `return 2` — a malformed USER file is a config error before any phase runs, identical to a
   malformed project manifest (design D7). A user file with NO `policy:` block (or absent file) → empty user
   scope `{}`, no error.
-- **Merge:** `const userPolicy = normalizePolicyBlock(userBlock ?? {});` then the slice-3
+- **Merge:** `const userPolicy = normalizePolicyBlock(userBlock ?? {});` then the part-3
   `mergePolicyScopes(userPolicy, projectPolicy, perInvocationPolicy ?? {})` now folds all three scopes
   in the correct precedence (`perInvocation > project > user`).
 
@@ -428,16 +428,16 @@ new `deps` third arg so tests are pure — pass `main(argv, io, { readUserPolicy
 - GREEN: add the optional `deps` param + default real reader (with `homedir()` + containment +
   swallow-to-null), the user-file parse via `parseManifestContent`/`extractFrontmatter`, the
   `validatePolicy` parity check (→ exit 2 on error), and wire `userPolicy` into the existing
-  `mergePolicyScopes` call (replacing the slice-3 `{}` seam). Run the suite — green.
+  `mergePolicyScopes` call (replacing the part-3 `{}` seam). Run the suite — green.
 - REFACTOR: extract `loadUserPolicy(deps) → { block, errors }` as a small pure-ish helper (the only
   impure bit is the injected read) to keep `main` readable; keep the containment check as a named helper
   mirroring `resolveStorePath`; no swallowed errors beyond the documented absent-file→null.
 
 ### Gate
 
-- **Slice gate:** `cd engine && node --test 'test/**/*.test.js'`.
+- **Part gate:** `cd engine && node --test 'test/**/*.test.js'`.
 - **EXPECTED_TESTS reconciliation (REQUIRED in THIS commit):** read the new total and set
-  `EXPECTED_TESTS` in `scripts/ci.sh` (replacing slice 3's literal). Verify `bash scripts/ci.sh` — no
+  `EXPECTED_TESTS` in `scripts/ci.sh` (replacing part 3's literal). Verify `bash scripts/ci.sh` — no
   drift. Confirm `node engine/bin/pipeline-resolve.js pipeline/default.yml` (phase-gate tail) still exits
   0 with the default reader (no real `~/.claude/craft-policy.md` present → null → empty user scope).
 
@@ -447,13 +447,13 @@ new `deps` third arg so tests are pure — pass `main(argv, io, { readUserPolicy
 
 ---
 
-## Slice 5 — policy port spec + orchestrator/skill prose
+## Part 5 — policy port spec + orchestrator/skill prose
 
 ### Context
 
-Docs-and-prose-only slice — NO `src/` delta, NO test, NO `EXPECTED_TESTS` change (legitimately
-standalone per the sizing rules; there is no implementation slice to fold into because the engine
-code already landed in slices 1–4 and this slice only describes/wires the seam in prose). This is
+Docs-and-prose-only part — NO `src/` delta, NO test, NO `EXPECTED_TESTS` change (legitimately
+standalone per the sizing rules; there is no implementation part to fold into because the engine
+code already landed in parts 1–4 and this part only describes/wires the seam in prose). This is
 design D5 (consult seam) + D6 (port spec) + the orchestrator/skill rewrites.
 
 **1. New `docs/adapters/policy.md`** — the port spec, mirroring `docs/adapters/memory.md` structure
@@ -532,8 +532,8 @@ performs and consults before acting (design D5 "the seam in the orchestrator"):
 
 ### TDD steps
 
-- This is a docs/prose slice — there is NO RED/GREEN/REFACTOR test cycle (no `src/` delta, no engine
-  behaviour to test; the engine surface decisions were already tested in slices 1–4). The "verification"
+- This is a docs/prose part — there is NO RED/GREEN/REFACTOR test cycle (no `src/` delta, no engine
+  behaviour to test; the engine surface decisions were already tested in parts 1–4). The "verification"
   is editorial/structural:
   - RED (proxy): `docs/adapters/policy.md` does not exist; `grep -n 'Policy consult' skills/run/SKILL.md`
     finds nothing; `grep -n 'confirms the merge' skills/integrate/SKILL.md` still finds the hardcoded line.
@@ -546,14 +546,14 @@ performs and consults before acting (design D5 "the seam in the orchestrator"):
 
 ### Gate
 
-- **Slice gate:** `cd engine && node --test 'test/**/*.test.js'` — trivially green (this slice has NO
-  engine/`src/` delta and adds NO test; the count is unchanged from slice 4). **`EXPECTED_TESTS` is NOT
-  touched in this slice.**
-- **Phase-boundary gate (the meaningful one for this prose slice):** `bash scripts/ci.sh` — it runs
+- **Part gate:** `cd engine && node --test 'test/**/*.test.js'` — trivially green (this part has NO
+  engine/`src/` delta and adds NO test; the count is unchanged from part 4). **`EXPECTED_TESTS` is NOT
+  touched in this part.**
+- **Phase-boundary gate (the meaningful one for this prose part):** `bash scripts/ci.sh` — it runs
   `bats test/`, `shellcheck scripts/*.sh hooks/*.sh`, the pipeline/contracts lints, and the engine/pi
   `node --test` count checks. Run it before the phase closes to confirm the prose edits (port doc,
   `run/SKILL.md`, the four skill rewrites) did not break any bats structural assertion or shellcheck, and
-  that both test counts still match (engine = slice 4's literal, pi = 202, both unchanged here).
+  that both test counts still match (engine = part 4's literal, pi = 202, both unchanged here).
 
 ### Commit
 

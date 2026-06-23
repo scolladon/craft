@@ -10,7 +10,7 @@ toolchain:
       date: '2026-06-22'
 gate-cmd:
   - concern: gate-cmd
-    phase: slice
+    phase: part
     command: node --test 'test/**/*.test.js'
     confidence: 1
     provenance:
@@ -44,8 +44,8 @@ findings:
       run: p23-policy-hooks
       commit: 231f2bd
       date: '2026-06-22'
-slice-sizing:
-  - concern: slice-sizing
+part-sizing:
+  - concern: part-sizing
     size: pure-module
     outcome: pass
     confidence: 1
@@ -53,7 +53,7 @@ slice-sizing:
       run: p23-policy-hooks
       commit: 231f2bd
       date: '2026-06-22'
-  - concern: slice-sizing
+  - concern: part-sizing
     size: validator
     outcome: pass
     confidence: 1
@@ -61,7 +61,7 @@ slice-sizing:
       run: p23-policy-hooks
       commit: 231f2bd
       date: '2026-06-22'
-  - concern: slice-sizing
+  - concern: part-sizing
     size: docs-prose
     outcome: pass
     confidence: 1
@@ -87,7 +87,7 @@ slice-sizing:
 ## findings
 - confidence: 1 | provenance: 231f2bd / 2026-06-22
 
-## slice-sizing
+## part-sizing
 - confidence: 1 | provenance: 231f2bd / 2026-06-22
 - confidence: 1 | provenance: 231f2bd / 2026-06-22
 - confidence: 1 | provenance: 231f2bd / 2026-06-22

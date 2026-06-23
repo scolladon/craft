@@ -18,7 +18,7 @@ Dimensions (rows) follow the SP5 contract-adherence axes plus a full-pipeline ro
 | Dimension | opus (`claude-opus-4-8`) | sonnet (`claude-sonnet-4-6`) | haiku (`claude-haiku-4-5-20251001`) |
 |---|---|---|---|
 | planner | — (not yet run) | — (not yet run) | — (not yet run) |
-| slice-TDD | — (not yet run) | — (not yet run) | — (not yet run) |
+| part-TDD | — (not yet run) | — (not yet run) | — (not yet run) |
 | structured-review | — (not yet run) | — (not yet run) | — (not yet run) |
 | blocker | — (not yet run) | — (not yet run) | — (not yet run) |
 | full-pipeline-completion | — (not yet run) | — (not yet run) | — (not yet run) |

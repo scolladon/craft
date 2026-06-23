@@ -40,7 +40,7 @@ Code primitive over an existing entry point (ADRs 111–115).
 **P22 delivered 2026-06-22** — repo-local self-improving memory: a 7th port (`docs/adapters/memory.md`)
 whose `load`/`save` verbs maintain an **advisory, never-gating** cache in the TARGET repo
 (`.claude/craft-memory.md`, committed via a `.gitignore` re-include), accumulating mechanically-derived
-learnings (toolchain, discovered gate command, recurring findings, slice-sizing, per-phase metrics).
+learnings (toolchain, discovered gate command, recurring findings, part-sizing, per-phase metrics).
 Validate-on-read + confidence/decay + merge-before-insert + a newest-window size cap keep it fresh and
 bounded; the content whitelist is document-only; deleting the store changes run *cost*, never
 *correctness*. Configured via a new top-level `memory:` manifest key (ADRs 116–123).
@@ -55,6 +55,21 @@ degrade-to-blocker (pre-approved via a per-invocation `always`); an `always` ver
 hardcoded merge/PR confirmation (enabling headless auto-merge), while the three engine floors
 (never-commit-on-red, validation-triage-gates-propose, artifact-handoff) stay non-overridable and
 un-nameable (ADRs 124–130).
+**P24 delivered 2026-06-22** — rename the plan-decomposition unit "slice" → **part**: a
+behavior-preserving, cross-cutting vocabulary rename landed green-by-construction. The plan heading
+(`## Part N`) + `plan-lint.sh` keyword, the worker agent (`craft:slice-implementer` →
+`craft:part-implementer`, including `pipeline/default.yml` `role:`, `manifest.js` `MODELS_KEYS`, and the
+golden descriptor), the `gates.slice` → `gates.part` manifest key (a breaking schema change), the
+`slice-sizing` → `part-sizing` memory concern (including the committed store data), and all live prose
+flip in lockstep; dated history docs are swept too for a globally clean grep. Only `Array.slice`/
+English-verb uses (sense E) and the rename's own meta-docs (the P24 design/plan docs + ADRs 131–135)
+retain "slice". Test counts held (941/202). The agent-name rename **did** touch engine config and the
+golden descriptor — the original "no engine-descriptor change expected" aside was factually wrong (ADRs
+131–135). Two follow-ups it surfaced were resolved in the same change: the `MODELS_KEYS` membership gap
+is now pinned by a test (the `'refactor-executor'` survivor is killed); the `IMPROVES_BY` sizing
+predicate's `=> true` survivor is documented inline as a provable equivalent (the discriminating-field
+family); and `docs/DOD.md` was reduced to durable criteria only, with per-change criteria moving to the
+design doc — ending the recurring "feature-acceptance section goes stale" item (P21/P23/P24).
 
 | Phase | What | ADRs |
 |---|---|---|
@@ -84,12 +99,12 @@ un-nameable (ADRs 124–130).
 | P20 | DoD-aware verification — optional DoD artifact (`docs/DOD.md` / `paths.dod`) folds into `validation` (default-ON); per-criterion assertion, warn-on-absence `NO-OP(verify):`, DoD subsumes (1)/(2), `paths.dod` lint-validated | 104–110 |
 | P21 | Running craft in a loop — operator-owned outer-loop recipe (`/loop /craft:run` self-paced on the run-record verdict; headless `craft-pi` exit-code contrast); docs + `examples/loop/`, no engine change | 111–115 |
 
-Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
+Per-part history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
 
 **Standing invariants (the working contract):**
 - **Data is the SoT, not prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.
 - Every phase is **dogfoodable** — runnable through `/craft:run` itself.
-- Working style: sliced TDD, one slice per dedicated agent (or session-direct for judgment-fused
+- Working style: part TDD, one part per dedicated agent (or session-direct for judgment-fused
   sweeps); 4-dimension review interleaved, every fix applied before the next; **CI green at every
   commit; `--no-verify` is the consumer's discretion, the craft gate is not.**
 
@@ -98,22 +113,6 @@ Per-slice history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
-
-### P24 — Rename the "slice" vocabulary to standard software-engineering terminology
-
-The plan decomposes work into **slices** (one atomic TDD commit each). "Slice" reads as craft
-jargon; replace it with a term closer to mainstream software-engineering vocabulary. Candidate
-replacements to weigh in the design: **increment** (Scrum "potentially-shippable increment" — closest
-fit), **work item**, or **work unit**. ("Vertical slice" is the actual industry term but keeps the
-disliked word; "task" collides with issue-tracker tasks.)
-
-Scope is a cross-cutting rename, not a one-file edit — it touches: `templates/plan.md` (`## Slice N`
-headings), `scripts/plan-lint.sh` (keys on the `Slice` heading), the `craft:slice-implementer` agent
-(name + `agents/` def + `skills/implementation`), `skills/planning`, the planner's output prose, and
-the design/plan doc voice. The agent name and the lint keyword are load-bearing — the rename must stay
-mechanically consistent across all of them in one pass. No engine-descriptor change expected (the
-pipeline knows phases, not slices). Decide the exact term in that change's decisions phase. (Promoted
-from session feedback 2026-06-21.)
 
 ### P25 — Interactive customization generator (the manifest "front door")
 
@@ -221,15 +220,6 @@ Distinct from P23 (policy governs outward *actions*, not phase necessity) and fr
   engine instructions, and "evidenced by phase results, never re-run" mitigates; document that asserting
   agents treat criteria as *claims to verify against phase evidence*, not ground truth, and that DoD
   content is part of the reviewed diff.
-- **`docs/DOD.md` "Feature-acceptance criteria (current change)" section goes stale** (P21 follow-up —
-  surfaced in P21's `validation`) — the repo DoD's evergreen sections (General / Mutation / Gates /
-  Architecture) apply to every change, but the "current change" section is still P20's feature criteria;
-  P21 deliberately did not touch `docs/DOD.md` (the loop example ships its own `examples/loop/DOD.md`),
-  so the `verify:` step had no P21-specific acceptance lines to assert against. Decide the intended
-  model: reset the per-feature section each change, drop it in favour of per-feature criteria living in
-  the design doc's Requirements, or template it. Until then, `verify:` asserts the evergreen sections and
-  records the per-feature section's provenance honestly. (Re-surfaced again in P23's `validation` — the
-  same P20 section was re-asserted; a recurring signal that this needs a per-change convention.)
 - **Repo-local memory hardening** (P22 follow-ups — surfaced by review/validation) — the memory port
   (`docs/adapters/memory.md`, ADRs 116–123) ships deliberate document-only / mechanism-only choices that
   leave clean upgrade paths: (a) the **`custom` memory adapter** binding is reserved in the `memory:` key
@@ -250,7 +240,6 @@ Distinct from P23 (policy governs outward *actions*, not phase necessity) and fr
   symmetric, so harden them together (`realpathSync` then re-check containment) as one cross-cutting change
   if symlink-following ever becomes a concern. Pairs with the memory-hardening item above. Deferred from
   P23's review (LOW).
-
 ### Closed — won't-do (rationale recorded)
 
 - **DC-9 registered-phase model seed** — *resolved by design, not implemented.* The walk

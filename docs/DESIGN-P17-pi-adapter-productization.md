@@ -69,7 +69,7 @@ effective: 11 phases, in order:
   design         | specification | craft:designer            | —                 | opus  | worker
   decisions      | specification | —                         | —                 | —     | role-less
   planning       | specification | craft:planner             | plan-lint         | opus  | worker
-  implementation | construction  | craft:slice-implementer   | <gates.phase>     | sonnet| worker
+  implementation | construction  | craft:part-implementer   | <gates.phase>     | sonnet| worker
   review         | harness       | craft:reviewer            | <gates.phase>     | opus  | worker
   refactoring    | refinement    | craft:refactor-executor   | <gates.phase>     | sonnet| worker
   validation     | harness       | craft:validation-triager  | <validation gate> | sonnet| worker
@@ -98,10 +98,10 @@ Five load-bearing facts for the full-walk entrypoint, **pinned not assumed** (ra
      **still** `gate: "<gates.phase>"` — the manifest value does **not** lift the placeholder in
      `gateDecisions`. (`resolveGate` in `gates.js` returns `descriptor.gate` first when truthy, and
      `descriptor.gate` is the literal `<gates.phase>`; the `manifest.gates[phaseId]` branch keys by
-     phase id and never sees the `phase`/`slice` cadence keys.)
+     phase id and never sees the `phase`/`part` cadence keys.)
    - **Therefore the placeholder→command substitution is the orchestrator's job, not the engine's.**
      The Claude `implementation` skill does it (`skills/implementation/SKILL.md` lines 10-14: "Probe
-     gates: `gates.slice` … `gates.phase`"): it reads the manifest's `gates` map and substitutes
+     gates: `gates.part` … `gates.phase`"): it reads the manifest's `gates` map and substitutes
      `<gates.phase>` → `manifest.gates.phase`, `<validation gate>` → `manifest.gates.phase`/the
      validation gate, falling back to a probed command, REFUSING if a code-producing phase has none.
      **The bin must replicate this substitution** (§Gate mechanics; DC-G). This is the deepest
@@ -274,7 +274,7 @@ as `.claude/workflow.md`" — and `parseManifestContent` parses the fenced file.
 # No provider/model pinned here (DC-3 passthrough): craft-pi stays provider-neutral.
 gates:
   phase: "node --test"        # the authoritative phase-boundary gate for implementation/refactoring/review
-  # slice:  (optional) targeted per-slice gate; omit → falls back to gates.phase per slice
+  # part:  (optional) targeted per-part gate; omit → falls back to gates.phase per part
 ---
 # craft-pi manifest (policy rationale in prose body — never reaches the YAML parser)
 ```
@@ -282,7 +282,7 @@ gates:
 - **No `adapter:` key, no provider/model pin** (DC-3 passthrough preserved per ADR-093 consequences):
   the manifest carries gate commands only. The tier→provider selection is `spawnPi`'s concern via
   operator-supplied `--provider`/`--model` + env (DC-3).
-- **Validity**: `gates` accepts exactly `{ slice, phase, review-batch }` (`engine/src/manifest.js`
+- **Validity**: `gates` accepts exactly `{ part, phase, review-batch }` (`engine/src/manifest.js`
   `GATE_FIELDS`). `parseManifestContent` parses the fenced file. The committed manifest is a **shipped
   artifact, lint-clean by construction** — `pipeline-resolve.js` parses but does **not** run
   `validateManifest` (the Claude path lints separately, run/SKILL.md step 1), so the bin does **not**

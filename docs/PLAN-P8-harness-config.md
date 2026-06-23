@@ -1,8 +1,8 @@
 # Plan — P8: per-phase harness config
 
 > Source: design doc `docs/DESIGN-P8-harness-config.md` · ADRs 028, 029, 030, 031
-> The plan is the implementation script AND the knowledge handoff. Slice agents start
-> with zero context: whatever a slice block omits is paid later as agent rediscovery.
+> The plan is the implementation script AND the knowledge handoff. Part agents start
+> with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
 
 ## Constraints and risks
@@ -23,15 +23,15 @@ named private function, not exported, not in `index.js`.
 `{ ok, errors, effective, record, gateDecisions, waivers }` stay unchanged.
 `pipeline/default.yml` (13 descriptors, enabled/disabled state), `graph.js`'s
 `validatePipeline(descriptors)`, `contract.js`'s `assembleContract`, and
-`engine/src/index.js` are untouched by every slice — except that `pipeline/default.yml`
-gains exactly one `harness:` block addition on the `review` descriptor (Slice 3).
+`engine/src/index.js` are untouched by every part — except that `pipeline/default.yml`
+gains exactly one `harness:` block addition on the `review` descriptor (Part 3).
 
 ### Surface-gate tests that must stay green at every commit
 
 SC1, S1, S2, S3, S-lean, S-full, S-reorder, SC3, contract-equivalence.
 CI: `bash scripts/ci.sh`.
 
-### Risk: golden safety of the `review.harness` addition (Slice 3)
+### Risk: golden safety of the `review.harness` addition (Part 3)
 
 ADR-031 asserts the `pipeline/default.yml` `review.harness` add is **golden-safe**
 because no test currently asserts a descriptor's `harness` value. This has been
@@ -46,7 +46,7 @@ verified against `engine/test/scenarios.test.js` and
 - S3 (insert bench) pins effective ids and gateDecisions; no harness assertion.
 - S-reorder, SC3 pin effective id order and record lines; no harness assertion.
 
-If a future test is added that pins `review.harness` BEFORE slice 3 lands, Slice 3's
+If a future test is added that pins `review.harness` BEFORE part 3 lands, Part 3's
 `pipeline/default.yml` edit will cause that test to fail. The implementer must confirm
 no such test exists before editing `pipeline/default.yml`.
 
@@ -54,28 +54,28 @@ no such test exists before editing `pipeline/default.yml`.
 
 `resolve.js` line 171: `applyEnableEdits([...defaults], skipSet, phaseOverrides)`.
 `applyEnableEdits` (edits.js line 39–67) calls `applyAllowedOverrides` internally.
-Fixing the merge semantics in Slice 2 (`applyAllowedOverrides` in `edits.js`) is
+Fixing the merge semantics in Part 2 (`applyAllowedOverrides` in `edits.js`) is
 **sufficient** — no new resolver wiring is needed. The merged harness flows onto every
-descriptor in `enableResult.descriptors` automatically. The Slice 3 implementer must
+descriptor in `enableResult.descriptors` automatically. The Part 3 implementer must
 NOT add new resolver steps.
 
 ### Risk: `validateManifest` not called by scenario tests
 
 Scenario tests (`engine/test/scenarios.test.js`) call `resolvePipeline` directly,
-bypassing `validateManifest`. The bad-harness-shape negative in Slice 3 therefore calls
+bypassing `validateManifest`. The bad-harness-shape negative in Part 3 therefore calls
 `validateManifest` directly (same pattern as manifest.test.js), not through the
 resolver. The deep-merge path is tested at the resolver level via S-harness fixtures.
 
 ## Sizing rules
 
-- Every slice costs a full agent lifecycle — it must earn it. No standalone test-only slices.
-- Sequential slices share one working tree; each builds on the prior.
+- Every part costs a full agent lifecycle — it must earn it. No standalone test-only parts.
+- Sequential parts share one working tree; each builds on the prior.
 
-## Prose follow-ups (session-direct, Slice 4)
+## Prose follow-ups (session-direct, Part 4)
 
 `skills/review/SKILL.md`, `skills/validation/SKILL.md`, and `skills/run/SKILL.md`
-have no RED/GREEN TDD cycle (prose edits). They are handled in Slice 4 as a
-**session-direct** slice (no slice-implementer agent). Slice 4 carries no `node --test`
+have no RED/GREEN TDD cycle (prose edits). They are handled in Part 4 as a
+**session-direct** part (no part-implementer agent). Part 4 carries no `node --test`
 gate; it gets a focused consistency review.
 
 ---
@@ -84,9 +84,9 @@ gate; it gets a focused consistency review.
 
 | ID | Shape | Agent | Scope |
 |----|-------|-------|-------|
-| S1 | TDD | slice-implementer | `manifest.js`: expand `PHASE_FIELDS` + add `validateHarness` + inline role/model/enabled checks in `validatePhaseBlock` |
-| S2 | TDD | slice-implementer | `edits.js`: change `applyAllowedOverrides` to deep-merge `harness` one level; new unit tests in `edits.test.js` |
-| S3 | TDD | slice-implementer | `pipeline/default.yml` `review.harness` add + S-harness fixture dirs + scenario golden assertions |
+| S1 | TDD | part-implementer | `manifest.js`: expand `PHASE_FIELDS` + add `validateHarness` + inline role/model/enabled checks in `validatePhaseBlock` |
+| S2 | TDD | part-implementer | `edits.js`: change `applyAllowedOverrides` to deep-merge `harness` one level; new unit tests in `edits.test.js` |
+| S3 | TDD | part-implementer | `pipeline/default.yml` `review.harness` add + S-harness fixture dirs + scenario golden assertions |
 | S4 | session-direct | (orchestrator session) | `skills/review/SKILL.md`, `skills/validation/SKILL.md`, `skills/run/SKILL.md` prose edits; `passes>1` parked items documented explicitly |
 
 ## Dependency order
@@ -95,11 +95,11 @@ S1 → S2 → S3 → S4 (strictly sequential; S3 depends on S2's deep-merge bein
 
 ---
 
-## Slice 1 — manifest.js: PHASE_FIELDS expansion + validateHarness + inline shape checks
+## Part 1 — manifest.js: PHASE_FIELDS expansion + validateHarness + inline shape checks
 
 ### Context
 
-**Shape:** TDD / slice-implementer
+**Shape:** TDD / part-implementer
 
 **File to edit:** `engine/src/manifest.js`
 
@@ -214,7 +214,7 @@ validation. Extend by adding two new sections:
 
 No new exports. `validateHarness` is internal.
 
-**Surface-gate assertion for this slice:** `PHASE_FIELDS` currently rejects `harness`, `execution`,
+**Surface-gate assertion for this part:** `PHASE_FIELDS` currently rejects `harness`, `execution`,
 `enabled`, `role`, `model` as unknown. After the change, `S2` fixture
 (`engine/test/fixtures/scenarios/S2/manifest.yml`) which contains `phases.planning.role:
 craft:planner` now lints clean (previously an unknown-field error if run through validateManifest).
@@ -503,11 +503,11 @@ feat(manifest): expand PHASE_FIELDS to full honored set + validateHarness + role
 
 ---
 
-## Slice 2 — edits.js: `applyAllowedOverrides` deep-merge for harness
+## Part 2 — edits.js: `applyAllowedOverrides` deep-merge for harness
 
 ### Context
 
-**Shape:** TDD / slice-implementer
+**Shape:** TDD / part-implementer
 
 **File to edit:** `engine/src/edits.js`
 
@@ -554,7 +554,7 @@ function applyAllowedOverrides(descriptor, override) {
 **Semantics (pre-chewed for the implementer):**
 - Both sides plain objects → merge: `{ ...descriptor.harness, ...override.harness }`.
   Override keys win; unset default keys survive.
-- Either side null/array/absent → scalar-replace. The shape validator (Slice 1)
+- Either side null/array/absent → scalar-replace. The shape validator (Part 1)
   rejects malformed values before the resolver runs, so a null/array override that
   bypasses the validator still lands as scalar-replace without silent error.
 - Arrays within harness (e.g. `dimensions`) replace wholesale — not union. A
@@ -564,7 +564,7 @@ function applyAllowedOverrides(descriptor, override) {
 - **Immutability:** `{ ...descriptor[field], ...override[field] }` produces a new
   object. `{ ...descriptor, ...patch }` produces a new descriptor. Neither the
   (deep-frozen) default descriptor nor the override is mutated.
-- **Edge — descriptor has no default harness** (e.g. `review` before Slice 3 adds
+- **Edge — descriptor has no default harness** (e.g. `review` before Part 3 adds
   one): `descriptor.harness === undefined` → guard fails → scalar-replace → the full
   override object lands as-is. This is correct.
 
@@ -573,7 +573,7 @@ function applyAllowedOverrides(descriptor, override) {
 Current file (153 lines) imports `applyReorder, checkReorderApplicability` from
 `'../src/edits.js'`. The import line must be extended to also import
 `applyAllowedOverrides` — but wait: **`applyAllowedOverrides` is not currently
-exported**. This slice must add an export OR test it indirectly via `applyEnableEdits`.
+exported**. This part must add an export OR test it indirectly via `applyEnableEdits`.
 
 **Resolution (pre-chewed):** `applyAllowedOverrides` is a private function. The
 cleanest approach, consistent with the project's CQS/hexagonal style, is to test it
@@ -731,13 +731,13 @@ feat(edits): deep-merge harness one level in applyAllowedOverrides (ADR-029)
 
 ---
 
-## Slice 3 — pipeline/default.yml + S-harness scenarios
+## Part 3 — pipeline/default.yml + S-harness scenarios
 
 ### Context
 
-**Shape:** TDD / slice-implementer
+**Shape:** TDD / part-implementer
 
-**This slice is the P8 gate (S-harness green).**
+**This part is the P8 gate (S-harness green).**
 
 **Verified pre-condition (do not re-verify):** No test in `engine/test/scenarios.test.js`
 or `engine/test/contract-equivalence.test.js` asserts a descriptor's `harness` field value
@@ -749,7 +749,7 @@ strings. None concern `harness` values.
 through to the entry object as-is (raw passthrough, deep-frozen via `deepFreeze`). No
 descriptor.js change needed.
 
-**Verified pre-condition:** `resolve.js` already chains `applyEnableEdits → ...`. After Slice 2
+**Verified pre-condition:** `resolve.js` already chains `applyEnableEdits → ...`. After Part 2
 fixes the merge semantics in `applyAllowedOverrides`, the merged harness automatically flows
 onto `enableResult.descriptors`. No new resolver wiring is needed.
 
@@ -839,7 +839,7 @@ resolver — see constraint above). Import `validateManifest` at the top of `sce
 import { validateManifest } from '../src/manifest.js';
 ```
 
-**Surface-gate assertion for this slice:** Run the lint and resolve bins after committing:
+**Surface-gate assertion for this part:** Run the lint and resolve bins after committing:
 ```
 node engine/bin/pipeline-lint.js pipeline/default.yml
 node engine/bin/pipeline-resolve.js pipeline/default.yml
@@ -992,11 +992,11 @@ Run `cd engine && node --test` → failures:
   `{max_cycles:2}` lands; ok:true because resolveManifest path works). BUT tests 2, 3
   (checking `dimensions` survival) FAIL because the default `review` descriptor has no
   `harness` yet → `reviewDesc.harness` will be `{ max_cycles: 2 }` with no `dimensions`
-  key → assertion fails. **This confirms the RED state requires the Slice 3 data change.**
+  key → assertion fails. **This confirms the RED state requires the Part 3 data change.**
 - S-harness-validation tests 2, 3 (checking tool survival + scope override): validation
   already has `harness: { tool: stryker, scope: per-hunk }` in `pipeline/default.yml`.
-  With Slice 2 green, `{ scope: per-file }` deep-merges → `{ tool: stryker, scope: per-file }`.
-  So tests 2 and 3 MAY already pass after Slice 2. Test 1 (ok:true) also passes.
+  With Part 2 green, `{ scope: per-file }` deep-merges → `{ tool: stryker, scope: per-file }`.
+  So tests 2 and 3 MAY already pass after Part 2. Test 1 (ok:true) also passes.
   The RED state for S-harness-validation is subtle — confirm by running BEFORE editing
   `pipeline/default.yml`. If S-harness-validation tests all pass before editing the YAML,
   that's fine; the RED is established by S-harness-review test 3 (dimensions failure).
@@ -1049,13 +1049,13 @@ feat(scenarios): S-harness-review + S-harness-validation golden + review.harness
 
 ---
 
-## Slice 4 — walk prose: review/validation/run SKILL.md harness knob wiring
+## Part 4 — walk prose: review/validation/run SKILL.md harness knob wiring
 
 ### Context
 
-**Shape:** session-direct (NOT slice-implementer — no RED/GREEN TDD cycle)
+**Shape:** session-direct (NOT part-implementer — no RED/GREEN TDD cycle)
 
-**This slice is prose editing only.** It carries no `node --test` gate. It gets a focused
+**This part is prose editing only.** It carries no `node --test` gate. It gets a focused
 consistency review (not the 4-dimension code review), checking that:
 1. All four `review` knobs are read from `phase.harness` with correct fallbacks.
 2. All three `validation` knobs are read from `phase.harness` with correct fallbacks.
