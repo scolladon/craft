@@ -99,7 +99,14 @@ and derived plugin — changing them is an *engine* change, not a customization:
 - **Model resolution + fallback** and the **blocker protocol**.
 - **Dependency graph honored** — a skip/reorder that strands a consumer-without-fallback is
   refused/flagged.
-- **The run record** logs every skip / insert / swap / inline / override / degradation — flexibility
+- **Auto-skip bounded by the same strand guard** — before entering an eligible phase, craft evaluates
+  whether that phase has any work for this change; if it provably has none, craft auto-skips it and
+  records `auto-skip: <phase> — evaluated unnecessary (<signal>)` in the run record. The four floor
+  phases (`workspace`, `implementation`, `propose`, `integrate`) are categorically ineligible and
+  never auto-skipped. The strand guard that protects `pipeline.skip` equally protects auto-skip —
+  a phase whose artifact a later enabled phase needs is never auto-skipped. Pin `phases.<id>.required:
+  true` (Tier 0, #10) to force a specific phase to always run regardless of the evaluation.
+- **The run record** logs every skip / insert / swap / inline / override / auto-skip / degradation — flexibility
   *with visible accountability*.
 - **Adapter failure is a blocker, never a silent pass** — an unreachable backlog `resolve`/`complete`,
   gate, or model escalates via the blocker protocol; the closing tick is never silently skipped.
@@ -128,6 +135,7 @@ Tiered by effort, cheapest first. Each row links a runnable [`examples/`](../exa
 | 7 | **backlog source** | use your tracker (`file` or `custom`) | a custom ref is resolved at runtime | [`backlog-custom/`](../examples/backlog-custom/) |
 | 8 | **memory** | per-repo advisory cache (`memory: { source: file, ref }`) — stores mechanically-derived learnings (toolchain, gate commands, findings, part sizing) so subsequent runs skip re-probing; default store at `.claude/craft-memory.md`, committed via a `.gitignore` re-include. Advisory-only: deleting it changes run cost, never correctness. See [`docs/adapters/memory.md`](adapters/memory.md) for the port contract. | a custom `ref` that escapes the repo root is silently skipped — the port never reads or writes outside the repo | — |
 | 9 | **policy** | per-repo/per-user permission layer over outward/hard-to-reverse VCS-port actions. The `policy:` manifest key accepts `always`, `ask`, and `never` verdict lists over the action vocabulary (`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write` — note `integrate` = merge, `propose` = pr-create). Per-action defaults are keyed by reversibility: local reversible actions (`isolate`, `commit`, `backlog-write`) default to `always`; remote/hard-to-reverse actions (`push`, `propose`, `integrate`, `teardown`, `external-send`) default to `ask`, so an unconfigured repo behaves as today (merge still stops for confirmation). Three scopes fold in one direction (`per-invocation > project > user`): user `~/.claude/craft-policy.md` < project manifest `policy:` < per-invocation `--policy`. An explicit `always` verdict for `integrate` or `propose` supersedes craft's hardcoded merge/PR confirmation, enabling unattended headless auto-merge. The three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are not nameable actions and cannot be reached by any verdict. See [`docs/adapters/policy.md`](adapters/policy.md) for the port contract. | a misconfigured policy (unknown action or verdict, non-list value, intra-scope double-verdict) fails manifest-lint loudly, never silently | — |
+| 10 | **required** | pin a phase so craft never auto-skips it — `phases.<id>.required: true` forces the phase to run even when craft's necessity evaluation would otherwise skip it. Does not override an explicit `pipeline.skip` or `enabled: false` (the operator's own waiver still wins); setting both `required: true` and a `pipeline.skip` for the same phase is a manifest-lint error. | over-pinning forfeits the cost saving that auto-skip provides | — |
 
 Default-off phases turn on the same way (one line): see [`requirements/`](../examples/requirements/)
 and [`architecture/`](../examples/architecture/).

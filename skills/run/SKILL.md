@@ -115,7 +115,29 @@ Input: `$ARGUMENTS`
 
 Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 
-1. **Resolve the skill** — invoke `phase.procedure` **verbatim** (the descriptor's
+1. **Necessity probe (auto-skip).** If `phase.autoSkipEligible` is `true`, evaluate against the
+   live change whether the phase has any work *before assembling the contract*. The per-phase
+   signal (auto-skip only when **provably empty**; any doubt runs the phase):
+
+   | Eligible phase | Provably-empty signal ⇒ auto-skip |
+   |---|---|
+   | `decisions` | the design doc's Decision-candidates section is empty (no load-bearing choice to put to the user) — the up-front form of the runtime decisions no-op; session-owned, so auto-skip avoids an empty user conversation rather than an agent spawn |
+   | `review` | no reviewable source diff in scope since `implementation` (e.g. a docs/config-only change) |
+   | `refactoring` | no source change in scope to motivate a structural pass (same signal as `review`); when source *was* touched, it runs and may record `NO-OP(refactoring):` |
+   | `documentation` | no `design`/`change` content maps to any documentation surface |
+   | `validation` | no mutable code changed in scope — the mutation no-op signal, evaluated *before* spawning the run |
+   | `architecture` | no dependency-graph-affecting change (no import/module-boundary edits) since `implementation` |
+
+   When provably empty: (a) append the fixed token
+   `auto-skip: <phase> — evaluated unnecessary (<signal>)` to the run record (e.g.
+   `auto-skip: review — evaluated unnecessary (no source diff in scope)`) — distinct from `WAIVER:`
+   and `NO-OP(<phase>):`; (b) if the phase is an executing-harness, release its `awaitingHarnesses`
+   entry (see Cross-phase invariants); (c) continue WITHOUT running the phase — no contract
+   assembled, no agent spawned, no commit. When the probe is non-empty, or the phase is not
+   `autoSkipEligible`, the phase runs exactly as today. When emptiness cannot be proven, RUN the
+   phase (doubt runs; never auto-skip on an unprovable judgment).
+
+2. **Resolve the skill** — invoke `phase.procedure` **verbatim** (the descriptor's
    `procedure:` field — e.g. `craft:design`, or an inserted phase's `craft:bench` /
    `acme:bench`). For every craft-native phase the procedure is `craft:<phase.id>` and the
    skill dir name equals `phase.id`, so default phases are unaffected. An **inserted** phase
@@ -130,7 +152,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    silent skip. **Swap-fidelity (G5) — a swap changes *who* runs a phase or *which skill*
    orchestrates it, never *what invariants bind it*.** A manifest may swap a default phase's
    worker (`phases.<id>.role`) or its orchestrating skill (`phases.<id>.procedure`); either way
-   the descriptor `id` is unchanged, so the injected contract (step 3) — assembled from that `id`
+   the descriptor `id` is unchanged, so the injected contract (step 4) — assembled from that `id`
    — is identical, and the swapped worker (agent or inline) always runs inside the same
    engine-owned contract. A `role:`- or `procedure:`-swapped phase can never drop the invariant
    core. A swapped default-phase `procedure:` is dispatched **verbatim** exactly like an inserted
@@ -141,14 +163,14 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    inline. The bin wires a live install-probe for craft-native `craft:<role>` refs (a typo'd role
    fails closed); external `my:`/`acme:` refs fail closed unless the ref is registered via
    `extends` (`extends.agents` ∪ the `role:` of every registered/inserted phase). **Inserted/registered-phase contract execution ships:** the walk passes the resolved descriptor to
-   `contract-assemble` via `--descriptor-json` (step 3), so a novel/registered `id` EXECUTEs
+   `contract-assemble` via `--descriptor-json` (step 4), so a novel/registered `id` EXECUTEs
    under the engine-owned contract — the same core + declared bundles that wrap any default phase.
 
-2. **Resolve execution** — use `phase.execution` (`agent` | `inline`) from the
+3. **Resolve execution** — use `phase.execution` (`agent` | `inline`) from the
    Resolution. Apply manifest override (`phases.<id>.override`,
    `phases.<id>.context`) as before.
 
-3. **Assemble the injected block** — at phase entry run:
+4. **Assemble the injected block** — at phase entry run:
    ```
    node "${CLAUDE_PLUGIN_ROOT}/engine/bin/contract-assemble.js" \
      --descriptor-id <phase.id> \
@@ -178,14 +200,14 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    dropped at `load` — if the slice is empty, the phase probes as today. This read is
    purely advisory and never gates. See `docs/adapters/memory.md` Claude binding.
 
-4. **Execute** via the resolved execution mode (`phase.execution`).
+5. **Execute** via the resolved execution mode (`phase.execution`).
 
    **`agent`** (default): spawn `craft:<role>` (or the manifest-swapped role) as a Task,
-   structured per the **Agent spawns** invariant below — the step-3 injected block
+   structured per the **Agent spawns** invariant below — the step-4 injected block
    PREPENDED to the spawn prompt, then working dir, task dynamics, artifact paths. Await
    the commit; verify on return.
 
-   **`inline`**: run the phase body **in-thread — no Task spawn**. The step-3 block was
+   **`inline`**: run the phase body **in-thread — no Task spawn**. The step-4 block was
    assembled with `--inline`; load it as the governing constraint for this phase. If
    `phase.role` is present AND resolves to a **local** agent def
    (`agents/<name>.md`, `<name>` = the role ref minus any `craft:` namespace), **also load
@@ -215,14 +237,14 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
      and its gate is green
    - `delivery` (`integrate`): user confirms; cleanup
 
-5. **Gate** — read the gate string (`.gate`) from the `Resolution.gateDecisions`
+6. **Gate** — read the gate string (`.gate`) from the `Resolution.gateDecisions`
    entry whose `phaseId === phase.id`.
    If `codeProducing: true`: apply gate-cadence invariant (targeted gate per fix
    commit; phase gate once per round; never commit on known-red).
    If `codeProducing: false` and gate non-empty: run gate once at phase boundary.
    If gate is empty string: no gate check.
 
-6. **Record outcome** in the run record (appended to the seeded entries). An
+7. **Record outcome** in the run record (appended to the seeded entries). An
    inline-executed phase is noted: `inline: <phase.id> — ran in-session`. A judgment
    phase (`decisions`/`refactoring`) that records a `NO-OP(<phase>):` line — e.g.
    `NO-OP(decisions): no user-judgment decisions — …` or `NO-OP(refactoring): nothing
@@ -232,16 +254,16 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    it has produced its outcome; it is NOT a missing artifact and never re-runs or
    escalates as a gap.
 
-7. **On blocker**: escalate `{ phase/part, reason, ≤3 candidate options }`. Never
+8. **On blocker**: escalate `{ phase/part, reason, ≤3 candidate options }`. Never
    spin, never silently abandon.
 
-8. **On model-down** (not a task blocker): mark tier degraded; re-resolve to
+9. **On model-down** (not a task blocker): mark tier degraded; re-resolve to
    fallback; respawn from artifact. Record degradation in run record.
 
 `design` and `review` are already concern-named (no alias); every other craft-native phase
 id maps to a `skills/<id>/` dir of the same name after the P4 rename, so its `procedure` is
 `craft:<phase.id>` and the walk dispatches it with no translation table. Inserted phases
-bring their own `procedure`, dispatched verbatim (step 1).
+bring their own `procedure`, dispatched verbatim (step 2).
 
 ### Walk error paths
 
@@ -275,7 +297,12 @@ bring their own `procedure`, dispatched verbatim (step 1).
   waiver (the engine emits waivers for skip/disable only, when the phase is absent
   from `effective[]`); it is the orchestrator treating a recorded no-op as a
   release at gate-check time, so `propose` may proceed without waiting for the
-  no-op'd harness. Clarification for `validation`: the entry may carry two recorded
+  no-op'd harness. Likewise, a recorded `auto-skip:` of an awaited executing-harness (it never
+  lands a run, by the same up-front necessity probe) releases its `awaitingHarnesses` entry the
+  same way — the orchestrator treats a recorded `auto-skip:` as a release at gate-check time,
+  exactly as it treats a recorded no-op; this is NOT an engine waiver (the phase is in
+  `effective[]`). So `propose` is never left waiting on a harness that auto-skipped.
+  Clarification for `validation`: the entry may carry two recorded
   sub-outcomes — the mutation note AND a `NO-OP(verify):` line (DoD sub-concern);
   the entry is **released** only when no mutation run lands, and is **satisfied** by
   a landed and triaged mutation run regardless of any `NO-OP(verify):` line — the
@@ -300,10 +327,10 @@ bring their own `procedure`, dispatched verbatim (step 1).
   commit. Nothing is ever committed on a known-red gate.
 
 - **Agent spawns**: every role-agent spawn is structured as:
-  1. **Injected contract block** (from step 3 above, includes the assembled core +
+  1. **Injected contract block** (from step 4 above, includes the assembled core +
      bundle invariants + derived retrieval note + manifest `context:` appended by
      the assembler; **plus the memory hint prepended** when the MemoryView slice for
-     this phase is non-empty — see step 3 memory-hint clause and `docs/adapters/memory.md`
+     this phase is non-empty — see step 4 memory-hint clause and `docs/adapters/memory.md`
      Claude binding). Do NOT separately re-inject `context:` — the assembler already
      appends it; double-injection is a breach.
   2. **Working directory** and **task dynamics** (phase id, part text, gate string).
@@ -378,7 +405,7 @@ On demand / when end-to-end cross-plugin fidelity must be confirmed: spin up a t
 two-plugin fixture (mirroring SP2's `/tmp/craft-sp2`) and drive it with
 `claude -p --plugin-dir craft --plugin-dir <pluginB>`, using a manifest that registers a
 phase via `extends.phases` pointing at a `pluginB:` procedure. Assert the registered phase
-dispatches (the walk reaches step 1 for it) and spawns (an agent is started under the
+dispatches (the walk reaches step 2 for it) and spawns (an agent is started under the
 assembled contract). Document the result in the run record. This smoke is on-demand, NOT
 CI-gated — the engine path it exercises is CI-proven by the S7 scenario fixture; this smoke
 adds runtime cross-plugin fidelity without coupling CI to a second install.

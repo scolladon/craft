@@ -921,6 +921,129 @@ test('Given phases.review.enabled: "yes" (non-boolean), when validateManifest ru
   assert.ok(result.errors.some(e => e.includes('phases.review.enabled') && e.includes('boolean')));
 });
 
+// ─── phases.<id>.required field ──────────────────────────────────────────────
+
+test('Given phases.review.required: true, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { required: true } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.review.required: "yes" (non-boolean), when validateManifest runs, then ok:false with required-type error', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { review: { required: 'yes' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('phases.review.required') && e.includes('boolean')));
+});
+
+test('Given pipeline.skip:[review] and phases.review.required:true, when validateManifest runs, then ok:false naming the collision', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { skip: ['review'] }, phases: { review: { required: true } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('conflicts with pipeline.skip') && e.includes('cannot be both skipped and required')),
+    `expected skip+required collision error, got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test('Given pipeline.skip:[mutation] alias and phases.validation.required:true, when validateManifest runs, then ok:false naming the collision', () => {
+  const sut = validateManifest;
+
+  // skip side is the alias `mutation`; phase side is canonical `validation` — the guard
+  // must resolve the skip entry's alias to match. Pins skip.map(resolveAlias).
+  const result = sut(
+    { pipeline: { skip: ['mutation'] }, phases: { validation: { required: true } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('conflicts with pipeline.skip') && e.includes('cannot be both skipped and required')),
+    `expected alias-skip collision error, got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test('Given pipeline.skip:[validation] and phases.mutation.required:true alias, when validateManifest runs, then ok:false naming the collision', () => {
+  const sut = validateManifest;
+
+  // phase side is the alias `mutation`; skip side is canonical `validation` — the guard
+  // must resolve the phase key's alias to match. Pins resolveAlias(name).
+  const result = sut(
+    { pipeline: { skip: ['validation'] }, phases: { mutation: { required: true } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('conflicts with pipeline.skip') && e.includes('cannot be both skipped and required')),
+    `expected alias-phase collision error, got: ${JSON.stringify(result.errors)}`,
+  );
+});
+
+test('Given pipeline.skip:[review] and phases.review.required:false, when validateManifest runs, then ok:true (no collision)', () => {
+  const sut = validateManifest;
+
+  // Explicit required:false must NOT collide with a skip — pins the strict === true predicate.
+  const result = sut(
+    { pipeline: { skip: ['review'] }, phases: { review: { required: false } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given pipeline.skip:[review] and no required pin, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { skip: ['review'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given pipeline.skip:[review] and phases.review: null, when validateManifest runs, then ok:true without throwing', () => {
+  const sut = validateManifest;
+
+  // A null phase block alongside a skip must be treated as absent (no required pin).
+  // Guards block && typeof block === 'object' both protect block.required access.
+  const result = sut(
+    { pipeline: { skip: ['review'] }, phases: { review: null } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given pipeline.skip:[review] and phases.review: false, when validateManifest runs, then ok:true without throwing', () => {
+  const sut = validateManifest;
+
+  // A falsy non-null phase block (false/0/"") must also be treated as absent.
+  // The leading block && guard must short-circuit before block.required is accessed.
+  const result = sut(
+    { pipeline: { skip: ['review'] }, phases: { review: false } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
 // ─── phases.harness shape validation (ADR-030) ───────────────────────────────
 
 test('Given phases.review.harness: "not-an-object", when validateManifest runs, then ok:false', () => {

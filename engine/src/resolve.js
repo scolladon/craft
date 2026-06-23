@@ -15,6 +15,7 @@ import { applyEnableEdits, applyInserts, applyReorder, checkReorderApplicability
 import { checkStrandedConsumers } from './strand.js';
 import { resolveGatesAndWaivers } from './gates.js';
 import { registeredBacklogNames } from './manifest.js';
+import { computeAutoSkipEligibility } from './autoskip.js';
 
 // ─── step 1: alias-resolve ───────────────────────────────────────────────────
 
@@ -293,13 +294,17 @@ export function resolvePipeline(defaults, manifest, opts) {
     return { ok: false, errors: validation.errors, effective: [], record, gateDecisions: [], waivers: [] };
   }
 
-  const effective = execResult.descriptors
+  const baseEffective = execResult.descriptors
     .filter(d => d.enabled)
     .map(d =>
       d.id === REVIEW_PHASE_ID && d.harness
         ? { ...d, harness: { ...d.harness, reviewPlan: deriveReviewPlan(d.harness) } }
         : d,
     );
+  const effective = baseEffective.map(d => ({
+    ...d,
+    autoSkipEligible: computeAutoSkipEligibility(d, resolved, baseEffective, defaults),
+  }));
 
   const roleErrors = effective
     .filter(d => d.role && !roleExists(d.role))

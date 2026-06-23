@@ -1180,3 +1180,82 @@ test('Given resolved review descriptor, when resolvePipeline is called, then har
   assert.equal(sourceHarness.passes, 2, 'source passes unchanged');
   assert.equal(sourceHarness.convergence, 3, 'source convergence unchanged');
 });
+
+// ─── autoSkipEligible wiring ──────────────────────────────────────────────────
+
+test('A1 Given default pipeline with null manifest, when resolvePipeline runs, then every effective descriptor carries the correct autoSkipEligible boolean', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+
+  const expected = {
+    workspace:      false,
+    design:         false,
+    decisions:      true,
+    planning:       false,
+    implementation: false,
+    review:         true,
+    refactoring:    true,
+    validation:     true,
+    documentation:  true,
+    propose:        false,
+    integrate:      false,
+  };
+
+  for (const [id, expectedValue] of Object.entries(expected)) {
+    const d = result.effective.find(p => p.id === id);
+    assert.ok(d, `Phase "${id}" must be present in effective`);
+    assert.equal(
+      d.autoSkipEligible,
+      expectedValue,
+      `Phase "${id}" expected autoSkipEligible:${expectedValue}, got ${d.autoSkipEligible}`,
+    );
+  }
+});
+
+test('A2 Given phases.review.required:true in manifest, when resolvePipeline runs, then review autoSkipEligible is false while refactoring and validation remain true', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { required: true } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+
+  const review = result.effective.find(d => d.id === 'review');
+  assert.ok(review, 'review must be in effective');
+  assert.equal(review.autoSkipEligible, false, 'required:true must veto autoSkipEligible');
+
+  const refactoring = result.effective.find(d => d.id === 'refactoring');
+  assert.ok(refactoring, 'refactoring must be in effective');
+  assert.equal(refactoring.autoSkipEligible, true, 'unaffected refactoring must stay true');
+
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.ok(validation, 'validation must be in effective');
+  assert.equal(validation.autoSkipEligible, true, 'unaffected validation must stay true');
+});
+
+test('A3 Given default pipeline with null manifest, when resolvePipeline runs, then every effective descriptor has a boolean autoSkipEligible and gateDecisions/waivers/awaitingHarnesses are unchanged', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+
+  for (const d of result.effective) {
+    assert.equal(
+      typeof d.autoSkipEligible,
+      'boolean',
+      `Phase "${d.id}" must have boolean autoSkipEligible, got ${typeof d.autoSkipEligible}`,
+    );
+  }
+
+  // gateDecisions and waivers arrays must not be disturbed
+  assert.ok(Array.isArray(result.gateDecisions), 'gateDecisions must remain an array');
+  assert.ok(Array.isArray(result.waivers), 'waivers must remain an array');
+  assert.equal(result.gateDecisions.length, result.effective.length, 'gateDecisions count must equal effective count');
+
+  // propose still carries awaitingHarnesses
+  const proposeDecision = result.gateDecisions.find(g => g.phaseId === 'propose');
+  assert.ok(proposeDecision, 'propose must have a gateDecision');
+  assert.ok(Array.isArray(proposeDecision.awaitingHarnesses), 'propose awaitingHarnesses must be an array');
+  assert.deepEqual(proposeDecision.awaitingHarnesses, ['validation']);
+});

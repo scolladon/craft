@@ -30,7 +30,7 @@ const PHASE_NAMES = Object.freeze(new Set([
 /** Fields accepted on each phase block (skip is intentionally absent — ADR-011). */
 const PHASE_FIELDS = Object.freeze(new Set([
   'context', 'override', 'strategy', 'merge-flags', 'non-blocking-jobs',
-  'harness', 'execution', 'enabled', 'role', 'model', 'procedure',
+  'harness', 'execution', 'enabled', 'role', 'model', 'procedure', 'required',
 ]));
 
 /** Fields accepted under the `gates` key. */
@@ -445,6 +445,8 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
       errors.push(`phases.${phaseName}.procedure must be a non-empty string`);
     } else if (field === 'enabled' && typeof value !== 'boolean') {
       errors.push(`phases.${phaseName}.enabled must be a boolean`);
+    } else if (field === 'required' && typeof value !== 'boolean') {
+      errors.push(`phases.${phaseName}.required must be a boolean`);
     } else if (field === 'harness') {
       validateHarness(value, phaseName, errors);
     }
@@ -465,6 +467,36 @@ export function validatePhases(phases, fileExists, errors) {
       errors.push(`unknown phase: ${phaseName}`);
     }
     validatePhaseBlock(phaseName, block, fileExists, errors);
+  }
+}
+
+/**
+ * Cross-check: a phase cannot be both pipeline.skip'd and phases.<id>.required.
+ * Compares canonical ids — pipeline.skip entries and phases keys both resolve via resolveAlias.
+ * @param {Record<string, unknown>} manifest
+ * @param {string[]} errors
+ */
+function validateSkipRequiredCollision(manifest, errors) {
+  // ?. on manifest itself is redundant: validateManifest returns early for null/undefined
+  // before ever calling this function, so manifest is always a plain object here.
+  const skip = manifest?.pipeline?.skip;
+  const phases = manifest?.phases;
+  // typeof phases !== 'object' is redundant: any non-object phases value yields only
+  // primitive entries via Object.entries, and those fail the inner typeof block === 'object'
+  // check, so no collision can be reported regardless.
+  if (!Array.isArray(skip) || !phases || typeof phases !== 'object' || Array.isArray(phases)) return;
+  // filter(s => typeof s === 'string') is redundant: non-string skip entries remain
+  // non-string after resolveAlias, so they can never Set.has-match a string phase key.
+  const skipSet = new Set(skip.filter(s => typeof s === 'string').map(resolveAlias));
+  for (const [name, block] of Object.entries(phases)) {
+    // typeof block === 'object' is redundant given block.required === true: no truthy
+    // non-object value (string, number, function) from YAML/JSON can carry .required === true.
+    // Both block && and typeof block === 'object' are needed to guard null (typeof null === 'object').
+    if (block && typeof block === 'object' && block.required === true && skipSet.has(resolveAlias(name))) {
+      errors.push(
+        `phases.${name}.required: true conflicts with pipeline.skip: [${name}] — a phase cannot be both skipped and required`,
+      );
+    }
   }
 }
 
@@ -745,6 +777,8 @@ export function validateManifest(manifest, opts) {
       // retrieval, execution: recognized; no sub-validation
     }
   }
+
+  validateSkipRequiredCollision(manifest, errors);
 
   return { ok: errors.length === 0, errors };
 }
