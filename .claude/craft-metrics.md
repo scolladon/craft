@@ -61,3 +61,24 @@ p26-auto-skip-unnecessary-phases review-perf tokens=92189 duration_ms=40161 cach
 p26-auto-skip-unnecessary-phases review-tests-cycle2 tokens=104119 duration_ms=160733 cache=na
 p26-auto-skip-unnecessary-phases validation-triage tokens=84124 duration_ms=576565 cache=na
 p26-auto-skip-unnecessary-phases documentation tokens=91304 duration_ms=282766 cache=na
+
+p27-despecialize-craft-sources design tokens=197219 duration_ms=589907 cache=na
+p27-despecialize-craft-sources design-revision tokens=139816 duration_ms=146863 cache=na
+p27-despecialize-craft-sources planning tokens=247275 duration_ms=960119 cache=na
+p27-despecialize-craft-sources implementation-p1 tokens=134516 duration_ms=954724 cache=na
+p27-despecialize-craft-sources implementation-p2 tokens=125580 duration_ms=1390947 cache=na
+p27-despecialize-craft-sources implementation-p3 tokens=92244 duration_ms=455432 cache=na
+p27-despecialize-craft-sources implementation-p4 tokens=84285 duration_ms=326577 cache=na
+p27-despecialize-craft-sources implementation-p5 tokens=99037 duration_ms=898219 cache=na
+p27-despecialize-craft-sources implementation-p6 tokens=107580 duration_ms=944220 cache=na
+p27-despecialize-craft-sources implementation-p7 tokens=101454 duration_ms=2047137 cache=na
+p27-despecialize-craft-sources implementation-p8 tokens=86785 duration_ms=683806 cache=na
+p27-despecialize-craft-sources implementation-p9 tokens=93745 duration_ms=662740 cache=na
+p27-despecialize-craft-sources implementation-p10 tokens=81616 duration_ms=140920 cache=na
+p27-despecialize-craft-sources implementation-p11 tokens=105341 duration_ms=464102 cache=na
+p27-despecialize-craft-sources review-code tokens=170141 duration_ms=2144370 cache=na
+p27-despecialize-craft-sources review-tests tokens=158389 duration_ms=334784 cache=na
+p27-despecialize-craft-sources review-security tokens=121213 duration_ms=179680 cache=na
+p27-despecialize-craft-sources review-perf tokens=95692 duration_ms=69226 cache=na
+p27-despecialize-craft-sources review-convergence tokens=110416 duration_ms=623567 cache=na
+p27-despecialize-craft-sources validation-triager tokens=135325 duration_ms=3159581 cache=na
