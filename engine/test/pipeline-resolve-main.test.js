@@ -1,3 +1,7 @@
+// MUST be the first import: redirects $HOME to an empty dir at import time, before the
+// module under test reads ~/.claude during its own evaluation, so an ambient user policy
+// cannot leak into these tests. restoreEmptyHome() tears it down in after() below.
+import { restoreEmptyHome } from '../test-helpers/empty-home.js';
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
@@ -20,6 +24,7 @@ function writeTmp(name, content) {
   return filePath;
 }
 after(() => { for (const dir of tmpDirs) rmSync(dir, { recursive: true, force: true }); });
+after(() => { restoreEmptyHome(); });
 
 // ─── --profile lean: construction agent, specification inline ─────────────────
 

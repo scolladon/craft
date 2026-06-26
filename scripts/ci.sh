@@ -7,7 +7,7 @@ set -euo pipefail
 # Resolve from repo root so relative paths and globs are call-site independent.
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-EXPECTED_TESTS=1098
+EXPECTED_TESTS=1103
 
 node_output="$(cd engine && node --test 'test/**/*.test.js' 2>&1)" && node_status=0 || node_status=$?
 echo "$node_output"
@@ -18,6 +18,18 @@ echo "$node_output"
 actual_tests="$(printf '%s\n' "$node_output" | awk '/^# tests / {print $3}')"
 [ "$actual_tests" = "$EXPECTED_TESTS" ] || {
   echo "ci: test count drift — expected ${EXPECTED_TESTS}, got ${actual_tests}" >&2
+  exit 1
+}
+
+root_node_output="$(node --test 'engine/test/**/*.test.js' 2>&1)" && root_node_status=0 || root_node_status=$?
+echo "$root_node_output"
+[ "$root_node_status" -eq 0 ] || {
+  echo "ci: repo-root node --test failed (exit ${root_node_status})" >&2
+  exit "$root_node_status"
+}
+actual_root_tests="$(printf '%s\n' "$root_node_output" | awk '/^# tests / {print $3}')"
+[ "$actual_root_tests" = "$EXPECTED_TESTS" ] || {
+  echo "ci: repo-root test count drift — expected ${EXPECTED_TESTS}, got ${actual_root_tests}" >&2
   exit 1
 }
 

@@ -6,6 +6,7 @@ import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { main } from '../src/manifest-lint-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
+import { withTempCwd } from '../test-helpers/with-cwd.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const manifestsDir = join(__dir, 'fixtures', 'manifests');
@@ -161,11 +162,11 @@ test('Given a manifest referencing a nonexistent script file, when main runs, th
 // Kills: StringLiteral('.claude/workflow.md' → "") at manifest-lint-main.js:10.
 // When called with no argv, the "no manifest at <path>" message must name the default path.
 
-test('Given no argv, when main runs with the default path absent, then stdout names the exact default path .claude/workflow.md', () => {
+test('Given no argv, when main runs with the default path absent, then stdout names the exact default path .claude/workflow.md', async () => {
   const sut = main;
   const io = makeCaptureIo();
 
-  const result = sut([], io);
+  const result = await withTempCwd(() => sut([], io));
 
   assert.equal(result, 0);
   assert.ok(io.stdout.joined().includes('.claude/workflow.md'),

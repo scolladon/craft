@@ -14,6 +14,7 @@ import { tmpdir } from 'node:os';
 import { main } from '../src/contracts-lint-main.js';
 import { BUNDLE_VOCAB } from '../src/graph.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
+import { withTempCwd } from '../test-helpers/with-cwd.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const REAL_CONTRACTS = join(__dir, '..', '..', 'contracts');
@@ -27,11 +28,15 @@ function mkTmp() {
 }
 after(() => tmpDirs.forEach(d => rmSync(d, { recursive: true, force: true })));
 
+function populateContracts(targetDir) {
+  for (const name of BUNDLE_NAMES) {
+    writeFileSync(join(targetDir, `${name}.md`), `${name} content — invariants here.\n`);
+  }
+}
+
 function makeFullContractsDir() {
   const dir = mkTmp();
-  for (const name of BUNDLE_NAMES) {
-    writeFileSync(join(dir, `${name}.md`), `${name} content — invariants here.\n`);
-  }
+  populateContracts(dir);
   return dir;
 }
 
@@ -140,15 +145,16 @@ test('Given the real contracts/ directory, when main runs, then it returns 0 wit
 // Kills the `?? 'contracts'` nullish-default mutant: with no arg, main resolves
 // the literal "contracts" relative to cwd. Run from repo root, that's the real dir.
 
-test('Given no dir arg, when main runs from repo root, then it defaults to the contracts/ directory and returns 0', () => {
+test('Given no dir arg, when main runs from repo root, then it defaults to the contracts/ directory and returns 0', async () => {
   const io = makeCaptureIo();
-  const cwd = process.cwd();
-  process.chdir(join(__dir, '..', '..'));
-  try {
-    const result = main([], io);
-    assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
-    assert.ok(io.stdout.joined().includes('bundles OK'), `stdout: ${io.stdout.joined()}`);
-  } finally {
-    process.chdir(cwd);
+  function seedContracts(scratch) {
+    const c = join(scratch, 'contracts');
+    mkdirSync(c);
+    populateContracts(c);
   }
+
+  const result = await withTempCwd(seedContracts, () => main([], io));
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().includes('bundles OK'), `stdout: ${io.stdout.joined()}`);
 });
