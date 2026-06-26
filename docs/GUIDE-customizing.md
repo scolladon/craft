@@ -28,15 +28,15 @@ product spec) and `architecture` (a dependency/layering harness). Phases fall in
 *construction* (`implementation`), *harness* (`review`/`validation`/`architecture`/…), *refinement*
 (`refactoring`), *delivery* (`documentation`/`propose`/`integrate`). A **harness** is the reusable
 one: an automated, repeatable verification of a single concern, expressed as *a gate plus an optional
-AI triage step*, configurable per repo. Review, validation (default: mutation testing), and
-architecture (default: dependency-cruiser) are all harnesses; you can tune them or add your own.
+AI triage step*, configurable per repo. Review, validation, and architecture are all executing-harnesses;
+declare techniques per repo — see `examples/`. You can tune them or add your own.
 
 ### Zero-config on any toolchain
 
 The default pipeline runs zero-config on any non-JS repo provided it has a test command the
 gate probe can discover (`pytest`, `go test`, `cargo test`, a `make test`/CI script, …) — the
-precondition every useful repo already satisfies. `validation` (default Stryker) and the
-default-off `architecture` (dependency-cruiser) **no-op with a note** when their JS tools are
+precondition every useful repo already satisfies. `validation` and the
+default-off `architecture` **no-op with a note** when their configured tools are
 absent; `propose`/`integrate` no-op without a git remote; a repo with no discoverable test
 command hits the gate-floor refusal by design. See
 [docs/SC5-second-instantiation-record.md](SC5-second-instantiation-record.md) for the
@@ -56,7 +56,7 @@ craft is built **hexagonally**. This is the whole model:
             │            │            │            │  (env-sourced,        │               │           │
             ▼            ▼            ▼            ▼   NOT adapter)         ▼               ▼           ▼
         Task /        model        Bash gate    runtime+settings        file / gh /     git worktree  .claude/
-        in-thread     param        + hooks      (LSP/RAG/RTK/Serena      jira / linear   + gh CLI    craft-memory.md
+        in-thread     param        + hooks      (LSP/RAG/RTK/Serena      jira / linear   + VCS host CLI craft-memory.md
         (Claude Code adapter)                    /native Read+Grep)      / custom        (Claude Code adapter)
 ```
 
@@ -71,7 +71,7 @@ craft is built **hexagonally**. This is the whole model:
   core owns *never commit on red*. The Memory port only `load`/`save` — the core owns the
   advisory-only invariant (deleting the store changes run cost, never correctness).
 - **Adapter (you don't touch this)** — the binding of those ports to concrete Claude Code primitives
-  (Task subagents, the model param, Bash + PreToolUse hooks, `gh`/git, the Skill tool). **craft *is*
+  (Task subagents, the model param, Bash + PreToolUse hooks, VCS host CLI / git, the Skill tool). **craft *is*
   the Claude Code adapter today.** Code-access is the deliberate exception: it is environment-sourced
   (your LSP/RAG/RTK/Serena/native tools), never bound by the adapter.
 
@@ -245,9 +245,9 @@ winning over both the manifest harness and `pipeline/default.yml`.
 |---|---|---|
 | `passes`, `max_cycles` | integer | non-integer string → rejected |
 | `convergence` | number **or** string | `low-only`/`none` stay as-is; otherwise parsed as a number |
-| `incremental` | boolean | `true`/`false` only; anything else → rejected |
 | `dimensions` | comma-split list | e.g. `code,security,tests` |
-| `tool`, `scope` | string | identity |
+| `techniques` | comma-or-object list | repo-declared technique names or config objects |
+| `scope` | string | identity |
 | *(unknown knob)* | string | passes through; `validateHarness` allows unknown sub-keys |
 
 **Fail-closed:** malformed grammar (no `=`, empty phase or knob, more than one `.` before `=`) exits 2
@@ -369,7 +369,7 @@ node engine/bin/manifest-lint.js .claude/workflow.md     # or: scripts/manifest-
 
 `manifest-lint` refuses on any unknown key, a missing context/override file, or a malformed value —
 so a typo is caught before the run, not midway through it. No manifest at all = strong defaults via
-capability probing (lockfile detection, test-script discovery, mutation-config probe, remote probe);
+capability probing (lockfile detection, test-script discovery, technique-config probe, remote probe);
 declare only what probing can't infer.
 
 That's the loop: pick the points, write the lines, lint, run. Reach for Tier 1 when one line isn't
@@ -379,7 +379,7 @@ as a shareable plugin — see [`derived-plugin/`](../examples/derived-plugin/) a
 ### Interactive alternative — `craft:init`
 
 Rather than hand-authoring, run `craft:init` inside the repo to get an interview-driven guided
-on-ramp. It probes the repo (ecosystem, test command, remote, mutation/architecture tooling), walks
+on-ramp. It probes the repo (ecosystem, test command, remote, validation/architecture tooling), walks
 you through the full Tier-0/1 catalog with probe-grounded defaults, and writes a **named** manifest
 `.claude/craft-<name>.md` — a complete, lint-clean sibling of `.claude/workflow.md`:
 

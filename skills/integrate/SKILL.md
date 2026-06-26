@@ -22,18 +22,16 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    - `always` — proceed with no confirmation; record `POLICY(always:integrate)`;
      supersedes the former hardcoded merge confirmation (ADR-128 — Supersede).
 
-   Then:
-   ```bash
-   gh pr merge <#> --squash --delete-branch <merge-flags>
-   ```
-   Always `--delete-branch`: no merged branch lingers on the remote.
+   Then invoke the VCS port `integrate(prUrl)` (see `docs/adapters/vcs.md`); the adapter
+   owns the host CLI. `--squash` / `--delete-branch` / `merge-flags` semantics live in
+   the adapter binding. Always delete-branch: no merged branch lingers on the remote.
 3. **Consult `teardown` action** separately before worktree teardown (per-verb
    granularity, ADR-126; see `docs/adapters/policy.md`). Then:
    ```bash
    "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \
      [--pre-teardown <manifest scripts.pre-teardown>]
    ```
-   The script refuses while the mutation run-lock is alive (dead-PID locks
+   The script refuses while the validation run-lock is alive (dead-PID locks
    auto-clear; a live lock needs `--force`, which is recorded in the run record).
    The pre-teardown script is the matched pair of workspace-phase tooling activation —
    every activation gets its prune.

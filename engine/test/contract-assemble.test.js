@@ -167,7 +167,7 @@ test('Given --descriptor-id requirements, when contract-assemble runs, then exit
   assert.equal(result.status, 0, `Expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
   assert.ok(result.stdout.includes('Decision-candidates'), 'producer marker "Decision-candidates" must be present');
   assert.ok(result.stdout.includes('Fill the named template'), 'producer marker "Fill the named template" must be present');
-  assert.ok(!result.stdout.includes('survivors or violations'), 'harness-exec marker must NOT leak into the producer bundle');
+  assert.ok(!result.stdout.includes('triages findings'), 'harness-exec marker must NOT leak into the producer bundle');
 });
 
 // ─── architecture descriptor (harness-exec bundle) ───────────────────────────
@@ -178,8 +178,8 @@ test('Given --descriptor-id architecture, when contract-assemble runs, then exit
   const result = sut(['--descriptor-id', 'architecture']);
 
   assert.equal(result.status, 0, `Expected exit 0, got ${result.status}; stderr: ${result.stderr}`);
-  assert.ok(result.stdout.includes('survivors or violations'), 'harness-exec marker "survivors or violations" must be present');
-  assert.ok(result.stdout.includes('Never weaken a test to kill a mutant or clear a violation'), 'harness-exec marker "Never weaken a test to kill a mutant or clear a violation" must be present');
+  assert.ok(result.stdout.includes('triages findings'), 'harness-exec marker "triages findings" must be present');
+  assert.ok(result.stdout.includes('Never weaken a test or rule to clear a finding'), 'harness-exec marker "Never weaken a test or rule to clear a finding" must be present');
   assert.ok(!result.stdout.includes('Decision-candidates'), 'producer marker must NOT leak into the harness-exec bundle');
 });
 

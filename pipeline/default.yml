@@ -111,7 +111,7 @@
   contract:
     - harness-exec
   procedure: craft:validation
-  role: craft:validation-triager
+  role: craft:harness-triager
   model: sonnet
   consumes:
     - change
@@ -119,8 +119,8 @@
     - validation-report
   gate: <validation gate>
   harness:
-    tool: stryker
     scope: per-hunk
+    techniques: []
 
 - id: architecture
   archetype: harness
@@ -128,7 +128,7 @@
   contract:
     - harness-exec
   procedure: craft:architecture
-  role: craft:architecture-triager
+  role: craft:harness-triager
   model: opus
   consumes:
     - change
@@ -136,7 +136,7 @@
     - architecture-report
   gate: <arch gate>
   harness:
-    tool: dependency-cruiser
+    techniques: []
 
 - id: documentation
   archetype: delivery

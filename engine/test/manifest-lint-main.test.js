@@ -40,9 +40,19 @@ test('Given no argv (default manifest path), when main runs and the default file
   const sut = main;
   const io = makeCaptureIo();
 
-  // The default path ".claude/workflow.md" is resolved relative to cwd.
-  // The engine/ cwd never has that file, so this is reliably absent.
-  const result = sut([], io);
+  // The default path ".claude/workflow.md" is resolved relative to cwd. Run in a
+  // throwaway empty dir so the result is independent of cwd and of any committed
+  // .claude/workflow.md the repo itself carries (craft ships one for dogfood).
+  const cwd0 = process.cwd();
+  const scratch = mkdtempSync(join(tmpdir(), 'manifestlint-default-'));
+  let result;
+  try {
+    process.chdir(scratch);
+    result = sut([], io);
+  } finally {
+    process.chdir(cwd0);
+    rmSync(scratch, { recursive: true, force: true });
+  }
 
   assert.equal(result, 0);
   assert.ok(io.stdout.joined().includes('no manifest at'), `stdout was: ${io.stdout.joined()}`);

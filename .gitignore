@@ -13,6 +13,7 @@
 .claude/*
 !.claude/craft-memory.md
 !.claude/craft-metrics.md
+!.claude/workflow.md
 
 # Stryker mutation-testing artifacts (regenerated per run, never committed)
 /reports/

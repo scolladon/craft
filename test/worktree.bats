@@ -72,15 +72,15 @@ teardown() {
 @test "Given a live-PID lock in the worktree, when teardown runs without --force, then it exits 3 and reports REFUSED" {
   local ts
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '%s %s\n' "$$" "$ts" > "${WT}/.craft-mutation.lock"
+  printf '%s %s\n' "$$" "$ts" > "${WT}/.craft-validation.lock"
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT"
   [ "$status" -eq 3 ]
   # REFUSED is emitted to stderr; bats merges stderr into $output by default.
   [[ "$output" == *"REFUSED"* ]]
-  [[ "$output" == *"mutation run alive"* ]]
+  [[ "$output" == *"validation run alive"* ]]
   # Refusal must leave the live lock intact — never clear a lock it would not honour.
-  [ -f "${WT}/.craft-mutation.lock" ]
+  [ -f "${WT}/.craft-validation.lock" ]
 }
 
 # ---------------------------------------------------------------------------
@@ -90,12 +90,12 @@ teardown() {
 @test "Given a live-PID lock in the worktree, when teardown runs with --force, then it exits 0, reports FORCED, and removes the lock" {
   local ts
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  printf '%s %s\n' "$$" "$ts" > "${WT}/.craft-mutation.lock"
+  printf '%s %s\n' "$$" "$ts" > "${WT}/.craft-validation.lock"
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT" --force
   [ "$status" -eq 0 ]
-  [[ "$output" == *"FORCED past live mutation run"* ]]
-  [ ! -f "${WT}/.craft-mutation.lock" ]
+  [[ "$output" == *"FORCED past live validation run"* ]]
+  [ ! -f "${WT}/.craft-validation.lock" ]
   # --force proceeds to full teardown, so the worktree itself is gone.
   [ ! -d "$WT" ]
 }
@@ -112,7 +112,7 @@ teardown() {
   ( exit 0 ) &
   dead_pid=$!
   wait "$dead_pid" 2>/dev/null || true
-  printf '%s %s\n' "$dead_pid" "$ts" > "${WT}/.craft-mutation.lock"
+  printf '%s %s\n' "$dead_pid" "$ts" > "${WT}/.craft-validation.lock"
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT"
   [ "$status" -eq 0 ]
@@ -148,13 +148,13 @@ teardown() {
 # ---------------------------------------------------------------------------
 
 @test "Given a lock whose PID is -1 (kill -0 -1 signals a process group), when teardown runs, then the numeric guard treats it as stale, not live" {
-  printf '%s %s\n' "-1" "2026-01-01T00:00:00Z" > "${WT}/.craft-mutation.lock"
+  printf '%s %s\n' "-1" "2026-01-01T00:00:00Z" > "${WT}/.craft-validation.lock"
 
   run bash "${SCRIPTS_DIR}/worktree-teardown.sh" "$REPO" "$WT"
   [ "$status" -eq 0 ]
   [[ "$output" != *"REFUSED"* ]]
   [[ "$output" == *"stale lock"* ]]
-  [ ! -f "${WT}/.craft-mutation.lock" ]
+  [ ! -f "${WT}/.craft-validation.lock" ]
 }
 
 # ---------------------------------------------------------------------------

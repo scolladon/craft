@@ -13,7 +13,7 @@ Contract:
 
 - When scripting git for diffs, always pass `--no-ext-diff` to `git diff`/`git show`
   (a hook will refuse otherwise — re-issue the corrected command it names).
-- If your dimension is tests: do NOT perform mutation analysis (a dedicated phase owns
-  it) — but you MAY flag suspected-equivalent mutants as advisory notes; they feed the
-  mutation triager's prompt.
+- If your dimension is tests: do NOT run the executing-harness techniques (a dedicated
+  phase owns it) — but you MAY flag suspected-benign harness findings as advisory notes;
+  they feed the harness-triager's prompt.
 - Final message: the structured findings list — no prose around it.

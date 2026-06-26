@@ -29,13 +29,19 @@ stopping when only LOW findings remain.
 
 Harness config is *per concern, per phase* — there is no global "review settings" bucket and no
 overlap between phases. Architecture is its **own** standalone harness phase (`phases.architecture.harness`,
-default-off), **not** a `review` dimension; validation carries `tool`/`scope`/`incremental`. The
+default-off), **not** a `review` dimension; validation carries a `techniques` list and a `scope`. The
 same `harness:` shape extends to any harness a repo adds (security, performance, accessibility…).
 
 ```yaml
 phases:
   validation:
-    harness: { tool: stryker, scope: per-hunk, incremental: true }
+    harness:
+      scope: per-hunk
+      techniques:
+        - id: mutation
+          run: "npx stryker run --mutate $SCOPE"
+          mode: triage
+          run-style: background
 ```
 
 Mis-tuning over- or under-verifies — it never weakens the gate: a harness still gates its phase

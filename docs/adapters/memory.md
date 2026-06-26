@@ -142,13 +142,13 @@ defines the schemas and forbids non-mechanical content; each phase's documented 
 trusted to comply; human review of the diffable store is the final check.
 
 Concerns are the five keys exported as `CONCERNS` from `engine/src/memory.js`:
-`toolchain`, `gate-cmd`, `mutation-tool`, `findings`, `part-sizing`.
+`toolchain`, `gate-cmd`, `validation-tool`, `findings`, `part-sizing`.
 
 | Concern | Entry shape (fields) | Merge key | Validate-on-read re-check | Explicitly NOT stored |
 |---|---|---|---|---|
 | `toolchain` | `{ ecosystem, lockfileFingerprint }` | `ecosystem` | `ecosystem` is a non-empty string; `lockfileFingerprint` is a non-empty string | dep names/versions, install logs, prose summaries |
 | `gate-cmd` | `{ phase, command }` | `phase` | `phase` is a non-empty string; `command` is a non-empty BARE command (no leading env/secret assignment prefix) | exit codes, timing, command output, env/secret prefixes (e.g. `TOKEN=…`) |
-| `mutation-tool` | `{ tool, configFingerprint }` | `tool` | `tool` is a non-empty string; `configFingerprint` is a non-empty string | config contents, mutation scores, test output |
+| `validation-tool` | `{ id, configFingerprint }` | `id` | `id` is a non-empty string; `configFingerprint` is a non-empty string | config contents, validation scores, test output |
 | `findings` | `{ file, severity, pattern }` | `file` + `pattern` | `file` is a non-empty repo-RELATIVE path (never absolute — no `$HOME`/username); `severity` is one of `low\|medium\|high\|critical`; `pattern` is a non-empty string | file content, stack traces, prose explanations, absolute paths, PII |
 | `part-sizing` | `{ size, outcome }` | `size` | no stable re-check (defaults to `() => true`) | rationale, effort estimates, free-form notes |
 

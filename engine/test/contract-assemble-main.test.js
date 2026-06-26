@@ -190,7 +190,7 @@ test('Given --descriptor-id requirements, when main runs, then exits 0 with prod
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(io.stdout.joined().includes('Decision-candidates'), 'producer marker "Decision-candidates" must be present');
   assert.ok(io.stdout.joined().includes('Fill the named template'), 'producer marker "Fill the named template" must be present');
-  assert.ok(!io.stdout.joined().includes('survivors or violations'), 'harness-exec marker must NOT leak into the producer bundle');
+  assert.ok(!io.stdout.joined().includes('triages findings'), 'harness-exec marker must NOT leak into the producer bundle');
 });
 
 // ─── architecture descriptor (harness-exec bundle) ───────────────────────────
@@ -202,8 +202,8 @@ test('Given --descriptor-id architecture, when main runs, then exits 0 with harn
   const result = sut(['--descriptor-id', 'architecture'], io);
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
-  assert.ok(io.stdout.joined().includes('survivors or violations'), 'harness-exec marker "survivors or violations" must be present');
-  assert.ok(io.stdout.joined().includes('Never weaken a test to kill a mutant or clear a violation'), 'harness-exec marker must be present');
+  assert.ok(io.stdout.joined().includes('triages findings'), 'harness-exec marker "triages findings" must be present');
+  assert.ok(io.stdout.joined().includes('Never weaken a test or rule to clear a finding'), 'harness-exec marker must be present');
   assert.ok(!io.stdout.joined().includes('Decision-candidates'), 'producer marker must NOT leak into the harness-exec bundle');
 });
 
@@ -447,7 +447,7 @@ test('Given --descriptor-id bench --descriptor-json with bench descriptor (contr
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(io.stdout.joined().toLowerCase().includes('never commit on a red gate'), 'core marker must be present');
-  assert.ok(io.stdout.joined().includes('survivors or violations'), 'harness-exec marker must be present');
+  assert.ok(io.stdout.joined().includes('triages findings'), 'harness-exec marker must be present');
 });
 
 // ─── --descriptor-json flag: namespaced colon id accepted and matched ─────────
@@ -564,8 +564,8 @@ test('Given --descriptor-json pointing at a file with a valid descriptor, when m
   const result = sut(['--descriptor-id', 'bench', '--descriptor-json', jsonPath], io);
 
   assert.equal(result, 0, `expected exit 0; stderr: ${io.stderr.joined()}`);
-  // The harness-exec bundle contains "survivors or violations" — content-dependent assertion
-  assert.ok(io.stdout.joined().includes('survivors or violations'), 'harness-exec content must appear in stdout');
+  // The harness-exec bundle contains "triages findings" — content-dependent assertion
+  assert.ok(io.stdout.joined().includes('triages findings'), 'harness-exec content must appear in stdout');
 });
 
 // ─── --descriptor-json: a single descriptor OBJECT (not an array) is wrapped and matched ──
@@ -585,7 +585,7 @@ test('Given --descriptor-json pointing at a single descriptor object (not an arr
   const result = sut(['--descriptor-id', 'bench', '--descriptor-json', jsonPath], io);
 
   assert.equal(result, 0, `single-object descriptor must resolve; stderr: ${io.stderr.joined()}`);
-  assert.ok(io.stdout.joined().includes('survivors or violations'), 'harness-exec content must appear in stdout');
+  assert.ok(io.stdout.joined().includes('triages findings'), 'harness-exec content must appear in stdout');
 });
 
 // EQUIVALENT (mutation survivors) — readFileSync encoding `'utf8'` → `''` at

@@ -14,6 +14,6 @@ ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
   grep -qE '^- \[[ xX]\] ' "${ROOT}/docs/DOD.md"
 }
 
-@test "Given docs/DOD.md exists, when its content is checked, then it includes a mutation-testing line" {
-  grep -qi 'mutation' "${ROOT}/docs/DOD.md"
+@test "Given docs/DOD.md exists, when its content is checked, then it includes a harness-techniques triaged-or-documented durable bar line" {
+  grep -qiE 'harness techniques triaged|triaged-or-documented' "${ROOT}/docs/DOD.md"
 }

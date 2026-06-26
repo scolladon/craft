@@ -14,6 +14,7 @@ import { DEFAULT_EXECUTION, VALID_EXECUTIONS } from './descriptor.js';
 import { applyEnableEdits, applyInserts, applyReorder, checkReorderApplicability } from './edits.js';
 import { checkStrandedConsumers } from './strand.js';
 import { resolveGatesAndWaivers } from './gates.js';
+import { isExecutingHarness } from './exec-harness.js';
 import { registeredBacklogNames } from './manifest.js';
 import { computeAutoSkipEligibility } from './autoskip.js';
 
@@ -131,6 +132,34 @@ function deriveReviewPlan(harness) {
   if (convergence === 'none') return { passes, stop_rule: 'none' };
   if (typeof convergence === 'number') return { passes, stop_rule: `non-low-count<=${convergence}` };
   return { passes, stop_rule: 'low-only' };
+}
+
+/**
+ * Derive engine-owned technique plan for an executing-harness phase.
+ * Pure projection — no validation, no error path. Input already typed-valid.
+ * Defaults: mode→gate, run-style→sync, scope inherits phase scope, commit-prefix→chore.
+ *
+ * @param {{ techniques?: Array<object>, scope?: string }} harness
+ * @returns {Array<{ id: string, probe?: string, run?: string, scope: string, mode: string, runStyle: string, triageProcedure?: string, commitPrefix: string }>}
+ */
+function deriveTechniquePlan(harness) {
+  const phaseScope = harness.scope ?? 'per-hunk';
+  // NoCoverage note: Stryker's TAP per-test coverage does not attribute tests to this line,
+  // but the empty-techniques default IS exercised by S-technique-no-techniques and
+  // the harness-no-techniques-key scenario. The overall-coverage column shows 100%.
+  return (harness.techniques ?? []).map(tech => {
+    const entry = {
+      id: tech.id,
+      scope: tech.scope ?? phaseScope,
+      mode: tech.mode ?? 'gate',
+      runStyle: tech['run-style'] ?? 'sync',
+      commitPrefix: tech['commit-prefix'] ?? 'chore',
+    };
+    if (tech.probe !== undefined) entry.probe = tech.probe;
+    if (tech.run !== undefined) entry.run = tech.run;
+    if (tech['triage-procedure'] !== undefined) entry.triageProcedure = tech['triage-procedure'];
+    return entry;
+  });
 }
 
 /**
@@ -296,11 +325,13 @@ export function resolvePipeline(defaults, manifest, opts) {
 
   const baseEffective = execResult.descriptors
     .filter(d => d.enabled)
-    .map(d =>
-      d.id === REVIEW_PHASE_ID && d.harness
-        ? { ...d, harness: { ...d.harness, reviewPlan: deriveReviewPlan(d.harness) } }
-        : d,
-    );
+    .map(d => {
+      if (d.id === REVIEW_PHASE_ID && d.harness)
+        return { ...d, harness: { ...d.harness, reviewPlan: deriveReviewPlan(d.harness) } };
+      if (isExecutingHarness(d) && d.harness)
+        return { ...d, harness: { ...d.harness, techniquePlan: deriveTechniquePlan(d.harness) } };
+      return d;
+    });
   const effective = baseEffective.map(d => ({
     ...d,
     autoSkipEligible: computeAutoSkipEligibility(d, resolved, baseEffective, defaults),

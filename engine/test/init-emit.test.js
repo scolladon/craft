@@ -353,7 +353,7 @@ test('Given maximal all-points answers, when emit→join→parse→validate runs
       reviewer: 'opus',
       'part-implementer': 'sonnet',
       'refactor-executor': 'haiku',
-      'validation-triager': 'haiku',
+      'harness-triager': 'haiku',
       'docs-writer': 'haiku',
       'backlog-ticker': 'haiku',
     },

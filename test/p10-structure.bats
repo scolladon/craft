@@ -7,7 +7,7 @@ ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
 }
 
 @test "Given the architecture vertical is authored, when the architecture agent file is checked, then it exists" {
-  [ -f "${ROOT}/agents/architecture-triager.md" ]
+  [ -f "${ROOT}/agents/harness-triager.md" ]
 }
 
 @test "Given the requirements vertical is authored, when the requirements skill file is checked, then it exists" {
@@ -34,12 +34,12 @@ ROOT="$(cd "${BATS_TEST_DIRNAME}/.." && pwd)"
   ! grep -qE 'Never commit on a red gate|No suppression directives' "${ROOT}/agents/requirements-writer.md"
 }
 
-@test "Given the architecture-triager agent is thin, when it is checked for injected core invariants, then it does not restate them" {
-  ! grep -qE 'Never commit on a red gate|No suppression directives' "${ROOT}/agents/architecture-triager.md"
+@test "Given the harness-triager agent is thin, when it is checked for injected core invariants, then it does not restate them" {
+  ! grep -qE 'Never commit on a red gate|No suppression directives' "${ROOT}/agents/harness-triager.md"
 }
 
-@test "Given the architecture skill is synchronous, when it is checked for mutation-lock clones, then craft-mutation.lock is absent" {
-  ! grep -q 'craft-mutation.lock' "${ROOT}/skills/architecture/SKILL.md"
+@test "Given the architecture skill is synchronous, when it is checked for run-lock clones, then no run-lock of either name appears" {
+  ! grep -qE 'craft-(mutation|validation)\.lock' "${ROOT}/skills/architecture/SKILL.md"
 }
 
 @test "Given the loop recipe is authored, when the workflow file is checked, then it exists" {

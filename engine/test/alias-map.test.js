@@ -8,7 +8,6 @@ const EXPECTED_ALIASES = [
   ['adr',       'decisions'],
   ['plan',      'planning'],
   ['implement', 'implementation'],
-  ['mutation',  'validation'],
   ['refactor',  'refactoring'],
   ['docs',      'documentation'],
   ['pr',        'propose'],
@@ -39,6 +38,11 @@ for (const id of CANONICAL_IDS) {
 test('Given an unknown id, when resolveAlias is called, then it returns the input unchanged', () => {
   const result = resolveAlias('unknown-phase');
   assert.equal(result, 'unknown-phase');
+});
+
+test('Given the removed mutation alias, when resolveAlias is called, then it returns mutation unchanged (clean break)', () => {
+  const result = resolveAlias('mutation');
+  assert.equal(result, 'mutation');
 });
 
 for (const protoKey of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {

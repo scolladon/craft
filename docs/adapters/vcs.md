@@ -22,7 +22,7 @@
   - **post**: returns the raw diff text; external diff tools do not alter it.
 
 - `defaultBranch() → name` — return the repo's default branch name (e.g. `main` or `master`).
-  - **pre**: the repo has a remote with a detectable default branch (typically via `gh`/git).
+  - **pre**: the repo has a remote with a detectable default branch (typically via the host VCS CLI / git).
   - **post**: returns the branch name string; no side-effects.
 
 - `propose(title, body) → prUrl` — open a pull request from the current branch to the default
@@ -38,7 +38,7 @@
   - **post**: the branch is merged; the PR is closed.
 
 - `teardown(workspacePath) → void` — remove the isolated workspace after `integrate` completes;
-  lock-aware: refuses while `.craft-mutation.lock` holds a live PID; auto-clears a dead-PID lock;
+  lock-aware: refuses while `.craft-validation.lock` holds a live PID; auto-clears a dead-PID lock;
   a live PID requires `--force`.
   - **pre**: `integrate` has completed (teardown only after integrate — core ordering); the
     workspace exists.
@@ -47,14 +47,14 @@
 
 ## Teardown lock protocol
 
-The mutation phase writes `<worktree-root>/.craft-mutation.lock` containing `<pid> <iso-timestamp>`
+The validation phase writes `<worktree-root>/.craft-validation.lock` containing `<pid> <iso-timestamp>`
 when background runs start, and removes it when the run lands. `worktree-teardown.sh` reads this
 lock on entry:
 
 - **Dead PID**: lock is stale — auto-cleared, teardown continues.
-- **Live PID, no `--force`**: exits 3, emits `REFUSED — mutation run alive (pid=... since ...)` to
+- **Live PID, no `--force`**: exits 3, emits `REFUSED — validation run alive (pid=... since ...)` to
   stderr; the lock is left intact.
-- **Live PID, `--force`**: emits `FORCED past live mutation run (pid=... since ...)`, removes the
+- **Live PID, `--force`**: emits `FORCED past live validation run (pid=... since ...)`, removes the
   lock, proceeds with teardown.
 
 ## Binding set
@@ -99,8 +99,8 @@ it.
 Failures split by where they are detectable:
 
 **Config errors** (knowable before any verb runs): the worktree target path already exists
-(`git worktree add` requires it to be absent); the main repo dir is not a git repo; `gh`/git not
-installed. Caught at `isolate` time before any worker spawns.
+(`git worktree add` requires it to be absent); the main repo dir is not a git repo; the host VCS
+CLI / git not installed. Caught at `isolate` time before any worker spawns.
 
 **Runtime errors** (knowable only at runtime): `isolate` fails to add the worktree (disk full,
 branch conflict); `commit` called while the gate is red (forbidden — escalates immediately);

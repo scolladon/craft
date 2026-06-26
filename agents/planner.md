@@ -17,7 +17,7 @@ Contract:
   (`## Part N`, `### Context`, `### TDD steps`, `### Gate`, `### Commit`).
 - Sizing: no standalone test-only parts for FEATURE code (fold tests into the part
   whose code they exercise) — EXCEPT test-infra-only and docs-only parts (tooling
-  config, test helpers, fixtures, mutation/ADV/property suites, docs/prose) with no
+  config, test helpers, fixtures, harness/ADV/property suites, docs/prose) with no
   `src/` delta, which are legitimately standalone (they have no implementation part to
   fold into); a part must earn its agent lifecycle; sequential parts share one
   working tree and build on each other.

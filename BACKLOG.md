@@ -101,6 +101,26 @@ collision lint in `manifest.js`, and walk prose — **no new runtime port, no en
 (During implementation the eligible-set truth table was corrected: `decisions` is strand-clean because
 `planning` self-supplies it, so it is eligible.) ADRs 143–147.
 
+**P27 delivered 2026-06-25** — de-specialize craft: no validation **technique** (mutation/Stryker,
+dependency-cruiser) or VCS-host **CLI** (`gh`) name survives in any plugin-defining source
+(`pipeline/ skills/ agents/ contracts/ templates/ engine/src/ docs/adapters/ docs/DOD.md
+docs/GUIDE-customizing.md README.md`); concrete tools live only in consumer config, `examples/`, a
+port's adapter binding, and the kept `// equivalent mutant` dogfood comments. The two executing-harness
+phases (`validation`, `architecture`) collapse onto ONE generic gate-harness mechanism: an opaque
+`harness.techniques` list knob (mirroring review's `dimensions`) validated fail-closed by a new
+`validateTechnique`, an engine-emitted `harness.techniquePlan` (`deriveTechniquePlan`, mirroring
+`deriveReviewPlan`; `isExecutingHarness` extracted to a shared `engine/src/exec-harness.js`), and a
+skill that resolves its technique set by **declared → derived (README/CONTRIBUTING/config) → fallback
+(language test-script) → clean no-op** precedence (ADR-149 reframed `validation` from a mutation-locked
+phase into the project's general engineering harness; discovery is skill judgment, engine stays
+agnostic). One generic `harness-triager` replaces both technique triagers; delivery (`propose`/`integrate`)
+routes through the VCS port verbs `propose(title,body)`/`integrate(prUrl)` with `gh` confined to the
+adapter binding. Breaking renames: `mutation-tool`→`validation-tool` memory concern (re-keyed on `id`),
+`.craft-mutation.lock`→`.craft-validation.lock`; the `mutation→validation` phase alias removed (clean
+break). A `test/source-hygiene.bats` grep-gate is the durable proof (reviewed allowlist for kept
+evidence + the adapter binding). craft dogfoods via a committed `.claude/workflow.md` declaring its own
+mutation technique. ADRs 148–155.
+
 | Phase | What | ADRs |
 |---|---|---|
 | P0 | Spikes SP1–SP8 — feasibility decisions | — |

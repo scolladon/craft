@@ -11,7 +11,6 @@ export const ALIAS_MAP = Object.freeze({
   adr:       'decisions',
   plan:      'planning',
   implement: 'implementation',
-  mutation:  'validation',
   refactor:  'refactoring',
   docs:      'documentation',
   pr:        'propose',

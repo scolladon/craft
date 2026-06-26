@@ -1151,7 +1151,7 @@ test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when reso
   assert.deepEqual(result.effective.map(d => d.id), SC1_IDS);
 });
 
-test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when resolvePipeline runs, then unrelated validation descriptor keeps harness.tool: stryker', () => {
+test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when resolvePipeline runs, then unrelated validation descriptor has scope:per-hunk and techniquePlan (not tool)', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S-harness-review');
   const sut = resolvePipeline;
@@ -1161,8 +1161,9 @@ test('S-harness-review Given phases.review.harness: { max_cycles: 2 }, when reso
   assert.equal(result.ok, true);
   const validationDesc = result.effective.find(d => d.id === 'validation');
   // An unrelated review override must not corrupt validation's own harness block.
-  assert.equal(validationDesc.harness.tool, 'stryker');
+  assert.ok(!Object.hasOwn(validationDesc.harness, 'tool'), 'tool key is removed from core descriptor');
   assert.equal(validationDesc.harness.scope, 'per-hunk');
+  assert.ok(Object.hasOwn(validationDesc.harness, 'techniquePlan'), 'techniquePlan is now emitted');
 });
 
 // ─── S-harness-validation: partial harness override preserves default tool ────
@@ -1177,7 +1178,7 @@ test('S-harness-validation Given phases.validation.harness: { scope: "per-file" 
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
-test('S-harness-validation Given phases.validation.harness: { scope: "per-file" }, when resolvePipeline runs, then validation keeps harness.tool: stryker (default preserved)', () => {
+test('S-harness-validation Given phases.validation.harness: { scope: "per-file" }, when resolvePipeline runs, then validation has techniquePlan (no tool key)', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S-harness-validation');
   const sut = resolvePipeline;
@@ -1186,7 +1187,8 @@ test('S-harness-validation Given phases.validation.harness: { scope: "per-file" 
 
   assert.equal(result.ok, true);
   const validationDesc = result.effective.find(d => d.id === 'validation');
-  assert.equal(validationDesc.harness.tool, 'stryker');
+  assert.ok(!Object.hasOwn(validationDesc.harness, 'tool'), 'tool key removed from core descriptor');
+  assert.ok(Object.hasOwn(validationDesc.harness, 'techniquePlan'), 'techniquePlan is now emitted');
 });
 
 test('S-harness-validation Given phases.validation.harness: { scope: "per-file" }, when resolvePipeline runs, then validation.harness.scope is per-file (override wins)', () => {
@@ -1210,6 +1212,68 @@ test('S-harness-validation Given phases.validation.harness: { scope: "per-file" 
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.effective.map(d => d.id), SC1_IDS);
+});
+
+// ─── KILL: resolve.js:146 StringLiteral + LogicalOperator; resolve.js:147 NoCoverage ─
+// Mutant A (??→&&): harness.scope && 'per-hunk' → undefined when scope absent
+// Mutant B (StringLiteral): harness.scope ?? '' → empty string when scope absent
+// NoCoverage: harness.techniques ?? ['Stryker was here'] → non-empty default
+// Kill: technique with no scope under no-scope harness must have scope exactly 'per-hunk' in plan.
+// Kill: no-techniques harness must produce empty techniquePlan (not one element).
+
+test('S-technique-scope-default Given validation harness with one technique and no scope anywhere, when resolvePipeline runs, then techniquePlan entry scope is exactly per-hunk', () => {
+  const defaults = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'lint' }] } } } };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const validationDesc = result.effective.find(d => d.id === 'validation');
+  assert.strictEqual(validationDesc.harness.techniquePlan[0].scope, 'per-hunk', 'default scope must be per-hunk, not undefined or empty string');
+});
+
+test('S-technique-scope-inherit Given validation harness with scope per-file and one scopeless technique, when resolvePipeline runs, then techniquePlan entry inherits scope per-file', () => {
+  const defaults = loadDefault();
+  const manifest = { phases: { validation: { harness: { scope: 'per-file', techniques: [{ id: 'lint' }] } } } };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const validationDesc = result.effective.find(d => d.id === 'validation');
+  assert.strictEqual(validationDesc.harness.techniquePlan[0].scope, 'per-file', 'technique must inherit harness scope');
+});
+
+test('S-technique-no-techniques Given validation harness with no techniques key, when resolvePipeline runs, then techniquePlan is empty array', () => {
+  const defaults = loadDefault();
+  const manifest = { phases: { validation: { harness: { scope: 'per-hunk' } } } };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true);
+  const validationDesc = result.effective.find(d => d.id === 'validation');
+  assert.deepEqual(validationDesc.harness.techniquePlan, [], 'absent techniques must produce empty plan, not a default element');
+});
+
+test('S-technique-scope-default-no-harness-scope Given a registered executing-harness phase with no scope and one scopeless technique, when resolvePipeline runs, then techniquePlan entry scope is exactly per-hunk', () => {
+  // The architecture default phase has no harness.scope — ensures line 146 ?? fallback is exercised
+  // with an absent scope. With mutant (?? '' instead of ?? 'per-hunk'), scope would be ''.
+  const defaults = loadDefault();
+  // Enable architecture (default-off) and give it a scopeless technique via harness override.
+  const manifestWithTech = {
+    phases: { architecture: { enabled: true, harness: { techniques: [{ id: 'lint' }] } } },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifestWithTech);
+
+  assert.equal(result.ok, true);
+  const archDesc = result.effective.find(d => d.id === 'architecture');
+  assert.ok(archDesc, 'architecture must be in effective after being enabled');
+  assert.ok(archDesc.harness.techniquePlan, 'architecture must have techniquePlan');
+  assert.strictEqual(archDesc.harness.techniquePlan[0].scope, 'per-hunk', 'absent harness scope must default to per-hunk, not empty string');
 });
 
 // ─── ADV-1: roleExists filter true-branch count ───────────────────────────────

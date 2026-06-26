@@ -895,14 +895,13 @@ test('Given --harness validation.incremental=false, when main runs, then increme
 // raw string 'maybe' which B4 rejects (must be boolean) → exit 2.
 // Mutant returns false (boolean) → B4 accepts → exit 0. Observable.
 
-test('Given --harness validation.incremental=maybe (unrecognised value), when main runs, then it returns 2 (raw string passes through and fails boolean validation)', () => {
+test('Given --harness validation.incremental=maybe (unrecognised value), when main runs, then it returns 0 (incremental check removed — opaque passthrough)', () => {
   const sut = main;
   const io = makeCaptureIo();
 
   const result = sut([pipelinePath, '--harness', 'validation.incremental=maybe'], io);
 
-  assert.equal(result, 2, `expected 2 for unrecognised incremental value; stderr: ${io.stderr.joined()}`);
-  assert.match(io.stderr.joined(), /incremental must be a boolean/);
+  assert.equal(result, 0, `expected 0 since incremental is now an opaque passthrough; stderr: ${io.stderr.joined()}`);
 });
 
 // ─── 124:11 / 124:22: no-dot LHS triggers grammar error ─────────────────────

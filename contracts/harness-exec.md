@@ -1,3 +1,3 @@
-A tool runs; the AI triages survivors or violations: kill with a test or prove provable equivalence and document it inline — never simply accept a survivor.
-Never weaken a test to kill a mutant or clear a violation.
+A tool runs; the AI triages findings: resolve each (the resolution the technique names) or prove it benign and document it inline — never simply accept a finding.
+Never weaken a test or rule to clear a finding.
 Gate-green before commit.

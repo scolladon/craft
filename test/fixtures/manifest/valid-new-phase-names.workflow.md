@@ -6,7 +6,7 @@ phases:
     strategy: incremental
   documentation:
     non-blocking-jobs: 2
-models: { validation-triager: sonnet }
+models: { harness-triager: sonnet }
 pipeline:
   skip: [decisions]
 ---

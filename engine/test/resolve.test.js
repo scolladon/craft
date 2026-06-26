@@ -44,7 +44,7 @@ const SC1_ROLES = {
   implementation: 'craft:part-implementer',
   review:         'craft:reviewer',
   refactoring:    'craft:refactor-executor',
-  validation:     'craft:validation-triager',
+  validation:     'craft:harness-triager',
   documentation:  'craft:docs-writer',
   propose:        undefined,
   integrate:      undefined,
@@ -584,16 +584,14 @@ test('Given any manifest, when resolvePipeline is called, then result includes g
 
 // ─── reorder wiring ───────────────────────────────────────────────────────────
 
-test('Given pipeline.reorder containing an alias id (mutation), when resolvePipeline runs, then ok:true and reorder applies via canonical id', () => {
+test('Given pipeline.reorder containing the removed mutation alias, when resolvePipeline runs, then ok:false with unknown-id error', () => {
   const sut = loadDefault();
   const manifest = { pipeline: { reorder: ['mutation', 'review'] } };
 
   const result = resolvePipeline(sut, manifest);
 
-  assert.equal(result.ok, true, `Expected ok but got errors: ${JSON.stringify(result.errors)}`);
-  const ids = result.effective.map(d => d.id);
-  assert.ok(ids.indexOf('validation') < ids.indexOf('review'),
-    'validation (alias: mutation) must precede review after reorder');
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('"mutation"') && e.includes('not present')));
 });
 
 test('Given pipeline.reorder containing an unknown id, when resolvePipeline runs, then ok:false with unknown-id error and the prior edit records surfaced', () => {
@@ -1181,6 +1179,144 @@ test('Given resolved review descriptor, when resolvePipeline is called, then har
   assert.equal(sourceHarness.convergence, 3, 'source convergence unchanged');
 });
 
+// ─── techniquePlan derivation (ADR-155) ──────────────────────────────────────
+
+test('Given default pipeline with null manifest, when resolvePipeline runs, then validation descriptor has techniquePlan as empty array (empty techniques)', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.ok(validation, 'validation phase must be in effective list');
+  assert.ok(Object.hasOwn(validation.harness, 'techniquePlan'), 'techniquePlan must be attached');
+  assert.deepEqual(validation.harness.techniquePlan, []);
+});
+
+test('Given manifest with phases.validation.harness.techniques with one technique, when resolvePipeline runs, then techniquePlan has one entry with defaults filled', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'mutation' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  const plan = validation.harness.techniquePlan;
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].id, 'mutation');
+  assert.equal(plan[0].mode, 'gate');
+  assert.equal(plan[0].runStyle, 'sync');
+  assert.equal(plan[0].scope, 'per-hunk');
+  assert.equal(plan[0].commitPrefix, 'chore');
+});
+
+test('Given manifest with phases.validation.harness.techniques with explicit mode:triage, when resolvePipeline runs, then techniquePlan entry preserves mode', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'mutation', mode: 'triage' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.equal(validation.harness.techniquePlan[0].mode, 'triage');
+});
+
+test('Given manifest with phases.validation.harness.techniques with explicit run-style:background, when resolvePipeline runs, then techniquePlan entry has runStyle:background', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'mutation', 'run-style': 'background' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.equal(validation.harness.techniquePlan[0].runStyle, 'background');
+});
+
+test('Given manifest with phases.validation.harness.techniques with explicit scope:per-file, when resolvePipeline runs, then techniquePlan entry scope is per-file', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'mutation', scope: 'per-file' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.equal(validation.harness.techniquePlan[0].scope, 'per-file');
+});
+
+test('Given manifest with phases.validation.harness.techniques with explicit commit-prefix:test, when resolvePipeline runs, then techniquePlan entry commitPrefix is test', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'mutation', 'commit-prefix': 'test' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.equal(validation.harness.techniquePlan[0].commitPrefix, 'test');
+});
+
+test('Given manifest with phases.validation.harness.techniques with probe and run and triage-procedure, when resolvePipeline runs, then techniquePlan entry carries them', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'mutation', probe: 'which stryker', run: 'npx stryker run', 'triage-procedure': 'path/to/proc.md' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  const entry = validation.harness.techniquePlan[0];
+  assert.equal(entry.probe, 'which stryker');
+  assert.equal(entry.run, 'npx stryker run');
+  assert.equal(entry.triageProcedure, 'path/to/proc.md');
+});
+
+test('Given default pipeline with null manifest, when resolvePipeline runs, then review descriptor has reviewPlan but no techniquePlan (review is read-harness)', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  const review = result.effective.find(d => d.id === 'review');
+  assert.ok(review.harness.reviewPlan, 'reviewPlan must be present on review');
+  assert.ok(!Object.hasOwn(review.harness, 'techniquePlan'), 'techniquePlan must NOT be on review (read-harness)');
+});
+
+test('Given default pipeline with null manifest, when resolvePipeline runs, then workspace descriptor has no techniquePlan (non-harness phase)', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  const workspace = result.effective.find(d => d.id === 'workspace');
+  assert.ok(!workspace.harness, 'workspace has no harness block');
+  assert.ok(!('techniquePlan' in (workspace.harness ?? {})), 'no techniquePlan on non-harness descriptor');
+});
+
+test('Given manifest with phases.validation.harness.techniques with multiple entries, when resolvePipeline runs, then techniquePlan preserves order and fills defaults for each', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'lint', mode: 'gate' }, { id: 'mutation', mode: 'triage', 'commit-prefix': 'test' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  const plan = validation.harness.techniquePlan;
+  assert.equal(plan.length, 2);
+  assert.equal(plan[0].id, 'lint');
+  assert.equal(plan[0].commitPrefix, 'chore');
+  assert.equal(plan[1].id, 'mutation');
+  assert.equal(plan[1].commitPrefix, 'test');
+});
+
+test('Given resolved validation descriptor, when resolvePipeline runs, then source harness is not mutated by techniquePlan attachment', () => {
+  const sut = loadDefault();
+  const sourceHarness = { techniques: [{ id: 'lint' }] };
+  const manifest = { phases: { validation: { harness: sourceHarness } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(!Object.hasOwn(sourceHarness, 'techniquePlan'), 'source harness must not be mutated');
+  assert.equal(sourceHarness.techniques[0].id, 'lint', 'source technique unchanged');
+});
+
+test('Given technique with scope:per-file override in techniques array and phase scope:per-hunk, when resolvePipeline runs, then technique scope wins', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { scope: 'per-hunk', techniques: [{ id: 'lint', scope: 'per-file' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.equal(validation.harness.techniquePlan[0].scope, 'per-file');
+});
+
 // ─── autoSkipEligible wiring ──────────────────────────────────────────────────
 
 test('A1 Given default pipeline with null manifest, when resolvePipeline runs, then every effective descriptor carries the correct autoSkipEligible boolean', () => {
@@ -1258,4 +1394,67 @@ test('A3 Given default pipeline with null manifest, when resolvePipeline runs, t
   assert.ok(proposeDecision, 'propose must have a gateDecision');
   assert.ok(Array.isArray(proposeDecision.awaitingHarnesses), 'propose awaitingHarnesses must be an array');
   assert.deepEqual(proposeDecision.awaitingHarnesses, ['validation']);
+});
+
+// ─── KILL: resolve.js:146 LogicalOperator + StringLiteral mutants ─────────────
+// Mutant A (??→&&): harness.scope && 'per-hunk' — when scope absent, && returns undefined
+// Mutant B (StringLiteral): harness.scope ?? '' — default is empty string not 'per-hunk'
+// Kill: technique with no scope under harness with no scope must produce exactly 'per-hunk'.
+
+test('Given technique with no scope and harness with no scope, when resolvePipeline runs, then techniquePlan scope defaults to exactly per-hunk', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'mutation' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  const entry = validation.harness.techniquePlan[0];
+  assert.strictEqual(entry.scope, 'per-hunk', 'default scope must be the string "per-hunk", not undefined or empty');
+});
+
+test('Given technique with no scope under harness with scope per-file, when resolvePipeline runs, then techniquePlan entry inherits harness scope per-file', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { scope: 'per-file', techniques: [{ id: 'mutation' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.strictEqual(validation.harness.techniquePlan[0].scope, 'per-file', 'technique must inherit harness scope when technique has no scope');
+});
+
+// ─── KILL: resolve.js:147 NoCoverage — harness.techniques ?? [] default path ──
+// NoCoverage mutant: harness.techniques ?? [] → harness.techniques ?? ['Stryker was here']
+// Kill: when harness has no techniques key, techniquePlan must be empty (not one-element).
+
+test('Given harness block with no techniques key, when resolvePipeline runs, then techniquePlan is an empty array', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { scope: 'per-hunk' } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  assert.deepEqual(validation.harness.techniquePlan, [], 'no techniques key must produce empty techniquePlan, not a default element');
+});
+
+// ─── KILL: resolve.js:155-157 ConditionalExpression mutants ──────────────────
+// Mutants: if (tech.probe !== undefined) → if (true) (and same for run, triage-procedure)
+// Effect: a technique without probe/run/triage-procedure gets those keys set to undefined.
+// Kill: a minimal technique (id only) must produce an entry WITHOUT probe, run, triageProcedure keys.
+
+test('Given technique with only id, when resolvePipeline runs, then techniquePlan entry has no probe, run, or triageProcedure keys', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { validation: { harness: { techniques: [{ id: 'mutation' }] } } } };
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const validation = result.effective.find(d => d.id === 'validation');
+  const entry = validation.harness.techniquePlan[0];
+  assert.ok(!Object.hasOwn(entry, 'probe'), 'probe key must be absent when technique has no probe');
+  assert.ok(!Object.hasOwn(entry, 'run'), 'run key must be absent when technique has no run');
+  assert.ok(!Object.hasOwn(entry, 'triageProcedure'), 'triageProcedure key must be absent when technique has no triage-procedure');
+  assert.deepEqual(
+    Object.keys(entry).sort(),
+    ['commitPrefix', 'id', 'mode', 'runStyle', 'scope'],
+    'minimal technique entry must have exactly the five required keys',
+  );
 });

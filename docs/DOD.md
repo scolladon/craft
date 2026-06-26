@@ -16,31 +16,22 @@ and records a per-criterion outcome; an unmet criterion is a blocker, never a si
 
 ---
 
-## Mutation testing
-
-- [ ] All surviving mutants triaged: each mutant is either killed by a new or existing test,
-  or documented as provably equivalent (with the equivalence argument recorded in the
-  triage commit). No unreviewed survivors are accepted.
-- [ ] Per-hunk mutation run is clean: `stryker run` exits green (score meets threshold or
-  every survivor below the threshold is listed as equivalent in the triage log).
-- [ ] Mutation-testing criterion is evidenced by reading the `validation` phase results
-  produced in this same run — never re-run separately.
-
----
-
 ## Gates green
 
 - [ ] `bash scripts/ci.sh` passes in full: engine node:test count matches `EXPECTED_TESTS`,
   pi adapter tests match `EXPECTED_PI_TESTS`, bats suite passes, shellcheck clean,
   pipeline-lint and contracts-lint clean.
 - [ ] Nothing committed on a red gate; every part is gated before commit.
+- [ ] Harness techniques triaged-or-documented: every surviving finding from each executing-harness
+  is either addressed (killed / fixed) or documented as provably equivalent / acceptable, with the
+  argument recorded in the triage commit. No unreviewed survivors accepted.
 
 ---
 
 ## Architecture boundaries
 
 - [ ] N/A — the `architecture` phase ships `enabled: false` in `pipeline/default.yml` for
-  this repo; no dependency-cruiser boundary check runs. The gap is stated here honestly and
+  this repo; the architecture boundary check did not run. The gap is stated here honestly and
   not claimed as verified.
 
 ---

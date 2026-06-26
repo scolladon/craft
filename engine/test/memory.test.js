@@ -29,8 +29,8 @@ const GATE_CMD_ENTRY = {
 };
 
 const MUTATION_TOOL_ENTRY = {
-  concern: 'mutation-tool',
-  tool: 'stryker',
+  concern: 'validation-tool',
+  id: 'stryker',
   configFingerprint: 'def456',
   confidence: 2,
   provenance: { run: 'r1', commit: 'c1', date: '2024-01-01' },
@@ -67,7 +67,7 @@ function groupByConcern(entries) {
 const ALL_PASS_VALIDATORS = {
   toolchain: () => true,
   'gate-cmd': () => true,
-  'mutation-tool': () => true,
+  'validation-tool': () => true,
   findings: () => true,
   'part-sizing': () => true,
 };
@@ -75,7 +75,7 @@ const ALL_PASS_VALIDATORS = {
 const ALL_FAIL_VALIDATORS = {
   toolchain: () => false,
   'gate-cmd': () => false,
-  'mutation-tool': () => false,
+  'validation-tool': () => false,
   findings: () => false,
   'part-sizing': () => false,
 };
@@ -218,18 +218,18 @@ test('Given store with findings entry whose file no longer exists, when load run
   assert.equal(result.evicted[0].concern, 'findings');
 });
 
-// ─── RED 8 — validate-on-read drops stale mutation-tool entry ────────────────
+// ─── RED 8 — validate-on-read drops stale validation-tool entry ──────────────
 
-test('Given store with mutation-tool entry whose config file is no longer present, when load runs, then it is dropped from entries and added to evicted', () => {
+test('Given store with validation-tool entry whose config file is no longer present, when load runs, then it is dropped from entries and added to evicted', () => {
   const sut = load;
   const storeContent = makeStoreContent([MUTATION_TOOL_ENTRY]);
-  const validators = { ...ALL_PASS_VALIDATORS, 'mutation-tool': () => false };
+  const validators = { ...ALL_PASS_VALIDATORS, 'validation-tool': () => false };
 
   const result = sut('/repo', { readStore: () => storeContent, validators });
 
-  assert.deepEqual(result.entries['mutation-tool'], []);
+  assert.deepEqual(result.entries['validation-tool'], []);
   assert.equal(result.evicted.length, 1);
-  assert.equal(result.evicted[0].concern, 'mutation-tool');
+  assert.equal(result.evicted[0].concern, 'validation-tool');
 });
 
 // ─── RED 9 — fresh entries survive ───────────────────────────────────────────
@@ -243,7 +243,7 @@ test('Given store whose entries all pass validate-on-read, when load runs, then 
 
   assert.equal(result.entries.toolchain.length, 1);
   assert.equal(result.entries['gate-cmd'].length, 1);
-  assert.equal(result.entries['mutation-tool'].length, 1);
+  assert.equal(result.entries['validation-tool'].length, 1);
   assert.equal(result.entries.findings.length, 1);
   assert.equal(result.entries['part-sizing'].length, 1);
   assert.deepEqual(result.evicted, []);
@@ -258,7 +258,7 @@ test('Given part-sizing entry with no part-sizing validator provided, when load 
   const validatorsWithoutPartSizing = {
     toolchain: () => true,
     'gate-cmd': () => true,
-    'mutation-tool': () => true,
+    'validation-tool': () => true,
     findings: () => true,
     // no part-sizing key
   };
@@ -683,7 +683,7 @@ test('Given two in-window entries with equal lowest confidence, when cap forces 
   // Add a third entry (higher confidence) to force over-cap
   const highConfEntry = {
     ...MUTATION_TOOL_ENTRY,
-    tool: 'high-conf-tool',
+    id: 'high-conf-tool',
     confidence: 4,
     provenance: { run: 'r3', commit: 'c3', date: '2026-06-01' },
   };
@@ -767,7 +767,7 @@ test('Given store with entries fewer than WINDOW over entry-count cap, when save
   };
   const highConfEntry = {
     ...MUTATION_TOOL_ENTRY,
-    tool: 'high-conf-tool',
+    id: 'high-conf-tool',
     confidence: 5,
     provenance: { run: 'r3', commit: 'c3', date: '2026-06-01' },
   };
@@ -791,7 +791,7 @@ test('Given store with entries fewer than WINDOW over entry-count cap, when save
   assert.ok(!foundLow, 'least-relevant entry must be evicted in small-store case');
 
   // High-confidence entry must survive
-  const foundHigh = reparsed.entries['mutation-tool'].some(e => e.tool === 'high-conf-tool');
+  const foundHigh = reparsed.entries['validation-tool'].some(e => e.id === 'high-conf-tool');
   assert.ok(foundHigh, 'highest-confidence entry must survive');
 });
 
@@ -856,18 +856,18 @@ test('Given a toolchain entry re-observed with an UNCHANGED fingerprint, when sa
   assert.equal(reparsed.entries.toolchain[0].confidence, 3);
 });
 
-test('Given a mutation-tool entry re-observed with a CHANGED config fingerprint, when save runs, then the stored fingerprint is rewritten', () => {
+test('Given a validation-tool entry re-observed with a CHANGED config fingerprint, when save runs, then the stored fingerprint is rewritten', () => {
   const sut = save;
-  const view = makeLoadedView([{ concern: 'mutation-tool', tool: 'stryker', configFingerprint: 'old', confidence: 2, provenance: { run: 'r0', commit: 'c0', date: '2024-01-01' } }]);
-  const delta = [{ concern: 'mutation-tool', payload: { tool: 'stryker', configFingerprint: 'new' } }];
+  const view = makeLoadedView([{ concern: 'validation-tool', id: 'stryker', configFingerprint: 'old', confidence: 2, provenance: { run: 'r0', commit: 'c0', date: '2024-01-01' } }]);
+  const delta = [{ concern: 'validation-tool', payload: { id: 'stryker', configFingerprint: 'new' } }];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_path, content) => captured.push(content) });
 
   sut('/repo', view, delta, deps);
 
   const reparsed = parseStore(captured[0]);
-  assert.equal(reparsed.entries['mutation-tool'].length, 1);
-  assert.equal(reparsed.entries['mutation-tool'][0].configFingerprint, 'new');
+  assert.equal(reparsed.entries['validation-tool'].length, 1);
+  assert.equal(reparsed.entries['validation-tool'][0].configFingerprint, 'new');
 });
 
 test('Given a gate-cmd entry re-observed with a CHANGED command for the same phase, when save runs, then the stored command is updated to the newer one', () => {
@@ -1037,8 +1037,8 @@ test('Given a view with all concerns empty, when serializeStore runs, then every
 test('Given a view with multiple concern keys, when serializeStore runs, then YAML frontmatter keys appear in CONCERNS declaration order not alphabetical order', () => {
   const view = { entries: groupByConcern([]), evicted: [], loadNote: null };
   const result = serializeStore(view);
-  // CONCERNS order: toolchain, gate-cmd, mutation-tool, findings, part-sizing
-  // Alphabetical order: findings, gate-cmd, mutation-tool, part-sizing, toolchain
+  // CONCERNS order: toolchain, gate-cmd, validation-tool, findings, part-sizing
+  // Alphabetical order: findings, gate-cmd, part-sizing, toolchain, validation-tool
   // With sortKeys:true, 'findings' would appear before 'toolchain' in YAML
   // With sortKeys:false (correct), 'toolchain' appears first (as declared in CONCERNS)
   const toolchainIdx = result.indexOf('toolchain:');
@@ -1233,11 +1233,11 @@ test('Given two gate-cmd observations with different phases, when save runs, the
   assert.equal(reparsed.entries['gate-cmd'].length, 2, 'different phases must produce 2 entries');
 });
 
-test('Given two mutation-tool observations with different tools, when save runs, then they produce two separate entries (tool is the key)', () => {
+test('Given two validation-tool observations with different ids, when save runs, then they produce two separate entries (id is the key)', () => {
   const view = makeLoadedView([]);
   const delta = [
-    { concern: 'mutation-tool', payload: { tool: 'stryker', configFingerprint: 'fp1' } },
-    { concern: 'mutation-tool', payload: { tool: 'pitest', configFingerprint: 'fp2' } },
+    { concern: 'validation-tool', payload: { id: 'stryker', configFingerprint: 'fp1' } },
+    { concern: 'validation-tool', payload: { id: 'pitest', configFingerprint: 'fp2' } },
   ];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
@@ -1245,7 +1245,7 @@ test('Given two mutation-tool observations with different tools, when save runs,
   save('/repo', view, delta, deps);
 
   const reparsed = parseStore(captured[0]);
-  assert.equal(reparsed.entries['mutation-tool'].length, 2, 'different tools must produce 2 entries');
+  assert.equal(reparsed.entries['validation-tool'].length, 2, 'different ids must produce 2 entries');
 });
 
 test('Given two findings observations with different file+pattern combos, when save runs, then they produce two separate entries (file+pattern is the composite key)', () => {
@@ -1398,7 +1398,7 @@ test('Given delta with observations for multiple concerns, when save runs, then 
   assert.equal(reparsed.entries.toolchain.length, 1);
   assert.equal(reparsed.entries.findings.length, 1);
   assert.equal(reparsed.entries['gate-cmd'].length, 0);
-  assert.equal(reparsed.entries['mutation-tool'].length, 0);
+  assert.equal(reparsed.entries['validation-tool'].length, 0);
   assert.equal(reparsed.entries['part-sizing'].length, 0);
 });
 
@@ -1691,17 +1691,17 @@ test('Given store with existing gate-cmd entry for phase=implementation, and new
   assert.equal(reparsed.entries['gate-cmd'].length, 2, 'different phases must remain as separate entries');
 });
 
-test('Given store with existing mutation-tool entry for tool=stryker, and new observation for tool=pitest, when save runs, then both tools exist in store', () => {
-  const existing = { ...MUTATION_TOOL_ENTRY, tool: 'stryker', confidence: 3 };
+test('Given store with existing validation-tool entry for id=stryker, and new observation for id=pitest, when save runs, then both ids exist in store', () => {
+  const existing = { ...MUTATION_TOOL_ENTRY, id: 'stryker', confidence: 3 };
   const view = makeLoadedView([existing]);
-  const delta = [{ concern: 'mutation-tool', payload: { tool: 'pitest', configFingerprint: 'fp2' } }];
+  const delta = [{ concern: 'validation-tool', payload: { id: 'pitest', configFingerprint: 'fp2' } }];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
 
   save('/repo', view, delta, deps);
 
   const reparsed = parseStore(captured[0]);
-  assert.equal(reparsed.entries['mutation-tool'].length, 2, 'different tools must remain as separate entries');
+  assert.equal(reparsed.entries['validation-tool'].length, 2, 'different ids must remain as separate entries');
 });
 
 test('Given store with existing findings entry for file=a.js+pattern=unused, and new observation for file=a.js+pattern=eqeqeq, when save runs, then both patterns exist', () => {
@@ -1872,20 +1872,20 @@ test('Given toolchain entry re-observed with SAME lockfile fingerprint, when sav
   assert.equal(reparsed.entries.toolchain.length, 1, 'no duplicate on refresh');
 });
 
-test('Given mutation-tool entry re-observed with SAME config fingerprint, when save runs, then fingerprint is NOT overwritten and single entry remains', () => {
+test('Given validation-tool entry re-observed with SAME config fingerprint, when save runs, then fingerprint is NOT overwritten and single entry remains', () => {
   const existing = { ...MUTATION_TOOL_ENTRY, configFingerprint: 'same-cfg', confidence: 2 };
   const view = makeLoadedView([existing]);
-  const delta = [{ concern: 'mutation-tool', payload: { tool: 'stryker', configFingerprint: 'same-cfg' } }];
+  const delta = [{ concern: 'validation-tool', payload: { id: 'stryker', configFingerprint: 'same-cfg' } }];
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
 
   save('/repo', view, delta, deps);
 
   const reparsed = parseStore(captured[0]);
-  assert.equal(reparsed.entries['mutation-tool'].length, 1, 'no duplicate on same-fingerprint refresh');
+  assert.equal(reparsed.entries['validation-tool'].length, 1, 'no duplicate on same-fingerprint refresh');
   // With L301 ConditionalExpression mutant (always true): rewrite triggered even for same value → same output
   // EQUIVALENT when payload and entry have matching values.
-  assert.equal(reparsed.entries['mutation-tool'][0].configFingerprint, 'same-cfg');
+  assert.equal(reparsed.entries['validation-tool'][0].configFingerprint, 'same-cfg');
 });
 
 // ─── KILL: flattenEntries OptionalChaining (L452/L453) ───────────────────────
@@ -2234,7 +2234,7 @@ test('Given three equal-confidence entries where one lacks provenance, when sele
   // All entries need confidence > FLOOR+STEP to survive decay (conf=3 → decays to 2 > 0).
   const loProv = { concern: 'toolchain', ecosystem: 'eco-l530-lo', lockfileFingerprint: 'fp-l530lo', confidence: 3, provenance: { run: 'r1', commit: 'c1', date: '2020-01-01' } };
   const midNoprov = { concern: 'gate-cmd', phase: 'ph-l530-mid', command: 'cmd-l530mid', confidence: 3 };
-  const hiProv = { concern: 'mutation-tool', tool: 'stryker-l530', configFingerprint: 'cfg-l530', confidence: 3, provenance: { run: 'r3', commit: 'c3', date: '2026-01-01' } };
+  const hiProv = { concern: 'validation-tool', id: 'stryker-l530', configFingerprint: 'cfg-l530', confidence: 3, provenance: { run: 'r3', commit: 'c3', date: '2026-01-01' } };
   const view = makeLoadedView([loProv, midNoprov, hiProv]);
   const captured = [];
   const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c), caps: { maxEntries: 2, maxBytes: Infinity } });
@@ -2311,7 +2311,7 @@ test('Given no caps provided in deps, when save runs with two entries, then both
 // {...entry, ...payload} when payload fields match entry fields produces the same stored object.
 
 // ─── EQUIVALENT: L302-305 ConditionalExpression (=> true) ─────────────────────
-// L302 toolchain (o,n) => true, L303 mutation-tool (o,n) => true,
+// L302 toolchain (o,n) => true, L303 validation-tool (o,n) => true,
 // L304 gate-cmd (o,n) => true, L305 part-sizing (o,n) => true.
 // PROVABLY EQUIVALENT: refreshedEntry spreads obs.payload over entry only when improves=true.
 // When obs.payload contains the same key-field values as the stored entry,

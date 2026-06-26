@@ -50,7 +50,7 @@ function resolveStorePath(repoRoot, ref) {
 export const CONCERNS = Object.freeze([
   'toolchain',
   'gate-cmd',
-  'mutation-tool',
+  'validation-tool',
   'findings',
   'part-sizing',
 ]);
@@ -265,7 +265,7 @@ export const WINDOW = 50;
 const KEY_FIELDS = Object.freeze({
   toolchain: ['ecosystem'],
   'gate-cmd': ['phase'],
-  'mutation-tool': ['tool'],
+  'validation-tool': ['id'],
   findings: ['file', 'pattern'],
   'part-sizing': ['size'],
 });
@@ -293,7 +293,7 @@ const SEVERITY_RANK = Object.freeze({ low: 1, medium: 2, high: 3, critical: 4 })
  * obvious, and the default (no rule) is never-rewrite.
  *   findings      — severity escalated
  *   toolchain     — lockfile fingerprint changed
- *   mutation-tool — config fingerprint changed
+ *   validation-tool — config fingerprint changed
  *   gate-cmd      — discovered command changed (the newer command is current truth)
  *   part-sizing  — outcome changed (the newer outcome is current truth)
  */
@@ -301,13 +301,13 @@ const IMPROVES_BY = Object.freeze({
   // equivalent mutant (>=): same-severity rewrite spreads identical value; stored data unchanged
   findings: (o, n) => (SEVERITY_RANK[n.severity] ?? 0) > (SEVERITY_RANK[o.severity] ?? 0),
   // equivalent mutant (=> true) for the whole discriminating-field family below
-  // (toolchain, mutation-tool, gate-cmd, part-sizing): each predicate's tested field is the
+  // (toolchain, validation-tool, gate-cmd, part-sizing): each predicate's tested field is the
   // ONLY non-key payload field, so when it is unchanged the rewrite {...entry, ...obs.payload}
   // spreads values identical to the stored entry — an identity. The re-observation already
   // matched on the key field, so a same-field payload equals the stored entry. Not killable
   // without violating a concern's payload schema; documented here per the triage convention.
   toolchain: (o, n) => n.lockfileFingerprint !== o.lockfileFingerprint,
-  'mutation-tool': (o, n) => n.configFingerprint !== o.configFingerprint,
+  'validation-tool': (o, n) => n.configFingerprint !== o.configFingerprint,
   'gate-cmd': (o, n) => n.command !== o.command,
   'part-sizing': (o, n) => n.outcome !== o.outcome,
 });

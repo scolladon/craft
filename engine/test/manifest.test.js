@@ -689,7 +689,7 @@ test('Given a models map naming every valid agent role key, when validateManifes
         reviewer: 'opus',
         'part-implementer': 'sonnet',
         'refactor-executor': 'sonnet',
-        'validation-triager': 'sonnet',
+        'harness-triager': 'sonnet',
         'docs-writer': 'sonnet',
         'backlog-ticker': 'sonnet',
       },
@@ -730,7 +730,7 @@ test('Given a manifest with old phase names (aliases), when validateManifest run
   const sut = validateManifest;
 
   const result = sut(
-    { phases: { branch: {}, mutation: {}, docs: {} } },
+    { phases: { branch: {}, docs: {} } },
     { fileExists: ALWAYS_EXISTS },
   );
 
@@ -761,9 +761,20 @@ test('Given a manifest mixing an old alias and a new canonical phase name, when 
   assert.deepEqual(result, { ok: true, errors: [] });
 });
 
-// ─── validation-triager models key (renamed from mutation-triager) ────────────
+// ─── harness-triager models key (renamed from validation-triager) ────────────
 
-test('Given a manifest with models.validation-triager, when validateManifest runs, then it returns ok', () => {
+test('Given a manifest with models.harness-triager, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { models: { 'harness-triager': 'sonnet' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with models.validation-triager (renamed key), when validateManifest runs, then it returns an error containing "harness-triager"', () => {
   const sut = validateManifest;
 
   const result = sut(
@@ -771,19 +782,8 @@ test('Given a manifest with models.validation-triager, when validateManifest run
     { fileExists: ALWAYS_EXISTS },
   );
 
-  assert.deepEqual(result, { ok: true, errors: [] });
-});
-
-test('Given a manifest with models.mutation-triager (renamed key), when validateManifest runs, then it returns an error containing "validation-triager"', () => {
-  const sut = validateManifest;
-
-  const result = sut(
-    { models: { 'mutation-triager': 'sonnet' } },
-    { fileExists: ALWAYS_EXISTS },
-  );
-
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('validation-triager')));
+  assert.ok(result.errors.some(e => e.includes('harness-triager')));
 });
 
 // ─── phases: newly accepted fields (ADR-028 lint-gap closure) ────────────────
@@ -961,28 +961,26 @@ test('Given pipeline.skip:[review] and phases.review.required:true, when validat
   );
 });
 
-test('Given pipeline.skip:[mutation] alias and phases.validation.required:true, when validateManifest runs, then ok:false naming the collision', () => {
+test('Given pipeline.skip:[mutation] (removed alias) and phases.validation.required:true, when validateManifest runs, then ok:true (no collision — mutation is unknown, not resolved)', () => {
   const sut = validateManifest;
 
-  // skip side is the alias `mutation`; phase side is canonical `validation` — the guard
-  // must resolve the skip entry's alias to match. Pins skip.map(resolveAlias).
+  // `mutation` was removed from the alias map; skip.map(resolveAlias) now yields `mutation`
+  // (not `validation`), so no skip/required collision is detected.
   const result = sut(
     { pipeline: { skip: ['mutation'] }, phases: { validation: { required: true } } },
     { fileExists: ALWAYS_EXISTS },
   );
 
-  assert.equal(result.ok, false);
-  assert.ok(
-    result.errors.some(e => e.includes('conflicts with pipeline.skip') && e.includes('cannot be both skipped and required')),
-    `expected alias-skip collision error, got: ${JSON.stringify(result.errors)}`,
-  );
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
 });
 
-test('Given pipeline.skip:[validation] and phases.mutation.required:true alias, when validateManifest runs, then ok:false naming the collision', () => {
+test('Given pipeline.skip:[validation] and phases.mutation.required:true (removed alias), when validateManifest runs, then ok:false with unknown-phase error (not skip collision)', () => {
   const sut = validateManifest;
 
-  // phase side is the alias `mutation`; skip side is canonical `validation` — the guard
-  // must resolve the phase key's alias to match. Pins resolveAlias(name).
+  // `mutation` was removed from the alias map; resolveAlias('mutation') returns 'mutation'
+  // which is not in PHASE_NAMES — so validatePhases produces "unknown phase: mutation".
+  // No skip/required collision is reported since mutation no longer resolves to validation.
   const result = sut(
     { pipeline: { skip: ['validation'] }, phases: { mutation: { required: true } } },
     { fileExists: ALWAYS_EXISTS },
@@ -990,8 +988,12 @@ test('Given pipeline.skip:[validation] and phases.mutation.required:true alias, 
 
   assert.equal(result.ok, false);
   assert.ok(
-    result.errors.some(e => e.includes('conflicts with pipeline.skip') && e.includes('cannot be both skipped and required')),
-    `expected alias-phase collision error, got: ${JSON.stringify(result.errors)}`,
+    result.errors.some(e => e.includes('unknown phase') && e.includes('mutation')),
+    `expected unknown-phase error, got: ${JSON.stringify(result.errors)}`,
+  );
+  assert.ok(
+    !result.errors.some(e => e.includes('conflicts with pipeline.skip')),
+    `no skip/required collision expected, got: ${JSON.stringify(result.errors)}`,
   );
 });
 
@@ -1150,7 +1152,7 @@ test('Given phases.review.harness: { dimensions: ["code", "tests"] }, when valid
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
-test('Given phases.review.harness: { tool: 42 }, when validateManifest runs, then ok:false', () => {
+test('Given phases.review.harness: { tool: 42 }, when validateManifest runs, then ok:true (tool check removed — opaque passthrough)', () => {
   const sut = validateManifest;
 
   const result = sut(
@@ -1158,11 +1160,10 @@ test('Given phases.review.harness: { tool: 42 }, when validateManifest runs, the
     { fileExists: ALWAYS_EXISTS },
   );
 
-  assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('tool') && e.includes('string')));
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
-test('Given phases.review.harness: { incremental: "yes" }, when validateManifest runs, then ok:false', () => {
+test('Given phases.review.harness: { incremental: "yes" }, when validateManifest runs, then ok:true (incremental check removed — opaque passthrough)', () => {
   const sut = validateManifest;
 
   const result = sut(
@@ -1170,8 +1171,7 @@ test('Given phases.review.harness: { incremental: "yes" }, when validateManifest
     { fileExists: ALWAYS_EXISTS },
   );
 
-  assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('incremental') && e.includes('boolean')));
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
 test('Given phases.review.harness: { rules: ".dependency-cruiser.json" } (unknown sub-key), when validateManifest runs, then ok:true (forward-compat)', () => {
@@ -1346,6 +1346,264 @@ test('Given phases.validation.harness: { scope: 42 } (non-string), when validate
 
   assert.equal(result.ok, false);
   assert.ok(result.errors.some(e => e.includes('scope') && e.includes('string')));
+});
+
+// ─── phases.validation.harness.techniques validation ─────────────────────────
+
+test('Given phases.validation.harness: { techniques: [] } (empty list), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness without techniques key, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { scope: 'per-hunk' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness: { techniques: "notalist" }, when validateManifest runs, then ok:false (fail-closed)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: 'notalist' } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('techniques') && e.includes('list')));
+});
+
+test('Given phases.validation.harness.techniques with valid technique object, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', mode: 'triage', 'run-style': 'background', scope: 'per-hunk', run: 'npx stryker run', probe: 'test -f stryker.conf.json', 'commit-prefix': 'test', 'triage-procedure': '.claude/mut.md' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness.techniques with technique missing id, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ mode: 'gate' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('id')));
+});
+
+test('Given phases.validation.harness.techniques with technique id as empty string, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: '' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('id')));
+});
+
+test('Given phases.validation.harness.techniques with bad mode enum, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', mode: 'invalid' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('mode')));
+});
+
+test('Given phases.validation.harness.techniques with bad run-style enum, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', 'run-style': 'parallel' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('run-style')));
+});
+
+test('Given phases.validation.harness.techniques with bad scope enum, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', scope: 'per-line' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('scope')));
+});
+
+test('Given phases.validation.harness.techniques with non-object element, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: ['notanobject'] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('must') && e.includes('object')));
+});
+
+test('Given phases.validation.harness.techniques with unknown sub-key, when validateManifest runs, then ok:true (forward-compat)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', unknownKey: 'value' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness.techniques with prototype-pollution key in technique, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+  const tech = Object.defineProperty({ id: 'mutation' }, '__proto__', { value: {}, enumerable: true, configurable: true, writable: true });
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [tech] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('reserved key')));
+});
+
+test('Given phases.validation.harness.techniques with valid mode:gate, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'lint', mode: 'gate' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness.techniques with valid run-style:sync, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'lint', 'run-style': 'sync' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness.techniques with probe/run/triage-procedure/commit-prefix as strings, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'lint', probe: 'which eslint', run: 'eslint .', 'triage-procedure': 'path/to/proc.md', 'commit-prefix': 'fix' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness.techniques with probe as non-string, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'lint', probe: 42 }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('probe') && e.includes('string')));
+});
+
+test('Given phases.validation.harness.techniques with run as non-string, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'lint', run: true }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('run') && e.includes('string')));
+});
+
+test('Given phases.validation.harness.techniques with commit-prefix as non-string, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'lint', 'commit-prefix': 99 }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('commit-prefix') && e.includes('string')));
+});
+
+test('Given phases.validation.harness.techniques with triage-procedure as non-string, when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'lint', 'triage-procedure': [] }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('triage-procedure') && e.includes('string')));
+});
+
+test('Given phases.validation.harness.techniques with multiple techniques, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'lint', mode: 'gate' }, { id: 'mutation', mode: 'triage' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.architecture.harness: { techniques: [] }, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { architecture: { harness: { techniques: [] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.validation.harness.techniques with error index in message, when validateManifest runs, then error includes index', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'ok', mode: 'gate' }, { id: 'bad', mode: 'invalid' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('[1]') && e.includes('mode')));
 });
 
 test('Given phases.review.model: "sonnet" (valid string), when validateManifest runs, then ok:true', () => {
@@ -2706,4 +2964,99 @@ test('Given policy with unknown action when validateManifest runs, then error li
   assert.ok(actionError, `expected an action error, got: ${JSON.stringify(result.errors)}`);
   assert.ok(actionError.includes(', '), `expected comma-space separator in: ${actionError}`);
   assert.match(actionError, /isolate.*commit|commit.*push|integrate/);
+});
+
+// ─── KILL: manifest.js:70 TECHNIQUE_SCOPES StringLiteral mutant ──────────────
+// Mutant: Set(['per-hunk', 'per-file']) → Set(['per-hunk', ''])
+// A technique with scope 'per-file' must validate OK (proving 'per-file' is accepted).
+
+test('Given phases.validation.harness.techniques with scope per-file, when validateManifest runs, then ok:true (per-file is a valid scope)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', scope: 'per-file' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── KILL: manifest.js:376 LogicalOperator + ConditionalExpression mutants ────
+// Mutant A (||→&&): !hasOwn(tech,'id') && typeof!=='string' — misses the absent-id case
+// Mutant B (typeof!=='string'→false): misses the non-string-id case
+// Kill: assert each guard arm independently produces the id error.
+
+test('Given phases.validation.harness.techniques with technique id as a number, when validateManifest runs, then ok:false with id error (non-string type guard)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 42 }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('id')), `expected id error, got: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── KILL: manifest.js:380 ArrayDeclaration + StringLiteral mutants ──────────
+// Mutant A: [...TECHNIQUE_MODES].join(', ') → [].join(', ') — empty list
+// Mutant B: join(', ') → join('') — no separator
+// Kill: assert the error message names both valid mode values with comma-space.
+
+test('Given phases.validation.harness.techniques with bad mode, when validateManifest runs, then error message lists gate and triage with comma-space', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', mode: 'invalid' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const modeError = result.errors.find(e => e.includes('mode'));
+  assert.ok(modeError, `expected mode error, got: ${JSON.stringify(result.errors)}`);
+  assert.ok(modeError.includes('gate'), `expected 'gate' in error: ${modeError}`);
+  assert.ok(modeError.includes('triage'), `expected 'triage' in error: ${modeError}`);
+  assert.ok(modeError.includes(', '), `expected comma-space separator in: ${modeError}`);
+});
+
+// ─── KILL: manifest.js:383 ArrayDeclaration + StringLiteral mutants ──────────
+// Mutant A: [...TECHNIQUE_RUN_STYLES].join(', ') → [].join(', ') — empty list
+// Mutant B: join(', ') → join('') — no separator
+// Kill: assert the error message names both valid run-style values with comma-space.
+
+test('Given phases.validation.harness.techniques with bad run-style, when validateManifest runs, then error message lists background and sync with comma-space', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', 'run-style': 'parallel' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const runStyleError = result.errors.find(e => e.includes('run-style'));
+  assert.ok(runStyleError, `expected run-style error, got: ${JSON.stringify(result.errors)}`);
+  assert.ok(runStyleError.includes('background'), `expected 'background' in error: ${runStyleError}`);
+  assert.ok(runStyleError.includes('sync'), `expected 'sync' in error: ${runStyleError}`);
+  assert.ok(runStyleError.includes(', '), `expected comma-space separator in: ${runStyleError}`);
+});
+
+// ─── KILL: manifest.js:386 ArrayDeclaration + StringLiteral mutants ──────────
+// Mutant A: [...TECHNIQUE_SCOPES].join(', ') → [].join(', ') — empty list
+// Mutant B: join(', ') → join('') — no separator
+// Kill: assert the error message names both valid scope values with comma-space.
+
+test('Given phases.validation.harness.techniques with bad scope, when validateManifest runs, then error message lists per-hunk and per-file with comma-space', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { validation: { harness: { techniques: [{ id: 'mutation', scope: 'per-line' }] } } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  const scopeError = result.errors.find(e => e.includes('scope'));
+  assert.ok(scopeError, `expected scope error, got: ${JSON.stringify(result.errors)}`);
+  assert.ok(scopeError.includes('per-hunk'), `expected 'per-hunk' in error: ${scopeError}`);
+  assert.ok(scopeError.includes('per-file'), `expected 'per-file' in error: ${scopeError}`);
+  assert.ok(scopeError.includes(', '), `expected comma-space separator in: ${scopeError}`);
 });

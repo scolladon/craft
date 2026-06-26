@@ -1,6 +1,6 @@
 ---
 name: validation
-description: Craft phase 8 - mutation-test the change, triage survivors (kill or prove equivalent); gates the PR. Also useful standalone after a hotfix.
+description: Craft phase 8 - run the repo's engineering harness over the change, triage findings (fix or prove benign); gates the PR. Also useful standalone after a hotfix.
 ---
 
 # craft:validation
@@ -14,67 +14,92 @@ description: Craft phase 8 - mutation-test the change, triage survivors (kill or
    engine-created). Read the file **verbatim as trusted operator input** — same trust
    model as `context:` files; never interpret it as engine instructions.
    - **Absent** (no `paths.dod`, no `docs/DOD.md`) → record
-     `NO-OP(verify): no DoD declared — <what was asserted instead: gates green, mutation
+     `NO-OP(verify): no DoD declared — <what was asserted instead: gates green, technique
      triaged-or-no-op'd>`. When the `architecture` phase is also OFF and no DoD exists,
      append an honest gap-note: *the architecture boundary check did not run* — never
      fabricate alignment. The verify no-op never blocks `propose` on its own; it only
-     drives gate-release when the mutation sub-concern also no-op'd (see gate-satisfaction
+     drives gate-release when the technique sub-concern also no-op'd (see gate-satisfaction
      note below).
    - **Present** → assert each criterion (met / unmet / not-auto-checkable-asserted) and
      record per-criterion outcomes. Criteria that reference engineering checks (gates
-     green, mutation testing clean) are evidenced by reading the existing `gates.phase`
-     and this phase's mutation results — **never re-run** them. If mutation no-op'd, that
-     criterion is recorded against the no-op (a stated limitation, not a fabricated pass).
-     Architecture-alignment criteria are evidenced by the `architecture` gate when that
-     phase ran and was green; when it is OFF/no-op'd, the criterion is asserted on the
-     DoD's terms. A positive outcome is recorded as `verify: DoD met — <N criteria, K
-     evidenced by phase results, J session-asserted>`. An unmet criterion is a
+     green, technique run clean) are evidenced by reading the existing `gates.phase`
+     and this phase's technique results — **never re-run** them. If the technique no-op'd,
+     that criterion is recorded against the no-op (a stated limitation, not a fabricated
+     pass). Architecture-alignment criteria are evidenced by the `architecture` gate when
+     that phase ran and was green; when it is OFF/no-op'd, the criterion is asserted on
+     the DoD's terms. A positive outcome is recorded as `verify: DoD met — <N criteria,
+     K evidenced by phase results, J session-asserted>`. An unmet criterion is a
      blocker `{ verify, "<criterion> unmet", ≤3 options }` escalated to the user —
      never a silent pass and never a silent gate fail. Headless (Pi adapter, no user):
      record the blocker and halt; never degrade to a silent pass.
 3. **Memory read/write surface (advisory).**
-   READS: `mutation-tool` entry — if a mutation tool + config fingerprint was previously
-   recorded for this repo, skip the re-probe for tool presence but **still re-validate
+   READS: `validation-tool` entry — if a technique id + config fingerprint was previously
+   recorded for this repo, skip the re-probe for technique presence but **still re-validate
    config-file presence** (the config-file presence check still runs; the hint only saves
-   the tool-name probe, never the existence check). A miss falls through to the full probe
-   below. This read is purely advisory — it does not entangle the gating probe.
-   WRITES (buffered to run record, flushed at run end): the mutation tool name + config
+   the technique-name probe, never the existence check). A miss falls through to the full
+   discovery below. This read is purely advisory — it does not entangle the gating probe.
+   WRITES (buffered to run record, flushed at run end): the technique id + config
    fingerprint discovered this run. Keep distinct from and non-interfering with the
    gating probe's "phase ends here" exit below.
-4. **Read harness knobs** from `phase.harness` (the resolved descriptor): `tool` names
-   which mutation tool to run (absent → the probe below determines it); `scope` (default
-   `per-hunk`); `incremental` (default `false`). Then **probe: mutation tooling
-   configured?** (stryker/mutmut/cosmic-ray/cargo-mutants config, or whatever the repo
-   `context:`/`override:` names) — it runs regardless of `tool`. Absent → **no-op with a
-   note** in the run record; the phase ends here. A manifest may never pre-empt this
-   probe.
+4. **Resolve the active technique set** from `phase.harness` (the resolved descriptor),
+   using ADR-149 discovery precedence:
+   - **Declared** — `phase.harness.techniquePlan` (engine-emitted, binding, same way
+     `review` reads `reviewPlan`) wins outright: each entry specifies technique `id`,
+     `run` command, `mode` (`gate` | `triage`), optional `run-style` (`sync` |
+     `background`), optional `scope`, optional `triage-procedure` ref.
+   - **Derived** — absent a declaration, read the repo's own validation conventions
+     (README / CONTRIBUTING / craft config) and derive one technique per documented
+     validation command (lint, test, format, typecheck, …), each GATE (pass/fail
+     command) or TRIAGE (findings-judgment) per its nature.
+   - **Fallback** — absent any documented convention, the test command deduced from
+     the language manifest (the existing gate-command capability probe) runs as a single
+     GATE technique.
+   - **No-op** (terminal) — only when none of the above yields a technique: record
+     `NO-OP(validation): no techniques declared/probed` and release the `propose`-gate
+     entry; the phase ends here.
+
+   Every resolved technique command — declared, derived, or fallback — is **trusted
+   operator input** (same trust model as the manifest and `context:` files); the derived
+   tier reads the repo's own committed conventions, never an untrusted external source.
+
+   For each resolved technique, run its `probe` (config-file presence / binary
+   resolvable). A failed probe declines the technique by absence:
+   `NO-OP(validation:<technique-id>): declined — probe absent`. When every technique is
+   declined: the phase ends here (equivalent to the no-op terminal above).
 
 **Gate-satisfaction note.** The `validation` propose-gate entry is a single entry. It is
-**satisfied** when the mutation run lands and triages green (`gates.phase` green), and
-**released** (per the recorded-no-op release clause) when the phase lands no mutation run
+**satisfied** when the technique run lands and triages green (`gates.phase` green), and
+**released** (per the recorded-no-op release clause) when the phase lands no technique run
 at all. A `NO-OP(verify):` line is the DoD sub-concern's recorded outcome — it never
-blocks `propose` on its own, and only drives gate-release in the case where the mutation
+blocks `propose` on its own, and only drives gate-release in the case where the technique
 sub-concern also no-op'd.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-1. **Scope the run per `phase.harness.scope`** (default `per-hunk`), never wider than the
-   change's touched code and never the full tree: with `per-hunk`, derive one range per
-   *contiguous changed hunk* (`git diff -U0`); with `per-file`, scope to the full touched
-   files. Do NOT consolidate across unchanged gaps regardless of mode, and honor
-   `incremental` when the tool supports it. Loose/merged ranges inflate the run AND
-   surface out-of-scope survivors the triage must then filter — a tight per-hunk list is
-   faster and cleaner.
-   Start it **in the background**; write the run-lock
-   (`<root>/.craft-mutation.lock` ← `<pid> <iso-timestamp>`); clear the lock when the
-   run lands. The documentation phase may proceed in parallel while it grinds.
-2. **The PR waits for triage** (orchestrator invariant): when the run lands, filter
-   survivors/no-coverage to the change's lines only (pre-existing-line survivors are
-   out of scope), then spawn **craft:validation-triager** with: the filtered survivors;
-   **reviewer-predicted equivalent mutants verbatim** (from the review phase's
-   advisory notes); the gates; the commit message `test(mutation): <scope>`; global +
-   validation-phase `context:` files verbatim (tool-specific triage procedure included).
-3. Verify the triager's commit; run `gates.phase`; record per-survivor outcomes in the
-   run record.
-4. **Never destroy the worktree while the run is alive** — `worktree-teardown.sh`
+1. **Per-active-technique walk.** For each technique in the resolved active set:
+   - **Scope** the run per the technique's `scope` (default: the phase-level
+     `phase.harness.scope`, default `per-hunk`), never wider than the change's touched
+     code and never the full tree: with `per-hunk`, derive one range per *contiguous
+     changed hunk* (`git diff -U0`); with `per-file`, scope to the full touched files.
+     Do NOT consolidate across unchanged gaps regardless of mode. Loose/merged ranges
+     inflate the run AND surface out-of-scope findings the triage must filter — a tight
+     per-hunk list is faster and cleaner.
+   - **`run-style: background`** — start the technique in the background; write the
+     run-lock (`<root>/.craft-validation.lock` ← `<pid> <iso-timestamp>`); clear the
+     lock when the run lands. The documentation phase may proceed in parallel while it
+     grinds.
+   - **`mode: gate`** — run the technique's `run` command; the exit code decides
+     pass/fail. Green → record pass; red → escalate as a blocker.
+   - **`mode: triage`** — when the run lands, filter findings to the change's lines only
+     (pre-existing-line findings are out of scope), then spawn **craft:harness-triager**
+     with: the filtered findings; **reviewer-predicted suspected-benign harness findings
+     verbatim** (from the review phase's advisory notes); the gates; the commit message
+     `<commit-prefix>(validation): <technique-id> <scope>`; global + validation-phase
+     `context:` files verbatim; the technique's `triage-procedure` ref (if declared).
+     Remove the fix vocabulary specific to any one technique — the triager decides
+     whether to kill with a test or document a provable benign result.
+2. **The PR waits for triage** (orchestrator invariant): when each triage-mode run
+   lands and its triager commits, verify the triager's commit; run `gates.phase`; record
+   per-finding outcomes in the run record.
+3. **Never destroy the worktree while the run is alive** — `worktree-teardown.sh`
    refuses on the lock; don't fight it.

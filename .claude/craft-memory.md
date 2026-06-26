@@ -25,9 +25,9 @@ gate-cmd:
       run: p26-auto-skip-unnecessary-phases
       commit: c8b7685
       date: '2026-06-23'
-mutation-tool:
-  - concern: mutation-tool
-    tool: stryker
+validation-tool:
+  - concern: validation-tool
+    id: stryker
     configFingerprint: a9b6ac12ad7061bf
     confidence: 1
     provenance:
@@ -106,7 +106,7 @@ part-sizing:
 - part: `node --test 'test/**/*.test.js'` — confidence 1 | c8b7685 / 2026-06-23
 - phase: `bash scripts/ci.sh` — confidence 1 | c8b7685 / 2026-06-23
 
-## mutation-tool
+## validation-tool
 - stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | c8b7685 / 2026-06-23
 
 ## findings

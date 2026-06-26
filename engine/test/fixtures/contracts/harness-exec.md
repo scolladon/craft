@@ -1,2 +1,2 @@
-A tool runs; triage survivors or violations.
-Never weaken a test; gate-green before commit.
+A tool runs; the AI triages findings.
+Never weaken a test or rule; gate-green before commit.

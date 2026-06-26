@@ -1,5 +1,5 @@
 ---
-models: { mutation-triager: sonnet }
+models: { validation-triager: sonnet }
 ---
 
 # Renamed agent model key fixture

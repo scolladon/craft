@@ -125,7 +125,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    | `review` | no reviewable source diff in scope since `implementation` (e.g. a docs/config-only change) |
    | `refactoring` | no source change in scope to motivate a structural pass (same signal as `review`); when source *was* touched, it runs and may record `NO-OP(refactoring):` |
    | `documentation` | no `design`/`change` content maps to any documentation surface |
-   | `validation` | no mutable code changed in scope — the mutation no-op signal, evaluated *before* spawning the run |
+   | `validation` | no mutable code changed in scope — the technique no-op signal, evaluated *before* spawning the run |
    | `architecture` | no dependency-graph-affecting change (no import/module-boundary edits) since `implementation` |
 
    When provably empty: (a) append the fixed token
@@ -303,9 +303,9 @@ bring their own `procedure`, dispatched verbatim (step 2).
   exactly as it treats a recorded no-op; this is NOT an engine waiver (the phase is in
   `effective[]`). So `propose` is never left waiting on a harness that auto-skipped.
   Clarification for `validation`: the entry may carry two recorded
-  sub-outcomes — the mutation note AND a `NO-OP(verify):` line (DoD sub-concern);
-  the entry is **released** only when no mutation run lands, and is **satisfied** by
-  a landed and triaged mutation run regardless of any `NO-OP(verify):` line — the
+  sub-outcomes — the technique note AND a `NO-OP(verify):` line (DoD sub-concern);
+  the entry is **released** only when no technique run lands, and is **satisfied** by
+  a landed and triaged technique run regardless of any `NO-OP(verify):` line — the
   verify no-op never independently blocks or releases the single gate entry.
 
 - **Scope expansion re-enters the harness-read phase**: any feature behavior added
@@ -419,7 +419,7 @@ free-text brief (zero manifest ⇒ no `backlog:`, so the input is a brief/file, 
 id). Confirm the per-phase capability-probe matrix: `worktree-setup.sh` detects the ecosystem
 (or reports a noted skip when no lockfile is recognized); the gate probe discovers the repo's
 test command (`pytest`/`go test`/`cargo test`/…) and `implementation` runs rather than hitting
-the gate-floor REFUSE; `validation` no-ops with a note when no mutation tooling is configured
+the gate-floor REFUSE; `validation` no-ops with a note when no techniques declared/probed
 (and its `propose`-gate entry is released, so the walk reaches `propose`); `propose`/`integrate`
 no-op when there is no remote. Record the target's identity, toolchain, discovered gate command,
 and per-phase outcomes in `docs/SC5-second-instantiation-record.md`. This smoke is on-demand, NOT

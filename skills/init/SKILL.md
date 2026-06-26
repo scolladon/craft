@@ -52,10 +52,18 @@ git remote
 
 Set `hasRemote = true` if the command produces any output, `false` otherwise. A failure (git absent) degrades only the `hasRemote` dimension — never aborts the probe.
 
-### 5. Mutation and architecture tool presence
+### 5. Harness technique enumeration
 
-- `mutationTool`: check for a Stryker config file (e.g. `stryker.config.js`, `stryker.config.mjs`, `stryker.config.cjs`, `.strykerrc.json`, `.strykerrc.js`). Set `'stryker'` if any found, else `null`.
-- `archTool`: check for a dependency-cruiser config (`.dependency-cruiser.js`, `.dependency-cruiser.cjs`, `.dependency-cruiser.mjs`, `.dependency-cruiser.json`). Set `'dependency-cruiser'` if any found, else `null`.
+Enumerate candidate technique ids by reading the repo's own validation/architecture
+conventions — same probe style as `testCmd`:
+
+- Check for documented harness commands in `README.md`, `CONTRIBUTING.md`, `package.json`
+  scripts, `Makefile`, and `.claude/workflow.md` / `.claude/craft-*.md` (any declared
+  `techniquePlan` entries). Each discoverable command that validates or enforces a
+  quality property (lint, typecheck, format-check, boundary-check, …) produces one
+  candidate id derived from the command's purpose (e.g. `lint`, `typecheck`,
+  `format-check`, `boundary-check`).
+- Set `harnessTechniques` to the deduplicated list of discovered ids (possibly empty).
 
 ### 6. Existing named configs
 
@@ -71,13 +79,12 @@ Capture matching filenames; extract the name segment from each (strip `.claude/c
 
 ```
 {
-  ecosystem:     string | null,
-  lockfile:      string | null,
-  testCmd:       string | null,
-  hasRemote:     boolean,
-  mutationTool:  'stryker' | null,
-  archTool:      'dependency-cruiser' | null,
-  existingNames: string[],
+  ecosystem:        string | null,
+  lockfile:         string | null,
+  testCmd:          string | null,
+  hasRemote:        boolean,
+  harnessTechniques: string[],
+  existingNames:    string[],
 }
 ```
 
@@ -113,7 +120,7 @@ On non-zero: explain the constraint and re-ask.
 | gate | "Test/gate command?" (default = `testCmd` from probe, or ask explicitly if `testCmd: null` — see note below) | `gates.part` and/or `gates.phase` |
 | execution | "Run any phase inline (in-session) rather than as a spawned agent? List `<phase>=inline` or `<phase>=agent`, or leave empty." | `phases.<id>.execution` |
 | profile | "Whole-flow execution mode? (`full` / `lean` / `solo`, or leave empty for default)" | `pipeline.profile` |
-| harness | "Tune review or validation rigor? (e.g. dimensions, passes, max_cycles for a phase)" — skip if both `mutationTool` and `archTool` are null (note: "no harness tooling detected; this will no-op") | `phases.<phase>.harness.*` |
+| harness | "Declare validation/architecture techniques for this repo? (e.g. `validation.techniques: [lint, typecheck]`, or leave empty to rely on convention discovery)" — when `harnessTechniques` is empty, note: "no harness techniques discovered; phases will derive or no-op at runtime" | `phases.<phase>.harness.*` |
 | backlog | "Use a tracker? (`file` with a path, `custom` with a label, or leave empty)" | `backlog: { source, ref }` |
 | memory | "Enable per-repo advisory memory? (`file` for default location, `custom` with a path, or leave empty)" | `memory: { source, ref }` |
 | policy | "Permission posture for outward actions? (e.g. `always: [commit, push]`, `ask: [propose]`, `never: [external-send]`)" — skip or note "no remote found; propose/integrate will no-op" if `hasRemote: false` | `policy: { always?, ask?, never? }` |

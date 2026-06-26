@@ -11,7 +11,7 @@
   must earn it. No standalone test-only parts for FEATURE code: coverage/interop/property
   tests fold into the implementation part whose code they exercise. EXCEPTION:
   test-infra-only and docs-only parts (tooling config, test helpers, fixtures,
-  mutation/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
+  harness/ADV/property suites, docs/prose) with no `src/` delta ARE standalone — they
   have no implementation part to fold into.
 - A part that would be a pure test pass over already-landed code merges into its
   neighbour.

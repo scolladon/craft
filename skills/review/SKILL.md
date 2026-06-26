@@ -33,8 +33,8 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    binding — the walk MUST spawn exactly that many reviewers per dimension, no more, no
    fewer. Each carries: its dimension + definition; the working directory; the diff scope;
    the design doc path (if any); global + review-phase `context:` files verbatim. Perf
-   calibrates to the diff — zero findings legitimate. Tests dimension: no mutation
-   analysis, but suspected-equivalent mutants MAY be flagged as advisory notes (keep
+   calibrates to the diff — zero findings legitimate. Tests dimension: do NOT run the executing-harness techniques (a dedicated phase owns
+   it) — but suspected-benign harness findings MAY be flagged as advisory notes (keep
    them for the validation phase).
 2. **Normalize findings:** before applying, pipe each reviewer's raw output through
    `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/normalize-findings.js"` to obtain a

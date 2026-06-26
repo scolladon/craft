@@ -1,7 +1,7 @@
 #!/bin/bash
-# craft — merge-phase cleanup. REFUSES while a mutation run-lock is alive.
+# craft — merge-phase cleanup. REFUSES while a validation run-lock is alive.
 #
-# Lock protocol: the mutation phase writes <root>/.craft-mutation.lock containing
+# Lock protocol: the validation phase writes <root>/.craft-validation.lock containing
 # "<pid> <iso-timestamp>" when it backgrounds a run, and removes it when the run lands.
 # Teardown auto-clears a dead-PID lock; a live PID requires an explicit --force, whose
 # use is echoed (pipeline mode records it in the run record).
@@ -22,17 +22,17 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-LOCK="$WT/.craft-mutation.lock"
+LOCK="$WT/.craft-validation.lock"
 if [ -f "$LOCK" ]; then
   read -r PID TS < "$LOCK" || true
   # Numeric guard before kill -0: a non-numeric or negative PID (e.g. "-1", which
   # signals a whole process group) must be treated as a dead/invalid lock, never live.
   if [ -n "${PID:-}" ] && [[ "$PID" =~ ^[0-9]+$ ]] && kill -0 "$PID" 2>/dev/null; then
     if [ "$FORCE" -eq 1 ]; then
-      echo "craft-teardown: FORCED past live mutation run (pid=$PID since $TS) — run destroyed."
+      echo "craft-teardown: FORCED past live validation run (pid=$PID since $TS) — run destroyed."
       rm -f "$LOCK"
     else
-      echo "craft-teardown: REFUSED — mutation run alive (pid=$PID since $TS). Wait for it or pass --force." >&2
+      echo "craft-teardown: REFUSED — validation run alive (pid=$PID since $TS). Wait for it or pass --force." >&2
       exit 3
     fi
   else

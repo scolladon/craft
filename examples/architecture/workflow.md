@@ -6,6 +6,12 @@
 phases:
   architecture:
     enabled: true
+    harness:
+      techniques:
+        - id: dependency-cruiser
+          probe: "test -f .dependency-cruiser.json"
+          run: "npx depcruise --config .dependency-cruiser.json $SCOPE"
+          mode: triage
 ---
 
 # Example — the `architecture` phase
@@ -17,7 +23,7 @@ record — safe to enable mid-adoption without breaking the pipeline.
 
 | Phase | default | with this manifest |
 |---|---|---|
-| architecture | absent | **present** — runs depcruise; no-ops with a note when no config exists |
+| architecture | absent | **present** — runs depcruise via `dependency-cruiser` technique; no-ops with a note when probe fails |
 | propose | present | present — **gated** on architecture triage alongside validation |
 
 > In your real repo this file lives at the project root as `.claude/workflow.md`.

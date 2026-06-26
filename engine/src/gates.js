@@ -4,7 +4,7 @@
  * Pure; no I/O; immutable outputs only.
  */
 
-import { HARNESS_ARCHETYPE } from './profile.js';
+import { isExecutingHarness } from './exec-harness.js';
 
 /** Artifact that marks a phase as code-producing. */
 const CODE_CHANGE_ARTIFACT = 'change';
@@ -14,13 +14,6 @@ const CODE_CHANGE_ARTIFACT = 'change';
  * These are the "skippable-but-flagged" harness/refinement phases per ADR-005.
  */
 const WAIVABLE_PHASE_IDS = new Set(['review', 'refactoring', 'validation', 'architecture']);
-
-/**
- * The executing-harness archetype whose running instance gates `propose`.
- * Identified by archetype = harness AND one of the executing-harness contract bundles.
- * We distinguish executing-harness (harness-exec contract) from read-harness (harness-read).
- */
-const EXECUTING_HARNESS_CONTRACT = 'harness-exec';
 
 /**
  * The delivery phase whose gate must await all running executing-harnesses.
@@ -59,20 +52,6 @@ function resolveGate(descriptor, manifest) {
  */
 function isCodeProducing(descriptor) {
   return descriptor.produces.includes(CODE_CHANGE_ARTIFACT);
-}
-
-/**
- * Determine whether a descriptor is an executing-harness phase.
- * An executing-harness has archetype === harness and carries the harness-exec contract bundle.
- *
- * @param {object} descriptor
- * @returns {boolean}
- */
-function isExecutingHarness(descriptor) {
-  return (
-    descriptor.archetype === HARNESS_ARCHETYPE &&
-    descriptor.contract.includes(EXECUTING_HARNESS_CONTRACT)
-  );
 }
 
 /**

@@ -17,8 +17,8 @@ layer you install — not a hosted SaaS.
 - **Declinate per repo** — a committed `.claude/workflow.md` manifest customizes the pipeline (skip / insert / reorder / swap agent or skill / profile / per-phase harness config); no manifest = strong probed defaults.
 - **Manage comprehension debt** — design docs + parted plans with pre-chewed context blocks capture *what* the change is and *how* it was built, so understanding survives context resets.
 - **Manage intention debt** — ADRs and user-ratified decision candidates capture *why* every load-bearing choice was made.
-- **Formalize the architecture harness with its own lifecycle** — a standalone `architecture` phase (probe → run dependency-cruiser → triage violations → gate the PR), default-off, enabled by one manifest line.
-- **Formalize engineering harnesses with their own lifecycles** — `review` (dimensions / passes / convergence) and `validation` (mutation: tool / scope / triage) are first-class AI harnesses with their own config and gates.
+- **Formalize the architecture harness with its own lifecycle** — a standalone `architecture` phase (probe → run → triage violations → gate the PR), default-off, enabled by one manifest line. Uses executing-harnesses (techniques declared per repo).
+- **Formalize engineering harnesses with their own lifecycles** — `review` (dimensions / passes / convergence) and `validation` are first-class AI harnesses with their own config and gates. Both are executing-harnesses (techniques declared per repo).
 - **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. `adapters/pi/` (the `craft-pi` bin) drives the same engine core on a non-Claude runtime, proving the Execution port is pluggable (portability proof; on-demand, not CI-gated).
 - **Bounded long-running work** — git-worktree isolation + parted TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
 
@@ -43,13 +43,13 @@ from `--profile`, which sets the execution map inside whichever manifest is read
 absent `--config` target is a loud stop — it never silently falls back to `.claude/workflow.md`.
 
 Phase skills also run standalone: `/craft:review` (multi-dimension review battery on
-the current branch), `/craft:validation` (scoped mutation run + triage),
+the current branch), `/craft:validation` (scoped harness run + triage),
 `/craft:init` (interview-driven named-manifest generator — writes `.claude/craft-<name>.md`), etc.
 
 ## Customize — `.claude/workflow.md` in your repo
 
 No manifest = sensible defaults via capability probing (lockfile detection, test-script
-discovery, mutation-config probe, remote probe). The manifest declares only what
+discovery, technique-config probe, remote probe). The manifest declares only what
 probing can't infer. Zero-config delivery requires one precondition: **a discoverable
 test/validate command** — a repo with one runs the full default pipeline on any toolchain
 (validated on a non-tsgit Python/pytest repo; see
@@ -74,7 +74,7 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
   and the degraded tier is remembered for the rest of the run.
 - `hooks/` — PreToolUse guard: `git diff/show` without `--no-ext-diff` is denied with
   the corrected command (`--no-verify` is the consumer's discretion — craft does not block it)
-- `scripts/` — worktree setup/teardown (mutation run-lock aware), manifest lint, plan lint
+- `scripts/` — worktree setup/teardown (validation run-lock aware), manifest lint, plan lint
 - `templates/` — design / plan (defines the part schema plan-lint enforces) / ADR
 - `adapters/pi/` — reference Pi adapter: a separate `craft-pi` entrypoint that drives the full 11-phase walk on a non-Claude runtime via the engine's ports (the HaaS portability proof; on-demand, not CI-gated)
 

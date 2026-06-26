@@ -22,11 +22,12 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
    Obey the returned surface, then push `-u origin <branch>`.
 3. **Consult `propose` action** (see `docs/adapters/policy.md`). Obey the returned surface:
    - `ask` (default, ADR-127) — hand the drafted body to the user and stop (`pr.creator: user`
-     behaviour); on approval proceed with `gh pr create`, on decline record
+     behaviour); on approval proceed with the PR creation, on decline record
      `POLICY(ask:propose→declined)` and block.
    - `never` — refuse; record `POLICY(never:propose)`; phase no-ops.
    - `always` — create the PR without stopping; record `POLICY(always:propose)`;
      supersedes the `pr.creator: user` stop (ADR-128 — Supersede).
 
-   `gh pr create` uses the body drafted in the documentation phase (decisions + ADRs,
-   design path, divergences, pinned behaviours, test plan, run record).
+   Invoke the VCS port `propose(title, body)` (see `docs/adapters/vcs.md`); the adapter
+   owns the host CLI. Body: decisions + ADRs, design path, divergences, pinned
+   behaviours, test plan, run record — drafted in the documentation phase.
