@@ -82,3 +82,17 @@ p27-despecialize-craft-sources review-security tokens=121213 duration_ms=179680 
 p27-despecialize-craft-sources review-perf tokens=95692 duration_ms=69226 cache=na
 p27-despecialize-craft-sources review-convergence tokens=110416 duration_ms=623567 cache=na
 p27-despecialize-craft-sources validation-triager tokens=135325 duration_ms=3159581 cache=na
+p28-hermetic-test-suites design tokens=204380 duration_ms=968962 cache=na
+p28-hermetic-test-suites design-revision-adrs tokens=160695 duration_ms=655513 cache=na
+p28-hermetic-test-suites design-revision-a4 tokens=139255 duration_ms=407388 cache=na
+p28-hermetic-test-suites planning tokens=186792 duration_ms=669225 cache=na
+p28-hermetic-test-suites implementation-p1 tokens=80987 duration_ms=219351 cache=na
+p28-hermetic-test-suites implementation-p2 tokens=71828 duration_ms=133774 cache=na
+p28-hermetic-test-suites implementation-p3 tokens=75138 duration_ms=118447 cache=na
+p28-hermetic-test-suites implementation-p4-dropped tokens=99065 duration_ms=493232 cache=na
+p28-hermetic-test-suites implementation-p5 tokens=88518 duration_ms=255800 cache=na
+p28-hermetic-test-suites review-code tokens=107134 duration_ms=165099 cache=na
+p28-hermetic-test-suites review-security tokens=101504 duration_ms=108988 cache=na
+p28-hermetic-test-suites review-tests tokens=141609 duration_ms=475319 cache=na
+p28-hermetic-test-suites review-perf tokens=96703 duration_ms=58986 cache=na
+p28-hermetic-test-suites review-converge tokens=122503 duration_ms=260181 cache=na

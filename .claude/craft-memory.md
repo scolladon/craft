@@ -5,8 +5,8 @@ toolchain:
     lockfileFingerprint: f6b84e322952d17b
     confidence: 1
     provenance:
-      run: p27-despecialize-craft-sources
-      commit: a4849a1
+      run: p28-hermetic-test-suites
+      commit: 3078c6e
       date: '2026-06-26'
 gate-cmd:
   - concern: gate-cmd
@@ -14,16 +14,16 @@ gate-cmd:
     command: node --test 'test/**/*.test.js'
     confidence: 1
     provenance:
-      run: p27-despecialize-craft-sources
-      commit: a4849a1
+      run: p28-hermetic-test-suites
+      commit: 3078c6e
       date: '2026-06-26'
   - concern: gate-cmd
     phase: phase
     command: bash scripts/ci.sh
     confidence: 1
     provenance:
-      run: p27-despecialize-craft-sources
-      commit: a4849a1
+      run: p28-hermetic-test-suites
+      commit: 3078c6e
       date: '2026-06-26'
 validation-tool:
   - concern: validation-tool
@@ -31,8 +31,8 @@ validation-tool:
     configFingerprint: a9b6ac12ad7061bf
     confidence: 1
     provenance:
-      run: p27-despecialize-craft-sources
-      commit: a4849a1
+      run: p28-hermetic-test-suites
+      commit: 3078c6e
       date: '2026-06-26'
 findings:
   - concern: findings
@@ -94,20 +94,44 @@ part-sizing:
       run: p27-despecialize-craft-sources
       commit: a4849a1
       date: '2026-06-26'
+  - concern: part-sizing
+    size: test-helper
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: p28-hermetic-test-suites
+      commit: 3078c6e
+      date: '2026-06-26'
+  - concern: part-sizing
+    size: test-edit
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: p28-hermetic-test-suites
+      commit: 3078c6e
+      date: '2026-06-26'
+  - concern: part-sizing
+    size: bats-guard
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: p28-hermetic-test-suites
+      commit: 3078c6e
+      date: '2026-06-26'
 ---
 
 # craft memory store
 > Machine-maintained advisory cache (ADR-116/120). Edit the YAML frontmatter above, not this body.
 
 ## toolchain
-- npm (nested: engine) — confidence 1 | a4849a1 / 2026-06-26
+- npm (nested: engine) — confidence 1 | 3078c6e / 2026-06-26
 
 ## gate-cmd
-- part: `node --test 'test/**/*.test.js'` — confidence 1 | a4849a1 / 2026-06-26
-- phase: `bash scripts/ci.sh` — confidence 1 | a4849a1 / 2026-06-26
+- part: `node --test 'test/**/*.test.js'` — confidence 1 | 3078c6e / 2026-06-26
+- phase: `bash scripts/ci.sh` — confidence 1 | 3078c6e / 2026-06-26
 
 ## validation-tool
-- stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | a4849a1 / 2026-06-26
+- stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | 3078c6e / 2026-06-26 (probe-confirmed; not run in P28 — test-only change, mutation scope empty)
 
 ## findings
 - skills/init/SKILL.md — confidence 0.5 | f4785cd (not re-observed since P25 — decayed)
@@ -119,3 +143,6 @@ part-sizing:
 - docs-prose: pass — confidence 1 | a4849a1
 - resolver-wiring: pass — confidence 1 | a4849a1
 - bash-helper: pass — confidence 1 | a4849a1 (re-observed in P27 — lock rename + grep-gate bats)
+- test-helper: pass — confidence 1 | 3078c6e (P28 — with-cwd.js / empty-home.js isolators + unit tests)
+- test-edit: pass — confidence 1 | 3078c6e (P28 — A2/A3/A4 hermeticity wraps, count-neutral)
+- bats-guard: pass — confidence 1 | 3078c6e (P28 — hermetic-suite.bats + ci.sh repo-root step)
