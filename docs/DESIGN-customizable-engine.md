@@ -171,7 +171,7 @@ reorder/field-override) to produce the **effective pipeline**. Fields, types, de
 | Field | Type | Required | Default | Meaning |
 |---|---|---|---|---|
 | `id` | string (concern name) | yes | — | the engineering concern (e.g. `validation`); unique in the list |
-| `archetype` | enum `setup\|specification\|construction\|harness\|refinement\|delivery` | yes | — | groups phases; selects the default contract bundle, classifies code-producing phases, drives walk treatment |
+| `archetype` | enum `setup\|specification\|construction\|harness\|refinement\|delivery` | yes in `pipeline/default.yml`; optional on insert / extends-registered phases (inferred when omitted) | — | groups phases; selects the default contract bundle, classifies code-producing phases, drives walk treatment; an explicit value always wins over inference |
 | `enabled` | bool | no | `true` | a shipped descriptor with `enabled: false` is **default-off** — the walk treats it as a default-skip (recorded, never a strand); a manifest turns it on with `phases.<id>: { enabled: true }`. This is the G2 optional-`requirements` / opt-in-`architecture` mechanism |
 | `contract` | string (bundle name; may be a list — DC-6) | yes | by archetype | which engine-owned contract bundle layers on the always-on universal core |
 | `procedure` | string (skill ref, e.g. `craft:validation`) | yes | — | default body; a manifest `override:` replaces it (the preamble still runs) |
@@ -183,6 +183,25 @@ reorder/field-override) to produce the **effective pipeline**. Fields, types, de
 | `consumes` | list of artifact names | no | `[]` | dependency edges in — what this phase reads as hard input |
 | `produces` | list of artifact names | no | `[]` | dependency edges out — what a skip of this phase would strand |
 | `self_supply` | list ⊆ `consumes` | no | `[]` | consumed artifacts this phase can reconstruct itself if its producer is skipped |
+
+**Archetype inference.** On the `pipeline.insert` and `extends.phases` paths, `archetype` is
+optional. When the field is absent the resolver infers it, applying these rules in priority
+order (codomain `{harness, construction}` only):
+
+1. Descriptor has a `harness` block → `harness`.
+2. Descriptor has a `gate` and an empty/absent `produces` → `harness`.
+3. Descriptor has a non-empty `produces` → `construction`.
+4. Fallback → `harness` (conservative; most isolated).
+
+An explicit `archetype` on the descriptor always wins — inference only fires when the field
+is absent. **`extends.phases` REPLACE** (the registered id matches an existing slot): an omitted
+`archetype` **inherits** the replaced slot's value — no inference rule runs and no record
+line is emitted. Inference is never silent: the resolution record emits
+`archetype: <id> → <archetype> (inferred: <reason>)` for every inferred phase. The minimum
+viable new-phase descriptor is therefore `{ id, procedure, gate, after }` — `contract`,
+`consumes`, and `produces` already default to empty. Governance is unaffected: `archetype`
+drives execution topology only; the universal contract bundle (U) is injected for every
+phase regardless of archetype.
 
 The **complete** default list (11 enabled + 2 default-off = 13 descriptors). It encodes
 today's pipeline exactly, so the zero-config walk is behaviour-identical (SC1); concern-named

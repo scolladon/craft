@@ -132,7 +132,24 @@ On non-zero: explain the constraint and re-ask.
 | context | "House-rules file to inject globally or per-phase? (e.g. `docs/rules.md` globally, or `implementation=docs/impl-rules.md`)" | `context: <path>` / `phases.<id>.context` |
 | override | "Replace any phase's procedure body with your own file? (e.g. `implementation=.claude/my-impl.md`)" | `phases.<id>.override` |
 | role / procedure | "Swap any phase's agent role or orchestrating skill? (e.g. `implementation.role=my-coder`)" | `phases.<id>.role` / `phases.<id>.procedure` |
-| insert | "Insert a new phase? (provide a descriptor object or leave empty)" | `pipeline.insert: [...]` |
+| insert | "Insert a new phase? (leave empty to skip, or answer the sub-questions below)" — if the user wants to insert, drive the lettered sub-interview: | `pipeline.insert: [...]` |
+
+  - **(a) command** — "What does the phase run — a skill/command (worker step), or a shell check?" → worker emits `procedure: <skill>`; check emits `gate: <command>`.
+  - **(b) position** — "After which existing phase should it run?" (offer the resolved phase-id list) → emits `after: <id>`.
+  - **(c) does-it-block** — "Should a failure block the pipeline (hard gate) or be advisory?" → blocking shell check emits `gate`; advisory emits no gate.
+
+  Emit the **flat** shape (`after`/`id` as siblings of the phase fields — the nested `phase:{}` form silently no-ops):
+
+  ```yaml
+  pipeline:
+    insert:
+      - after: <id>     # after/id are SIBLINGS of the phase fields, not a wrapper
+        id: <id>
+        procedure: <command>  # present when a worker step
+        gate: <command>       # present when a blocking shell check
+  ```
+
+  No `archetype` key — narrate the inference outcome: "no archetype needed — craft will infer `harness|construction` from your gate/produces" so the collapsed descriptor stays legible.
 | DoD | "Point at a Definition-of-Done artifact? (file path)" | `paths.dod` |
 
 **No-test-command edge:** When `testCmd: null`, the gate question has no default. Surface a clear warning:

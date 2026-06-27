@@ -495,3 +495,21 @@ test('Given answers with an object-valued harness field, when emitManifest runs,
 
   assert.equal(answers.harness.implementation.convergence, 'low-only', 'mutating emitted harness must not alias original answers');
 });
+
+test('Given flat-shape insert answers, when emit→join→parse runs, then pipeline.insert[0] is flat (no phase wrapper, no archetype)', () => {
+  const sut = emitManifest;
+  const insert = [{ after: 'validation', id: 'smoke', procedure: 'echo smoke', gate: 'echo ok' }];
+
+  const { frontmatter, prose } = sut({ name: 'ci', insert });
+  const joined = joinManifest({ frontmatter, prose });
+  const parsed = parseManifestContent(joined);
+
+  const entry = parsed.pipeline?.insert?.[0];
+  assert.ok(entry, 'pipeline.insert[0] must exist');
+  assert.equal(entry.after, 'validation', 'after must be top-level sibling');
+  assert.equal(entry.id, 'smoke', 'id must be top-level sibling');
+  assert.equal(entry.procedure, 'echo smoke', 'procedure must be top-level sibling');
+  assert.equal(entry.gate, 'echo ok', 'gate must be top-level sibling');
+  assert.equal('phase' in entry, false, 'no nested phase wrapper must exist');
+  assert.equal('archetype' in entry, false, 'no archetype key must exist');
+});

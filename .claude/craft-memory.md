@@ -53,6 +53,15 @@ findings:
       run: p26-auto-skip-unnecessary-phases
       commit: c8b7685
       date: '2026-06-23'
+  - concern: findings
+    file: skills/validation/SKILL.md
+    severity: medium
+    pattern: a per-hunk mutation triager can wrongly declare a survivor "already covered" by an existing assertion; re-run the scoped mutation after triage to confirm the kills landed. A weak includes(", ") passes on an incidental message comma — assert a real adjacent list-pair to actually pin a separator
+    confidence: 0.5
+    provenance:
+      run: simpler-phase-authoring
+      commit: d732a5a
+      date: '2026-06-27'
 part-sizing:
   - concern: part-sizing
     size: pure-module

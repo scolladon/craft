@@ -602,8 +602,9 @@ function validateExtendsPhaseEntry(phase, i, errors) {
   if (typeof procedure !== 'string' || procedure.trim() === '') {
     errors.push(`extends.phases[${i}].procedure must be a non-empty string`);
   }
-  if (typeof archetype !== 'string' || !VALID_ARCHETYPES.has(archetype)) {
-    errors.push(`extends.phases[${i}].archetype must be one of ${[...VALID_ARCHETYPES].join(', ')}`);
+  // NoCoverage note: typeof guard is redundant — VALID_ARCHETYPES.has(nonString) returns false for any non-string, so !has alone covers non-strings; kept for defensive intent.
+  if (archetype !== undefined && (typeof archetype !== 'string' || !VALID_ARCHETYPES.has(archetype))) {
+    errors.push(`extends.phases[${i}].archetype, when present, must be one of ${[...VALID_ARCHETYPES].join(', ')}`);
   }
   validateExtendsPhaseContract(contract, i, errors);
   validateExtendsPhaseStringArray(consumes, `extends.phases[${i}].consumes`, errors);

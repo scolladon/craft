@@ -3,6 +3,8 @@
  * consumed by an enabled phase that has no self_supply for it.
  * Pure; no I/O.
  */
+import { producersOf } from './producers.js';
+import { formatProducerList } from './format-producer-entry.js';
 
 /**
  * Build a position map from descriptor id to its index in the effective list.
@@ -45,9 +47,13 @@ export function checkStrandedConsumers(defaults, skipSet, effective) {
         });
 
         if (!hasAlternative) {
+          const otherProducers = producersOf(effective, artifact).filter(p => p.id !== skippedId);
+          const otherListStr = formatProducerList(otherProducers, consumer.id, 'nothing else in this pipeline.');
           errors.push(
-            `Strand: skipping "${skippedId}" removes artifact "${artifact}" ` +
-            `that "${consumer.id}" consumes without self_supply — strand refused.`,
+            `Strand: skipping "${skippedId}" removes "${artifact}", consumed by "${consumer.id}" without self_supply.\n` +
+            `  "${artifact}" is otherwise produced by: ${otherListStr}\n` +
+            `  Did you mean keep "${skippedId}", produces: ["${artifact}"] on an enabled phase before "${consumer.id}",\n` +
+            `  or self_supply: ["${artifact}"] on "${consumer.id}"?`,
           );
         }
       }

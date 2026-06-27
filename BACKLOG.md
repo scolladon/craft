@@ -164,8 +164,16 @@ Per-part history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/`
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
-_None currently pending._ P26 (auto-skip unnecessary phases) was the last promoted candidate and
-shipped 2026-06-23 — see the **P26 delivered** note under Status above.
+- **Insert-shape robustness — fail loud (or normalize) the nested `pipeline.insert` form.** `applyInserts`
+  accepts only the FLAT `{ after, id, … }` insert shape; the nested `{ after, phase: { … } }` form silently
+  no-ops — the phase is never inserted and no error is raised
+  (`examples/everything-claude-toolkit/workflow.md` demonstrates the broken form). Surfaced during the
+  archetype-inference work, whose init sub-interview now emits the flat shape. Needs a decision (its own
+  `/craft:run`): reject the nested shape loudly (matches craft's loud-misconfiguration ethos) vs. normalize
+  it; either way the `everything-claude-toolkit` example must be corrected to a working insert.
+
+P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2026-06-23 — see the
+**P26 delivered** note under Status above.
 
 ---
 

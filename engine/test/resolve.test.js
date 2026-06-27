@@ -1458,3 +1458,84 @@ test('Given technique with only id, when resolvePipeline runs, then techniquePla
     'minimal technique entry must have exactly the five required keys',
   );
 });
+
+// ─── archetype inference: resolver wiring ────────────────────────────────────
+
+test('Given a pipeline.insert with gate and no archetype, when resolvePipeline runs, then effective carries archetype:harness and record contains the inference line', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    pipeline: {
+      insert: [{
+        after: 'planning',
+        id: 'smoke',
+        procedure: 'acme:smoke',
+        gate: 'acme:smoke --check',
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  const smoke = result.effective.find(d => d.id === 'smoke');
+  assert.ok(smoke, 'smoke must be in effective');
+  assert.equal(smoke.archetype, 'harness', `expected archetype harness; got ${smoke.archetype}`);
+  assert.ok(
+    result.record.includes('archetype: smoke → harness (inferred: gate with no produces)'),
+    `expected inference record; record: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given extends.phases replacing an existing phase without specifying archetype, when resolvePipeline runs, then the replaced phase inherits the original archetype and no inference record is emitted', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    extends: {
+      phases: [{
+        id: 'documentation',
+        procedure: 'acme:docs',
+        // archetype deliberately omitted — must inherit 'delivery' from the replaced slot
+        produces: ['docs'],
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  const doc = result.effective.find(d => d.id === 'documentation');
+  assert.ok(doc, 'documentation must be in effective');
+  assert.equal(doc.archetype, 'delivery', `expected inherited archetype delivery; got ${doc.archetype}`);
+  assert.ok(
+    !result.record.some(r => r.startsWith('archetype: documentation')),
+    `expected no inference record for documentation; record: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given a pipeline.insert with explicit archetype:harness, when resolvePipeline runs, then effective carries harness and no inference record is emitted for that phase', () => {
+  const defaults = loadDefault();
+  const manifest = {
+    pipeline: {
+      insert: [{
+        after: 'planning',
+        id: 'explicit-harness',
+        procedure: 'acme:explicit',
+        archetype: 'harness',
+        gate: 'acme:explicit --check',
+      }],
+    },
+  };
+  const sut = resolvePipeline;
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, true, `Expected ok; errors: ${result.errors?.join('; ')}`);
+  const phase = result.effective.find(d => d.id === 'explicit-harness');
+  assert.ok(phase, 'explicit-harness must be in effective');
+  assert.equal(phase.archetype, 'harness');
+  assert.ok(
+    !result.record.some(r => r.startsWith('archetype: explicit-harness')),
+    `expected no inference record for explicit-harness; record: ${JSON.stringify(result.record)}`,
+  );
+});

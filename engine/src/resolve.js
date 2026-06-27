@@ -3,7 +3,7 @@
  * Pure; immutable transforms only; no file I/O.
  *
  * Steps: aliasResolve → validateExecutionValues → expandProfile →
- *        applyEdits → resolveExecution → strandCheck → graphValidate →
+ *        applyEdits → inferMissingArchetypes → resolveExecution → strandCheck → graphValidate →
  *        resolveGatesAndWaivers → buildManifestRecords
  */
 
@@ -12,6 +12,7 @@ import { validatePipeline } from './graph.js';
 import { expandProfile, applyProfileToArchetype, HARNESS_ARCHETYPE } from './profile.js';
 import { DEFAULT_EXECUTION, VALID_EXECUTIONS } from './descriptor.js';
 import { applyEnableEdits, applyInserts, applyReorder, checkReorderApplicability } from './edits.js';
+import { inferMissingArchetypes } from './archetype.js';
 import { checkStrandedConsumers } from './strand.js';
 import { resolveGatesAndWaivers } from './gates.js';
 import { isExecutingHarness } from './exec-harness.js';
@@ -235,10 +236,11 @@ function foldRegisteredPhases(descriptors, registeredPhases) {
   for (const reg of registeredPhases) {
     const idx = result.findIndex(d => d.id === reg.id);
     if (idx !== -1) {
+      const existing = result[idx];
       const { after, before, ...regData } = reg;
       const replaced = {
         enabled: true, contract: [], consumes: [], produces: [], self_supply: [],
-        execution: DEFAULT_EXECUTION, ...regData,
+        execution: DEFAULT_EXECUTION, archetype: existing.archetype, ...regData,
       };
       result = [...result.slice(0, idx), replaced, ...result.slice(idx + 1)];
     } else {
@@ -299,9 +301,10 @@ export function resolvePipeline(defaults, manifest, opts) {
     };
   }
   const reorderResult = applyReorder(insertResult.descriptors, reorderList);
+  const inferResult = inferMissingArchetypes(reorderResult.descriptors);
 
   const execResult = resolveExecution(
-    reorderResult.descriptors, phaseOverrides, profile, resolved.execution, profileName,
+    inferResult.descriptors, phaseOverrides, profile, resolved.execution, profileName,
   );
 
   const manifestRecords = buildManifestRecords(resolved);
@@ -309,6 +312,7 @@ export function resolvePipeline(defaults, manifest, opts) {
     ...enableResult.records,
     ...insertResult.records,
     ...reorderResult.records,
+    ...inferResult.records,
     ...execResult.records,
     ...manifestRecords,
   ];

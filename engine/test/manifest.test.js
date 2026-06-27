@@ -2218,13 +2218,10 @@ test('Given extends block with two distinct faults, when validateManifest runs, 
   assert.ok(result.errors.length >= 2, `expected ≥2 errors but got: ${JSON.stringify(result.errors)}`);
 });
 
-// EQUIVALENT (mutation survivor) — the ConditionalExpression at manifest.js:397
-// (`typeof archetype !== 'string' || !VALID_ARCHETYPES.has(archetype)` → `false || …`) is a
-// no-op: `!VALID_ARCHETYPES.has(x)` is already true for EVERY non-valid-archetype value
-// (undefined, number, object, wrong string), so dropping the redundant `typeof` short-circuit
-// yields identical results for all inputs — no test can distinguish it. The check below still
-// pins the behaviour (a missing archetype is rejected); the typeof guard is defensive redundancy.
-test('Given extends.phases with a phase missing archetype, when validateManifest runs, then ok:false with error naming archetype', () => {
+// archetype is optional when authoring registered phases; inference fills it at resolve time.
+// A manifest that omits archetype is accepted (ok:true). An explicit but invalid archetype
+// is still rejected — see the invalid-archetype test above.
+test('Given extends.phases with a phase omitting archetype, when validateManifest runs, then ok:true (archetype is optional)', () => {
   const sut = validateManifest;
 
   const result = sut(
@@ -2238,8 +2235,7 @@ test('Given extends.phases with a phase missing archetype, when validateManifest
     { fileExists: ALWAYS_EXISTS },
   );
 
-  assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('archetype')), `errors: ${JSON.stringify(result.errors)}`);
+  assert.equal(result.ok, true, `expected ok:true; errors: ${JSON.stringify(result.errors)}`);
 });
 
 // ─── extends top-level shape-rejection ───────────────────────────────────────
@@ -2472,10 +2468,11 @@ test('Given extends.phases with a phase whose archetype is a string but not in V
   assert.equal(result.ok, false);
   const archetypeError = result.errors.find(e => e.includes('archetype'));
   assert.ok(archetypeError, `expected error mentioning archetype; errors: ${JSON.stringify(result.errors)}`);
-  // The join(', ') separator distinguishes from join('') mutant — all six are present
-  assert.ok(archetypeError.includes('setup'), `error must list setup; got: ${archetypeError}`);
   assert.ok(archetypeError.includes('harness'), `error must list harness; got: ${archetypeError}`);
-  assert.ok(archetypeError.includes(', '), `error must use ", " separator; got: ${archetypeError}`);
+  // Assert an adjacent pair from the rendered list — collapses to "setupspecification"
+  // under the join('') mutant, so the ", " list separator is what this checks (a bare
+  // includes(', ') would pass anyway on the "archetype, when present," comma).
+  assert.ok(archetypeError.includes('setup, specification'), `error must comma-join the archetype list; got: ${archetypeError}`);
 });
 
 // ─── extends.phases contract: BUNDLE_VOCAB join separator and array literal ───

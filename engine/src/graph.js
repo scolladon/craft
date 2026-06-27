@@ -1,3 +1,6 @@
+import { producersOf } from './producers.js';
+import { formatProducerList } from './format-producer-entry.js';
+
 /** Closed bundle vocabulary — every contract name must be in this set. */
 export const BUNDLE_VOCAB = new Set([
   'core', 'producer', 'construction', 'harness-read', 'harness-exec', 'delivery', 'refinement',
@@ -73,9 +76,20 @@ function checkEdgesSatisfied(descriptors) {
       if (d.self_supply.includes(artifact)) continue;
       const producer = nearestEarlierProducer(descriptors, i, artifact);
       if (!producer) {
+        const producers = producersOf(descriptors, artifact);
+        const listStr = formatProducerList(producers, d.id, 'nothing in this pipeline.');
+        const nearest = producers.length > 0
+          ? producers.reduce((best, p) =>
+              Math.abs(p.index - i) < Math.abs(best.index - i) ? p : best,
+            )
+          : null;
+        const suggestion = nearest
+          ? `Did you mean after: ${nearest.id}, or produces: ["${artifact}"] on an earlier phase?`
+          : `Did you mean produces: ["${artifact}"] on an earlier phase?`;
         errors.push(
-          `Descriptor "${d.id}": consumes artifact "${artifact}" but no earlier enabled descriptor produces it, ` +
-          `and it is not in self_supply.`,
+          `Descriptor "${d.id}": consumes "${artifact}" but no enabled phase before it produces "${artifact}".\n` +
+          `  "${artifact}" is produced by: ${listStr}\n` +
+          `  ${suggestion}`,
         );
       }
     }
