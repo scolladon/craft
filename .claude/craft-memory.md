@@ -57,11 +57,20 @@ findings:
     file: skills/validation/SKILL.md
     severity: medium
     pattern: a per-hunk mutation triager can wrongly declare a survivor "already covered" by an existing assertion; re-run the scoped mutation after triage to confirm the kills landed. A weak includes(", ") passes on an incidental message comma — assert a real adjacent list-pair to actually pin a separator
+    confidence: 0.65
+    provenance:
+      run: nested-insert-fail-loud
+      commit: 7b3f4bf
+      date: '2026-06-28'
+  - concern: findings
+    file: engine/src/manifest.js
+    severity: low
+    pattern: in mutation triage, a typeof object-guard on a label/formatting helper that reads only optional props (id/after/before) is an EQUIVALENT mutant — a primitive entry enters the block, reads undefined, and falls through to the same index return; prove benign rather than chasing it. Conversely a primary-field branch can be unobservable through the public API unless an entry carries the field AND an error-triggering condition simultaneously (e.g. a nested insert that also has a top-level id) — that pairing is the kill
     confidence: 0.5
     provenance:
-      run: simpler-phase-authoring
-      commit: d732a5a
-      date: '2026-06-27'
+      run: nested-insert-fail-loud
+      commit: 7b3f4bf
+      date: '2026-06-28'
 part-sizing:
   - concern: part-sizing
     size: pure-module

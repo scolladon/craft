@@ -114,3 +114,11 @@ simpler-phase-authoring review-converge-code tokens=52994 duration_ms=159837 cac
 simpler-phase-authoring review-converge-tests tokens=71479 duration_ms=324714 cache=na
 simpler-phase-authoring validation-triage tokens=81108 duration_ms=878150 cache=na
 simpler-phase-authoring documentation tokens=48243 duration_ms=214967 cache=na
+nested-insert-fail-loud design tokens=91988 duration_ms=644017 cache=na
+nested-insert-fail-loud planning tokens=75046 duration_ms=271094 cache=na
+nested-insert-fail-loud implementation tokens=53394 duration_ms=373766 cache=na
+nested-insert-fail-loud review-code tokens=54097 duration_ms=171628 cache=na
+nested-insert-fail-loud review-tests tokens=80796 duration_ms=258991 cache=na
+nested-insert-fail-loud review-security tokens=45983 duration_ms=191336 cache=na
+nested-insert-fail-loud review-perf tokens=38334 duration_ms=72458 cache=na
+nested-insert-fail-loud documentation tokens=51833 duration_ms=279315 cache=na
