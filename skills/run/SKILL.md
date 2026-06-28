@@ -245,7 +245,11 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    If gate is empty string: no gate check.
 
 7. **Record outcome** in the run record (appended to the seeded entries). An
-   inline-executed phase is noted: `inline: <phase.id> — ran in-session`. A judgment
+   inline-executed phase is noted: `inline: <phase.id> — ran in-session`. At each
+   phase boundary where a gate ran, append the fixed greppable token
+   `GATE(<phase.id>): green` or `GATE(<phase.id>): red` to the run record — one
+   line per phase gate result. An auto-skipped or waived executing-harness records
+   no `GATE(...)` line (the phase did not produce a recorded gate result). A judgment
    phase (`decisions`/`refactoring`) that records a `NO-OP(<phase>):` line — e.g.
    `NO-OP(decisions): no user-judgment decisions — …` or `NO-OP(refactoring): nothing
    cleared the bar — …` — has produced its outcome; it is NOT a missing artifact and

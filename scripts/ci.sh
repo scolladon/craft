@@ -7,7 +7,7 @@ set -euo pipefail
 # Resolve from repo root so relative paths and globs are call-site independent.
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-EXPECTED_TESTS=1234
+EXPECTED_TESTS=1260
 
 node_output="$(cd engine && node --test 'test/**/*.test.js' 2>&1)" && node_status=0 || node_status=$?
 echo "$node_output"
@@ -41,7 +41,7 @@ echo "$pi_output"
 actual_pi_tests="$(printf '%s\n' "$pi_output" | awk '/^# tests / {print $3}')"
 [ "$actual_pi_tests" = "$EXPECTED_PI_TESTS" ] || { echo "ci: pi test count drift — expected ${EXPECTED_PI_TESTS}, got ${actual_pi_tests}" >&2; exit 1; }
 
-EXPECTED_PROC_TESTS=117
+EXPECTED_PROC_TESTS=118
 
 proc_output="$(node --test 'test/**/*.test.js' 2>&1)" && proc_status=0 || proc_status=$?
 echo "$proc_output"

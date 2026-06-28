@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseDod, validateDodCriteria, assertDodCriteria } from '../src/dod.js';
+import { parseDod, validateDodCriteria, assertDodCriteria, buildGateGreen } from '../src/dod.js';
 
 // parseDod
 
@@ -205,6 +205,15 @@ test('Given an auto criterion with a valid string file-exists assert, when valid
   assert.deepEqual(sut(criteria), []);
 });
 
+test('Given an auto criterion with an empty file-exists assert, when validateDodCriteria runs, then it rejects the empty path (an empty path resolves to the repo root and would be trivially met)', () => {
+  const sut = validateDodCriteria;
+  const criteria = [{ id: 'empty-file', kind: 'auto', assert: { 'file-exists': '   ' } }];
+
+  const errors = sut(criteria);
+
+  assert.ok(errors.some(e => e.includes("file-exists") && e.includes('non-empty')));
+});
+
 test('Given an auto criterion with a file-exists assert, when assertDodCriteria runs, then evidence.fileExists receives the exact configured path', () => {
   const sut = assertDodCriteria;
   const receivedPaths = [];
@@ -292,4 +301,53 @@ test('Given an auto criterion with an assert object carrying neither gate nor fi
   const evidence = { gateGreen: () => true, fileExists: () => true };
 
   assert.deepEqual(sut(criteria, evidence), ['unmet']);
+});
+
+// buildGateGreen
+
+test('Given a green phase id in the set, when buildGateGreen is called with it, then it returns true', () => {
+  const sut = buildGateGreen;
+
+  const result = sut(['review', 'implementation'])('review');
+
+  assert.equal(result, true);
+});
+
+test('Given a phase id absent from the green set, when buildGateGreen is called with it, then it returns false (red cannot be flipped green)', () => {
+  const sut = buildGateGreen;
+
+  const result = sut(['review'])('implementation');
+
+  assert.equal(result, false);
+});
+
+test('Given an empty green set, when buildGateGreen is called with any phase id, then it returns false', () => {
+  const sut = buildGateGreen;
+
+  const result = sut([])('review');
+
+  assert.equal(result, false);
+});
+
+test('Given a green set carrying duplicate ids, when buildGateGreen is called, then membership is unaffected (the set dedupes)', () => {
+  const sut = buildGateGreen;
+
+  const result = sut(['review', 'review']);
+
+  assert.equal(result('review'), true);
+  assert.equal(result('implementation'), false);
+});
+
+test('Given buildGateGreen fed into assertDodCriteria with a gate criterion naming a green phase, when assertDodCriteria runs, then it returns met from real green evidence', () => {
+  const criteria = [{ id: 'gate-check', kind: 'auto', assert: { gate: 'review' } }];
+  const evidence = { gateGreen: buildGateGreen(['review']), fileExists: () => false };
+
+  assert.deepEqual(assertDodCriteria(criteria, evidence), ['met']);
+});
+
+test('Given buildGateGreen fed into assertDodCriteria with a gate criterion naming a non-green phase, when assertDodCriteria runs, then it returns unmet', () => {
+  const criteria = [{ id: 'gate-check', kind: 'auto', assert: { gate: 'implementation' } }];
+  const evidence = { gateGreen: buildGateGreen([]), fileExists: () => false };
+
+  assert.deepEqual(assertDodCriteria(criteria, evidence), ['unmet']);
 });

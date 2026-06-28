@@ -103,9 +103,24 @@ function validateAutoAssert(crit, prefix, errors) {
   if (hasGate && typeof assertObj.gate !== 'string') {
     errors.push(`${prefix}.assert.gate must be a string`);
   }
-  if (hasFile && typeof assertObj['file-exists'] !== 'string') {
-    errors.push(`${prefix}.assert['file-exists'] must be a string`);
+  if (hasFile && (typeof assertObj['file-exists'] !== 'string' || assertObj['file-exists'].trim() === '')) {
+    errors.push(`${prefix}.assert['file-exists'] must be a non-empty string`);
   }
+}
+
+/**
+ * Build a gateGreen predicate from a list of recorded-green phase ids.
+ *
+ * Returns true only for phase ids that the engine has actually recorded as green;
+ * a red, absent, or unknown phase id returns false. This is the safe direction:
+ * a criterion is met only by a gate the engine has actually recorded green.
+ *
+ * @param {string[]} greenPhaseIds
+ * @returns {(phaseId: string) => boolean}
+ */
+export function buildGateGreen(greenPhaseIds) {
+  const green = new Set(greenPhaseIds);
+  return (phaseId) => green.has(phaseId);
 }
 
 /**
