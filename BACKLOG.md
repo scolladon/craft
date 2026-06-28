@@ -121,6 +121,14 @@ break). A `test/source-hygiene.bats` grep-gate is the durable proof (reviewed al
 evidence + the adapter binding). craft dogfoods via a committed `.claude/workflow.md` declaring its own
 mutation technique. ADRs 148–155.
 
+**Follow-ups delivered 2026-06-28** — activation of two mechanisms shipped but left dormant by the batched
+backlog-clearing run: the **structured-DoD auto-assertion** is now wired into `validation` so a `kind: auto`
+criterion is mechanically asserted against the run's recorded per-phase gate evidence (a fixed
+`GATE(<phase.id>): green|red` token), with `judgment` criteria human-asserted and the non-blocking
+`NO-OP(verify)` no-DoD path preserved; and the **structure linters now guard the live docs** —
+`backlog-lint`/`design-lint` enforce `BACKLOG.md`, the migrated `templates/backlog.md`, and every
+`docs/design/*.md` in `scripts/ci.sh`, not just the templates (ADRs 178–181).
+
 | Phase | What | ADRs |
 |---|---|---|
 | P0 | Spikes SP1–SP8 — feasibility decisions | — |

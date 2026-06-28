@@ -221,6 +221,10 @@ The dogfood requirement (req. 11) is satisfied by **either** path: craft's conve
 - A technique `run` that errors at runtime is a blocker `{ validation:<id>, reason, ≤3 options }` — never a silent pass (existing harness-exec posture).
 - Empty active technique set **after the full declared → derived → fallback discovery** (ADR-149) → clean no-op + propose-gate release (existing recorded-no-op path). The no-op is the **terminal** discovery tier, not the default: an absent declaration derives the repo's harness before any no-op.
 
+## Decision candidates
+
+None — every load-bearing choice was resolved up front and recorded in the Decision log below.
+
 ## Decision log (resolved — ADRs 148-155)
 
 All eight candidates are ratified. This is now a resolved log, not an open-questions table. The decisions conversation **adopted seven as recommended** and **redefined one** (#2 → ADR-149): the designer recommended a declared-only `.claude/workflow.md` site; the user reframed `validation` as a convention-discovered engineering harness. That deviation is folded into §2, §9, the Requirements, and the Test strategy above.

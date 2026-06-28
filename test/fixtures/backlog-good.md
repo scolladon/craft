@@ -1,32 +1,23 @@
 # Test — Backlog & Roadmap
 
-> SoT — *intent:* `docs/prd.md` · *architecture:* `docs/design.md` · *decisions:* `docs/adr/`
+<!-- fixture: well-formed backlog with the generalized five-section live structure -->
 
-## Status at a glance
+## Status — placeholder
 
 | Phase | What | State |
 |---|---|---|
 | P1 | initial | ✅ done |
 
-## Done
+## Candidate phases
 
-### P1 — Initial
-- [x] delivered
+- [ ] candidate item
 
-## Next — P2: next phase
+## Parked
 
-- [ ] deliverable
+### Condition-gated — placeholder
 
-**Surface gate (P2):** all tests pass.
+- [ ] item gated on a condition
 
-## Then
+### Closed — placeholder
 
-- **P3 — future:** waits on P2.
-
-## Deferred / parked
-
-- [ ] deferred item (rides with P3)
-
-## Notes
-
-- load-bearing note
+- dropped item (rationale placeholder)

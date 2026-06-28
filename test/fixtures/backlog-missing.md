@@ -1,28 +1,19 @@
-# Test — Backlog & Roadmap (missing Notes section)
+# Test — Backlog & Roadmap (missing Closed section)
 
-> SoT — *intent:* `docs/prd.md`
+<!-- fixture: backlog missing the ### Closed H3 section to verify H3 sections are checked -->
 
-## Status at a glance
+## Status — placeholder
 
 | Phase | What | State |
 |---|---|---|
 | P1 | initial | ✅ done |
 
-## Done
+## Candidate phases
 
-### P1 — Initial
-- [x] delivered
+- [ ] candidate item
 
-## Next — P2: next phase
+## Parked
 
-- [ ] deliverable
+### Condition-gated — placeholder
 
-**Surface gate (P2):** all tests pass.
-
-## Then
-
-- **P3 — future:** waits on P2.
-
-## Deferred / parked
-
-- [ ] deferred item
+- [ ] item gated on a condition

@@ -41,7 +41,7 @@ echo "$pi_output"
 actual_pi_tests="$(printf '%s\n' "$pi_output" | awk '/^# tests / {print $3}')"
 [ "$actual_pi_tests" = "$EXPECTED_PI_TESTS" ] || { echo "ci: pi test count drift — expected ${EXPECTED_PI_TESTS}, got ${actual_pi_tests}" >&2; exit 1; }
 
-EXPECTED_PROC_TESTS=118
+EXPECTED_PROC_TESTS=121
 
 proc_output="$(node --test 'test/**/*.test.js' 2>&1)" && proc_status=0 || proc_status=$?
 echo "$proc_output"
@@ -49,4 +49,6 @@ echo "$proc_output"
 actual_proc_tests="$(printf '%s\n' "$proc_output" | awk '/^# tests / {print $3}')"
 [ "$actual_proc_tests" = "$EXPECTED_PROC_TESTS" ] || { echo "ci: process test count drift — expected ${EXPECTED_PROC_TESTS}, got ${actual_proc_tests}" >&2; exit 1; }
 
-shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts && bash scripts/backlog-lint.sh templates/backlog.md && bash scripts/design-lint.sh templates/design.md
+shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts \
+  && for b in BACKLOG.md templates/backlog.md; do bash scripts/backlog-lint.sh "$b" || exit 1; done \
+  && for d in templates/design.md docs/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done

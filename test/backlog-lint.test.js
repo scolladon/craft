@@ -23,12 +23,20 @@ test('section-missing backlog fixture exits 2 and names missing section in stder
   }
   assert.strictEqual(err.status, 2, 'expected exit status 2');
   assert.ok(
-    (err.stderr || '').includes('Notes'),
-    `expected "Notes" in stderr; got: ${err.stderr}`
+    (err.stderr || '').includes('Closed'),
+    `expected "Closed" in stderr; got: ${err.stderr}`
   );
 });
 
 test('good backlog fixture stdout carries the section count summary', () => {
   const stdout = execFileSync('bash', [SCRIPT, GOOD_FIXTURE], { encoding: 'utf8' });
-  assert.ok(stdout.includes('6 required sections present'), `expected the section-count summary in stdout; got: ${stdout}`);
+  assert.ok(stdout.includes('5 required sections present'), `expected the section-count summary in stdout; got: ${stdout}`);
+});
+
+test('live BACKLOG.md passes the generalized backlog linter', () => {
+  execFileSync('bash', [SCRIPT, path.join(ROOT, 'BACKLOG.md')], { encoding: 'utf8' });
+});
+
+test('templates/backlog.md passes the generalized backlog linter', () => {
+  execFileSync('bash', [SCRIPT, path.join(ROOT, 'templates', 'backlog.md')], { encoding: 'utf8' });
 });
