@@ -71,6 +71,33 @@ findings:
       run: nested-insert-fail-loud
       commit: 7b3f4bf
       date: '2026-06-28'
+  - concern: findings
+    file: engine/src/manifest-lint-main.js
+    severity: medium
+    pattern: a lint-time reader of a manifest-supplied file-ref (paths.dod/scripts/backlog.ref) that falls back to reading the bare path is an arbitrary-local-file-read + existence-oracle when linting an untrusted clone; route every manifest file-ref through the same realpath containment the memory/policy helpers use (containByRealpath against the repo root), fail-closed
+    confidence: 0.7
+    provenance:
+      run: clear-backlog-candidates-gated
+      commit: f17d07e
+      date: '2026-06-28'
+  - concern: findings
+    file: engine/src/contain.js
+    severity: low
+    pattern: defense-in-depth lexical+realpath containment layers produce EQUIVALENT mutants (each layer alone catches the other's escapes); non-ENOENT realpath-error rethrow and the filesystem-root-termination branch are unreachable/equivalent — document `// equivalent mutant` (source-hygiene-allowlisted) rather than chase an unkillable test. realpath returns the LEXICAL path so callers retain a TOCTOU/hardlink window — document the limitation, do not claim atomic-open containment
+    confidence: 0.6
+    provenance:
+      run: clear-backlog-candidates-gated
+      commit: f17d07e
+      date: '2026-06-28'
+  - concern: findings
+    file: engine/src/dod.js
+    severity: low
+    pattern: a structured-doc parser that opens a frontmatter block but mis-types the YAML should FAIL LOUD (throw, surfaced as a lint error), not silently downgrade to free-text; only a genuinely absent frontmatter block returns null. Matches the repo fail-loud direction
+    confidence: 0.6
+    provenance:
+      run: clear-backlog-candidates-gated
+      commit: f17d07e
+      date: '2026-06-28'
 part-sizing:
   - concern: part-sizing
     size: pure-module
@@ -136,6 +163,46 @@ part-sizing:
       run: p28-hermetic-test-suites
       commit: 3078c6e
       date: '2026-06-26'
+  - concern: part-sizing
+    size: security-module
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: clear-backlog-candidates-gated
+      commit: f17d07e
+      date: '2026-06-28'
+  - concern: part-sizing
+    size: schema-module
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: clear-backlog-candidates-gated
+      commit: f17d07e
+      date: '2026-06-28'
+  - concern: part-sizing
+    size: structure-lint
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: clear-backlog-candidates-gated
+      commit: f17d07e
+      date: '2026-06-28'
+  - concern: part-sizing
+    size: examples-adapter
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: clear-backlog-candidates-gated
+      commit: f17d07e
+      date: '2026-06-28'
+  - concern: part-sizing
+    size: bats-port
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: clear-backlog-candidates-gated
+      commit: f17d07e
+      date: '2026-06-28'
 ---
 
 # craft memory store
@@ -149,11 +216,14 @@ part-sizing:
 - phase: `bash scripts/ci.sh` — confidence 1 | 3078c6e / 2026-06-26
 
 ## validation-tool
-- stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | 3078c6e / 2026-06-26 (probe-confirmed; not run in P28 — test-only change, mutation scope empty)
+- stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | f17d07e / 2026-06-28 (RUN this batch — 13 survivors killed across contain/dod/manifest-lint-main; new null-id guard + memory dedupe had zero survivors)
 
 ## findings
 - skills/init/SKILL.md — confidence 0.5 | f4785cd (not re-observed since P25 — decayed)
 - skills/run/SKILL.md — confidence 0.5 | c8b7685 (prose-edited in P27 but renumber-staleness not re-observed — decayed)
+- engine/src/manifest-lint-main.js — confidence 0.7 | f17d07e (manifest file-refs must be realpath-contained; bare-path fallback = arbitrary-read oracle when linting untrusted clones)
+- engine/src/contain.js — confidence 0.6 | f17d07e (defense-in-depth layers ⇒ equivalent mutants; returns lexical path ⇒ TOCTOU/hardlink window — document, don't over-claim)
+- engine/src/dod.js — confidence 0.6 | f17d07e (malformed structured frontmatter fails loud, never silent free-text downgrade)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1
@@ -164,3 +234,8 @@ part-sizing:
 - test-helper: pass — confidence 1 | 3078c6e (P28 — with-cwd.js / empty-home.js isolators + unit tests)
 - test-edit: pass — confidence 1 | 3078c6e (P28 — A2/A3/A4 hermeticity wraps, count-neutral)
 - bats-guard: pass — confidence 1 | 3078c6e (P28 — hermetic-suite.bats + ci.sh repo-root step)
+- security-module: pass — confidence 1 | f17d07e (contain.js realpath containment, symlink-escape tests via real fs.symlinkSync in mktemp)
+- schema-module: pass — confidence 1 | f17d07e (dod.js parse/classify/assert-vs-evidence, injection-safe)
+- structure-lint: pass — confidence 1 | f17d07e (backlog-lint/design-lint bash, execFileSync fixture tests)
+- examples-adapter: pass — confidence 1 | f17d07e (github-issues via extends.backlog-adapters, host CLI confined to unscanned examples/)
+- bats-port: pass — confidence 1 | f17d07e (12 bats→node:test, execFileSync runs real scripts, EXPECTED_PROC_TESTS guard)
