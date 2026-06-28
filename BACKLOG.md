@@ -164,11 +164,8 @@ Per-part history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/`
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
-- **Resolve-time hardening — `resolvePipeline` nested / `null`-id insert guard.** Lint now rejects
-  the nested `pipeline.insert` form at exit 2 (ADR-169, ADR-170); `resolvePipeline` stays permissive
-  (DC3(a), ADR-171). The `ok:true`-with-`null`-id-phantom residual documented in
-  `docs/DESIGN-nested-insert-fail-loud.md` "Out of scope" needs a runtime guard in
-  `engine/src/resolve.js` or `engine/src/edits.js` for defense in depth. One coherent `/craft:run`.
+_(No open candidates — the batched backlog-clearing run of 2026-06-28 promoted and shipped the
+remaining candidates; see the **Status** record.)_
 
 P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2026-06-23 — see the
 **P26 delivered** note under Status above.
@@ -179,85 +176,41 @@ P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2
 
 ### Condition-gated (do when the trigger fires)
 
-- **Migrate the `bats` suite to `node --test`** (user-requested, portability) — **evaluate first.**
-  Worktree/hook scripts need real-process assertions (likely `node:test` + `child_process`); judge
-  whether a JS port keeps shell-behavior fidelity before committing to the migration.
-- **Extract an `extends-validation` module** (P14 refactor no-op) — pull the shared `checkFileRef`
-  leaf + `validateExtends*` cluster out of `manifest.js` when validation grows further. Deferred
-  because the cluster shares `checkFileRef` with the scripts/backlog/phases validators (needs the
-  shared leaf first) and `manifest.js` is still under the 800-line max.
-- **`backlog-lint` / `design-lint` structure lints** — the optional enforcing half of ADR-014
-  (the `templates/backlog.md` template shipped at P4; the structure lint + bats fixtures did not).
-- **Built-in per-tracker backlog adapter** (e.g. first-class `github-issues`) — rides the P14
-  derived-plugin surface (a plugin shipping a backlog adapter); the repo-`custom`-script escape
-  hatch (P11) already covers the tracker case today.
 - **Single-source the harness-knob type schema** (P18 refactor follow-up) — the knob vocabulary is
   encoded twice: `coerceHarnessValue` (CLI coercion, `pipeline-resolve-main.js`) and `validateHarness`
   (typing, `manifest.js`) both enumerate `passes`/`max_cycles`/`convergence`/`incremental`/`dimensions`.
   A shared knob→type map would let coercion and validation derive from one declaration. Deferred at P18
   as feature-sized (its own design); do it when a knob is added or renamed and the duplication bites.
-- **Extend the `NO-OP(<phase>):` token to `architecture`/`validation`** (P19 follow-up) — those two
-  phases still record a no-op in the older "no-op with a note" idiom; ADR-103 defines the
-  `NO-OP(<phase>):` token as extensible to them. Bringing them under it gives the whole run record one
-  greppable no-op shape. Behaviour-touching (it changes their recorded line, near the
-  propose-gate-release wording of ADR-082), so scoped out of P19 as its own small change.
-- **Mechanical guard for the `NO-OP(<phase>):` token spelling** (P19 follow-up) — the token's
-  grep-symmetry contract is currently unguarded (verified only by one-shot greps at implementation
-  time); a future edit could silently drift one copy's spelling. A tiny repo check (a `package.json`/CI
-  grep asserting each phase's token string is present) would make the symmetry self-enforcing. Deferred
-  to avoid adding a new CI surface inside a wording-only change.
-- **Per-hunk mutation scope must be one comma-separated `--mutate`** (P20 follow-up — real correctness
-  risk). In P20's `validation` phase, scoping per-hunk with two *separate* `--mutate file:range` flags
-  made Stryker honor only the last (under-scoped to one hunk), reporting a falsely-clean 100 % (2
-  mutants) that hid a real survivor; the single combined `--mutate "fileA:r1,fileB:r2"` surfaced 13
-  mutants + 1 survivor. Whatever builds the mutation invocation (the `validation` skill / a helper)
-  should emit ONE comma-separated `--mutate` for multi-hunk scopes — ideally asserting the instrumented
-  mutant count is plausible — so a silent under-scope can't pass the gate on a fake score.
-- **Structured / checkable DoD criteria (DC-5 v2)** (P20 follow-up) — P20 shipped a free-text DoD
-  (ADR-109). A structured schema (each criterion tagged auto-checkable vs judgment, naming a gate
-  command / file-exists assertion) would enable mechanical met-ness for the auto subset, at the cost of
-  a schema + parser a repo must learn. Build only once free-text proves the surface.
-- **DoD trust on contributor branches** (P20 follow-up — surfaced by the security review) — P20 reads
-  the DoD as trusted operator input (sound on a maintainer checkout). If craft is ever run against
-  contributor/PR branches in an automated context, `docs/DOD.md` (or the `paths.dod` target) is editable
-  by an untrusted author who could soften the bar. The fence already stops the DoD being obeyed as
-  engine instructions, and "evidenced by phase results, never re-run" mitigates; document that asserting
-  agents treat criteria as *claims to verify against phase evidence*, not ground truth, and that DoD
-  content is part of the reviewed diff.
+  Re-evaluated 2026-06-28 (batched backlog-clearing run): still an honest no-op — the coerce/validate
+  knob sets are structurally asymmetric and the trigger has not fired (a faithful single-source costs
+  more abstraction than the duplication removes).
 - **Repo-local memory hardening** (P22 follow-ups — surfaced by review/validation) — the memory port
   (`docs/adapters/memory.md`, ADRs 116–123) ships deliberate document-only / mechanism-only choices that
   leave clean upgrade paths: (a) the **`custom` memory adapter** binding is reserved in the `memory:` key
   but only `file` is built; (b) the content whitelist is **document-only** — a **reject-at-write + schema
   lint** is the documented upgrade if non-mechanical content (abs paths, secrets, prose) ever leaks in
-  practice; (c) `reconcile` does not **dedupe same-key entries on load** (advisory; the write surface
-  normally maintains uniqueness) — a load-time collapse would harden against a hand-edited store; (d)
-  `evictToCaps` re-serializes per drop, an **O(n²) cap-shrink edge** (lowering a cap on an already-large
-  store) a bulk-prune would fix (YAGNI at current bounded sizes); (e) **run-over-run measurement** has no
-  smoke yet — an SC5-style on-demand smoke driving load→save→`.claude/craft-metrics.md` across two runs
-  would prove the improvement loop end-to-end. None blocking; each is bounded by the advisory-cache
-  premise (worst case wasted cost, never wrong correctness).
-- **`realpath`-harden the path-containment helpers** (P23 security follow-up — surfaced by review) — both
-  `containUserPolicyPath` (`engine/src/policy.js`, P23's user-policy file) and `memory.js:resolveStorePath`
-  use *lexical* containment (`resolve` + separator-prefix check), so a symlink planted inside the root
-  (`~/.claude` or the repo's `.claude/`) is followed. Not a privilege escalation — both paths are fixed and
-  anyone who can plant the symlink can write the target directly — and the two helpers are deliberately
-  symmetric, so harden them together (`realpathSync` then re-check containment) as one cross-cutting change
-  if symlink-following ever becomes a concern. Pairs with the memory-hardening item above. Deferred from
-  P23's review (LOW).
+  practice; (d) `evictToCaps` re-serializes per drop, an **O(n²) cap-shrink edge** (lowering a cap on an
+  already-large store) a bulk-prune would fix (YAGNI at current bounded sizes); (e) **run-over-run
+  measurement** has no smoke yet — an SC5-style on-demand smoke driving load→save→`.claude/craft-metrics.md`
+  across two runs would prove the improvement loop end-to-end. None blocking; each is bounded by the
+  advisory-cache premise (worst case wasted cost, never wrong correctness). _((c) load-time same-key
+  dedupe shipped 2026-06-28 in the batched backlog-clearing run.)_
 - **Interactive generator hardening** (P25 follow-ups — surfaced by review/validation) — `craft:init`
   shipped deliberate scope edges that leave clean upgrade paths: (a) **headless/answer-file interview
   mode** for `craft-pi`/non-Claude onboarding (interactive-only today; the interview is a conversation
   and `craft-pi` has no interactive stdin — ship when a concrete non-Claude onboarding need exists);
   (b) **merge-into-existing named config** (the generator direct-overwrites a named file today, never
-  merges; precedence-aware frontmatter reconciliation is its own feature); (c) **deterministic land
-  helper + executable test for the emit→temp→lint→move sequence** — that safety sequence lives in
-  `skills/init/SKILL.md` prose (covered by a manual smoke, not an executable test); a small bin taking
-  the *validated* path as argv would make the lint-then-move gate deterministic and unit-testable
-  (review noted the move-gate is prose-only); (d) **a shipped `examples/named-config/` sample + an
-  on-demand end-to-end smoke** running `craft:init` then `/craft:run --config <name>` (mirroring the
-  SC5 second-instantiation smoke) to prove the generate→consume loop. None blocking; each is a bounded
-  edge of an advisory-cost feature (worst case: a manual step, never wrong output — every emit is
-  lint-gated before it lands).
+  merges; precedence-aware frontmatter reconciliation is its own feature). None blocking; each is a
+  bounded edge of an advisory-cost feature (worst case: a manual step, never wrong output — every emit is
+  lint-gated before it lands). _((c) deterministic land helper + (d) `examples/named-config/` sample
+  shipped 2026-06-28 in the batched backlog-clearing run.)_
+- **Atomic-open path containment (TOCTOU / hardlink).** `engine/src/contain.js` closes the symlink-escape
+  gap but returns the *lexical* path, so a symlink swapped into an ancestor between check and I/O, or a
+  hardlink to an external file planted inside the root, is not caught (documented in the module header).
+  Trigger: if the local advisory threat model ever hardens to untrusted multi-writer roots, replace the
+  check-then-use with an atomic open (`O_NOFOLLOW`-style) and canonical-path I/O. YAGNI today (fixed
+  roots; a planter could write the target directly).
+
 ### Closed — won't-do (rationale recorded)
 
 - **DC-9 registered-phase model seed** — *resolved by design, not implemented.* The walk

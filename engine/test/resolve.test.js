@@ -1539,3 +1539,33 @@ test('Given a pipeline.insert with explicit archetype:harness, when resolvePipel
     `expected no inference record for explicit-harness; record: ${JSON.stringify(result.record)}`,
   );
 });
+
+// ─── null-id insert guard ─────────────────────────────────────────────────────
+
+test('Given pipeline.insert with a missing id, when resolvePipeline runs, then ok:false with the id error', () => {
+  const sut = resolvePipeline;
+  const defaults = loadDefault();
+  const manifest = { pipeline: { insert: [{ after: 'review', procedure: 'craft:x' }] } };
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('pipeline.insert') && e.includes('.id must be a non-empty string')),
+    `Expected id error, got: ${result.errors.join('; ')}`,
+  );
+});
+
+test('Given pipeline.insert with a whitespace-only id, when resolvePipeline runs, then ok:false with the id error', () => {
+  const sut = resolvePipeline;
+  const defaults = loadDefault();
+  const manifest = { pipeline: { insert: [{ id: '   ', procedure: 'craft:x' }] } };
+
+  const result = sut(defaults, manifest);
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('.id must be a non-empty string')),
+    `Expected id error, got: ${result.errors.join('; ')}`,
+  );
+});

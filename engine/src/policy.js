@@ -8,7 +8,9 @@
  * always freshly constructed) and memory.js (frozen exported constants).
  */
 
-import { resolve as resolvePath, sep as pathSep } from 'node:path';
+import { resolve as resolvePath } from 'node:path';
+
+import { containByRealpath } from './contain.js';
 
 /**
  * Canonical set of nameable outward/hard-to-reverse actions.
@@ -174,8 +176,5 @@ export function consult(action, ctx) {
  * @returns {string|null}
  */
 export function containUserPolicyPath(root, path) {
-  const absRoot = resolvePath(root);
-  const absPath = resolvePath(path);
-  if (absPath !== absRoot && !absPath.startsWith(absRoot + pathSep)) return null;
-  return absPath;
+  return containByRealpath(resolvePath(root), resolvePath(path));
 }

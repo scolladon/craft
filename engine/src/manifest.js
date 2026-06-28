@@ -2,13 +2,17 @@
  * validateManifest — pure manifest shape validator.
  * Accepts a pre-parsed JS object (js-yaml output) and an opts bag.
  * Never throws; accumulates errors and returns { ok, errors[] }.
- * No I/O — file-existence checks are injected via opts.fileExists.
+ * No I/O — file-existence checks are injected via opts.fileExists;
+ * optional opts.readFile enables structured DoD sidecar validation.
  */
 
 import { resolveAlias } from './alias-map.js';
-import { VALID_ARCHETYPES } from './descriptor.js';
-import { BUNDLE_VOCAB } from './graph.js';
 import { POLICY_ACTIONS, VERDICTS } from './policy.js';
+import { checkFileRef } from './manifest-file-ref.js';
+import { validateExtends, registeredBacklogNames } from './extends-validation.js';
+import { parseDod, validateDodCriteria } from './dod.js';
+
+export { registeredBacklogNames } from './extends-validation.js';
 
 /** Known top-level keys (ADR-010 adds pipeline, retrieval, execution). */
 const TOP_KEYS = Object.freeze(new Set([
@@ -79,44 +83,6 @@ const BACKLOG_SOURCES = Object.freeze(new Set(['file', 'custom']));
 const MEMORY_SOURCES = Object.freeze(new Set(['file', 'custom']));
 
 /**
- * Sentinel values that indicate an absent path (no file-existence check needed).
- * @param {unknown} value
- * @returns {boolean}
- */
-function isAbsentPath(value) {
-  return value === null || value === undefined || value === '' || value === '~';
-}
-
-/**
- * Coerce a scalar-or-array value into a flat array of strings.
- * @param {unknown} value
- * @returns {string[]}
- */
-function toStringArray(value) {
-  if (Array.isArray(value)) return value.map(String);
-  return [String(value)];
-}
-
-/**
- * Check a single file-ref value, accumulating an error on miss.
- * Handles scalar string or array of strings; skips absent sentinels.
- *
- * @param {string} label   - human-readable path label for the error message
- * @param {unknown} value  - the manifest value (string, string[], null, etc.)
- * @param {(path: string) => boolean} fileExists - injected predicate
- * @param {string[]} errors - accumulator
- */
-function checkFileRef(label, value, fileExists, errors) {
-  if (isAbsentPath(value)) return;
-  for (const path of toStringArray(value)) {
-    if (isAbsentPath(path)) continue;
-    if (!fileExists(path)) {
-      errors.push(`${label} references missing file: ${path}`);
-    }
-  }
-}
-
-/**
  * Validate the `models` sub-object.
  * @param {Record<string, unknown>} models
  * @param {string[]} errors
@@ -164,13 +130,28 @@ function validatePr(pr, errors) {
 /**
  * Validate the `paths` sub-object — checks only the `dod` key as a file-ref;
  * all other sub-keys remain inert.
+ * When readFile is provided and paths.dod is set, parses the DoD for a structured
+ * sidecar and validates any criteria shape found (back-compat: free-text returns null).
  * @param {Record<string, unknown>} paths
  * @param {(path: string) => boolean} fileExists
  * @param {string[]} errors
+ * @param {(path: string) => string | null} [readFile]
  */
-function validatePaths(paths, fileExists, errors) {
+function validatePaths(paths, fileExists, errors, readFile) {
   if (!paths || typeof paths !== 'object' || Array.isArray(paths)) return;
   checkFileRef('paths.dod', paths.dod, fileExists, errors);
+  if (typeof readFile !== 'function' || !paths.dod) return;
+  const content = readFile(paths.dod);
+  if (content === null || content === undefined) return;
+  let parsed;
+  try {
+    parsed = parseDod(content);
+  } catch (e) {
+    errors.push(e.message);
+    return;
+  }
+  if (!parsed) return;
+  for (const e of validateDodCriteria(parsed.criteria)) errors.push(e);
 }
 
 /**
@@ -191,17 +172,6 @@ function validateScripts(scripts, fileExists, errors) {
 
 /** Non-built-in tracker values that get a targeted hint instead of the generic error. */
 const NON_BUILTIN_TRACKERS = Object.freeze(new Set(['github-issues', 'jira', 'linear']));
-
-/**
- * Collect the registered backlog adapter names from an extends block.
- * @param {unknown} extendsBlock
- * @returns {Set<string>}
- */
-export function registeredBacklogNames(extendsBlock) {
-  const adapters = extendsBlock?.['backlog-adapters'];
-  if (!Array.isArray(adapters)) return new Set();
-  return new Set(adapters.map(a => a?.name).filter(n => typeof n === 'string' && n.trim() !== ''));
-}
 
 /**
  * Validate the `backlog` sub-object.
@@ -344,13 +314,29 @@ function validatePolicy(policy, errors) {
  * @param {number} i
  * @returns {string|number}
  */
-function insertLabel(entry, i) {
+export function insertLabel(entry, i) {
   if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
     if (typeof entry.id === 'string' && entry.id !== '') return entry.id;
     if (typeof entry.after === 'string') return `after:${entry.after}`;
     if (typeof entry.before === 'string') return `before:${entry.before}`;
   }
   return i;
+}
+
+/**
+ * Return the id-validation error message for an insert entry, or null if the id is valid.
+ * A valid id is a non-empty, non-whitespace-only string.
+ * @param {unknown} entry
+ * @param {number} i
+ * @returns {string|null}
+ */
+export function insertIdError(entry, i) {
+  const label = insertLabel(entry, i);
+  const id = entry?.id;
+  if (typeof id !== 'string' || id.trim() === '') {
+    return `pipeline.insert[${label}].id must be a non-empty string`;
+  }
+  return null;
 }
 
 /**
@@ -610,235 +596,21 @@ function validateSkipRequiredCollision(manifest, errors) {
   }
 }
 
-/** Accepted keys in the `extends` top-level block. */
-const EXTENDS_KEYS = Object.freeze(new Set(['phases', 'agents', 'profiles', 'backlog-adapters']));
-
-/** Accepted execution mode values for profile entries. */
-const PROFILE_EXECUTION_VALUES = Object.freeze(new Set(['inline', 'agent']));
-
-/**
- * Validate the optional string fields of a registered phase entry.
- * @param {object} phase
- * @param {number} i
- * @param {string[]} errors
- */
-function validateExtendsPhaseOptionalStrings(phase, i, errors) {
-  for (const field of ['role', 'gate', 'after', 'before']) {
-    const val = phase[field];
-    if (val !== undefined && typeof val !== 'string') {
-      errors.push(`extends.phases[${i}].${field} must be a string`);
-    }
-  }
-}
-
-/**
- * Validate one registered phase entry in `extends.phases`.
- * @param {unknown} phase
- * @param {number} i
- * @param {string[]} errors
- */
-function validateExtendsPhaseEntry(phase, i, errors) {
-  if (!phase || typeof phase !== 'object' || Array.isArray(phase)) {
-    errors.push(`extends.phases[${i}] must be an object`);
-    return;
-  }
-  const { id, procedure, archetype, contract, consumes, produces } = phase;
-
-  if (typeof id !== 'string' || id.trim() === '') {
-    errors.push(`extends.phases[${i}].id must be a non-empty string`);
-  }
-  if (typeof procedure !== 'string' || procedure.trim() === '') {
-    errors.push(`extends.phases[${i}].procedure must be a non-empty string`);
-  }
-  // NoCoverage note: typeof guard is redundant — VALID_ARCHETYPES.has(nonString) returns false for any non-string, so !has alone covers non-strings; kept for defensive intent.
-  if (archetype !== undefined && (typeof archetype !== 'string' || !VALID_ARCHETYPES.has(archetype))) {
-    errors.push(`extends.phases[${i}].archetype, when present, must be one of ${[...VALID_ARCHETYPES].join(', ')}`);
-  }
-  validateExtendsPhaseContract(contract, i, errors);
-  validateExtendsPhaseStringArray(consumes, `extends.phases[${i}].consumes`, errors);
-  validateExtendsPhaseStringArray(produces, `extends.phases[${i}].produces`, errors);
-  validateExtendsPhaseOptionalStrings(phase, i, errors);
-}
-
-/**
- * Validate the `contract` field of a registered phase entry.
- * Must be an array, and every element must be in BUNDLE_VOCAB.
- * @param {unknown} contract
- * @param {number} i
- * @param {string[]} errors
- */
-function validateExtendsPhaseContract(contract, i, errors) {
-  if (contract === undefined) return;
-  if (!Array.isArray(contract)) {
-    errors.push(`extends.phases[${i}].contract must be an array`);
-    return;
-  }
-  for (const [j, bundle] of contract.entries()) {
-    if (!BUNDLE_VOCAB.has(bundle)) {
-      errors.push(`extends.phases[${i}].contract[${j}]: "${bundle}" is not a known bundle (expected one of ${[...BUNDLE_VOCAB].join(', ')})`);
-    }
-  }
-}
-
-/**
- * Validate that a field is an array of strings, if present.
- * @param {unknown} value
- * @param {string} label
- * @param {string[]} errors
- */
-function validateExtendsPhaseStringArray(value, label, errors) {
-  if (value === undefined) return;
-  if (!Array.isArray(value)) {
-    errors.push(`${label} must be an array`);
-    return;
-  }
-  for (const [i, item] of value.entries()) {
-    if (typeof item !== 'string') {
-      errors.push(`${label}[${i}] must be a string`);
-    }
-  }
-}
-
-/**
- * Validate the `extends.phases` sub-block.
- * @param {unknown} phases
- * @param {string[]} errors
- */
-function validateExtendsPhases(phases, errors) {
-  if (!Array.isArray(phases)) {
-    errors.push('extends.phases must be an array');
-    return;
-  }
-  for (const [i, phase] of phases.entries()) {
-    validateExtendsPhaseEntry(phase, i, errors);
-  }
-}
-
-/**
- * Validate the `extends.agents` sub-block.
- * @param {unknown} agents
- * @param {string[]} errors
- */
-function validateExtendsAgents(agents, errors) {
-  if (!Array.isArray(agents)) {
-    errors.push('extends.agents must be an array');
-    return;
-  }
-  for (const [i, ref] of agents.entries()) {
-    if (typeof ref !== 'string' || ref.trim() === '') {
-      errors.push(`extends.agents[${i}] must be a string`);
-    }
-  }
-}
-
-/**
- * Validate one named profile entry in `extends.profiles`.
- * All six archetype keys are required; values must be "inline" or "agent".
- * @param {unknown} value
- * @param {string} name
- * @param {string[]} errors
- */
-function validateExtendsProfileEntry(value, name, errors) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) {
-    errors.push(`extends.profiles.${name} must be an object`);
-    return;
-  }
-  for (const archetype of VALID_ARCHETYPES) {
-    if (!Object.hasOwn(value, archetype)) {
-      errors.push(`extends.profiles.${name}: missing archetype "${archetype}"`);
-    } else if (!PROFILE_EXECUTION_VALUES.has(value[archetype])) {
-      errors.push(`extends.profiles.${name}: value for "${archetype}" must be inline|agent, got "${value[archetype]}"`);
-    }
-  }
-}
-
-/**
- * Validate the `extends.profiles` sub-block.
- * @param {unknown} profiles
- * @param {string[]} errors
- */
-function validateExtendsProfiles(profiles, errors) {
-  if (!profiles || typeof profiles !== 'object' || Array.isArray(profiles)) {
-    errors.push('extends.profiles must be an object');
-    return;
-  }
-  for (const [name, value] of Object.entries(profiles)) {
-    validateExtendsProfileEntry(value, name, errors);
-  }
-}
-
-/**
- * Validate the `extends.backlog-adapters` sub-block.
- * @param {unknown} adapters
- * @param {(path: string) => boolean} fileExists
- * @param {string[]} errors
- */
-function validateExtendsBacklogAdapters(adapters, fileExists, errors) {
-  if (!Array.isArray(adapters)) {
-    errors.push('extends.backlog-adapters must be an array');
-    return;
-  }
-  for (const [i, adapter] of adapters.entries()) {
-    if (!adapter || typeof adapter !== 'object' || Array.isArray(adapter)) {
-      errors.push(`extends.backlog-adapters[${i}] must be an object`);
-      continue;
-    }
-    const { name, ref } = adapter;
-    if (typeof name !== 'string' || name.trim() === '') {
-      errors.push(`extends.backlog-adapters[${i}].name must be a non-empty string`);
-    }
-    if (typeof ref !== 'string' || ref.trim() === '') {
-      errors.push(`extends.backlog-adapters[${i}].ref must be a non-empty string`);
-    } else {
-      checkFileRef(`extends.backlog-adapters[${i}].ref`, ref, fileExists, errors);
-    }
-  }
-}
-
-/**
- * Validate the `extends` top-level block.
- * @param {unknown} extendsBlock
- * @param {(path: string) => boolean} fileExists
- * @param {string[]} errors
- */
-function validateExtends(extendsBlock, fileExists, errors) {
-  if (!extendsBlock || typeof extendsBlock !== 'object' || Array.isArray(extendsBlock)) {
-    errors.push('extends must be an object');
-    return;
-  }
-  for (const k of Object.keys(extendsBlock)) {
-    if (!EXTENDS_KEYS.has(k)) {
-      errors.push(`unknown extends sub-key: ${k}`);
-    }
-  }
-  if (Object.hasOwn(extendsBlock, 'phases')) {
-    validateExtendsPhases(extendsBlock.phases, errors);
-  }
-  if (Object.hasOwn(extendsBlock, 'agents')) {
-    validateExtendsAgents(extendsBlock.agents, errors);
-  }
-  if (Object.hasOwn(extendsBlock, 'profiles')) {
-    validateExtendsProfiles(extendsBlock.profiles, errors);
-  }
-  if (Object.hasOwn(extendsBlock, 'backlog-adapters')) {
-    validateExtendsBacklogAdapters(extendsBlock['backlog-adapters'], fileExists, errors);
-  }
-}
-
 /**
  * Validate a pre-parsed manifest object.
  * Returns { ok: boolean, errors: string[] }; never throws.
  *
  * @param {Record<string, unknown>|null|undefined} manifest - js-yaml load() output
- * @param {{ fileExists?: (path: string) => boolean }} [opts] - fileExists defaults to
- *   "assume present" when omitted (file existence is a separate, injected concern); the
- *   guard keeps the never-throws contract even if a caller forgets opts.
+ * @param {{ fileExists?: (path: string) => boolean, readFile?: (path: string) => string | null }} [opts]
+ *   fileExists defaults to "assume present" when omitted; readFile enables structured DoD
+ *   sidecar validation when present (default: no DoD content check).
  * @returns {{ ok: boolean, errors: string[] }}
  */
 export function validateManifest(manifest, opts) {
   if (manifest === null || manifest === undefined) return { ok: true, errors: [] };
 
   const fileExists = typeof opts?.fileExists === 'function' ? opts.fileExists : () => true;
+  const readFile = typeof opts?.readFile === 'function' ? opts.readFile : null;
   const errors = [];
   const adapterNames = registeredBacklogNames(manifest.extends);
 
@@ -883,7 +655,7 @@ export function validateManifest(manifest, opts) {
         validateExtends(value, fileExists, errors);
         break;
       case 'paths':
-        validatePaths(value, fileExists, errors);
+        validatePaths(value, fileExists, errors, readFile);
         break;
       // retrieval, execution: recognized; no sub-validation
     }

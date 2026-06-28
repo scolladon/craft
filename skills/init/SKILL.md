@@ -197,31 +197,21 @@ Remove `$answers_tmp` after the emitter exits (whether success or failure). On a
 
 ---
 
-### Step 3 — Temp-lint
+### Step 3 — Land (lint-then-move)
 
-Run manifest-lint against the temp file:
-
-```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh" "$manifest_tmp"
-```
-
-**Non-zero exit:** STOP — surface the full `manifest-lint` diagnostic block; remove `$manifest_tmp`; nothing lands; any prior `.claude/craft-<name>.md` is untouched byte-for-byte.
-
-**Exit 0:** proceed to Step 4.
-
-Never swallow a lint failure.
-
----
-
-### Step 4 — Land (atomic move)
-
-Move the temp file into place, reusing the validated `$manifest_final` from the Preamble — never reconstruct the path from the raw name:
+Run the deterministic land helper, which lints the temp file and moves it atomically only on a clean lint:
 
 ```bash
-mv "$manifest_tmp" "$manifest_final"
+node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-land.js" "$manifest_tmp" "$manifest_final"
 ```
 
-`mv` within `.claude/` on the same filesystem is atomic (a POSIX `rename`), and `$manifest_final` is the exact path `init-config.js` resolved — the bytes that passed lint are the bytes that land. The live `.claude/workflow.md` is never touched.
+`$manifest_final` is the exact path `init-config.js` resolved in the Preamble — never reconstruct it from the raw name. The helper lints `$manifest_tmp` first; only on exit 0 does it rename the temp to `$manifest_final` (a POSIX atomic rename on the same filesystem). The live `.claude/workflow.md` is never touched.
+
+**Non-zero exit:** STOP — surface the stderr diagnostic; remove `$manifest_tmp` if it still exists; nothing lands; any prior `.claude/craft-<name>.md` is untouched byte-for-byte.
+
+**Exit 0:** `$manifest_final` is in place and lints clean. Proceed to Done.
+
+Never swallow a lint failure; the helper ensures the move never occurs unless lint exits 0.
 
 ---
 

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyReorder, checkReorderApplicability, applyEnableEdits } from '../src/edits.js';
+import { applyReorder, checkReorderApplicability, applyEnableEdits, checkInsertApplicability } from '../src/edits.js';
 
 function makeDescriptor(id, enabled = true) {
   return { id, enabled, contract: [], consumes: [], produces: [], self_supply: [] };
@@ -239,4 +239,59 @@ test('Given a frozen input harness, when applyAllowedOverrides runs, then the in
   sut(descriptor, { harness: { scope: 'per-file', max_cycles: 2 } });
 
   assert.deepEqual(descriptor.harness, { tool: 'stryker', scope: 'per-hunk' });
+});
+
+// ─── Group D: checkInsertApplicability ───────────────────────────────────────
+
+test('Given an insert with a missing id, when checkInsertApplicability runs, then it returns the id error', () => {
+  const sut = checkInsertApplicability;
+
+  const result = sut([{ after: 'review', procedure: 'x' }]);
+
+  assert.equal(result.length, 1);
+  assert.ok(result[0].includes('pipeline.insert') && result[0].includes('.id must be a non-empty string'));
+});
+
+test('Given an insert with an empty-string id, when checkInsertApplicability runs, then it returns the id error', () => {
+  const sut = checkInsertApplicability;
+
+  const result = sut([{ id: '', procedure: 'x' }]);
+
+  assert.equal(result.length, 1);
+  assert.ok(result[0].includes('.id must be a non-empty string'));
+});
+
+test('Given an insert with a whitespace-only id, when checkInsertApplicability runs, then it returns the id error', () => {
+  const sut = checkInsertApplicability;
+
+  const result = sut([{ id: '   ', procedure: 'x' }]);
+
+  assert.equal(result.length, 1);
+  assert.ok(result[0].includes('.id must be a non-empty string'));
+});
+
+test('Given an insert with a numeric id, when checkInsertApplicability runs, then it returns the id error', () => {
+  const sut = checkInsertApplicability;
+
+  const result = sut([{ id: 42, procedure: 'x' }]);
+
+  assert.equal(result.length, 1);
+  assert.ok(result[0].includes('.id must be a non-empty string'));
+});
+
+test('Given an insert with an object id, when checkInsertApplicability runs, then it returns the id error', () => {
+  const sut = checkInsertApplicability;
+
+  const result = sut([{ id: {}, procedure: 'x' }]);
+
+  assert.equal(result.length, 1);
+  assert.ok(result[0].includes('.id must be a non-empty string'));
+});
+
+test('Given an insert with a valid non-empty string id, when checkInsertApplicability runs, then it returns []', () => {
+  const sut = checkInsertApplicability;
+
+  const result = sut([{ id: 'my-phase', procedure: 'x' }]);
+
+  assert.deepEqual(result, []);
 });

@@ -3215,3 +3215,157 @@ test('Given phases.validation.harness.techniques with bad scope, when validateMa
   assert.ok(scopeError.includes('per-file'), `expected 'per-file' in error: ${scopeError}`);
   assert.ok(scopeError.includes(', '), `expected comma-space separator in: ${scopeError}`);
 });
+
+// ─── structured DoD sidecar validation via injected readFile ──────────────────
+
+const STRUCTURED_DOD_VALID = [
+  '---',
+  'criteria:',
+  '  - id: gate-check',
+  '    kind: auto',
+  '    text: gates must be green',
+  '    assert:',
+  '      gate: validation',
+  '  - id: human-review',
+  '    kind: judgment',
+  '    text: reviewed by human',
+  '---',
+  '',
+].join('\n');
+
+test('Given paths.dod set and readFile returning valid structured criteria, when validateManifest runs, then it returns ok with no criteria errors', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { dod: 'docs/DOD.md' } },
+    { fileExists: ALWAYS_EXISTS, readFile: () => STRUCTURED_DOD_VALID },
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+});
+
+test('Given paths.dod set and readFile returning criteria with a missing id, when validateManifest runs, then it surfaces a criteria id error', () => {
+  const sut = validateManifest;
+  const content = [
+    '---',
+    'criteria:',
+    '  - kind: judgment',
+    '    text: no id here',
+    '---',
+    '',
+  ].join('\n');
+
+  const result = sut(
+    { paths: { dod: 'docs/DOD.md' } },
+    { fileExists: ALWAYS_EXISTS, readFile: () => content },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('.id must be a non-empty string')));
+});
+
+test('Given paths.dod set and readFile returning a frontmatter block with malformed YAML, when validateManifest runs, then it fails loud with a malformed-frontmatter error', () => {
+  const sut = validateManifest;
+  const content = '---\ncriteria: [\n  broken: yaml: {{{\n---\n';
+
+  const result = sut(
+    { paths: { dod: 'docs/DOD.md' } },
+    { fileExists: ALWAYS_EXISTS, readFile: () => content },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('malformed YAML frontmatter')));
+});
+
+test('Given paths.dod set and readFile returning a criterion with an invalid kind, when validateManifest runs, then it surfaces a kind error', () => {
+  const sut = validateManifest;
+  const content = [
+    '---',
+    'criteria:',
+    '  - id: bad',
+    '    kind: execute',
+    '    text: bad kind',
+    '---',
+    '',
+  ].join('\n');
+
+  const result = sut(
+    { paths: { dod: 'docs/DOD.md' } },
+    { fileExists: ALWAYS_EXISTS, readFile: () => content },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('kind')));
+});
+
+test('Given paths.dod set and readFile returning an auto criterion with non-string assert.gate, when validateManifest runs, then it surfaces a gate error', () => {
+  const sut = validateManifest;
+  const content = [
+    '---',
+    'criteria:',
+    '  - id: bad-gate',
+    '    kind: auto',
+    '    text: bad gate type',
+    '    assert:',
+    '      gate: 99',
+    '---',
+    '',
+  ].join('\n');
+
+  const result = sut(
+    { paths: { dod: 'docs/DOD.md' } },
+    { fileExists: ALWAYS_EXISTS, readFile: () => content },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('gate')));
+});
+
+test('Given paths.dod set and readFile returning an auto criterion with non-string assert.file-exists, when validateManifest runs, then it surfaces a file-exists error', () => {
+  const sut = validateManifest;
+  const content = [
+    '---',
+    'criteria:',
+    '  - id: bad-file',
+    '    kind: auto',
+    '    text: bad file-exists type',
+    '    assert:',
+    '      file-exists: 42',
+    '---',
+    '',
+  ].join('\n');
+
+  const result = sut(
+    { paths: { dod: 'docs/DOD.md' } },
+    { fileExists: ALWAYS_EXISTS, readFile: () => content },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('file-exists')));
+});
+
+test('Given paths.dod set and readFile returning plain free-text markdown (no frontmatter), when validateManifest runs, then it returns ok with no criteria errors (back-compat)', () => {
+  const sut = validateManifest;
+  const freeText = '# DoD\n\n- criterion one\n- criterion two\n';
+
+  const result = sut(
+    { paths: { dod: 'docs/DOD.md' } },
+    { fileExists: ALWAYS_EXISTS, readFile: () => freeText },
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+});
+
+test('Given paths.dod set but no readFile injected, when validateManifest runs, then no criteria check is performed and existing behavior is preserved', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { dod: 'docs/DOD.md' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.errors, []);
+});

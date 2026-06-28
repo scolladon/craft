@@ -1,10 +1,10 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, symlinkSync, chmodSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
-import { main } from '../src/manifest-lint-main.js';
+import { main, buildReadFile, buildFileExists } from '../src/manifest-lint-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { withTempCwd } from '../test-helpers/with-cwd.js';
 
@@ -198,4 +198,73 @@ test('Given a manifest referencing a script by absolute path that exists, when m
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(io.stdout.joined().includes('valid.'), `stdout was: ${io.stdout.joined()}`);
+});
+
+// ─── manifest file-ref containment (the builders fail closed on escape) ───────
+
+function manifestRoot() {
+  const root = mkdtempSync(join(tmpdir(), 'manifestlint-root-'));
+  tmpDirs.push(root);
+  mkdirSync(join(root, '.claude'));
+  return root;
+}
+
+test('Given a manifest file-ref pointing at an existing file outside the repo root, when the builders resolve it, then existence reads false and read returns null (no arbitrary-file-read oracle)', () => {
+  const root = manifestRoot();
+  const manifestPath = join(root, '.claude', 'workflow.md');
+  const outside = mkdtempSync(join(tmpdir(), 'manifestlint-outside-'));
+  tmpDirs.push(outside);
+  const evil = join(outside, 'evil.md');
+  writeFileSync(evil, 'secret');
+
+  assert.equal(buildFileExists(manifestPath)(evil), false);
+  assert.equal(buildReadFile(manifestPath)(evil), null);
+});
+
+test('Given a file-ref relative-escaping above the repo root, when the builders resolve it, then it is rejected', () => {
+  const root = manifestRoot();
+  const manifestPath = join(root, '.claude', 'workflow.md');
+
+  assert.equal(buildFileExists(manifestPath)('../../etc/hosts'), false);
+  assert.equal(buildReadFile(manifestPath)('../../etc/hosts'), null);
+});
+
+test('Given a contained relative file-ref under the repo root, when the builders resolve it, then existence is true and content is read', () => {
+  const root = manifestRoot();
+  const manifestPath = join(root, '.claude', 'workflow.md');
+  mkdirSync(join(root, 'docs'));
+  writeFileSync(join(root, 'docs', 'DOD.md'), 'hello');
+
+  assert.equal(buildFileExists(manifestPath)('docs/DOD.md'), true);
+  assert.equal(buildReadFile(manifestPath)('docs/DOD.md'), 'hello');
+});
+
+test('Given a symlink inside the repo root that points outside it, when the builders resolve it, then they fail closed', () => {
+  const root = manifestRoot();
+  const manifestPath = join(root, '.claude', 'workflow.md');
+  const outside = mkdtempSync(join(tmpdir(), 'manifestlint-link-'));
+  tmpDirs.push(outside);
+  const secret = join(outside, 'secret.md');
+  writeFileSync(secret, 'top');
+  symlinkSync(secret, join(root, 'link.md'));
+
+  assert.equal(buildFileExists(manifestPath)('link.md'), false);
+  assert.equal(buildReadFile(manifestPath)('link.md'), null);
+});
+
+test('Given a contained regular file with no read permission, when buildReadFile closure runs, then it returns null without throwing', () => {
+  const root = manifestRoot();
+  const manifestPath = join(root, '.claude', 'workflow.md');
+  const secretFile = join(root, 'secret.txt');
+  writeFileSync(secretFile, 'protected content');
+  chmodSync(secretFile, 0o000);
+
+  let result;
+  try {
+    result = buildReadFile(manifestPath)('secret.txt');
+  } finally {
+    chmodSync(secretFile, 0o644);
+  }
+
+  assert.equal(result, null);
 });

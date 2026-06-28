@@ -1,7 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { homedir } from 'node:os';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { mkdtempSync, symlinkSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 
 import {
   POLICY_ACTIONS,
@@ -616,4 +617,41 @@ test('Given the root path itself, when containUserPolicyPath is called, then it 
   const result = sut(root, root);
 
   assert.equal(result, root);
+});
+
+// ─── containUserPolicyPath — symlink escape via realpath ──────────────────────
+
+test('Given a symlink inside root pointing outside, when containUserPolicyPath is called, then it returns null', () => {
+  const sut = containUserPolicyPath;
+
+  const root = mkdtempSync(join(tmpdir(), 'craft-policy-'));
+  const outside = mkdtempSync(join(tmpdir(), 'craft-policy-out-'));
+  try {
+    symlinkSync(outside, join(root, 'escape'));
+    const escapingPath = join(root, 'escape', 'craft-policy.md');
+
+    const result = sut(root, escapingPath);
+
+    assert.equal(result, null);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test('Given a valid in-root non-symlink path, when containUserPolicyPath is called, then it returns the path unchanged', () => {
+  const sut = containUserPolicyPath;
+
+  const root = mkdtempSync(join(tmpdir(), 'craft-policy-'));
+  try {
+    mkdirSync(join(root, 'sub'));
+    writeFileSync(join(root, 'sub', 'craft-policy.md'), '');
+    const target = join(root, 'sub', 'craft-policy.md');
+
+    const result = sut(root, target);
+
+    assert.equal(result, target);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 });

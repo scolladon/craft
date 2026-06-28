@@ -1,8 +1,9 @@
 import { readFileSync, statSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, resolve } from 'node:path';
 import { load } from 'js-yaml';
 import { validateManifest } from './manifest.js';
 import { extractFrontmatter } from './frontmatter.js';
+import { containByRealpath } from './contain.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -27,7 +28,7 @@ function isRegularFile(p) {
   try {
     return statSync(p).isFile();
   } catch {
-    return false;
+    return false; // equivalent mutant (empty catch): undefined is falsy — callers use the return value as a boolean so same observable effect
   }
 }
 
@@ -53,9 +54,30 @@ function failInvalid(mf, errors, io) {
  * @param {string} manifestAbsPath
  * @returns {(p: string) => boolean}
  */
-function buildFileExists(manifestAbsPath) {
+export function buildFileExists(manifestAbsPath) {
   const ROOT = dirname(dirname(manifestAbsPath));
-  return (p) => isRegularFile(join(ROOT, p)) || isRegularFile(p);
+  return (p) => {
+    const contained = containByRealpath(ROOT, resolve(ROOT, p));
+    return contained !== null && isRegularFile(contained); // equivalent mutant (remove null check): isRegularFile(null) → statSync(null) throws → caught → returns false; same result
+  };
+}
+
+/**
+ * Build the readFile closure for structured DoD sidecar validation.
+ * ROOT is two directories above the manifest file (same root as buildFileExists).
+ * Returns the file content on success, null on any read error.
+ *
+ * @param {string} manifestAbsPath
+ * @returns {(p: string) => string | null}
+ */
+export function buildReadFile(manifestAbsPath) {
+  const ROOT = dirname(dirname(manifestAbsPath));
+  return (p) => {
+    const contained = containByRealpath(ROOT, resolve(ROOT, p));
+    // equivalent mutant (false / remove null-check / &&): readFileSync throws on null/dir/missing → caught below → return null; same result for all guard-elision mutations
+    if (contained === null || !isRegularFile(contained)) return null;
+    try { return readFileSync(contained, 'utf8'); } catch { return null; }
+  };
 }
 
 /**
@@ -87,8 +109,10 @@ export function main(argv, io) {
     return failInvalid(MF, [`malformed YAML frontmatter: ${err.message}`], io);
   }
 
-  const fileExists = buildFileExists(resolve(MF));
-  const { ok, errors } = validateManifest(parsed, { fileExists });
+  const absPath = resolve(MF);
+  const fileExists = buildFileExists(absPath);
+  const readFile = buildReadFile(absPath);
+  const { ok, errors } = validateManifest(parsed, { fileExists, readFile });
 
   if (ok) {
     io.stdout.write(`craft-manifest: ${MF} valid.\n`);

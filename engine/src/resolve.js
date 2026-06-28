@@ -11,7 +11,7 @@ import { resolveAlias } from './alias-map.js';
 import { validatePipeline } from './graph.js';
 import { expandProfile, applyProfileToArchetype, HARNESS_ARCHETYPE } from './profile.js';
 import { DEFAULT_EXECUTION, VALID_EXECUTIONS } from './descriptor.js';
-import { applyEnableEdits, applyInserts, applyReorder, checkReorderApplicability } from './edits.js';
+import { applyEnableEdits, applyInserts, applyReorder, checkReorderApplicability, checkInsertApplicability } from './edits.js';
 import { inferMissingArchetypes } from './archetype.js';
 import { checkStrandedConsumers } from './strand.js';
 import { resolveGatesAndWaivers } from './gates.js';
@@ -284,6 +284,17 @@ export function resolvePipeline(defaults, manifest, opts) {
   const enableResult = applyEnableEdits([...defaults], skipSet, phaseOverrides);
   const foldResult = foldRegisteredPhases(enableResult.descriptors, resolved.extends?.phases ?? []);
   const allInserts = [...(resolved.pipeline?.insert ?? []), ...foldResult.inserts];
+  const insertErrors = checkInsertApplicability(allInserts);
+  if (insertErrors.length > 0) {
+    return {
+      ok: false,
+      errors: insertErrors,
+      effective: [],
+      record: [...enableResult.records],
+      gateDecisions: [],
+      waivers: [],
+    };
+  }
   const insertResult = applyInserts(foldResult.descriptors, allInserts);
 
   const reorderList = resolved.pipeline?.reorder ?? [];

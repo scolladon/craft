@@ -24,11 +24,14 @@ real repo the file lives at your project root as `.claude/workflow.md`.
 | 11 | **insert** a phase | [`everything-claude-toolkit/`](everything-claude-toolkit/) | 1 |
 | — | enable a default-off phase (`enabled: true`) | [`requirements/`](requirements/) · [`architecture/`](architecture/) | 0 |
 | 12 | **derived-plugin extension surface** | [`derived-plugin/`](derived-plugin/) | 2 |
+| — | **named tracker adapter** (`extends.backlog-adapters`) | [`backlog-github-issues/`](backlog-github-issues/) | 2 |
+| — | **named config** (`craft:init` → `craft:run --config <name>`) | [`named-config/`](named-config/) | 0 |
 
 Tier 2 ships: the `extends:` registration surface is proven end-to-end (engine S7 fixture green).
 [`derived-plugin/`](derived-plugin/) shows a manifest registering a new phase, an agent, and a
-profile via a derived plugin. See [docs/GUIDE-customizing.md §3 Tier 2](../docs/GUIDE-customizing.md)
-for the full how-to.
+profile via a derived plugin. [`backlog-github-issues/`](backlog-github-issues/) shows a named
+backlog adapter registered via `extends.backlog-adapters`. See
+[docs/GUIDE-customizing.md §3 Tier 2](../docs/GUIDE-customizing.md) for the full how-to.
 
 ## Integrating external skill collections
 

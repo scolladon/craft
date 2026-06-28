@@ -7,7 +7,7 @@ set -euo pipefail
 # Resolve from repo root so relative paths and globs are call-site independent.
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-EXPECTED_TESTS=1156
+EXPECTED_TESTS=1234
 
 node_output="$(cd engine && node --test 'test/**/*.test.js' 2>&1)" && node_status=0 || node_status=$?
 echo "$node_output"
@@ -41,4 +41,12 @@ echo "$pi_output"
 actual_pi_tests="$(printf '%s\n' "$pi_output" | awk '/^# tests / {print $3}')"
 [ "$actual_pi_tests" = "$EXPECTED_PI_TESTS" ] || { echo "ci: pi test count drift — expected ${EXPECTED_PI_TESTS}, got ${actual_pi_tests}" >&2; exit 1; }
 
-bats test/ && shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts
+EXPECTED_PROC_TESTS=117
+
+proc_output="$(node --test 'test/**/*.test.js' 2>&1)" && proc_status=0 || proc_status=$?
+echo "$proc_output"
+[ "$proc_status" -eq 0 ] || { echo "ci: process node --test failed (exit ${proc_status})" >&2; exit "$proc_status"; }
+actual_proc_tests="$(printf '%s\n' "$proc_output" | awk '/^# tests / {print $3}')"
+[ "$actual_proc_tests" = "$EXPECTED_PROC_TESTS" ] || { echo "ci: process test count drift — expected ${EXPECTED_PROC_TESTS}, got ${actual_proc_tests}" >&2; exit 1; }
+
+shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts && bash scripts/backlog-lint.sh templates/backlog.md && bash scripts/design-lint.sh templates/design.md

@@ -1,0 +1,98 @@
+'use strict';
+const { test } = require('node:test');
+const assert = require('node:assert');
+const { execFileSync } = require('node:child_process');
+const path = require('node:path');
+
+const ROOT = path.join(__dirname, '..');
+
+// Explicit scanned-path list (not `grep -r .`):
+// engine/test/, scripts/, .claude/, examples/, and dated docs are NEVER scanned.
+const SCANNED_PATHS = [
+  path.join(ROOT, 'pipeline'),
+  path.join(ROOT, 'skills'),
+  path.join(ROOT, 'agents'),
+  path.join(ROOT, 'contracts'),
+  path.join(ROOT, 'templates'),
+  path.join(ROOT, 'engine/src'),
+  path.join(ROOT, 'docs/adapters'),
+  path.join(ROOT, 'docs/DOD.md'),
+  path.join(ROOT, 'docs/GUIDE-customizing.md'),
+  path.join(ROOT, 'README.md'),
+];
+
+// Class A: technique-specific tool and concept names that must not appear in plugin sources.
+const CLASS_A_PATTERN =
+  'stryker|mutmut|cosmic-ray|cargo-mutants|mutation|mutant|dependency-cruiser|depcruise';
+
+// Class B: VCS-host CLI references (word-boundary to avoid substrings like
+// "through", "weight", "light", "high", "right").
+const CLASS_B_PATTERN = '\\bgh\\b|\\bgithub\\b';
+
+function runGrep(pattern, paths, allowlistFilters) {
+  let result;
+  try {
+    result = execFileSync('grep', ['-rEn', pattern, ...paths], {
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    // grep exits non-zero when no matches found — that's the success case
+    result = err.stdout ?? '';
+  }
+  let lines = result.split('\n').filter(Boolean);
+  for (const filter of allowlistFilters) {
+    lines = lines.filter((line) => !filter.test(line));
+  }
+  return lines;
+}
+
+test(
+  'Given Parts 1-10 removed technique names, when class-A tokens are grepped across the scanned set, then zero un-allowlisted hits remain',
+  () => {
+    const offenders = runGrep(CLASS_A_PATTERN, SCANNED_PATHS, [
+      // 'equivalent mutant' / 'EQUIVALENT-MUTANT' / 'mutant unreachable': kept dogfood
+      // comments documenting why specific lines survive mutation analysis — intentional
+      // evidence in engine/src/**; a mutant-name comment outside this pattern still fails.
+      /equivalent mutant|EQUIVALENT-MUTANT|mutant unreachable/,
+      // docs/adapters/pi-poc-record.md: frozen PoC record — filesystem-mutation sense
+      // ("Pi's mutations confined to throwaway"), not a technique-name leak.
+      /\/docs\/adapters\/pi-poc-record\.md:/,
+    ]);
+    assert.strictEqual(
+      offenders.length,
+      0,
+      `Source-hygiene FAIL — un-allowlisted class-A hits:\n${offenders.join('\n')}`,
+    );
+  },
+);
+
+test(
+  'Given Parts 1-10 removed VCS-host CLI references, when class-B tokens are grepped across the scanned set, then zero un-allowlisted hits remain',
+  () => {
+    const offenders = runGrep(CLASS_B_PATTERN, SCANNED_PATHS, [
+      // docs/adapters/vcs.md: content-scoped exemption — only the adapter binding lines
+      // ("git and gh CLI called directly", "same git/gh CLI called directly by the
+      // adapter") carry the binding marker "CLI called directly"; that is the reviewed
+      // boundary where the host CLI is allowed to live. A future 'gh' in vcs.md PROSE
+      // (outside a "CLI called directly" binding line) is NOT exempt and trips this gate.
+      /\/docs\/adapters\/vcs\.md:[0-9]+:.*CLI called directly/,
+      // docs/adapters/backlog.md: the Backlog port adapter recipe documents 'gh' as
+      // an example custom-script tool — an allowed host-CLI location (Backlog axis,
+      // not VCS axis).
+      /\/docs\/adapters\/backlog\.md:/,
+      // engine/src/manifest.js 'github-issues': the NON_BUILTIN_TRACKERS constant
+      // names the backlog tracker id — a tracker name, not a VCS-host CLI reference.
+      /engine\/src\/manifest\.js:[0-9]+:.*github-issues/,
+      // docs/GUIDE-customizing.md 'file / gh /': the Backlog-axis label in the
+      // hexagon diagram (line 58) — explicitly kept (Backlog port, out of scope
+      // per Part 9 plan note).
+      /docs\/GUIDE-customizing\.md:[0-9]+:.*file \/ gh \//,
+    ]);
+    assert.strictEqual(
+      offenders.length,
+      0,
+      `Source-hygiene FAIL — un-allowlisted class-B hits:\n${offenders.join('\n')}`,
+    );
+  },
+);

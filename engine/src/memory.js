@@ -13,10 +13,11 @@
  * defaults to () => true when absent from the deps.validators map.
  */
 
-import { resolve as resolvePath, sep as pathSep } from 'node:path';
+import { resolve as resolvePath } from 'node:path';
 
 import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
 import { extractFrontmatter } from './frontmatter.js';
+import { containByRealpath } from './contain.js';
 
 /**
  * Default store path, relative to the repo root, when no `ref` is configured.
@@ -37,8 +38,7 @@ export const DEFAULT_REF = '.claude/craft-memory.md';
 function resolveStorePath(repoRoot, ref) {
   const rootAbs = resolvePath(repoRoot);
   const target = resolvePath(rootAbs, ref ?? DEFAULT_REF);
-  if (target !== rootAbs && !target.startsWith(rootAbs + pathSep)) return null; // equivalent mutant (true && ...): root itself resolves to a directory, readStore handles null/throw as emptyView either way
-  return target;
+  return containByRealpath(rootAbs, target);
 }
 
 /**
@@ -218,8 +218,44 @@ export function load(repoRoot, deps) {
 }
 
 /**
+ * Return true when candidate should replace incumbent in a same-key collapse.
+ * Higher confidence wins; ties go to the newer provenance.date.
+ *
+ * @param {object} candidate
+ * @param {object} incumbent
+ * @returns {boolean}
+ */
+function beats(candidate, incumbent) {
+  const confDiff = (candidate.confidence ?? 0) - (incumbent.confidence ?? 0);
+  if (confDiff !== 0) return confDiff > 0;
+  return (candidate.provenance?.date ?? '') > (incumbent.provenance?.date ?? '');
+}
+
+/**
+ * Collapse same-key entries within one concern, keeping the entry with the
+ * highest confidence; ties resolved by newest provenance.date.
+ * Returns the original array when there are no duplicates (early-return path).
+ * Immutable: never mutates the input array.
+ *
+ * @param {string} concern
+ * @param {object[]} entries
+ * @returns {object[]}
+ */
+function dedupeByKey(concern, entries) {
+  if (entries.length <= 1) return entries;
+  const winners = new Map();
+  for (const entry of entries) {
+    const k = keyOf(concern, entry);
+    const incumbent = winners.get(k);
+    if (!incumbent || beats(entry, incumbent)) winners.set(k, entry);
+  }
+  return winners.size === entries.length ? entries : [...winners.values()];
+}
+
+/**
  * Apply per-concern validate-on-read predicates.
  * Entries that fail are removed from the returned entries and appended to evicted.
+ * Same-key duplicates (accreted via hand-editing) are collapsed by dedupeByKey.
  * part-sizing defaults to () => true when no validator is provided.
  *
  * @param {{ [concern: string]: object[] }} allEntries
@@ -239,6 +275,7 @@ function applyValidators(allEntries, validators) {
         evicted.push({ ...entry, concern });
       }
     }
+    entries[concern] = dedupeByKey(concern, entries[concern]);
   }
 
   const loadNote = evicted.length > 0 ? 'some entries failed validate-on-read' : null;

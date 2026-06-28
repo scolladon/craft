@@ -7,6 +7,9 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, symlinkSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 
 import { CONCERNS, parseStore, serializeStore, load, save, FLOOR, CEILING, STEP, WINDOW } from '../src/memory.js';
 
@@ -2336,3 +2339,127 @@ test('Given no caps provided in deps, when save runs with two entries, then both
 // L91: if (!yamlText) → if (false): null yamlText passes to yamlLoad(null) = null
 //   then L94 guard: !null = true → returns null. Same observable result.
 //   PROVABLY EQUIVALENT: null yamlText → yamlLoad(null)=null → !null=true → null, same as early return null.
+
+// ─── resolveStorePath via contain — symlink hardening ─────────────────────────
+
+test('Given a symlink-dir escape as the store ref, when load is called, then it returns loadNote "store path outside repo" (null store path)', () => {
+  const root = mkdtempSync(join(tmpdir(), 'craft-mem-'));
+  const outside = mkdtempSync(join(tmpdir(), 'craft-mem-out-'));
+  try {
+    symlinkSync(outside, join(root, 'link'));
+    const result = load(root, {
+      ref: 'link/craft-memory.md',
+      readStore: () => null,
+      validators: ALL_PASS_VALIDATORS,
+    });
+
+    assert.equal(result.loadNote, 'store path outside repo');
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test('Given a not-yet-created leaf under a real in-root .claude dir as ref, when load is called, then readStore is invoked (path accepted)', () => {
+  const root = mkdtempSync(join(tmpdir(), 'craft-mem-'));
+  try {
+    mkdirSync(join(root, '.claude'));
+    let calledWith = null;
+    load(root, {
+      ref: '.claude/craft-memory.md',
+      readStore: p => { calledWith = p; return null; },
+      validators: ALL_PASS_VALIDATORS,
+    });
+
+    assert.ok(calledWith !== null, 'readStore must be called for a valid not-yet-created leaf');
+    assert.ok(calledWith.endsWith(join('.claude', 'craft-memory.md')));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Given a valid existing in-root store file as ref, when load is called, then readStore is invoked with the correct path', () => {
+  const root = mkdtempSync(join(tmpdir(), 'craft-mem-'));
+  try {
+    mkdirSync(join(root, '.claude'));
+    writeFileSync(join(root, '.claude', 'craft-memory.md'), '');
+    const expected = join(root, '.claude', 'craft-memory.md');
+    let calledWith = null;
+    load(root, {
+      ref: '.claude/craft-memory.md',
+      readStore: p => { calledWith = p; return null; },
+      validators: ALL_PASS_VALIDATORS,
+    });
+
+    assert.equal(calledWith, expected);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// ─── G: load-time dedupe of same-key entries ──────────────────────────────────
+
+test('Given two same-key toolchain entries in the store, when load runs, then they collapse to one entry', () => {
+  const entry1 = { ...TOOLCHAIN_ENTRY, confidence: 3 };
+  const entry2 = { ...TOOLCHAIN_ENTRY, confidence: 3 };
+  const storeContent = makeStoreContent([entry1, entry2]);
+
+  const result = load('/repo', { readStore: () => storeContent, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.entries.toolchain.length, 1);
+});
+
+test('Given two same-key entries with different confidence levels, when load runs, then the higher-confidence entry wins', () => {
+  const lowConf = { ...TOOLCHAIN_ENTRY, confidence: 2, provenance: { run: 'r1', commit: 'c1', date: '2024-01-01' } };
+  const highConf = { ...TOOLCHAIN_ENTRY, confidence: 4, provenance: { run: 'r2', commit: 'c2', date: '2024-01-02' } };
+  const storeContent = makeStoreContent([lowConf, highConf]);
+
+  const result = load('/repo', { readStore: () => storeContent, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.entries.toolchain.length, 1);
+  assert.equal(result.entries.toolchain[0].confidence, 4);
+});
+
+test('Given two same-key entries with equal confidence, when load runs, then the entry with the newest provenance date wins', () => {
+  const olderEntry = { ...TOOLCHAIN_ENTRY, confidence: 3, provenance: { run: 'r1', commit: 'c1', date: '2023-01-01' } };
+  const newerEntry = { ...TOOLCHAIN_ENTRY, confidence: 3, provenance: { run: 'r2', commit: 'c2', date: '2025-06-01' } };
+  const storeContent = makeStoreContent([olderEntry, newerEntry]);
+
+  const result = load('/repo', { readStore: () => storeContent, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.entries.toolchain.length, 1);
+  assert.equal(result.entries.toolchain[0].provenance.date, '2025-06-01');
+});
+
+test('Given entries with distinct keys under the same concern, when load runs, then all entries are preserved', () => {
+  const nodeEntry = { ...TOOLCHAIN_ENTRY, ecosystem: 'node', lockfileFingerprint: 'fp1' };
+  const pythonEntry = { ...TOOLCHAIN_ENTRY, ecosystem: 'python', lockfileFingerprint: 'fp2' };
+  const storeContent = makeStoreContent([nodeEntry, pythonEntry]);
+
+  const result = load('/repo', { readStore: () => storeContent, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.entries.toolchain.length, 2);
+});
+
+test('Given entries with matching payload-key values but under two different concerns, when load runs, then both entries survive', () => {
+  const toolchainEntry = { concern: 'toolchain', ecosystem: 'node', lockfileFingerprint: 'fp', confidence: 3, provenance: { run: 'r1', commit: 'c1', date: '2024-01-01' } };
+  const gateCmdEntry = { concern: 'gate-cmd', phase: 'node', command: 'npm test', confidence: 3, provenance: { run: 'r1', commit: 'c1', date: '2024-01-01' } };
+  const storeContent = makeStoreContent([toolchainEntry, gateCmdEntry]);
+
+  const result = load('/repo', { readStore: () => storeContent, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.entries.toolchain.length, 1);
+  assert.equal(result.entries['gate-cmd'].length, 1);
+});
+
+test('Given three same-key toolchain entries with different confidence levels, when load runs, then they collapse to the max-confidence survivor', () => {
+  const low = { ...TOOLCHAIN_ENTRY, confidence: 1, provenance: { run: 'r1', commit: 'c1', date: '2024-01-01' } };
+  const high = { ...TOOLCHAIN_ENTRY, confidence: 5, provenance: { run: 'r2', commit: 'c2', date: '2024-06-01' } };
+  const mid = { ...TOOLCHAIN_ENTRY, confidence: 3, provenance: { run: 'r3', commit: 'c3', date: '2024-12-01' } };
+  const storeContent = makeStoreContent([low, high, mid]);
+
+  const result = load('/repo', { readStore: () => storeContent, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.entries.toolchain.length, 1);
+  assert.equal(result.entries.toolchain[0].confidence, 5);
+});

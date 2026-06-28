@@ -4,6 +4,7 @@
  */
 
 import { DEFAULT_EXECUTION } from './descriptor.js';
+import { insertIdError } from './manifest.js';
 
 /**
  * Fields from manifest.phases.<id> that are allowed to be applied to a descriptor.
@@ -88,6 +89,23 @@ function insertLocation(after, before) {
   if (after !== undefined) return `after:${after}`;
   if (before !== undefined) return `before:${before}`;
   return 'append';
+}
+
+/**
+ * Check whether every insert entry carries a valid (non-empty, non-whitespace) string id.
+ * Pure query — returns string[] of all accumulated errors (no short-circuit).
+ *
+ * @param {object[]} inserts
+ * @returns {string[]}
+ */
+export function checkInsertApplicability(inserts) {
+  if (!inserts || inserts.length === 0) return [];
+  const errors = [];
+  for (const [i, ins] of inserts.entries()) {
+    const err = insertIdError(ins, i);
+    if (err) errors.push(err);
+  }
+  return errors;
 }
 
 /**
