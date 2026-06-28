@@ -223,7 +223,8 @@ part-sizing:
 - skills/run/SKILL.md — confidence 0.5 | c8b7685 (prose-edited in P27 but renumber-staleness not re-observed — decayed)
 - engine/src/manifest-lint-main.js — confidence 0.7 | f17d07e (manifest file-refs must be realpath-contained; bare-path fallback = arbitrary-read oracle when linting untrusted clones)
 - engine/src/contain.js — confidence 0.6 | f17d07e (defense-in-depth layers ⇒ equivalent mutants; returns lexical path ⇒ TOCTOU/hardlink window — document, don't over-claim)
-- engine/src/dod.js — confidence 0.6 | f17d07e (malformed structured frontmatter fails loud, never silent free-text downgrade)
+- engine/src/dod.js — confidence 0.7 | 5451144 (malformed structured frontmatter fails loud; DC-5 v2 runtime assertion now wired: validation invokes the dod-assert bin with green phase-ids collected from run-record GATE(<phase.id>): green tokens; a red/absent gate stays unmet, file-exists is containment-bound)
+- engine/bin (shim convention) — confidence 0.7 | 5451144 (engine bins are 5-line shims over engine/src/<name>-main.js; put bin logic in engine/src so Stryker covers it — mutate scope is engine/src/** ONLY, bin files are never mutated; bin spawn-smoke tests belong in engine/test/<name>.bin.test.js. Do NOT relocate a bin's tests to repo-root test/ on a mutation-coverage rationale — that argument is void since bins aren't mutated.)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1

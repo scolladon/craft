@@ -140,3 +140,14 @@ clear-backlog-candidates-gated review-tests tokens=143352 duration_ms=418195 cac
 clear-backlog-candidates-gated review-code tokens=89583 duration_ms=486152 cache=na
 clear-backlog-candidates-gated review-perf tokens=55984 duration_ms=139402 cache=na
 clear-backlog-candidates-gated validation tokens=158156 duration_ms=2222586 cache=na
+activate-dod-and-live-doc-lints design tokens=159486 duration_ms=927241 cache=na
+activate-dod-and-live-doc-lints design-revise tokens=120128 duration_ms=754968 cache=na
+activate-dod-and-live-doc-lints planning tokens=163497 duration_ms=600887 cache=na
+activate-dod-and-live-doc-lints implementation-part1 tokens=86939 duration_ms=600645 cache=na
+activate-dod-and-live-doc-lints implementation-part2 tokens=59742 duration_ms=470926 cache=na
+activate-dod-and-live-doc-lints review-code tokens=71546 duration_ms=259342 cache=na
+activate-dod-and-live-doc-lints review-security tokens=82236 duration_ms=231425 cache=na
+activate-dod-and-live-doc-lints review-tests tokens=84611 duration_ms=386477 cache=na
+activate-dod-and-live-doc-lints review-perf tokens=43179 duration_ms=37904 cache=na
+activate-dod-and-live-doc-lints review-code-2 tokens=62048 duration_ms=143569 cache=na
+activate-dod-and-live-doc-lints review-tests-2 tokens=57626 duration_ms=196494 cache=na
