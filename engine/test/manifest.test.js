@@ -103,6 +103,164 @@ test('Given a manifest with pipeline.insert, when validateManifest runs, then it
   assert.deepEqual(result, { ok: true, errors: [] });
 });
 
+test('Given a nested insert entry with a phase: key, when validateManifest runs, then ok:false and error mentions flat shape', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ after: 'implement', phase: { id: 'license-scan' } }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('flat shape')));
+  assert.ok(result.errors.some(e => e.includes('after:implement')));
+});
+
+test('Given a nested insert entry that also carries a top-level id, when validateManifest runs, then ok:false and the entry is labelled by its id', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ after: 'implementation', id: 'license-scan', phase: { id: 'x' } }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('flat shape')));
+  assert.ok(result.errors.some(e => e.includes('pipeline.insert[license-scan]')));
+});
+
+test('Given a nested insert entry anchored with before: and no id, when validateManifest runs, then ok:false and the entry is labelled by its before anchor', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ before: 'implementation', phase: { id: 'x' } }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('flat shape')));
+  assert.ok(result.errors.some(e => e.includes('before:implementation')));
+});
+
+test('Given a nested insert entry with no id and no anchor, when validateManifest runs, then ok:false and the entry is labelled by its index', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ phase: { id: 'x' } }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('flat shape')));
+  assert.ok(result.errors.some(e => e.includes('pipeline.insert[0]')));
+});
+
+test('Given a flat insert entry missing a string id (no phase: key), when validateManifest runs, then ok:false and error mentions .id must be a non-empty string', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ after: 'implementation', procedure: 'x:y' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('.id must be a non-empty string')));
+});
+
+test('Given a flat insert entry with an empty-string id, when validateManifest runs, then ok:false and error mentions .id must be a non-empty string', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ after: 'implementation', id: '', procedure: 'x:y' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('.id must be a non-empty string')));
+  assert.ok(result.errors.some(e => e.includes('after:implementation')));
+});
+
+test('Given a flat insert entry with a non-string id, when validateManifest runs, then ok:false and error mentions .id must be a non-empty string', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ after: 'implementation', id: 42, procedure: 'x:y' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('.id must be a non-empty string')));
+});
+
+test('Given pipeline.insert that is not a list, when validateManifest runs, then ok:false and error mentions must be a list', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: 'notalist' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('must be a list')));
+});
+
+test('Given an insert entry that is not an object, when validateManifest runs, then ok:false and error mentions must be an object', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [null] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('must be an object')));
+});
+
+test('Given an insert entry that is a primitive string, when validateManifest runs, then ok:false and error mentions must be an object', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: ['notanobject'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('must be an object')));
+});
+
+test('Given a flat insert with canonical anchor after:implementation, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ after: 'implementation', id: 'license-scan', procedure: 'my-toolkit:license-check', execution: 'inline' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a flat insert with alias anchor after:implement, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { insert: [{ after: 'implement', id: 'license-scan', procedure: 'my-toolkit:license-check' }] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with pipeline present but no insert key, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: {} },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
 test('Given a manifest with an unknown pipeline sub-key, when validateManifest runs, then it returns an error containing "unknown pipeline key"', () => {
   const sut = validateManifest;
 

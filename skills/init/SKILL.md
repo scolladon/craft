@@ -138,7 +138,7 @@ On non-zero: explain the constraint and re-ask.
   - **(b) position** — "After which existing phase should it run?" (offer the resolved phase-id list) → emits `after: <id>`.
   - **(c) does-it-block** — "Should a failure block the pipeline (hard gate) or be advisory?" → blocking shell check emits `gate`; advisory emits no gate.
 
-  Emit the **flat** shape (`after`/`id` as siblings of the phase fields — the nested `phase:{}` form silently no-ops):
+  Emit the **flat** shape (`after`/`id` as siblings of the phase fields — the nested `phase:{}` form is rejected at manifest-lint):
 
   ```yaml
   pipeline:

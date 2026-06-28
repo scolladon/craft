@@ -11,12 +11,11 @@ phases:
   review: { context: .claude/workflow/sec-rules.md } # toolkit security rules into review only (current, §7 #8)
 pipeline:                                           #                                           (PRD,    §7 #11)
   insert:
-    - after: implement
-      phase:
-        id: license-scan
-        procedure: my-toolkit:license-check        # a toolkit command becomes a real phase
-        execution: inline
-        gate: "npx license-checker --production"
+    - after: implementation
+      id: license-scan
+      procedure: my-toolkit:license-check          # a toolkit command becomes a real phase
+      execution: inline
+      gate: "npx license-checker --production"
 models: { reviewer: opus }                          # toolkit-driven model routing              (current, §7 #2)
 ---
 

@@ -164,13 +164,11 @@ Per-part history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/`
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
-- **Insert-shape robustness — fail loud (or normalize) the nested `pipeline.insert` form.** `applyInserts`
-  accepts only the FLAT `{ after, id, … }` insert shape; the nested `{ after, phase: { … } }` form silently
-  no-ops — the phase is never inserted and no error is raised
-  (`examples/everything-claude-toolkit/workflow.md` demonstrates the broken form). Surfaced during the
-  archetype-inference work, whose init sub-interview now emits the flat shape. Needs a decision (its own
-  `/craft:run`): reject the nested shape loudly (matches craft's loud-misconfiguration ethos) vs. normalize
-  it; either way the `everything-claude-toolkit` example must be corrected to a working insert.
+- **Resolve-time hardening — `resolvePipeline` nested / `null`-id insert guard.** Lint now rejects
+  the nested `pipeline.insert` form at exit 2 (ADR-169, ADR-170); `resolvePipeline` stays permissive
+  (DC3(a), ADR-171). The `ok:true`-with-`null`-id-phantom residual documented in
+  `docs/DESIGN-nested-insert-fail-loud.md` "Out of scope" needs a runtime guard in
+  `engine/src/resolve.js` or `engine/src/edits.js` for defense in depth. One coherent `/craft:run`.
 
 P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2026-06-23 — see the
 **P26 delivered** note under Status above.

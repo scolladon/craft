@@ -184,3 +184,11 @@ FIXTURES="${BATS_TEST_DIRNAME}/fixtures/manifest"
   [[ "$output" == *"INVALID manifest"* ]]
   [[ "$output" == *"use source: custom"* ]]
 }
+
+@test "Given a nested pipeline.insert entry, when lint runs, then it exits 2 and names the entry + reports flat shape" {
+  run_lint "${FIXTURES}/invalid-nested-insert.workflow.md"
+  [ "$status" -eq 2 ]
+  [[ "$output" == *"INVALID manifest"* ]]
+  [[ "$output" == *"pipeline.insert[after:implement]"* ]]
+  [[ "$output" == *"flat shape"* ]]
+}

@@ -381,7 +381,7 @@ test('Given answers with a pipeline insert, when emit→join→parse→validate 
   const answers = {
     name: 'with-insert',
     insert: [
-      { after: 'implementation', phase: { id: 'license-scan', procedure: 'my:license-check', execution: 'inline' } },
+      { after: 'implementation', id: 'license-scan', procedure: 'my:license-check', execution: 'inline' },
     ],
   };
 

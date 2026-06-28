@@ -396,7 +396,8 @@ node engine/bin/manifest-lint.js .claude/workflow.md     # or: scripts/manifest-
 ```
 
 `manifest-lint` refuses on any unknown key, a missing context/override file, or a malformed value —
-so a typo is caught before the run, not midway through it. No manifest at all = strong defaults via
+so a typo is caught before the run, not midway through it. A nested `pipeline.insert` entry (the
+`phase:{}` wrapper) is also rejected; use the flat `{ after, id, … }` sibling shape instead. No manifest at all = strong defaults via
 capability probing (lockfile detection, test-script discovery, technique-config probe, remote probe);
 declare only what probing can't infer.
 
