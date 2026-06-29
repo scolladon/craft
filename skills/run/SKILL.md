@@ -455,7 +455,7 @@ the store unchanged (atomicity; Req 6).
 
 **Metrics artifact (separate, append-only).** For each agent-spawned phase that returned a
 usage block, append one line to `.claude/craft-metrics.md` (ADR-119):
-`<run-id> <phase-id> tokens=<subagent_tokens> duration_ms=<duration_ms> cache=<hit|miss>`.
+`<run-id> <phase-id> tokens=<subagent_tokens> duration_ms=<duration_ms> cache_read=<n> cache_creation=<n>` (degrades to `cache=na` when the split is unavailable).
 Source: the usage block the spawn already returns — exact, zero extra cost. Role-less /
 inline phases have no spawn usage block; omit them. Metrics go to `.claude/craft-metrics.md`
 **only** — never into the learnings store `.claude/craft-memory.md`.

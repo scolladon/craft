@@ -7,8 +7,8 @@ as-is and customizes through a committed declination manifest. Zero session-memo
 dependence: every load-bearing rule lives in a hook, a script, or versioned instruction text.
 
 craft applies a **Harness-as-a-Service (HaaS)** pattern: the model (Model port), the runtime
-(Execution port), the per-repo advisory memory store (Memory port), and each per-phase harness are
-pluggable; the engine-owned invariant contract is not. This is a *pattern* — a reusable, governed
+(Execution port), the per-repo advisory memory store (Memory port), the usage-telemetry sink
+(Telemetry port), and each per-phase harness are pluggable; the engine-owned invariant contract is not. This is a *pattern* — a reusable, governed
 layer you install — not a hosted SaaS.
 
 ## Why craft
@@ -44,7 +44,8 @@ absent `--config` target is a loud stop — it never silently falls back to `.cl
 
 Phase skills also run standalone: `/craft:review` (multi-dimension review battery on
 the current branch), `/craft:validation` (scoped harness run + triage),
-`/craft:init` (interview-driven named-manifest generator — writes `.claude/craft-<name>.md`), etc.
+`/craft:init` (interview-driven named-manifest generator — writes `.claude/craft-<name>.md`),
+`/craft:metrics` (zero-arg usage-telemetry miner — mines transcript history and prints a structured usage report), etc.
 
 ## Customize — `.claude/workflow.md` in your repo
 

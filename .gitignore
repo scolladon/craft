@@ -18,3 +18,7 @@
 # Stryker mutation-testing artifacts (regenerated per run, never committed)
 /reports/
 /engine/.stryker-tmp/
+
+# G1: advisory miner outputs — generated in-repo, never committed
+/report.json
+/report.md
