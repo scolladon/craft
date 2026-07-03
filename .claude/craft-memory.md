@@ -92,12 +92,30 @@ findings:
   - concern: findings
     file: engine/src/dod.js
     severity: low
-    pattern: a structured-doc parser that opens a frontmatter block but mis-types the YAML should FAIL LOUD (throw, surfaced as a lint error), not silently downgrade to free-text; only a genuinely absent frontmatter block returns null. Matches the repo fail-loud direction
-    confidence: 0.6
+    pattern: a structured-doc parser that opens a frontmatter block but mis-types the YAML should FAIL LOUD; only a genuinely absent frontmatter block returns null — and "present" means LINE 1 only (mid-file --- are markdown horizontal rules, the docs/DOD.md case). DoD auto criteria may only assert gates recorded BEFORE dod-assert runs (implementation/review) — the validation gate cannot evidence itself
+    confidence: 0.75
     provenance:
-      run: clear-backlog-candidates-gated
-      commit: f17d07e
-      date: '2026-06-28'
+      run: shrink-core-prune-guardrails
+      commit: daf7f05
+      date: '2026-07-03'
+  - concern: findings
+    file: engine/src/observability/usage-aggregate.js
+    severity: high
+    pattern: a cross-report comparison keyed on per-session run ids can never match a committed baseline — the feature ships dead with green tests; compare per-phase MEANS (corpus-size-invariant, sums turn drift into a corpus-size counter) and keep the math NaN-safe (a malformed group contributes 0, never NaN — NaN silently swallows the flag while null renders visibly as "new")
+    confidence: 0.75
+    provenance:
+      run: shrink-core-prune-guardrails
+      commit: daf7f05
+      date: '2026-07-03'
+  - concern: findings
+    file: test/source-hygiene.test.js
+    severity: medium
+    pattern: a filename/location rule whose real tree contains zero matching files passes vacuously — pin the known artifacts' locations positively (tracked-path assertions) beside the synthetic offender, or moving a binding back into the neutral core is never caught
+    confidence: 0.7
+    provenance:
+      run: shrink-core-prune-guardrails
+      commit: daf7f05
+      date: '2026-07-03'
 part-sizing:
   - concern: part-sizing
     size: pure-module
@@ -203,6 +221,14 @@ part-sizing:
       run: clear-backlog-candidates-gated
       commit: f17d07e
       date: '2026-06-28'
+  - concern: part-sizing
+    size: relocation
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: shrink-core-prune-guardrails
+      commit: daf7f05
+      date: '2026-07-03'
 ---
 
 # craft memory store
@@ -223,7 +249,9 @@ part-sizing:
 - skills/run/SKILL.md — confidence 0.5 | c8b7685 (prose-edited in P27 but renumber-staleness not re-observed — decayed)
 - engine/src/manifest-lint-main.js — confidence 0.7 | f17d07e (manifest file-refs must be realpath-contained; bare-path fallback = arbitrary-read oracle when linting untrusted clones)
 - engine/src/contain.js — confidence 0.6 | f17d07e (defense-in-depth layers ⇒ equivalent mutants; returns lexical path ⇒ TOCTOU/hardlink window — document, don't over-claim)
-- engine/src/dod.js — confidence 0.7 | 5451144 (malformed structured frontmatter fails loud; DC-5 v2 runtime assertion now wired: validation invokes the dod-assert bin with green phase-ids collected from run-record GATE(<phase.id>): green tokens; a red/absent gate stays unmet, file-exists is containment-bound)
+- engine/src/dod.js — confidence 0.75 | daf7f05 (frontmatter opens at LINE 1 only — mid-file `---` are hr rules, the docs/DOD.md case; DoD auto criteria may only assert gates recorded before dod-assert runs — the validation gate cannot evidence itself)
+- engine/src/observability/usage-aggregate.js — confidence 0.75 | daf7f05 (cross-report matching keyed on session run-ids ships a dead feature with green tests; drift compares per-phase MEANS, NaN-safe — malformed group contributes 0, null renders "new")
+- test/source-hygiene.test.js — confidence 0.7 | daf7f05 (a location rule with zero real-tree matches passes vacuously — pin known artifact locations positively beside the synthetic offender)
 - engine/bin (shim convention) — confidence 0.7 | 5451144 (engine bins are 5-line shims over engine/src/<name>-main.js; put bin logic in engine/src so Stryker covers it — mutate scope is engine/src/** ONLY, bin files are never mutated; bin spawn-smoke tests belong in engine/test/<name>.bin.test.js. Do NOT relocate a bin's tests to repo-root test/ on a mutation-coverage rationale — that argument is void since bins aren't mutated.)
 
 ## part-sizing
@@ -246,3 +274,4 @@ part-sizing:
 - cli-streaming-entrypoint: pass — confidence 1 | 71d0d40 (P29 usage-mine-main.js+bin — readline streaming, two-root containByRealpath, advisory no-op exit 0; injected io makes every error-path catch unit-testable)
 - front-door-skill: pass — confidence 1 | 71d0d40 (P29 skills/metrics — zero-arg, mirrors craft:init, advisory; doc error-table must say exit-0/continue, never STOP)
 - adapter-port-doc: pass — confidence 1 | 71d0d40 (P29 docs/adapters/telemetry.md — mirrors memory.md; report.json schema must byte-match serializeReport sortDeep output)
+- relocation: pass — confidence 1 | daf7f05 (observability carve-out — 6 git-mv movers, import retargets only, suite unmodified)
