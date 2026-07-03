@@ -52,7 +52,7 @@ craft is built **hexagonally**. This is the whole model:
    user input ──▶│  contract injection · gate discipline (policy) · model resolution (policy)        │──▶ run record
                  │  harness config (policy) · run record · alias map · default descriptor list        │
                  └───┬───────────┬───────────┬──────────────┬───────────────┬───────────────┬──────────┬──────┘
-        Execution ◀──┘   Model ◀─┘   Gate ◀──┘  Code-access ◀┘   Backlog ◀───┘    VCS ◀───────┘  Memory ◀┘  Policy ◀┘  (8 ports = mechanism)
+        Execution ◀──┘   Model ◀─┘   Gate ◀──┘  Code-access ◀┘   Backlog ◀───┘    VCS ◀───────┘  Memory ◀┘  Policy ◀┘  Intention ◀┘  (9 ports = mechanism)
             │            │            │            │  (env-sourced,        │               │           │
             ▼            ▼            ▼            ▼   NOT adapter)         ▼               ▼           ▼
         Task /        model        Bash gate    runtime+settings        file / gh /     git worktree  .claude/
@@ -64,12 +64,14 @@ craft is built **hexagonally**. This is the whole model:
   guiderail (§2 below), contract injection, gate discipline, model resolution, the run record. It
   knows *what* must happen, never *how* a runtime carries it out. The core decides "plan **consumes**
   design," not "design precedes plan."
-- **Ports (you configure or swap these)** — eight thin seams the core uses to reach a mechanism:
+- **Ports (you configure or swap these)** — nine thin seams the core uses to reach a mechanism:
   **Execution**, **Model**, **Gate**, **Code-access/retrieval**, **Backlog SoT**, **VCS/integration**,
-  **Memory**, **Policy**. A port exposes *mechanism*; the core keeps *policy*. The Model port only
-  `select`/`isAvailable` — the core owns the *fallback order*. The Gate port only `run(cmd)` — the
-  core owns *never commit on red*. The Memory port only `load`/`save` — the core owns the
-  advisory-only invariant (deleting the store changes run cost, never correctness).
+  **Memory**, **Policy**, **Intention**. A port exposes *mechanism*; the core keeps *policy*. The Model
+  port only `select`/`isAvailable` — the core owns the *fallback order*. The Gate port only
+  `run(cmd)` — the core owns *never commit on red*. The Memory port only `load`/`save` — the core
+  owns the advisory-only invariant (deleting the store changes run cost, never correctness). The
+  Intention port only `consult`/`record`/`assert-fresh` — the core owns the gate choice
+  (`intention.gate: advisory|blocking`).
 - **Adapter (you don't touch this)** — the binding of those ports to concrete Claude Code primitives
   (Task subagents, the model param, Bash + PreToolUse hooks, VCS host CLI / git, the Skill tool). **craft *is*
   the Claude Code adapter today.** Code-access is the deliberate exception: it is environment-sourced
@@ -129,7 +131,7 @@ Six questions per phase — pick the axes you need:
 | **HOW it's checked** | gate · harness config |
 | **Reshape the spine** | skip · required · context · insert · reorder · extends |
 | **The floor** *(untouchable)* | invariant preamble · core contract · gate cadence — §2, not an injection point |
-| **Ports** *(cross-cutting)* | backlog · memory · policy · DoD |
+| **Ports** *(cross-cutting)* | backlog · memory · policy · DoD · intention |
 
 Tier = effort: **0** = one line in `.claude/workflow.md` · **1** = add a file · **2** = local plugin.
 
@@ -179,13 +181,14 @@ and [`architecture/`](../examples/architecture/).
 Not an injection point. Every injection point above changes *what* a phase does or *who* does it;
 none can lower this floor. See [§2](#2-the-invariant-core--what-you-cannot-inject-the-floor).
 
-### Ports (cross-cutting) — backlog · memory · policy · DoD
+### Ports (cross-cutting) — backlog · memory · policy · DoD · intention
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
 | **backlog source** *(Tier 0)* | use your tracker (`file` or `custom`) | a custom ref is resolved at runtime | [`backlog-custom/`](../examples/backlog-custom/) |
 | **tracker adapter** *(Tier 2)* | register a named backlog source via `extends.backlog-adapters`; selectable as `backlog.source: <name>`; the adapter script is verified at lint time | the host CLI lives only in your adapter script | see [`examples/`](../examples/) for a worked tracker adapter |
 | **memory** *(Tier 0)* | per-repo advisory cache (`memory: { source: file, ref }`) — stores mechanically-derived learnings (toolchain, gate commands, findings, part sizing) so subsequent runs skip re-probing; default store at `.claude/craft-memory.md`, committed via a `.gitignore` re-include. Advisory-only: deleting it changes run cost, never correctness. See [`docs/adapters/memory.md`](adapters/memory.md) for the port contract. | a custom `ref` that escapes the repo root is silently skipped — the port never reads or writes outside the repo | — |
+| **intention** *(Tier 0)* | per-repo architectural-intention corpus (`intention: { source: file, ref, gate, covers }`) — `consult` prepends the phase's matching living pages into the design/planning contract slot (advisory, slot 1 — no second injection surface); `record` routes ADR/page writes through the same seam the `file` adapter already uses; `assert-fresh` flags a changed path whose covering page went untouched (`INTENTION-DRIFT`), waivable per page (`INTENTION-WAIVE`). `intention.gate` chooses `advisory` (default) or `blocking`; `intention.covers` names load-bearing scopes a page must exist for. See [`docs/adapters/intention.md`](adapters/intention.md) for the port contract. | a `blocking` gate on a thin/under-adopted corpus stalls on false positives — start `advisory` and promote once the corpus is populated | — |
 | **policy** *(Tier 0)* | per-repo/per-user permission layer over outward/hard-to-reverse VCS-port actions. The `policy:` manifest key accepts `always`, `ask`, and `never` verdict lists over the action vocabulary (`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write` — note `integrate` = merge, `propose` = pr-create). Per-action defaults are keyed by reversibility: local reversible actions (`isolate`, `commit`, `backlog-write`) default to `always`; remote/hard-to-reverse actions (`push`, `propose`, `integrate`, `teardown`, `external-send`) default to `ask`, so an unconfigured repo behaves as today (merge still stops for confirmation). Three scopes fold in one direction (`per-invocation > project > user`): user `~/.claude/craft-policy.md` < project manifest `policy:` < per-invocation `--policy`. An explicit `always` verdict for `integrate` or `propose` supersedes craft's hardcoded merge/PR confirmation, enabling unattended headless auto-merge. The three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are not nameable actions and cannot be reached by any verdict. See [`docs/adapters/policy.md`](adapters/policy.md) for the port contract. | a misconfigured policy (unknown action or verdict, non-list value, intra-scope double-verdict) fails manifest-lint loudly, never silently | — |
 | **DoD artifact** (`docs/DOD.md` or `paths.dod`) *(Tier 1)* | per-criterion acceptance-criteria check in the `validation` phase (default-ON); absence warns, never blocks | you own and maintain the checklist | [`dod-artifact/`](../examples/dod-artifact/) |
 

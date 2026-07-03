@@ -186,3 +186,9 @@ shrink-core-prune-guardrails validation-triage tokens=147670 duration_ms=2652846
 shrink-core-prune-guardrails validation-expansion-review tokens=77750 duration_ms=558660 cache=na
 shrink-core-prune-guardrails validation-final-verify tokens=72559 duration_ms=350945 cache=na
 shrink-core-prune-guardrails documentation tokens=108833 duration_ms=388943 cache=na
+intention-port design tokens=149019 duration_ms=692603 cache=na
+intention-port planning tokens=163692 duration_ms=891502 cache=na
+intention-port implementation tokens=820409 duration_ms=2962369 cache=na
+intention-port review tokens=520923 duration_ms=2412323 cache=na
+intention-port refactoring tokens=42383 duration_ms=77115 cache=na
+intention-port validation-triage tokens=549135 duration_ms=3520639 cache=na

@@ -79,6 +79,21 @@ Input: `$ARGUMENTS`
     records a load no-op — the run proceeds exactly as today (advisory-only, never a
     blocker; ADR-116/120). `load` is called **once per run, not per phase**.
 
+1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
+    the intention port's `consult` — see `docs/adapters/intention.md` `file` adapter
+    procedure. With no `intention:` manifest key, probe the zero-config corpus
+    (`docs/adapters/*.md`, `docs/DESIGN-*.md`, `docs/DOD.md`, `docs/GUIDE-customizing.md`);
+    hold the single `IntentionView` in-session beside the run record for the duration of
+    this run. A cold or absent corpus yields an empty view and records a load no-op —
+    **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
+    genuine parallel mechanism, loaded once here exactly like the memory store above but
+    kept in its own in-session slot. `consult` is called **once per run, not per phase**.
+    Two fixed, greppable run-record tokens join the existing family
+    (`NO-OP(<phase>):`, `GATE(<phase>):`, `auto-skip:`, `WAIVER:`, `POLICY(...)`):
+    `INTENTION-DRIFT(<page>): <changed-path>` and `INTENTION-WAIVE(<page>): <reason>` —
+    see `docs/adapters/intention.md` Token vocabulary; emitted by the `validation` phase's
+    `assert-fresh` walk.
+
 1d. `Resolution.gateDecisions` is an ARRAY of `{ phaseId, gate, codeProducing }`
     (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose
     `phaseId === "propose"` and store its `awaitingHarnesses[]` in-session as the
@@ -199,6 +214,12 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    second injection surface is added). A hint that failed validate-on-read was already
    dropped at `load` — if the slice is empty, the phase probes as today. This read is
    purely advisory and never gates. See `docs/adapters/memory.md` Claude binding.
+
+   **Intention hint (advisory).** For the `design` and `planning` phases only, slice the
+   in-session `IntentionView` for this phase's change scope: the `entries` whose subjects
+   intersect the phase's touched set. If the slice is non-empty, prepend it into the SAME
+   slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
+   means the phase probes as today. See `docs/adapters/intention.md`.
 
 5. **Execute** via the resolved execution mode (`phase.execution`).
 

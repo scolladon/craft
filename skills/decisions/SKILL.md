@@ -10,6 +10,9 @@ description: Craft phase 3 - the user decides every load-bearing design choice; 
 1. Manifest read (lint if standalone). Probe: ADR directory (`paths.adr`, else
    `docs/adr/`, create if absent); repo ADR template, else
    `"${CLAUDE_PLUGIN_ROOT}/templates/adr.md"`; next ADR number = highest existing + 1.
+2. ADR writes route through the intention port's `record` — for the `file` adapter this
+   is a thin relabel of today's `docs/adr/` writes byte-for-byte (see
+   `docs/adapters/intention.md`); the authoring below is unchanged.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

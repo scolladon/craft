@@ -1,3 +1,6 @@
+---
+subjects: ['engine/src/observability/**']
+---
 # Telemetry adapter spec
 
 ## Port interface

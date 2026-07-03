@@ -116,6 +116,15 @@ findings:
       run: shrink-core-prune-guardrails
       commit: daf7f05
       date: '2026-07-03'
+  - concern: findings
+    file: engine/src/intention.js
+    severity: high
+    pattern: a review-fix that reroutes a value through a NEW helper can silently drop an invariant the replaced path guaranteed (never-throws broke when the coverage check moved from the try/catch matcher to an unguarded one) — re-verify the invariant on the fix delta, not just the finding; an adversarial convergence reviewer scoped to the fix-delta catches it
+    confidence: 0.7
+    provenance:
+      run: intention-port
+      commit: 35cd184
+      date: '2026-07-03'
 part-sizing:
   - concern: part-sizing
     size: pure-module

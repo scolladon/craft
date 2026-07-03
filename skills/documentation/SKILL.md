@@ -8,8 +8,13 @@ description: Craft phase 9 - refresh affected documentation pages, tick the back
 ## Preamble (always runs — non-overridable)
 
 1. Manifest read (lint if standalone). Probe: `backlog:` declared? (else no backlog
-   work); which doc pages the change actually affects (public surface, behaviour a
-   page states).
+   work); which doc pages the change actually affects — the **affected-page floor is
+   mechanical**: `(diff ∩ subjects) ∪ probe` — the existing judgment probe (public
+   surface, behaviour a page states) UNIONed with every living page whose declared
+   `subjects` the diff matches (via the intention port's `consult`; see
+   `docs/adapters/intention.md`). A **coverage gap** — a load-bearing changed scope
+   matched by no page's `subjects`, under `intention.covers` — escalates via the
+   blocker protocol `{ unit, reason, ≤3 options }` rather than silently passing.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
@@ -17,7 +22,10 @@ Runs in parallel with the validation phase's background run.
 
 1. **Pages — only if any are affected:** spawn **craft:docs-writer** with the affected
    page list + what changed per page, the design doc path as content source, the
-   commit message `docs(<slug>): refresh pages`, and the context files. No affected
+   commit message `docs(<slug>): refresh pages`, and the context files. Page
+   refresh/create routes through the intention port's `record`. **`docs-writer` stays
+   update-only** — it never creates a new page; a coverage gap that implies a missing
+   page is a human decision, escalated per the Preamble, never auto-created. No affected
    pages → skip honestly (run record).
 2. **Backlog tick — guarded by source** (see `docs/adapters/backlog.md`):
    - `source: file` — **consult `backlog-write` action** (default `always`, ADR-127;

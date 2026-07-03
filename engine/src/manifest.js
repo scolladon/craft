@@ -22,6 +22,8 @@ import {
   DEPRECATED_AGENT_NAMES,
   BACKLOG_SOURCES,
   MEMORY_SOURCES,
+  INTENTION_SOURCES,
+  INTENTION_GATES,
 } from './manifest-vocabulary.js';
 import { validateHarness } from './manifest-harness.js';
 import { validatePipelineKeys } from './manifest-pipeline-edits.js';
@@ -200,6 +202,73 @@ function validateMemory(memory, fileExists, errors) {
   } else if (source === 'custom') {
     if (typeof ref !== 'string' || ref.trim() === '') {
       errors.push('memory.ref is required for source custom');
+    }
+  }
+}
+
+/** Non-built-in intention source values that get a targeted hint instead of the generic error. */
+const NON_BUILTIN_INTENTION = Object.freeze(new Set(['rag', 'wiki', 'notion', 'confluence', 'code-graph']));
+
+/**
+ * True when value is a list (possibly empty) of non-empty strings.
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+function isListOfNonEmptyStrings(value) {
+  return Array.isArray(value) && value.every(v => typeof v === 'string' && v.trim() !== '');
+}
+
+/**
+ * Validate the `intention` sub-object.
+ * @param {unknown} intention
+ * @param {(path: string) => boolean} fileExists
+ * @param {string[]} errors
+ */
+function validateIntention(intention, fileExists, errors) {
+  if (typeof intention !== 'object' || intention === null || Array.isArray(intention)) {
+    errors.push('intention must be an object { source, ref, gate, covers }');
+    return;
+  }
+
+  for (const k of Object.keys(intention)) {
+    if (k !== 'source' && k !== 'ref' && k !== 'gate' && k !== 'covers') {
+      errors.push(`unknown intention field: ${k}`);
+    }
+  }
+
+  const { source, ref, gate, covers } = intention;
+
+  if (source === undefined) {
+    errors.push('intention must declare a source (one of file, custom)');
+    return;
+  }
+
+  if (!INTENTION_SOURCES.has(source)) {
+    if (NON_BUILTIN_INTENTION.has(source)) {
+      errors.push(`intention source '${source}' is not built-in — use source: custom with a ref to a resolver script`);
+    } else {
+      errors.push(`unknown intention source: ${source} (expected one of file, custom)`);
+    }
+    return;
+  }
+
+  if (gate !== undefined && !INTENTION_GATES.has(gate)) {
+    errors.push(`unknown intention gate: ${gate} (expected one of advisory, blocking)`);
+  }
+
+  if (covers !== undefined && !isListOfNonEmptyStrings(covers)) {
+    errors.push('intention.covers must be a list of non-empty strings');
+  }
+
+  if (source === 'file') {
+    checkFileRef('intention.ref', ref, fileExists, errors);
+  // equivalent mutant (ConditionalExpression: `source === 'custom'` → `true`):
+  // reached only when source !== 'file' and L246 already narrowed source to
+  // {file, custom} via INTENTION_SOURCES.has(source) — so source is always
+  // 'custom' here regardless; same behavior for every input.
+  } else if (source === 'custom') {
+    if (typeof ref !== 'string' || ref.trim() === '') {
+      errors.push('intention.ref is required for source custom');
     }
   }
 }
@@ -394,6 +463,9 @@ export function validateManifest(manifest, opts) {
         break;
       case 'memory':
         validateMemory(value, fileExists, errors);
+        break;
+      case 'intention':
+        validateIntention(value, fileExists, errors);
         break;
       case 'policy':
         validatePolicy(value, errors);

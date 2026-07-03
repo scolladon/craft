@@ -52,6 +52,30 @@ run_suite engine engine/test engine
 run_suite adapters/pi adapters/pi/test adapters/pi
 run_suite process test
 
+# run_intention_lint — enumerates the design's zero-config living corpus
+# (docs/adapters/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/GUIDE-customizing.md)
+# plus BACKLOG.md, mirroring run_suite's zero-file discipline: a zero-file
+# enumeration is a hard error, never a silent skip.
+run_intention_lint() {
+  local -a files=()
+  local found
+  while IFS= read -r found; do
+    files+=("$found")
+  done < <(
+    {
+      find docs/adapters -maxdepth 1 -name '*.md'
+      find docs -maxdepth 1 \( -name 'DESIGN-*.md' -o -name 'DOD.md' -o -name 'GUIDE-customizing.md' \)
+    } | sort
+  )
+  if [ "${#files[@]}" -eq 0 ]; then
+    echo "ci: intention-lint corpus enumerated zero files" >&2
+    exit 1
+  fi
+  files+=("BACKLOG.md")
+  node engine/bin/intention-lint.js "${files[@]}"
+}
+run_intention_lint
+
 shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts \
   && for b in BACKLOG.md templates/backlog.md; do bash scripts/backlog-lint.sh "$b" || exit 1; done \
   && for d in templates/design.md docs/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \

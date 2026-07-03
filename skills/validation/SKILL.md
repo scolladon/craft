@@ -93,6 +93,19 @@ description: Craft phase 8 - run the repo's engineering harness over the change,
    `NO-OP(validation:<technique-id>): declined — probe absent`. When every technique is
    declined: the phase ends here (equivalent to the no-op terminal above).
 
+5. **Intention freshness (advisory).** Run `assert-fresh(change)` — see
+   `docs/adapters/intention.md`. The returned `report.stale[]` array carries **one row
+   per stale page, including waived pages** — a waived row carries `waived: true`; it is
+   **not** removed from `stale[]`, it is only flagged. `report.stale.length` is therefore
+   **not** the drift count. Emit an `INTENTION-DRIFT(<page>): <path>` line into the run
+   record and the PR body for every changed path on every row where `waived === false` —
+   one line per `changedPaths` entry on that row, **never** one line per `stale[]` row. A
+   row with `waived: true` (an `INTENTION-WAIVE(<page>): <reason>` token was found for
+   that page) emits no `INTENTION-DRIFT` lines at all. Gating obeys `intention.gate`
+   (default `advisory` — the drift lines are informational only); `blocking` wires the
+   non-empty non-waived drift set into the **existing** validation gate — no new engine
+   floor.
+
 **Gate-satisfaction note.** The `validation` propose-gate entry is a single entry. It is
 **satisfied** when the technique run lands and triages green (`gates.phase` green), and
 **released** (per the recorded-no-op release clause) when the phase lands no technique run

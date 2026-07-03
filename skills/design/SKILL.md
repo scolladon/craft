@@ -14,6 +14,10 @@ description: Craft phase 2 - produce the feature design doc via the designer age
    absent); repo's own design template, else `"${CLAUDE_PLUGIN_ROOT}/templates/design.md"`.
 3. If a `requirements` artifact was produced this run, treat it as a hard input (read
    it, design against it); else self-supply requirements in the design doc's own section.
+4. **Intention consult surface (advisory).** The phase receives the intention consult
+   slice on slot 1 — the `IntentionView` entries whose subjects intersect this phase's
+   change scope, prepended into the injected contract block alongside the memory hint
+   (see `skills/run/SKILL.md` step 4). An empty slice means the phase probes as today.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

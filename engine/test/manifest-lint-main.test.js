@@ -114,6 +114,20 @@ test('Given a manifest with an unknown top-level key, when main runs, then retur
   assert.equal(io.stdout.joined(), '');
 });
 
+// ─── intention.source: rag → 2 + stderr INVALID manifest + targeted hint ────
+
+test('Given a manifest with intention.source: rag, when main runs, then returns 2 and stderr contains INVALID manifest and the targeted hint', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const path = writeTmp('intention-rag.md', '---\nintention:\n  source: rag\n---\n');
+
+  const result = sut([path], io);
+
+  assert.equal(result, 2);
+  assert.ok(io.stderr.joined().includes('INVALID manifest'), `stderr was: ${io.stderr.joined()}`);
+  assert.ok(io.stderr.joined().includes('use source: custom'), `stderr was: ${io.stderr.joined()}`);
+});
+
 // ─── valid fenced manifest → 0 + stdout "<path> valid." ──────────────────────
 
 test('Given a valid manifest (with-body.md, profile: lean), when main runs, then returns 0 and stdout contains "valid."', () => {

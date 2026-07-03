@@ -7,7 +7,7 @@
 export const TOP_KEYS = Object.freeze(new Set([
   'backlog', 'memory', 'paths', 'context', 'gates', 'phases',
   'pr', 'scripts', 'models', 'pipeline', 'retrieval', 'execution',
-  'extends', 'policy',
+  'extends', 'policy', 'intention',
 ]));
 
 /**
@@ -55,3 +55,9 @@ export const BACKLOG_SOURCES = Object.freeze(new Set(['file', 'custom']));
 
 /** Valid source identifiers for the `memory` key. */
 export const MEMORY_SOURCES = Object.freeze(new Set(['file', 'custom']));
+
+/** Valid source identifiers for the `intention` key. */
+export const INTENTION_SOURCES = Object.freeze(new Set(['file', 'custom']));
+
+/** Valid gate values for the `intention` key. */
+export const INTENTION_GATES = Object.freeze(new Set(['advisory', 'blocking']));

@@ -51,6 +51,7 @@ test('Given a manifest with all known top-level keys, when validateManifest runs
   const sut = validateManifest;
   const manifest = {
     backlog: { source: 'file', ref: null },
+    intention: { source: 'file', ref: null },
     paths: { repo: '.' },
     context: null,
     gates: {},
@@ -2141,6 +2142,293 @@ test('Given memory { ref: x } with no source when validateManifest runs, then er
 
   assert.equal(result.ok, false);
   assert.ok(result.errors.some(e => e.includes('must declare a source')));
+});
+
+// ─── intention source/shape validation ───────────────────────────────────────
+
+test('Given intention { source: file } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given intention { source: file, ref: missing } when validateManifest runs with NEVER_EXISTS, then error contains "intention.ref references missing file"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', ref: 'manifest/stubs/nope.md' } },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('references missing file')));
+  assert.ok(result.errors.some(e => e.includes('intention.ref')));
+});
+
+test('Given intention { source: custom, ref, gate: blocking, covers } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    {
+      intention: {
+        source: 'custom',
+        ref: './intention.sh',
+        gate: 'blocking',
+        covers: ['engine/src/observability/**'],
+      },
+    },
+    { fileExists: NEVER_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given intention as a bare string when validateManifest runs, then error contains "intention must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: 'x' },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention must be an object')));
+});
+
+test('Given intention as null when validateManifest runs, then error contains "intention must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: null },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention must be an object')));
+});
+
+test('Given intention { source: file, bogus: 1 } when validateManifest runs, then error contains "unknown intention field: bogus"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', bogus: 1 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown intention field: bogus')));
+});
+
+test('Given intention { ref: x } with no source when validateManifest runs, then error contains "must declare a source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { ref: 'x' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention must declare a source')));
+});
+
+test('Given intention { source: rag } when validateManifest runs, then error contains "use source: custom" and does not contain "unknown intention source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'rag' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('use source: custom')));
+  assert.ok(!result.errors.some(e => e.includes('unknown intention source')));
+});
+
+test('Given intention { source: wiki } when validateManifest runs, then error contains "use source: custom" and does not contain "unknown intention source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'wiki' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('use source: custom')));
+  assert.ok(!result.errors.some(e => e.includes('unknown intention source')));
+});
+
+test('Given intention { source: notion } when validateManifest runs, then error contains "use source: custom" and does not contain "unknown intention source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'notion' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('use source: custom')));
+  assert.ok(!result.errors.some(e => e.includes('unknown intention source')));
+});
+
+test('Given intention { source: confluence } when validateManifest runs, then error contains "use source: custom" and does not contain "unknown intention source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'confluence' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('use source: custom')));
+  assert.ok(!result.errors.some(e => e.includes('unknown intention source')));
+});
+
+test('Given intention { source: code-graph } when validateManifest runs, then error contains "use source: custom" and does not contain "unknown intention source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'code-graph' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('use source: custom')));
+  assert.ok(!result.errors.some(e => e.includes('unknown intention source')));
+});
+
+test('Given intention { source: bogus } when validateManifest runs, then error contains "unknown intention source"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'bogus' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown intention source')));
+});
+
+test('Given intention { source: file, gate: loud } when validateManifest runs, then error contains "unknown intention gate"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', gate: 'loud' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown intention gate')));
+});
+
+test('Given intention { source: file, gate: advisory } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', gate: 'advisory' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given intention { source: file, covers: ["", 1] } when validateManifest runs, then error contains "intention.covers must be a list of non-empty strings"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', covers: ['', 1] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention.covers must be a list of non-empty strings')));
+});
+
+test('Given intention { source: file, covers: [""] } when validateManifest runs, then error contains "intention.covers must be a list of non-empty strings"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', covers: [''] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention.covers must be a list of non-empty strings')));
+});
+
+test('Given intention { source: file, covers: [1] } when validateManifest runs, then error contains "intention.covers must be a list of non-empty strings"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', covers: [1] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention.covers must be a list of non-empty strings')));
+});
+
+test('Given intention { source: file, covers: ["   "] } (whitespace-only) when validateManifest runs, then error contains "intention.covers must be a list of non-empty strings"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', covers: ['   '] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention.covers must be a list of non-empty strings')));
+});
+
+test('Given intention { source: file, covers: [] } when validateManifest runs, then ok:true (an empty covers list is a harmless no-op)', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'file', covers: [] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given intention { source: custom } with no ref when validateManifest runs, then error contains "intention.ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'custom' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention.ref is required')));
+});
+
+test('Given intention { source: custom, ref: "" } when validateManifest runs, then error contains "intention.ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'custom', ref: '' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention.ref is required')));
+});
+
+test('Given intention { source: custom, ref: "   " } (whitespace-only) when validateManifest runs, then error contains "intention.ref is required"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { intention: { source: 'custom', ref: '   ' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('intention.ref is required')));
 });
 
 test('Given backlog { source: acme-tracker } with a matching extends.backlog-adapters registration, when validateManifest runs, then ok:true', () => {

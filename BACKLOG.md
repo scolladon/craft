@@ -175,7 +175,22 @@ Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `do
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
-_(No open candidates — the shrink-core-prune-guardrails run (2026-07-03) surfaced two and
+**Intention port — self-governance.** The intention port ships governing only
+`engine/src/observability/**` (via `docs/adapters/telemetry.md`'s `subjects:`). The port's
+OWN sources (`engine/src/intention.js`, `intention-subjects.js`, `intention-lint-main.js`,
+`glob.js`) are not yet governed by any living page's `subjects`, so a change to them raises
+no `INTENTION-DRIFT`. Adopt `subjects:` on the page that documents the port (or a dedicated
+living page) so the feature dogfoods its own freshness guard. Deliberately deferred from the
+intention-port run (conservative single-page adoption).
+
+**Intention corpus enumeration — single source.** `scripts/ci.sh` and
+`test/intention-lint-ci.test.js` independently re-implement the living-corpus `find`
+enumeration (`docs/adapters/*.md`, `docs/DESIGN-*.md`, `docs/DOD.md`,
+`docs/GUIDE-customizing.md`, `BACKLOG.md`). They are in sync today but can silently drift;
+share one enumeration (a helper both consume, or a test asserting the two sets match).
+Surfaced by the intention-port review (tests dimension), deferred as feature-sized.
+
+_(Prior: the shrink-core-prune-guardrails run (2026-07-03) surfaced two candidates and
 delivered both in the same PR: structured DoD criteria for `docs/DOD.md`, and the
 drift-baseline refresh cadence documented in `skills/metrics/SKILL.md` + offered at
 integrate.)_
