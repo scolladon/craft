@@ -7,11 +7,14 @@
 
 export const CACHE_HOTSPOT_THRESHOLD = 0.5;
 export const REVIEW_WASTE_CYCLES = 2;
+export const DEFAULT_DRIFT_THRESHOLD = 0.25;
 
 // ── Private: pure math helpers ────────────────────────────────────────────────
 
+// Numerically safe on malformed/older-schema groups: a missing tokens object or
+// field contributes 0, never NaN (NaN would silently swallow drift entries).
 function computeRelativeCost(tokens) {
-  return tokens.input + tokens.cacheRead + tokens.cacheCreation + tokens.output;
+  return (tokens?.input ?? 0) + (tokens?.cacheRead ?? 0) + (tokens?.cacheCreation ?? 0) + (tokens?.output ?? 0);
 }
 
 function computeCacheEfficiency(tokens) {
@@ -224,32 +227,140 @@ function sortedRecs(recs) {
   });
 }
 
+// ── Private: baseline group matching (shared by baselineDeltas + drift) ───────
+
+function buildRunGroupKey(runId, g) {
+  return `${runId}\x00${g.phase}\x00${g.role ?? ''}\x00${g.model}`;
+}
+
+function buildBaselineGroupIndex(baselineReport) {
+  const index = new Map();
+  // equivalent mutant (OptionalChaining `?.` → `.`): baselineReport is only ever
+  // reached here via aggregate()'s `if (baselineReport)` guard, so it is always
+  // truthy at this call site — the `?.` never fires either way.
+  for (const run of (baselineReport?.runs ?? [])) {
+    for (const g of run.groups) {
+      index.set(buildRunGroupKey(run.run, g), g);
+    }
+  }
+  return index;
+}
+
+function matchedBaselineGroups(currentReport, baselineReport) {
+  const baseIndex = buildBaselineGroupIndex(baselineReport);
+  return currentReport.runs.flatMap(run =>
+    run.groups.flatMap(g => {
+      const base = baseIndex.get(buildRunGroupKey(run.run, g));
+      return base ? [{ run: run.run, group: g, base }] : [];
+    })
+  );
+}
+
 // ── Private: baseline deltas ──────────────────────────────────────────────────
 
 function computeBaselineDeltas(current, baseline) {
-  const baseGroups = new Map();
-  for (const run of (baseline.runs ?? [])) {
+  return matchedBaselineGroups(current, baseline).map(({ run, group: g, base }) => {
+    const pricedCostDelta = g.cost.priced != null && base.cost?.priced != null
+      ? g.cost.priced - base.cost.priced : null;
+    return {
+      run, phase: g.phase, role: g.role, model: g.model,
+      tokensDelta: Object.fromEntries(
+        Object.keys(g.tokens).sort().map(k => [k, g.tokens[k] - (base.tokens?.[k] ?? 0)])
+      ),
+      pricedCostDelta,
+      cacheEfficiencyDelta: g.cacheEfficiency - (base.cacheEfficiency ?? 0),
+    };
+  });
+}
+
+// ── Private: drift (advisory prompt-regression signal) ────────────────────────
+
+const DRIFT_DIMENSIONS = ['tokens-total', 'durationMs'];
+const EMPTY_PHASE_TOTALS = Object.freeze({ 'tokens-total': 0, durationMs: 0 });
+
+// Drift compares phases ACROSS sessions, so aggregates are keyed by phase alone —
+// run ids never coincide between a committed baseline and a fresh mining run.
+// Values are MEANS per group occurrence, not sums: the miner re-mines an
+// accumulating corpus, so sums grow with corpus size while means stay
+// comparable and expose per-occurrence cost shifts.
+function phaseMeans(report) {
+  const acc = new Map();
+  for (const run of report.runs ?? []) {
     for (const g of run.groups) {
-      baseGroups.set(`${run.run}\x00${g.phase}\x00${g.role ?? ''}\x00${g.model}`, g);
+      const a = acc.get(g.phase) ?? { tokens: 0, duration: 0, count: 0 };
+      // equivalent mutant (AssignmentOperator `+=` → `-=`, all three lines below):
+      // phaseMeans() runs identically over baselineReport and currentReport, and the
+      // accumulated tokens/duration/count are only ever consumed as a ratio via
+      // computeRelDelta(base, current) = (current-base)/base. Negating both operands
+      // by the same factor leaves that ratio (and its `> threshold` / null-baseline
+      // branching) unchanged — the raw sums are never otherwise exported or compared.
+      a.tokens += computeRelativeCost(g.tokens);
+      a.duration += g.durationMs ?? 0;
+      a.count += 1;
+      acc.set(g.phase, a);
     }
   }
-  return current.runs.flatMap(run =>
-    run.groups.flatMap(g => {
-      const key = `${run.run}\x00${g.phase}\x00${g.role ?? ''}\x00${g.model}`;
-      const base = baseGroups.get(key);
-      if (!base) return [];
-      const pricedCostDelta = g.cost.priced != null && base.cost?.priced != null
-        ? g.cost.priced - base.cost.priced : null;
-      return [{
-        run: run.run, phase: g.phase, role: g.role, model: g.model,
-        tokensDelta: Object.fromEntries(
-          Object.keys(g.tokens).sort().map(k => [k, g.tokens[k] - (base.tokens?.[k] ?? 0)])
-        ),
-        pricedCostDelta,
-        cacheEfficiencyDelta: g.cacheEfficiency - (base.cacheEfficiency ?? 0),
-      }];
-    })
-  );
+  const means = new Map();
+  for (const [phase, a] of acc) {
+    means.set(phase, { 'tokens-total': a.tokens / a.count, durationMs: a.duration / a.count });
+  }
+  return means;
+}
+
+// null = activity with no baseline to relate to (base 0, current > 0);
+// JSON-safe by construction, rendered as "new" downstream.
+function computeRelDelta(baseValue, currentValue) {
+  if (baseValue === 0) return currentValue === 0 ? 0 : null;
+  return (currentValue - baseValue) / baseValue;
+}
+
+function buildDriftEntry(phase, dimension, baseValue, currentValue, threshold) {
+  const delta = computeRelDelta(baseValue, currentValue);
+  const flagged = delta === null || Math.abs(delta) > threshold;
+  return flagged ? { phase, dimension, delta, threshold } : null;
+}
+
+function driftEntriesForPhase(phase, base, current, threshold) {
+  return DRIFT_DIMENSIONS
+    .map(dimension => buildDriftEntry(phase, dimension, base[dimension], current[dimension], threshold))
+    .filter(Boolean);
+}
+
+function sortDrift(entries) {
+  return entries.sort((a, b) => {
+    const ka = `${a.phase}\x00${a.dimension}`;
+    const kb = `${b.phase}\x00${b.dimension}`;
+    return ka.localeCompare(kb);
+  });
+}
+
+/**
+ * Pure advisory drift signal: flags (phase, dimension) pairs whose per-phase
+ * MEAN per group occurrence moved by more than `threshold` relative to the
+ * baseline's mean — corpus-size-invariant, so re-mining a grown transcript
+ * corpus does not read as drift. Phases are compared by name across sessions —
+ * never by run id, which a committed baseline cannot share with a fresh run.
+ * `delta` is null for a phase with activity but no baseline (rendered "new");
+ * a phase that disappeared yields delta -1. Never a gate — an absent baseline
+ * simply yields no flags.
+ *
+ * @param {object} currentReport
+ * @param {object | null | undefined} baselineReport
+ * @param {number} [threshold]
+ * @returns {{ phase: string, dimension: string, delta: number | null, threshold: number }[]}
+ */
+export function computeDrift(currentReport, baselineReport, threshold = DEFAULT_DRIFT_THRESHOLD) {
+  if (!baselineReport) return [];
+  const base = phaseMeans(baselineReport);
+  const current = phaseMeans(currentReport);
+  const phases = [...new Set([...base.keys(), ...current.keys()])];
+  const entries = phases.flatMap(phase => driftEntriesForPhase(
+    phase,
+    base.get(phase) ?? EMPTY_PHASE_TOTALS,
+    current.get(phase) ?? EMPTY_PHASE_TOTALS,
+    threshold
+  ));
+  return sortDrift(entries);
 }
 
 // ── Private: serialization ────────────────────────────────────────────────────
@@ -264,7 +375,7 @@ function sortDeep(value) {
 
 // ── Public exports ────────────────────────────────────────────────────────────
 
-export function aggregate(events, priceTable, baselineReport) {
+export function aggregate(events, priceTable, baselineReport, threshold = DEFAULT_DRIFT_THRESHOLD) {
   if (!events.length) return { schemaVersion: 1, runs: [], note: 'no events provided' };
 
   const byRun = groupByRun(events);
@@ -284,7 +395,10 @@ export function aggregate(events, priceTable, baselineReport) {
   ]);
 
   const report = { schemaVersion: 1, runs, recommendations };
-  if (baselineReport) report.baselineDeltas = computeBaselineDeltas(report, baselineReport);
+  if (baselineReport) {
+    report.baselineDeltas = computeBaselineDeltas(report, baselineReport);
+    report.drift = computeDrift(report, baselineReport, threshold);
+  }
   return report;
 }
 
@@ -312,6 +426,13 @@ export function renderMarkdown(report) {
       lines.push(`\n### ${rec.kind} (${rec.phase}/${rec.model ?? 'n/a'})`);
       lines.push(rec.detail);
       lines.push(`evidence: ${JSON.stringify(rec.evidence)}`);
+    }
+  }
+  if (report.drift?.length) {
+    lines.push('\n## Phases drifted since baseline');
+    for (const d of report.drift) {
+      const deltaLabel = d.delta === null ? 'new (no baseline activity)' : d.delta.toFixed(3);
+      lines.push(`- **${d.phase}** [${d.dimension}]: delta=${deltaLabel} (threshold=${d.threshold})`);
     }
   }
   return lines.join('\n') + '\n';

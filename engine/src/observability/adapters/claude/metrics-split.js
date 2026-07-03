@@ -1,5 +1,5 @@
 // C6: field names single-sourced from telemetry-claude.js — no local duplicates.
-import { tokensFromClaudeUsage, CACHE_READ_FIELD, CACHE_CREATION_FIELD } from './telemetry-claude.js';
+import { tokensFromClaudeUsage, CACHE_READ_FIELD, CACHE_CREATION_FIELD } from './telemetry.js';
 
 function hasCacheFields(usage) {
   return CACHE_READ_FIELD in usage || CACHE_CREATION_FIELD in usage;

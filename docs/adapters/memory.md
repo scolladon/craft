@@ -48,7 +48,7 @@ adapter:
   (weak planner hint — no stable re-check). The validate-on-read map is injected at call-site
   via `deps.validators`; the adapter applies it but does not define it.
 
-- **Confidence/decay model + canonical constants** (from `engine/src/memory.js`):
+- **Confidence/decay model + canonical constants** (from `engine/src/observability/memory.js`):
   - `FLOOR = 0` — minimum confidence (inclusive); an entry decayed to this value is evicted
   - `CEILING = 5` — maximum confidence; refreshes cannot raise above this
   - `STEP = 1` — increment/decrement applied per refresh/decay cycle
@@ -141,7 +141,7 @@ script could independently verify. This ban is enforced **document-only** (ADR-1
 defines the schemas and forbids non-mechanical content; each phase's documented write surface is
 trusted to comply; human review of the diffable store is the final check.
 
-Concerns are the five keys exported as `CONCERNS` from `engine/src/memory.js`:
+Concerns are the five keys exported as `CONCERNS` from `engine/src/observability/memory.js`:
 `toolchain`, `gate-cmd`, `validation-tool`, `findings`, `part-sizing`.
 
 | Concern | Entry shape (fields) | Merge key | Validate-on-read re-check | Explicitly NOT stored |

@@ -252,6 +252,15 @@ test('Given an insert with a missing id, when checkInsertApplicability runs, the
   assert.ok(result[0].includes('pipeline.insert') && result[0].includes('.id must be a non-empty string'));
 });
 
+test('Given a null insert entry (a malformed pipeline.insert item), when checkInsertApplicability runs, then it returns the id error instead of throwing', () => {
+  const sut = checkInsertApplicability;
+
+  const result = sut([null]);
+
+  assert.equal(result.length, 1);
+  assert.ok(result[0].includes('.id must be a non-empty string'));
+});
+
 test('Given an insert with an empty-string id, when checkInsertApplicability runs, then it returns the id error', () => {
   const sut = checkInsertApplicability;
 

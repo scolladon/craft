@@ -1,5 +1,5 @@
 /**
- * Unit tests for engine/src/memory.js — store read path.
+ * Unit tests for engine/src/observability/memory.js — store read path.
  * Given/When/Then titles, Arrange-Act-Assert bodies, sut variable.
  *
  * All tests are pure (injected deps, no real filesystem).
@@ -11,7 +11,7 @@ import { mkdtempSync, symlinkSync, mkdirSync, writeFileSync, rmSync } from 'node
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
-import { CONCERNS, parseStore, serializeStore, load, save, FLOOR, CEILING, STEP, WINDOW } from '../src/memory.js';
+import { CONCERNS, parseStore, serializeStore, load, save, FLOOR, CEILING, STEP, WINDOW } from '../src/observability/memory.js';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 

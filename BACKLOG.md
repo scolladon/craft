@@ -6,7 +6,7 @@
 > customization.
 
 > SoT — *intent:* `docs/PRD-customizable-engine.md` · *architecture:* `docs/DESIGN-customizable-engine.md`
-> · *decisions:* `docs/adr/` · *build scripts:* `docs/PLAN-*.md` · *spikes:* `docs/SPIKE.md`
+> · *decisions:* `docs/adr/` · *build scripts:* `docs/archive/PLAN-*.md` · *spikes:* `docs/archive/SPIKE.md`
 
 ## Status — PRD program complete (P0–P16 ✅)
 
@@ -160,7 +160,7 @@ criterion is mechanically asserted against the run's recorded per-phase gate evi
 | P21 | Running craft in a loop — operator-owned outer-loop recipe (`/loop /craft:run` self-paced on the run-record verdict; headless `craft-pi` exit-code contrast); docs + `examples/loop/`, no engine change | 111–115 |
 | P29 | Usage telemetry miner — new Telemetry port (`collect`/`aggregate`); `telemetry-claude` binding + per-model pricing table; deterministic `usage-aggregate.js` core; `.claude/craft-metrics.md` writer upgraded to real `cache_read`/`cache_creation` split; `craft:metrics` standalone skill (advisory, never gating) | 182–188 |
 
-Per-part history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
+Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
 
 **Standing invariants (the working contract):**
 - **Data is the SoT, not prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.
@@ -175,8 +175,10 @@ Per-part history lives in `git log`, `docs/{DESIGN,PLAN}-P*.md`, and `docs/adr/`
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
-_(No open candidates — the batched backlog-clearing run of 2026-06-28 promoted and shipped the
-remaining candidates; see the **Status** record.)_
+_(No open candidates — the shrink-core-prune-guardrails run (2026-07-03) surfaced two and
+delivered both in the same PR: structured DoD criteria for `docs/DOD.md`, and the
+drift-baseline refresh cadence documented in `skills/metrics/SKILL.md` + offered at
+integrate.)_
 
 P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2026-06-23 — see the
 **P26 delivered** note under Status above.

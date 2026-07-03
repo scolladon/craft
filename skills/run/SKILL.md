@@ -384,7 +384,7 @@ real brief, confirm the inline phases commit artifacts in the same shape as the 
 (the injected block differs only by the two carve-out lines —
 `engine/test/contract-equivalence.test.js` proves that bound per descriptor), and record
 the result in the run record under `inline-fidelity-check`. Rationale:
-`docs/DESIGN-P6-execution-topology.md`.
+`docs/archive/DESIGN-P6-execution-topology.md`.
 
 ## Model-class matrix (cross-tier) — not CI-gated
 
@@ -401,7 +401,7 @@ agent is asked to report its own usage.
 
 **Where results land:** fill `docs/model-class-matrix.md` (the committed, diffable
 artifact template) and append a one-line entry to the run record under
-`model-class-matrix`. Rationale: `docs/DESIGN-P13-nfr-hardening.md`.
+`model-class-matrix`. Rationale: `docs/archive/DESIGN-P13-nfr-hardening.md`.
 
 ## Registered-phase dispatch smoke — not CI-gated
 
@@ -426,7 +426,7 @@ test command (`pytest`/`go test`/`cargo test`/…) and `implementation` runs rat
 the gate-floor REFUSE; `validation` no-ops with a note when no techniques declared/probed
 (and its `propose`-gate entry is released, so the walk reaches `propose`); `propose`/`integrate`
 no-op when there is no remote. Record the target's identity, toolchain, discovered gate command,
-and per-phase outcomes in `docs/SC5-second-instantiation-record.md`. This smoke is on-demand, NOT
+and per-phase outcomes in `docs/archive/SC5-second-instantiation-record.md`. This smoke is on-demand, NOT
 CI-gated — the engine path it exercises (toolchain-neutral resolution) is CI-proven by the `SC5`
 scenario fixture; this smoke adds runtime fidelity on a real second toolchain without coupling CI
 to a non-JS install.

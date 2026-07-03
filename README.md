@@ -54,7 +54,7 @@ discovery, technique-config probe, remote probe). The manifest declares only wha
 probing can't infer. Zero-config delivery requires one precondition: **a discoverable
 test/validate command** — a repo with one runs the full default pipeline on any toolchain
 (validated on a non-tsgit Python/pytest repo; see
-[docs/SC5-second-instantiation-record.md](docs/SC5-second-instantiation-record.md)); a
+[docs/archive/SC5-second-instantiation-record.md](docs/archive/SC5-second-instantiation-record.md)); a
 repo with no test command hits the gate-floor refusal by design (non-negotiable). **Start with [docs/GUIDE-customizing.md](docs/GUIDE-customizing.md)** —
 the mental model (hexagon · ports · the invariant core you can't change) plus the full
 injection catalog (skip / model / gate / execution / profile / harness / backlog / memory /
@@ -84,7 +84,7 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
 [docs/DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md) — the living
 engine architecture (phases, contract injection, ports, enforcement hierarchy);
 [docs/DESIGN-history.md](docs/DESIGN-history.md) — the frozen workflow-promotion
-migration record. [docs/SPIKE.md](docs/SPIKE.md) — the empirical
+migration record. [docs/archive/SPIKE.md](docs/archive/SPIKE.md) — the empirical
 spike that pinned hook inheritance, `updatedInput` composition (same-snapshot,
 last-writer-wins → hence deny-based hooks), model override precedence, and the skill
 invocation surface.

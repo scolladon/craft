@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { formatCacheSplit } from '../src/metrics-split.js';
+import { formatCacheSplit } from '../src/observability/adapters/claude/metrics-split.js';
 
 // ── 1. formatCacheSplit — full split present ───────────────────────────────────
 

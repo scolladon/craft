@@ -67,13 +67,13 @@ test(
 );
 
 test(
-  'Given source and tests must carry no provenance refs, when engine/src/memory.js and engine/test/memory.test.js are checked, then no P22 or ADR tokens appear',
+  'Given source and tests must carry no provenance refs, when engine/src/observability/memory.js and engine/test/memory.test.js are checked, then no P22 or ADR tokens appear',
   () => {
-    const memorySrc = path.join(ROOT, 'engine/src/memory.js');
+    const memorySrc = path.join(ROOT, 'engine/src/observability/memory.js');
     const memoryTest = path.join(ROOT, 'engine/test/memory.test.js');
     assert.ok(
       !grepRE('P22|ADR-[0-9]', memorySrc, memoryTest),
-      'engine/src/memory.js and engine/test/memory.test.js should contain no P22 or ADR tokens',
+      'engine/src/observability/memory.js and engine/test/memory.test.js should contain no P22 or ADR tokens',
     );
   },
 );

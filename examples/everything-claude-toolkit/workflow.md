@@ -32,6 +32,6 @@ A toolkit is a *bag of parts*. craft gives each part a home and a guarantee:
 | hooks | repo `.claude/hooks` | mechanical, automatic — not even in this manifest |
 
 The swapped planner is shown in `agents/planner.md`. Because a plugin cannot read another
-plugin's files (SP2, SPIKE.md), a toolkit shipped as its *own* plugin contributes the agent
+plugin's files (SP2, docs/archive/SPIKE.md), a toolkit shipped as its *own* plugin contributes the agent
 by **namespaced name** (`my-toolkit:planner`) and this manifest does the wiring — content in
 the plugin, configuration in the repo.

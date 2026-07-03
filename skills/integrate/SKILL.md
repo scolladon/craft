@@ -35,4 +35,11 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    auto-clear; a live lock needs `--force`, which is recorded in the run record).
    The pre-teardown script is the matched pair of workspace-phase tooling activation —
    every activation gets its prune.
-4. Close the run record; deliver the final summary (PR URL, what shipped, record).
+4. **Drift-baseline refresh offer:** when the merged change touched `skills/` or
+   `agents/` (the prompt surface whose economics the drift signal watches), offer the
+   user a baseline refresh per `skills/metrics/SKILL.md` § Refreshing the committed
+   baseline — the per-phase economics shifted on purpose, so the pre-change
+   `docs/metrics-baseline.report.json` would flag the intended shift as drift forever.
+   Declining is fine (the offer is advisory, like the signal itself); never refresh
+   silently.
+5. Close the run record; deliver the final summary (PR URL, what shipped, record).

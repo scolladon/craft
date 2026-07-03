@@ -70,6 +70,22 @@ test('Given a manifest with all known top-level keys, when validateManifest runs
 
 // ─── pipeline sub-key validation ─────────────────────────────────────────────
 
+test('Given a manifest with pipeline set to null, when validateManifest runs, then it returns ok (a non-object pipeline is ignored, not validated)', () => {
+  const sut = validateManifest;
+
+  const result = sut({ pipeline: null }, { fileExists: ALWAYS_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with pipeline set to a plain string, when validateManifest runs, then it returns ok (a non-object pipeline is ignored, not validated)', () => {
+  const sut = validateManifest;
+
+  const result = sut({ pipeline: 'oops' }, { fileExists: ALWAYS_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
 test('Given a manifest with pipeline.skip array, when validateManifest runs, then it returns ok', () => {
   const sut = validateManifest;
 
@@ -464,6 +480,17 @@ test('Given a manifest with a known scripts field pointing to an existing file, 
   assert.deepEqual(result, { ok: true, errors: [] });
 });
 
+test('Given a manifest with a pre-teardown scripts field pointing to an existing file, when validateManifest runs, then it returns ok', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { scripts: { 'pre-teardown': 'scripts/teardown.sh' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
 test('Given a manifest with a scripts field pointing to a missing file, when validateManifest runs, then it returns an error containing "references missing file"', () => {
   const sut = validateManifest;
 
@@ -568,6 +595,30 @@ test('Given a manifest with a known phase and a known field, when validateManife
     { phases: { plan: { strategy: 'sequential' } } },
     { fileExists: ALWAYS_EXISTS },
   );
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with the decisions phase, when validateManifest runs, then it returns ok (decisions is a known phase name)', () => {
+  const sut = validateManifest;
+
+  const result = sut({ phases: { decisions: {} } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with the refactoring phase, when validateManifest runs, then it returns ok (refactoring is a known phase name)', () => {
+  const sut = validateManifest;
+
+  const result = sut({ phases: { refactoring: {} } }, { fileExists: ALWAYS_EXISTS });
+
+  assert.deepEqual(result, { ok: true, errors: [] });
+});
+
+test('Given a manifest with the propose phase, when validateManifest runs, then it returns ok (propose is a known phase name)', () => {
+  const sut = validateManifest;
+
+  const result = sut({ phases: { propose: {} } }, { fileExists: ALWAYS_EXISTS });
 
   assert.deepEqual(result, { ok: true, errors: [] });
 });

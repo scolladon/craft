@@ -6,7 +6,7 @@ import {
   PRICES_AS_OF,
   mergePrices,
   loadPriceTable,
-} from '../src/pricing-claude.js';
+} from '../src/observability/adapters/claude/pricing.js';
 
 // ── 1. DEFAULT_PRICES shape ────────────────────────────────────────────────────
 

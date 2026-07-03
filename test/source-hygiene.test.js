@@ -29,6 +29,12 @@ const CLASS_A_PATTERN =
 // "through", "weight", "light", "high", "right").
 const CLASS_B_PATTERN = '\\bgh\\b|\\bgithub\\b';
 
+// Class C: vendor-suffixed source basenames must live under adapters/<vendor>/ — the
+// vendor-binding location contract (ADR-191). A vendor-named file outside that segment
+// is a stray binding leaking vendor coupling into the neutral core.
+const VENDOR_SUFFIXES = ['claude', 'anthropic', 'openai', 'gemini'];
+const CLASS_C_PATTERN = new RegExp(`-(${VENDOR_SUFFIXES.join('|')})\\.(js|ts)$`);
+
 function runGrep(pattern, paths, allowlistFilters) {
   let result;
   try {
@@ -45,6 +51,31 @@ function runGrep(pattern, paths, allowlistFilters) {
     lines = lines.filter((line) => !filter.test(line));
   }
   return lines;
+}
+
+function listTrackedFiles(paths) {
+  let result;
+  try {
+    result = execFileSync('git', ['ls-files', '--', ...paths], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch (err) {
+    result = err.stdout ?? '';
+  }
+  return result.split('\n').filter(Boolean);
+}
+
+function findMisplacedVendorFiles(filePaths) {
+  return filePaths.filter((filePath) => {
+    const match = CLASS_C_PATTERN.exec(path.basename(filePath));
+    if (!match) {
+      return false;
+    }
+    const vendor = match[1];
+    return !filePath.includes(`adapters/${vendor}/`);
+  });
 }
 
 test(
@@ -94,5 +125,46 @@ test(
       0,
       `Source-hygiene FAIL — un-allowlisted class-B hits:\n${offenders.join('\n')}`,
     );
+  },
+);
+
+test(
+  'Given a vendor-suffixed source file outside adapters/<vendor>/, when class-C scans the vendor-binding location, then it is flagged, and the real scanned set has none',
+  () => {
+    const syntheticOffenders = findMisplacedVendorFiles([
+      'engine/src/foo-claude.js',
+      // vendor-suffixed but correctly placed: exercises the adapters/<vendor>/ exemption
+      'engine/src/observability/adapters/claude/foo-claude.js',
+      'engine/src/observability/adapters/claude/telemetry.js',
+      'engine/src/observability/adapters/claude/metrics-split.js',
+    ]);
+    assert.deepStrictEqual(
+      syntheticOffenders,
+      ['engine/src/foo-claude.js'],
+      'Source-hygiene class-C detector failed to flag a vendor-named file outside adapters/<vendor>/ (or wrongly flagged a correctly-placed one)',
+    );
+
+    const tracked = listTrackedFiles(SCANNED_PATHS);
+    const offenders = findMisplacedVendorFiles(tracked);
+    assert.strictEqual(
+      offenders.length,
+      0,
+      `Source-hygiene FAIL — un-allowlisted class-C hits:\n${offenders.join('\n')}`,
+    );
+
+    // The suffix rule alone is vacuous on a tree whose bindings use neutral
+    // basenames — pin the location invariant for the known vendor bindings so
+    // relocating one back into the neutral core fails this gate loudly.
+    const KNOWN_VENDOR_BINDINGS = [
+      'engine/src/observability/adapters/claude/telemetry.js',
+      'engine/src/observability/adapters/claude/pricing.js',
+      'engine/src/observability/adapters/claude/metrics-split.js',
+    ];
+    for (const binding of KNOWN_VENDOR_BINDINGS) {
+      assert.ok(
+        tracked.includes(binding),
+        `Source-hygiene FAIL — vendor binding not at its adapters/<vendor>/ home: ${binding}`,
+      );
+    }
   },
 );

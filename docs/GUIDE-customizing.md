@@ -39,8 +39,8 @@ precondition every useful repo already satisfies. `validation` and the
 default-off `architecture` **no-op with a note** when their configured tools are
 absent; `propose`/`integrate` no-op without a git remote; a repo with no discoverable test
 command hits the gate-floor refusal by design. See
-[docs/SC5-second-instantiation-record.md](SC5-second-instantiation-record.md) for the
-empirical proof on a Python/pytest repo.
+[docs/archive/SC5-second-instantiation-record.md](archive/SC5-second-instantiation-record.md) for
+the empirical proof on a Python/pytest repo.
 
 ### The hexagon — core, ports, adapter
 

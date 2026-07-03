@@ -351,3 +351,12 @@ test('Given buildGateGreen fed into assertDodCriteria with a gate criterion nami
 
   assert.deepEqual(assertDodCriteria(criteria, evidence), ['unmet']);
 });
+
+test('Given a free-text DoD whose body uses --- horizontal rules between sections, when parseDod runs, then it is free-text null and never a malformed-frontmatter throw', () => {
+  const sut = parseDod;
+  const content = '# Definition of Done\n\nintro prose\n\n---\n\n## General\n\n- [ ] TDD followed\n- [ ] Coverage >= 80%\n\n---\n\n## Tail\nprose\n';
+
+  const result = sut(content);
+
+  assert.equal(result, null);
+});

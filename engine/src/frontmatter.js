@@ -18,6 +18,12 @@ import { load } from 'js-yaml';
  */
 export function extractFrontmatter(content) {
   const lines = content.split('\n');
+  // Frontmatter opens on the FIRST line only (standard convention) — a `---`
+  // appearing later is a markdown horizontal rule, never a fence.
+  // equivalent mutant (StringLiteral fallback `''` → any other value): String.split
+  // always returns an array with at least one element, so lines[0] is never nullish —
+  // the `?? ''` fallback is unreachable for any string `content`.
+  if ((lines[0] ?? '').trim() !== '---') return null;
   const collected = [];
   let delimCount = 0;
 

@@ -14,10 +14,13 @@
     `durationMs`, `cacheCreationTtl?`. The adapter never throws; partial data returns a partial
     (possibly empty) array, never a rejection.
 
-- `aggregate(events, priceTable, baselineReport?) → report` — pure core function consuming the
-  `UsageEvent[]` stream produced by `collect`; emits the structured `report` object documented
-  in the [report.json schema](#reportjson-schema) section. Lives in `engine/src/usage-aggregate.js`
-  and is fully deterministic: no clock, no random, no runtime paths.
+- `aggregate(events, priceTable, baselineReport?, threshold?) → report` — pure core function
+  consuming the `UsageEvent[]` stream produced by `collect`; emits the structured `report` object
+  documented in the [report.json schema](#reportjson-schema) section. Lives in
+  `engine/src/observability/usage-aggregate.js` and is fully deterministic: no clock, no random,
+  no runtime paths. `threshold` (default `DEFAULT_DRIFT_THRESHOLD`, `0.25`) only matters when
+  `baselineReport` is supplied — it feeds the advisory [drift](#drift-drift) signal and has no
+  effect on `groups`, `reviewCycles`, `recommendations`, or `baselineDeltas`.
 
 - `serializeReport(report) → string` — stable serialization: `JSON.stringify(sortDeep(report), null, 2) + '\n'`.
   All object keys deep-sorted alphabetically; 2-space indent; single trailing newline. The serialized
@@ -29,7 +32,7 @@ The valid bindings are **`{ claude, pi }`**.
 
 ## Claude binding
 
-`engine/src/telemetry-claude.js` — the single binding that owns every runtime specific:
+`engine/src/observability/adapters/claude/telemetry.js` — the single binding that owns every runtime specific:
 
 - **JSONL parsing**: reads Claude Code transcript JSONL files; maps vendor-specific field names to
   the vendor-neutral `UsageEvent` shape.
@@ -41,7 +44,7 @@ The valid bindings are **`{ claude, pi }`**.
   it as the `run` field on each event, providing stable run identity across re-runs of the same
   session.
 
-The binding is called once per invocation by the CLI front-door (`engine/src/usage-mine-main.js`),
+The binding is called once per invocation by the CLI front-door (`engine/src/observability/usage-mine-main.js`),
 which resolves flags, injects deps, and passes the resulting `UsageEvent[]` to `aggregate`.
 
 ## Pi binding
@@ -70,6 +73,10 @@ Only the `claude` binding is currently valid.
   `relative` cost (total token count) is always present.
 - `baselineDeltas` is omitted when no `--baseline` file is supplied; its presence never affects
   aggregation correctness.
+- `drift` is omitted under the same condition as `baselineDeltas` (no `--baseline` file
+  supplied); an absent baseline means no drift block at all — advisory exit-0/continue, never a
+  gate, never a STOP. An invalid or missing `--threshold` value silently falls back to
+  `DEFAULT_DRIFT_THRESHOLD` (`0.25`) rather than erroring.
 - **Config errors** (unknown binding, missing required opt) are caught at startup by the CLI
   validator and surfaced as a non-zero exit before any I/O begins — the same pattern as other
   adapter specs.
@@ -124,9 +131,10 @@ The examples below reflect that sort order.
 }
 ```
 
-`baselineDeltas` and `note` are conditional:
+`baselineDeltas`, `drift`, and `note` are conditional:
 
 - `baselineDeltas` appears only when `--baseline <file>` is passed.
+- `drift` appears only when `--baseline <file>` is passed (same condition as `baselineDeltas`).
 - `note` appears only when the input has no events: `"note": "no events provided"`.
 
 Empty/advisory report (no events):
@@ -285,3 +293,46 @@ baseline reports (matched by `run + phase + role + model`). Keys deep-sorted:
 
 `pricedCostDelta` is `null` when either the current or the baseline group has `cost.priced: null`.
 `tokensDelta` keys deep-sorted: `cacheCreation`, `cacheRead`, `input`, `output`.
+
+### Drift (`drift[*]`)
+
+Present only with `--baseline <file>` (same condition as `baselineDeltas`). An advisory
+prompt-regression signal, computed by `computeDrift` in `usage-aggregate.js`: flags `(phase,
+dimension)` pairs whose usage moved enough since the baseline to be worth a look. Keys
+deep-sorted: `delta`, `dimension`, `phase`, `threshold`.
+
+```json
+{
+  "delta": 0.31,
+  "dimension": "tokens-total",
+  "phase": "implement",
+  "threshold": 0.25
+}
+```
+
+- **Dimensions**: `tokens-total` (sum of all token kinds) and `durationMs`, checked
+  independently — a phase can drift on one and not the other.
+- **Values compared are per-phase MEANS per group occurrence, not sums.** The miner re-mines an
+  accumulating transcript corpus, so raw sums grow with corpus size while means stay comparable —
+  this makes the signal corpus-size-invariant; re-mining a grown corpus does not itself read as
+  drift.
+- **Phases are matched by name across sessions, never by run id** — a committed baseline snapshot
+  can never share a run id with a fresh mining run.
+- `delta` is the relative change from the baseline mean to the current mean:
+  `(current - baseline) / baseline`.
+  - `delta: null` — the phase has current-run activity but no baseline activity to compare
+    against; `report.md` renders this as `"new (no baseline activity)"`.
+  - A phase present in the baseline but absent from the current report yields `delta: -1` (its
+    mean drops to zero).
+- Only pairs that actually drifted are included: `delta === null`, or `|delta| > threshold`. A
+  stable phase produces no entry — an empty `drift: []` means nothing crossed the threshold, not
+  that no baseline was supplied (an absent baseline omits the `drift` key entirely instead).
+- `threshold` is the value applied to that entry: `0.25` by default (`DEFAULT_DRIFT_THRESHOLD`),
+  overridable per invocation with `--threshold <n>`; an invalid or missing value falls back to the
+  default rather than erroring.
+
+`report.md` renders a matching `## Phases drifted since baseline` section, one line per drifted
+`(phase, dimension)` pair, when `drift` is non-empty.
+
+The default committed baseline snapshot lives at `docs/metrics-baseline.report.json`, refreshed on
+demand as part of a closing chore.

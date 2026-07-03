@@ -103,3 +103,12 @@ test('Given a fenced manifest with an empty frontmatter block, when parseManifes
 
   assert.equal(result, null);
 });
+
+test('Given content whose first --- fence appears only mid-file after prose, when extractFrontmatter runs, then it returns null instead of treating horizontal rules as a block', () => {
+  const sut = extractFrontmatter;
+  const content = '# Title\n\nintro prose\n\n---\n\n## Section\n- item one\n\n---\n\nmore prose\n';
+
+  const result = sut(content);
+
+  assert.equal(result, null);
+});

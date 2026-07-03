@@ -5,9 +5,11 @@ import {
   aggregate,
   renderMarkdown,
   serializeReport,
+  computeDrift,
   CACHE_HOTSPOT_THRESHOLD,
   REVIEW_WASTE_CYCLES,
-} from '../src/usage-aggregate.js';
+  DEFAULT_DRIFT_THRESHOLD,
+} from '../src/observability/usage-aggregate.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -242,6 +244,62 @@ test('Given a current report and a baseline sharing a run/phase/role/model key, 
   assert.equal(delta.tokensDelta.input, 10, 'tokensDelta.input = 20 - 10');
   assert.ok(typeof delta.pricedCostDelta === 'number' && Number.isFinite(delta.pricedCostDelta));
   assert.ok(typeof delta.cacheEfficiencyDelta === 'number' && Number.isFinite(delta.cacheEfficiencyDelta));
+});
+
+test('Given a current group and a baseline group sharing phase/model but differing roles, when aggregate runs with the baseline, then no baselineDelta is matched (role is part of the match key)', () => {
+  const baseEvent = makeEvent({ role: 'reviewer' });
+  const currentEvent = makeEvent({ role: 'designer' });
+  const sut = aggregate;
+
+  const baselineReport = sut([baseEvent], PRICE_TABLE);
+  const currentReport = sut([currentEvent], PRICE_TABLE, baselineReport);
+
+  assert.equal(currentReport.baselineDeltas.length, 0, 'differing roles on the same phase/model must not collide into one match key');
+});
+
+test('Given a baseline group with an explicit empty-string role and a current event with no role, when aggregate runs with the baseline, then the groups still match (both key to the same nullish-role fallback)', () => {
+  const baseEvent = makeEvent({ role: '' });
+  const currentEvent = makeEvent({ role: undefined });
+  const sut = aggregate;
+
+  const baselineReport = sut([baseEvent], PRICE_TABLE);
+  const currentReport = sut([currentEvent], PRICE_TABLE, baselineReport);
+
+  assert.equal(currentReport.baselineDeltas.length, 1, 'an undefined role and a literal empty-string role must key identically');
+});
+
+test('Given a matched baseline group missing its cost/tokens fields (a malformed or older-schema baseline file), when aggregate runs, then it produces safe fallback deltas instead of throwing', () => {
+  const currentEvent = makeEvent({ tokens: { input: 20, cacheRead: 100, cacheCreation: 30, output: 10 } });
+  const sut = aggregate;
+  const baselineReport = {
+    schemaVersion: 1,
+    runs: [{
+      run: 'run-1', slug: null, reviewCycles: [],
+      groups: [{ phase: 'design', role: 'designer', model: 'model-a', cacheEfficiency: 0 }],
+    }],
+  };
+
+  const currentReport = sut([currentEvent], PRICE_TABLE, baselineReport);
+
+  assert.equal(currentReport.baselineDeltas.length, 1, 'the malformed group must still match by phase/role/model');
+  const delta = currentReport.baselineDeltas[0];
+  assert.equal(delta.pricedCostDelta, null, 'a missing base.cost must not throw — pricedCostDelta stays null');
+  assert.deepEqual(delta.tokensDelta, { input: 20, cacheRead: 100, cacheCreation: 30, output: 10 }, 'a missing base.tokens defaults each key to 0');
+
+  const driftForPhase = currentReport.drift.filter(d => d.phase === 'design');
+  assert.equal(driftForPhase.length, 2, 'a tokens-less baseline group contributes 0 to both dimensions — drift stays visible, never NaN-swallowed');
+  assert.ok(driftForPhase.every(d => d.delta === null), 'zero-baseline activity follows the null/new contract, not a silent drop');
+});
+
+test('Given a baseline object with no runs array (a malformed or schema-mismatched baseline file), when aggregate runs, then it produces empty baselineDeltas and flags the phase as new instead of throwing', () => {
+  const currentEvent = makeEvent();
+  const sut = aggregate;
+
+  const currentReport = sut([currentEvent], PRICE_TABLE, {});
+
+  assert.deepEqual(currentReport.baselineDeltas, [], 'no baseline runs to match against');
+  assert.equal(currentReport.drift.length, 2, 'both dimensions are flagged as new activity, never a crash');
+  assert.ok(currentReport.drift.every(d => d.delta === null), 'no baseline activity for the phase');
 });
 
 // ── 14. Review-waste recommendation fires at 3 cycles (F3) ───────────────────
@@ -1011,6 +1069,17 @@ test('Given a report with runs but no recommendations, when renderMarkdown runs,
   assert.ok(!result.includes('## Recommendations'), 'no recommendations must produce no Recommendations section');
 });
 
+test('Given a report missing the recommendations key entirely (an older-schema report file), when renderMarkdown runs, then it omits the section instead of throwing', () => {
+  const sut = renderMarkdown;
+  const event = makeEvent({ tokens: { input: 1, cacheRead: 0, cacheCreation: 0, output: 1 } });
+  const report = aggregate([event], PRICE_TABLE);
+  delete report.recommendations;
+
+  const result = sut(report);
+
+  assert.ok(!result.includes('## Recommendations'), 'a missing recommendations key must not throw and must omit the section');
+});
+
 // ── 63. renderMarkdown: empty report note propagates the aggregate note (not "empty" fallback) ──
 
 test('Given an empty events array, when renderMarkdown runs, then the no-data line uses the report note verbatim (not the "empty" fallback)', () => {
@@ -1071,4 +1140,258 @@ test('Given a current event with a priced model and a baseline where the same mo
   assert.ok(current.baselineDeltas, 'baselineDeltas must exist');
   assert.equal(current.baselineDeltas.length, 1, 'one matching group key must produce one delta');
   assert.strictEqual(current.baselineDeltas[0].pricedCostDelta, null, 'must be null not NaN when baseline priced is null');
+});
+
+// ── 67. computeDrift + report.drift: advisory prompt-regression signal ────────
+
+test('Given DEFAULT_DRIFT_THRESHOLD, when inspected, then it equals 0.25', () => {
+  assert.equal(DEFAULT_DRIFT_THRESHOLD, 0.25);
+});
+
+test('Given a current report and baseline sharing two groups where only one has a token-total delta beyond the default threshold, when computeDrift runs, then only that phase is flagged and no others', () => {
+  const baseEvents = [
+    makeEvent({ phase: 'design', role: 'designer', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+    makeEvent({ phase: 'implementation', role: 'coder', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+  ];
+  const currEvents = [
+    makeEvent({ phase: 'design', role: 'designer', tokens: { input: 105, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }), // 5% — stable
+    makeEvent({ phase: 'implementation', role: 'coder', tokens: { input: 200, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }), // 100% — drifted
+  ];
+  const baseline = aggregate(baseEvents, PRICE_TABLE);
+  const current = aggregate(currEvents, PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  assert.equal(drift.length, 1, 'exactly one phase must be flagged');
+  assert.equal(drift[0].phase, 'implementation');
+  assert.equal(drift[0].dimension, 'tokens-total');
+  assert.equal(drift[0].threshold, DEFAULT_DRIFT_THRESHOLD);
+});
+
+test('Given no baseline report, when computeDrift runs, then it returns an empty array', () => {
+  const current = aggregate([makeEvent()], PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, undefined, DEFAULT_DRIFT_THRESHOLD);
+
+  assert.deepEqual(drift, []);
+});
+
+test('Given a baseline group with zero tokens and a current group with non-zero tokens for the same key, when computeDrift runs, then the tokens-total dimension is flagged without producing NaN', () => {
+  const baseEvent = makeEvent({ tokens: { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 });
+  const currEvent = makeEvent({ tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 });
+  const baseline = aggregate([baseEvent], PRICE_TABLE);
+  const current = aggregate([currEvent], PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  const tokensDrift = drift.find(d => d.dimension === 'tokens-total');
+  assert.ok(tokensDrift, 'zero-baseline growth must be flagged');
+  assert.strictEqual(tokensDrift.delta, null, 'zero-baseline growth carries the JSON-safe null delta, never Infinity/NaN');
+  assert.strictEqual(JSON.stringify(tokensDrift.delta), 'null', 'null delta survives JSON serialization losslessly');
+});
+
+test('Given a baseline group and a current group that both have zero tokens and equal durationMs, when computeDrift runs, then no drift entry is produced for that group', () => {
+  const zeroTokens = { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 };
+  const baseline = aggregate([makeEvent({ tokens: zeroTokens, durationMs: 1000 })], PRICE_TABLE);
+  const current = aggregate([makeEvent({ tokens: zeroTokens, durationMs: 1000 })], PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  assert.deepEqual(drift, [], 'both-zero group must not produce a drift entry');
+});
+
+test('Given two drifted phases supplied out of alphabetical order, when computeDrift runs, then the result is sorted by phase', () => {
+  const baseEvents = [
+    makeEvent({ phase: 'zzz-phase', role: 'r', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+    makeEvent({ phase: 'aaa-phase', role: 'r', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+  ];
+  const currEvents = [
+    makeEvent({ phase: 'zzz-phase', role: 'r', tokens: { input: 500, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+    makeEvent({ phase: 'aaa-phase', role: 'r', tokens: { input: 500, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+  ];
+  const baseline = aggregate(baseEvents, PRICE_TABLE);
+  const current = aggregate(currEvents, PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  assert.deepEqual(drift.map(d => d.phase), ['aaa-phase', 'zzz-phase']);
+});
+
+test('Given a phase only in the current report and another phase drifted in both, when computeDrift runs on entries collected out of alphabetical order, then the output is still sorted by phase then dimension', () => {
+  const baseEvents = [
+    makeEvent({ phase: 'zzz-phase', role: 'r', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+  ];
+  const currEvents = [
+    makeEvent({ phase: 'zzz-phase', role: 'r', tokens: { input: 500, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+    makeEvent({ phase: 'aaa-phase', role: 'r', tokens: { input: 50, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 500 }),
+  ];
+  const baseline = aggregate(baseEvents, PRICE_TABLE);
+  const current = aggregate(currEvents, PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  // 'zzz-phase' is baseline-only (seen first while merging phase keys), so the
+  // pre-sort processing order is zzz-then-aaa; only sortDrift's own comparator
+  // can produce the correct aaa-before-zzz, dimension-alphabetical result.
+  assert.deepEqual(
+    drift.map(d => `${d.phase}/${d.dimension}`),
+    ['aaa-phase/durationMs', 'aaa-phase/tokens-total', 'zzz-phase/tokens-total'],
+  );
+});
+
+test('Given a baseline mined from one session and a current report mined from a different session with the same phase doubled in tokens, when computeDrift runs, then the phase is flagged', () => {
+  const baseline = aggregate([makeEvent({ run: 'session-a', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })], PRICE_TABLE);
+  const current = aggregate([makeEvent({ run: 'session-b', tokens: { input: 200, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })], PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  const tokensDrift = drift.find(d => d.dimension === 'tokens-total');
+  assert.ok(tokensDrift, 'phases must match across sessions by name — run ids never coincide between a committed baseline and a fresh run');
+  assert.ok(Math.abs(tokensDrift.delta - 1) < 1e-9, 'doubling tokens is a +1.0 relative delta');
+});
+
+test('Given a phase present in the baseline but absent from the current report, when computeDrift runs, then it is flagged with delta -1 on both dimensions', () => {
+  const baseline = aggregate([makeEvent({ run: 'session-a', phase: 'gone-phase', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })], PRICE_TABLE);
+  const current = aggregate([makeEvent({ run: 'session-b', phase: 'other-phase', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })], PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  const gone = drift.filter(d => d.phase === 'gone-phase');
+  assert.equal(gone.length, 2, 'a disappeared phase drifts on both dimensions');
+  assert.ok(gone.every(d => d.delta === -1), 'a disappeared phase is a -1.0 relative delta');
+});
+
+test('Given a phase costing 100 per run across two baseline runs and 200 in the current single run, when computeDrift runs, then the per-run doubling is flagged', () => {
+  const half = { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 };
+  const baseline = aggregate([
+    makeEvent({ run: 'session-a', tokens: half, durationMs: 500 }),
+    makeEvent({ run: 'session-b', tokens: half, durationMs: 500 }),
+  ], PRICE_TABLE);
+  const current = aggregate([makeEvent({ run: 'session-c', tokens: { input: 200, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })], PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  const tokensDrift = drift.find(d => d.dimension === 'tokens-total');
+  assert.ok(tokensDrift, 'a per-occurrence cost doubling must drift even when raw sums coincide');
+  assert.ok(Math.abs(tokensDrift.delta - 1) < 1e-9, 'means compare per occurrence: 200 vs a 100 mean is +1.0');
+});
+
+test('Given a current corpus containing three runs of the same per-run cost as the single-run baseline, when computeDrift runs, then corpus growth alone is not drift', () => {
+  const perRun = { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 };
+  const baseline = aggregate([makeEvent({ run: 'session-a', tokens: perRun, durationMs: 1000 })], PRICE_TABLE);
+  const current = aggregate([
+    makeEvent({ run: 'session-a', tokens: perRun, durationMs: 1000 }),
+    makeEvent({ run: 'session-b', tokens: perRun, durationMs: 1000 }),
+    makeEvent({ run: 'session-c', tokens: perRun, durationMs: 1000 }),
+  ], PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  assert.deepEqual(drift, [], 'per-phase means are corpus-size-invariant: more runs at the same cost is zero drift');
+});
+
+test('Given a relative delta exactly equal to the threshold, when computeDrift runs, then the phase is not flagged (boundary is strictly greater-than)', () => {
+  const baseEvents = [makeEvent({ tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })];
+  const currEvents = [makeEvent({ tokens: { input: 125, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })]; // exactly +0.25
+  const baseline = aggregate(baseEvents, PRICE_TABLE);
+  const current = aggregate(currEvents, PRICE_TABLE);
+  const sut = computeDrift;
+
+  const drift = sut(current, baseline, DEFAULT_DRIFT_THRESHOLD);
+
+  assert.deepEqual(drift, [], 'a delta exactly at the threshold must not flag (Math.abs(delta) > threshold, not >=)');
+});
+
+test('Given a drift entry with a null delta, when renderMarkdown runs, then the drifted-phases line labels it new instead of formatting a number', () => {
+  const baseline = aggregate([makeEvent({ run: 'session-a', phase: 'old-phase', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })], PRICE_TABLE);
+  const currEvents = [
+    makeEvent({ run: 'session-b', phase: 'old-phase', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 }),
+    makeEvent({ run: 'session-b', phase: 'brand-new-phase', tokens: { input: 50, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 500 }),
+  ];
+  const current = aggregate(currEvents, PRICE_TABLE, baseline);
+  const sut = renderMarkdown;
+
+  const markdown = sut(current);
+
+  assert.ok(markdown.includes('**brand-new-phase** [tokens-total]: delta=new (no baseline activity)'), 'null delta renders as a new-activity label');
+  assert.ok(!markdown.includes('Infinity'), 'markdown never renders Infinity');
+});
+
+test('Given a drift entry with a non-null numeric delta, when renderMarkdown runs, then the drifted-phases line renders the formatted number, not the new-activity label', () => {
+  const baseEvents = [makeEvent({ tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })];
+  const currEvents = [makeEvent({ tokens: { input: 500, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })]; // delta = 4.0
+  const baseline = aggregate(baseEvents, PRICE_TABLE);
+  const current = aggregate(currEvents, PRICE_TABLE, baseline);
+  const sut = renderMarkdown;
+
+  const markdown = sut(current);
+
+  assert.ok(markdown.includes('delta=4.000'), 'a real numeric delta must render as a fixed-point number');
+  assert.ok(!markdown.includes('[tokens-total]: delta=new (no baseline activity)'), 'a non-null delta must never render the new-activity label');
+});
+
+test('Given aggregate called with an explicit threshold as the 4th argument, when the relative delta exceeds it, then report.drift flags the phase; a looser default does not', () => {
+  const baseEvents = [makeEvent({ tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })];
+  const currEvents = [makeEvent({ tokens: { input: 110, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })]; // 10% delta
+  const baseline = aggregate(baseEvents, PRICE_TABLE);
+  const sut = aggregate;
+
+  const withDefault = sut(currEvents, PRICE_TABLE, baseline);
+  const withTightThreshold = sut(currEvents, PRICE_TABLE, baseline, 0.05);
+
+  assert.equal(withDefault.drift.length, 0, 'default threshold (0.25) must not flag a 10% delta');
+  assert.equal(withTightThreshold.drift.length, 1, 'a tighter 0.05 threshold must flag the same 10% delta');
+});
+
+test('Given aggregate called without a baseline, when inspected, then report.drift is not present on the report', () => {
+  const sut = aggregate;
+
+  const result = sut([makeEvent()], PRICE_TABLE);
+
+  assert.equal(result.drift, undefined, 'drift must be absent (mirrors baselineDeltas) when no baseline is supplied');
+});
+
+test('Given a report with a non-empty drift array, when serializeReport runs twice, then the output is byte-identical', () => {
+  const baseEvents = [makeEvent({ tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })];
+  const currEvents = [makeEvent({ tokens: { input: 500, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })];
+  const baseline = aggregate(baseEvents, PRICE_TABLE);
+  const report = aggregate(currEvents, PRICE_TABLE, baseline);
+  const sut = serializeReport;
+
+  const result1 = sut(report);
+  const result2 = sut(report);
+
+  assert.ok(report.drift.length > 0, 'sanity: drift must be non-empty for this scenario');
+  assert.equal(result1, result2, 'serialized output must be byte-identical across repeated calls');
+});
+
+test('Given a report with a non-empty drift array, when renderMarkdown runs, then the output includes the drifted-phases section', () => {
+  const baseEvents = [makeEvent({ tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })];
+  const currEvents = [makeEvent({ tokens: { input: 500, cacheRead: 0, cacheCreation: 0, output: 0 }, durationMs: 1000 })];
+  const baseline = aggregate(baseEvents, PRICE_TABLE);
+  const report = aggregate(currEvents, PRICE_TABLE, baseline);
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  assert.ok(result.includes('## Phases drifted since baseline'), 'section must appear when drift is non-empty');
+});
+
+test('Given a report with no baseline (drift absent), when renderMarkdown runs, then the output does not include the drifted-phases section', () => {
+  const report = aggregate([makeEvent()], PRICE_TABLE);
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  assert.ok(!result.includes('## Phases drifted since baseline'), 'section must be omitted when drift is empty/absent');
 });

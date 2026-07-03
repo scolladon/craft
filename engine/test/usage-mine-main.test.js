@@ -19,10 +19,10 @@ import {
 import { createInterface } from 'node:readline';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { main } from '../src/usage-mine-main.js';
+import { main } from '../src/observability/usage-mine-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
-import { serializeReport } from '../src/usage-aggregate.js';
+import { serializeReport } from '../src/observability/usage-aggregate.js';
 
 // A valid rollup JSONL line (matches single-rollup.jsonl fixture structure).
 const ROLLUP_LINE = JSON.stringify({
@@ -258,6 +258,87 @@ test('Given a baseline report and a current run, when main runs with --baseline,
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   assert.ok('baselineDeltas' in report, 'report must carry baselineDeltas when --baseline is provided');
+});
+
+// ─── 6b. --baseline + default --threshold → report.drift flags a phase whose delta exceeds 0.25 ──
+
+function makeDriftedBaselineReport(tokens) {
+  return {
+    schemaVersion: 1,
+    runs: [{
+      run: 'sess-aaa',
+      slug: 'feature-x',
+      groups: [{
+        phase: 'design', role: 'designer', model: 'claude-opus-4-8',
+        tokens, durationMs: 589907, messages: 10, cacheEfficiency: 0,
+        cost: { priced: null, relative: 150000 },
+      }],
+      reviewCycles: [],
+    }],
+    recommendations: [],
+  };
+}
+
+test('Given a baseline group whose token-total is far below the mined fixture, when main runs with --baseline and no --threshold, then report.drift flags the design phase', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+
+  // Mined fixture group total tokens = 2 + 196062 + 255 + 900 = 197219.
+  // Baseline group total tokens = 1 + 149000 + 200 + 799 = 150000 → relDelta ≈ 0.31 (> default 0.25).
+  const baselineReport = makeDriftedBaselineReport({ input: 1, cacheRead: 149000, cacheCreation: 200, output: 799 });
+  const baselinePath = join(repoRoot, 'baseline.json');
+  writeFileSync(baselinePath, serializeReport(baselineReport), 'utf8');
+
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir, '--baseline', baselinePath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.ok(
+    report.drift.some(d => d.phase === 'design' && d.dimension === 'tokens-total'),
+    'default threshold must flag the design phase token-total drift'
+  );
+});
+
+test('Given the same drifted baseline group, when main runs with --threshold above the delta, then report.drift is empty', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+
+  const baselineReport = makeDriftedBaselineReport({ input: 1, cacheRead: 149000, cacheCreation: 200, output: 799 });
+  const baselinePath = join(repoRoot, 'baseline.json');
+  writeFileSync(baselinePath, serializeReport(baselineReport), 'utf8');
+
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir, '--baseline', baselinePath, '--threshold', '0.5'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.equal(report.drift.length, 0, '--threshold override above the delta must suppress the flag');
+});
+
+test('Given a small nonzero drift below the default threshold, when main runs with --baseline and no --threshold flag, then report.drift does not flag it (an omitted flag must resolve to 0.25, not 0)', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+
+  // Mined fixture group total tokens = 197219 (see the 6b comment above).
+  // Baseline total = 187827 → relDelta ≈ +0.05, comfortably below the 0.25 default
+  // but far above 0 — only a correctly-resolved default threshold rejects it.
+  const baselineReport = makeDriftedBaselineReport({ input: 187827, cacheRead: 0, cacheCreation: 0, output: 0 });
+  const baselinePath = join(repoRoot, 'baseline.json');
+  writeFileSync(baselinePath, serializeReport(baselineReport), 'utf8');
+
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir, '--baseline', baselinePath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.equal(report.drift.length, 0, 'an omitted --threshold flag must resolve to the 0.25 default, not 0');
 });
 
 // ─── 7. --prices override — custom model is priced ───────────────────────────

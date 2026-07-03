@@ -7,48 +7,52 @@ set -euo pipefail
 # Resolve from repo root so relative paths and globs are call-site independent.
 cd "$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
-EXPECTED_TESTS=1407
+# run_suite <label> <test-dir> [cd-dir]
+# Enumerates <test-dir>'s *.test.js files independently of node's own glob
+# expansion (find, not node --test's glob) and passes the sorted list as
+# explicit argv — a missing/renamed file is then a hard error, never a silent
+# skip. Zero files found under <test-dir> is also a hard error.
+run_suite() {
+  local label="$1" suite_dir="$2" cd_dir="${3:-}"
+  local -a files=()
+  local found
+  while IFS= read -r found; do
+    files+=("$found")
+  done < <(find "$suite_dir" -name '*.test.js' | sort)
+  if [ "${#files[@]}" -eq 0 ]; then
+    echo "ci: ${label} suite enumerated zero test files under ${suite_dir}" >&2
+    exit 1
+  fi
 
-node_output="$(cd engine && node --test 'test/**/*.test.js' 2>&1)" && node_status=0 || node_status=$?
-echo "$node_output"
-[ "$node_status" -eq 0 ] || {
-  echo "ci: node --test failed (exit ${node_status})" >&2
-  exit "$node_status"
+  local -a run_files=("${files[@]}")
+  local run_cwd="."
+  if [ -n "$cd_dir" ]; then
+    run_cwd="$cd_dir"
+    run_files=()
+    local f
+    for f in "${files[@]}"; do
+      run_files+=("${f#"$cd_dir"/}")
+    done
+  fi
+
+  local output status
+  output="$(cd "$run_cwd" && node --test "${run_files[@]}" 2>&1)" && status=0 || status=$?
+  echo "$output"
+  [ "$status" -eq 0 ] || {
+    echo "ci: ${label} node --test failed (exit ${status})" >&2
+    exit "$status"
+  }
 }
-actual_tests="$(printf '%s\n' "$node_output" | awk '/^# tests / {print $3}')"
-[ "$actual_tests" = "$EXPECTED_TESTS" ] || {
-  echo "ci: test count drift — expected ${EXPECTED_TESTS}, got ${actual_tests}" >&2
-  exit 1
-}
 
-root_node_output="$(node --test 'engine/test/**/*.test.js' 2>&1)" && root_node_status=0 || root_node_status=$?
-echo "$root_node_output"
-[ "$root_node_status" -eq 0 ] || {
-  echo "ci: repo-root node --test failed (exit ${root_node_status})" >&2
-  exit "$root_node_status"
-}
-actual_root_tests="$(printf '%s\n' "$root_node_output" | awk '/^# tests / {print $3}')"
-[ "$actual_root_tests" = "$EXPECTED_TESTS" ] || {
-  echo "ci: repo-root test count drift — expected ${EXPECTED_TESTS}, got ${actual_root_tests}" >&2
-  exit 1
-}
-
-EXPECTED_PI_TESTS=202
-
-pi_output="$(cd adapters/pi && node --test 'test/**/*.test.js' 2>&1)" && pi_status=0 || pi_status=$?
-echo "$pi_output"
-[ "$pi_status" -eq 0 ] || { echo "ci: adapters/pi node --test failed (exit ${pi_status})" >&2; exit "$pi_status"; }
-actual_pi_tests="$(printf '%s\n' "$pi_output" | awk '/^# tests / {print $3}')"
-[ "$actual_pi_tests" = "$EXPECTED_PI_TESTS" ] || { echo "ci: pi test count drift — expected ${EXPECTED_PI_TESTS}, got ${actual_pi_tests}" >&2; exit 1; }
-
-EXPECTED_PROC_TESTS=121
-
-proc_output="$(node --test 'test/**/*.test.js' 2>&1)" && proc_status=0 || proc_status=$?
-echo "$proc_output"
-[ "$proc_status" -eq 0 ] || { echo "ci: process node --test failed (exit ${proc_status})" >&2; exit "$proc_status"; }
-actual_proc_tests="$(printf '%s\n' "$proc_output" | awk '/^# tests / {print $3}')"
-[ "$actual_proc_tests" = "$EXPECTED_PROC_TESTS" ] || { echo "ci: process test count drift — expected ${EXPECTED_PROC_TESTS}, got ${actual_proc_tests}" >&2; exit 1; }
+run_suite engine engine/test engine
+# Repo-root cwd/$HOME independence for the default-resolution engine tests
+# (manifest-lint-main, contracts-lint-main, pipeline-resolve-main) is guarded
+# by test/hermetic-suite.test.js under a hostile ambient — no need to rerun
+# the full engine suite from repo root too.
+run_suite adapters/pi adapters/pi/test adapters/pi
+run_suite process test
 
 shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts \
   && for b in BACKLOG.md templates/backlog.md; do bash scripts/backlog-lint.sh "$b" || exit 1; done \
-  && for d in templates/design.md docs/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done
+  && for d in templates/design.md docs/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \
+  && bash scripts/docs-structure-lint.sh docs

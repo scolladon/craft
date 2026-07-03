@@ -23,10 +23,10 @@ import {
   readdirSync as nodeReaddirSync,
 } from 'node:fs';
 import { createInterface as nodeCreateInterface } from 'node:readline';
-import { containByRealpath as nodeContainByRealpath } from './contain.js';
-import { parseLines } from './telemetry-claude.js';
-import { aggregate, serializeReport, renderMarkdown } from './usage-aggregate.js';
-import { loadPriceTable } from './pricing-claude.js';
+import { containByRealpath as nodeContainByRealpath } from '../contain.js';
+import { parseLines } from './adapters/claude/telemetry.js';
+import { aggregate, serializeReport, renderMarkdown, DEFAULT_DRIFT_THRESHOLD } from './usage-aggregate.js';
+import { loadPriceTable } from './adapters/claude/pricing.js';
 
 const EXIT_OK = 0;
 const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
@@ -53,6 +53,7 @@ function parseArgs(argv) {
     since: null,
     pricesFile: null,
     includeInline: false,
+    threshold: null,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
@@ -71,9 +72,18 @@ function parseArgs(argv) {
       case '--include-inline':
         parsed.includeInline = true;
         break;
+      case '--threshold':
+        parsed.threshold = argv[++i] ?? null;
+        break;
     }
   }
   return parsed;
+}
+
+function resolveThreshold(rawThreshold) {
+  if (rawThreshold == null) return DEFAULT_DRIFT_THRESHOLD;
+  const parsed = Number(rawThreshold);
+  return Number.isFinite(parsed) ? parsed : DEFAULT_DRIFT_THRESHOLD;
 }
 
 function resolveTranscriptDir(parsedDir, projectsRoot) {
@@ -208,7 +218,8 @@ export async function main(argv, io) {
 
   const priceTable = loadPriceTable(loadJson(parsed.pricesFile, readFileSync, stderr, '--prices'));
   const baselineReport = loadJson(parsed.baseline, readFileSync, stderr, '--baseline') ?? undefined;
-  const report = aggregate(events, priceTable, baselineReport);
+  const threshold = resolveThreshold(parsed.threshold);
+  const report = aggregate(events, priceTable, baselineReport, threshold);
 
   attemptWriteReports(repoRoot, report, writeFileSync, containByRealpath, stderr);
   return EXIT_OK;

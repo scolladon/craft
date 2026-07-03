@@ -16,8 +16,8 @@
 import { resolve as resolvePath } from 'node:path';
 
 import { load as yamlLoad, dump as yamlDump } from 'js-yaml';
-import { extractFrontmatter } from './frontmatter.js';
-import { containByRealpath } from './contain.js';
+import { extractFrontmatter } from '../frontmatter.js';
+import { containByRealpath } from '../contain.js';
 
 /**
  * Default store path, relative to the repo root, when no `ref` is configured.

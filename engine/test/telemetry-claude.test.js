@@ -8,7 +8,7 @@ import {
   tokensFromClaudeUsage,
   eventFromRollup,
   parseLines,
-} from '../src/telemetry-claude.js';
+} from '../src/observability/adapters/claude/telemetry.js';
 
 const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/telemetry');
 

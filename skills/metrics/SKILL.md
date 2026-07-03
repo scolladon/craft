@@ -58,10 +58,19 @@ Optional flags (pass through verbatim when the user supplies them):
 | Flag | Purpose |
 |---|---|
 | `--dir <path>` | Override the resolved transcript directory |
-| `--baseline <path>` | Baseline report for delta comparison |
+| `--baseline <path>` | Baseline report for delta comparison and drift detection — e.g. the committed `docs/metrics-baseline.report.json` snapshot |
+| `--threshold <n>` | Relative-delta threshold for the drift signal (default `0.25`); only used when `--baseline` is also supplied |
 | `--since <date>` | Restrict to transcripts on or after this date |
 | `--prices <path>` | Custom pricing table (JSON) |
 | `--include-inline` | Include inline-phase transcript segments |
+
+Passing `--baseline docs/metrics-baseline.report.json` compares the current run against the
+committed snapshot: `report.json` gains a `drift` array flagging any `(phase, dimension)` pair
+whose per-occurrence mean token cost or duration moved beyond `--threshold` relative to the
+baseline's mean — corpus-size-invariant, so re-mining a grown corpus is not drift; a phase
+with no baseline activity carries a `null` delta (rendered "new") — and `report.md` gains a
+"Phases drifted since baseline" section when any phase drifted. This is a prompt-regression
+signal only — advisory, never a gate (see error semantics below).
 
 The bin writes two artefacts inside the repo and exits 0 in all handled cases:
 
@@ -69,6 +78,23 @@ The bin writes two artefacts inside the repo and exits 0 in all handled cases:
   the workflow-improvement loop)
 - `report.md` — human-readable narrative (cache performance, cost breakdown,
   model-routing recommendations)
+
+### Refreshing the committed baseline
+
+`docs/metrics-baseline.report.json` is the drift reference. Refreshing it is a
+**deliberate, reviewed act** — never a side effect of running the miner:
+
+1. Refresh **when the prompt surface changed on purpose** — a run that edited
+   `skills/` or `agents/` lands with intentionally different per-phase economics, and
+   drift measured against the pre-change baseline would flag the intended shift
+   forever. The integrate phase offers this step when the merged run touched those
+   paths.
+2. Re-mine over the full transcript corpus, then copy `report.json` over
+   `docs/metrics-baseline.report.json` and commit it in the same PR/change that
+   altered the prompts (`chore(metrics): refresh drift baseline`), so the diff review
+   sees old-vs-new economics side by side.
+3. Never refresh to silence an *uninvestigated* drift flag — that converts the alarm
+   into the regression.
 
 ---
 
@@ -101,3 +127,4 @@ After the bin exits 0, report:
 | `--dir` path out of bounds | Miner enforces path containment, writes a no-data report, exits 0; skill reports the paths and continues |
 | Plugin root missing | STOP; surface "engine/bin/usage-mine.js not found — check CLAUDE_PLUGIN_ROOT"; do not invoke the bin |
 | Bin stderr output | Surface stderr diagnostic as a warning; report what artefacts are available and continue — the miner always exits 0 |
+| `--baseline` absent or unreadable | Drift is advisory: `report.drift` is empty and no "Phases drifted" section is rendered; exits 0 and continues — never a gate |
