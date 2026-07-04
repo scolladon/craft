@@ -253,34 +253,39 @@ P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2
   encoded twice: `coerceHarnessValue` (CLI coercion, `pipeline-resolve-main.js`) and `validateHarness`
   (typing, `manifest.js`) both enumerate `passes`/`max_cycles`/`convergence`/`incremental`/`dimensions`.
   A shared knob→type map would let coercion and validation derive from one declaration. Deferred at P18
-  as feature-sized (its own design); do it when a knob is added or renamed and the duplication bites.
+  as feature-sized (its own design).
   Re-evaluated 2026-06-28 (batched backlog-clearing run): still an honest no-op — the coerce/validate
-  knob sets are structurally asymmetric and the trigger has not fired (a faithful single-source costs
+  knob sets are structurally asymmetric (a faithful single-source costs
   more abstraction than the duplication removes).
+  **Trigger:** a harness knob is added or renamed and maintaining the two enumerations bites — not yet fired.
 - **Repo-local memory hardening** (P22 follow-ups — surfaced by review/validation) — the memory port
   (`docs/adapters/memory.md`, ADRs 116–123) ships deliberate document-only / mechanism-only choices that
   leave clean upgrade paths: (a) the **`custom` memory adapter** binding is reserved in the `memory:` key
   but only `file` is built; (b) the content whitelist is **document-only** — a **reject-at-write + schema
   lint** is the documented upgrade if non-mechanical content (abs paths, secrets, prose) ever leaks in
   practice; (d) `evictToCaps` re-serializes per drop, an **O(n²) cap-shrink edge** (lowering a cap on an
-  already-large store) a bulk-prune would fix (YAGNI at current bounded sizes); (e) **run-over-run
-  measurement** has no smoke yet — an SC5-style on-demand smoke driving load→save→`.claude/craft-metrics.md`
-  across two runs would prove the improvement loop end-to-end. None blocking; each is bounded by the
-  advisory-cache premise (worst case wasted cost, never wrong correctness). _((c) load-time same-key
-  dedupe shipped 2026-06-28 in the batched backlog-clearing run.)_
+  already-large store) a bulk-prune would fix (YAGNI at current bounded sizes). None blocking; each is bounded by the
+  advisory-cache premise (worst case wasted cost, never wrong correctness).
+  **Trigger:** (a) a non-`file` memory backend is needed (bind a `custom` adapter); (b) non-mechanical
+  content (abs paths, secrets, prose) ever leaks into memory in practice; (d) a cap is lowered on an
+  already-large store. _((c) load-time same-key
+  dedupe shipped 2026-06-28 in the batched backlog-clearing run; (e) run-over-run measurement retired
+  2026-07-04 by the `craft:tune` mine→tune→re-mine smoke.)_
 - **Interactive generator hardening** (P25 follow-ups — surfaced by review/validation) — `craft:init`
   shipped deliberate scope edges that leave clean upgrade paths: (a) **headless/answer-file interview
   mode** for `craft-pi`/non-Claude onboarding (interactive-only today; the interview is a conversation
-  and `craft-pi` has no interactive stdin — ship when a concrete non-Claude onboarding need exists);
+  and `craft-pi` has no interactive stdin);
   (b) **merge-into-existing named config** (the generator direct-overwrites a named file today, never
   merges; precedence-aware frontmatter reconciliation is its own feature). None blocking; each is a
   bounded edge of an advisory-cost feature (worst case: a manual step, never wrong output — every emit is
-  lint-gated before it lands). _((c) deterministic land helper + (d) `examples/named-config/` sample
+  lint-gated before it lands).
+  **Trigger:** (a) a concrete non-Claude onboarding need exists (`craft-pi`/headless, no interactive
+  stdin); (b) merging rather than overwriting a named config becomes a real need. _((c) deterministic land helper + (d) `examples/named-config/` sample
   shipped 2026-06-28 in the batched backlog-clearing run.)_
 - **Atomic-open path containment (TOCTOU / hardlink).** `engine/src/contain.js` closes the symlink-escape
   gap but returns the *lexical* path, so a symlink swapped into an ancestor between check and I/O, or a
   hardlink to an external file planted inside the root, is not caught (documented in the module header).
-  Trigger: if the local advisory threat model ever hardens to untrusted multi-writer roots, replace the
+  **Trigger:** if the local advisory threat model ever hardens to untrusted multi-writer roots, replace the
   check-then-use with an atomic open (`O_NOFOLLOW`-style) and canonical-path I/O. YAGNI today (fixed
   roots; a planter could write the target directly).
 
