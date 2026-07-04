@@ -2336,6 +2336,99 @@ test('Given intention { source: file, gate: advisory } when validateManifest run
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
+test('Given hygiene { gate: loud } when validateManifest runs, then error contains "unknown hygiene gate"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { hygiene: { gate: 'loud' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown hygiene gate')));
+});
+
+test('Given hygiene { gate: advisory } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { hygiene: { gate: 'advisory' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given hygiene { gate: blocking } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { hygiene: { gate: 'blocking' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given hygiene { bogus: 1 } when validateManifest runs, then error contains "unknown hygiene field"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { hygiene: { bogus: 1 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown hygiene field')));
+});
+
+test('Given hygiene as an array when validateManifest runs, then error contains "hygiene must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { hygiene: [] },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('hygiene must be an object')));
+});
+
+test('Given hygiene with the gate omitted when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { hygiene: {} },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected gate-omitted hygiene to be valid; errors: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given hygiene as null when validateManifest runs, then error contains "hygiene must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { hygiene: null },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('hygiene must be an object')));
+});
+
+test('Given hygiene as a bare string when validateManifest runs, then error contains "hygiene must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { hygiene: 'advisory' },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('hygiene must be an object')));
+});
+
 test('Given intention { source: file, covers: ["", 1] } when validateManifest runs, then error contains "intention.covers must be a list of non-empty strings"', () => {
   const sut = validateManifest;
 

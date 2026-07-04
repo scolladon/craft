@@ -175,20 +175,37 @@ Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `do
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
-**Intention port — self-governance.** The intention port ships governing only
-`engine/src/observability/**` (via `docs/adapters/telemetry.md`'s `subjects:`). The port's
-OWN sources (`engine/src/intention.js`, `intention-subjects.js`, `intention-lint-main.js`,
-`glob.js`) are not yet governed by any living page's `subjects`, so a change to them raises
-no `INTENTION-DRIFT`. Adopt `subjects:` on the page that documents the port (or a dedicated
-living page) so the feature dogfoods its own freshness guard. Deliberately deferred from the
-intention-port run (conservative single-page adoption).
+**Intention self-governance + corpus single-source — delivered 2026-07-04** (`harness-hygiene-prune-gates`).
+`docs/adapters/intention.md` now carries `subjects: [engine/src/intention*.js, engine/src/glob.js]`,
+so the port dogfoods its own freshness guard (ADR-207). The living-corpus enumeration is
+single-sourced behind `scripts/living-corpus.sh`, consumed by both `scripts/ci.sh` and
+`test/intention-lint-ci.test.js` (ADR-208).
 
-**Intention corpus enumeration — single source.** `scripts/ci.sh` and
-`test/intention-lint-ci.test.js` independently re-implement the living-corpus `find`
-enumeration (`docs/adapters/*.md`, `docs/DESIGN-*.md`, `docs/DOD.md`,
-`docs/GUIDE-customizing.md`, `BACKLOG.md`). They are in sync today but can silently drift;
-share one enumeration (a helper both consume, or a test asserting the two sets match).
-Surfaced by the intention-port review (tests dimension), deferred as feature-sized.
+**Pre-completion hygiene gates + `craft:prune` — delivered 2026-07-04** (same run). Two
+advisory-first lints (`engine/bin/{stub,prose}-lint.js`) run in `ci.sh` over the branch-diff
+touched set: a stub-marker gate over touched source and a prose anti-slop gate over touched
+docs (+ the PR body as a capability), governed by one `hygiene.gate: advisory|blocking`
+manifest knob (default advisory, ADRs 210–212) with `STUB-WAIVE`/`SLOP-WAIVE` prose waivers.
+`skills/prune/SKILL.md` is an on-demand, propose-never-dispose harness-prune review with
+`contracts/core.md` as a fail-closed denylist (ADR-209; the five automation balloon axes were
+put to the user and declined).
+
+**Follow-ups surfaced this run (deferred, scoped):**
+- **Wire `prose-lint` over the PR body at propose.** The bin accepts a PR-body file as a
+  capability (proven by test); `skills/propose` is not yet wired to invoke it over the drafted
+  body. One-line integration when wanted.
+- **Promote the hygiene gates to blocking in `ci.sh`.** `hygiene.gate: blocking` is validated
+  and the bins honor `--gate blocking`, but `ci.sh` runs them advisory-only (craft's own
+  manifest declares no `hygiene` block). Wire `ci.sh` to the resolved knob once the marker-set
+  and ban-list are tuned enough to hard-gate.
+- **Shared `hygiene-lint-core` when a 3rd hygiene gate lands.** `stub-lint-main.js` and
+  `prose-lint-main.js` share identical `parseArgs`/`collectWaived`/`isSelf`/`main` boilerplate;
+  held at the YAGNI rule-of-three boundary (refactoring no-op this run). Centralize when a
+  third gate makes the duplication bite.
+- **`hygiene-lint` hardening (advisory-only exposures, reviewer LOWs).** An option-injection
+  `--` end-of-options separator; waiver-path normalization (exact repo-relative match today); a
+  `BAN_LIST` metacharacter-escape guard (the list is user-curated); an optional large-file size
+  threshold. Batch when the gates go blocking.
 
 _(Prior: the shrink-core-prune-guardrails run (2026-07-03) surfaced two candidates and
 delivered both in the same PR: structured DoD criteria for `docs/DOD.md`, and the

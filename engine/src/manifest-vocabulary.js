@@ -7,7 +7,7 @@
 export const TOP_KEYS = Object.freeze(new Set([
   'backlog', 'memory', 'paths', 'context', 'gates', 'phases',
   'pr', 'scripts', 'models', 'pipeline', 'retrieval', 'execution',
-  'extends', 'policy', 'intention',
+  'extends', 'policy', 'intention', 'hygiene',
 ]));
 
 /**
@@ -61,3 +61,6 @@ export const INTENTION_SOURCES = Object.freeze(new Set(['file', 'custom']));
 
 /** Valid gate values for the `intention` key. */
 export const INTENTION_GATES = Object.freeze(new Set(['advisory', 'blocking']));
+
+/** Valid gate values for the `hygiene` key. */
+export const HYGIENE_GATES = Object.freeze(new Set(['advisory', 'blocking']));

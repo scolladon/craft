@@ -24,6 +24,7 @@ import {
   MEMORY_SOURCES,
   INTENTION_SOURCES,
   INTENTION_GATES,
+  HYGIENE_GATES,
 } from './manifest-vocabulary.js';
 import { validateHarness } from './manifest-harness.js';
 import { validatePipelineKeys } from './manifest-pipeline-edits.js';
@@ -323,6 +324,20 @@ function validatePolicy(policy, errors) {
   }
 }
 
+function validateHygiene(hygiene, errors) {
+  if (typeof hygiene !== 'object' || hygiene === null || Array.isArray(hygiene)) {
+    errors.push('hygiene must be an object { gate }');
+    return;
+  }
+  for (const k of Object.keys(hygiene)) {
+    if (k !== 'gate') errors.push(`unknown hygiene field: ${k}`);
+  }
+  const { gate } = hygiene;
+  if (gate !== undefined && !HYGIENE_GATES.has(gate)) {
+    errors.push(`unknown hygiene gate: ${gate} (expected one of advisory, blocking)`);
+  }
+}
+
 /**
  * Validate a single phase block.
  * @param {string} phaseName
@@ -469,6 +484,9 @@ export function validateManifest(manifest, opts) {
         break;
       case 'policy':
         validatePolicy(value, errors);
+        break;
+      case 'hygiene':
+        validateHygiene(value, errors);
         break;
       case 'extends':
         validateExtends(value, fileExists, errors);

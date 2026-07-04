@@ -74,3 +74,46 @@ shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/
   && for b in BACKLOG.md templates/backlog.md; do bash scripts/backlog-lint.sh "$b" || exit 1; done \
   && for d in templates/design.md docs/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \
   && bash scripts/docs-structure-lint.sh docs
+
+# --- hygiene gates (workstream C): touched-diff stub + prose lints, advisory ---
+# Distinct block, non-adjacent to run_intention_lint, so each workstream reverts
+# without conflicting on this file.
+compute_touched() {
+  local base f
+  base="$(git merge-base HEAD main 2>/dev/null || true)"
+  [ -n "$base" ] || return 0
+  # -z + core.quotepath=false so non-ASCII names survive verbatim (octal-quoted names
+  # would fail the existence test and silently escape both gates); skip symlinks so a
+  # committed link cannot redirect a read outside the tree.
+  git -c core.quotepath=false diff --no-ext-diff -z --name-only "$base"..HEAD 2>/dev/null \
+    | while IFS= read -r -d '' f; do
+        [ -e "$f" ] && [ ! -L "$f" ] && printf '%s\n' "$f"
+      done
+}
+run_stub_lint() {
+  local -a src=() waivers=()
+  local f
+  while IFS= read -r f; do
+    case "$f" in
+      *.test.js) ;;
+      test/*|*/test/*|test-helpers/*|*/test-helpers/*) ;;
+      *.js|*.mjs|*.cjs|*.ts|*.sh) src+=("$f") ;;
+      *.md) waivers+=(--waiver-source "$f") ;;
+    esac
+  done < <(compute_touched)
+  [ "${#src[@]}" -eq 0 ] && return 0
+  node engine/bin/stub-lint.js ${waivers[@]+"${waivers[@]}"} "${src[@]}"
+}
+run_prose_lint() {
+  local -a docs=() waivers=()
+  local f
+  while IFS= read -r f; do
+    case "$f" in
+      *.md) docs+=("$f"); waivers+=(--waiver-source "$f") ;;
+    esac
+  done < <(compute_touched)
+  [ "${#docs[@]}" -eq 0 ] && return 0
+  node engine/bin/prose-lint.js ${waivers[@]+"${waivers[@]}"} "${docs[@]}"
+}
+run_stub_lint
+run_prose_lint

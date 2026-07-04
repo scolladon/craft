@@ -158,6 +158,14 @@ Tier = effort: **0** = one line in `.claude/workflow.md` · **1** = add a file �
 | **gate** command *(Tier 0)* | your harness, any tech | a weak gate weakens your own floor | [`gate-command/`](../examples/gate-command/) |
 | **harness config** *(Tier 0)* | tune rigor per concern (dimensions / passes / cycles / convergence / tool) | mis-tuning over/under-verifies | [`review-harness/`](../examples/review-harness/) |
 
+#### `hygiene.gate` — stub + prose lint posture
+
+`hygiene: { gate: advisory|blocking }` *(Tier 0)* is the shared posture knob for the two
+touched-diff lints `ci.sh` runs on every branch — the stub-marker lint and the anti-slop
+prose lint. Default `advisory`: findings print but the run stays green. `blocking` promotes
+both lints together — there is no separate knob per lint. The value is validated against the
+same fixed set as `intention.gate`, fail-closed on anything else.
+
 ### Reshape the spine — skip · required · context · insert · reorder · extends
 
 | Point | What it buys | Cost | Sample |

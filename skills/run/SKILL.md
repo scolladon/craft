@@ -92,7 +92,9 @@ Input: `$ARGUMENTS`
     (`NO-OP(<phase>):`, `GATE(<phase>):`, `auto-skip:`, `WAIVER:`, `POLICY(...)`):
     `INTENTION-DRIFT(<page>): <changed-path>` and `INTENTION-WAIVE(<page>): <reason>` —
     see `docs/adapters/intention.md` Token vocabulary; emitted by the `validation` phase's
-    `assert-fresh` walk.
+    `assert-fresh` walk. Four more tokens join the same family from the `ci.sh` hygiene
+    cadence: `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`,
+    `SLOP-FOUND(<file>): <entry>`, and `SLOP-WAIVE(<file>): <reason>`.
 
 1d. `Resolution.gateDecisions` is an ARRAY of `{ phaseId, gate, codeProducing }`
     (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose
