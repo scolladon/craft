@@ -61,17 +61,11 @@ run_intention_lint() {
   local found
   while IFS= read -r found; do
     files+=("$found")
-  done < <(
-    {
-      find docs/adapters -maxdepth 1 -name '*.md'
-      find docs -maxdepth 1 \( -name 'DESIGN-*.md' -o -name 'DOD.md' -o -name 'GUIDE-customizing.md' \)
-    } | sort
-  )
+  done < <(bash scripts/living-corpus.sh)
   if [ "${#files[@]}" -eq 0 ]; then
     echo "ci: intention-lint corpus enumerated zero files" >&2
     exit 1
   fi
-  files+=("BACKLOG.md")
   node engine/bin/intention-lint.js "${files[@]}"
 }
 run_intention_lint

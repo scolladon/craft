@@ -1,3 +1,8 @@
+---
+subjects:
+  - engine/src/intention*.js   # intention.js, intention-subjects.js, intention-lint-main.js
+  - engine/src/glob.js         # shared matcher — advisory over-flag trade-off
+---
 # Intention adapter spec
 
 ## Port interface

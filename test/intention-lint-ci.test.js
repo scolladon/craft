@@ -9,27 +9,14 @@ const ROOT = path.resolve(__dirname, '..');
 const CI_SCRIPT = path.join(ROOT, 'scripts', 'ci.sh');
 const BIN = path.join(ROOT, 'engine', 'bin', 'intention-lint.js');
 
-// Mirrors ci.sh's own enumeration of the design's zero-config corpus
-// (docs/adapters/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/GUIDE-customizing.md)
-// plus BACKLOG.md — see docs/design/intention-port.md "Zero-config probe".
-function mdFilesIn(dir) {
-  return fs
-    .readdirSync(dir)
-    .filter((name) => name.endsWith('.md'))
-    .map((name) => path.join(dir, name));
-}
-
+// Shells out to the single-source enumerator both ci.sh and this test consume
+// — see scripts/living-corpus.sh.
 function enumerateCorpus() {
-  const adapterPages = mdFilesIn(path.join(ROOT, 'docs', 'adapters'));
-  const designDocs = fs
-    .readdirSync(path.join(ROOT, 'docs'))
-    .filter((name) => /^DESIGN-.*\.md$/.test(name))
-    .map((name) => path.join(ROOT, 'docs', name));
-  const fixedPages = [
-    path.join(ROOT, 'docs', 'DOD.md'),
-    path.join(ROOT, 'docs', 'GUIDE-customizing.md'),
-  ];
-  return [...adapterPages, ...designDocs, ...fixedPages, path.join(ROOT, 'BACKLOG.md')];
+  const out = execFileSync('bash', [path.join(ROOT, 'scripts', 'living-corpus.sh')], {
+    cwd: ROOT,
+    encoding: 'utf8',
+  });
+  return out.split('\n').filter(Boolean);
 }
 
 test('Given scripts/ci.sh, when its content is read, then it invokes intention-lint', () => {
