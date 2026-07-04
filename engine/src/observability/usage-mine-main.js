@@ -103,6 +103,7 @@ function loadJson(filePath, readFileSync, stderr, kind) {
 
 async function streamTranscriptFiles(jsonlFiles, transcriptDir, createReadStream, createInterface, containByRealpath, since = null) {
   const allEvents = [];
+  const allMarkers = [];
   let totalSkipped = 0;
   for (const file of jsonlFiles) {
     // A3: per-file containment guard — each .jsonl child is realpath-checked before streaming.
@@ -112,16 +113,17 @@ async function streamTranscriptFiles(jsonlFiles, transcriptDir, createReadStream
       // Streaming via readline — never readFileSync — avoids OOM on large transcripts.
       const stream = createReadStream(safeFile);
       const lines = createInterface({ input: stream, crlfDelay: Infinity });
-      const { events, skipped } = await parseLines(lines, since);
+      const { events, skipped, markers } = await parseLines(lines, since);
       // G2: for-of avoids spread-on-large-array stack overflow.
       for (const e of events) allEvents.push(e);
+      for (const m of markers) allMarkers.push(m);
       totalSkipped += skipped;
     } catch {
       continue;
     }
   }
-  // C4: propagate total skipped count so callers can surface it.
-  return { events: allEvents, skipped: totalSkipped };
+  // C4: propagate total skipped count and the phase-skip markers so callers can surface them.
+  return { events: allEvents, skipped: totalSkipped, markers: allMarkers };
 }
 
 function attemptWriteReports(repoRoot, report, writeFileSync, checkContain, stderr) {
@@ -203,7 +205,7 @@ export async function main(argv, io) {
   if (!jsonlFiles.length) { writeNoOp(NO_FILES_NOTE); return EXIT_OK; }
 
   // Stream-parse all transcript files (never readFileSync — see module header).
-  const { events, skipped } = await streamTranscriptFiles(
+  const { events, skipped, markers } = await streamTranscriptFiles(
     jsonlFiles,
     safeTranscriptDir,
     createReadStream,
@@ -219,7 +221,7 @@ export async function main(argv, io) {
   const priceTable = loadPriceTable(loadJson(parsed.pricesFile, readFileSync, stderr, '--prices'));
   const baselineReport = loadJson(parsed.baseline, readFileSync, stderr, '--baseline') ?? undefined;
   const threshold = resolveThreshold(parsed.threshold);
-  const report = aggregate(events, priceTable, baselineReport, threshold);
+  const report = aggregate(events, priceTable, baselineReport, threshold, markers);
 
   attemptWriteReports(repoRoot, report, writeFileSync, containByRealpath, stderr);
   return EXIT_OK;

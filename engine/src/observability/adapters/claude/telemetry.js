@@ -10,6 +10,8 @@
  * No clock reads, no random, no model-id literals in core paths.
  */
 
+import { autoSkipPhasesInText } from '../../skip-signals.js';
+
 const SYNTHETIC_MODEL = '<synthetic>';
 const MODEL_1M_SUFFIX = '[1m]';
 const CRAFT_PREFIX = 'craft:';
@@ -151,6 +153,19 @@ function isRollupLine(parsed) {
 }
 
 /**
+ * Concatenate the text of a parsed assistant line's message content. Tolerates a
+ * string content, an array of `{ text }` blocks, or neither (returns '').
+ * @param {object} parsed
+ * @returns {string}
+ */
+function assistantTextOf(parsed) {
+  const content = parsed?.message?.content;
+  if (typeof content === 'string') return content;
+  if (!Array.isArray(content)) return '';
+  return content.map(block => (typeof block?.text === 'string' ? block.text : '')).join('\n');
+}
+
+/**
  * Parse an async iterable of raw JSONL lines into UsageEvents.
  *
  * Malformed lines (not valid JSON) are skipped and counted in `skipped`.
@@ -168,6 +183,7 @@ function isRollupLine(parsed) {
  */
 export async function parseLines(lines, since = null) {
   const events = [];
+  const markers = [];
   let skipped = 0;
   for await (const line of lines) {
     const trimmed = line.trim();
@@ -184,10 +200,16 @@ export async function parseLines(lines, since = null) {
       const ts = parsed.timestamp ?? null;
       if (ts !== null && ts < since) continue;
     }
+    // Run-record `auto-skip:` tokens ride in orchestrator assistant text, not a
+    // rollup — scanned before the rollup gate. Only run+phase escape (no text).
+    const run = parsed.sessionId ?? null;
+    for (const phase of autoSkipPhasesInText(assistantTextOf(parsed))) {
+      markers.push({ run, phase });
+    }
     if (!isRollupLine(parsed)) continue;
     const context = { sessionId: parsed.sessionId ?? null, slug: parsed.slug ?? null };
     const event = eventFromRollup(parsed.toolUseResult, context);
     if (event !== null) events.push(event);
   }
-  return { events, skipped };
+  return { events, skipped, markers };
 }

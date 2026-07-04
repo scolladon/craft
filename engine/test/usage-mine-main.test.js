@@ -794,3 +794,23 @@ test('Given a --prices path where readFileSync throws EACCES, when main runs, th
   );
   assert.ok(existsSync(join(repoRoot, 'report.json')), 'report.json must still be written with default prices');
 });
+
+// ─── phase-skip signal — auto-skip token in transcript → report rec ───────────
+
+test('Given a transcript with a rollup and an auto-skip token, when main runs, then report.json carries a phase-skip recommendation', async () => {
+  const sut = main;
+  const autoSkipLine = JSON.stringify({
+    type: 'assistant',
+    sessionId: 'sess-aaa',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'auto-skip: review — evaluated unnecessary (no source diff in scope)' }] },
+  });
+  const { projectsRoot, transcriptDir } = makeFixture({ lines: [ROLLUP_LINE, autoSkipLine] });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--dir', transcriptDir], io);
+
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const skipRecs = report.recommendations.filter(r => r.kind === 'phase-skip');
+  assert.deepEqual(skipRecs.map(r => r.phase), ['review']);
+});

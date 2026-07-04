@@ -177,19 +177,22 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-07-04 brainstorm — not yet scheduled)
 
-**`craft:tune` — feedback-driven config improvement (propose-diff) — candidate (unscheduled).**
-`craft:metrics` mines telemetry into `report.json`, but its consumer #1 ("workflow improvement")
-is hand-run. Close the loop with a tuner that keeps observe and act separate (CQS):
-- **Inputs (all machine-derived):** `report.json` (cost / cache / model-routing recs) + `drift[]`
-  vs `docs/metrics-baseline.report.json` + `.claude/craft-memory.md` recurring findings + run tokens
-  (`WAIVER` / `NO-OP` / auto-skip).
-- **Output:** a proposed manifest patch (model routing, `pipeline.skip`/insert, gate posture,
-  checkpoint placement, execution inline/agent, harness techniques) to a **named** config only —
-  never the live `.claude/workflow.md`.
-- **Apply mode:** propose-diff → human lands via the same emit→lint→land path `craft:init` uses.
-Complements `craft:metrics` (stays the read-only miner). Retires the parked _Repo-local memory
-hardening (e)_ gap — the tuner **is** the run-over-run improvement loop; the SC5-style two-run
-smoke becomes its acceptance test.
+_None currently — the 2026-07-04 brainstorm candidate (`craft:tune`) shipped; see below._
+
+---
+
+**`craft:tune` — feedback-driven config tuner (propose-diff) — delivered 2026-07-04** (`config-tuner`).
+Closes the observe→improve loop `craft:metrics` left half-built, CQS-separate from the miner. The
+miner gains a `phase-skip` recommendation from the `auto-skip:` run-record token (`skip-signals.js`,
+plus a `role` field on the model-routing rec so the tuner maps straight to a role). A pure
+`tune-plan.js` maps the two lint-clean signals — `model-routing → models.<role>` and repeated
+`phase-skip → pipeline.skip` — to a proposed patch, and surfaces cache-hotspot / review-waste /
+`drift[]` / recurring memory findings as advisory (no manifest knob exists for them). The `craft:tune`
+skill resolves a **named** config two-scope, presents the diff, and lands through the same
+emit→lint→`init-land` path `craft:init`/`craft:promote-config` use — never `.claude/workflow.md`, never
+auto-applied (the human confirm is the gate). An SC-style two-run smoke (mine → tune → re-mine) asserts
+the proposed route moved the flagged phase's priced cost. Retires the parked _Repo-local memory
+hardening (e)_ gap.
 
 ---
 

@@ -158,6 +158,7 @@ test('Given two models for one phase where a cheaper table key exists, when aggr
 
   const rec = result.recommendations.find(r => r.kind === 'model-routing');
   assert.ok(rec, 'expected a model-routing recommendation');
+  assert.equal(rec.role, 'implementer', 'rec must carry the expensive group role for downstream routing');
   assert.equal(typeof rec.evidence.currentModel, 'string');
   assert.equal(typeof rec.evidence.currentPricedCost, 'number');
   assert.equal(typeof rec.evidence.candidateModel, 'string');
@@ -1394,4 +1395,32 @@ test('Given a report with no baseline (drift absent), when renderMarkdown runs, 
   const result = sut(report);
 
   assert.ok(!result.includes('## Phases drifted since baseline'), 'section must be omitted when drift is empty/absent');
+});
+
+// ── phase-skip recommendations (auto-skip run-record signal) ──────────────────
+
+test('Given events and skip markers, when aggregate runs, then a phase-skip rec is emitted alongside the other kinds', () => {
+  const sut = aggregate;
+  const events = [makeEvent()];
+
+  const result = sut(events, PRICE_TABLE, undefined, DEFAULT_DRIFT_THRESHOLD, [{ run: 'run-1', phase: 'review' }]);
+
+  const skipRecs = result.recommendations.filter(r => r.kind === 'phase-skip');
+  assert.deepEqual(skipRecs, [{
+    kind: 'phase-skip',
+    run: 'run-1',
+    phase: 'review',
+    model: null,
+    detail: 'phase review auto-skipped (evaluated unnecessary)',
+    evidence: { marker: 'auto-skip' },
+  }]);
+});
+
+test('Given no skip markers argument, when aggregate runs, then recommendations carry no phase-skip rec (backward-compatible default)', () => {
+  const sut = aggregate;
+  const events = [makeEvent()];
+
+  const result = sut(events, PRICE_TABLE);
+
+  assert.equal(result.recommendations.filter(r => r.kind === 'phase-skip').length, 0);
 });

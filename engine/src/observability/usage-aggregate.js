@@ -5,6 +5,8 @@
  * All time derives from event data; keys are sorted for byte-stable output.
  */
 
+import { phaseSkipRecs } from './skip-signals.js';
+
 export const CACHE_HOTSPOT_THRESHOLD = 0.5;
 export const REVIEW_WASTE_CYCLES = 2;
 export const DEFAULT_DRIFT_THRESHOLD = 0.25;
@@ -182,7 +184,9 @@ function buildRoutingRec(expensive, cheap, priceTable) {
   const projected = computePricedCost(expensive.tokens, expensive.cacheCreationTtl, cheapPrices);
   if (projected >= expensive.cost.priced) return null;
   return {
-    kind: 'model-routing', run: expensive.run, phase: expensive.phase, model: expensive.model,
+    // role rides on the rec so a downstream tuner routes models.<role> without
+    // re-deriving it from the run's groups.
+    kind: 'model-routing', run: expensive.run, phase: expensive.phase, role: expensive.role, model: expensive.model,
     detail: `consider ${cheap.model} for phase ${expensive.phase}`,
     evidence: {
       currentModel: expensive.model, currentPricedCost: expensive.cost.priced,
@@ -375,7 +379,7 @@ function sortDeep(value) {
 
 // ── Public exports ────────────────────────────────────────────────────────────
 
-export function aggregate(events, priceTable, baselineReport, threshold = DEFAULT_DRIFT_THRESHOLD) {
+export function aggregate(events, priceTable, baselineReport, threshold = DEFAULT_DRIFT_THRESHOLD, skipMarkers = []) {
   if (!events.length) return { schemaVersion: 1, runs: [], note: 'no events provided' };
 
   const byRun = groupByRun(events);
@@ -392,6 +396,7 @@ export function aggregate(events, priceTable, baselineReport, threshold = DEFAUL
     ...cacheHotspotRecs(allEnriched),
     ...modelRoutingRecs(allEnriched, priceTable),
     ...reviewWasteRecs(runs),
+    ...phaseSkipRecs(skipMarkers),
   ]);
 
   const report = { schemaVersion: 1, runs, recommendations };

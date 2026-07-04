@@ -572,3 +572,57 @@ test('Given lines containing only whitespace, when parseLines runs, then skipped
   assert.equal(result.events.length, 0);
   assert.equal(result.skipped, 0, 'whitespace-only lines must not increment skipped');
 });
+
+// ── phase-skip markers (auto-skip run-record token) ───────────────────────────
+
+test('Given an assistant line carrying an auto-skip token, when parseLines runs, then it emits a run+phase marker', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant',
+    sessionId: 'run-skip',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'auto-skip: review — evaluated unnecessary (no source diff in scope)' }] },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.deepEqual(result.markers, [{ run: 'run-skip', phase: 'review' }]);
+});
+
+test('Given an auto-skip marker line, when parseLines runs, then the marker carries only run and phase (redaction-safe)', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant',
+    sessionId: 'run-skip',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'auto-skip: decisions — evaluated unnecessary (all clear)' }] },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.deepEqual(Object.keys(result.markers[0]).sort(), ['phase', 'run']);
+});
+
+test('Given lines with no auto-skip token, when parseLines runs, then markers is empty', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant',
+    sessionId: 'run-1',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'the review phase produced findings' }] },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.deepEqual(result.markers, []);
+});
+
+test('Given an assistant line whose content is a plain string with an auto-skip token, when parseLines runs, then it still emits the marker', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant',
+    sessionId: 'run-str',
+    message: { role: 'assistant', content: 'auto-skip: refactoring — evaluated unnecessary (no gain)' },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.deepEqual(result.markers, [{ run: 'run-str', phase: 'refactoring' }]);
+});
