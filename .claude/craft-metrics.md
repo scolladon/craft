@@ -192,3 +192,8 @@ intention-port implementation tokens=820409 duration_ms=2962369 cache=na
 intention-port review tokens=520923 duration_ms=2412323 cache=na
 intention-port refactoring tokens=42383 duration_ms=77115 cache=na
 intention-port validation-triage tokens=549135 duration_ms=3520639 cache=na
+harness-hygiene-prune-gates design tokens=153727 duration_ms=928968 cache=na
+harness-hygiene-prune-gates planning tokens=190795 duration_ms=1533018 cache=na
+harness-hygiene-prune-gates implementation tokens=557515 duration_ms=1759763 cache=na
+harness-hygiene-prune-gates review tokens=323336 duration_ms=1421685 cache=na
+harness-hygiene-prune-gates validation-triage tokens=101425 duration_ms=436556 cache=na
