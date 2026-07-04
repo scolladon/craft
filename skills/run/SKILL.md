@@ -33,13 +33,18 @@ Input: `$ARGUMENTS`
    (the bin merges them at highest precedence).
 
 0b. **Resolve the manifest path.** When `--config <name>` was parsed in step 0a:
-   run `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-config.js" <name>` via Bash.
-   - On non-zero exit (bad name or traversal attempt): STOP; surface stderr to the user;
-     refuse to proceed.
-   - On exit 0: the bin prints the resolved relative path to stdout — hold it as
-     `<manifest-path>`. Then check that the file exists (`[ -f <manifest-path> ]`);
-     if it does not exist: STOP with the message "`--config <name>`: no manifest at
-     `.claude/craft-<name>.md`". Never silently fall back to `.claude/workflow.md`.
+   run `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/config-resolve.js" <name>` via Bash. This
+   resolves `<name>` across BOTH scopes — local `./.claude/craft-<name>.md` (always wins)
+   then user `~/.claude/craft-<name>.md` — so there is no separate existence check.
+   - On exit 0: stdout is the ABSOLUTE winning path — hold it as `<manifest-path>`.
+     Surface any stderr scope/shadow note into the run record (advisory; the config
+     still resolved). Steps 1 (`manifest-lint.sh <manifest-path>`) and 1b
+     (`pipeline-resolve … [manifest-path]`) pass it through UNCHANGED — both already
+     accept an absolute path.
+   - On non-zero exit: STOP; surface stderr verbatim — either the two-scope
+     neither-found diagnostic (names both `./.claude/craft-<name>.md` and
+     `~/.claude/craft-<name>.md`) or a bad-name/traversal diagnostic. Never silently
+     fall back to `.claude/workflow.md`.
    When `--config` is absent: use `.claude/workflow.md` as `<manifest-path>` (today's
    behaviour, unchanged).
 

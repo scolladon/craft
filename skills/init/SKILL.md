@@ -18,16 +18,18 @@ Before asking anything, build the `CapabilityReport` from read-only probes.
 
 ### 1. Name resolution
 
-If `$ARGUMENTS` is non-empty, treat it as the candidate `<name>`. Otherwise hold name until the interview's first question.
+Parse `--scope user|local` out of `$ARGUMENTS` first (default `local`) and strip it from the string; bind the result as `scope`. This is only a pre-fill — the Step 1 interview still asks the scope question and the user's answer there wins.
 
-When a candidate name is available, validate it immediately and bind BOTH the name and the resolved path to shell variables — every later step reuses these, and the path is NEVER reconstructed from the raw name:
+If the remaining `$ARGUMENTS` is non-empty, treat it as the candidate `<name>`. Otherwise hold name until the interview's first question.
+
+When a candidate name is available, validate it immediately and bind the name and its local-scope path to shell variables:
 
 ```bash
 name="<the candidate name>"
 manifest_final="$(node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-config.js" "$name")"
 ```
 
-- Exit 0: the name is valid; `$manifest_final` holds the resolved, validated path (e.g. `.claude/craft-<name>.md`). Reuse `$manifest_final` verbatim in Step 4 — never splice the raw name into a later path.
+- Exit 0: the name is valid; `$manifest_final` holds the LOCAL-scope path (e.g. `.claude/craft-<name>.md`) for the Done report and local-existence checks. It no longer supplies the land target — Step 3 passes `$name` and `$scope` to `init-land.js`, which re-derives the destination itself.
 - Non-zero: STOP — surface the stderr diagnostic; do not proceed.
 
 Defer validation to the moment a name is provided if it was not in `$ARGUMENTS`.
@@ -102,7 +104,7 @@ If no valid name was supplied in `$ARGUMENTS`, ask:
 
 > "What name should this customization have? (kebab-case, e.g. `ci` or `strict-review`)"
 
-Validate immediately and bind the same shell variables the Preamble does — so `$manifest_final` is captured on this deferred path too (Step 4 reuses it):
+Validate immediately and bind the same shell variables the Preamble does — so `$manifest_final` is captured on this deferred path too (used for the Done report and local-existence checks):
 
 ```bash
 name="<the answer>"
@@ -110,6 +112,14 @@ manifest_final="$(node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-config.js" "$name"
 ```
 
 On non-zero: explain the constraint and re-ask.
+
+**Scope**
+
+Ask, pre-filled from the `--scope` parsed in the Preamble (default `local` if none was given):
+
+> "Where should this config live — this repo (`local`) or your user config (`~/.claude`, portable across repos)? [local]"
+
+Bind the answer to `scope` (overrides the Preamble pre-fill on disagreement). Re-ask on any value other than `local`/`user`.
 
 **Catalog questions (Tier-0)**
 
@@ -178,16 +188,18 @@ answers_tmp="$(mktemp /tmp/craft-init-answers.XXXXXX)"
 
 Write the collected answers as a JSON object to `$answers_tmp`.
 
-Invoke the emitter, writing to an UNPREDICTABLE temp file created with `mktemp` inside `.claude/` (never a guessable PID-based name):
+Ensure the CHOSEN destination's `.claude/` exists, then invoke the emitter, writing to an UNPREDICTABLE temp file created with `mktemp` inside that same directory (never a guessable PID-based name):
 
 ```bash
-manifest_tmp="$(mktemp ".claude/.craft-${name}.tmp.XXXXXX")"
+dest_claude_dir=".claude"; [ "$scope" = "user" ] && dest_claude_dir="$HOME/.claude"
+mkdir -p "$dest_claude_dir"
+manifest_tmp="$(mktemp "${dest_claude_dir}/.craft-${name}.tmp.XXXXXX")"
 node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-emit.js" "$answers_tmp" "$manifest_tmp"
 ```
 
-`$name` here is the kebab name already validated in the Preamble, so the `mktemp` template is safe; `mktemp` then makes the suffix unpredictable and creates the file with `O_EXCL`, closing the TOCTOU window between lint (Step 3) and move (Step 4) — nothing can swap the linted bytes before the move.
+`$name` here is the kebab name already validated in the Preamble, so the `mktemp` template is safe; `mktemp` then makes the suffix unpredictable and creates the file with `O_EXCL`, closing the TOCTOU window between lint and move (both inside Step 3) — nothing can swap the linted bytes before the move. Reuse `$manifest_tmp` verbatim in Step 3 — never re-splice `$name` into a later path.
 
-The temp manifest is written inside `.claude/` — this is load-bearing: `manifest-lint`'s `fileExists` ROOT resolves to `dirname(dirname(manifestAbsPath))` = the repo root, so ref-existence checks (context files, DoD path, etc.) resolve correctly from the temp sibling just as they would from the final `.claude/craft-<name>.md`.
+The temp manifest is written inside the CHOSEN destination's `.claude/` — this is load-bearing: `manifest-lint`'s `fileExists` ROOT resolves to `dirname(dirname(manifestAbsPath))` = the destination root (the repo root for `local`, `$HOME` for `user`), so ref-existence checks (context files, DoD path, etc.) resolve exactly where the landed file will live. For `user` scope this means a repo-relative ref fails lint at `$HOME` by design — a user-scope config must be self-contained.
 
 On non-zero exit from the emitter: STOP — surface stderr; remove `$answers_tmp` and `$manifest_tmp`; nothing lands.
 
@@ -202,14 +214,16 @@ Remove `$answers_tmp` after the emitter exits (whether success or failure). On a
 Run the deterministic land helper, which lints the temp file and moves it atomically only on a clean lint:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-land.js" "$manifest_tmp" "$manifest_final"
+node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-land.js" "$manifest_tmp" "$name" --scope "$scope"
 ```
 
-`$manifest_final` is the exact path `init-config.js` resolved in the Preamble — never reconstruct it from the raw name. The helper lints `$manifest_tmp` first; only on exit 0 does it rename the temp to `$manifest_final` (a POSIX atomic rename on the same filesystem). The live `.claude/workflow.md` is never touched.
+Pass `$name` and `$scope` — NOT `$manifest_final`; `init-land` re-derives the destination itself from the same validated kebab name. The helper lints `$manifest_tmp` first; only on exit 0 does it rename the temp into place (a POSIX atomic rename on the same filesystem). The live `.claude/workflow.md` is never touched.
 
-**Non-zero exit:** STOP — surface the stderr diagnostic; remove `$manifest_tmp` if it still exists; nothing lands; any prior `.claude/craft-<name>.md` is untouched byte-for-byte.
+When `scope` is `user` and a local `.claude/craft-<name>.md` already exists, `init-land` emits a shadow-warning on stderr — the move still proceeds (different path, no overwrite of the local file). Surface this warning to the user.
 
-**Exit 0:** `$manifest_final` is in place and lints clean. Proceed to Done.
+**Non-zero exit:** STOP — surface the stderr diagnostic; remove `$manifest_tmp` if it still exists; nothing lands; any prior `craft-<name>.md` at the destination scope is untouched byte-for-byte.
+
+**Exit 0:** the config is in place at the chosen scope and lints clean. Proceed to Done.
 
 Never swallow a lint failure; the helper ensures the move never occurs unless lint exits 0.
 
@@ -219,7 +233,8 @@ Never swallow a lint failure; the helper ensures the move never occurs unless li
 
 Report:
 
-- Landed path: `.claude/craft-<name>.md`
+- Landed path: `.claude/craft-<name>.md` (local) or `~/.claude/craft-<name>.md` (user)
+- Scope: `$scope`
 - Status: lints clean
 - Next step: `/craft:run --config <name> <brief>`
 
@@ -237,3 +252,5 @@ Report:
 | Re-run for existing name | Direct overwrite after a clean lint; only that named file is replaced; other `.claude/craft-*.md` and `.claude/workflow.md` untouched |
 | Probe error (e.g. git absent) | Degrade that dimension to a question; never abort the full probe |
 | No discoverable test command | Ask for an explicit gate command; warn about the gate-floor consequence; do not emit a silently-unrunnable manifest |
+| User scope + ref-bearing config (e.g. `context: <path>`) | Lint REJECTS before the move — a user-scope config must be self-contained; nothing lands at `~/.claude` |
+| User scope + local same-name config present | Shadow warning surfaced on stderr; the config still lands at `~/.claude` (advisory, no overwrite of the local file) |

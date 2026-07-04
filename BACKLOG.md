@@ -175,6 +175,33 @@ Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `do
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-07-04 brainstorm — not yet scheduled)
+
+**`craft:tune` — feedback-driven config improvement (propose-diff) — candidate (unscheduled).**
+`craft:metrics` mines telemetry into `report.json`, but its consumer #1 ("workflow improvement")
+is hand-run. Close the loop with a tuner that keeps observe and act separate (CQS):
+- **Inputs (all machine-derived):** `report.json` (cost / cache / model-routing recs) + `drift[]`
+  vs `docs/metrics-baseline.report.json` + `.claude/craft-memory.md` recurring findings + run tokens
+  (`WAIVER` / `NO-OP` / auto-skip).
+- **Output:** a proposed manifest patch (model routing, `pipeline.skip`/insert, gate posture,
+  checkpoint placement, execution inline/agent, harness techniques) to a **named** config only —
+  never the live `.claude/workflow.md`.
+- **Apply mode:** propose-diff → human lands via the same emit→lint→land path `craft:init` uses.
+Complements `craft:metrics` (stays the read-only miner). Retires the parked _Repo-local memory
+hardening (e)_ gap — the tuner **is** the run-over-run improvement loop; the SC5-style two-run
+smoke becomes its acceptance test.
+
+---
+
+**Portable named configs (user-scope resolution) + `craft:promote-config` — delivered 2026-07-04** (`portable-named-configs`).
+Two-scope `--config` resolution via a new `config-resolve` bin (repo-local `.claude/craft-<name>.md`
+wins → user `~/.claude/craft-<name>.md` → loud STOP naming both), mirroring the shipped
+`craft-policy.md` `per-invocation > project > user` precedent. `craft:init` gains an interview scope
+question (default local) + `--scope user|local` flag with a shadow-warn when a local same-name would
+shadow a user-scope config. New `craft:promote-config` skill relocates a named config between scopes
+(MOVE default, `--demote`, refuse-then-`--force`, lint-at-destination), with all branching in a pure
+`promote-plan` module. Extracted shared `cli-io.js`.
+
 **Intention self-governance + corpus single-source — delivered 2026-07-04** (`harness-hygiene-prune-gates`).
 `docs/adapters/intention.md` now carries `subjects: [engine/src/intention*.js, engine/src/glob.js]`,
 so the port dogfoods its own freshness guard (ADR-207). The living-corpus enumeration is

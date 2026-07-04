@@ -38,13 +38,17 @@ Dev loop: `claude --plugin-dir /path/to/craft`.
 /craft:run --config <name> <backlog-id | path/to/spec.md | "feature description">
 ```
 
-`--config <name>` loads `.claude/craft-<name>.md` as the manifest for that run (distinct
-from `--profile`, which sets the execution map inside whichever manifest is read). An
-absent `--config` target is a loud stop — it never silently falls back to `.claude/workflow.md`.
+`--config <name>` resolves the manifest for that run across two scopes — repo-local
+`./.claude/craft-<name>.md` first, then user-scope `~/.claude/craft-<name>.md` — local always wins
+when both exist (distinct from `--profile`, which sets the execution map inside whichever manifest
+is read). An absent target at both scopes is a loud stop naming both paths — it never silently
+falls back to `.claude/workflow.md`.
 
 Phase skills also run standalone: `/craft:review` (multi-dimension review battery on
 the current branch), `/craft:validation` (scoped harness run + triage),
-`/craft:init` (interview-driven named-manifest generator — writes `.claude/craft-<name>.md`),
+`/craft:init` (interview-driven named-manifest generator — writes `.claude/craft-<name>.md` locally
+or, with `--scope user`, to `~/.claude/craft-<name>.md`),
+`/craft:promote-config` (relocates a named config between the two scopes),
 `/craft:metrics` (zero-arg usage-telemetry miner — mines transcript history and prints a structured usage report), etc.
 
 ## Customize — `.claude/workflow.md` in your repo

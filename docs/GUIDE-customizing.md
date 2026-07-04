@@ -267,9 +267,22 @@ reaches the invariant core (§2).
 - **Model:** manifest `models.<agent>` > the agent's pin > `models.fallback` > the session model.
 - **Per-invocation flags** (`--profile`, `--skip`, `--harness`, `--policy`, `--config`, …) fold over the manifest at **highest**
   precedence — tailor a single run without editing the file.
-  - **`--config <name>`** selects *which manifest file is read* for the run: loads `.claude/craft-<name>.md` instead of
-    `.claude/workflow.md`. It does not fold a knob inside the manifest — it chooses which file the other flags fold over.
-    `--config` and `--profile` compose: both may appear together. An absent target is a loud stop, never a silent fallback.
+- **`--config <name>`** selects *which manifest file is read* for the run, instead of
+  `.claude/workflow.md`. It does not fold a knob inside the manifest — it chooses which file the
+  other flags fold over. `--config` and `--profile` compose: both may appear together.
+
+Resolution folds across two scopes, mirroring the `~/.claude/craft-policy.md` user layer above (one
+scope shallower — `--config` is itself the per-invocation selector, so there's no third file layer
+on top):
+
+| Order | Candidate | Wins when |
+|---|---|---|
+| 1 (local) | `./.claude/craft-<name>.md` | present — always wins |
+| 2 (user) | `~/.claude/craft-<name>.md` | local absent and user present |
+| — | — | neither present ⇒ loud stop naming **both** paths |
+
+An absent user-scope file is never an error — it's simply "no user layer" — but an absent target at
+*both* scopes is a loud stop, never a silent fallback to `.claude/workflow.md`.
 
 #### `--harness <phase>.<knob>=<value>` — per-invocation harness override
 
@@ -422,18 +435,55 @@ as a shareable plugin — see [`derived-plugin/`](../examples/derived-plugin/) a
 Rather than hand-authoring, run `craft:init` inside the repo to get an interview-driven guided
 on-ramp. It probes the repo (ecosystem, test command, remote, validation/architecture tooling), walks
 you through the full Tier-0/1 catalog with probe-grounded defaults, and writes a **named** manifest
-`.claude/craft-<name>.md` — a complete, lint-clean sibling of `.claude/workflow.md`:
+— a complete, lint-clean sibling of `.claude/workflow.md`:
 
 ```bash
-# Generate a named customization interactively.
+# Generate a named customization interactively (lands at .claude/craft-<name>.md by default).
 /craft:init
 
-# Load it for a run.
+# Pre-fill the land scope instead of answering the interview question.
+/craft:init --scope user
+
+# Load it for a run — resolves local-then-user, per the --config precedence above.
 /craft:run --config <name> "<backlog-id | path/to/spec.md | feature description>"
 ```
 
-Named configs coexist as siblings of `.claude/workflow.md`; the live default manifest is never
-touched by a named run. Multiple named configs can coexist in one repo (e.g. `ci`, `strict-review`,
-`solo`). Re-running `craft:init` for an existing name regenerates that file in place; a failed lint
-leaves the prior version untouched. The hand-author path above is still the direct route if you know
-exactly what you want — `craft:init` is the guided on-ramp for exploring or bootstrapping.
+The interview asks where the config should land — this repo (`local`, the default, unchanged
+behavior) or your user config (`user`, portable across every repo) — and `--scope user|local` can
+pre-fill that answer for a headless run; either way the interview question still confirms it.
+Landing at user scope while a local config of the same name already exists **warns** (the local
+copy shadows it at read time, per the resolution order above) but still lands — it never silently
+overwrites the local file.
+
+A user-scope config must be self-contained: it is linted against `~/.claude` before the move, so a
+config carrying a repo-relative file reference (e.g. `context: docs/house-rules.md`) is rejected
+before it ever reaches user scope. Stick to repo-agnostic knobs for a user-scope config —
+`pipeline.skip`, `models.*`, `policy` verdicts, `phases.<id>.execution`/`role`/`harness`, and
+similar — anything file-ref-bearing belongs at local scope instead.
+
+Named configs coexist as siblings of `.claude/workflow.md` at either scope; the live default
+manifest is never touched by a named run. Multiple named configs can coexist per scope (e.g. `ci`,
+`strict-review`, `solo`). Re-running `craft:init` for an existing name regenerates that file in
+place; a failed lint leaves the prior version untouched. The hand-author path above is still the
+direct route if you know exactly what you want — `craft:init` is the guided on-ramp for exploring or
+bootstrapping.
+
+### Relocating a named config — `craft:promote-config`
+
+To move a named config to the other scope after the fact, without re-authoring it, run
+`craft:promote-config <name>`. By default it **promotes** local → user — a move, not a copy: the
+local file is removed once the user-scope copy lands clean, so the config lives at exactly one scope
+afterward, never both. Pass `--demote` to go the other way, user → local.
+
+```bash
+# Move .claude/craft-ci.md to ~/.claude/craft-ci.md.
+/craft:promote-config ci
+
+# Move it back.
+/craft:promote-config ci --demote
+```
+
+The destination is linted before anything moves — the same self-contained-config rule that governs
+`craft:init`'s user-scope landing holds here too, so a config carrying a repo-relative reference is
+refused at the destination and the source is left untouched. If a config of that name already exists
+at the destination, the move refuses unless you pass `--force`.

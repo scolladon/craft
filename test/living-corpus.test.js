@@ -16,6 +16,7 @@ const EXPECTED = new Set([
   'docs/DESIGN-customizable-engine.md',
   'docs/DESIGN-history.md',
   'docs/DESIGN-nested-insert-fail-loud.md',
+  'docs/DESIGN-portable-named-configs.md',
   'docs/DESIGN-shrink-core-prune-guardrails.md',
   'docs/DOD.md',
   'docs/GUIDE-customizing.md',
