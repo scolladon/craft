@@ -198,3 +198,10 @@ harness-hygiene-prune-gates implementation tokens=557515 duration_ms=1759763 cac
 harness-hygiene-prune-gates review tokens=323336 duration_ms=1421685 cache=na
 harness-hygiene-prune-gates validation-triage tokens=101425 duration_ms=436556 cache=na
 close-hygiene-lint-followups review tokens=368822 duration_ms=1922575 cache=na
+portable-named-configs design tokens=127555 duration_ms=700711 cache=na
+portable-named-configs planning tokens=158986 duration_ms=745393 cache=na
+portable-named-configs implementation tokens=410999 duration_ms=2183183 cache=na
+portable-named-configs review tokens=262021 duration_ms=375867 cache=na
+portable-named-configs refactoring tokens=65436 duration_ms=259286 cache=na
+portable-named-configs documentation tokens=101627 duration_ms=619248 cache=na
+portable-named-configs validation-triage tokens=132473 duration_ms=918888 cache=na

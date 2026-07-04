@@ -143,6 +143,33 @@ findings:
       run: close-hygiene-lint-followups
       commit: aac0299
       date: '2026-07-04'
+  - concern: findings
+    file: engine/stryker.conf.json
+    severity: medium
+    pattern: extracting Stryker survivors with a fixed line-window (sed -n A,Bp over the report) silently clips survivors beyond the window and under-triages — grep the FULL report for '[Survived]'/'[No coverage]', and treat a scoped re-mutation of only the touched file as the authoritative post-triage check
+    confidence: 0.8
+    provenance:
+      run: portable-named-configs
+      commit: cb48a0c
+      date: '2026-07-04'
+  - concern: findings
+    file: engine/src/init-land-main.js
+    severity: medium
+    pattern: a default-dependency factory (execFileSync + stderr parse, e.g. buildLintDep) survives mutation because every unit test injects a fake dep away and the .bin subprocess test runs a fresh node the Stryker in-process instrumentation cannot observe — kill by exporting the factory and adding an in-process test driving the real dep against a real subprocess; genuinely-unreachable defensive fallbacks are documented equivalents
+    confidence: 0.8
+    provenance:
+      run: portable-named-configs
+      commit: cb48a0c
+      date: '2026-07-04'
+  - concern: findings
+    file: engine/src/config-resolve-main.js
+    severity: medium
+    pattern: an identity containByRealpath test-double (root,target)=>target turns the join(home,'.claude') path-literal and the scope-guard conditional into equivalent mutants — kill with a recording spy asserting the exact root arg for user scope and asserting containment is never consulted for local scope
+    confidence: 0.8
+    provenance:
+      run: portable-named-configs
+      commit: cb48a0c
+      date: '2026-07-04'
 part-sizing:
   - concern: part-sizing
     size: pure-module
