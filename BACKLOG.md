@@ -190,22 +190,20 @@ manifest knob (default advisory, ADRs 210–212) with `STUB-WAIVE`/`SLOP-WAIVE` 
 `contracts/core.md` as a fail-closed denylist (ADR-209; the five automation balloon axes were
 put to the user and declined).
 
-**Follow-ups surfaced this run (deferred, scoped):**
-- **Wire `prose-lint` over the PR body at propose.** The bin accepts a PR-body file as a
-  capability (proven by test); `skills/propose` is not yet wired to invoke it over the drafted
-  body. One-line integration when wanted.
-- **Promote the hygiene gates to blocking in `ci.sh`.** `hygiene.gate: blocking` is validated
-  and the bins honor `--gate blocking`, but `ci.sh` runs them advisory-only (craft's own
-  manifest declares no `hygiene` block). Wire `ci.sh` to the resolved knob once the marker-set
-  and ban-list are tuned enough to hard-gate.
-- **Shared `hygiene-lint-core` when a 3rd hygiene gate lands.** `stub-lint-main.js` and
-  `prose-lint-main.js` share identical `parseArgs`/`collectWaived`/`isSelf`/`main` boilerplate;
-  held at the YAGNI rule-of-three boundary (refactoring no-op this run). Centralize when a
-  third gate makes the duplication bite.
-- **`hygiene-lint` hardening (advisory-only exposures, reviewer LOWs).** An option-injection
-  `--` end-of-options separator; waiver-path normalization (exact repo-relative match today); a
-  `BAN_LIST` metacharacter-escape guard (the list is user-curated); an optional large-file size
-  threshold. Batch when the gates go blocking.
+**Hygiene-lint follow-up set — closed 2026-07-04** (design
+`docs/design/close-hygiene-lint-followups.md`). All four follow-ups above delivered in one
+change; the set is closed and the only thing left open is config, never code:
+- **`prose-lint` over the PR body at propose** — `skills/propose/SKILL.md` now scans the drafted
+  body advisorily under the same `hygiene.gate` knob, honoring `SLOP-WAIVE(<file>)`.
+- **`ci.sh` wired to the resolved knob** — `ci.sh` resolves `hygiene.gate` via
+  `engine/bin/hygiene-gate.js` and passes `--gate` (plus a `--` sentinel) to both bins. Craft
+  stays advisory by choice; flipping to blocking is a one-line manifest edit
+  (`hygiene.gate: blocking`), never code — the sole remaining open item, and it is config.
+- **Shared `engine/src/hygiene-lint-core.js`** — extracted now (ahead of rule-of-three) so the
+  shared hardening lands once; `{stub,prose}-lint-main.js` are thin adapters over it.
+- **`hygiene-lint` hardening** — `--` end-of-options, waiver-path normalization, waiver-source
+  read-error gating under blocking, dangling-flag validation, a large-file size cap (scanned
+  files *and* waiver sources), and `BAN_LIST` metacharacter escaping — all landed with tests.
 
 _(Prior: the shrink-core-prune-guardrails run (2026-07-03) surfaced two candidates and
 delivered both in the same PR: structured DoD criteria for `docs/DOD.md`, and the

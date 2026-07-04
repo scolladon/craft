@@ -197,3 +197,4 @@ harness-hygiene-prune-gates planning tokens=190795 duration_ms=1533018 cache=na
 harness-hygiene-prune-gates implementation tokens=557515 duration_ms=1759763 cache=na
 harness-hygiene-prune-gates review tokens=323336 duration_ms=1421685 cache=na
 harness-hygiene-prune-gates validation-triage tokens=101425 duration_ms=436556 cache=na
+close-hygiene-lint-followups review tokens=368822 duration_ms=1922575 cache=na

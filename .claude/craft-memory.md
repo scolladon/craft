@@ -125,6 +125,24 @@ findings:
       run: intention-port
       commit: 35cd184
       date: '2026-07-03'
+  - concern: findings
+    file: engine/src/hygiene-lint-core.js
+    severity: medium
+    pattern: a size/DoS cap added to the scan-path read must ALSO cover the waiver-source read — ci.sh passes each touched .md as both a --waiver-source AND a scanned file, so collectWaived reads it whole (uncapped) before scanFile's guard ever applies; a huge touched markdown OOMs the gate. Extract ONE capped-read helper (statSync-then-skip-then-read) used by both paths; keep the distinct stderr label per path so existing 'cannot read waiver source' assertions stay green
+    confidence: 0.75
+    provenance:
+      run: close-hygiene-lint-followups
+      commit: aac0299
+      date: '2026-07-04'
+  - concern: findings
+    file: scripts/ci.sh
+    severity: medium
+    pattern: 'to compute a git-diff touched set ONCE and feed two consumers while keeping git -z NUL-safety, use a NUL-delimited temp file read twice (printf ''%s\0'' + read -r -d '''' + trap rm EXIT) — bash cannot hold NUL in a variable and macOS bash 3.2 lacks readarray -d, so a shared newline-joined var re-loses -z''s guarantee for embedded-newline names. Also: ci.sh must NOT 2>/dev/null a resolver whose non-zero-exit carries a deliberate reason (a typo''d hygiene.gate would silently degrade to advisory); drop the suppression, keep || echo <default> as the fail-open'
+    confidence: 0.75
+    provenance:
+      run: close-hygiene-lint-followups
+      commit: aac0299
+      date: '2026-07-04'
 part-sizing:
   - concern: part-sizing
     size: pure-module

@@ -75,45 +75,59 @@ shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/
   && for d in templates/design.md docs/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \
   && bash scripts/docs-structure-lint.sh docs
 
-# --- hygiene gates (workstream C): touched-diff stub + prose lints, advisory ---
-# Distinct block, non-adjacent to run_intention_lint, so each workstream reverts
-# without conflicting on this file.
+# --- hygiene gates (workstream C): touched-diff stub + prose lints ---
+# Posture is the manifest's resolved hygiene.gate (advisory | blocking); flipping
+# to blocking is a one-line manifest edit, never a code change. Distinct block,
+# non-adjacent to run_intention_lint, so each workstream reverts without
+# conflicting on this file.
 compute_touched() {
   local base f
   base="$(git merge-base HEAD main 2>/dev/null || true)"
   [ -n "$base" ] || return 0
-  # -z + core.quotepath=false so non-ASCII names survive verbatim (octal-quoted names
-  # would fail the existence test and silently escape both gates); skip symlinks so a
-  # committed link cannot redirect a read outside the tree.
-  git -c core.quotepath=false diff --no-ext-diff -z --name-only "$base"..HEAD 2>/dev/null \
+  # NUL-delimited end to end (git -z in, printf '%s\0' out), so names with any
+  # byte — non-ASCII, spaces, even embedded newlines — survive verbatim; skip
+  # symlinks so a committed link cannot redirect a read outside the tree.
+  git diff --no-ext-diff -z --name-only "$base"..HEAD 2>/dev/null \
     | while IFS= read -r -d '' f; do
-        [ -e "$f" ] && [ ! -L "$f" ] && printf '%s\n' "$f"
+        [ -e "$f" ] && [ ! -L "$f" ] && printf '%s\0' "$f"
       done
 }
+# Resolve the posture once. A bad gate value (or a crashed resolver) exits
+# non-zero with its reason on stderr, and `|| echo advisory` degrades the run to
+# advisory — fail-open, but the reason stays visible (no 2>-suppression).
+hygiene_gate="$(node engine/bin/hygiene-gate.js .claude/workflow.md || echo advisory)"
+# Compute the touched set once into a NUL-delimited temp file both gates read
+# (|| true so a diff failure degrades to an empty set, never aborts ci.sh).
+hygiene_touched="$(mktemp)"
+trap 'rm -f "$hygiene_touched"' EXIT
+compute_touched > "$hygiene_touched" || true
 run_stub_lint() {
   local -a src=() waivers=()
   local f
-  while IFS= read -r f; do
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] || continue
     case "$f" in
       *.test.js) ;;
       test/*|*/test/*|test-helpers/*|*/test-helpers/*) ;;
       *.js|*.mjs|*.cjs|*.ts|*.sh) src+=("$f") ;;
       *.md) waivers+=(--waiver-source "$f") ;;
     esac
-  done < <(compute_touched)
+  done < "$hygiene_touched"
   [ "${#src[@]}" -eq 0 ] && return 0
-  node engine/bin/stub-lint.js ${waivers[@]+"${waivers[@]}"} "${src[@]}"
+  node engine/bin/stub-lint.js --gate "$hygiene_gate" ${waivers[@]+"${waivers[@]}"} -- "${src[@]}"
 }
 run_prose_lint() {
   local -a docs=() waivers=()
   local f
-  while IFS= read -r f; do
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] || continue
     case "$f" in
+      docs/adr/*|docs/design/*|docs/archive/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
       *.md) docs+=("$f"); waivers+=(--waiver-source "$f") ;;
     esac
-  done < <(compute_touched)
+  done < "$hygiene_touched"
   [ "${#docs[@]}" -eq 0 ] && return 0
-  node engine/bin/prose-lint.js ${waivers[@]+"${waivers[@]}"} "${docs[@]}"
+  node engine/bin/prose-lint.js --gate "$hygiene_gate" ${waivers[@]+"${waivers[@]}"} -- "${docs[@]}"
 }
 run_stub_lint
 run_prose_lint
