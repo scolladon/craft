@@ -44,6 +44,11 @@ Runs in parallel with the validation phase's background run.
    Commit `docs(<slug>): backlog flip`.
 3. **Synthesis — session-owned, never delegated:** new backlog follow-up entries
    surfaced during the run (full context, cross-links, placed per the repo's ordering
-   convention); they are what a future craft run resolves from. The PR body drafts
-   here too: decisions + ADR numbers, design doc path, divergences, pinned behaviours,
-   test plan, the run record.
+   convention); they are what a future craft run resolves from. The PR body drafts here
+   too, per the default template (repo's own `templates/pr-body.md`, else
+   `"${CLAUDE_PLUGIN_ROOT}/templates/pr-body.md"`; a manifest `override:` replaces it):
+   three reader-first narrative sections — **Background** (the system as it stands),
+   **Intuition** (the core idea, a toy example, a mermaid diagram where it helps),
+   **Code** (a grouped high-level walkthrough of the diff) — then a **Provenance &
+   verification** trailer carrying decisions + ADR numbers, design doc path, divergences,
+   pinned behaviours, test plan, the run record.
