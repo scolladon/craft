@@ -105,8 +105,8 @@ artifacts and hold the boundary as a **design discipline**, not a type system:
   the *policy*; the port exposes only *mechanism*.
 - **Adapter** = the binding of those operations to concrete Claude Code primitives (Task,
   Bash, PreToolUse hooks, `gh`/git CLI, the per-invocation model param, the Skill tool). Today
-  **craft *is* the Claude Code adapter.** A second adapter (P16, e.g. Pi) re-binds the same
-  operations — out of scope here; we only fix the boundary so it *can*.
+  **craft *is* the Claude Code adapter.** Additional adapters (P16 — Pi, opencode) re-bind the
+  same operations — out of scope here; we only fix the boundary so they *can*.
 
 The payoff is twofold and concrete: (1) **testability** — the deterministic operations
 (parse/resolve/validate/assemble) live in the portable Node core module (ADR-002) that P1
@@ -153,14 +153,18 @@ design contract is: the core never *assumes* a mechanism it could instead *name 
 port*.
 
 P16 now documents all six port seams as adapter-author specs under `docs/adapters/`
-(`execution`, `model`, `gate`, `vcs`, plus the earlier `backlog`) and ships a second adapter —
-a Pi runtime PoC under `adapters/pi/` — that re-binds the ports against `pi`'s SDK/CLI,
+(`execution`, `model`, `gate`, `vcs`, plus the earlier `backlog`) and ships two further
+adapters. A Pi runtime PoC under `adapters/pi/` re-binds the ports against `pi`'s SDK/CLI,
 supplying the enforcement Pi omits (sub-agents → sequential per-phase runs, MCP → the backlog
-`custom` seam, permission gates → a `tool_call` predicate + gate-command wrapper). The Pi
-adapter's deterministic seams are unit-tested; the live end-to-end scenario run is an on-demand
-smoke (`docs/adapters/pi-poc-record.md`). Execution and Model are documented seams, not
-executable port-interface modules in `engine/src` — the realised hexagon stays *policy text +
-data + portable Node core*, proven portable by the second adapter actually binding it.
+`custom` seam, permission gates → a `tool_call` predicate + gate-command wrapper). A native
+opencode binding under `adapters/opencode/` re-binds Execution and Model against opencode's own
+subagent dispatch and tier→`provider/model` map, supplying its own guard (a
+`tool.execute.before` plugin, since opencode's `permission.bash` cannot express "flag absent").
+Both adapters' deterministic seams are unit-tested; each has an on-demand, non-CI-gated live
+smoke (`docs/adapters/pi-poc-record.md`, `docs/adapters/opencode-poc-record.md`). Execution and
+Model are documented seams, not executable port-interface modules in `engine/src` — the
+realised hexagon stays *policy text + data + portable Node core*, proven portable by each
+adapter actually binding it.
 
 ### Phase descriptor schema
 
@@ -524,7 +528,7 @@ section specifies the seams it targets.)*
   jira/linear/custom *implementations* are P11.
 - **P14 derived-plugin extension specifics** — the ports admit Tier-2 (SP2 GREEN); the
   registration UX/wiring is P14.
-- **P16 provider adapter** — the 6-port boundary is fixed so a second adapter *can* exist; the
-  Pi adapter is P16.
+- **P16 provider adapter** — the 6-port boundary is fixed so further adapters *can* exist; the
+  Pi and opencode adapters are P16.
 - **P1 test-harness implementation** — seams specified above; the harness build is P1.
 - **DX docs / examples** (P12), **NFR matrix** (P13), **second-instantiation** (P15) — validated; see [docs/SC5-second-instantiation-record.md](SC5-second-instantiation-record.md).

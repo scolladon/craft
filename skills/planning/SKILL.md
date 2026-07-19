@@ -26,11 +26,11 @@ description: Craft phase 4 - produce the parted TDD implementation plan via the 
 
 1. Spawn **craft:planner** with: the design doc path (or brief) + the accepted ADR paths; the
    absolute working directory; the output path `<plan-dir>/<slug>.md`; the template
-   `"${CLAUDE_PLUGIN_ROOT}/templates/plan.md"`; the part-gate command (manifest
+   `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/plan.md"`; the part-gate command (manifest
    `gates.part`, or probe: the repo's test runner over touched files, falling back to
    `gates.phase`); the commit message `docs(plan): <slug>`; global + planning-phase
    `context:` files verbatim.
-2. When it returns: run `"${CLAUDE_PLUGIN_ROOT}/scripts/plan-lint.sh" <plan-path>` —
+2. When it returns: run `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/plan-lint.sh" <plan-path>` —
    **the phase cannot close red**. On failure, respawn fresh with the lint output; ≤2
    respawns, then escalate.
 3. Read the plan; verify part sizing (no test-only parts) and that part contexts

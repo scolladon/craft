@@ -1,0 +1,3 @@
+{"type":"step.finish","sessionID":"ses_ccc","slug":"feature-z","agent":"craft-planner","model":"anthropic/claude-sonnet-4-6","tokens":{"input":100,"cacheRead":49500,"cacheCreation":300,"output":100},"toolCalls":5,"durationMs":60000,"time":"2026-01-01T00:00:00.000Z"}
+{"type":"step.finish","sessionID":"ses_ccc","slug":"feature-z","agent":"craft-reviewer","model":"anthropic/claude-sonnet-4-6","tokens":{"input":50,"cacheRead":19900,"cacheCreation":100,"output":20},"toolCalls":3,"durationMs":30000,"time":"2026-01-01T00:01:00.000Z"}
+NOT_VALID_JSON{{{

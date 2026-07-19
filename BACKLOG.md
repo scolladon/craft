@@ -288,6 +288,31 @@ P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2
   **Trigger:** if the local advisory threat model ever hardens to untrusted multi-writer roots, replace the
   check-then-use with an atomic open (`O_NOFOLLOW`-style) and canonical-path I/O. YAGNI today (fixed
   roots; a planter could write the target directly).
+- **opencode-binding follow-ups** (surfaced by design/review/validation, advanced by the 2026-07-18 live smoke) —
+  the native opencode binding (`adapters/opencode/`) was run against a live opencode 1.18.3
+  (`docs/adapters/opencode-poc-record.md`, verdict PASS on the free `opencode/north-mini-code-free` tier): the
+  construction phase (Execution/Model/Gate/VCS), the config load, and the git-guard block are proven, and four
+  layout/API defects it surfaced are fixed. Residual, still-open edges: (a) the **remaining live matrix** — the
+  `opencode run --format json` event schema for the telemetry path, the depth-1 fan-out topology across multiple
+  role subagents (the smoke ran a single brief, not the full role-dispatch walk), the instructions/skill-sourcing
+  convention (config-relative `instructions` paths vs the repo-root manifest and adapter-root skill bodies), and
+  wiring the plugin's `worktree`/`directory`/`$` context into the shell that backs a command template's
+  shell-injection syntax (the shared root seam — now known feasible); (b) **git-guard fail-loud** — the command
+  field is now pinned to `output.args.command` and verified, but extraction still fails OPEN (returns `''` → allow)
+  if that field is ever absent; make it fail loud on a no-field miss so a future opencode API drift surfaces rather
+  than silently disarming the guard; (c) **mutation coverage for `adapters/opencode/src/*`** — the pure seams are
+  `node --test`-covered but not mutation-tested (no `adapters/opencode/stryker.conf.json`); the engine telemetry
+  sibling is mutation-gated via the manifest, the adapter's own `src` is not. None blocking; each is a bounded
+  edge of a now-live-proven binding.
+  **Trigger:** (a) the next live opencode session captures a `--format json` transcript / drives the multi-role
+  walk; (b) an opencode release changes the tool-event shape; (c) the adapter's pure seams grow enough that
+  mutation coverage earns its config.
+- **`MODELS_KEYS` omits `requirements-writer`** (surfaced by the opencode config part) —
+  `engine/src/manifest-vocabulary.js` `MODELS_KEYS` lacks `requirements-writer` (one of the nine canonical
+  roles), so a `models: { requirements-writer: … }` entry in any `.claude/workflow.md` fails `validateManifest`
+  under BOTH the Claude and opencode bindings. Pre-existing — not introduced by the opencode port; a one-line
+  set addition plus a vocabulary test.
+  **Trigger:** someone needs to pin the `requirements-writer` model via a manifest `models.` entry.
 
 ### Closed — won't-do (rationale recorded)
 

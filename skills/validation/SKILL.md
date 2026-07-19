@@ -45,7 +45,7 @@ description: Craft phase 8 - run the repo's engineering harness over the change,
         `GATE(<phase.id>): green` lines; the green ids are those whose gate the engine
         actually recorded green. A red, absent, or auto-skipped phase is not in the set.
      2. Invoke the assertion engine:
-        `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/dod-assert.js" <dod-path> <repo-root> <green-ids-csv>`
+        `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/dod-assert.js" <dod-path> <repo-root> <green-ids-csv>`
         where `<green-ids-csv>` is the comma-separated list of green phase-ids (empty string if
         none). On non-zero exit: surface stderr; treat every `auto` criterion as unmet.
      3. Parse the JSON printed to stdout: `{"outcomes": [...]}` (structured) or

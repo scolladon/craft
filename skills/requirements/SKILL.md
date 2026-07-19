@@ -12,7 +12,7 @@ description: Craft requirements phase - produce the product-requirements doc via
    branch; establish global-context preconditions against the current checkout root.
 2. Probe: requirements docs directory (`paths.requirements`, else `docs/requirements/`,
    create if absent); repo's own requirements template, else
-   `"${CLAUDE_PLUGIN_ROOT}/templates/requirements.md"`.
+   `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/requirements.md"`.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

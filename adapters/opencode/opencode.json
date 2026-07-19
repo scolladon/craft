@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "subagent_depth": 1,
+  "permission": {
+    "task": "allow",
+    "bash": "allow",
+    "edit": "allow",
+    "read": "allow",
+    "grep": "allow",
+    "glob": "allow",
+    "webfetch": "deny",
+    "websearch": "deny",
+    "question": "deny",
+    "external_directory": "deny"
+  },
+  "plugin": ["./plugins/git-guard.ts"],
+  "instructions": [
+    ".claude/workflow.md",
+    "skills/**/SKILL.md"
+  ]
+}

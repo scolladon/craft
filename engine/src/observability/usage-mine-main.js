@@ -1,6 +1,6 @@
 /**
- * Streaming miner entrypoint: aggregates Claude transcript usage and writes
- * report.json + report.md inside the repo root.
+ * Streaming miner entrypoint: aggregates transcript usage (claude or opencode,
+ * via --source) and writes report.json + report.md inside the repo root.
  *
  * Two containment roots (fail-closed):
  *   READ  root — ~/.claude/projects (or override); transcript dir must be inside.
@@ -11,6 +11,8 @@
  * (identical basis to memory/policy containment in contain.js).
  *
  * Advisory: absent / malformed / out-of-bounds dir → recorded no-op report, exit 0.
+ * Config error: an unknown/unbuilt --source is the one exception — rejected
+ * with a non-zero exit before any I/O begins.
  * Redaction: report contains no file paths, $HOME fragments, or prompt text.
  */
 
@@ -24,11 +26,21 @@ import {
 } from 'node:fs';
 import { createInterface as nodeCreateInterface } from 'node:readline';
 import { containByRealpath as nodeContainByRealpath } from '../contain.js';
-import { parseLines } from './adapters/claude/telemetry.js';
+import { parseLines as claudeParseLines } from './adapters/claude/telemetry.js';
+import { parseLines as opencodeParseLines } from './adapters/opencode/telemetry.js';
 import { aggregate, serializeReport, renderMarkdown, DEFAULT_DRIFT_THRESHOLD } from './usage-aggregate.js';
 import { loadPriceTable } from './adapters/claude/pricing.js';
 
 const EXIT_OK = 0;
+// The one deliberate non-zero exit: an unknown/unbuilt --source is a config
+// error caught before any I/O — every other path stays advisory (exit 0).
+const EXIT_CONFIG_ERROR = 1;
+const DEFAULT_SOURCE = 'claude';
+// C7: small pure lookup — the selector's entire routing surface.
+const SOURCES = Object.freeze({
+  claude: claudeParseLines,
+  opencode: opencodeParseLines,
+});
 const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 const REPORT_JSON = 'report.json';
 const REPORT_MD = 'report.md';
@@ -54,11 +66,15 @@ function parseArgs(argv) {
     pricesFile: null,
     includeInline: false,
     threshold: null,
+    source: null,
   };
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--dir':
         parsed.dir = argv[++i] ?? null;
+        break;
+      case '--source':
+        parsed.source = argv[++i] ?? null;
         break;
       case '--baseline':
         parsed.baseline = argv[++i] ?? null;
@@ -90,6 +106,11 @@ function resolveTranscriptDir(parsedDir, projectsRoot) {
   return parsedDir ? resolve(parsedDir) : projectsRoot;
 }
 
+// Named error message — no boolean params, one targeted stderr line.
+function unknownSourceMessage(source) {
+  return `usage-mine: unknown --source '${source}' (expected: ${Object.keys(SOURCES).join('|')})\n`;
+}
+
 function loadJson(filePath, readFileSync, stderr, kind) {
   if (!filePath) return null;
   try {
@@ -101,7 +122,7 @@ function loadJson(filePath, readFileSync, stderr, kind) {
   }
 }
 
-async function streamTranscriptFiles(jsonlFiles, transcriptDir, createReadStream, createInterface, containByRealpath, since = null) {
+async function streamTranscriptFiles(jsonlFiles, transcriptDir, createReadStream, createInterface, containByRealpath, parseTranscriptLines, since = null) {
   const allEvents = [];
   const allMarkers = [];
   let totalSkipped = 0;
@@ -113,7 +134,7 @@ async function streamTranscriptFiles(jsonlFiles, transcriptDir, createReadStream
       // Streaming via readline — never readFileSync — avoids OOM on large transcripts.
       const stream = createReadStream(safeFile);
       const lines = createInterface({ input: stream, crlfDelay: Infinity });
-      const { events, skipped, markers } = await parseLines(lines, since);
+      const { events, skipped, markers } = await parseTranscriptLines(lines, since);
       // G2: for-of avoids spread-on-large-array stack overflow.
       for (const e of events) allEvents.push(e);
       for (const m of markers) allMarkers.push(m);
@@ -165,7 +186,10 @@ function attemptWriteReports(repoRoot, report, writeFileSync, checkContain, stde
  *   writeFileSync?: Function, createReadStream?: Function,
  *   createInterface?: Function, readdirSync?: Function,
  *   containByRealpath?: Function, projectsRoot?: string, repoRoot?: string }} io
- * @returns {Promise<number>} exit code (always 0 — advisory)
+ * @returns {Promise<number>} exit code — 0 for every advisory path (default
+ *   claude source, all no-op/malformed/containment branches); the one
+ *   exception is an unknown/unbuilt `--source`, a config error caught before
+ *   any I/O begins, which returns a non-zero exit.
  */
 export async function main(argv, io) {
   const {
@@ -181,6 +205,17 @@ export async function main(argv, io) {
   } = io;
 
   const parsed = parseArgs(argv);
+
+  // Config-error gate — validated before any I/O begins (readdirSync, fs reads/writes).
+  // Own-property check: a bare `SOURCES[source]` would resolve inherited members
+  // (__proto__, constructor, …) to truthy values and slip past the fail-closed gate.
+  const source = parsed.source ?? DEFAULT_SOURCE;
+  if (!Object.hasOwn(SOURCES, source)) {
+    stderr.write(unknownSourceMessage(source));
+    return EXIT_CONFIG_ERROR;
+  }
+  const parseTranscriptLines = SOURCES[source];
+
   const transcriptDir = resolveTranscriptDir(parsed.dir, projectsRoot);
   // C3: single-call helper — writes a no-op report and returns EXIT_OK.
   const writeNoOp = (note) =>
@@ -211,6 +246,7 @@ export async function main(argv, io) {
     createReadStream,
     createInterface,
     containByRealpath,
+    parseTranscriptLines,
     parsed.since ?? null,
   );
   // C4: surface malformed-line count so callers can see parse quality.

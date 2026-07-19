@@ -19,7 +19,7 @@ layer you install — not a hosted SaaS.
 - **Manage intention debt** — ADRs and user-ratified decision candidates capture *why* every load-bearing choice was made.
 - **Formalize the architecture harness with its own lifecycle** — a standalone `architecture` phase (probe → run → triage violations → gate the PR), default-off, enabled by one manifest line. Uses executing-harnesses (techniques declared per repo).
 - **Formalize engineering harnesses with their own lifecycles** — `review` (dimensions / passes / convergence) and `validation` are first-class AI harnesses with their own config and gates. Both are executing-harnesses (techniques declared per repo).
-- **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. `adapters/pi/` (the `craft-pi` bin) drives the same engine core on a non-Claude runtime, proving the Execution port is pluggable (portability proof; on-demand, not CI-gated).
+- **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. `adapters/pi/` (the `craft-pi` bin) drives the same engine core on a non-Claude runtime, proving the Execution port is pluggable (portability proof; on-demand, not CI-gated). `adapters/opencode/` is a peer binding: a native opencode packaging of craft (commands + subagents + a git-guard plugin + `opencode.json`) driving the same engine core — the native-interactive binding, vs pi's headless subprocess proof (on-demand live smoke, not CI-gated).
 - **Bounded long-running work** — git-worktree isolation + parted TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
 
 ## Install
@@ -82,6 +82,7 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
 - `scripts/` — worktree setup/teardown (validation run-lock aware), manifest lint, plan lint
 - `templates/` — design / plan (defines the part schema plan-lint enforces) / ADR
 - `adapters/pi/` — reference Pi adapter: a separate `craft-pi` entrypoint that drives the full 11-phase walk on a non-Claude runtime via the engine's ports (the HaaS portability proof; on-demand, not CI-gated)
+- `adapters/opencode/` — native opencode adapter: `commands/`, `agents/` subagents, a `plugins/git-guard.ts` guard, and `opencode.json`, driving the same engine core via opencode's native subagent dispatch (the native-interactive binding; on-demand live smoke, not CI-gated)
 
 ## Design provenance
 

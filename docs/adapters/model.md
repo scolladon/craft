@@ -33,7 +33,7 @@ adapter:
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi }`**.
+The valid bindings are **`{ claude, pi, opencode }`**.
 
 ## Claude binding
 
@@ -55,6 +55,22 @@ concern; the resolution order is core policy.
 `isAvailable`: call `modelRegistry.getAvailable()` and check whether the mapped
 provider+model pair is present. Returns `false` if the tier maps to no available
 provider or if no key is configured for the provider.
+
+## opencode binding
+
+`select`: bind `provider/model` via the agent def's `model:` frontmatter (`agents/craft-<role>.md`),
+or `opencode.json`'s `agent.<role>.model`, or `opencode run -m provider/model`. The adapter maps
+the craft tier (`opus|sonnet|haiku`) to a `provider/model` pair via the tier map
+(`adapters/opencode/src/model-tier-map.js`). The tier→provider mapping is the adapter's concern;
+the resolution order is core policy, restated nowhere in this binding.
+
+`isAvailable`: probe whether the tier-mapped provider is configured (credentials/key present).
+Returns `false` if the tier maps to no configured provider.
+
+**Failure → blocker**: model-down triggers core fallback re-resolution + respawn from the
+artifact — NOT the blocker protocol. A tier that resolves to no provider after exhausting the
+full resolution order is a runtime blocker. Semantics identical to the Claude and Pi bindings
+above.
 
 ## Failure → blocker
 

@@ -24,8 +24,8 @@ Input: `$ARGUMENTS` — `<name>` (required), plus optional `--report <path>`.
 Confirm both entrypoints this skill composes exist:
 
 ```bash
-test -f "${CLAUDE_PLUGIN_ROOT}/engine/bin/tune-plan.js"
-test -f "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-land.js"
+test -f "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/tune-plan.js"
+test -f "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/init-land.js"
 ```
 
 If either test fails, surface a diagnostic and stop — the plugin installation is incomplete.
@@ -54,7 +54,7 @@ Locate the named config to patch across local then user scope — the same resol
 `/craft:run --config` uses:
 
 ```bash
-base="$(node "${CLAUDE_PLUGIN_ROOT}/engine/bin/config-resolve.js" "$name")"
+base="$(node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/config-resolve.js" "$name")"
 ```
 
 Non-zero exit ⇒ STOP — surface the stderr diagnostic verbatim (the resolver names both scopes
@@ -85,7 +85,7 @@ role recovery for routing, the repeated-auto-skip threshold, advisory-vs-patch �
 `tune-plan.js`, never re-derived here:
 
 ```bash
-plan_out="$(node "${CLAUDE_PLUGIN_ROOT}/engine/bin/tune-plan.js" "$base" "$report" $memory_flag)"
+plan_out="$(node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/tune-plan.js" "$base" "$report" $memory_flag)"
 ```
 
 Non-zero exit ⇒ STOP — surface stderr verbatim. On exit 0, `$plan_out` is a JSON object with:
@@ -133,7 +133,7 @@ dest_dir="$(dirname "$base")"
 mkdir -p "$dest_dir"
 manifest_tmp="$(mktemp "$dest_dir/.craft-${name}.tmp.XXXXXX")"
 # write $plan_out's patchedManifest field to $manifest_tmp
-node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-land.js" "$manifest_tmp" "$name" --scope "$scope"
+node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/init-land.js" "$manifest_tmp" "$name" --scope "$scope"
 ```
 
 `init-land.js` lints `$manifest_tmp` at the destination root before it moves anything, so a

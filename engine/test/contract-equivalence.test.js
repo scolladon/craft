@@ -56,6 +56,17 @@ function diffLines(a, b) {
   return diffs;
 }
 
+// The two agent-mode carve-out line fragments proven below: the only lines
+// that may legitimately differ between execution modes. Any binding that
+// reuses agent-mode assembly (rather than authoring its own variant text)
+// must never introduce a third differing line.
+const AGENT_CARVE_OUT_ARTIFACT_HANDOFF = 'the agent commit is the handoff';
+const AGENT_CARVE_OUT_MODEL_RESOLUTION = 'the role model resolved';
+const AGENT_CARVE_OUT_FRAGMENTS = [
+  AGENT_CARVE_OUT_ARTIFACT_HANDOFF,
+  AGENT_CARVE_OUT_MODEL_RESOLUTION,
+];
+
 // ─── per-descriptor marker checks ────────────────────────────────────────────
 
 for (const descriptor of DESCRIPTORS) {
@@ -120,12 +131,54 @@ for (const descriptor of DESCRIPTORS) {
       `Descriptor "${descriptor.id}": inline model carve-out line missing`,
     );
     assert.ok(
-      agentLines.some(l => l.includes('the agent commit is the handoff')),
+      agentLines.some(l => l.includes(AGENT_CARVE_OUT_ARTIFACT_HANDOFF)),
       `Descriptor "${descriptor.id}": agent artifact-handoff line must be one of the two that changed`,
     );
     assert.ok(
-      agentLines.some(l => l.includes('the role model resolved')),
+      agentLines.some(l => l.includes(AGENT_CARVE_OUT_MODEL_RESOLUTION)),
       `Descriptor "${descriptor.id}": agent model line must be one of the two that changed`,
+    );
+  });
+
+  // Opencode-binding fidelity: the opencode subagent binding reuses agent-mode
+  // assembly outright — assembleContract has NO binding dimension. Passing an
+  // opencode binding hint must be ignored (produce the same block as plain
+  // agent mode); if a future change ever keys a variant off a binding, this trips.
+  test(`Given an opencode binding hint on descriptor "${descriptor.id}", when assembled, then it is ignored and the block equals plain agent-mode assembly`, () => {
+    const sut = assembleContract;
+
+    const agentModeBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+    const opencodeHintedBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent', binding: 'opencode' });
+
+    const diffs = diffLines(opencodeHintedBlock, agentModeBlock);
+
+    assert.equal(
+      diffs.length,
+      0,
+      `Descriptor "${descriptor.id}": a binding hint must not introduce a variant — the opencode binding reuses agent-mode assembly, got ${JSON.stringify(diffs)}`,
+    );
+  });
+
+  // Re-anchors the agent-vs-inline diff under the opencode-binding fidelity
+  // concern: the two carve-out lines are the ONLY binding-nameable slots. If a
+  // future change ever authors an opencode-specific variant (a third differing
+  // line), the diff set grows past this confinement and trips the assertion.
+  test(`Given descriptor "${descriptor.id}", when the opencode-binding carve-out set is checked, then the agent-vs-inline diff is confined to the two known carve-out lines`, () => {
+    const sut = assembleContract;
+
+    const agentBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+    const inlineBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'inline' });
+
+    const diffs = diffLines(agentBlock, inlineBlock);
+
+    assert.equal(
+      diffs.length,
+      2,
+      `Descriptor "${descriptor.id}": opencode-binding carve-out set must contain exactly the two known lines, got ${JSON.stringify(diffs)}`,
+    );
+    assert.ok(
+      diffs.every(d => AGENT_CARVE_OUT_FRAGMENTS.some(fragment => d.a?.includes(fragment))),
+      `Descriptor "${descriptor.id}": every differing line must be one of the two carve-out fragments, got ${JSON.stringify(diffs)}`,
     );
   });
 }

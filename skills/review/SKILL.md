@@ -37,7 +37,7 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    it) — but suspected-benign harness findings MAY be flagged as advisory notes (keep
    them for the validation phase).
 2. **Normalize findings:** before applying, pipe each reviewer's raw output through
-   `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/normalize-findings.js"` to obtain a
+   `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js"` to obtain a
    canonical `Finding[]` (`{file, line, severity, finding, fix?}`). Key on these
    fields — never on whether the reviewer emitted a JSON array or a per-line list.
 3. **Fixes — session-owned:** apply every accepted finding yourself, batched per

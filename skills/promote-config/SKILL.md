@@ -23,8 +23,8 @@ clean, so the config lives at exactly one scope afterward, never both.
 Confirm both entrypoints this skill composes exist:
 
 ```bash
-test -f "${CLAUDE_PLUGIN_ROOT}/engine/bin/promote-plan.js"
-test -f "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-land.js"
+test -f "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/promote-plan.js"
+test -f "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/init-land.js"
 ```
 
 If either test fails, surface a diagnostic and stop — the plugin installation is
@@ -47,7 +47,7 @@ Every decision — direction, source-existence, destination-exists refuse-vs-for
 and `$HOME`-containment — is made by `promote-plan.js`, never re-derived here:
 
 ```bash
-plan_out="$(node "${CLAUDE_PLUGIN_ROOT}/engine/bin/promote-plan.js" "$name" [--demote] [--force])"
+plan_out="$(node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/promote-plan.js" "$name" [--demote] [--force])"
 ```
 
 (append `--demote` and/or `--force` only when the caller passed them).
@@ -89,7 +89,7 @@ Delegate the atomic lint-then-move to the existing land bin — the same one
 `craft:init` uses:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-land.js" "$manifest_tmp" "$name" --scope "$scope"
+node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/init-land.js" "$manifest_tmp" "$name" --scope "$scope"
 ```
 
 `init-land.js` lints `$manifest_tmp` at the destination root before it moves

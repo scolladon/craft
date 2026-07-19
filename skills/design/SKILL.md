@@ -11,7 +11,7 @@ description: Craft phase 2 - produce the feature design doc via the designer age
    read manifest. Standalone: scope defaults to the current branch vs the default
    branch; establish global-context preconditions against the current checkout root.
 2. Probe: design docs directory (`paths.design`, else `docs/design/`, create if
-   absent); repo's own design template, else `"${CLAUDE_PLUGIN_ROOT}/templates/design.md"`.
+   absent); repo's own design template, else `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/design.md"`.
 3. If a `requirements` artifact was produced this run, treat it as a hard input (read
    it, design against it); else self-supply requirements in the design doc's own section.
 4. **Intention consult surface (advisory).** The phase receives the intention consult

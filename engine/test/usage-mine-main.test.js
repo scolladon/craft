@@ -17,12 +17,16 @@ import {
   existsSync,
 } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { join } from 'node:path';
+import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { main } from '../src/observability/usage-mine-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
 import { serializeReport } from '../src/observability/usage-aggregate.js';
+
+const OPENCODE_FIXTURES_ROOT = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
+const OPENCODE_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'opencode');
 
 // A valid rollup JSONL line (matches single-rollup.jsonl fixture structure).
 const ROLLUP_LINE = JSON.stringify({
@@ -814,3 +818,79 @@ test('Given a transcript with a rollup and an auto-skip token, when main runs, t
   const skipRecs = report.recommendations.filter(r => r.kind === 'phase-skip');
   assert.deepEqual(skipRecs.map(r => r.phase), ['review']);
 });
+
+// ─── --source selector — default, opencode routing, unknown rejection ────────
+
+test('Given no --source flag, when main runs on a claude fixture, then it routes to the claude binding unchanged and exits 0', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.equal(report.runs.length, 1);
+  assert.equal(report.runs[0].groups[0].model, 'claude-opus-4-8', 'default source must be the claude binding');
+});
+
+test('Given --source opencode with a fixture dir of opencode-format jsonl files, when main runs, then it routes to the opencode binding and the report reflects opencode-parsed events', async () => {
+  const sut = main;
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot: OPENCODE_FIXTURES_ROOT, repoRoot });
+
+  const result = await sut(['--source', 'opencode', '--dir', OPENCODE_FIXTURE_DIR], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.ok(report.runs.length > 0, 'opencode fixtures must produce at least one run');
+  const models = report.runs.flatMap(r => r.groups).map(g => g.model);
+  assert.ok(
+    models.includes('anthropic/claude-opus-4-8'),
+    `report must reflect opencode-parsed events (opencode model ids carry an "anthropic/" prefix); got models: ${models}`,
+  );
+});
+
+test('Given an unknown --source value, when main runs, then it exits non-zero, writes a stderr message, and writes no report before the rejection', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--source', 'bogus', '--dir', transcriptDir], io);
+
+  assert.notEqual(result, 0, 'unknown --source must be a non-zero exit');
+  assert.ok(io.stderr.joined().includes('bogus'), `stderr must name the unknown source; got: ${io.stderr.joined()}`);
+  assert.ok(!existsSync(join(repoRoot, 'report.json')), 'no report may be written before the --source rejection');
+});
+
+test('Given an unknown --source value, when main runs, then the stderr message lists the valid sources joined by a pipe', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--source', 'bogus', '--dir', transcriptDir], io);
+
+  // A real adjacent list-pair (not a single-token includes) pins the '|' separator:
+  // a join("") mutant would produce "claudeopencode" and fail this assertion.
+  assert.ok(
+    io.stderr.joined().includes('claude|opencode'),
+    `stderr must join valid sources with '|'; got: ${io.stderr.joined()}`,
+  );
+});
+
+for (const reserved of ['__proto__', 'constructor', 'hasOwnProperty']) {
+  test(`Given the inherited-member --source "${reserved}", when main runs, then it is rejected non-zero before any I/O (own-property gate)`, async () => {
+    const sut = main;
+    const { projectsRoot, transcriptDir } = makeFixture();
+    const repoRoot = makeTmp('repo-');
+    const io = makeIo({ projectsRoot, repoRoot });
+
+    const result = await sut(['--source', reserved, '--dir', transcriptDir], io);
+
+    assert.notEqual(result, 0, `--source ${reserved} must not resolve an inherited member to a truthy parser`);
+    assert.ok(!existsSync(join(repoRoot, 'report.json')), 'no report may be written before the reserved-key rejection');
+  });
+}

@@ -41,7 +41,7 @@ adapter:
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi }`**.
+The valid bindings are **`{ claude, pi, opencode }`**.
 
 ## Claude binding
 
@@ -74,6 +74,31 @@ subprocess — one `pi -p` invocation per phase, artifact-handoff carries state 
 
 Pi omits sub-agents → sequential per-phase runs; the artifact-handoff invariant carries state
 where Claude would use fan-out.
+
+## opencode binding
+
+`spawn` dispatches the opencode subagent `craft:<role>` (`agents/craft-<role>.md`, `mode:
+subagent`) via the task tool / `@craft-<role>`, gated by `permission.task`:
+
+1. Prepend the step-3 injected block (`ctx.injectedBlock`, the agent-mode `contract-assemble`
+   output) to the spawn prompt, then working dir + task dynamics + artifact paths.
+2. Await the commit; verify on return.
+
+The artifact-is-the-handoff and dead-worker-respawn invariants hold unchanged. Review fan-out is
+N parallel subagents.
+
+`runInline` is the opencode primary agent running in-session (inline carve-outs) — same shape as
+the Claude inline branch.
+
+**Subagent-depth topology**: `subagent_depth: 1` — the orchestrator runs the primary agent, and
+a subagent cannot itself fan out further. If depth-1 fan-out degrades a parallel review step, the
+fallback is sequential-per-phase (one subagent invocation per phase in turn, artifact-handoff
+carrying state between them, as in the Pi binding) — this is a live item, not yet exercised
+against a real opencode run.
+
+**Failure → blocker**: an unreachable subagent, a non-zero `permission.task` guard block, or a
+dead subagent with no committed artifact all escalate through the injected blocker protocol; the
+startup-vs-mid-phase split is identical to the Pi binding above.
 
 ## Failure → blocker
 

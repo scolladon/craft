@@ -46,7 +46,7 @@ Runs in parallel with the validation phase's background run.
    surfaced during the run (full context, cross-links, placed per the repo's ordering
    convention); they are what a future craft run resolves from. The PR body drafts here
    too, per the default template (repo's own `templates/pr-body.md`, else
-   `"${CLAUDE_PLUGIN_ROOT}/templates/pr-body.md"`; a manifest `override:` replaces it):
+   `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/pr-body.md"`; a manifest `override:` replaces it):
    three reader-first narrative sections — **Background** (the system as it stands),
    **Intuition** (the core idea, a toy example, a mermaid diagram where it helps),
    **Code** (a grouped high-level walkthrough of the diff) — then a **Provenance &

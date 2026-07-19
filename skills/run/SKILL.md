@@ -33,7 +33,7 @@ Input: `$ARGUMENTS`
    (the bin merges them at highest precedence).
 
 0b. **Resolve the manifest path.** When `--config <name>` was parsed in step 0a:
-   run `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/config-resolve.js" <name>` via Bash. This
+   run `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/config-resolve.js" <name>` via Bash. This
    resolves `<name>` across BOTH scopes — local `./.claude/craft-<name>.md` (always wins)
    then user `~/.claude/craft-<name>.md` — so there is no separate existence check.
    - On exit 0: stdout is the ABSOLUTE winning path — hold it as `<manifest-path>`.
@@ -48,13 +48,13 @@ Input: `$ARGUMENTS`
    When `--config` is absent: use `.claude/workflow.md` as `<manifest-path>` (today's
    behaviour, unchanged).
 
-1. Run `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh" <manifest-path>` (passing the
+1. Run `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/manifest-lint.sh" <manifest-path>` (passing the
    resolved path from step 0b). It must pass — on INVALID, STOP and surface the errors.
    Read the manifest (frontmatter = config, body = policy rationale). No manifest =
    pure defaults via each phase's capability probe.
 
-1b. Run `node "${CLAUDE_PLUGIN_ROOT}/engine/bin/pipeline-resolve.js" \
-        "${CLAUDE_PLUGIN_ROOT}/pipeline/default.yml" [manifest-path] \
+1b. Run `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/pipeline-resolve.js" \
+        "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/pipeline/default.yml" [manifest-path] \
         [--profile <name>] [--skip <id,…>] [--harness <phase>.<knob>=<value>]… \
         [--policy <action>=<verdict>]…` via Bash,
     capturing stdout. The manifest path argument (the resolved path from step 0b) is
@@ -194,11 +194,11 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 
 4. **Assemble the injected block** — at phase entry run:
    ```
-   node "${CLAUDE_PLUGIN_ROOT}/engine/bin/contract-assemble.js" \
+   node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/contract-assemble.js" \
      --descriptor-id <phase.id> \
      [--manifest <manifest-path>] \
      [--inline]          # only when phase.execution is "inline"
-     [--contracts-dir "${CLAUDE_PLUGIN_ROOT}/contracts"]
+     [--contracts-dir "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/contracts"]
    ```
    For an inserted or registered phase (any phase whose `id` is not among the engine defaults),
    append `--descriptor-json <path>` where `<path>` is a temp file the walk writes the

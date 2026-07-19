@@ -26,6 +26,7 @@ const EXPECTED = new Set([
   'docs/adapters/intention.md',
   'docs/adapters/memory.md',
   'docs/adapters/model.md',
+  'docs/adapters/opencode-poc-record.md',
   'docs/adapters/pi-poc-record.md',
   'docs/adapters/policy.md',
   'docs/adapters/telemetry.md',

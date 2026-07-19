@@ -7,7 +7,7 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
 
 ## Preamble (always runs — non-overridable)
 
-1. `"${CLAUDE_PLUGIN_ROOT}/scripts/manifest-lint.sh"` must pass; read the manifest.
+1. `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/manifest-lint.sh"` must pass; read the manifest.
 2. Probe: git repo present (else STOP — craft needs one); default branch
    (`origin/HEAD` → `main` → `master` → ask once).
 3. **Memory read/write surface (advisory).**
@@ -26,7 +26,7 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
    strategy `worktree` (default):
    ```bash
    git worktree add ../<repo>-<slug> -b <type>/<slug>
-   "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-setup.sh" <abs-worktree-path> [manifest scripts.post-setup]
+   "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-setup.sh" <abs-worktree-path> [manifest scripts.post-setup]
    ```
    Strategy `in-place` (manifest `workspace: { strategy: in-place }`): create the branch
    in the current checkout (`git switch -c <type>/<slug>`); deps assumed present or

@@ -29,7 +29,7 @@ Before invoking the miner, confirm the environment and resolve where transcripts
 Confirm `${CLAUDE_PLUGIN_ROOT}` is set and the entrypoint exists:
 
 ```bash
-test -f "${CLAUDE_PLUGIN_ROOT}/engine/bin/usage-mine.js"
+test -f "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/usage-mine.js"
 ```
 
 If the test fails, surface a diagnostic and stop — the plugin installation is incomplete.
@@ -50,7 +50,7 @@ no-data report and exits 0. Never abort the skill on a missing directory.
 Run the miner with zero arguments (or forward any flags the user explicitly supplied):
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/engine/bin/usage-mine.js"
+node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/usage-mine.js"
 ```
 
 Optional flags (pass through verbatim when the user supplies them):

@@ -58,6 +58,16 @@ test('Given no arguments to the usage-mine bin, when the bin runs, then it exits
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
 });
 
+test('Given an unknown --source value, when the bin runs, then it exits non-zero and stderr names the unknown source', () => {
+  const sut = runBin;
+  const repoRoot = makeTmpRepo();
+
+  const result = sut(['--source', 'bogus'], repoRoot);
+
+  assert.notEqual(result.status, 0, `expected non-zero exit; stderr: ${result.stderr}`);
+  assert.ok(result.stderr.includes('bogus'), `stderr must name the unknown source; got: ${result.stderr}`);
+});
+
 // ─── 10. No-leak — report.json contains no absolute paths, $HOME, username ───
 
 test('Given the produced report.json, when scanned, then it contains no absolute path, no $HOME, no username', () => {

@@ -26,7 +26,7 @@ When a candidate name is available, validate it immediately and bind the name an
 
 ```bash
 name="<the candidate name>"
-manifest_final="$(node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-config.js" "$name")"
+manifest_final="$(node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/init-config.js" "$name")"
 ```
 
 - Exit 0: the name is valid; `$manifest_final` holds the LOCAL-scope path (e.g. `.claude/craft-<name>.md`) for the Done report and local-existence checks. It no longer supplies the land target — Step 3 passes `$name` and `$scope` to `init-land.js`, which re-derives the destination itself.
@@ -37,7 +37,7 @@ Defer validation to the moment a name is provided if it was not in `$ARGUMENTS`.
 ### 2. Ecosystem detection
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/detect-ecosystem.sh" .
+bash "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/detect-ecosystem.sh" .
 ```
 
 Capture stdout as `ecosystem` (one of `npm|pnpm|yarn|bun|uv|poetry|cargo|go|bundler|composer`). If the command exits non-zero or produces empty output, set `ecosystem = null` and `lockfile = null`. The detected lockfile name is the file whose presence triggered the match (derive from ecosystem: `npm`→`package-lock.json`, `pnpm`→`pnpm-lock.yaml`, `yarn`→`yarn.lock`, `bun`→`bun.lockb`, `uv`→`uv.lock`, `poetry`→`poetry.lock`, `cargo`→`Cargo.toml`, `go`→`go.mod`, `bundler`→`Gemfile.lock`, `composer`→`composer.lock`).
@@ -108,7 +108,7 @@ Validate immediately and bind the same shell variables the Preamble does — so 
 
 ```bash
 name="<the answer>"
-manifest_final="$(node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-config.js" "$name")"
+manifest_final="$(node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/init-config.js" "$name")"
 ```
 
 On non-zero: explain the constraint and re-ask.
@@ -194,7 +194,7 @@ Ensure the CHOSEN destination's `.claude/` exists, then invoke the emitter, writ
 dest_claude_dir=".claude"; [ "$scope" = "user" ] && dest_claude_dir="$HOME/.claude"
 mkdir -p "$dest_claude_dir"
 manifest_tmp="$(mktemp "${dest_claude_dir}/.craft-${name}.tmp.XXXXXX")"
-node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-emit.js" "$answers_tmp" "$manifest_tmp"
+node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/init-emit.js" "$answers_tmp" "$manifest_tmp"
 ```
 
 `$name` here is the kebab name already validated in the Preamble, so the `mktemp` template is safe; `mktemp` then makes the suffix unpredictable and creates the file with `O_EXCL`, closing the TOCTOU window between lint and move (both inside Step 3) — nothing can swap the linted bytes before the move. Reuse `$manifest_tmp` verbatim in Step 3 — never re-splice `$name` into a later path.
@@ -214,7 +214,7 @@ Remove `$answers_tmp` after the emitter exits (whether success or failure). On a
 Run the deterministic land helper, which lints the temp file and moves it atomically only on a clean lint:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/engine/bin/init-land.js" "$manifest_tmp" "$name" --scope "$scope"
+node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/init-land.js" "$manifest_tmp" "$name" --scope "$scope"
 ```
 
 Pass `$name` and `$scope` — NOT `$manifest_final`; `init-land` re-derives the destination itself from the same validated kebab name. The helper lints `$manifest_tmp` first; only on exit 0 does it rename the temp into place (a POSIX atomic rename on the same filesystem). The live `.claude/workflow.md` is never touched.

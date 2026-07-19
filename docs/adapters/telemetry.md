@@ -31,7 +31,7 @@ subjects: ['engine/src/observability/**']
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi }`**.
+The valid bindings are **`{ claude, pi, opencode }`**.
 
 ## Claude binding
 
@@ -50,6 +50,26 @@ The valid bindings are **`{ claude, pi }`**.
 The binding is called once per invocation by the CLI front-door (`engine/src/observability/usage-mine-main.js`),
 which resolves flags, injects deps, and passes the resulting `UsageEvent[]` to `aggregate`.
 
+## opencode binding
+
+`engine/src/observability/adapters/opencode/telemetry.js` — the `opencode run --format json`
+collect binding:
+
+- **JSON-lines parsing**: reads `opencode run --format json` event lines; maps its field names
+  (`sessionID`, `agent`, `tokens`, `toolCalls`, `durationMs`, …) to the same vendor-neutral
+  `UsageEvent` shape the claude binding produces.
+- **Core reused unchanged**: `aggregate`/`serializeReport` from `usage-aggregate.js` are consumed
+  exactly as the claude binding consumes them — no core changes were required to add this binding.
+- **Redaction**: whitelist-only, same discipline as the claude binding — only the fields listed in
+  the `UsageEvent` shape are mapped; no path/`$HOME`/username/prompt fields ever reach the core.
+- **Schema status**: the exact upstream opencode event schema is DEFERRED — the binding is pinned
+  against frozen synthetic fixtures (`engine/test/fixtures/opencode/`) and will be re-pinned once a
+  real opencode event stream is observed in a live smoke run.
+
+Selected via `--source opencode` on the `usage-mine` front-door
+(`engine/src/observability/usage-mine-main.js`), which resolves the binding, injects deps, and
+passes the resulting `UsageEvent[]` to `aggregate` — identical wiring to the claude path.
+
 ## Pi binding
 
 **RESERVED — not built.**
@@ -62,8 +82,8 @@ single-board-computer) metrics source without touching the engine core. The cont
   `UsageEvent[]` directly).
 - The `aggregate` + `serializeReport` path is fully reusable; only the `collect` binding changes.
 
-The validator rejects `source: pi` at startup with a targeted hint to wait for the built binding.
-Only the `claude` binding is currently valid.
+`--source pi` is not yet a valid value — see [Failure semantics](#failure-semantics) for the
+validator's config-error behavior on an unknown/unbuilt source.
 
 ## Failure semantics
 
@@ -82,7 +102,9 @@ Only the `claude` binding is currently valid.
   `DEFAULT_DRIFT_THRESHOLD` (`0.25`) rather than erroring.
 - **Config errors** (unknown binding, missing required opt) are caught at startup by the CLI
   validator and surfaced as a non-zero exit before any I/O begins — the same pattern as other
-  adapter specs.
+  adapter specs. `--source` accepts `claude` (default) or `opencode`; any other value (including
+  `pi`, until built) is rejected at startup with a targeted stderr message and a non-zero exit —
+  the one deliberate exception to the miner's otherwise-always-0 advisory contract.
 
 ## Redaction
 

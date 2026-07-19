@@ -28,7 +28,7 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
 3. **Consult `teardown` action** separately before worktree teardown (per-verb
    granularity, ADR-126; see `docs/adapters/policy.md`). Then:
    ```bash
-   "${CLAUDE_PLUGIN_ROOT}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \
+   "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \
      [--pre-teardown <manifest scripts.pre-teardown>]
    ```
    The script refuses while the validation run-lock is alive (dead-PID locks
