@@ -175,9 +175,45 @@ Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `do
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
-### Open (scoped 2026-07-04 brainstorm — not yet scheduled)
+### Open (scoped 2026-07-20 — follow-ups surfaced by the copilot binding, not yet scheduled)
 
-_None currently — the 2026-07-04 brainstorm candidate (`craft:tune`) shipped; see below._
+**Lift the binding-neutral guard predicate to a shared home.** `adapters/copilot/src/git-guard-adapter.js`
+imports `toolCallGuard` across the adapter boundary from `adapters/pi/src/gate.js` — deliberate
+single-sourcing so the predicate cannot drift, but it makes pi look like a host for shared logic
+rather than a peer binding. Worse, the drift it guards against **already exists**: `COMPLIANT_MARKERS`,
+`GIT_DIFF_SHOW_RE`, and `REASON_GIT_EXT_DIFF` are duplicated character-for-character between pi's
+`gate.js` and `adapters/opencode/src/git-guard-predicate.js`. Lift the predicate to a neutral module
+(e.g. `engine/src/guards/`), have all three bindings import it, and leave each binding only its own
+event-shape adapter. Deferred because it modifies the pi and opencode bindings (an explicit non-goal
+of the copilot change) and touches a security predicate that warrants its own review.
+
+**Deduplicate the acceptance-probe harness across three bindings.** `adapters/copilot/src/probe.js`
+is a third near-verbatim copy: `assertMutationsInsideThrowaway`, `assertGateGreenBeforeCommit`,
+`assertCommittedArtifact`, and `evaluateTrace` are byte-identical to `adapters/opencode/src/probe.js`;
+`buildEvidence` differs only in a version key and `runAcceptanceProbe` only by extra launch args.
+Extract one shared `runProbeHarness({ runner, fsOps, versionKey, extraRunnerArgs })`. Same deferral
+reason as above (touches sibling bindings).
+
+**Mutation-cover the adapter sources.** `engine/stryker.conf.json` mutates `engine/src/**/*.js` only,
+so every `adapters/copilot/src/*.js` module — including the git-guard adapter and the deny-tool
+pattern set — ships with **zero mutation coverage**. `adapters/pi/` carries its own
+`stryker.conf.json`; copilot and opencode do not. Add one, at least for the guard seams, where a weak
+assertion is a security risk rather than a style issue.
+
+**Provenance refs leak in `engine/src/observability/adapters/claude/`.** `telemetry.js` and
+`pricing.js` carry `ADR-188`/`ADR-187`/`Part 3`/`Part 4` references in comments, violating the
+no-provenance-in-source rule. They survive because the existing grep suites
+(`adapters/pi/test/native-surface.test.js`, `adapters/opencode/test/agents.test.js`) scan adapter
+surfaces only, never `engine/src`. Either extend the grep to `engine/src` and clean the two files, or
+decide explicitly that engine-internal comments are exempt — the current state is neither.
+
+**Stronger destructive-git denial for the Copilot binding.** `--deny-tool` is **prefix matching on the
+command string** (pinned live). `shell(git push)` blocks `git push --force origin main`, but
+`git -C . push` and reordered flags like `git clean -df` slip past a literal pattern. The shipped set
+enumerates realistic flag-order and long-form variants and documents the residual gap honestly, but
+enumeration cannot cover interposed global options (`git -C`, `--git-dir=`, `-c k=v`). `shell(git:*)`
+would close it completely but denies **all** git, breaking craft's own git-heavy workflow. Revisit if
+Copilot ships a richer matcher, or via a wrapper that normalises argv before the guard.
 
 ---
 

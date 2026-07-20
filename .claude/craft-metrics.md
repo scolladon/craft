@@ -211,3 +211,8 @@ native-pi-binding implementation tokens=919892 duration_ms=2671021 cache=na
 native-pi-binding review tokens=370142 duration_ms=1022929 cache=na
 native-pi-binding documentation tokens=102809 duration_ms=309517 cache=na
 native-pi-binding validation tokens=97737 duration_ms=402953 cache=na
+native-copilot-binding design tokens=269026 duration_ms=1723332 cache=na
+native-copilot-binding planning tokens=216479 duration_ms=914034 cache=na
+native-copilot-binding implementation tokens=1006739 duration_ms=4796669 cache=na
+native-copilot-binding review tokens=598451 duration_ms=1905025 cache=na
+native-copilot-binding validation tokens=92528 duration_ms=377675 cache=na

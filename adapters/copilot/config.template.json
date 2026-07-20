@@ -1,0 +1,24 @@
+{
+  "$comment": "Merge these keys into $COPILOT_HOME/config.json (default ~/.copilot/config.json) — user level, not repo level: a repo-level .github/hooks/*.json path did not fire in a live probe and must not be relied on. Substitute the literal <CRAFT_ROOT> placeholder below with this repository's absolute path before merging: Copilot has no plugin-root environment variable of its own, so the observer command cannot be repo-relative. Provider-neutral — no provider/model pin outside the tier map's own vocabulary.",
+  "hooks": {
+    "preToolUse": [
+      {
+        "command": "node <CRAFT_ROOT>/adapters/copilot/hooks/craft-observer.js"
+      }
+    ]
+  },
+  "disableAllHooks": false,
+  "subagents": {
+    "agents": {
+      "craft-designer": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-planner": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-reviewer": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-requirements-writer": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-part-implementer": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-harness-triager": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-docs-writer": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-refactor-executor": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-backlog-ticker": { "model": "inherit", "effortLevel": "inherit" }
+    }
+  }
+}

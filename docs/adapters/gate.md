@@ -28,7 +28,10 @@ The following decisions are owned by the orchestrator/core and are not re-decide
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi }`**.
+The valid bindings are **`{ claude, pi, opencode, copilot }`**. A binding is listed here when it
+**ships a guard binding**, regardless of enforcement strength — this set does not by itself
+convey how strong that guard is. Because the set no longer conveys strength, **each per-binding
+section below states its own enforcement profile explicitly.**
 
 ## Claude binding
 
@@ -63,6 +66,73 @@ unit-tested separately (part 5).
 **gate-command**: Pi has no harness-hook concept for gate execution; the resolved gate string is
 run as a normal subprocess via `execFile` or equivalent (argv array, no shell). The never-commit-
 on-red invariant applies identically — non-zero exit blocks the commit.
+
+## opencode binding
+
+**Enforcement profile: enforcing.**
+
+**tool-guard**: `adapters/opencode/plugins/git-guard.ts` registers a `tool.execute.before(input,
+output)` hook (opencode 1.18.3 expects a plugin's hooks at the top level, keyed by hook name, not
+wrapped in a `hooks` object). The plugin composes `adapters/opencode/src/git-guard-adapter.js`
+(`commandFromToolEvent`, reading the bash command from `output.args.command` with a defensive
+`input.args.command` fallback) over `adapters/opencode/src/git-guard-predicate.js` — the same
+`git diff`/`show` without `--no-ext-diff` predicate the Claude and Pi bindings enforce. A block
+verdict throws inside the hook, which opencode surfaces to the caller as the tool failure; the
+worker retries with the corrected call. `opencode.json`'s `permission.external_directory: deny`
+is the containment mechanism alongside the guard, denying tool access outside the working
+directory.
+
+**gate-command**: the resolved gate string runs as a normal subprocess; the never-commit-on-red
+invariant applies identically to the other bindings.
+
+## Copilot binding
+
+**Enforcement profile: mixed — two layers enforce, the third is observational only.**
+
+Copilot exposes no denying hook (a live probe showed `git push --force origin main` executing
+unimpeded under a firing-but-observational hook), so the guard binds as **three layers**, only
+two of which actually enforce:
+
+| Layer | Mechanism | Enforcing? |
+|---|---|---|
+| Containment | native path verification; `--add-dir <worktree>` required, `--allow-all-paths` forbidden | **Yes** — live-proven: an out-of-tree `create` was blocked with no `--allow-all-paths` supplied |
+| Command policy | the `--deny-tool` pattern set from `adapters/copilot/src/deny-tool-args.js` | **Yes** — live-proven; denial rules take precedence even over `--allow-all-tools` |
+| Audit | the `preToolUse` hook (`adapters/copilot/hooks/craft-observer.js`) → `adapters/copilot/src/git-guard-adapter.js` → the shared `toolCallGuard` predicate | **No — observational** |
+
+**tool-guard**: the enforcing layers are launch-time, built by `buildLaunchArgs` in
+`adapters/copilot/src/deny-tool-args.js` — `--add-dir <workingDir>` (never `--allow-all-paths`)
+plus a `--deny-tool=shell(...)` pattern per entry in `DENY_TOOL_PATTERNS` (flag-order and
+long-form variants of `git push`, `git reset --hard`, `git clean -fd`, `git branch -D`). Because
+these enforce at the CLI boundary before a tool ever runs, they cover the destructive-git set and
+out-of-tree path access directly.
+
+**`--deny-tool` is defence-in-depth, not an adversarial sandbox.** The matcher is live-pinned as
+**prefix matching on the command string** — it does not parse argv (`docs/adapters/copilot-poc-
+record.md` row 20). Each pattern therefore only covers the literal flag orders it enumerates: an
+interposed global option (`git -C <dir> push`, `git --git-dir=… push`, `git -c k=v push`) bypasses
+every pattern in the set, live-confirmed for `git -C . push` against `shell(git push)`. A blanket
+`shell(git:*)` would close that gap but is deliberately rejected — it denies *all* git, which would
+break craft's own git-heavy workflow. This layer catches accidental destructive git; it is not a
+guarantee against an adversarial agent working around it.
+
+The `preToolUse` hook fires on every tool call and is wired for audit only: it reads the
+lowercase, string-encoded Copilot event, reshapes it (`adaptCopilotEvent` maps `bash`→`Bash`,
+`create`→`Write`, `edit`→`Edit`, and bridges the executed `path` field — never `file_path`, which
+does not exist in Copilot's tool schemas — unconditionally onto `file_path` so an inspected decoy
+can never mask the field the tool actually executes on) and applies the shared `gate.js`
+`toolCallGuard` predicate unmodified, single-sourcing the git-diff/`--no-ext-diff` rule across
+every binding. It records the verdict to stderr and **always exits 0** — this is deliberate:
+neither `{"permission":"deny"}` on stdout nor a non-zero exit blocked a tool call in the live
+probe, so the hook must never be read as, or "fixed" into, a blocking control.
+
+**The carve-out is written down, never papered over**: for this binding the ext-diff rule is
+**advisory**, because the mechanism that would enforce it — the `preToolUse` hook — cannot deny.
+The containment and destructive-git rules above are enforced natively and are strictly stronger
+than an advisory hook; only the ext-diff rule rides on the observational layer. Never imply the
+hook blocks.
+
+**gate-command**: the resolved gate string runs as a normal subprocess; the never-commit-on-red
+invariant applies identically to the other three bindings.
 
 ## Failure → blocker
 

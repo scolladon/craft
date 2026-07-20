@@ -16,7 +16,7 @@
  * Redaction: report contains no file paths, $HOME fragments, or prompt text.
  */
 
-import { resolve, join } from 'node:path';
+import { resolve, join, dirname } from 'node:path';
 import { homedir } from 'node:os';
 import {
   readFileSync as nodeReadFileSync,
@@ -29,6 +29,7 @@ import { containByRealpath as nodeContainByRealpath } from '../contain.js';
 import { parseLines as claudeParseLines } from './adapters/claude/telemetry.js';
 import { parseLines as opencodeParseLines } from './adapters/opencode/telemetry.js';
 import { parseLines as piParseLines } from './adapters/pi/telemetry.js';
+import { parseLines as copilotParseLines } from './adapters/copilot/telemetry.js';
 import { aggregate, serializeReport, renderMarkdown, DEFAULT_DRIFT_THRESHOLD } from './usage-aggregate.js';
 import { loadPriceTable } from './adapters/claude/pricing.js';
 
@@ -42,6 +43,7 @@ const SOURCES = Object.freeze({
   claude: claudeParseLines,
   opencode: opencodeParseLines,
   pi: piParseLines,
+  copilot: copilotParseLines,
 });
 const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 // C7: source→default-read-root lookup, each entry a thunk so an env-backed
@@ -51,12 +53,24 @@ const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 const DEFAULT_READ_ROOTS = Object.freeze({
   claude: () => DEFAULT_PROJECTS_DIR,
   pi: () => process.env.PI_CODING_AGENT_SESSION_DIR || join(homedir(), '.pi', 'agent', 'sessions'),
+  // COPILOT_OTEL_FILE_EXPORTER_PATH names a single FILE, unlike every other
+  // entry here which names a directory — resolve to the file's containing
+  // directory so the port's directory contract holds without a second env var.
+  copilot: () => process.env.COPILOT_OTEL_FILE_EXPORTER_PATH
+    ? dirname(process.env.COPILOT_OTEL_FILE_EXPORTER_PATH)
+    : join(homedir(), '.copilot', 'otel'),
 });
 
 // Exported as a direct unit-test seam: resolving the default read root is a
 // pure lookup + thunk-call, testable without touching the real filesystem.
+// Own-property check: a bare `DEFAULT_READ_ROOTS[source]` would resolve
+// inherited members (__proto__, constructor, …) to a truthy thunk and slip
+// past the intended claude fallback — mirrors the SOURCES gate below.
 export function resolveDefaultReadRoot(source) {
-  return (DEFAULT_READ_ROOTS[source] ?? DEFAULT_READ_ROOTS.claude)();
+  const thunk = Object.hasOwn(DEFAULT_READ_ROOTS, source)
+    ? DEFAULT_READ_ROOTS[source]
+    : DEFAULT_READ_ROOTS.claude;
+  return thunk();
 }
 const REPORT_JSON = 'report.json';
 const REPORT_MD = 'report.md';

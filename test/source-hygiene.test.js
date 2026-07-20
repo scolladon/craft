@@ -119,6 +119,15 @@ test(
       // hexagon diagram (line 58) — explicitly kept (Backlog port, out of scope
       // per Part 9 plan note).
       /docs\/GUIDE-customizing\.md:[0-9]+:.*file \/ gh \//,
+      // engine/src/observability/adapters/copilot/telemetry.js: the OTel
+      // instrumentation-scope name is the protocol-level discriminator that
+      // separates span records from metric records — a vendor identifier at
+      // the vendor binding's own home, not a host-CLI call.
+      /engine\/src\/observability\/adapters\/copilot\/telemetry\.js:[0-9]+:.*github\.copilot/,
+      // docs/adapters/telemetry.md: the OTel instrumentation-scope name is the protocol
+      // discriminator the copilot binding matches on — a vendor identifier documented at
+      // the telemetry port, not a host-CLI reference.
+      /\/docs\/adapters\/telemetry\.md:[0-9]+:.*github\.copilot/,
     ]);
     assert.strictEqual(
       offenders.length,

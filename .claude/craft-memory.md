@@ -188,6 +188,51 @@ findings:
       run: native-pi-binding
       commit: bb8d2cd
       date: '2026-07-20'
+  - concern: findings
+    file: scripts/ci.sh
+    severity: high
+    pattern: the installed-binary hang is NOT pi-specific — ci.sh runs every adapter suite, so ANY agent binary installed on the dev box (pi, opencode, copilot) makes its suite do real provider work and hangs the gate for tens of minutes. Prepend a fast-failing stub for ALL agent binaries to PATH before every ci.sh run, not just the one being worked on. The cost of missing it is a dead sub-agent — a 26-minute part-implementer was lost to exactly this
+    confidence: 0.9
+    provenance:
+      run: native-copilot-binding
+      commit: 43d5b30
+      date: '2026-07-20'
+  - concern: findings
+    file: docs/design/native-copilot-binding.md
+    severity: medium
+    pattern: scripts/design-lint.sh REQUIRES the literal heading `## Decision candidates`. A scope-fold revision that renames it to a more accurate `## Settled decisions` turns ci.sh red. Keep the heading and put the settled framing in the prose beneath it — the sibling design docs keep that heading for this mechanical reason, not by style preference
+    confidence: 0.85
+    provenance:
+      run: native-copilot-binding
+      commit: 8dd16f0
+      date: '2026-07-20'
+  - concern: findings
+    file: adapters/copilot/README.md
+    severity: high
+    pattern: do NOT copy shared craft skill bodies into an adapter to satisfy single-sourcing — the shared bodies legitimately carry ADR/phase refs and one bare `${CLAUDE_PLUGIN_ROOT}`, so copying forces hygiene-rule exemptions on the most drift-prone files. Load them BY REFERENCE instead (pi declares `"skills": ["skills"]`; copilot passes the repo root as a plugin dir). Verified live — a repo-root plugin dir loads all 19 shared skills with `source: plugin` and `userInvocable: true`, so drift becomes structurally impossible rather than test-enforced and both exemptions disappear
+    confidence: 0.85
+    provenance:
+      run: native-copilot-binding
+      commit: 545d4d2
+      date: '2026-07-20'
+  - concern: findings
+    file: adapters/copilot/src/deny-tool-args.js
+    severity: high
+    pattern: Copilot's `--deny-tool` is PREFIX matching on the raw command string, not argv parsing. `shell(git push)` blocks `git push --force origin main` but NOT `git -C . push`; `shell(git clean -fd)` does not block the reordered `git clean -df`. Wildcards do not work (`shell(*push*)`, `shell(git *push*)`, `shell(git)` match nothing); only the documented `shell(cmd:*)` form works, and `shell(git:*)` denies ALL git which breaks a git-heavy harness. Enumerate realistic flag-order/long-form variants and document the interposed-global-option gap honestly — never claim adversarial enforcement
+    confidence: 0.9
+    provenance:
+      run: native-copilot-binding
+      commit: 2eda333
+      date: '2026-07-20'
+  - concern: findings
+    file: engine/src/observability/adapters/copilot/telemetry.js
+    severity: high
+    pattern: an OTel file exporter emits a MIXED stream where the same tokens appear three times — on leaf `chat` spans, summed again on the parent `invoke_agent` span, and again in a `gen_ai.client.token.usage` metric record. Ingesting every token-bearing record inflates cost ~3x. Discriminate STRUCTURALLY (`kind` present AND `instrumentationScope.name`), never by record name, and count leaf spans only. Also a `since` cutoff comparing a raw timestamp against an ISO string fails OPEN when the timestamp is numeric (number < string coerces to NaN) — normalise both sides to epoch ms
+    confidence: 0.85
+    provenance:
+      run: native-copilot-binding
+      commit: 27e9c72
+      date: '2026-07-20'
 part-sizing:
   - concern: part-sizing
     size: pure-module

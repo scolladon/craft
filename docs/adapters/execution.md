@@ -41,7 +41,7 @@ adapter:
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi, opencode }`**.
+The valid bindings are **`{ claude, pi, opencode, copilot }`**.
 
 ## Claude binding
 
@@ -109,6 +109,28 @@ against a real opencode run.
 **Failure → blocker**: an unreachable subagent, a non-zero `permission.task` guard block, or a
 dead subagent with no committed artifact all escalate through the injected blocker protocol; the
 startup-vs-mid-phase split is identical to the Pi binding above.
+
+## Copilot binding
+
+`spawn` dispatches a Copilot subagent via the `task` tool
+(`{ name, prompt, agent_type, description, model?, reasoning_effort?, context_tier?, mode:
+'background'|'sync' }`); config `subagents.agents.<name>` carries the per-subagent
+`model`/`effortLevel`/`contextTier` (each may be `"inherit"`). `list_agents`/`read_agent` are the
+discovery surface for what a session can dispatch to; `/fleet` enables parallel subagent
+execution. `runInline` is the primary agent running in-session, with the same inline carve-outs
+as the Claude and opencode bindings.
+
+**Native discoverable surface.** Copilot loads plugins from **two** repeatable `--plugin-dir`
+flags: `--plugin-dir <repo>` resolves the shared craft skills at `<repo>/skills/<name>/SKILL.md`
+**by reference** — the binding ships no `adapters/copilot/skills/` directory, so drift between
+the shared source and a copy is structurally impossible — and `--plugin-dir
+<repo>/adapters/copilot` supplies this binding's own `agents/`, `hooks/`, and `commands/`.
+`copilot plugin install owner/repo` plus `copilot plugin install owner/repo:adapters/copilot` is
+the distribution path once published. The entrypoint is the shared `run` skill itself — its own
+frontmatter name, directly invocable via the `skill` tool as `{ skill: "run" }` (confirmed live:
+`userInvocable: true`); `commands/craft-run.md` is the thin adapter-local command that names the
+input and defers to it, dispatched headlessly as `copilot -p "/craft-run <input>"`. Artifact-is-
+the-handoff and dead-worker-respawn hold unchanged.
 
 ## Failure → blocker
 

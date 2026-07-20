@@ -33,7 +33,7 @@ adapter:
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi, opencode }`**.
+The valid bindings are **`{ claude, pi, opencode, copilot }`**.
 
 ## Claude binding
 
@@ -74,6 +74,20 @@ Returns `false` if the tier maps to no configured provider.
 artifact — NOT the blocker protocol. A tier that resolves to no provider after exhausting the
 full resolution order is a runtime blocker. Semantics identical to the Claude and Pi bindings
 above.
+
+## Copilot binding
+
+`select`: the craft tier (`opus|sonnet|haiku`) maps via `adapters/copilot/src/model-tier-map.js`
+(`resolveCopilotModel`) to Copilot's `--model` value, with `--effort` as the tier's
+reasoning-effort companion (`resolveCopilotEffort`) and `--context` available for the context
+tier (`default|long_context`). The frontmatter `model:`/`effort:` pins on
+`adapters/copilot/agents/craft-<role>.md` are the Copilot binding of that same tier string,
+mirroring the Claude agent-def pin. Stated honestly: the committed default map ships the `auto`
+sentinel for every tier, swappable to real model ids without a code change once an authenticated
+seat pins them via the on-demand smoke.
+
+`isAvailable`: probe whether the tier-mapped model is reachable for the configured seat or BYOK
+provider; a model-availability error marks the tier degraded and returns `false`.
 
 ## Failure → blocker
 

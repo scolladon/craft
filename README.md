@@ -83,6 +83,11 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
 - `templates/` — design / plan (defines the part schema plan-lint enforces) / ADR
 - `adapters/pi/` — reference Pi adapter: a separate `craft-pi` entrypoint that drives the full 11-phase walk on a non-Claude runtime via the engine's ports (the HaaS portability proof; on-demand, not CI-gated)
 - `adapters/opencode/` — native opencode adapter: `commands/`, `agents/` subagents, a `plugins/git-guard.ts` guard, and `opencode.json`, driving the same engine core via opencode's native subagent dispatch (the native-interactive binding; on-demand live smoke, not CI-gated)
+- `adapters/copilot/` — native Copilot CLI plugin adapter: local `agents/`, `hooks/`, and
+  `commands/`, loaded alongside the shared craft `skills/` at the repository root via two
+  repeatable `--plugin-dir` flags; the three-layer guard (native path containment and
+  `--deny-tool` enforce, the `preToolUse` hook is an observational audit trail) drives the same
+  engine core via Copilot's native subagent dispatch (on-demand, not CI-gated)
 
 ## Design provenance
 

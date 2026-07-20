@@ -29,6 +29,8 @@ const OPENCODE_FIXTURES_ROOT = join(dirname(fileURLToPath(import.meta.url)), 'fi
 const OPENCODE_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'opencode');
 const PI_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'pi');
 const PI_SESSION_ENV_VAR = 'PI_CODING_AGENT_SESSION_DIR';
+const COPILOT_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'copilot');
+const COPILOT_OTEL_ENV_VAR = 'COPILOT_OTEL_FILE_EXPORTER_PATH';
 
 // A valid rollup JSONL line (matches single-rollup.jsonl fixture structure).
 const ROLLUP_LINE = JSON.stringify({
@@ -926,6 +928,120 @@ test('Given --source pi with no io.projectsRoot override, when PI_CODING_AGENT_S
     if (previousEnv === undefined) delete process.env[PI_SESSION_ENV_VAR];
     else process.env[PI_SESSION_ENV_VAR] = previousEnv;
   }
+});
+
+test('Given COPILOT_OTEL_FILE_EXPORTER_PATH is unset, when resolveDefaultReadRoot runs for source copilot, then it resolves to the literal ~/.copilot/otel path', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[COPILOT_OTEL_ENV_VAR];
+  delete process.env[COPILOT_OTEL_ENV_VAR];
+
+  try {
+    const result = sut('copilot');
+
+    assert.equal(result, join(homedir(), '.copilot', 'otel'));
+  } finally {
+    if (previousEnv === undefined) delete process.env[COPILOT_OTEL_ENV_VAR];
+    else process.env[COPILOT_OTEL_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given COPILOT_OTEL_FILE_EXPORTER_PATH names a file, when resolveDefaultReadRoot runs for source copilot, then it resolves to that file\'s containing directory', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[COPILOT_OTEL_ENV_VAR];
+  process.env[COPILOT_OTEL_ENV_VAR] = '/some/dir/otel.jsonl';
+
+  try {
+    const result = sut('copilot');
+
+    assert.equal(result, '/some/dir');
+  } finally {
+    if (previousEnv === undefined) delete process.env[COPILOT_OTEL_ENV_VAR];
+    else process.env[COPILOT_OTEL_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given the read root is resolved, when COPILOT_OTEL_FILE_EXPORTER_PATH changes and it is resolved again, then the second result reflects the new value', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[COPILOT_OTEL_ENV_VAR];
+  process.env[COPILOT_OTEL_ENV_VAR] = '/first/dir/otel.jsonl';
+
+  try {
+    const firstResult = sut('copilot');
+
+    process.env[COPILOT_OTEL_ENV_VAR] = '/second/dir/otel.jsonl';
+    const secondResult = sut('copilot');
+
+    assert.notEqual(firstResult, secondResult, 'a module-load-frozen default would not observe the env mutation');
+    assert.equal(firstResult, '/first/dir');
+    assert.equal(secondResult, '/second/dir');
+  } finally {
+    if (previousEnv === undefined) delete process.env[COPILOT_OTEL_ENV_VAR];
+    else process.env[COPILOT_OTEL_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given COPILOT_OTEL_FILE_EXPORTER_PATH set to the empty string, when resolveDefaultReadRoot runs for source copilot, then it falls back to the default root', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[COPILOT_OTEL_ENV_VAR];
+  process.env[COPILOT_OTEL_ENV_VAR] = '';
+
+  try {
+    const result = sut('copilot');
+
+    assert.equal(result, join(homedir(), '.copilot', 'otel'));
+  } finally {
+    if (previousEnv === undefined) delete process.env[COPILOT_OTEL_ENV_VAR];
+    else process.env[COPILOT_OTEL_ENV_VAR] = previousEnv;
+  }
+});
+
+for (const reserved of ['__proto__', 'constructor', 'hasOwnProperty']) {
+  test(`Given the inherited-member source "${reserved}", when resolveDefaultReadRoot runs, then it falls back to the claude default rather than resolving an inherited member`, () => {
+    const sut = resolveDefaultReadRoot;
+
+    const result = sut(reserved);
+
+    assert.equal(result, join(homedir(), '.claude', 'projects'));
+  });
+}
+
+test('Given --source copilot with no io.projectsRoot override and the env naming a temp OTel file, when main runs, then it mines the fixture directory and exits 0', async () => {
+  const sut = main;
+  const otelDir = makeTmp('copilot-otel-');
+  const otelFile = join(otelDir, 'otel.jsonl');
+  writeFileSync(otelFile, readFileSync(join(COPILOT_FIXTURE_DIR, 'single-chat.jsonl'), 'utf8'), 'utf8');
+  const previousEnv = process.env[COPILOT_OTEL_ENV_VAR];
+  process.env[COPILOT_OTEL_ENV_VAR] = otelFile;
+
+  try {
+    const repoRoot = makeTmp('repo-');
+    const io = makeIo({ repoRoot });
+
+    const result = await sut(['--source', 'copilot'], io);
+
+    assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+    const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+    assert.ok(report.runs.length > 0, 'copilot fixture must produce at least one run');
+    const tokens = report.runs.flatMap(r => r.groups).map(g => g.tokens);
+    assert.ok(
+      tokens.some(t => t.input === 42 && t.output === 17),
+      `report must reflect the copilot-parsed chat span's token totals; got: ${JSON.stringify(tokens)}`,
+    );
+  } finally {
+    if (previousEnv === undefined) delete process.env[COPILOT_OTEL_ENV_VAR];
+    else process.env[COPILOT_OTEL_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given --source copilot, when main runs, then it is accepted rather than rejected as a config error', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture({ lines: [readFileSync(join(COPILOT_FIXTURE_DIR, 'single-chat.jsonl'), 'utf8').trim()] });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--source', 'copilot', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `--source copilot must be accepted, not rejected as a config error; stderr: ${io.stderr.joined()}`);
 });
 
 test('Given an unknown --source value, when main runs, then it exits non-zero, writes a stderr message, and writes no report before the rejection', async () => {

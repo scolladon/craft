@@ -31,7 +31,7 @@ subjects: ['engine/src/observability/**']
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi, opencode }`**.
+The valid bindings are **`{ claude, pi, opencode, copilot }`**.
 
 ## Claude binding
 
@@ -97,6 +97,43 @@ Selected via `--source pi` on the `usage-mine` front-door
 passes the resulting `UsageEvent[]` to `aggregate` — identical wiring to the claude and opencode
 paths. The read root defaults to the pi coding agent's session directory rather than the claude
 projects directory (source-aware read root — see the front-door module for the resolution order).
+
+## Copilot binding
+
+`engine/src/observability/adapters/copilot/telemetry.js` — the **OTel JSON-lines file exporter**
+binding (`COPILOT_OTEL_FILE_EXPORTER_PATH`), deliberately **not** `--output-format json` (whose
+`result` event carries no token counts) and **not** `session-store.db` (no token columns in any
+table):
+
+- **Structural discrimination, not name-based**: the exporter file is a mixed stream of OTLP
+  **span** records and **metric** records, and `gen_ai.*` names overlap between the two tiers. The
+  binding classifies a record as a span only when it carries both a `kind` field and an
+  `instrumentationScope.name` equal to `github.copilot` (the OTel instrumentation-scope identifier
+  the Copilot CLI emits) — never by inspecting `name` alone.
+- **Single-tier selection rule**: the same tokens appear on three tiers — the leaf `chat <model>`
+  span, summed again on the parent `invoke_agent` span, and summed again in the
+  `gen_ai.client.token.usage` metric record. Ingesting more than one tier inflates reported cost
+  up to 3x. The binding therefore counts **only** leaf `chat` spans (`gen_ai.operation.name ===
+  'chat'`); `invoke_agent` and `execute_tool` spans and every metric record are excluded from
+  token math structurally, not filtered after the fact.
+- **role/phase**: `role` is `null` — no live subagent fan-out has yet pinned which attribute
+  carries craft-role identity under `invoke_agent`, so it ships unset rather than guessed. `phase`
+  is caller-injected, as in the pi and opencode bindings.
+- **Cache fields**: `cacheRead`/`cacheCreation` have no pinned Copilot equivalent and are always
+  `0`.
+- **Core reused unchanged**: `aggregate`/`serializeReport` are consumed exactly as the other three
+  bindings consume them — no core changes were required to add this binding.
+- **Read root**: `DEFAULT_READ_ROOTS.copilot` resolves `COPILOT_OTEL_FILE_EXPORTER_PATH` to its
+  containing directory per invocation (the env var names a single file, not a directory, unlike
+  the claude/opencode/pi read roots), never frozen at module load.
+- **Redaction**: whitelist-only, same discipline as the other three bindings.
+
+Selected via `--source copilot` on the `usage-mine` front-door
+(`engine/src/observability/usage-mine-main.js`), identical wiring to the other three sources.
+
+**This page's `subjects: ['engine/src/observability/**']` frontmatter binds it to every change
+under that path** — this Copilot binding lands inside that scope, so refreshing this section is
+this change's own living-intention obligation, not an optional add-on.
 
 ## Failure semantics
 

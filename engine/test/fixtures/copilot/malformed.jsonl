@@ -1,0 +1,2 @@
+NOT_VALID_JSON{{{
+{"name":"chat gpt-4o","kind":"CLIENT","instrumentationScope":{"name":"github.copilot"},"attributes":{"gen_ai.operation.name":"chat","gen_ai.conversation.id":"conv-malformed-001","gen_ai.response.model":"gpt-4o-2024-11-20","gen_ai.usage.input_tokens":9,"gen_ai.usage.output_tokens":4},"startTime":"2026-01-01T00:00:00.000Z","endTime":"2026-01-01T00:00:01.000Z"}
