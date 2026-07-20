@@ -1,9 +1,9 @@
 /**
- * Streaming miner entrypoint: aggregates transcript usage (claude or opencode,
- * via --source) and writes report.json + report.md inside the repo root.
+ * Streaming miner entrypoint: aggregates transcript usage (claude, opencode,
+ * or pi, via --source) and writes report.json + report.md inside the repo root.
  *
  * Two containment roots (fail-closed):
- *   READ  root — ~/.claude/projects (or override); transcript dir must be inside.
+ *   READ  root — source-aware default (or override); transcript dir must be inside.
  *   WRITE root — repoRoot (process.cwd() by default); output paths must be inside.
  *
  * TOCTOU caveat: containByRealpath returns a lexical path; actual reads/writes
@@ -28,6 +28,7 @@ import { createInterface as nodeCreateInterface } from 'node:readline';
 import { containByRealpath as nodeContainByRealpath } from '../contain.js';
 import { parseLines as claudeParseLines } from './adapters/claude/telemetry.js';
 import { parseLines as opencodeParseLines } from './adapters/opencode/telemetry.js';
+import { parseLines as piParseLines } from './adapters/pi/telemetry.js';
 import { aggregate, serializeReport, renderMarkdown, DEFAULT_DRIFT_THRESHOLD } from './usage-aggregate.js';
 import { loadPriceTable } from './adapters/claude/pricing.js';
 
@@ -40,8 +41,23 @@ const DEFAULT_SOURCE = 'claude';
 const SOURCES = Object.freeze({
   claude: claudeParseLines,
   opencode: opencodeParseLines,
+  pi: piParseLines,
 });
 const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
+// C7: source→default-read-root lookup, each entry a thunk so an env-backed
+// default (pi's session dir) is read per invocation, never frozen stale at
+// module-load time. Sources with no entry fall back to the claude default —
+// this is a generic per-source seam, not a pi special-case.
+const DEFAULT_READ_ROOTS = Object.freeze({
+  claude: () => DEFAULT_PROJECTS_DIR,
+  pi: () => process.env.PI_CODING_AGENT_SESSION_DIR || join(homedir(), '.pi', 'agent', 'sessions'),
+});
+
+// Exported as a direct unit-test seam: resolving the default read root is a
+// pure lookup + thunk-call, testable without touching the real filesystem.
+export function resolveDefaultReadRoot(source) {
+  return (DEFAULT_READ_ROOTS[source] ?? DEFAULT_READ_ROOTS.claude)();
+}
 const REPORT_JSON = 'report.json';
 const REPORT_MD = 'report.md';
 const INLINE_GAP_NOTE =
@@ -200,7 +216,7 @@ export async function main(argv, io) {
     createInterface = nodeCreateInterface,
     readdirSync = nodeReaddirSync,
     containByRealpath = nodeContainByRealpath,
-    projectsRoot = DEFAULT_PROJECTS_DIR,
+    projectsRoot: projectsRootOverride,
     repoRoot = process.cwd(),
   } = io;
 
@@ -215,6 +231,9 @@ export async function main(argv, io) {
     return EXIT_CONFIG_ERROR;
   }
   const parseTranscriptLines = SOURCES[source];
+  // Source-aware read root: an explicit io.projectsRoot override always wins
+  // (tests inject it); otherwise the default resolves per source.
+  const projectsRoot = projectsRootOverride ?? resolveDefaultReadRoot(source);
 
   const transcriptDir = resolveTranscriptDir(parsed.dir, projectsRoot);
   // C3: single-call helper — writes a no-op report and returns EXIT_OK.

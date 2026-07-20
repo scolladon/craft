@@ -170,6 +170,24 @@ findings:
       run: portable-named-configs
       commit: cb48a0c
       date: '2026-07-04'
+  - concern: findings
+    file: adapters/pi/src/tool-call-hook.js
+    severity: high
+    pattern: a field-bridge that prefers the guard's INSPECTED field over the field the tool actually EXECUTES on lets a decoy mask an escape — pi writes to `path`, so bridging `file_path ?? path` let an in-tree file_path decoy hide an out-of-tree path from the containment guard; bridge the authoritative field the tool acts on (map `path` to file_path unconditionally). Also: only map the tool names the shared predicate branches on (Bash/Write/Edit) — inert casing entries are dead code
+    confidence: 0.7
+    provenance:
+      run: native-pi-binding
+      commit: bb8d2cd
+      date: '2026-07-20'
+  - concern: findings
+    file: adapters/pi/test/cli.test.js
+    severity: medium
+    pattern: cli.test.js spawns the REAL pi binary via spawnSync and is written for CI where pi is ABSENT (main exits 2 fast). In a dev sandbox where pi IS installed, the real spawn does slow network/provider work and the full adapters/pi suite / bash scripts/ci.sh hangs for tens of minutes. Reproduce CI conditions by prepending a fast-failing `pi` stub (a 2-line `exit 2` script) to PATH — node/npx stay real since they resolve elsewhere on PATH
+    confidence: 0.8
+    provenance:
+      run: native-pi-binding
+      commit: bb8d2cd
+      date: '2026-07-20'
 part-sizing:
   - concern: part-sizing
     size: pure-module
@@ -283,6 +301,14 @@ part-sizing:
       run: shrink-core-prune-guardrails
       commit: daf7f05
       date: '2026-07-03'
+  - concern: part-sizing
+    size: native-surface
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: native-pi-binding
+      commit: bd4d8d8
+      date: '2026-07-20'
 ---
 
 # craft memory store
@@ -307,6 +333,8 @@ part-sizing:
 - engine/src/observability/usage-aggregate.js — confidence 0.75 | daf7f05 (cross-report matching keyed on session run-ids ships a dead feature with green tests; drift compares per-phase MEANS, NaN-safe — malformed group contributes 0, null renders "new")
 - test/source-hygiene.test.js — confidence 0.7 | daf7f05 (a location rule with zero real-tree matches passes vacuously — pin known artifact locations positively beside the synthetic offender)
 - engine/bin (shim convention) — confidence 0.7 | 5451144 (engine bins are 5-line shims over engine/src/<name>-main.js; put bin logic in engine/src so Stryker covers it — mutate scope is engine/src/** ONLY, bin files are never mutated; bin spawn-smoke tests belong in engine/test/<name>.bin.test.js. Do NOT relocate a bin's tests to repo-root test/ on a mutation-coverage rationale — that argument is void since bins aren't mutated.)
+- adapters/pi/src/tool-call-hook.js — confidence 0.7 | bb8d2cd (a field-bridge that prefers the guard's INSPECTED field over the field the tool EXECUTES on lets a decoy mask an escape; pi writes `path`, so bridge `path`→file_path unconditionally; only map the tool names the shared predicate branches on — inert casing entries are dead code)
+- adapters/pi/test/cli.test.js — confidence 0.8 | bb8d2cd (spawns the REAL pi via spawnSync, written for CI where pi is ABSENT → main exits 2 fast; in a dev sandbox with pi installed the spawn does slow provider work and the pi suite / ci.sh hangs tens of minutes — prepend a fast-failing `pi` stub (`exit 2`) to PATH to reproduce CI; node/npx stay real)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1
@@ -336,3 +364,4 @@ part-sizing:
 - ci-advisory-wiring: pass — confidence 1 | 6ebaf71 (ci.sh compute_touched→run_stub/prose_lint advisory; kept non-adjacent to run_intention_lint; token family in skills/run; each touched .md is its own --waiver-source; expected benign self-reference)
 - standalone-skill: pass — confidence 1 | 19c3379 (prose-only craft:prune skill mirroring craft:metrics; propose-never-dispose + core.md fail-closed denylist)
 - lint-mutation-triage: pass — confidence 1 | 45b7c5a (per-hunk stryker on lint bins: killable = clean-file --gate blocking→exit0, unreadable --waiver-source, prose capitalized single-word; equivalent = gate-default '', isSelf/waived {} early-return, read-error found-flag — exit-OR aggregation makes found unobservable when readError dominates)
+- native-surface: pass — confidence 1 | bd4d8d8 (pi package: package.json `pi` manifest + keywords + settings.template.json + thin prompt-template dispatchers + one thin .ts extension wrapping tested src seams + README + a structure test that reads the .ts as TEXT; single-sourced procedure bodies, no re-authoring)

@@ -205,3 +205,9 @@ portable-named-configs review tokens=262021 duration_ms=375867 cache=na
 portable-named-configs refactoring tokens=65436 duration_ms=259286 cache=na
 portable-named-configs documentation tokens=101627 duration_ms=619248 cache=na
 portable-named-configs validation-triage tokens=132473 duration_ms=918888 cache=na
+native-pi-binding design tokens=309748 duration_ms=1347116 cache=na
+native-pi-binding planning tokens=225337 duration_ms=935067 cache=na
+native-pi-binding implementation tokens=919892 duration_ms=2671021 cache=na
+native-pi-binding review tokens=370142 duration_ms=1022929 cache=na
+native-pi-binding documentation tokens=102809 duration_ms=309517 cache=na
+native-pi-binding validation tokens=97737 duration_ms=402953 cache=na

@@ -61,19 +61,29 @@ are identical to `spawn`.
 
 `spawn`:
 
-- **Subprocess (PoC)**: run `pi -p "<injectedBlock + dynamics>"` via `execFile('pi', args)` —
-  argv array, no shell interpolation (untrusted-input discipline). Optionally prepend
-  `--mode json` for structured JSONL output (`parseUsage` reads it).
+- **Subprocess**: run `pi -p "<injectedBlock + dynamics>"` via `execFile('pi', args)` — argv
+  array, stdin ignored (pi hangs on an open stdin pipe in `-p` mode), no shell interpolation
+  (untrusted-input discipline). Optionally prepend `--mode json` for structured JSONL output
+  (`parseUsage` reads it).
 - **SDK (documented, richer alternative)**: `createAgentSession` + `session.prompt(injectedBlock
   + dynamics)`. The SDK variant is documented here as the preferred path for production use; the
-  subprocess variant is the PoC binding. The adapter chooses one; the port contract is identical
-  either way.
+  subprocess variant is the shipped binding. The adapter chooses one; the port contract is
+  identical either way.
 
 `runInline`: Pi has no harness-native inline concept; treat as sequential per-phase
 subprocess — one `pi -p` invocation per phase, artifact-handoff carries state between phases.
 
 Pi omits sub-agents → sequential per-phase runs; the artifact-handoff invariant carries state
 where Claude would use fan-out.
+
+**Native discoverable surface (`adapters/pi/`).** pi also ships as a `pi install`-able package on
+top of the same subprocess seam: a `/craft-run` prompt-template entrypoint
+(`adapters/pi/prompts/craft-run.md`, plus one dispatcher per exposed phase) that loads the shared
+`skills/run/SKILL.md` verbatim — single-sourced, not re-authored — and one extension
+(`adapters/pi/extensions/craft-guard/`) wiring the git-guard `tool_call` hook, the `CRAFT_ROOT`
+export, and the `craft` flag. This changes *discoverability*, not topology: the interactive
+`/craft-run` walk still drives the SAME proven sequential per-phase runs described above — no
+subagent is introduced, no new port verb is added.
 
 ## opencode binding
 

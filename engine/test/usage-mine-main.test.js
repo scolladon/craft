@@ -18,15 +18,17 @@ import {
 } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, dirname } from 'node:path';
-import { tmpdir } from 'node:os';
+import { tmpdir, homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { main } from '../src/observability/usage-mine-main.js';
+import { main, resolveDefaultReadRoot } from '../src/observability/usage-mine-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
 import { serializeReport } from '../src/observability/usage-aggregate.js';
 
 const OPENCODE_FIXTURES_ROOT = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const OPENCODE_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'opencode');
+const PI_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'pi');
+const PI_SESSION_ENV_VAR = 'PI_CODING_AGENT_SESSION_DIR';
 
 // A valid rollup JSONL line (matches single-rollup.jsonl fixture structure).
 const ROLLUP_LINE = JSON.stringify({
@@ -850,6 +852,80 @@ test('Given --source opencode with a fixture dir of opencode-format jsonl files,
     models.includes('anthropic/claude-opus-4-8'),
     `report must reflect opencode-parsed events (opencode model ids carry an "anthropic/" prefix); got models: ${models}`,
   );
+});
+
+test('Given --source pi with a fixture dir of pi-format jsonl files, when main runs, then it routes to the pi binding and the report reflects pi-parsed events', async () => {
+  const sut = main;
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot: OPENCODE_FIXTURES_ROOT, repoRoot });
+
+  const result = await sut(['--source', 'pi', '--dir', PI_FIXTURE_DIR], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.ok(report.runs.length > 0, 'pi fixtures must produce at least one run');
+  const roles = report.runs.flatMap(r => r.groups).map(g => g.role);
+  assert.ok(
+    roles.every(role => role === null),
+    `pi-parsed groups must carry a null role (pi has no subagent attribution); got roles: ${roles}`,
+  );
+  const runIds = report.runs.map(r => r.run);
+  assert.ok(runIds.includes('pi-sess-aaa'), `report must reflect the pi session-header id; got: ${runIds}`);
+});
+
+test('Given PI_CODING_AGENT_SESSION_DIR is unset, when resolveDefaultReadRoot runs for source pi, then it resolves to the literal ~/.pi/agent/sessions path', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[PI_SESSION_ENV_VAR];
+  delete process.env[PI_SESSION_ENV_VAR];
+
+  try {
+    const result = sut('pi');
+
+    assert.equal(result, join(homedir(), '.pi', 'agent', 'sessions'));
+  } finally {
+    if (previousEnv === undefined) delete process.env[PI_SESSION_ENV_VAR];
+    else process.env[PI_SESSION_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given --source pi with no io.projectsRoot override, when PI_CODING_AGENT_SESSION_DIR names a temp dir, then the pi default read root resolves to it while the claude default read root still rejects the same dir', async () => {
+  const sut = main;
+  const piSessionsDir = makeTmp('pi-sessions-');
+  const transcriptDir = join(piSessionsDir, 'session-slug');
+  mkdirSync(transcriptDir);
+  writeFileSync(join(transcriptDir, 'transcript.jsonl'), readFileSync(join(PI_FIXTURE_DIR, 'single-run.jsonl'), 'utf8'), 'utf8');
+  const previousEnv = process.env[PI_SESSION_ENV_VAR];
+  process.env[PI_SESSION_ENV_VAR] = piSessionsDir;
+
+  try {
+    const piRepoRoot = makeTmp('repo-');
+    const piIo = makeIo({ repoRoot: piRepoRoot });
+
+    const piResult = await sut(['--source', 'pi', '--dir', transcriptDir], piIo);
+
+    assert.equal(piResult, 0, `stderr: ${piIo.stderr.joined()}`);
+    const piReport = JSON.parse(readFileSync(join(piRepoRoot, 'report.json'), 'utf8'));
+    assert.ok(
+      piReport.runs.length > 0,
+      `the pi default read root must resolve inside PI_CODING_AGENT_SESSION_DIR and pass containment; got: ${JSON.stringify(piReport)}`,
+    );
+
+    const claudeRepoRoot = makeTmp('repo-');
+    const claudeIo = makeIo({ repoRoot: claudeRepoRoot });
+
+    const claudeResult = await sut(['--source', 'claude', '--dir', transcriptDir], claudeIo);
+
+    assert.equal(claudeResult, 0, `stderr: ${claudeIo.stderr.joined()}`);
+    const claudeReport = JSON.parse(readFileSync(join(claudeRepoRoot, 'report.json'), 'utf8'));
+    assert.equal(
+      claudeReport.note,
+      'transcript dir not contained within projects root',
+      'the same dir must fail containment under the unchanged claude default read root',
+    );
+  } finally {
+    if (previousEnv === undefined) delete process.env[PI_SESSION_ENV_VAR];
+    else process.env[PI_SESSION_ENV_VAR] = previousEnv;
+  }
 });
 
 test('Given an unknown --source value, when main runs, then it exits non-zero, writes a stderr message, and writes no report before the rejection', async () => {

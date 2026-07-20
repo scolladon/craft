@@ -1,0 +1,2 @@
+{"type":"session","id":"pi-sess-ccc"}
+{"type":"message_end","message":{"usage":{"input":0,"output":0,"cacheRead":0,"cacheWrite":0,"totalTokens":0,"cost":{"total":0}},"model":"<synthetic>"}}

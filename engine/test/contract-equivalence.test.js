@@ -181,4 +181,47 @@ for (const descriptor of DESCRIPTORS) {
       `Descriptor "${descriptor.id}": every differing line must be one of the two carve-out fragments, got ${JSON.stringify(diffs)}`,
     );
   });
+
+  // Pi-binding fidelity: the pi binding reuses agent-mode assembly outright —
+  // assembleContract has NO binding dimension. Passing a pi binding hint must
+  // be ignored (produce the same block as plain agent mode); if a future
+  // change ever keys a variant off a binding, this trips.
+  test(`Given a pi binding hint on descriptor "${descriptor.id}", when assembled, then it is ignored and the block equals plain agent-mode assembly`, () => {
+    const sut = assembleContract;
+
+    const agentModeBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+    const piHintedBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent', binding: 'pi' });
+
+    const diffs = diffLines(piHintedBlock, agentModeBlock);
+
+    assert.equal(
+      diffs.length,
+      0,
+      `Descriptor "${descriptor.id}": a binding hint must not introduce a variant — the pi binding reuses agent-mode assembly, got ${JSON.stringify(diffs)}`,
+    );
+  });
+
+  // Re-anchors the agent-vs-inline diff under the pi-binding fidelity concern:
+  // the two carve-out lines are the ONLY binding-nameable slots. If a future
+  // change ever authors a pi-specific variant (a third differing line, e.g. a
+  // PI_VARIANTS regression), the diff set grows past this confinement and
+  // trips the assertion.
+  test(`Given descriptor "${descriptor.id}", when the pi-binding carve-out set is checked, then the agent-vs-inline diff is confined to the two known carve-out lines`, () => {
+    const sut = assembleContract;
+
+    const agentBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+    const inlineBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'inline' });
+
+    const diffs = diffLines(agentBlock, inlineBlock);
+
+    assert.equal(
+      diffs.length,
+      2,
+      `Descriptor "${descriptor.id}": pi-binding carve-out set must contain exactly the two known lines, got ${JSON.stringify(diffs)}`,
+    );
+    assert.ok(
+      diffs.every(d => AGENT_CARVE_OUT_FRAGMENTS.some(fragment => d.a?.includes(fragment))),
+      `Descriptor "${descriptor.id}": every differing line must be one of the two carve-out fragments, got ${JSON.stringify(diffs)}`,
+    );
+  });
 }

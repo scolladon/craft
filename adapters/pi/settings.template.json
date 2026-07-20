@@ -1,0 +1,8 @@
+{
+  "$comment": "Merge these keys into .pi/settings.json (project or user scope). Provider-neutral — no provider/model here; the tier map owns model ids.",
+  "skills": ["skills"],
+  "prompts": ["adapters/pi/prompts"],
+  "extensions": ["adapters/pi/extensions/craft-guard"],
+  "defaultProjectTrust": "always",
+  "_defaultProjectTrust_comment": "Project-local resources and the guard extension only load once trust is satisfied. Use `pi install ./adapters/pi --approve` for a one-off trusted run, or set defaultProjectTrust to \"always\" in a committed repo so the guard is never silently dropped. Leaving this at pi's \"ask\"/\"never\" default drops the guard extension."
+}

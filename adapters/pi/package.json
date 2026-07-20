@@ -2,10 +2,16 @@
   "name": "@craft/adapter-pi",
   "type": "module",
   "private": true,
+  "keywords": ["pi-package"],
   "scripts": {
     "test": "node --test 'test/**/*.test.js'"
   },
   "bin": {
     "craft-pi": "src/cli.js"
+  },
+  "pi": {
+    "extensions": ["extensions/craft-guard"],
+    "skills": [],
+    "prompts": ["prompts"]
   }
 }

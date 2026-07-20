@@ -47,14 +47,17 @@ model-availability error marks the tier degraded and returns `false`.
 
 ## Pi binding
 
-`select`: pass `model:` / `scopedModels:` on `createAgentSession` (or `--model <id>` on `pi
--p`). The adapter maps the craft tier (`opus|sonnet|haiku`) to a Pi provider+model pair via
-`getModel(provider, id)` / `modelRegistry.find`. The tier→provider mapping is the adapter's
-concern; the resolution order is core policy.
+`select`: the adapter maps the craft tier (`opus|sonnet|haiku`) to a `provider/model` pair via
+the tier map (`adapters/pi/src/model-tier-map.js`, `resolvePiModel` over a committed
+`DEFAULT_TIER_MODELS` default — the pi-native `anthropic/claude-{opus,sonnet,haiku}-4-5` ids).
+The default map is fully swappable via settings/manifest overrides; `.claude/workflow.md` stays
+provider-neutral — `models.<role>` carries tier strings only, never a `provider/model` pin. The
+tier→provider mapping is the adapter's concern; the resolution order is core policy, restated
+nowhere. The tier map is now a pure unit-tested seam — the same pattern the opencode binding
+already holds.
 
-`isAvailable`: call `modelRegistry.getAvailable()` and check whether the mapped
-provider+model pair is present. Returns `false` if the tier maps to no available
-provider or if no key is configured for the provider.
+`isAvailable`: checks whether the tier-mapped provider is configured (credentials/key present).
+Returns `false` if the tier maps to no configured provider.
 
 ## opencode binding
 
@@ -86,8 +89,8 @@ invariant and does not restate it.
 Failures split by where they are detectable:
 
 **Config errors** (knowable from the manifest alone, no I/O): an unknown tier string in
-`models.<role>` or `models.fallback`; a Pi adapter with no `modelRegistry` configured.
-Caught at startup; surface as a non-zero exit before any phase begins.
+`models.<role>` or `models.fallback`; a Pi tier with no entry in the tier map and no override
+configured. Caught at startup; surface as a non-zero exit before any phase begins.
 
 **Runtime errors** (knowable only at spawn time): the model is down, overloaded, or returns an
 availability error. These are not blockers — they trigger the degraded-tier path above. Only

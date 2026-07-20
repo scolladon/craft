@@ -2,19 +2,46 @@ import { realpath } from 'node:fs/promises';
 import { resolve, dirname, sep } from 'node:path';
 import { toolCallGuard, WRITE_TOOLS } from './gate.js';
 
+// Maps pi's lowercase tool_call names (0.80.10) to the Claude-cased names
+// toolCallGuard branches on — only the guarded tools (Bash for git-diff detection,
+// Write/Edit for path containment). Unknown/already-capitalized names pass through
+// unchanged so 0.79.8-style back-compat fixtures still resolve.
+const PI_TOOL_NAME_CASING = Object.freeze({
+  bash: 'Bash',
+  write: 'Write',
+  edit: 'Edit',
+});
+
+function normalizeToolName(rawName) {
+  return PI_TOOL_NAME_CASING[rawName] ?? rawName;
+}
+
+// pi 0.80.10 write/edit input carries `path`, not `file_path`, and pi writes to
+// `path`. Bridge `path` onto file_path so toolCallGuard/symlinkRecheck (both read
+// tool_input.file_path) guard the field pi actually writes: `path` wins over any
+// `file_path` also present, so an in-tree `file_path` decoy cannot mask an
+// out-of-tree `path` from the containment check. When `path` is absent
+// (0.79.8/back-compat events), the existing file_path is left untouched.
+function bridgeFilePath(rawInput) {
+  if (rawInput.path === undefined) return rawInput;
+  return { ...rawInput, file_path: rawInput.path };
+}
+
 /**
  * Maps a Pi tool_call event to the shape toolCallGuard expects.
- * Pi field names pinned against @earendil-works/pi-coding-agent@0.79.8.
- * @param {{ tool?: string, name?: string, input?: object, arguments?: object }} event
+ * Pi field names pinned against @earendil-works/pi-coding-agent@0.80.10
+ * (event.toolName, input.path), keeping 0.79.8 reads as back-compat fallbacks
+ * (event.tool/event.name, event.arguments, input.file_path).
+ * @param {{ toolName?: string, tool?: string, name?: string, input?: object, arguments?: object }} event
  * @param {{ workingDir?: string, cwd?: string }} ctx
  * @returns {{ tool: string, tool_input: object, working_dir: string }}
  */
 function adaptPiEvent(event, ctx) {
-  const tool = event.tool ?? event.name;
+  const tool = normalizeToolName(event.toolName ?? event.tool ?? event.name);
   const rawInput = event.input ?? event.arguments ?? {};
   return {
     tool,
-    tool_input: rawInput,
+    tool_input: bridgeFilePath(rawInput),
     working_dir: ctx.workingDir ?? ctx.cwd ?? '',
   };
 }

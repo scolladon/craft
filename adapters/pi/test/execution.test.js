@@ -118,13 +118,13 @@ describe('buildPiArgs() — prompt contains dynamics header and formatted lines'
 });
 
 describe('parseUsage() — JSONL stream parsing', () => {
-  it('Given a JSONL stream containing a usage event, when parsed, then returns the usage object', () => {
+  it('Given a JSONL stream containing a message_end line with message.usage, when parsed, then returns the usage object', () => {
     const sut = parseUsage;
-    const usagePayload = { input_tokens: 100, output_tokens: 200, total_tokens: 300 };
+    const usagePayload = { input: 100, output: 200, cacheRead: 0, cacheWrite: 0, totalTokens: 300, cost: { total: 0.01 } };
     const jsonlText = [
-      JSON.stringify({ type: 'message_start', message: {} }),
-      JSON.stringify({ type: 'usage', usage: usagePayload }),
-      JSON.stringify({ type: 'message_stop' }),
+      JSON.stringify({ type: 'session', id: 'sess-1' }),
+      JSON.stringify({ type: 'message_end', message: { usage: usagePayload, model: 'anthropic/claude-sonnet-4-5' } }),
+      JSON.stringify({ type: 'turn_end' }),
     ].join('\n');
 
     const result = sut(jsonlText);
@@ -132,11 +132,25 @@ describe('parseUsage() — JSONL stream parsing', () => {
     assert.deepEqual(result, usagePayload);
   });
 
-  it('Given a JSONL stream without a usage event, when parsed, then returns null', () => {
+  it('Given a non-final line carrying message.usage before the message_end line, when parsed, then returns the message_end usage (ignores the earlier line)', () => {
+    const sut = parseUsage;
+    const partialPayload = { input: 5, output: 0, cacheRead: 0, cacheWrite: 0, totalTokens: 5, cost: { total: 0 } };
+    const finalPayload = { input: 100, output: 200, cacheRead: 0, cacheWrite: 0, totalTokens: 300, cost: { total: 0.01 } };
+    const jsonlText = [
+      JSON.stringify({ type: 'message_start', message: { usage: partialPayload } }),
+      JSON.stringify({ type: 'message_end', message: { usage: finalPayload } }),
+    ].join('\n');
+
+    const result = sut(jsonlText);
+
+    assert.deepEqual(result, finalPayload);
+  });
+
+  it('Given a JSONL stream without a message.usage-bearing line, when parsed, then returns null', () => {
     const sut = parseUsage;
     const jsonlText = [
-      JSON.stringify({ type: 'message_start', message: {} }),
-      JSON.stringify({ type: 'message_stop' }),
+      JSON.stringify({ type: 'session', id: 'sess-1' }),
+      JSON.stringify({ type: 'turn_end' }),
     ].join('\n');
 
     const result = sut(jsonlText);
@@ -146,9 +160,9 @@ describe('parseUsage() — JSONL stream parsing', () => {
 
   it('Given LF-delimited input with a trailing partial line, when parsed, then splits on LF only and ignores the partial line', () => {
     const sut = parseUsage;
-    const usagePayload = { input_tokens: 50, output_tokens: 75 };
+    const usagePayload = { input: 50, output: 75, cacheRead: 0, cacheWrite: 0, totalTokens: 125, cost: { total: 0.005 } };
     const jsonlText =
-      JSON.stringify({ type: 'usage', usage: usagePayload }) + '\n' + 'partial-json{';
+      JSON.stringify({ type: 'message_end', message: { usage: usagePayload } }) + '\n' + 'partial-json{';
 
     const result = sut(jsonlText);
 
@@ -157,9 +171,9 @@ describe('parseUsage() — JSONL stream parsing', () => {
 
   it('Given CRLF line endings, when parsed on LF only, then the trailing \\r does not prevent usage extraction', () => {
     const sut = parseUsage;
-    const usagePayload = { input_tokens: 10, output_tokens: 20 };
+    const usagePayload = { input: 10, output: 20, cacheRead: 0, cacheWrite: 0, totalTokens: 30, cost: { total: 0.001 } };
     // Splitting `line\r\n` on \n gives `["line\r", ""]`. JSON.parse accepts trailing \r.
-    const jsonlText = JSON.stringify({ type: 'usage', usage: usagePayload }) + '\r\n';
+    const jsonlText = JSON.stringify({ type: 'message_end', message: { usage: usagePayload } }) + '\r\n';
 
     const result = sut(jsonlText);
 
@@ -174,9 +188,9 @@ describe('parseUsage() — JSONL stream parsing', () => {
     assert.equal(result, null);
   });
 
-  it('Given a usage-typed event with no usage payload, when parsed, then returns null', () => {
+  it('Given a message_end event with no usage payload, when parsed, then returns null', () => {
     const sut = parseUsage;
-    const jsonlText = JSON.stringify({ type: 'usage' });
+    const jsonlText = JSON.stringify({ type: 'message_end', message: {} });
 
     const result = sut(jsonlText);
 
@@ -201,10 +215,10 @@ describe('parseUsage() — JSONL stream parsing', () => {
     assert.equal(result, null);
   });
 
-  it('Given a stream with a whitespace-only line before the usage event, when parsed, then returns the usage payload', () => {
+  it('Given a stream with a whitespace-only line before the message_end event, when parsed, then returns the usage payload', () => {
     const sut = parseUsage;
-    const usagePayload = { input_tokens: 5, output_tokens: 10 };
-    const jsonlText = '   \n' + JSON.stringify({ type: 'usage', usage: usagePayload });
+    const usagePayload = { input: 5, output: 10, cacheRead: 0, cacheWrite: 0, totalTokens: 15, cost: { total: 0.0005 } };
+    const jsonlText = '   \n' + JSON.stringify({ type: 'message_end', message: { usage: usagePayload } });
 
     const result = sut(jsonlText);
 

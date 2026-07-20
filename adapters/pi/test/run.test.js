@@ -46,7 +46,7 @@ const ROLELESS_IDS = ['workspace', 'decisions', 'propose', 'integrate'];
 
 const WALK_MANIFEST = Object.freeze({ gates: { phase: 'node --test' } });
 
-const USAGE_JSONL = '{"type":"usage","usage":{"input_tokens":10,"output_tokens":20}}\n';
+const USAGE_JSONL = '{"type":"message_end","message":{"usage":{"input":10,"output":20}}}\n';
 
 function makeRecordingSpawnPi(override = {}) {
   const calls = [];
@@ -299,7 +299,7 @@ describe('main() — full 11-phase walk', () => {
   });
 
   it('Given a --mode json stdout fixture, when a worker phase runs, then parseUsage result is recorded in the run record per worker phase', async () => {
-    const usageFixture = JSON.stringify({ type: 'usage', usage: { input_tokens: 42, output_tokens: 7 } }) + '\n';
+    const usageFixture = JSON.stringify({ type: 'message_end', message: { usage: { input: 42, output: 7 } } }) + '\n';
     const deps = makeDeps({
       spawnPi: async () => usageFixture,
     });
@@ -311,8 +311,8 @@ describe('main() — full 11-phase walk', () => {
     const workerRecords = result.runRecord.filter((r) => r.usage !== undefined);
     assert.ok(workerRecords.length === WORKER_IDS.length, 'each worker phase must have usage recorded');
     for (const r of workerRecords) {
-      assert.equal(r.usage.input_tokens, 42);
-      assert.equal(r.usage.output_tokens, 7);
+      assert.equal(r.usage.input, 42);
+      assert.equal(r.usage.output, 7);
     }
   });
 

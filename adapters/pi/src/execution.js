@@ -1,7 +1,6 @@
 const FLAG_PRINT = '-p';
 const FLAG_MODE = '--mode';
 const MODE_JSON = 'json';
-const USAGE_EVENT_TYPE = 'usage';
 
 /**
  * Build the argv array for a `pi` subprocess invocation.
@@ -24,23 +23,31 @@ export function buildPiArgs(injectedBlock, dynamics, { jsonMode }) {
 }
 
 /**
- * Parse a JSONL event stream from `pi --mode json` and extract the usage object.
+ * Parse a JSONL event stream from `pi --mode json` and extract the assistant
+ * message usage payload (the `message_end` — equivalently `turn_end` — line's
+ * `message.usage`: `{input,output,cacheRead,cacheWrite,totalTokens,cost}`).
  * Splits on LF only (strict — CRLF is not treated as a line separator).
  *
  * @param {string} jsonlText Raw JSONL output from `pi --mode json`.
- * @returns {object|null} The usage payload or null if not present.
+ * @returns {object|null} The `message.usage` payload or null if not present.
  */
 export function parseUsage(jsonlText) {
   const lines = jsonlText.split('\n');
 
   for (const line of lines) {
     const event = tryParseJson(line);
-    if (event !== null && event.type === USAGE_EVENT_TYPE) {
-      return event.usage ?? null;
+    const usage = extractMessageUsage(event);
+    if (usage !== null) {
+      return usage;
     }
   }
 
   return null;
+}
+
+function extractMessageUsage(event) {
+  if (event?.type !== 'message_end') return null;
+  return event?.message?.usage ?? null;
 }
 
 function buildPrompt(injectedBlock, dynamics) {

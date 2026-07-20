@@ -1,0 +1,2 @@
+{"type":"session","id":"pi-sess-aaa","cwd":"/Users/alice/project","home":"/Users/alice","user":"alice","prompt":"do the secret thing","timestamp":"2026-01-01T00:00:00.000Z"}
+{"type":"message_end","message":{"usage":{"input":2,"output":900,"cacheRead":196062,"cacheWrite":255,"totalTokens":197164,"cost":{"total":0.01}},"model":"anthropic/claude-sonnet-4-5","provider":"anthropic","stopReason":"end_turn"},"timestamp":"2026-01-01T00:00:05.000Z"}

@@ -7,9 +7,10 @@ import { toolCallHook } from '../src/tool-call-hook.js';
 
 const WORKING_DIR = '/workspace/repo';
 
-const piToolCallEvent = ({ name, tool, input, args }) => ({
+const piToolCallEvent = ({ name, tool, toolName, input, args }) => ({
   name: name ?? tool,
   tool,
+  toolName,
   arguments: args,
   input,
 });
@@ -197,6 +198,92 @@ describe('toolCallHook() — runtime symlink re-check', () => {
     const result = await sut(event, localCtx);
 
     assert.equal(result.block, false);
+  });
+});
+
+describe('toolCallHook() — pi 0.80.10 toolName/path event shape', () => {
+  it('Given a pi 0.80.10 bash tool_call for a bare git diff, when the hook runs, then it returns block:true with a reason', async () => {
+    const sut = toolCallHook();
+    const event = piToolCallEvent({ toolName: 'bash', input: { command: 'git diff HEAD~1' } });
+
+    const result = await sut(event, ctx);
+
+    assert.equal(result.block, true);
+    assert.equal(typeof result.reason, 'string');
+  });
+
+  it('Given a pi 0.80.10 bash tool_call carrying --no-ext-diff, when the hook runs, then it returns block:false (compliant escape)', async () => {
+    const sut = toolCallHook();
+    const event = piToolCallEvent({
+      toolName: 'bash',
+      input: { command: 'git diff --no-ext-diff HEAD~1' },
+    });
+
+    const result = await sut(event, ctx);
+
+    assert.equal(result.block, false);
+  });
+
+  it('Given a pi 0.80.10 write tool_call using toolName/path, when adapted, then the guard receives tool:"Write" and tool_input.file_path from path', async () => {
+    let captured;
+    const recordingGuard = (guardEvent) => {
+      captured = guardEvent;
+      return { block: false };
+    };
+    const sut = toolCallHook(recordingGuard);
+    const event = piToolCallEvent({ toolName: 'write', input: { path: 'sub/x', content: 'y' } });
+
+    await sut(event, ctx);
+
+    assert.equal(captured.tool, 'Write');
+    assert.equal(captured.tool_input.file_path, 'sub/x');
+  });
+
+  it('Given a pi 0.80.10 edit tool_call using toolName/path, when adapted, then the guard receives tool:"Edit" and tool_input.file_path from path', async () => {
+    let captured;
+    const recordingGuard = (guardEvent) => {
+      captured = guardEvent;
+      return { block: false };
+    };
+    const sut = toolCallHook(recordingGuard);
+    const event = piToolCallEvent({ toolName: 'edit', input: { path: 'sub/y' } });
+
+    await sut(event, ctx);
+
+    assert.equal(captured.tool, 'Edit');
+    assert.equal(captured.tool_input.file_path, 'sub/y');
+  });
+
+  it('Given a pi 0.80.10 write carrying both an out-of-tree path and an in-tree file_path decoy, when adapted, then the guard receives the authoritative path (pi writes to path, not the decoy)', async () => {
+    let captured;
+    const recordingGuard = (guardEvent) => {
+      captured = guardEvent;
+      return { block: false };
+    };
+    const sut = toolCallHook(recordingGuard);
+    const event = piToolCallEvent({ toolName: 'write', input: { path: '../outside', file_path: 'inside.txt', content: 'y' } });
+
+    await sut(event, ctx);
+
+    assert.equal(captured.tool_input.file_path, '../outside');
+  });
+
+  it('Given a pi 0.80.10 write to an outside path with an in-tree file_path decoy, when the hook runs, then it returns block:true (the decoy cannot mask the escape)', async () => {
+    const sut = toolCallHook();
+    const event = piToolCallEvent({ toolName: 'write', input: { path: '/etc/passwd', file_path: 'inside.txt', content: 'y' } });
+
+    const result = await sut(event, ctx);
+
+    assert.equal(result.block, true);
+  });
+
+  it('Given a blocked pi 0.80.10 toolName-shaped event, when the hook runs, then the result has no permission field (pinned veto shape)', async () => {
+    const sut = toolCallHook();
+    const event = piToolCallEvent({ toolName: 'bash', input: { command: 'git diff HEAD~1' } });
+
+    const result = await sut(event, ctx);
+
+    assert.equal(Object.hasOwn(result, 'permission'), false);
   });
 });
 

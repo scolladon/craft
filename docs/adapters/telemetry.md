@@ -72,18 +72,31 @@ passes the resulting `UsageEvent[]` to `aggregate` — identical wiring to the c
 
 ## Pi binding
 
-**RESERVED — not built.**
+`engine/src/observability/adapters/pi/telemetry.js` — the `pi --mode json` collect binding for
+the pidev coding agent:
 
-The seam is documented here so a future implementer can bind a Raspberry Pi (or equivalent
-single-board-computer) metrics source without touching the engine core. The contract is:
+- **JSON-lines parsing**: reads `pi --mode json` event lines; maps the pinned assistant
+  `message.usage`/`message.model` fields, plus the session-header `id`, to the same
+  vendor-neutral `UsageEvent` shape the claude and opencode bindings produce.
+- **Stateful session id**: unlike the claude/opencode streams, pi's per-turn message lines do not
+  repeat the session id — the binding holds the id from the header line across the stream and
+  stamps it onto every event derived from later lines.
+- **role/phase**: `role` is always `null` — pi has no subagent attribution. `phase` is
+  caller-injected rather than read from the stream.
+- **Core reused unchanged**: `aggregate`/`serializeReport` from `usage-aggregate.js` are consumed
+  exactly as the claude and opencode bindings consume them — no core changes were required to add
+  this binding.
+- **Redaction**: whitelist-only, same discipline as the other bindings — only the fields listed in
+  the `UsageEvent` shape are mapped; no path/`$HOME`/username/prompt fields ever reach the core.
+- **Schema status**: the exact canonical per-turn usage line and real non-zero values are pinned
+  against frozen synthetic fixtures (`engine/test/fixtures/pi/`); confirmation against a live
+  `pi --mode json` stream is DEFERRED to the on-demand smoke.
 
-- Supply a `deps.readTranscripts` that yields the device's equivalent of Claude Code transcript
-  records in the same JSONL line-object shape the claude binding uses (or pre-map them to
-  `UsageEvent[]` directly).
-- The `aggregate` + `serializeReport` path is fully reusable; only the `collect` binding changes.
-
-`--source pi` is not yet a valid value — see [Failure semantics](#failure-semantics) for the
-validator's config-error behavior on an unknown/unbuilt source.
+Selected via `--source pi` on the `usage-mine` front-door
+(`engine/src/observability/usage-mine-main.js`), which resolves the binding, injects deps, and
+passes the resulting `UsageEvent[]` to `aggregate` — identical wiring to the claude and opencode
+paths. The read root defaults to the pi coding agent's session directory rather than the claude
+projects directory (source-aware read root — see the front-door module for the resolution order).
 
 ## Failure semantics
 
@@ -102,9 +115,9 @@ validator's config-error behavior on an unknown/unbuilt source.
   `DEFAULT_DRIFT_THRESHOLD` (`0.25`) rather than erroring.
 - **Config errors** (unknown binding, missing required opt) are caught at startup by the CLI
   validator and surfaced as a non-zero exit before any I/O begins — the same pattern as other
-  adapter specs. `--source` accepts `claude` (default) or `opencode`; any other value (including
-  `pi`, until built) is rejected at startup with a targeted stderr message and a non-zero exit —
-  the one deliberate exception to the miner's otherwise-always-0 advisory contract.
+  adapter specs. `--source` accepts `claude` (default), `opencode`, or `pi`; any other value is
+  rejected at startup with a targeted stderr message and a non-zero exit — the one deliberate
+  exception to the miner's otherwise-always-0 advisory contract.
 
 ## Redaction
 
