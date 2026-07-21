@@ -66,3 +66,19 @@ test('Given engine/stryker.conf.json, when every referenced path is resolved, th
     assert.ok(existsSync(join(REPO_ROOT, path)), `stryker.conf.json references ${path}, which does not exist`);
   }
 });
+
+test('Given the pi adapter directory, when stryker.conf.json is looked up inside it, then it does not exist', () => {
+  const sut = join(REPO_ROOT, 'adapters/pi/stryker.conf.json');
+
+  assert.equal(existsSync(sut), false, 'adapters/pi/stryker.conf.json is an orphaned config wired into no runner');
+});
+
+test('Given the known binding directories, when each is checked for its own stryker.conf.json, then none resolves', () => {
+  const bindingDirs = ['codex', 'copilot', 'opencode', 'pi'];
+
+  const sut = bindingDirs
+    .map((dir) => join(REPO_ROOT, 'adapters', dir, 'stryker.conf.json'))
+    .filter((path) => existsSync(path));
+
+  assert.deepEqual(sut, [], 'no adapters/*/stryker.conf.json should exist; engine/stryker.conf.json is the single mutation config');
+});

@@ -3,7 +3,7 @@
  * Pure data; no I/O, no validation logic.
  */
 
-/** Known top-level keys (ADR-010 adds pipeline, retrieval, execution). */
+/** Known top-level keys, including pipeline, retrieval, and execution for phase orchestration. */
 export const TOP_KEYS = Object.freeze(new Set([
   'backlog', 'memory', 'paths', 'context', 'gates', 'phases',
   'pr', 'scripts', 'models', 'pipeline', 'retrieval', 'execution',
@@ -20,7 +20,7 @@ export const PHASE_NAMES = Object.freeze(new Set([
   'architecture', 'documentation', 'propose', 'integrate',
 ]));
 
-/** Fields accepted on each phase block (skip is intentionally absent — ADR-011). */
+/** Fields accepted on each phase block (skip is intentionally absent — use top-level pipeline.skip instead). */
 export const PHASE_FIELDS = Object.freeze(new Set([
   'context', 'override', 'strategy', 'merge-flags', 'non-blocking-jobs',
   'harness', 'execution', 'enabled', 'role', 'model', 'procedure', 'required',

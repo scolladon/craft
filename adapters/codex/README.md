@@ -1,39 +1,43 @@
 # @craft/adapter-codex
 
 Native OpenAI Codex CLI plugin binding for the craft workflow. Codex discovers this
-binding's agents, guard hook, and entrypoint from `adapters/codex/`, and the shared
-craft skills from the repository root — both loaded **by reference**; nothing is
-copied into this adapter.
+binding's guard hook, agents, and `craft-run` entrypoint from `adapters/codex/` via
+the `craft-codex` marketplace entry.
 
 ## Load
 
-Register a local file-backed marketplace, then install both plugin entries it
-declares:
+Register the local file-backed marketplace (its manifest lives at
+`.claude-plugin/marketplace.json` — the only location `codex plugin marketplace add`
+recognises; pass the marketplace ROOT directory, not the manifest file), then install
+both entries with the `<plugin>@<marketplace>` selector:
 
 ```
-codex plugin marketplace add adapters/codex/marketplace.json
-codex plugin add craft
-codex plugin add craft-codex
+codex plugin marketplace add adapters/codex
+codex plugin add craft-codex@craft-codex-marketplace
+codex plugin add craft@craft-codex-marketplace
 ```
 
-`marketplace.json` declares two entries, the direct analog of copilot's two
-repeatable `--plugin-dir` flags: `craft` (its manifest's `skills` field points at the
-repository-root `skills/` tree, so the 19 shared skills — `run`, `review`,
-`validation`, `init`, and the rest — load **by reference**, straight from their single
-source) and `craft-codex` (this binding's own `hooks.json`, the nine `agents/craft-*.md`
-files, and the delegating `craft-run` entrypoint skill).
+`marketplace.json` declares two entries: `craft-codex` — this binding's own
+`hooks.json`, the nine `agents/craft-*.md` files, and the delegating `craft-run`
+entrypoint skill, all local to the plugin and copied into Codex's plugin cache on
+install — and `craft`, whose `skills` field points at the repository-root `skills/`
+tree.
 
-**Named fallback, only if the marketplace's by-reference skill loading does not
-resolve end-to-end**: symlink each shared skill directly into Codex's own skills
-location and point `config.toml` at this binding's hook file by hand:
+**The 19 shared skills do NOT load by reference on Codex 0.144.6 (pinned live).**
+`codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and, in doing
+so, drops the `craft` entry's out-of-tree `../../../../skills` reference — the cached
+plugin manifest carries no `skills` field, so `run`/`review`/`validation`/`init`/… are
+absent. Load them with the symlink route instead — this is the working path for the
+shared skills, not a contingency:
 
 ```
 ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>   # once per shared skill
 ```
 
-then add the `[hooks]` entry from `config.template.toml` (below) to
-`$CODEX_HOME/config.toml` directly, bypassing the marketplace and plugin manifests
-entirely. Use this route only as a documented contingency, not a first choice.
+The `craft-codex` entry's own local surface (hook, agents, `craft-run`) DOES install
+via the marketplace. To bypass the marketplace entirely, add the `[hooks]` entry from
+`config.template.toml` (below) to `$CODEX_HOME/config.toml` by hand alongside the
+symlinks above.
 
 ## Configure
 

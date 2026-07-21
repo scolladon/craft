@@ -110,7 +110,7 @@ export function tokensFromClaudeUsage(usage) {
  * Convert a toolUseResult rollup + line context into a UsageEvent.
  *
  * Accepts both rollup shapes:
- *   - agentType (current harness) or subagent_type (older harness) — ADR-188
+ *   - agentType (current harness) or subagent_type (the field name an older harness used)
  * Returns null for synthetic-model rollups (zero-cost injected spawns).
  *
  * @param {object} rollup - toolUseResult object from a JSONL user line
@@ -171,7 +171,7 @@ function assistantTextOf(parsed) {
  * Malformed lines (not valid JSON) are skipped and counted in `skipped`.
  * Synthetic-model rollups are excluded (zero-cost, not attributable).
  * Lines without a toolUseResult rollup are silently ignored — inline
- * per-turn usage is not emitted by default (ADR-187 gap).
+ * per-turn usage is not emitted by default (a known upstream gap).
  *
  * The `since` cutoff is an ISO timestamp string. When set, rollup lines whose
  * top-level `timestamp` predates the cutoff are silently dropped (timestamp is

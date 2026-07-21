@@ -11,7 +11,8 @@ const CODE_CHANGE_ARTIFACT = 'change';
 
 /**
  * Phase ids whose skip/disable generates a waiver entry.
- * These are the "skippable-but-flagged" harness/refinement phases per ADR-005.
+ * These are the "skippable-but-flagged" harness/refinement phases: skipping
+ * them is allowed but must stay visible via a waiver, never a silent no-op.
  */
 const WAIVABLE_PHASE_IDS = new Set(['review', 'refactoring', 'validation', 'architecture']);
 

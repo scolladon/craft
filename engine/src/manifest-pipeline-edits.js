@@ -1,5 +1,5 @@
 /**
- * manifest-pipeline-edits — pipeline.insert/reorder validators and their id helpers (ADR-010).
+ * manifest-pipeline-edits — pipeline.insert/reorder validators and their id helpers.
  */
 
 import { PIPELINE_KEYS } from './manifest-vocabulary.js';
@@ -86,7 +86,7 @@ function validateReorder(reorder, errors) {
 }
 
 /**
- * Validate the `pipeline` sub-object keys (ADR-010).
+ * Validate the `pipeline` sub-object keys.
  * Named distinctly from the graph's exported `validatePipeline(descriptors)`:
  * this checks manifest-shape sub-keys, not the descriptor DAG.
  * @param {Record<string, unknown>} pipeline

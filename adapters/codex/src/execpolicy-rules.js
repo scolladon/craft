@@ -72,3 +72,29 @@ export function buildExecpolicyRules() {
   const rulesText = RULES.map(renderRule).join('\n\n');
   return `${DISCLOSURE_COMMENT}\n\n${rulesText}\n`;
 }
+
+/**
+ * Verify a deployed `.rules` file is byte-identical to the text this binding
+ * generates, throwing on any drift. Codex's runtime enforcement path fails OPEN
+ * on a malformed/unparseable `.rules` file — it logs "Error parsing rules; custom
+ * rules not applied." and runs the command anyway (pinned live against the codex
+ * binary). A corrupted or truncated deployed rules file therefore silently voids
+ * the whole execpolicy layer. This is the scriptable launch/install precondition
+ * that catches that BEFORE relying on the layer: regenerate the expected text and
+ * byte-compare — hermetic, deterministic, no codex subprocess, and it catches every
+ * drift (malformed content included), not one probed variant. Refuse rather than
+ * proceed with silently-void enforcement.
+ *
+ * @param {string} onDiskText - the contents of the deployed craft.rules file
+ * @returns {{ intact: true }} when the text matches
+ * @throws {Error} when the text drifts from the generated rules
+ */
+export function assertRulesIntegrity(onDiskText) {
+  const expected = buildExecpolicyRules();
+  if (onDiskText !== expected) {
+    throw new Error(
+      'craft execpolicy rules integrity check failed: the deployed .rules file does not match the generated rules — codex fails OPEN on a malformed rules file, so refuse rather than run with silently-void enforcement',
+    );
+  }
+  return { intact: true };
+}

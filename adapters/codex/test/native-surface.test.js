@@ -14,7 +14,8 @@ const README_PATH = join(ADAPTER_DIR, 'README.md');
 const CONFIG_TEMPLATE_PATH = join(ADAPTER_DIR, 'config.template.toml');
 const HOOKS_JSON_PATH = join(ADAPTER_DIR, 'hooks.json');
 const CRAFT_RULES_PATH = join(ADAPTER_DIR, 'craft.rules');
-const MARKETPLACE_PATH = join(ADAPTER_DIR, 'marketplace.json');
+const MARKETPLACE_PATH = join(ADAPTER_DIR, '.claude-plugin', 'marketplace.json');
+const LEGACY_MARKETPLACE_PATH = join(ADAPTER_DIR, 'marketplace.json');
 const CRAFT_PLUGIN_PATH = join(ADAPTER_DIR, 'plugins', 'craft', 'plugin.json');
 const CRAFT_CODEX_PLUGIN_PATH = join(ADAPTER_DIR, 'plugins', 'craft-codex', 'plugin.json');
 const CRAFT_CODEX_SKILLS_DIR = join(ADAPTER_DIR, 'plugins', 'craft-codex', 'skills');
@@ -125,6 +126,14 @@ describe('plugins/craft-codex/plugin.json — hooks path resolution', () => {
 });
 
 describe('marketplace.json — local file-backed, two entries', () => {
+  it('Given the marketplace manifest, when its location is checked, then it lives at .claude-plugin/marketplace.json (the path codex reads), not the adapter root', () => {
+    // codex 0.144.6 `plugin marketplace add <root>` only recognises a manifest at
+    // <root>/.claude-plugin/marketplace.json; a root-level marketplace.json is
+    // reported "marketplace root does not contain a supported manifest" (pinned live).
+    assert.equal(existsSync(MARKETPLACE_PATH), true, 'manifest must be at .claude-plugin/marketplace.json');
+    assert.equal(existsSync(LEGACY_MARKETPLACE_PATH), false, 'no dead root-level manifest may remain');
+  });
+
   it('Given marketplace.json, when parsed, then every plugin entry declares source.source "local"', () => {
     const parsed = JSON.parse(readFileSync(MARKETPLACE_PATH, 'utf8'));
 

@@ -290,16 +290,20 @@ credentials without mutating operator state. The `ls -la ~/.codex` listing did s
 during the run; that is ambient SQLite `-wal`/`-shm` churn, not a smoke write — the
 mtime windows are the authoritative check and both were empty.
 
-## Open rows to close next
+## Open rows — closed / updated (2026-07-21, harden-prove-codex-binding)
 
-0. **Implement launch-time hook-trust verification, and fail loudly when the hook is untrusted.**
-   Highest priority: without it the guard can be silently absent while every test passes. Pin the
-   `hooks.state` / `trusted_hash` write path so the install step is scriptable rather than manual.
-1. Prove craft's 19 shared skills load **by reference** via a local-marketplace plugin install.
-2. Measure what each sandbox mode actually blocks, per mode.
-3. Determine whether a malformed `.rules` file fails **open** at runtime (assume it does until proven).
-4. Exercise `CLAUDE_PLUGIN_ROOT` substitution in a hook command template.
-5. Parse a rollout `.jsonl` and pin the token-bearing record shape for the telemetry binding —
-   the End-to-end construction run generated a real rollout `.jsonl` in its throwaway home, so
-   generation is no longer the blocker; capture one durably and pin its token-bearing record
-   shape against the binding.
+All six probed live against `codex-cli 0.144.6` in a throwaway `CODEX_HOME` (auth copied,
+never read; watchdog = background kill; isolation = `find ~/.codex -newer <marker>` empty per
+probe; trusted by independent re-run). Method note: wrap EVERY `codex` invocation — including
+bare `--version`/`--help` — in the throwaway env, or set the isolation marker AFTER them; a bare
+diagnostic touches the real `~/.codex` (version/cache/installation init) and false-alarms a
+15-minute window.
+
+| # | Row | Status | Evidence |
+|---|-----|--------|----------|
+| 0 | Launch-time hook-trust verification | **PARTIAL** | The guard **over-blocked every command** (real payload is Claude-shaped `tool_input.command`, not `exec_command`/`cmd`) — fixed `fb4b922`, live-verified (benign `echo` ALLOWED, `git diff` DENIED with ext-diff reason). The untrusted-hook silent no-op is CONFIRMED, but codex 0.144.6 exposes **no scriptable hook-trust write path** (no `hooks.state`, no trust DB row, no trust command; interactive-only) — the scriptable-install goal stays OPEN as a codex limitation. |
+| 1 | Shared skills load by reference | **DISPROVEN** | Manifest-location bug fixed (`b204182`: codex reads `.claude-plugin/marketplace.json`, not root). But `codex plugin add` copies the plugin and DROPS the out-of-tree `../../../../skills` ref — the 19 shared skills do NOT load by reference; the symlink fallback loads all 19. codex limitation; stays OPEN. |
+| 2 | Sandbox modes, per mode | **CONFIRMED (DELIVERED)** | Ground-truth 3×matrix: read-only blocks all writes+network; workspace-write allows cwd + `$TMPDIR`, BLOCKS genuinely-outside write + network; danger-full-access allows all. No fail-open. |
+| 3 | Malformed `.rules` fails open at runtime | **CONFIRMED fail-open (mitigated)** | Runtime loads `$CODEX_HOME/rules/`; binary carries `Error parsing rules; custom rules not applied.` → rules not applied on parse error. Mitigation `115bcce`: `assertRulesIntegrity` byte-compares deployed rules to the generator, refuses on drift. |
+| 4 | `CLAUDE_PLUGIN_ROOT` substitution | **CONFIRMED (DELIVERED)** | With `CRAFT_ROOT` unset + `CLAUDE_PLUGIN_ROOT` set, the hook command `node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/…/craft-guard.js` resolved — guard fired + denied `git diff`. codex expands `${CLAUDE_PLUGIN_ROOT}` AND the POSIX `:-` default, and runs hook commands through a shell. |
+| 5 | Rollout fixture + telemetry pin | **CONFIRMED gap (fixed)** | The persisted rollout does NOT carry the live `turn.completed` envelope — token record is `event_msg`/`token_count`/`info.last_token_usage`, session id on `session_meta`. The binding parsed only `turn.completed` → mined ZERO from real rollouts. Fixed `9accb03` (parse both envelopes, `last_token_usage` per-turn not cumulative), pinned by real fixture `engine/test/fixtures/codex/real-rollout.jsonl`. |

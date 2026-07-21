@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { buildExecpolicyRules, FORBIDDEN_GIT_SUBCOMMANDS } from '../src/execpolicy-rules.js';
+import { buildExecpolicyRules, assertRulesIntegrity, FORBIDDEN_GIT_SUBCOMMANDS } from '../src/execpolicy-rules.js';
 
 const PROVENANCE_REF_RE = /\b(ADR-?\d+|P\d+|Part\s+\d+|backlog\s*#\d+)\b/i;
 
@@ -64,6 +64,35 @@ describe('committed craft.rules — drift guard', () => {
     const committed = readFileSync(rulesPath, 'utf8');
 
     assert.equal(committed, buildExecpolicyRules());
+  });
+});
+
+describe('assertRulesIntegrity() — refuse a drifted/malformed deployed rules file (codex fails open)', () => {
+  it('Given a deployed rules text that matches the generator, when assertRulesIntegrity runs, then it returns intact without throwing', () => {
+    const sut = assertRulesIntegrity;
+
+    const result = sut(buildExecpolicyRules());
+
+    assert.deepEqual(result, { intact: true });
+  });
+
+  it('Given the committed craft.rules on disk, when assertRulesIntegrity runs against it, then it passes (the shipped file is intact)', () => {
+    const sut = assertRulesIntegrity;
+    const rulesPath = join(dirname(fileURLToPath(import.meta.url)), '..', 'craft.rules');
+
+    assert.doesNotThrow(() => sut(readFileSync(rulesPath, 'utf8')));
+  });
+
+  it('Given a malformed/truncated deployed rules text, when assertRulesIntegrity runs, then it throws rather than proceeding with silently-void enforcement', () => {
+    const sut = assertRulesIntegrity;
+
+    assert.throws(() => sut('prefix_rule(\n    pattern=["git", ["push"'), /integrity check failed/);
+  });
+
+  it('Given a deployed rules text that merely drops the trailing newline, when assertRulesIntegrity runs, then it still throws (byte-identical, not fuzzy)', () => {
+    const sut = assertRulesIntegrity;
+
+    assert.throws(() => sut(buildExecpolicyRules().trimEnd()), /integrity check failed/);
   });
 });
 

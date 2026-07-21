@@ -1,8 +1,8 @@
 /**
- * manifest-harness — harness/technique block validators and the Sets they alone use (ADR-030).
+ * manifest-harness — harness/technique block validators and the Sets they alone use.
  */
 
-/** Accepted string values for a harness `convergence` knob (ADR-030). */
+/** Accepted string values for a harness `convergence` knob. */
 const CONVERGENCE_STRINGS = Object.freeze(new Set(['low-only', 'none']));
 
 /** Valid values for a technique `mode` field. */
@@ -64,7 +64,7 @@ function validateTechnique(tech, phaseName, index, errors) {
 }
 
 /**
- * Validate the shape of a harness block on a phase override (ADR-030).
+ * Validate the shape of a harness block on a phase override.
  * Named sub-keys are type-checked; unknown sub-keys are allowed (forward-compat).
  * Errors accumulate — no short-circuit.
  * @param {unknown} harness

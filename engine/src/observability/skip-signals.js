@@ -1,6 +1,6 @@
 /**
  * Pure phase-skip signal: detects the fixed `auto-skip: <phase>` run-record token
- * (ADR-146) and folds per-run markers into `phase-skip` recommendations.
+ * and folds per-run markers into `phase-skip` recommendations.
  *
  * The token grammar is orchestrator prose, not a transcript-schema field, so it
  * lives in the shared observability core rather than a vendor adapter. The
@@ -11,7 +11,7 @@
  * No I/O, no clock, no random. Output is sorted for byte-stable downstream use.
  */
 
-// ADR-146: `auto-skip: <phase> — evaluated unnecessary (<signal>)`. The phase is a
+// Token example: `auto-skip: <phase> — evaluated unnecessary (<signal>)`. The phase is a
 // canonical lowercase id; the trailing dash and parenthetical signal are ignored.
 const AUTO_SKIP_RE = /auto-skip:\s*([a-z][a-z-]*)/g;
 

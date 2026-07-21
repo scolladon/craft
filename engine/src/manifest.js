@@ -349,7 +349,7 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
   if (!block || typeof block !== 'object' || Array.isArray(block)) return;
   for (const [field, value] of Object.entries(block)) {
     if (field === 'skip') {
-      // ADR-011: per-phase skip is inert — redirect to top-level pipeline.skip
+      // Per-phase skip is inert — redirect to top-level pipeline.skip
       errors.push(
         `per-phase skip: is inert — use top-level pipeline.skip: [${phaseName}]`,
       );

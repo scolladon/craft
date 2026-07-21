@@ -74,11 +74,44 @@ describe('decideGuard() — exec_command cmd must be a string, never an argv arr
   });
 });
 
-describe('decideGuard() — cmd is the executed field, never the inspected decoy', () => {
-  it('Given an exec_command payload carrying a compliant command decoy alongside a non-compliant executed cmd, when decideGuard runs, then it blocks', () => {
+describe('decideGuard() — real codex hook payload shape (live-captured, Claude-style)', () => {
+  // codex 0.144.6 PreToolUse payloads are Claude-shaped, NOT codex-internal: tool_name is
+  // "Bash"/"apply_patch" and the command OR patch text lives in tool_input.command, with cwd
+  // on the payload root. Pinned by dumping the live hook stdin. The prior model
+  // (exec_command/cmd, patch in input/patch/text) never matched, so every real call threw in
+  // adaptCodexEvent and failed closed — the guard blocked EVERY command while appearing to work.
+  const realBash = (command) => ({ cwd: WORKING_DIR, tool_name: 'Bash', tool_input: { command } });
+  const realPatch = (command) => ({ cwd: WORKING_DIR, tool_name: 'apply_patch', tool_input: { command } });
+
+  it('Given the real Bash payload for a bare git diff, when decideGuard runs, then it blocks with the ext-diff reason', () => {
     const sut = decideGuard;
 
-    const result = sut(execPayload('git diff', { command: 'git diff --no-ext-diff' }));
+    const result = sut(realBash('git diff'));
+
+    assert.equal(result.block, true);
+    assert.ok(result.reason.includes('--no-ext-diff'));
+  });
+
+  it('Given the real Bash payload for a benign command, when decideGuard runs, then it does NOT block (regression: the guard must not fail closed on every command)', () => {
+    const sut = decideGuard;
+
+    const result = sut(realBash('echo hello'));
+
+    assert.equal(result.block, false);
+  });
+
+  it('Given the real apply_patch payload writing in-tree, when decideGuard runs, then it does NOT block', () => {
+    const sut = decideGuard;
+
+    const result = sut(realPatch(IN_TREE_ADD));
+
+    assert.equal(result.block, false);
+  });
+
+  it('Given the real apply_patch payload escaping the working dir, when decideGuard runs, then it blocks', () => {
+    const sut = decideGuard;
+
+    const result = sut(realPatch(DECOY_MULTI_HUNK));
 
     assert.equal(result.block, true);
   });

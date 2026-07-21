@@ -184,15 +184,20 @@ correction to the original framing: it did **not** end up with "all three bindin
 lifted module — opencode never imported `adapters/pi/src/gate.js` in the first place and keeps its
 own narrower `gitGuardPredicate`. The residual duplication this entry also flagged —
 `COMPLIANT_MARKERS`/`GIT_DIFF_SHOW_RE`/`REASON_GIT_EXT_DIFF` copied verbatim between the (now
-relocated) predicate and opencode's — **remains open**, unresolved by this lift.
+relocated) predicate and opencode's — **delivered 2026-07-21** (harden-prove-codex-binding, A1):
+the three constants now live once in `engine/src/guards/git-ext-diff-predicate.js` (with
+`gitExtDiffPredicate`); `tool-call-guard.js` imports it and opencode's `git-guard-predicate.js`
+is a thin re-export (ADR-267). `REASON_GIT_EXT_DIFF` stays module-private (no external consumer).
 
-**Deduplicate the acceptance-probe harness across four bindings.** `adapters/copilot/src/probe.js`
-and now `adapters/codex/src/probe.js` are near-verbatim copies of `adapters/opencode/src/probe.js`:
-`assertMutationsInsideThrowaway`, `assertGateGreenBeforeCommit`, `assertCommittedArtifact`, and
-`evaluateTrace` are byte-identical across all three; `buildEvidence` differs only in a version key
-and `runAcceptanceProbe` only by extra launch args. What was a third near-verbatim copy is now a
-fourth. Extract one shared `runProbeHarness({ runner, fsOps, versionKey, extraRunnerArgs })`.
-Deferred because it touches sibling bindings outside any single binding's own change.
+**Deduplicate the acceptance-probe harness across four bindings — delivered 2026-07-21**
+(harden-prove-codex-binding, A2). The four near-verbatim `adapters/{opencode,copilot,codex,pi}/src/probe.js`
+copies now wrap one shared `engine/src/probe-harness.js` exporting
+`runProbeHarness({ runner, fsOps, versionKey, portsExercised, extraRunnerArgs })` (ADR-266).
+`portsExercised` was added to the original signature — it genuinely varies (codex binds no VCS
+port: 3 ports vs the others' 4); `extraRunnerArgs` is a function of `targetPath` (copilot/codex
+compute `launchArgs` from it, opencode/pi omit it). Each binding keeps its exported
+`runAcceptanceProbe` signature unchanged, so the four `probe.test.js` suites stay green; the
+harness gained executed mutation coverage in `engine/src/**` (96.55%).
 
 **Mutation-cover the adapter sources — delivered 2026-07-20** (native-codex-binding). The original
 prescription was a per-adapter `stryker.conf.json`; the ratified outcome is the opposite. A
@@ -219,12 +224,14 @@ First run over the new scope: 306 mutants, 91.50%. The codex seams were triaged 
 assertions, which cannot separate "parsed, then contained" from "failed closed", so a patch
 arriving in the `patch` or `text` field had no test proving the guard saw it at all.
 
-**Provenance refs leak in `engine/src/observability/adapters/claude/`.** `telemetry.js` and
-`pricing.js` carry `ADR-188`/`ADR-187`/`Part 3`/`Part 4` references in comments, violating the
-no-provenance-in-source rule. They survive because the existing grep suites
-(`adapters/pi/test/native-surface.test.js`, `adapters/opencode/test/agents.test.js`) scan adapter
-surfaces only, never `engine/src`. Either extend the grep to `engine/src` and clean the two files, or
-decide explicitly that engine-internal comments are exempt — the current state is neither.
+**Provenance refs leak in `engine/src/observability/adapters/claude/` — delivered 2026-07-21**
+(harden-prove-codex-binding, A3). The user ratified the BROAD option over the scoped one
+(ADR-265): all `engine/src` is provenance-clean source, no engine-internal exemption. A new
+`engine/test/source-hygiene.test.js` extends the guard to `engine/src/**` (pinning the 8 known
+offenders positively and asserting a non-empty scan set), and all 15 comment refs across 8 files
+(`claude/{telemetry,pricing}.js`, `manifest{,-harness,-vocabulary,-pipeline-edits}.js`, `gates.js`,
+`observability/skip-signals.js`) were reworded to prose without the numbered reference
+(comment-only, behaviour-preserving).
 
 **Stronger destructive-git denial for the Copilot binding.** `--deny-tool` is **prefix matching on the
 command string** (pinned live). `shell(git push)` blocks `git push --force origin main`, but
@@ -236,36 +243,63 @@ Copilot ships a richer matcher, or via a wrapper that normalises argv before the
 
 ### Open (scoped 2026-07-20 — follow-ups surfaced by the codex binding, not yet scheduled)
 
-**Implement launch-time hook-trust verification for the codex binding — highest priority.** An
-untrusted Codex `PreToolUse` hook silently no-ops: the command executes, no error is raised, and no
-warning is printed. `hooks/craft-guard.js` and `hooks.json` both exist and every unit test in
-`adapters/codex/` passes regardless of whether the hook is actually trusted by the runtime, so the
-guard can be **absent while every signal says it is present**. Close this by pinning the
-`hooks.state`/`trusted_hash` write path so trusting the craft guard hook at install time is
-scriptable, then verify trust state at launch and fail loudly — never `--dangerously-bypass-hook-
-trust` globally, which would disable the trust gate for every hook in the invoking environment, not
-just craft's own.
+**Hook-trust for the codex binding — PARTIALLY delivered 2026-07-21; scriptable-trust stays OPEN
+(codex-0.144.6 limitation).** Two findings on the live probe (throwaway CODEX_HOME):
+- **DELIVERED — the guard over-blocked EVERY command (fixed, `fb4b922`).** The real codex
+  `PreToolUse` payload is Claude-shaped (`tool_name:"Bash"`, `tool_input:{command}`, `cwd`;
+  patches: `tool_name:"apply_patch"`, `tool_input:{command:"<patch>"}`), but the adapter expected
+  codex-internal `exec_command`/`cmd` + patch in `input`/`patch`/`text`, so `adaptCodexEvent` threw
+  on every real payload → fail-closed → blocked all commands. This is the exact "unit-green,
+  live-broken" gap: all `adapters/codex/` unit tests passed against a fictional payload shape. Fix:
+  read `tool_input.command`. Live-verified: benign `echo` ALLOWED, `git diff` BLOCKED with the
+  ext-diff reason.
+- **CONFIRMED fail-open + OPEN (codex limitation).** An untrusted hook silently no-ops (`git diff`
+  ran, no error — ground-truth). But codex 0.144.6 exposes **no scriptable/headless hook-trust
+  write path**: no `hooks.state` file, no trust row in any state DB, no `codex … trust` command, and
+  even a user-level `config.toml` hook needs trust. Trust is interactive-only;
+  `--dangerously-bypass-hook-trust` is global (never used). The "pin the `hooks.state`/`trusted_hash`
+  write path so install is scriptable" goal cannot be delivered until codex ships a scriptable
+  trust mechanism. Also found: `codex plugin add` drops the plugin's out-of-plugin `../../hooks.json`
+  ref, so the marketplace install does NOT register the guard hook — it must be wired via
+  `config.toml [hooks]`.
 
-**Prove craft's shared skills load by reference on codex, end to end.** A plugin manifest's `skills`
-field is a path and local marketplaces are supported, so referencing the repository's top-level
-`skills/` from the `craft` plugin entry is structurally available — but no live install has yet
-confirmed that all of craft's shared skills actually load and are invocable through that route.
+**Prove craft's shared skills load by reference on codex — PROBED 2026-07-21; DISPROVEN, stays OPEN
+(codex-0.144.6 limitation).** Two findings: (1) **manifest location bug, FIXED (`b204182`)** — codex
+0.144.6 `plugin marketplace add <root>` only reads `<root>/.claude-plugin/marketplace.json`; the
+binding shipped a root `marketplace.json`, so the marketplace never registered ("marketplace root
+does not contain a supported manifest"). Relocated + README + regression test. (2) **by-reference
+shared-skill loading does NOT work (codex limitation)** — even with the manifest fixed,
+`codex plugin add` COPIES the plugin into `$CODEX_HOME/plugins/cache/…` and DROPS the `craft`
+entry's out-of-tree `skills: "../../../../skills"` reference (the cached `.codex-plugin/plugin.json`
+carries no `skills` field), so the 19 shared skills are absent. Local skills survive
+(`craft-codex`'s `./skills/craft-run` is copied). The documented **symlink fallback** loads all 19
+(`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`). The "load by reference" goal is not
+achievable on codex 0.144.6.
 
-**Measure what each codex sandbox mode actually blocks, per mode.** `-s read-only|workspace-write|
-danger-full-access` is documented as a selectable posture, but no probe has measured what each mode
-concretely prevents. The binding selects `workspace-write` and documents the selection; it must not
-be read as a containment guarantee until this is measured.
+**Measure what each codex sandbox mode actually blocks, per mode — delivered 2026-07-21**
+(harden-prove-codex-binding, B8). Measured via real `codex exec -s <mode>` with ground-truth
+side-effect checks (files created / loopback listener hits), corroborated by the persisted sandbox
+policy JSON in the state DB. **read-only** blocks all writes + network; **workspace-write** (the
+binding's selection) allows writes to the workspace cwd and `$TMPDIR` (`/private/tmp`), BLOCKS a
+genuinely-outside write (e.g. `~`) and BLOCKS network; **danger-full-access** allows writes +
+network. workspace-write is now a MEASURED containment posture: it contains genuinely-outside writes
+and network, not merely a documented selection.
 
-**Determine whether a malformed `.rules` execpolicy file fails open at runtime.** `execpolicy check`
-treats a malformed file as a hard error, but the runtime enforcement path's behaviour on the same
-malformed input is unresolved. Treated as fail-open until proven otherwise; closing this row means
-actually observing the runtime path, not just the `check` subcommand.
+**Malformed `.rules` execpolicy fails OPEN at runtime — CONFIRMED + mitigated 2026-07-21**
+(harden-prove-codex-binding, B9). Runtime auto-loads `$CODEX_HOME/rules/` (a directory of `.rules`
+files); `execpolicy check` treats a malformed file as a hard error, but the codex binary carries the
+literal runtime message `Error parsing rules; custom rules not applied.` — on a parse error the
+rules are **not applied** (fail-open), so a forbidden command runs. Mitigation (`115bcce`, DC-3):
+`assertRulesIntegrity(onDiskText)` byte-compares the deployed rules to `buildExecpolicyRules()` and
+refuses on any drift (malformed included) — a hermetic, scriptable install/launch precondition that
+catches a voided rules file before relying on the layer. (The committed-file drift-guard already
+existed; this covers the deployed copy.)
 
-**Clean up the orphaned `adapters/pi/stryker.conf.json`.** The lift of the guard predicate out of
-`adapters/pi/src/gate.js` left this config's `mutate` glob pointed at a directory that no longer
-contains the file it was written to cover, and the config was never wired into any script or
-`package.json` command to begin with — it is dead weight, not a security gap. Either wire it in or
-remove it.
+**Clean up the orphaned `adapters/pi/stryker.conf.json` — delivered 2026-07-21**
+(harden-prove-codex-binding, A4). Removed; `engine/test/mutation-config.test.js` gained a positive
+pin (`existsSync(adapters/pi/stryker.conf.json) === false`) plus a sweep asserting no per-adapter
+`stryker.conf.json` exists across the four binding dirs. `engine/stryker.conf.json` already covered
+`adapters/pi/src/tool-call-hook.js` (ADR-263).
 
 ---
 

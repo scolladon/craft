@@ -27,7 +27,12 @@ const CODEX_TOOL_NAMES = Object.freeze(
   Object.assign(Object.create(null), { exec_command: 'Bash', apply_patch: 'Write' }),
 );
 
-const PATCH_TEXT_CANDIDATE_FIELDS = Object.freeze(['input', 'patch', 'text']);
+// The live codex apply_patch payload carries its raw patch text in
+// `tool_input.command` (pinned by dumping the hook stdin) — same field the Bash
+// call uses. `input`/`patch`/`text` are retained as defensive fallbacks for any
+// variant that names it differently; `command` is tried first because that is the
+// field the live tool populates. First non-empty string wins.
+const PATCH_TEXT_CANDIDATE_FIELDS = Object.freeze(['command', 'input', 'patch', 'text']);
 
 function normalizeToolName(rawName) {
   return CODEX_TOOL_NAMES[rawName] ?? rawName;
@@ -49,23 +54,24 @@ function requireWorkingDir(cwd) {
   return cwd;
 }
 
-// exec_command carries `cmd` as a STRING — Codex itself rejects an argv array
-// ("invalid type: sequence, expected a string"). The bridge to `command`, the
-// field toolCallGuard reads, is UNCONDITIONAL: `command ?? cmd` would let an
-// inspected decoy `command` mask the `cmd` the tool actually executes. A
-// missing or non-string `cmd` is a malformed payload, not an alternate
-// encoding, so it throws here and decideGuard's catch converts that into the
-// documented fail-closed verdict.
+// The real codex 0.144.6 PreToolUse payload is Claude-shaped: a Bash call carries
+// its command in `tool_input.command` (pinned by dumping the live hook stdin), the
+// exact field toolCallGuard reads. `cmd` is retained only as a defensive fallback
+// for any variant that might carry the executed string there instead; `command`
+// wins because that is the field the live tool actually executes from. A missing or
+// non-string command in BOTH fields is a malformed payload, not an alternate
+// encoding, so it throws and decideGuard's catch converts that into the documented
+// fail-closed verdict.
 function bridgeExecutedCommand(toolInput) {
   // equivalent mutant (OptionalChaining): a nullish toolInput throws TypeError
   // without the `?.` instead of the Error below — both reach the same bare
   // catch and the same { block: true }.
-  const cmd = toolInput?.cmd;
-  if (!isNonEmptyString(cmd)) {
+  const command = toolInput?.command ?? toolInput?.cmd;
+  if (!isNonEmptyString(command)) {
     // equivalent mutant (StringLiteral ""): message is discarded, see decideGuard.
-    throw new Error('bridgeExecutedCommand: exec_command call carries no string cmd');
+    throw new Error('bridgeExecutedCommand: Bash call carries no string command');
   }
-  return { ...toolInput, command: cmd };
+  return { ...toolInput, command };
 }
 
 // apply_patch has no structured path field: the payload IS raw patch text,

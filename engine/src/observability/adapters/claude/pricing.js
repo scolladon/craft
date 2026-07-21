@@ -51,7 +51,7 @@ const priceEntry = (input, output) =>
 /**
  * Default Claude model price table (per-MTok USD rates).
  * Keys are normalized model ids (no `[1m]` suffix — normalization lives in
- * telemetry-claude.js, Part 3).
+ * telemetry-claude.js).
  *
  * @update-needed Verify against the `claude-api` skill when models change.
  * @type {Readonly<Record<string, { input: number, cacheRead: number, cacheCreation5m: number, cacheCreation1h: number, output: number }>>}
@@ -91,7 +91,7 @@ export const mergePrices = (defaults, override) => {
 
 /**
  * Load the effective price table by merging DEFAULT_PRICES with an optional
- * caller-supplied override (parsed from --prices <file> JSON by Part 4).
+ * caller-supplied override (parsed from --prices <file> JSON).
  *
  * @param {Record<string, object> | null | undefined} overrideJsonOrNull
  * @returns {Record<string, object>} Merged price table

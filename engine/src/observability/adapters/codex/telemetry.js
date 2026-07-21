@@ -8,26 +8,33 @@
  * genuine, single-tier token source: `{input_tokens, cached_input_tokens,
  * output_tokens, reasoning_output_tokens}`.
  *
- * The parser is envelope-shaped, not location-shaped: it matches
- * `turn.completed` wherever it appears in the line stream. This matters
- * because whether the *persisted* rollout `.jsonl` (what `--source codex`
- * actually reads) carries the same envelope as the *live* `codex exec --json`
- * stream (where the envelope is confirmed) is an open, DEFERRED question — no
- * rollout history existed locally to read, and generating one would mean
- * running the `codex` binary, which is forbidden. A shape mismatch fails
- * safe here (zero events, never a wrong count) but remains a real gap until
- * a real rollout file is read.
+ * The parser is envelope-shaped, not location-shaped, and it handles TWO
+ * distinct token envelopes, because the live stream and the persisted rollout
+ * do NOT share one — a real captured rollout pinned this (fixture
+ * `engine/test/fixtures/codex/real-rollout.jsonl`), correcting the earlier
+ * assumption that they matched:
+ *   - LIVE `codex exec --json`: `turn.completed` carrying `usage:{...}`.
+ *   - PERSISTED rollout `.jsonl` (what `--source codex` mines from
+ *     `$CODEX_HOME/sessions`): `{type:'event_msg', payload:{type:'token_count',
+ *     info:{last_token_usage:{...}, total_token_usage:{...}}}}`. The per-turn
+ *     figure is `last_token_usage`; `total_token_usage` is cumulative and
+ *     mapping it would double-count.
+ * The token field names inside both usage objects are identical, so both feed
+ * the same sum-safe `tokensFromCodexUsage`.
  *
- * Like pi (and unlike claude/opencode), the session/thread id does not
- * repeat on every line — it arrives once on `thread.started` and must be
- * held across the stream and stamped onto every event derived from a later
- * `turn.completed` line.
+ * The session/thread id also arrives differently per envelope: the live stream
+ * carries it once on `thread.started`; the persisted rollout carries it once on
+ * a `session_meta` record. Either updates the held id (the pi pattern), which is
+ * then stamped onto every derived event, since neither repeats it per line.
  *
  * No clock reads, no random, no model-id literals in core paths.
  */
 
 const THREAD_STARTED_TYPE = 'thread.started';
 const TURN_COMPLETED_TYPE = 'turn.completed';
+const SESSION_META_TYPE = 'session_meta';
+const EVENT_MSG_TYPE = 'event_msg';
+const TOKEN_COUNT_PAYLOAD_TYPE = 'token_count';
 const DEFAULT_MESSAGE_COUNT = 1;
 
 // Coerce non-finite values (string, NaN, null, undefined) to 0 so they can't
@@ -120,16 +127,30 @@ function threadIdFrom(parsed) {
 }
 
 /**
- * Track the current session id across the stream: a `thread.started` line
- * updates it, every other line leaves it unchanged — the pi pattern, since
- * Codex's turn lines do not repeat the thread id.
+ * Resolve the session id off a persisted-rollout `session_meta` record, whose
+ * payload carries it as `session_id` (with `id` as a fallback alias).
+ *
+ * @param {object} parsed
+ * @returns {string | null}
+ */
+function sessionIdFromMeta(parsed) {
+  return parsed?.payload?.session_id ?? parsed?.payload?.id ?? null;
+}
+
+/**
+ * Track the current session id across the stream: a `thread.started` line (live
+ * stream) or a `session_meta` line (persisted rollout) updates it, every other
+ * line leaves it unchanged — the pi pattern, since neither envelope repeats the
+ * id on its per-turn lines.
  *
  * @param {object} parsed
  * @param {string | null} current
  * @returns {string | null}
  */
 function sessionIdAfter(parsed, current) {
-  return parsed?.type === THREAD_STARTED_TYPE ? (threadIdFrom(parsed) ?? current) : current;
+  if (parsed?.type === THREAD_STARTED_TYPE) return threadIdFrom(parsed) ?? current;
+  if (parsed?.type === SESSION_META_TYPE) return sessionIdFromMeta(parsed) ?? current;
+  return current;
 }
 
 /**
@@ -155,36 +176,86 @@ function eventFromTurn(turn, sessionId) {
 }
 
 /**
- * Whether a turn predates the `since` cutoff. Both sides are normalised to
- * epoch ms before comparing — `started_at` may be numeric or an ISO string
- * (see `toEpochMs`), and comparing a raw numeric `started_at` against a raw
- * ISO `since` string coerces the string to NaN, silently failing the cutoff
- * open. A turn with no `started_at` never predates the cutoff. Equal
- * timestamps are NOT "before" — the boundary is inclusive.
+ * Whether a parsed line is a persisted-rollout token record —
+ * `{type:'event_msg', payload:{type:'token_count'}}`.
+ *
+ * @param {object} parsed
+ * @returns {boolean}
+ */
+function isTokenCountRecord(parsed) {
+  return parsed?.type === EVENT_MSG_TYPE && parsed?.payload?.type === TOKEN_COUNT_PAYLOAD_TYPE;
+}
+
+/**
+ * Convert one persisted-rollout `token_count` record plus the held session id
+ * into a UsageEvent. Maps `info.last_token_usage` (the per-turn figure) — never
+ * `total_token_usage`, which is cumulative and would double-count across a
+ * multi-turn rollout. The record carries no per-turn model id or start/end
+ * timestamps, so `model` is null and `durationMs` is 0.
+ *
+ * @param {object} parsed - a parsed `event_msg`/`token_count` line
+ * @param {string | null} sessionId
+ * @returns {object} UsageEvent
+ */
+function eventFromTokenCount(parsed, sessionId) {
+  return {
+    run: sessionId,
+    slug: null,
+    phase: null,
+    role: null,
+    model: null,
+    tokens: tokensFromCodexUsage(parsed?.payload?.info?.last_token_usage),
+    cacheCreationTtl: null,
+    messages: DEFAULT_MESSAGE_COUNT,
+    durationMs: 0,
+  };
+}
+
+/**
+ * Whether a raw timestamp predates the `since` cutoff. Both sides are normalised
+ * to epoch ms before comparing — `ts` may be numeric or an ISO string (see
+ * `toEpochMs`), and comparing a raw numeric `ts` against a raw ISO `since` string
+ * coerces the string to NaN, silently failing the cutoff open. A null/absent `ts`
+ * never predates the cutoff. Equal timestamps are NOT "before" — the boundary is
+ * inclusive.
+ *
+ * @param {number|string|null} ts - a raw timestamp (epoch ms or ISO string)
+ * @param {string} since - ISO timestamp cutoff
+ * @returns {boolean}
+ */
+function tsBeforeCutoff(ts, since) {
+  if (ts == null) return false;
+  return toEpochMs(ts) < toEpochMs(since);
+}
+
+/**
+ * Whether a `turn.completed` line predates the cutoff, keyed off its `started_at`.
  *
  * @param {object} turn
  * @param {string} since - ISO timestamp cutoff
  * @returns {boolean}
  */
 function isBeforeCutoff(turn, since) {
-  const ts = turn.started_at ?? null;
-  if (ts === null) return false;
-  return toEpochMs(ts) < toEpochMs(since);
+  return tsBeforeCutoff(turn.started_at ?? null, since);
 }
 
 /**
- * Parse an async iterable of raw JSON-lines (from `codex exec --json`, or a
- * persisted rollout file sharing the same envelope) into UsageEvents.
+ * Parse an async iterable of raw JSON-lines into UsageEvents, handling BOTH the
+ * live `codex exec --json` stream (`turn.completed`) and the persisted rollout
+ * envelope (`event_msg`/`token_count`) — see the module header for why they
+ * differ.
  *
- * Malformed lines (not valid JSON) are skipped and counted in `skipped`.
- * Lines that are not a `turn.completed` envelope — `thread.started` (handled
- * separately, for the held session id), `turn.started`, `item.completed` —
- * contribute no event and are not counted as malformed; that exclusion IS
- * the handling, not a swallowed defect.
+ * Malformed lines (not valid JSON) are skipped and counted in `skipped`. Lines
+ * that are neither a `turn.completed` nor a `token_count` envelope —
+ * `thread.started` / `session_meta` (handled separately, for the held session
+ * id), `turn.started`, `item.completed`, and every other rollout record type —
+ * contribute no event and are NOT counted as malformed; that exclusion IS the
+ * handling, not a swallowed defect.
  *
- * The `since` cutoff is an ISO timestamp string. When set, turns whose
- * `started_at` predates the cutoff are silently dropped (used for internal
- * filtering only — never emitted, redaction-safe).
+ * The `since` cutoff is an ISO timestamp string. When set, a turn whose
+ * `started_at` (live) or a token_count record whose `timestamp` (persisted)
+ * predates the cutoff is silently dropped (internal filtering only — never
+ * emitted, redaction-safe).
  *
  * Codex emits no auto-skip signal text for the parser to scan — `markers`
  * is always `[]`.
@@ -208,9 +279,15 @@ export async function parseLines(lines, since = null) {
       continue;
     }
     sessionId = sessionIdAfter(parsed, sessionId);
-    if (parsed?.type !== TURN_COMPLETED_TYPE) continue;
-    if (since && isBeforeCutoff(parsed, since)) continue;
-    events.push(eventFromTurn(parsed, sessionId));
+    if (parsed?.type === TURN_COMPLETED_TYPE) {
+      if (since && isBeforeCutoff(parsed, since)) continue;
+      events.push(eventFromTurn(parsed, sessionId));
+      continue;
+    }
+    if (isTokenCountRecord(parsed)) {
+      if (since && tsBeforeCutoff(parsed.timestamp, since)) continue;
+      events.push(eventFromTokenCount(parsed, sessionId));
+    }
   }
   return { events, skipped, markers: [] };
 }

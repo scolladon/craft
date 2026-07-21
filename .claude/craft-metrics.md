@@ -216,3 +216,11 @@ native-copilot-binding planning tokens=216479 duration_ms=914034 cache=na
 native-copilot-binding implementation tokens=1006739 duration_ms=4796669 cache=na
 native-copilot-binding review tokens=598451 duration_ms=1905025 cache=na
 native-copilot-binding validation tokens=92528 duration_ms=377675 cache=na
+harden-prove-codex-binding design tokens=109000 duration_ms=558285 cache=na
+harden-prove-codex-binding planning tokens=122461 duration_ms=558328 cache=na
+harden-prove-codex-binding implementation tokens=68837 duration_ms=107320 cache=na
+harden-prove-codex-binding implementation tokens=85165 duration_ms=168601 cache=na
+harden-prove-codex-binding implementation tokens=115361 duration_ms=245187 cache=na
+harden-prove-codex-binding implementation tokens=53144 duration_ms=53836 cache=na
+harden-prove-codex-binding review tokens=92653 duration_ms=224892 cache=na
+harden-prove-codex-binding review tokens=76374 duration_ms=237783 cache=na
