@@ -1,5 +1,6 @@
 import { resolve, sep } from 'node:path';
 
+// Binding-neutral predicate shared by every guard binding (pi, copilot, and beyond).
 // Tools whose file_path writes must stay inside the working directory.
 export const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 

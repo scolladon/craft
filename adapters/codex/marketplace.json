@@ -1,0 +1,16 @@
+{
+  "name": "craft-codex-marketplace",
+  "owner": { "name": "craft" },
+  "plugins": [
+    {
+      "name": "craft",
+      "source": { "source": "local", "path": "./plugins/craft" },
+      "description": "Shared craft skills, loaded by reference from the repository root — never copied into this binding."
+    },
+    {
+      "name": "craft-codex",
+      "source": { "source": "local", "path": "./plugins/craft-codex" },
+      "description": "Codex-native surface for craft: the enforcing PreToolUse guard hook, the nine craft role agents, and the delegating run entrypoint skill."
+    }
+  ]
+}

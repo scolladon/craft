@@ -33,7 +33,7 @@ adapter:
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi, opencode, copilot }`**.
+The valid bindings are **`{ claude, pi, opencode, copilot, codex }`**.
 
 ## Claude binding
 
@@ -88,6 +88,24 @@ seat pins them via the on-demand smoke.
 
 `isAvailable`: probe whether the tier-mapped model is reachable for the configured seat or BYOK
 provider; a model-availability error marks the tier degraded and returns `false`.
+
+## Codex binding
+
+`select`: the craft tier (`opus|sonnet|haiku`) maps via `adapters/codex/src/model-tier-map.js`
+(`resolveCodexModel`) to Codex's `-m/--model` value, with `resolveCodexEffort` supplying the
+paired `model_reasoning_effort` (`low|medium|high|xhigh|max`; `ultra` exists only on `sol`/`terra`
+and is mapped to no tier). **Unlike the Copilot binding, real model ids ship on day one** — the
+catalog renders with `codex debug models` requiring no auth, so the committed default map names
+real ids rather than an `auto` sentinel.
+
+State the stake plainly: an unknown model id does not error on Codex — it falls back to default
+metadata with a warning **and changes which tools are registered**, potentially dropping
+`multi_agent_v1` and silently collapsing fan-out to sequential. That is why the tier map fails
+loud on an unknown tier rather than falling back quietly, and why the committed ids are
+cross-checked against the auth-free catalog rather than assumed.
+
+`isAvailable`: probe whether the tier-mapped model id is present in the auth-free catalog; an
+absent id marks the tier degraded and returns `false`.
 
 ## Failure → blocker
 

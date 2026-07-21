@@ -41,7 +41,7 @@ adapter:
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi, opencode, copilot }`**.
+The valid bindings are **`{ claude, pi, opencode, copilot, codex }`**.
 
 ## Claude binding
 
@@ -131,6 +131,29 @@ frontmatter name, directly invocable via the `skill` tool as `{ skill: "run" }` 
 `userInvocable: true`); `commands/craft-run.md` is the thin adapter-local command that names the
 input and defers to it, dispatched headlessly as `copilot -p "/craft-run <input>"`. Artifact-is-
 the-handoff and dead-worker-respawn hold unchanged.
+
+## Codex binding
+
+`spawn` dispatches via the `multi_agent_v1` namespace (`spawn_agent`, `send_input`, `wait_agent`,
+`resume_agent`, `close_agent`). Two facts are non-obvious and load-bearing:
+
+- The concurrency cap is **4 slots including the orchestrator**, so usable fan-out width is
+  **3** — wide phases batch to that width rather than assuming a flat 4-way spread.
+- Codex **suppresses** fan-out unless a user turn, an `AGENTS.md`, or a skill instruction
+  explicitly asks for delegation. The binding's adapter-authored entrypoint carries that ask
+  itself; without it, a run silently degrades to sequential per-phase execution with no error.
+
+`codex exec` takes one user message and runs the whole request to completion — the same shape as
+the copilot and opencode bindings (one invocation walks every phase), not one invocation per
+phase.
+
+**Native discoverable surface.** A local file-backed marketplace (`"source": "local"`) carries
+two plugin entries: `craft`, resolving the shared `skills/` directory **by reference** at the
+repo root (no adapter-local copy, so drift between the shared source and a copy is structurally
+impossible), and `craft-codex`, supplying this binding's own `hooks/`, `agents/`, and entrypoint.
+Installed via `codex plugin marketplace add` then `codex plugin add`.
+
+Artifact-is-the-handoff and dead-worker-respawn hold unchanged.
 
 ## Failure → blocker
 

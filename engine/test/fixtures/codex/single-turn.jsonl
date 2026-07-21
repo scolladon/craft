@@ -1,0 +1,2 @@
+{"type":"thread.started","thread_id":"codex-thread-single-001"}
+{"type":"turn.completed","model":"gpt-5.6-sol","started_at":"2026-01-01T00:00:00.000Z","completed_at":"2026-01-01T00:00:02.500Z","usage":{"input_tokens":120,"cached_input_tokens":40,"output_tokens":55,"reasoning_output_tokens":10}}

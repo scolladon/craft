@@ -1,0 +1,7 @@
+{
+  "name": "craft",
+  "version": "0.1.0",
+  "description": "Shared craft skills, referenced from the repository root — the by-reference half of the Codex binding's two-entry marketplace.",
+  "author": { "name": "craft" },
+  "skills": "../../../../skills"
+}

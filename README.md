@@ -88,6 +88,11 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
   repeatable `--plugin-dir` flags; the three-layer guard (native path containment and
   `--deny-tool` enforce, the `preToolUse` hook is an observational audit trail) drives the same
   engine core via Copilot's native subagent dispatch (on-demand, not CI-gated)
+- `adapters/codex/` — native OpenAI Codex CLI binding: a local marketplace with two plugin
+  entries (the shared craft `skills/` by reference, plus the adapter's own `hooks/`/`agents/`),
+  a **denying** PreToolUse guard hook (exit code 2 genuinely blocks the call), execpolicy rules as
+  defence-in-depth, driving the same engine core via `multi_agent_v1` subagent dispatch
+  (on-demand, not CI-gated)
 
 ## Design provenance
 

@@ -28,7 +28,7 @@ The following decisions are owned by the orchestrator/core and are not re-decide
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi, opencode, copilot }`**. A binding is listed here when it
+The valid bindings are **`{ claude, pi, opencode, copilot, codex }`**. A binding is listed here when it
 **ships a guard binding**, regardless of enforcement strength — this set does not by itself
 convey how strong that guard is. Because the set no longer conveys strength, **each per-binding
 section below states its own enforcement profile explicitly.**
@@ -133,6 +133,56 @@ hook blocks.
 
 **gate-command**: the resolved gate string runs as a normal subprocess; the never-commit-on-red
 invariant applies identically to the other three bindings.
+
+## Codex binding
+
+**Enforcement profile: strongest recorded so far — the PreToolUse hook genuinely denies.**
+
+Three layers, with distinct enforcement strength:
+
+| Layer | Mechanism | Enforcing? |
+|---|---|---|
+| PreToolUse hook | `hooks.json` → `hooks/craft-guard.js` → the shared engine guard; exit 2 + stderr reason | **Yes — live-proven; the command never runs and the denial is fed back to the model** |
+| Execpolicy `.rules` | `prefix_rule` with nested-list alternation | Partially — token-prefix over argv; defence-in-depth only |
+| Sandbox | `-s workspace-write` + `writable_roots` | Unmeasured — claims nothing |
+
+**tool-guard**: `hooks.json`'s `PreToolUse` entry runs `hooks/craft-guard.js` on every tool call.
+The hook reads the payload from stdin, keys off `tool_name`/`tool_input` (never the request
+body — the tool surface varies by model, and the hook payload is the only surface present across
+every model case), reshapes it through `adaptCodexEvent`, and applies the shared engine guard
+(`engine/src/guards/tool-call-guard.js`) unmodified — the same predicate the Claude, Pi, and
+Copilot bindings enforce. A block exits **code 2** with the reason on stderr: the command never
+runs, and Codex feeds the denial back to the model as `function_call_output` on the next turn. A
+pass exits 0 and writes nothing to stdout. Any throw — malformed JSON, an unrecognised
+`apply_patch` payload shape, an absent `cwd` — is treated as fail-closed, denying rather than
+guessing.
+
+**Because this hook genuinely denies, the git-ext-diff rule ships ENFORCED here — the Copilot
+binding's advisory carve-out does not carry over.** This is the strongest guard profile recorded
+across the five bindings.
+
+`apply_patch` is Codex's write tool, and it is freeform: a Lark-grammar tool with **no structured
+path field**, its payload raw patch text. Containment therefore parses **every** filename out of
+the patch body — `*** Add File:`, `*** Update File:`, `*** Delete File:` and `*** Move to:` — not
+just the first, because one patch may touch many files and a first-only check reproduces the
+known decoy hazard (an in-tree leading hunk masking an out-of-tree later one) in a new shape. A
+patch that yields no parsable path fails **closed**.
+
+Four statements ship here unsoftened, honesty over a stronger-sounding claim:
+
+- `git -C . push` and `git --git-dir=.git push` **bypass** the execpolicy layer entirely —
+  live-pinned NO MATCH. Enumerating more flag orders cannot close this gap, and a blanket
+  `pattern=["git"]` rule would deny *all* git, breaking craft's own git-heavy workflow.
+- A malformed `.rules` file **may fail open** at runtime — treated as fail-open until proven
+  otherwise.
+- Per-sandbox-mode blocking was **not measured**. The binding selects `-s workspace-write` and
+  documents the selection; it does not advertise containment.
+- Hook enforcement costs `--dangerously-bypass-hook-trust`, which is required for headless
+  automation to clear the trust prompt and emits a visible warning item every run. That trade —
+  a denying guard in exchange for a bypassed trust prompt — is this binding's central posture.
+
+**gate-command**: the resolved gate string runs as a normal subprocess; the never-commit-on-red
+invariant applies identically to the other four bindings.
 
 ## Failure → blocker
 

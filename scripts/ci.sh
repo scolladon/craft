@@ -52,6 +52,7 @@ run_suite engine engine/test engine
 run_suite adapters/pi adapters/pi/test adapters/pi
 run_suite adapters/opencode adapters/opencode/test adapters/opencode
 run_suite adapters/copilot adapters/copilot/test adapters/copilot
+run_suite adapters/codex adapters/codex/test adapters/codex
 run_suite process test
 
 # run_intention_lint — enumerates the design's zero-config living corpus

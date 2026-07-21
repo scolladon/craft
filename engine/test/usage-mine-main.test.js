@@ -31,6 +31,8 @@ const PI_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'pi');
 const PI_SESSION_ENV_VAR = 'PI_CODING_AGENT_SESSION_DIR';
 const COPILOT_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'copilot');
 const COPILOT_OTEL_ENV_VAR = 'COPILOT_OTEL_FILE_EXPORTER_PATH';
+const CODEX_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'codex');
+const CODEX_HOME_ENV_VAR = 'CODEX_HOME';
 
 // A valid rollup JSONL line (matches single-rollup.jsonl fixture structure).
 const ROLLUP_LINE = JSON.stringify({
@@ -1086,3 +1088,116 @@ for (const reserved of ['__proto__', 'constructor', 'hasOwnProperty']) {
     assert.ok(!existsSync(join(repoRoot, 'report.json')), 'no report may be written before the reserved-key rejection');
   });
 }
+
+// ─── --source codex — routing, read-root thunk, unknown-source listing ──────
+
+test('Given --source codex, when main runs, then it is accepted rather than rejected as a config error', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture({ lines: [readFileSync(join(CODEX_FIXTURE_DIR, 'single-turn.jsonl'), 'utf8').trim()] });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--source', 'codex', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `--source codex must be accepted, not rejected as a config error; stderr: ${io.stderr.joined()}`);
+});
+
+test('Given --source codex over a rollout fixture, when main runs, then the written report carries the turn\'s tokens', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture({ lines: [readFileSync(join(CODEX_FIXTURE_DIR, 'single-turn.jsonl'), 'utf8').trim()] });
+  const repoRoot = makeTmp('repo-');
+  // An explicit io.projectsRoot override always wins over resolveDefaultReadRoot,
+  // dodging the containment trap: the codex default read root is $CODEX_HOME/sessions,
+  // and this fixture dir is not inside it.
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--source', 'codex', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.ok(report.runs.length > 0, 'codex fixture must produce at least one run');
+  const tokens = report.runs.flatMap(r => r.groups).map(g => g.tokens);
+  assert.ok(
+    tokens.some(t => t.input === 80 && t.output === 55),
+    `report must reflect the codex-parsed turn's token totals; got: ${JSON.stringify(tokens)}`,
+  );
+});
+
+test('Given CODEX_HOME is set, when resolveDefaultReadRoot runs for source codex, then it resolves under that home\'s sessions directory', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[CODEX_HOME_ENV_VAR];
+  process.env[CODEX_HOME_ENV_VAR] = '/custom/codex-home';
+
+  try {
+    const result = sut('codex');
+
+    assert.equal(result, join('/custom/codex-home', 'sessions'));
+  } finally {
+    if (previousEnv === undefined) delete process.env[CODEX_HOME_ENV_VAR];
+    else process.env[CODEX_HOME_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given CODEX_HOME is unset, when resolveDefaultReadRoot runs for source codex, then it resolves to the literal ~/.codex/sessions path', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[CODEX_HOME_ENV_VAR];
+  delete process.env[CODEX_HOME_ENV_VAR];
+
+  try {
+    const result = sut('codex');
+
+    assert.equal(result, join(homedir(), '.codex', 'sessions'));
+  } finally {
+    if (previousEnv === undefined) delete process.env[CODEX_HOME_ENV_VAR];
+    else process.env[CODEX_HOME_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given CODEX_HOME set to the empty string, when resolveDefaultReadRoot runs for source codex, then it falls back to the default root', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[CODEX_HOME_ENV_VAR];
+  process.env[CODEX_HOME_ENV_VAR] = '';
+
+  try {
+    const result = sut('codex');
+
+    assert.equal(result, join(homedir(), '.codex', 'sessions'));
+  } finally {
+    if (previousEnv === undefined) delete process.env[CODEX_HOME_ENV_VAR];
+    else process.env[CODEX_HOME_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given CODEX_HOME changes between two calls, when resolveDefaultReadRoot runs each time for source codex, then each call reflects the current value', () => {
+  const sut = resolveDefaultReadRoot;
+  const previousEnv = process.env[CODEX_HOME_ENV_VAR];
+  process.env[CODEX_HOME_ENV_VAR] = '/first/codex-home';
+
+  try {
+    const firstResult = sut('codex');
+
+    process.env[CODEX_HOME_ENV_VAR] = '/second/codex-home';
+    const secondResult = sut('codex');
+
+    assert.notEqual(firstResult, secondResult, 'a module-load-frozen default would not observe the env mutation');
+    assert.equal(firstResult, join('/first/codex-home', 'sessions'));
+    assert.equal(secondResult, join('/second/codex-home', 'sessions'));
+  } finally {
+    if (previousEnv === undefined) delete process.env[CODEX_HOME_ENV_VAR];
+    else process.env[CODEX_HOME_ENV_VAR] = previousEnv;
+  }
+});
+
+test('Given an unknown --source value, when main runs, then the expected-source list names codex', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--source', 'nope', '--dir', transcriptDir], io);
+
+  assert.ok(
+    io.stderr.joined().includes('codex'),
+    `stderr must name codex among the expected sources; got: ${io.stderr.joined()}`,
+  );
+});

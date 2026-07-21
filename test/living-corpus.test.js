@@ -21,6 +21,7 @@ const EXPECTED = new Set([
   'docs/DOD.md',
   'docs/GUIDE-customizing.md',
   'docs/adapters/backlog.md',
+  'docs/adapters/codex-poc-record.md',
   'docs/adapters/copilot-poc-record.md',
   'docs/adapters/execution.md',
   'docs/adapters/gate.md',

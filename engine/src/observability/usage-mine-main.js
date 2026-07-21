@@ -30,6 +30,7 @@ import { parseLines as claudeParseLines } from './adapters/claude/telemetry.js';
 import { parseLines as opencodeParseLines } from './adapters/opencode/telemetry.js';
 import { parseLines as piParseLines } from './adapters/pi/telemetry.js';
 import { parseLines as copilotParseLines } from './adapters/copilot/telemetry.js';
+import { parseLines as codexParseLines } from './adapters/codex/telemetry.js';
 import { aggregate, serializeReport, renderMarkdown, DEFAULT_DRIFT_THRESHOLD } from './usage-aggregate.js';
 import { loadPriceTable } from './adapters/claude/pricing.js';
 
@@ -44,6 +45,7 @@ const SOURCES = Object.freeze({
   opencode: opencodeParseLines,
   pi: piParseLines,
   copilot: copilotParseLines,
+  codex: codexParseLines,
 });
 const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 // C7: source→default-read-root lookup, each entry a thunk so an env-backed
@@ -59,6 +61,13 @@ const DEFAULT_READ_ROOTS = Object.freeze({
   copilot: () => process.env.COPILOT_OTEL_FILE_EXPORTER_PATH
     ? dirname(process.env.COPILOT_OTEL_FILE_EXPORTER_PATH)
     : join(homedir(), '.copilot', 'otel'),
+  // Codex sessions live at $CODEX_HOME/sessions/YYYY/MM/DD/rollout-*.jsonl —
+  // this entry resolves the BOUNDARY (`sessions/`), not the leaf. readdirSync
+  // above is non-recursive, so a --dir pointing at this boundary enumerates
+  // only the top YYYY/ entries, finds no .jsonl files there, and yields a
+  // silent zero-cost report that reads as success. Callers must pass --dir
+  // all the way down to the YYYY/MM/DD leaf.
+  codex: () => join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions'),
 });
 
 // Exported as a direct unit-test seam: resolving the default read root is a

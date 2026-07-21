@@ -222,4 +222,24 @@ for (const descriptor of DESCRIPTORS) {
       `Descriptor "${descriptor.id}": a binding hint must not introduce a variant — the pi binding reuses agent-mode assembly, got ${JSON.stringify(diffs)}`,
     );
   });
+
+  // Codex-binding fidelity: codex is agent-mode with real subagents, taking
+  // the same carve-outs as claude/opencode/copilot — assembleContract has NO
+  // binding dimension. Passing a codex binding hint must be ignored (produce
+  // the same block as plain agent mode); if a future change ever keys a
+  // variant off a binding, this trips.
+  test(`Given a codex binding hint on descriptor "${descriptor.id}", when assembled, then it is ignored and the block equals plain agent-mode assembly`, () => {
+    const sut = assembleContract;
+
+    const agentModeBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+    const codexHintedBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent', binding: 'codex' });
+
+    const diffs = diffLines(codexHintedBlock, agentModeBlock);
+
+    assert.equal(
+      diffs.length,
+      0,
+      `Descriptor "${descriptor.id}": a binding hint must not introduce a variant — the codex binding reuses agent-mode assembly, got ${JSON.stringify(diffs)}`,
+    );
+  });
 }

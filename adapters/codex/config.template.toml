@@ -1,0 +1,49 @@
+# Merge these keys into $CODEX_HOME/config.toml (default ~/.codex/config.toml) — user
+# level, not repo level.
+#
+# Sandbox mode is explicit and always the writable-but-scoped mode — the unrestricted
+# full-access mode is never selected here. Per-sandbox-mode blocking was never measured
+# against this binding, so this template documents a posture, not a containment
+# guarantee. The PreToolUse guard hook (hooks.json) is the layer that actually denies.
+#
+# Provider-neutral: no model id below is pinned outside the three ids this binding's
+# own tier map (src/model-tier-map.js) commits to.
+
+sandbox_mode = "workspace-write"
+approval_policy = "on-request"
+
+[agents.craft-designer]
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
+
+[agents.craft-planner]
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
+
+[agents.craft-reviewer]
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
+
+[agents.craft-requirements-writer]
+model = "gpt-5.6-sol"
+model_reasoning_effort = "high"
+
+[agents.craft-part-implementer]
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+
+[agents.craft-harness-triager]
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+
+[agents.craft-docs-writer]
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+
+[agents.craft-refactor-executor]
+model = "gpt-5.6-terra"
+model_reasoning_effort = "medium"
+
+[agents.craft-backlog-ticker]
+model = "gpt-5.4-mini"
+model_reasoning_effort = "low"

@@ -1,6 +1,6 @@
 import { realpath } from 'node:fs/promises';
 import { resolve, dirname, sep } from 'node:path';
-import { toolCallGuard, WRITE_TOOLS } from './gate.js';
+import { toolCallGuard, WRITE_TOOLS } from '../../../engine/src/guards/tool-call-guard.js';
 
 // Maps pi's lowercase tool_call names (0.80.10) to the Claude-cased names
 // toolCallGuard branches on — only the guarded tools (Bash for git-diff detection,

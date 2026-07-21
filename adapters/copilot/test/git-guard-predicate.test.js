@@ -88,16 +88,16 @@ describe('decideGuard() — reused gate.js predicate: write-path containment', (
   });
 });
 
-describe('gate.js — single-sourced across bindings', () => {
-  it('Given the repo tree, when checked, then adapters/pi/src/gate.js exists', () => {
+describe('tool-call-guard.js — single-sourced across bindings', () => {
+  it('Given the repo tree, when checked, then engine/src/guards/tool-call-guard.js exists', () => {
     const repoRoot = repoRootFromHere();
 
-    const sut = existsSync(join(repoRoot, 'adapters', 'pi', 'src', 'gate.js'));
+    const sut = existsSync(join(repoRoot, 'engine', 'src', 'guards', 'tool-call-guard.js'));
 
     assert.equal(sut, true);
   });
 
-  it('Given the copilot adapter source text, when scanned, then it imports adapters/pi/src/gate.js', () => {
+  it('Given the copilot adapter source text, when scanned, then it imports engine/src/guards/tool-call-guard.js', () => {
     const adapterPath = join(
       dirname(fileURLToPath(import.meta.url)),
       '..',
@@ -107,13 +107,21 @@ describe('gate.js — single-sourced across bindings', () => {
 
     const sut = readFileSync(adapterPath, 'utf8');
 
-    assert.match(sut, /\.\.\/\.\.\/pi\/src\/gate\.js/);
+    assert.match(sut, /\.\.\/\.\.\/\.\.\/engine\/src\/guards\/tool-call-guard\.js/);
   });
 
   it('Given the repo tree, when checked, then adapters/copilot/src/gate.js does not exist (no forked copy)', () => {
     const repoRoot = repoRootFromHere();
 
     const sut = existsSync(join(repoRoot, 'adapters', 'copilot', 'src', 'gate.js'));
+
+    assert.equal(sut, false);
+  });
+
+  it('Given the repo tree, when checked, then adapters/pi/src/gate.js no longer exists (old home retired)', () => {
+    const repoRoot = repoRootFromHere();
+
+    const sut = existsSync(join(repoRoot, 'adapters', 'pi', 'src', 'gate.js'));
 
     assert.equal(sut, false);
   });

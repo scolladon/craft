@@ -177,28 +177,47 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-07-20 — follow-ups surfaced by the copilot binding, not yet scheduled)
 
-**Lift the binding-neutral guard predicate to a shared home.** `adapters/copilot/src/git-guard-adapter.js`
-imports `toolCallGuard` across the adapter boundary from `adapters/pi/src/gate.js` — deliberate
-single-sourcing so the predicate cannot drift, but it makes pi look like a host for shared logic
-rather than a peer binding. Worse, the drift it guards against **already exists**: `COMPLIANT_MARKERS`,
-`GIT_DIFF_SHOW_RE`, and `REASON_GIT_EXT_DIFF` are duplicated character-for-character between pi's
-`gate.js` and `adapters/opencode/src/git-guard-predicate.js`. Lift the predicate to a neutral module
-(e.g. `engine/src/guards/`), have all three bindings import it, and leave each binding only its own
-event-shape adapter. Deferred because it modifies the pi and opencode bindings (an explicit non-goal
-of the copilot change) and touches a security predicate that warrants its own review.
+**Lift the binding-neutral guard predicate to a shared home — delivered 2026-07-20**
+(native-codex-binding). `engine/src/guards/tool-call-guard.js` is now the single home for
+`toolCallGuard`/`WRITE_TOOLS`; pi and copilot both import it, and the codex binding does too. One
+correction to the original framing: it did **not** end up with "all three bindings" importing the
+lifted module — opencode never imported `adapters/pi/src/gate.js` in the first place and keeps its
+own narrower `gitGuardPredicate`. The residual duplication this entry also flagged —
+`COMPLIANT_MARKERS`/`GIT_DIFF_SHOW_RE`/`REASON_GIT_EXT_DIFF` copied verbatim between the (now
+relocated) predicate and opencode's — **remains open**, unresolved by this lift.
 
-**Deduplicate the acceptance-probe harness across three bindings.** `adapters/copilot/src/probe.js`
-is a third near-verbatim copy: `assertMutationsInsideThrowaway`, `assertGateGreenBeforeCommit`,
-`assertCommittedArtifact`, and `evaluateTrace` are byte-identical to `adapters/opencode/src/probe.js`;
-`buildEvidence` differs only in a version key and `runAcceptanceProbe` only by extra launch args.
-Extract one shared `runProbeHarness({ runner, fsOps, versionKey, extraRunnerArgs })`. Same deferral
-reason as above (touches sibling bindings).
+**Deduplicate the acceptance-probe harness across four bindings.** `adapters/copilot/src/probe.js`
+and now `adapters/codex/src/probe.js` are near-verbatim copies of `adapters/opencode/src/probe.js`:
+`assertMutationsInsideThrowaway`, `assertGateGreenBeforeCommit`, `assertCommittedArtifact`, and
+`evaluateTrace` are byte-identical across all three; `buildEvidence` differs only in a version key
+and `runAcceptanceProbe` only by extra launch args. What was a third near-verbatim copy is now a
+fourth. Extract one shared `runProbeHarness({ runner, fsOps, versionKey, extraRunnerArgs })`.
+Deferred because it touches sibling bindings outside any single binding's own change.
 
-**Mutation-cover the adapter sources.** `engine/stryker.conf.json` mutates `engine/src/**/*.js` only,
-so every `adapters/copilot/src/*.js` module — including the git-guard adapter and the deny-tool
-pattern set — ships with **zero mutation coverage**. `adapters/pi/` carries its own
-`stryker.conf.json`; copilot and opencode do not. Add one, at least for the guard seams, where a weak
-assertion is a security risk rather than a style issue.
+**Mutation-cover the adapter sources — delivered 2026-07-20** (native-codex-binding). The original
+prescription was a per-adapter `stryker.conf.json`; the ratified outcome is the opposite. A
+per-adapter mutation config would invent a JavaScript-specific tool pattern at the adapter layout
+level, which a future non-JS adapter would inherit nonsensically. Instead the consumer-level
+`engine/stryker.conf.json` — craft-*the-consumer* declaring its own validation technique, not part
+of the toolchain-neutral engine contract — grows both its `mutate` scope and its `tap.testFiles`
+list together to cover the guard seams: `adapters/codex/src/{apply-patch-paths,execpolicy-rules,
+git-guard-adapter}.js`, `adapters/copilot/src/git-guard-adapter.js`,
+`adapters/opencode/src/{git-guard-adapter,git-guard-predicate}.js`, and
+`adapters/pi/src/tool-call-hook.js`. `adapters/pi/stryker.conf.json` remains an orphan wired into
+nothing — its cleanup is still a separate follow-up.
+
+`tap.testFiles` names each covering test file directly rather than globbing `adapters/*/test/`. The
+glob form was written first and did not survive its own first run: it pulls in the probe suites,
+which spawn the real agent CLI, so on any machine with `pi` installed Stryker's dry run hung until
+it timed out and the whole technique was unrunnable — the failure that had left this item marked
+delivered without ever having executed. Per-source test files keep the run hermetic (18s) and cost
+no coverage; `engine/test/mutation-config.test.js` pins the pairing in both directions and bans a
+binding-wide adapter glob outright.
+
+First run over the new scope: 306 mutants, 91.50%. The codex seams were triaged to 93.29% — the
+`apply_patch` candidate-field and raw-string branches had been pinned only by `block: true`
+assertions, which cannot separate "parsed, then contained" from "failed closed", so a patch
+arriving in the `patch` or `text` field had no test proving the guard saw it at all.
 
 **Provenance refs leak in `engine/src/observability/adapters/claude/`.** `telemetry.js` and
 `pricing.js` carry `ADR-188`/`ADR-187`/`Part 3`/`Part 4` references in comments, violating the
@@ -214,6 +233,39 @@ enumerates realistic flag-order and long-form variants and documents the residua
 enumeration cannot cover interposed global options (`git -C`, `--git-dir=`, `-c k=v`). `shell(git:*)`
 would close it completely but denies **all** git, breaking craft's own git-heavy workflow. Revisit if
 Copilot ships a richer matcher, or via a wrapper that normalises argv before the guard.
+
+### Open (scoped 2026-07-20 — follow-ups surfaced by the codex binding, not yet scheduled)
+
+**Implement launch-time hook-trust verification for the codex binding — highest priority.** An
+untrusted Codex `PreToolUse` hook silently no-ops: the command executes, no error is raised, and no
+warning is printed. `hooks/craft-guard.js` and `hooks.json` both exist and every unit test in
+`adapters/codex/` passes regardless of whether the hook is actually trusted by the runtime, so the
+guard can be **absent while every signal says it is present**. Close this by pinning the
+`hooks.state`/`trusted_hash` write path so trusting the craft guard hook at install time is
+scriptable, then verify trust state at launch and fail loudly — never `--dangerously-bypass-hook-
+trust` globally, which would disable the trust gate for every hook in the invoking environment, not
+just craft's own.
+
+**Prove craft's shared skills load by reference on codex, end to end.** A plugin manifest's `skills`
+field is a path and local marketplaces are supported, so referencing the repository's top-level
+`skills/` from the `craft` plugin entry is structurally available — but no live install has yet
+confirmed that all of craft's shared skills actually load and are invocable through that route.
+
+**Measure what each codex sandbox mode actually blocks, per mode.** `-s read-only|workspace-write|
+danger-full-access` is documented as a selectable posture, but no probe has measured what each mode
+concretely prevents. The binding selects `workspace-write` and documents the selection; it must not
+be read as a containment guarantee until this is measured.
+
+**Determine whether a malformed `.rules` execpolicy file fails open at runtime.** `execpolicy check`
+treats a malformed file as a hard error, but the runtime enforcement path's behaviour on the same
+malformed input is unresolved. Treated as fail-open until proven otherwise; closing this row means
+actually observing the runtime path, not just the `check` subcommand.
+
+**Clean up the orphaned `adapters/pi/stryker.conf.json`.** The lift of the guard predicate out of
+`adapters/pi/src/gate.js` left this config's `mutate` glob pointed at a directory that no longer
+contains the file it was written to cover, and the config was never wired into any script or
+`package.json` command to begin with — it is dead weight, not a security gap. Either wire it in or
+remove it.
 
 ---
 

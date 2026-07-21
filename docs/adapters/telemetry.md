@@ -31,7 +31,7 @@ subjects: ['engine/src/observability/**']
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi, opencode, copilot }`**.
+The valid bindings are **`{ claude, pi, opencode, copilot, codex }`**.
 
 ## Claude binding
 
@@ -135,6 +135,49 @@ Selected via `--source copilot` on the `usage-mine` front-door
 under that path** — this Copilot binding lands inside that scope, so refreshing this section is
 this change's own living-intention obligation, not an optional add-on.
 
+## Codex binding
+
+`engine/src/observability/adapters/codex/telemetry.js` — the `codex exec --json` stream binding,
+whose envelope-shaped parser also reads a persisted rollout file sharing the same shape:
+
+- **Envelope, not location, shaped**: the parser matches a `turn.completed` line wherever it
+  appears in the stream rather than assuming a fixed position, because whether the *persisted*
+  rollout `.jsonl` (what `--source codex` actually reads) carries the same envelope as the *live*
+  `codex exec --json` stream (where the envelope is confirmed) is an open question — no local
+  rollout history existed to read at implementation time. A shape mismatch fails safe: zero
+  events, never a wrong count.
+- **The leaf-vs-containment-root caveat is the load-bearing paragraph.** The miner's directory
+  read is non-recursive, so `DEFAULT_READ_ROOTS.codex` resolves only the containment boundary
+  (`$CODEX_HOME/sessions`) — `--dir` at invocation time must still name the `YYYY/MM/DD` leaf
+  underneath it. Pointing `--dir` at the `sessions/` boundary itself yields a zero-cost report
+  that reads as success: no error, no warning, just an empty `runs: []`. This is the same failure
+  shape as an empty transcript source, and nothing distinguishes the two from the report alone.
+- **`--ephemeral` is mutually exclusive with this source.** `--ephemeral` suppresses the very
+  session files this binding mines, so the launch-args module never emits it — passing it would
+  turn telemetry into a silent zero that reads as a successful, cost-free run.
+- **Token arithmetic**: `turn.completed.usage` supplies
+  `{input_tokens, cached_input_tokens, output_tokens, reasoning_output_tokens}`. `cacheRead` is
+  capped at `min(cached_input_tokens, input_tokens)` and `input` is the remainder
+  (`input_tokens - cacheRead`), so `input + cacheRead` reconstructs the reported `input_tokens`
+  exactly on every turn regardless of which vendor convention (subset vs. disjoint cache
+  accounting) actually applies — see ADR-258 and its amendment. `output` is `output_tokens` alone;
+  `reasoning_output_tokens` is never added to it, the safe (never-over-report) direction.
+- **role/phase**: `role` is `null` — subagent attribution is not yet pinned. `phase` is
+  caller-injected, as in the pi, opencode, and copilot bindings.
+- **Cache fields**: `cacheCreation` is always `0` — Codex has no pinned cache-write equivalent.
+- **Session id**: like pi, the per-turn lines do not repeat the session id; it arrives once on
+  `thread.started` and is held across the stream and stamped onto every later event.
+- **Core reused unchanged**: `aggregate`/`serializeReport` are consumed exactly as the other four
+  bindings consume them — no core changes were required to add this binding.
+- **Redaction**: whitelist-only, same discipline as the other bindings.
+
+Selected via `--source codex` on the `usage-mine` front-door
+(`engine/src/observability/usage-mine-main.js`), identical wiring to the other four sources.
+
+**This page's `subjects: ['engine/src/observability/**']` frontmatter binds it to every change
+under that path** — this Codex binding lands inside that scope, so refreshing this section is
+this change's own living-intention obligation, not an optional add-on.
+
 ## Failure semantics
 
 **Telemetry is advisory. It never gates a run.**
@@ -152,9 +195,9 @@ this change's own living-intention obligation, not an optional add-on.
   `DEFAULT_DRIFT_THRESHOLD` (`0.25`) rather than erroring.
 - **Config errors** (unknown binding, missing required opt) are caught at startup by the CLI
   validator and surfaced as a non-zero exit before any I/O begins — the same pattern as other
-  adapter specs. `--source` accepts `claude` (default), `opencode`, or `pi`; any other value is
-  rejected at startup with a targeted stderr message and a non-zero exit — the one deliberate
-  exception to the miner's otherwise-always-0 advisory contract.
+  adapter specs. `--source` accepts `claude` (default), `opencode`, `pi`, `copilot`, or `codex`;
+  any other value is rejected at startup with a targeted stderr message and a non-zero exit — the
+  one deliberate exception to the miner's otherwise-always-0 advisory contract.
 
 ## Redaction
 

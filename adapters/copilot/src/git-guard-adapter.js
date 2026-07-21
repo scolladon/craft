@@ -4,7 +4,7 @@
  * applies that predicate unmodified. This layer is observational (see
  * hooks/craft-observer.js) — it never enforces, it only decides a verdict to record.
  */
-import { toolCallGuard, WRITE_TOOLS } from '../../pi/src/gate.js';
+import { toolCallGuard, WRITE_TOOLS } from '../../../engine/src/guards/tool-call-guard.js';
 
 // Maps Copilot's lowercase toolName to the Claude-cased names toolCallGuard
 // branches on — only the tools the shared predicate actually guards (Bash for

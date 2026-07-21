@@ -1,0 +1,397 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
+
+import { tokensFromCodexUsage, parseLines } from '../src/observability/adapters/codex/telemetry.js';
+
+const FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures/codex');
+
+function fixtureLines(name) {
+  return readFileSync(join(FIXTURE_DIR, name), 'utf8').split('\n');
+}
+
+async function* asyncLines(lines) {
+  for (const line of lines) yield line;
+}
+
+const WHITELISTED_FIELDS = [
+  'run', 'slug', 'phase', 'role', 'model', 'tokens', 'cacheCreationTtl', 'messages', 'durationMs',
+].sort();
+
+// ── 1. tokensFromCodexUsage — the sum-safe cache/reasoning mapping ────────────
+
+test('Given a usage block where cached_input_tokens is less than input_tokens, when tokensFromCodexUsage runs, then input + cacheRead equals input_tokens exactly', () => {
+  const sut = tokensFromCodexUsage;
+
+  const result = sut({ input_tokens: 120, cached_input_tokens: 40, output_tokens: 55, reasoning_output_tokens: 10 });
+
+  assert.equal(result.input + result.cacheRead, 120);
+  assert.equal(result.input, 80);
+  assert.equal(result.cacheRead, 40);
+});
+
+test('Given a usage block where cached_input_tokens exceeds input_tokens, when tokensFromCodexUsage runs, then input floors at 0 and is never negative', () => {
+  const sut = tokensFromCodexUsage;
+
+  const result = sut({ input_tokens: 10, cached_input_tokens: 25, output_tokens: 5, reasoning_output_tokens: 0 });
+
+  assert.equal(result.input, 0);
+});
+
+test('Given a usage block carrying reasoning_output_tokens, when tokensFromCodexUsage runs, then output equals output_tokens alone and reasoning tokens are not added', () => {
+  const sut = tokensFromCodexUsage;
+
+  const result = sut({ input_tokens: 1, cached_input_tokens: 0, output_tokens: 55, reasoning_output_tokens: 999 });
+
+  assert.equal(result.output, 55);
+});
+
+test('Given a usage block, when tokensFromCodexUsage runs, then cacheCreation is always 0 (no Codex equivalent is pinned)', () => {
+  const sut = tokensFromCodexUsage;
+
+  const result = sut({ input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 });
+
+  assert.equal(result.cacheCreation, 0);
+});
+
+test('Given non-numeric token values, when tokensFromCodexUsage runs, then every field coerces to 0', () => {
+  const sut = tokensFromCodexUsage;
+
+  const result = sut({ input_tokens: 'abc', cached_input_tokens: null, output_tokens: NaN, reasoning_output_tokens: undefined });
+
+  assert.deepEqual(result, { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 });
+});
+
+test('Given usage itself is undefined, when tokensFromCodexUsage runs, then it does not throw and every field defaults to 0', () => {
+  const sut = tokensFromCodexUsage;
+
+  const result = sut(undefined);
+
+  assert.deepEqual(result, { input: 0, cacheRead: 0, cacheCreation: 0, output: 0 });
+});
+
+// ── 2. parseLines — single turn.completed mapping ─────────────────────────────
+
+test('Given a single turn.completed line, when parseLines runs, then one UsageEvent is returned', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('single-turn.jsonl')));
+
+  assert.equal(result.skipped, 0);
+  assert.equal(result.events.length, 1);
+});
+
+test('Given a turn where cached_input_tokens is less than input_tokens, when parseLines runs, then input + cacheRead equals input_tokens exactly', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('single-turn.jsonl')));
+
+  const { tokens } = result.events[0];
+  assert.equal(tokens.input + tokens.cacheRead, 120);
+});
+
+test('Given a turn where cached_input_tokens exceeds input_tokens, when parseLines runs, then input floors at 0 and is never negative', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4',
+    usage: { input_tokens: 10, cached_input_tokens: 25, output_tokens: 5, reasoning_output_tokens: 0 },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].tokens.input, 0);
+});
+
+test('Given a turn carrying reasoning_output_tokens, when parseLines runs, then output equals output_tokens alone and the reasoning tokens are not added', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('single-turn.jsonl')));
+
+  assert.equal(result.events[0].tokens.output, 55);
+});
+
+// ── 3. parseLines — held session id across the stream ────────────────────────
+
+test('Given a stream whose session id arrives on thread.started, when parseLines runs, then every later event carries that id as run', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('multi-turn.jsonl')));
+
+  assert.equal(result.events.length, 3);
+  for (const event of result.events) {
+    assert.equal(event.run, 'codex-thread-multi-001');
+  }
+});
+
+test('Given a stream with no thread.started line, when parseLines runs, then run is null rather than undefined', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4',
+    usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].run, null);
+});
+
+// ── 4. parseLines — malformed line skipped and counted ────────────────────────
+
+test('Given a stream containing a malformed line, when parseLines runs, then the line is skipped and counted and the valid events still return', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('malformed.jsonl')));
+
+  assert.equal(result.skipped, 1);
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].run, 'codex-thread-malformed-001');
+});
+
+// ── 5. parseLines — non-finite token coercion ─────────────────────────────────
+
+test('Given a turn whose token values are non-numeric strings, when parseLines runs, then each coerces to 0', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4',
+    usage: { input_tokens: 'abc', cached_input_tokens: 'abc', output_tokens: 'abc', reasoning_output_tokens: 'abc' },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].tokens.input, 0);
+  assert.equal(result.events[0].tokens.output, 0);
+});
+
+test('Given a turn whose token values are null, when parseLines runs, then each coerces to 0', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4',
+    usage: { input_tokens: null, cached_input_tokens: null, output_tokens: null, reasoning_output_tokens: null },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].tokens.input, 0);
+  assert.equal(result.events[0].tokens.output, 0);
+});
+
+test('Given a turn.completed line with no usage object at all, when parseLines runs, then every token field coerces to 0', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({ type: 'turn.completed', model: 'gpt-5.4' });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].tokens.input, 0);
+  assert.equal(result.events[0].tokens.output, 0);
+  assert.equal(result.events[0].tokens.cacheRead, 0);
+});
+
+// ── 6. parseLines — empty input ───────────────────────────────────────────────
+
+test('Given empty input, when parseLines runs, then it returns an empty event array with zero skipped', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines([]));
+
+  assert.deepEqual(result, { events: [], skipped: 0, markers: [] });
+});
+
+// ── 7. parseLines — never throws on structurally hostile lines ───────────────
+
+test('Given structurally hostile lines, when parseLines runs, then it resolves rather than rejecting', async () => {
+  const sut = parseLines;
+  const lines = [
+    JSON.stringify(null),
+    JSON.stringify(['turn.completed', 'gpt-5.4']),
+    JSON.stringify('turn.completed'),
+    JSON.stringify({ a: { b: { c: { d: { e: 'deeply nested' } } } } }),
+  ];
+
+  await assert.doesNotReject(() => sut(asyncLines(lines)));
+  const result = await sut(asyncLines(lines));
+  assert.equal(result.events.length, 0);
+  assert.equal(result.skipped, 0, 'well-formed-but-irrelevant JSON is not malformed');
+});
+
+// ── 8. parseLines — since cutoff, epoch-normalized on both sides ─────────────
+
+test('Given a numeric turn timestamp before an ISO since cutoff, when parseLines runs, then the turn is dropped', async () => {
+  const sut = parseLines;
+  const since = '2099-01-01T00:00:00.000Z';
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4', started_at: 1767225600000,
+    usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 },
+  });
+
+  const result = await sut(asyncLines([line]), since);
+
+  assert.equal(result.events.length, 0, 'a numeric started_at before an ISO since must not silently fail open');
+});
+
+test('Given a numeric turn timestamp after an ISO since cutoff, when parseLines runs, then the turn is kept', async () => {
+  const sut = parseLines;
+  const since = '2000-01-01T00:00:00.000Z';
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4', started_at: 1767225600000,
+    usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 },
+  });
+
+  const result = await sut(asyncLines([line]), since);
+
+  assert.equal(result.events.length, 1);
+});
+
+test('Given a turn whose timestamp equals the cutoff, when parseLines runs, then it is kept (boundary is inclusive)', async () => {
+  const sut = parseLines;
+  const boundaryEpochMs = 1767225600000;
+  const since = new Date(boundaryEpochMs).toISOString();
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4', started_at: boundaryEpochMs,
+    usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 },
+  });
+
+  const result = await sut(asyncLines([line]), since);
+
+  assert.equal(result.events.length, 1);
+});
+
+test('Given a turn with no started_at and a since cutoff, when parseLines runs, then the turn is kept (a turn with no timestamp never predates a cutoff)', async () => {
+  const sut = parseLines;
+  const since = '2026-01-01T00:00:00.000Z';
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4',
+    usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 },
+  });
+
+  const result = await sut(asyncLines([line]), since);
+
+  assert.equal(result.events.length, 1);
+});
+
+// ── 9. markers ─────────────────────────────────────────────────────────────
+
+test('Given any stream, when parseLines runs, then markers is an empty array (Codex emits no auto-skip signal text)', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('single-turn.jsonl')));
+
+  assert.deepEqual(result.markers, []);
+});
+
+// ── 10. parseLines — durationMs from turn start/end ───────────────────────────
+
+test('Given a turn.completed with start and end timestamps, when parseLines runs, then durationMs is their difference', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('single-turn.jsonl')));
+
+  assert.equal(result.events[0].durationMs, 2500);
+});
+
+test('Given reversed turn timestamps, when parseLines runs, then durationMs floors at 0', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4',
+    started_at: '2026-01-01T00:00:05.000Z', completed_at: '2026-01-01T00:00:00.000Z',
+    usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].durationMs, 0);
+});
+
+test('Given a turn.completed with no start/end timestamps, when parseLines runs, then durationMs is 0', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'turn.completed', model: 'gpt-5.4',
+    usage: { input_tokens: 1, cached_input_tokens: 0, output_tokens: 1, reasoning_output_tokens: 0 },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].durationMs, 0);
+});
+
+// ── 11. parseLines — non-turn.completed envelopes are excluded, not malformed ─
+
+test('Given a line that is not a turn.completed envelope, when parseLines runs, then it contributes no event and is not counted as malformed', async () => {
+  const sut = parseLines;
+  const lines = [
+    JSON.stringify({ type: 'turn.started' }),
+    JSON.stringify({ type: 'item.completed', item: { type: 'agent_message' } }),
+  ];
+
+  const result = await sut(asyncLines(lines));
+
+  assert.equal(result.events.length, 0);
+  assert.equal(result.skipped, 0, 'a well-formed but excluded envelope is not malformed');
+});
+
+// ── 12. redaction whitelist ────────────────────────────────────────────────────
+
+test('Given any emitted event, when its keys are enumerated, then they are exactly the neutral UsageEvent field set', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('single-turn.jsonl')));
+
+  assert.deepEqual(Object.keys(result.events[0]).sort(), WHITELISTED_FIELDS);
+});
+
+test('Given a turn.completed event, when parseLines runs, then role, phase, slug and cacheCreationTtl are null (not yet pinned)', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('single-turn.jsonl')));
+
+  assert.equal(result.events[0].role, null);
+  assert.equal(result.events[0].phase, null);
+  assert.equal(result.events[0].slug, null);
+  assert.equal(result.events[0].cacheCreationTtl, null);
+});
+
+test('Given a turn.completed event, when parseLines runs, then messages is 1', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('single-turn.jsonl')));
+
+  assert.equal(result.events[0].messages, 1);
+});
+
+// ── 13. property lens — sum-safety across a generated batch ──────────────────
+
+// Deterministic PRNG (mulberry32) — no Math.random, so the batch is reproducible.
+function mulberry32(seed) {
+  let a = seed;
+  return function next() {
+    a |= 0;
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+test('Given any generated set of well-formed turns, when parseLines runs, then sum(input + cacheRead) equals sum(input_tokens) exactly', async () => {
+  const sut = parseLines;
+  const rand = mulberry32(20260720);
+  const count = 200;
+  const lines = [];
+  let expectedInputTotal = 0;
+  for (let i = 0; i < count; i++) {
+    const inputTokens = Math.floor(rand() * 10001); // [0, 10000]
+    const cachedInputTokens = Math.floor(rand() * (2 * inputTokens + 1)); // [0, 2 x input_tokens], floor branch included
+    expectedInputTotal += inputTokens;
+    lines.push(JSON.stringify({
+      type: 'turn.completed', model: 'gpt-5.4',
+      usage: { input_tokens: inputTokens, cached_input_tokens: cachedInputTokens, output_tokens: 1, reasoning_output_tokens: 0 },
+    }));
+  }
+
+  const result = await sut(asyncLines(lines));
+
+  const summedInputPlusCacheRead = result.events.reduce((sum, e) => sum + e.tokens.input + e.tokens.cacheRead, 0);
+  assert.equal(result.events.length, count);
+  assert.equal(summedInputPlusCacheRead, expectedInputTotal);
+});

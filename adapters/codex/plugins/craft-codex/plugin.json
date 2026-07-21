@@ -1,0 +1,8 @@
+{
+  "name": "craft-codex",
+  "version": "0.1.0",
+  "description": "Codex-native surface for craft: the enforcing PreToolUse guard hook, the nine craft role agents, and the delegating run entrypoint skill.",
+  "author": { "name": "craft" },
+  "hooks": "../../hooks.json",
+  "skills": "./skills"
+}

@@ -1,6 +1,13 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { toolCallGuard } from '../src/gate.js';
+import { existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join, resolve } from 'node:path';
+import { toolCallGuard } from '../src/guards/tool-call-guard.js';
+
+function repoRootFromHere() {
+  return resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
+}
 
 const WORKING_DIR = '/workspace/repo';
 
@@ -318,5 +325,15 @@ describe('toolCallGuard() — non-write tools with paths', () => {
     const result = sut(event);
 
     assert.equal(result.block, false);
+  });
+});
+
+describe('tool-call-guard.js — lifted out of adapters/pi', () => {
+  it('Given the repo tree, when the old adapter home is checked, then adapters/pi/src/gate.js no longer exists', () => {
+    const repoRoot = repoRootFromHere();
+
+    const sut = existsSync(join(repoRoot, 'adapters', 'pi', 'src', 'gate.js'));
+
+    assert.equal(sut, false);
   });
 });

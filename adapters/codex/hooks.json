@@ -1,0 +1,13 @@
+{
+  "description": "craft guard — denies git diff/show without --no-ext-diff and writes outside the working directory",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          { "type": "command", "command": "node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js" }
+        ]
+      }
+    ]
+  }
+}

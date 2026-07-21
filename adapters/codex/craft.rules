@@ -1,0 +1,15 @@
+# Defence-in-depth only -- not a security boundary.
+#
+# Known bypasses (verified, not hypothetical): interposed global options
+# defeat the prefix match entirely. `git -C . push`, `git --git-dir=.git
+# push`, and `bash -lc 'git push'` all NO MATCH here -- matching is
+# token-prefix over argv, not an adversarial parser.
+#
+# A malformed .rules file does not fail closed: treat it as fail open
+# (unresolved) at runtime, the same as no rule matching at all.
+
+prefix_rule(
+    pattern=["git", ["push", "clean", "reset"]],
+    decision="forbidden",
+    justification="destructive or history-rewriting git subcommands must never run unattended from this binding",
+)
