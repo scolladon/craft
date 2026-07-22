@@ -459,6 +459,35 @@ P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2
   tool call, `.agents/` load path + `enable-customization-skills`, `${CRAFT_ROOT}` hook env-var
   expansion, per-sandbox blocking, a captured `transcript.jsonl` token record).
 
+- **Native Cursor binding — GO, full port-binding adapter (2026-07-22).** The sixth binding. Phase 0
+  pinned the real `cursor-agent` contract LIVE (`2026.07.20-8cc9c0b`, isolated authenticated runs;
+  full record `docs/adapters/cursor-poc-record.md`). Cursor ships BOTH load-bearing surfaces, so the
+  runnable adapter was built at `adapters/cursor/`: headless port `cursor-agent -p --output-format
+  json`, and an enforcing `.cursor/hooks.json` `beforeShellExecution` guard whose **stdout-JSON**
+  `{"permission":"deny"}` blocks a non-compliant `git diff/show` — live-proven (denies the target,
+  allows `echo`, NOT overridden by `--force`/`--yolo`; the fail-closed-on-everything trap avoided).
+  The live payload carries the command at top-level `command` (NOT `tool_input.command` — the codex
+  trap). Landed + CI-gated across 8 atomic commits: 9 byte-identical role agents (Cursor's
+  `.cursor/agents` schema = `name`+`description` only — no per-agent model field, the Antigravity
+  lesson), the guard reusing the shared git-ext-diff predicate, the manifest, a `craft-run` entrypoint
+  skill, model-tier map (`opus→claude-opus-4-8-high`, `sonnet→claude-sonnet-5-high`, `haiku→composer-2.5`),
+  launch-args, acceptance probe, telemetry pinned to a real rollout, README + config template.
+  **Measured, not assumed:** the guard MUST stay `failClosed:true` (a crashing guard otherwise fails
+  OPEN); a malformed `hooks.json` fails OPEN (install must validate); `--sandbox enabled` did NOT
+  contain a shell write outside the workspace under `--force` (the guard is the enforcement layer);
+  `.cursor/rules/*.mdc` + the shared skills/agents load by reference via symlink. Telemetry: Cursor's
+  token counts are DISJOINT (Anthropic convention) and live only in the result envelope — the
+  persisted transcript is token-LESS. Auth is macOS-keychain-bound and `$HOME`-derived, so isolated
+  runs seed auth via a `Library/Keychains` symlink, not a file copy.
+  **Open follow-ups (scoped 2026-07-22, not yet scheduled):** (a) write-path containment is not
+  enforceable — Cursor has no pre-write hook (only `afterFileEdit`, post-hoc); revisit if Cursor
+  ships a `beforeWriteFile`-style event. (b) `--source cursor` is deliberately NOT wired into the
+  persisted-file miner (Cursor persists no tokens → it would always read zero, the silent-zero trap);
+  wire it only if a live-result-envelope capture path is added. (c) Scriptable hook-trust and the
+  one-workspace-went-quiet robustness edge (a workspace subjected to ~7 rapid differing-hook rewrites
+  went silent; a fresh workspace restored firing) stay OPEN — craft installs one stable manifest, so
+  neither affects production.
+
 ### Closed — won't-do (rationale recorded)
 
 - **DC-9 registered-phase model seed** — *resolved by design, not implemented.* The walk

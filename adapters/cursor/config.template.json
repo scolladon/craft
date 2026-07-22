@@ -1,0 +1,27 @@
+{
+  "_comment": "Template for the project .cursor/ customization tree of the craft Cursor binding. Copy hooks.json to .cursor/hooks.json (validate it parses — a malformed manifest fails OPEN), symlink agents/ and skills/ by reference. CRAFT_ROOT must be exported so the ${CRAFT_ROOT} env-subst in the guard command resolves at runtime.",
+  "hooks": {
+    "version": 1,
+    "hooks": {
+      "beforeShellExecution": [
+        {
+          "command": "node ${CRAFT_ROOT}/adapters/cursor/hooks/craft-guard.js",
+          "failClosed": true
+        }
+      ]
+    }
+  },
+  "install": {
+    "hooksManifest": ".cursor/hooks.json",
+    "agentsDir": ".cursor/agents/",
+    "skillsDir": ".cursor/skills/",
+    "rulesDir": ".cursor/rules/",
+    "loadByReference": "symlink",
+    "requiredEnv": ["CRAFT_ROOT"]
+  },
+  "models": {
+    "opus": "claude-opus-4-8-high",
+    "sonnet": "claude-sonnet-5-high",
+    "haiku": "composer-2.5"
+  }
+}

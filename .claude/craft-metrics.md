@@ -224,3 +224,6 @@ harden-prove-codex-binding implementation tokens=115361 duration_ms=245187 cache
 harden-prove-codex-binding implementation tokens=53144 duration_ms=53836 cache=na
 harden-prove-codex-binding review tokens=92653 duration_ms=224892 cache=na
 harden-prove-codex-binding review tokens=76374 duration_ms=237783 cache=na
+cursor-binding review tokens=60164 duration_ms=170470 cache=na
+cursor-binding review tokens=71813 duration_ms=166122 cache=na
+cursor-binding review tokens=92814 duration_ms=331365 cache=na

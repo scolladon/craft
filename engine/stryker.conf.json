@@ -10,7 +10,8 @@
       "adapters/copilot/test/git-guard-adapter.test.js",
       "adapters/opencode/test/git-guard-adapter.test.js",
       "adapters/opencode/test/git-guard-predicate.test.js",
-      "adapters/pi/test/tool-call-hook.test.js"
+      "adapters/pi/test/tool-call-hook.test.js",
+      "adapters/cursor/test/cursor-guard-adapter.test.js"
     ]
   },
   "mutate": [
@@ -21,7 +22,8 @@
     "adapters/copilot/src/git-guard-adapter.js",
     "adapters/opencode/src/git-guard-adapter.js",
     "adapters/opencode/src/git-guard-predicate.js",
-    "adapters/pi/src/tool-call-hook.js"
+    "adapters/pi/src/tool-call-hook.js",
+    "adapters/cursor/src/cursor-guard-adapter.js"
   ],
   "concurrency": 2,
   "tempDirName": "engine/.stryker-tmp",

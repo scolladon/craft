@@ -24,6 +24,7 @@ const EXPECTED = new Set([
   'docs/adapters/backlog.md',
   'docs/adapters/codex-poc-record.md',
   'docs/adapters/copilot-poc-record.md',
+  'docs/adapters/cursor-poc-record.md',
   'docs/adapters/execution.md',
   'docs/adapters/gate.md',
   'docs/adapters/intention.md',

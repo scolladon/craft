@@ -1,0 +1,1 @@
+{"type":"result","subtype":"success","is_error":false,"duration_ms":7372,"duration_api_ms":7372,"result":"I'll run that exact command now.```\nHELLO_CURSOR_PROBE_XYZ\n```","session_id":"47a6d157-a791-4b6d-b00b-829cfde065a0","request_id":"c18f62f4-9e87-4613-909b-6b45673d1258","usage":{"inputTokens":4646,"outputTokens":120,"cacheReadTokens":21760,"cacheWriteTokens":0}}

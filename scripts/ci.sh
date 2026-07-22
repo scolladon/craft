@@ -54,6 +54,7 @@ run_suite adapters/opencode adapters/opencode/test adapters/opencode
 run_suite adapters/copilot adapters/copilot/test adapters/copilot
 run_suite adapters/codex adapters/codex/test adapters/codex
 run_suite adapters/antigravity adapters/antigravity/test adapters/antigravity
+run_suite adapters/cursor adapters/cursor/test adapters/cursor
 run_suite process test
 
 # run_intention_lint — enumerates the design's zero-config living corpus

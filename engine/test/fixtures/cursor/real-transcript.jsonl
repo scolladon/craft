@@ -1,0 +1,4 @@
+{"role":"user","message":{"content":[{"type":"text","text":"<timestamp>Wednesday, Jul 22, 2026, 5:28 PM (UTC+2)</timestamp>\n<user_query>\nUse the terminal tool to run exactly this one shell command and then stop: echo HELLO_CURSOR_PROBE_XYZ\n</user_query>"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"I'll run that exact command now."},{"type":"tool_use","name":"Shell","input":{"command":"echo HELLO_CURSOR_PROBE_XYZ","description":"Echo cursor probe marker string"}}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"```\nHELLO_CURSOR_PROBE_XYZ\n```"}]}}
+{"type":"turn_ended","status":"success"}

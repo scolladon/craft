@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "node ${CRAFT_ROOT}/adapters/cursor/hooks/craft-guard.js",
+        "failClosed": true
+      }
+    ]
+  }
+}
