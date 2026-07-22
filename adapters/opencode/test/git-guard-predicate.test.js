@@ -12,6 +12,7 @@ const BLOCK_COMMANDS = [
   'git -c k=v show',
   'git --git-dir=.g diff',
   'git --work-tree=. show',
+  'echo --no-ext-diff; git diff HEAD', // a marker in an unrelated segment must not exempt the git call
 ];
 
 const PASS_COMMANDS = [
@@ -66,7 +67,7 @@ describe('gitGuardPredicate() — reason string content on git block', () => {
 });
 
 describe('gitGuardPredicate() — property lens', () => {
-  it('Given any command containing --no-ext-diff, when guarded, then never blocks', () => {
+  it('Given commands whose every git diff/show invocation carries --no-ext-diff (or run no git diff/show), when guarded, then never blocks', () => {
     const sut = gitGuardPredicate;
     const commands = [
       'git diff --no-ext-diff',

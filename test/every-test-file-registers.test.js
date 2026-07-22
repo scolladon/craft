@@ -13,6 +13,7 @@ const SUITE_DIRS = [
   { label: 'adapters/opencode', dir: path.join(ROOT, 'adapters', 'opencode', 'test') },
   { label: 'adapters/copilot', dir: path.join(ROOT, 'adapters', 'copilot', 'test') },
   { label: 'adapters/codex', dir: path.join(ROOT, 'adapters', 'codex', 'test') },
+  { label: 'adapters/antigravity', dir: path.join(ROOT, 'adapters', 'antigravity', 'test') },
   { label: 'process', dir: path.join(ROOT, 'test') },
 ];
 

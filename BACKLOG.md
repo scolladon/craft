@@ -435,6 +435,29 @@ P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2
   under BOTH the Claude and opencode bindings. Pre-existing — not introduced by the opencode port; a one-line
   set addition plus a vocabulary test.
   **Trigger:** someone needs to pin the `requirements-writer` model via a manifest `models.` entry.
+- **Native Google Antigravity binding — two verdicts (2026-07-21).** The fifth binding attempt split
+  in two at Phase 0. **(1) Port-binding adapter (the runnable codex/copilot analog): NO-GO** —
+  **Antigravity 2.3.0 exposes no headless, scriptable, one-turn-and-exit agent invocation with
+  machine-readable output** (the execution port every craft binding is built on). It is a GUI-first
+  product (an Electron "Hub" + a separately-installed VS Code-fork IDE, both driving a Windsurf-lineage
+  `language_server` / "Cascade" engine over a CSRF-protected private localhost RPC; Google-OAuth). Its
+  `HEADLESS` env mode only pipes raw stdin to the LS with a log-line-only stdout — no turn schema. **(2)
+  Customization declination: BUILT** at `adapters/antigravity/`. Antigravity's customization contract is
+  documented and real, so craft's content was packaged onto it, driven by a human in the GUI (the Gemini
+  agent invokes the `craft-run` skill and follows the workflow). Landed + CI-gated: 9 byte-identical role
+  agents, a PreToolUse guard hook keyed on the PINNED payload (`toolCall.args.CommandLine`) that reuses
+  the shared predicate and denies `git diff`/`show` without `--no-ext-diff` while allowing `echo`/`npm
+  test` (both directions; the codex fail-closed-on-everything trap avoided), an entrypoint skill,
+  `plugins/craft/hooks.json`, README + config template. Deny wire is `{"decision":"deny"}` on stdout.
+  Ports with no pinnable contract (execution/launch-args, model-tier map, acceptance probe) were
+  deliberately NOT built. Evidence pinned against the shipped artifact (`app.asar` source,
+  `language_server` strings, one isolated live `--stamp` = `Built at CL: 947215217`,
+  `//depot/branches/agy_ls_release_branch/2.3`). Full record: `docs/adapters/antigravity-poc-record.md`.
+  **Trigger:** (a) a headless agent subcommand with machine-readable turn+tool events, or a documented
+  local-API contract, unblocks the runnable port-binding adapter — re-run the Phase 0 gate first; (b) a
+  GUI session through OAuth can close the declination's OPEN live rows (guard deny fired against a real
+  tool call, `.agents/` load path + `enable-customization-skills`, `${CRAFT_ROOT}` hook env-var
+  expansion, per-sandbox blocking, a captured `transcript.jsonl` token record).
 
 ### Closed — won't-do (rationale recorded)
 
