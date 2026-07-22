@@ -79,3 +79,8 @@ alternate seed.
 `src/model-tier-map.js` maps craft tiers to live-pinned `cursor-agent --list-models` ids:
 `opus → claude-opus-4-8-high`, `sonnet → claude-sonnet-5-high`, `haiku → composer-2.5`
 (Cursor offers no haiku; effort is baked into the model id).
+
+**Plan gate.** On a **Free plan** a named `--model` is rejected live (`ActionRequiredError:
+Named models unavailable. Free plans can only use Auto.`) — only `auto` runs. The ids above
+are correct and accepted on paid plans; on a free plan the model-down → fallback protocol
+degrades every tier to `auto`. Measured live during the Game-of-Life construction proof.
