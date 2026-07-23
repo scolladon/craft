@@ -31,6 +31,7 @@ import { parseLines as opencodeParseLines } from './adapters/opencode/telemetry.
 import { parseLines as piParseLines } from './adapters/pi/telemetry.js';
 import { parseLines as copilotParseLines } from './adapters/copilot/telemetry.js';
 import { parseLines as codexParseLines } from './adapters/codex/telemetry.js';
+import { parseLines as aiderParseLines } from './adapters/aider/telemetry.js';
 import { aggregate, serializeReport, renderMarkdown, DEFAULT_DRIFT_THRESHOLD } from './usage-aggregate.js';
 import { loadPriceTable } from './adapters/claude/pricing.js';
 
@@ -46,6 +47,7 @@ const SOURCES = Object.freeze({
   pi: piParseLines,
   copilot: copilotParseLines,
   codex: codexParseLines,
+  aider: aiderParseLines,
 });
 const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 // C7: source→default-read-root lookup, each entry a thunk so an env-backed
@@ -68,7 +70,32 @@ const DEFAULT_READ_ROOTS = Object.freeze({
   // silent zero-cost report that reads as success. Callers must pass --dir
   // all the way down to the YYYY/MM/DD leaf.
   codex: () => join(process.env.CODEX_HOME || join(homedir(), '.codex'), 'sessions'),
+  // Aider persists .aider.chat.history.md at the git root, which is the
+  // working dir craft runs the CLI in. Same boundary caveat as codex above:
+  // this default assumes cwd IS the git root; a sub-directory cwd needs an
+  // explicit --dir pointing back down at the root.
+  aider: () => process.cwd(),
 });
+
+// C7: source→discovery-filter lookup, mirroring DEFAULT_READ_ROOTS. Sources
+// with no entry fall back to the default .jsonl matcher. Aider's matcher is
+// deliberately an exact-equality check, not a suffix match — the working dir
+// also holds .aider.input.history / .aider.llm.history, which must NOT be
+// picked up as transcripts.
+const SOURCE_FILE_MATCHERS = Object.freeze({
+  aider: (f) => f === '.aider.chat.history.md',
+});
+const DEFAULT_FILE_MATCHER = (f) => f.endsWith('.jsonl');
+
+// Exported as a direct unit-test seam, mirroring resolveDefaultReadRoot.
+// Own-property check: a bare `SOURCE_FILE_MATCHERS[source]` would resolve
+// inherited members (__proto__, constructor, …) to a truthy function and
+// slip past the intended default-matcher fallback.
+export function resolveFileMatcher(source) {
+  return Object.hasOwn(SOURCE_FILE_MATCHERS, source)
+    ? SOURCE_FILE_MATCHERS[source]
+    : DEFAULT_FILE_MATCHER;
+}
 
 // Exported as a direct unit-test seam: resolving the default read root is a
 // pure lookup + thunk-call, testable without touching the real filesystem.
@@ -88,6 +115,9 @@ const INLINE_GAP_NOTE =
 // C7: named constants for the remaining no-op notes.
 const UNCONTAINED_NOTE = 'transcript dir not contained within projects root';
 const ABSENT_NOTE = 'transcript dir absent';
+// Bounded scope: this note stays the literal .jsonl wording even for sources
+// (e.g. aider) whose matcher looks for a different filename — a per-source
+// zero-file note is a cosmetic-only gap, advisory only, and out of scope here.
 const NO_FILES_NOTE = 'no .jsonl transcript files found';
 const NO_EVENTS_NOTE = 'no events provided';
 
@@ -267,10 +297,10 @@ export async function main(argv, io) {
   const safeTranscriptDir = containByRealpath(projectsRoot, transcriptDir);
   if (!safeTranscriptDir) { writeNoOp(UNCONTAINED_NOTE); return EXIT_OK; }
 
-  // Discover .jsonl files in the contained transcript dir.
+  // Discover transcript files in the contained dir, per the source's matcher.
   let jsonlFiles;
   try {
-    jsonlFiles = readdirSync(safeTranscriptDir).filter(f => f.endsWith('.jsonl'));
+    jsonlFiles = readdirSync(safeTranscriptDir).filter(resolveFileMatcher(source));
   } catch (e) {
     const note = e.code === 'ENOENT'
       ? ABSENT_NOTE

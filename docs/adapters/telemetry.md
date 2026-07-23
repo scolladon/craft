@@ -31,7 +31,7 @@ subjects: ['engine/src/observability/**']
 
 ## Binding set
 
-The valid bindings are **`{ claude, pi, opencode, copilot, codex }`**.
+The valid bindings are **`{ claude, pi, opencode, copilot, codex, aider }`**.
 
 ## Claude binding
 
@@ -178,6 +178,33 @@ Selected via `--source codex` on the `usage-mine` front-door
 under that path** — this Codex binding lands inside that scope, so refreshing this section is
 this change's own living-intention obligation, not an optional add-on.
 
+## Aider binding
+
+`engine/src/observability/adapters/aider/telemetry.js` — the persisted **markdown** transcript
+binding for `.aider.chat.history.md`, written at the git root:
+
+- **No live JSON stream**: Aider emits no live JSON stream and no structured usage envelope at
+  all, unlike the codex/copilot bindings — the persisted `.aider.chat.history.md` markdown
+  transcript IS the record; there is nothing else to parse.
+- **Token-bearing line**: the parser scans for `> Tokens: <sent> sent, <received> received.`. A
+  paid-provider run appends a `Cost: …` clause to the same line; the match carries no end anchor,
+  so the clause is present but ignored.
+- **Token convention**: `sent` maps to `input`, `received` maps to `output`. Aider reports no
+  cache figures at all, so `cacheRead`/`cacheCreation` are always `0` — a SUBSET-style mapping
+  where the two cache fields are simply absent, in contrast to codex's capped `cacheRead` and
+  cursor's disjoint counts.
+- **Model / session id**: the held `> Model:` header stamps the model onto every event emitted
+  afterward. Aider transcripts carry no session id at all, so `run` is always `null`.
+- **Counted skip, never silent-zero**: a `> Tokens:` line that does not yield two integers (a
+  `k`/`M`/comma large-count form, or the unpinned `Cost:`-only form) is a counted skip — never a
+  silent-zero event.
+- **Pinned against a real session**: the parser is pinned against a real captured transcript
+  fixture, `engine/test/fixtures/aider/real-session.md` (`781 sent, 19 received`).
+
+Selected via `--source aider` on the `usage-mine` front-door
+(`engine/src/observability/usage-mine-main.js`), discovering `.aider.chat.history.md` via the
+per-source file matcher.
+
 ## Failure semantics
 
 **Telemetry is advisory. It never gates a run.**
@@ -195,7 +222,7 @@ this change's own living-intention obligation, not an optional add-on.
   `DEFAULT_DRIFT_THRESHOLD` (`0.25`) rather than erroring.
 - **Config errors** (unknown binding, missing required opt) are caught at startup by the CLI
   validator and surfaced as a non-zero exit before any I/O begins — the same pattern as other
-  adapter specs. `--source` accepts `claude` (default), `opencode`, `pi`, `copilot`, or `codex`;
+  adapter specs. `--source` accepts `claude` (default), `opencode`, `pi`, `copilot`, `codex`, or `aider`;
   any other value is rejected at startup with a targeted stderr message and a non-zero exit — the
   one deliberate exception to the miner's otherwise-always-0 advisory contract.
 

@@ -20,6 +20,7 @@ const EXPECTED = new Set([
   'docs/DESIGN-shrink-core-prune-guardrails.md',
   'docs/DOD.md',
   'docs/GUIDE-customizing.md',
+  'docs/adapters/aider-poc-record.md',
   'docs/adapters/antigravity-poc-record.md',
   'docs/adapters/backlog.md',
   'docs/adapters/codex-poc-record.md',

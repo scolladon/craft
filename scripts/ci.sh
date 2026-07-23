@@ -55,6 +55,8 @@ run_suite adapters/copilot adapters/copilot/test adapters/copilot
 run_suite adapters/codex adapters/codex/test adapters/codex
 run_suite adapters/antigravity adapters/antigravity/test adapters/antigravity
 run_suite adapters/cursor adapters/cursor/test adapters/cursor
+# adapters/aider is fully injected — no test spawns a real aider binary.
+run_suite adapters/aider adapters/aider/test adapters/aider
 run_suite process test
 
 # run_intention_lint — enumerates the design's zero-config living corpus

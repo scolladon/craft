@@ -175,6 +175,28 @@ Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `do
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-07-23 — follow-ups surfaced by the aider binding, not yet scheduled)
+
+**Per-source zero-files note in the usage miner.** `usage-mine-main.js`'s `NO_FILES_NOTE`
+is the hardcoded literal `no .jsonl transcript files found`, emitted verbatim under every
+`--source` — including `--source aider`, whose transcript is `.aider.chat.history.md`, not
+`.jsonl`. An operator debugging an empty aider mine sees a factually wrong filename. Cosmetic
+and advisory-only (a zero-file mine already yields an empty report cleanly), so it was left out
+of the aider binding's scope; the existing exact-string test pins the note for the claude/default
+source. Follow-up: derive the zero-file note wording from the resolved per-source matcher (mirror
+the `resolveFileMatcher`/`DEFAULT_READ_ROOTS` per-source seam) rather than the `.jsonl` literal.
+
+**`--file` editable-targets surface in launch-args for edit-phases.** `buildLaunchArgs`
+emits `--read` (read-only role/context) + `--message` but no `--file` (editable target), so an
+incremental EDIT to an existing file relies on Aider auto-adding the target to the chat. A
+full-pipeline dogfood (craft orchestrator driving Aider per-part to build Game of Life) confirmed
+Aider reliably *creates* files but an edit-to-existing-file was unreliable — a weak local model
+no-op'd on the edit even with `--file` spliced in (so a capable model is also required; the
+missing `--file` surface is necessary-not-sufficient). Follow-up: add an optional editable-targets
+parameter to `buildLaunchArgs` that emits one `--file <path>` per touched file for edit-phases,
+keeping `--read` for role/context only. See the full-pipeline row in
+`docs/adapters/aider-poc-record.md`.
+
 ### Open (scoped 2026-07-20 — follow-ups surfaced by the copilot binding, not yet scheduled)
 
 **Lift the binding-neutral guard predicate to a shared home — delivered 2026-07-20**
@@ -487,6 +509,24 @@ P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2
   one-workspace-went-quiet robustness edge (a workspace subjected to ~7 rapid differing-hook rewrites
   went silent; a fresh workspace restored firing) stay OPEN — craft installs one stable manifest, so
   neither affects production.
+
+- **Native Aider binding — two verdicts (2026-07-23).** The seventh binding attempt. Aider is
+  architecturally unlike its general-agent siblings: a focused edit loop, not a tool-calling agent
+  a hook can intercept. **(1) Execution binding — GO.** A runnable adapter is built at
+  `adapters/aider/`: role agents, a model-tier map, launch-args, first-class VCS posture (Aider
+  auto-commits internally; the adapter resets on a red gate rather than trusting the exit code), an
+  acceptance probe, and telemetry wired into the usage miner via `--source aider`. Measured pins:
+  **exit code is NOT a success signal** (a hard LLM API error still exits `0` with no commit — the
+  commit landing is the real result signal, and the commit is the handoff); the shell surface runs
+  **unsandboxed**; the shared git-ext-diff predicate is **MOOT** (Aider drives git internally via
+  GitPython, never shells `git diff`); auth is **env/file, not keychain** (litellm reads
+  `ANTHROPIC_API_KEY`/`OPENAI_API_KEY` from the process env — the Cursor keychain lesson does not
+  transfer); attribution is disabled, so commits stay one-line conventional. **(2) Guard binding —
+  NO-GO (declined honestly).** Aider ships no deny-capable pre-execution hook anywhere in its
+  complete argparse surface — `--yes-always` auto-approves rather than gating, and Aider commits
+  with `--no-verify` by default, bypassing even git's own pre-commit hook. No guard is built; the
+  copilot/antigravity precedent applies. Full record: `docs/adapters/aider-poc-record.md`.
+  **Trigger:** Aider ships a pre-tool deny-capable hook — re-run the Phase 0 guard gate.
 
 ### Closed — won't-do (rationale recorded)
 

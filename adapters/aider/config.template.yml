@@ -1,0 +1,37 @@
+# Template for a project .aider.conf.yml — the craft Aider binding's stable posture.
+# Aider searches git-root -> cwd -> home for this file. CLI wins over this file, which
+# wins over env (AIDER_*) (CLI > env > config) — the launch-args posture (src/launch-args.js)
+# repeats the non-interactivity/telemetry flags on the CLI so a stray edit here cannot
+# silently soften a headless run.
+#
+# Copy this file to <git-root>/.aider.conf.yml, or point --config at it directly.
+
+# Non-interactive + telemetry posture. yes-always is REQUIRED: without it a headless run
+# in a git repo blocks on the "Add .aider* to .gitignore?" prompt and crashes on
+# non-terminal stdin.
+yes-always: true
+gitignore: false
+check-update: false
+show-release-notes: false
+analytics: false
+
+# VCS posture (first-class — this binding's src/vcs-posture.js). auto-commits keeps
+# Aider's commit as the handoff; no-dirty-commits gives a deterministic one-commit-per-turn
+# artifact; attribution is disabled so commits stay one-line-conventional.
+auto-commits: true
+dirty-commits: false
+attribute-author: false
+attribute-committer: false
+attribute-co-authored-by: false
+
+# Read-only context injected into every chat — the role body for the phase in play is
+# added per invocation via --read; CONVENTIONS.md rides here as the standing convention.
+read: [CONVENTIONS.md]
+
+# Model tiers — live-pinned anthropic/ ids (docs/adapters/aider-poc-record.md
+# --list-models catalogue). Aider bakes no effort into the id; reasoning effort is the
+# separate --reasoning-effort flag.
+models:
+  opus: anthropic/claude-opus-4-6
+  sonnet: anthropic/claude-sonnet-4-6
+  haiku: anthropic/claude-haiku-4-5

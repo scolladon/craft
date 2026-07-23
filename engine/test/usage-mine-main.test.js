@@ -20,7 +20,7 @@ import { createInterface } from 'node:readline';
 import { join, dirname } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { main, resolveDefaultReadRoot } from '../src/observability/usage-mine-main.js';
+import { main, resolveDefaultReadRoot, resolveFileMatcher } from '../src/observability/usage-mine-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
 import { serializeReport } from '../src/observability/usage-aggregate.js';
@@ -33,6 +33,8 @@ const COPILOT_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'copilot');
 const COPILOT_OTEL_ENV_VAR = 'COPILOT_OTEL_FILE_EXPORTER_PATH';
 const CODEX_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'codex');
 const CODEX_HOME_ENV_VAR = 'CODEX_HOME';
+const AIDER_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'aider');
+const AIDER_HISTORY_FILENAME = '.aider.chat.history.md';
 
 // A valid rollup JSONL line (matches single-rollup.jsonl fixture structure).
 const ROLLUP_LINE = JSON.stringify({
@@ -1199,5 +1201,131 @@ test('Given an unknown --source value, when main runs, then the expected-source 
   assert.ok(
     io.stderr.joined().includes('codex'),
     `stderr must name codex among the expected sources; got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── --source aider — routing, read-root thunk, file matcher, unknown-source listing ──
+
+function makeAiderTranscriptDir() {
+  const transcriptDir = makeTmp('aider-project-');
+  const historyContent = readFileSync(join(AIDER_FIXTURE_DIR, 'real-session.md'), 'utf8');
+  writeFileSync(join(transcriptDir, AIDER_HISTORY_FILENAME), historyContent, 'utf8');
+  return transcriptDir;
+}
+
+test('Given --source aider, when main runs, then it is accepted rather than rejected as a config error', async () => {
+  const sut = main;
+  const transcriptDir = makeAiderTranscriptDir();
+  const projectsRoot = dirname(transcriptDir);
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--source', 'aider', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `--source aider must be accepted, not rejected as a config error; stderr: ${io.stderr.joined()}`);
+});
+
+test('Given --source aider over a real-session fixture, when main runs, then the written report carries the session\'s tokens', async () => {
+  const sut = main;
+  const transcriptDir = makeAiderTranscriptDir();
+  const projectsRoot = dirname(transcriptDir);
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--source', 'aider', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.ok(report.runs.length > 0, 'aider fixture must produce at least one run');
+  const tokens = report.runs.flatMap(r => r.groups).map(g => g.tokens);
+  assert.ok(
+    tokens.some(t => t.input === 781 && t.output === 19),
+    `report must reflect the aider-parsed session's token totals; got: ${JSON.stringify(tokens)}`,
+  );
+});
+
+test('Given source aider, when resolveDefaultReadRoot runs, then it resolves to process.cwd()', () => {
+  const sut = resolveDefaultReadRoot;
+
+  const result = sut('aider');
+
+  assert.equal(result, process.cwd());
+});
+
+test('Given an unknown --source value, when main runs, then the expected-source list names aider', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--source', 'nope', '--dir', transcriptDir], io);
+
+  assert.ok(
+    io.stderr.joined().includes('aider'),
+    `stderr must name aider among the expected sources; got: ${io.stderr.joined()}`,
+  );
+});
+
+// ─── resolveFileMatcher — per-source discovery filter ────────────────────────
+
+test('Given source aider, when resolveFileMatcher runs, then the matcher accepts the exact aider history filename', () => {
+  const sut = resolveFileMatcher;
+
+  const matcher = sut('aider');
+
+  assert.equal(matcher('.aider.chat.history.md'), true);
+});
+
+test('Given source aider, when resolveFileMatcher runs, then the matcher rejects a .jsonl filename', () => {
+  const sut = resolveFileMatcher;
+
+  const matcher = sut('aider');
+
+  assert.equal(matcher('x.jsonl'), false);
+});
+
+test('Given source claude, when resolveFileMatcher runs, then the matcher accepts a .jsonl filename', () => {
+  const sut = resolveFileMatcher;
+
+  const matcher = sut('claude');
+
+  assert.equal(matcher('x.jsonl'), true);
+});
+
+test('Given the inherited-member source "constructor", when resolveFileMatcher runs, then it falls back to the default .jsonl matcher rather than resolving an inherited member', () => {
+  const sut = resolveFileMatcher;
+
+  const matcher = sut('constructor');
+
+  assert.equal(matcher('x.jsonl'), true);
+  assert.equal(matcher('.aider.chat.history.md'), false);
+});
+
+test('Given a mixed transcript dir with both the aider history file and a stray .jsonl file, when main runs with --source aider, then only the aider history file is discovered', async () => {
+  const sut = main;
+  const transcriptDir = makeAiderTranscriptDir();
+  // The stray must be a .jsonl the aider markdown parser WOULD emit an event for IF
+  // it were (wrongly) discovered — so give it a distinguishable aider token line.
+  // A codex-shaped JSON rollup would yield zero aider events regardless of the
+  // matcher, making the exclusion property untestable (the vacuous-assertion trap).
+  writeFileSync(join(transcriptDir, 'stray.jsonl'), '> Tokens: 4242 sent, 7 received.\n', 'utf8');
+  const projectsRoot = dirname(transcriptDir);
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--source', 'aider', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const tokens = report.runs.flatMap(r => r.groups).map(g => g.tokens);
+  // Over-discovery (matcher reverting to the default .jsonl filter) would surface the
+  // stray's distinguishable 4242 input — the exact-basename aider matcher must exclude it.
+  assert.ok(
+    tokens.every(t => t.input !== 4242),
+    `the stray .jsonl must not be discovered under --source aider; got: ${JSON.stringify(tokens)}`,
+  );
+  assert.ok(
+    tokens.some(t => t.input === 781 && t.output === 19),
+    `report must still reflect the aider history file's tokens; got: ${JSON.stringify(tokens)}`,
   );
 });
