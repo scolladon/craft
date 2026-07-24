@@ -19,6 +19,7 @@ const EXPECTED = new Set([
   'docs/DESIGN-portable-named-configs.md',
   'docs/DESIGN-shrink-core-prune-guardrails.md',
   'docs/DOD.md',
+  'docs/GUIDE-concepts.md',
   'docs/GUIDE-customizing.md',
   'docs/adapters/aider-poc-record.md',
   'docs/adapters/antigravity-poc-record.md',

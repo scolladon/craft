@@ -116,8 +116,8 @@ test(
       // names the backlog tracker id — a tracker name, not a VCS-host CLI reference.
       /engine\/src\/manifest\.js:[0-9]+:.*github-issues/,
       // docs/GUIDE-customizing.md 'file / gh /': the Backlog-axis label in the
-      // hexagon diagram (line 58) — explicitly kept (Backlog port, out of scope
-      // per Part 9 plan note).
+      // hexagon diagram — explicitly kept (Backlog port, out of scope per Part 9
+      // plan note); the regex is deliberately line-agnostic.
       /docs\/GUIDE-customizing\.md:[0-9]+:.*file \/ gh \//,
       // engine/src/observability/adapters/copilot/telemetry.js: the OTel
       // instrumentation-scope name is the protocol-level discriminator that

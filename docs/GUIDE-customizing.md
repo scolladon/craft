@@ -12,6 +12,9 @@
 
 ## 1. The mental model (five minutes)
 
+This page is task-oriented — how you customize craft. For the orientation-level *why*
+behind these mechanisms, see [GUIDE-concepts.md](GUIDE-concepts.md).
+
 ### A run is a pipeline of phases
 
 A **run** is a pipeline of phases; each phase is one software-engineering activity. The default,
@@ -264,6 +267,10 @@ reaches the invariant core (§2).
 - **Not injectable:** the invariant core (§2). Changing it is an engine change.
 
 ### Precedence — when two settings touch the same knob
+
+The four-layer story — engine defaults < user scope < project manifest < per-invocation
+flags — is stated once in [GUIDE-concepts.md](GUIDE-concepts.md) Frame 3; what follows is
+the exact per-knob fold order underneath it.
 
 - **Execution:** `phases.<id>.execution` > `pipeline.profile` > top-level `execution:`.
 - **Model:** manifest `models.<agent>` > the agent's pin > `models.fallback` > the session model.

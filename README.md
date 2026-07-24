@@ -22,6 +22,11 @@ layer you install — not a hosted SaaS.
 - **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. Seven native bindings under `adapters/` drive the same engine core on non-Claude runtimes, proving the ports are pluggable — see the bindings table under [Layout](#layout).
 - **Bounded long-running work** — git-worktree isolation + parted TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
 
+Recognize any of these? [docs/GUIDE-concepts.md](docs/GUIDE-concepts.md) maps craft's
+mechanisms onto four frames people already use for agentic delivery — Karpathy's
+*write-the-loop*, Böckeler's harness taxonomy, config layers, and Osmani's inner/outer
+loop + the Verdict — so the shape above reads as familiar, not new.
+
 ## Install
 
 ```bash
