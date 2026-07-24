@@ -75,7 +75,9 @@ craft is built **hexagonally**. This is the whole model:
 - **Adapter (you don't touch this)** — the binding of those ports to concrete Claude Code primitives
   (Task subagents, the model param, Bash + PreToolUse hooks, VCS host CLI / git, the Skill tool). **craft *is*
   the Claude Code adapter today.** Code-access is the deliberate exception: it is environment-sourced
-  (your LSP/RAG/RTK/Serena/native tools), never bound by the adapter.
+  (your LSP/RAG/RTK/Serena/native tools), never bound by the adapter. Seven native bindings under
+  `adapters/` (pi, opencode, copilot, codex, cursor, aider, antigravity) re-bind the same ports to
+  other runtimes — proof the seams are real; see the bindings table in the [README](../README.md#layout).
 
 **The whole catalog below is just "configure or swap a port."** Customizing = answering a few
 questions per phase: *does it run? · which agent/model? · inline or subagent? · which harness config?

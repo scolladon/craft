@@ -19,7 +19,7 @@ layer you install — not a hosted SaaS.
 - **Manage intention debt** — ADRs and user-ratified decision candidates capture *why* every load-bearing choice was made.
 - **Formalize the architecture harness with its own lifecycle** — a standalone `architecture` phase (probe → run → triage violations → gate the PR), default-off, enabled by one manifest line. Uses executing-harnesses (techniques declared per repo).
 - **Formalize engineering harnesses with their own lifecycles** — `review` (dimensions / passes / convergence) and `validation` are first-class AI harnesses with their own config and gates. Both are executing-harnesses (techniques declared per repo).
-- **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. `adapters/pi/` (the `craft-pi` bin) drives the same engine core on a non-Claude runtime, proving the Execution port is pluggable (portability proof; on-demand, not CI-gated). `adapters/opencode/` is a peer binding: a native opencode packaging of craft (commands + subagents + a git-guard plugin + `opencode.json`) driving the same engine core — the native-interactive binding, vs pi's headless subprocess proof (on-demand live smoke, not CI-gated).
+- **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. Seven native bindings under `adapters/` drive the same engine core on non-Claude runtimes, proving the ports are pluggable — see the bindings table under [Layout](#layout).
 - **Bounded long-running work** — git-worktree isolation + parted TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
 
 ## Install
@@ -81,18 +81,19 @@ and refuses to run on unknown keys — misconfiguration fails loudly.
   the corrected command (`--no-verify` is the consumer's discretion — craft does not block it)
 - `scripts/` — worktree setup/teardown (validation run-lock aware), manifest lint, plan lint
 - `templates/` — design / plan (defines the part schema plan-lint enforces) / ADR
-- `adapters/pi/` — reference Pi adapter: a separate `craft-pi` entrypoint that drives the full 11-phase walk on a non-Claude runtime via the engine's ports (the HaaS portability proof; on-demand, not CI-gated)
-- `adapters/opencode/` — native opencode adapter: `commands/`, `agents/` subagents, a `plugins/git-guard.ts` guard, and `opencode.json`, driving the same engine core via opencode's native subagent dispatch (the native-interactive binding; on-demand live smoke, not CI-gated)
-- `adapters/copilot/` — native Copilot CLI plugin adapter: local `agents/`, `hooks/`, and
-  `commands/`, loaded alongside the shared craft `skills/` at the repository root via two
-  repeatable `--plugin-dir` flags; the three-layer guard (native path containment and
-  `--deny-tool` enforce, the `preToolUse` hook is an observational audit trail) drives the same
-  engine core via Copilot's native subagent dispatch (on-demand, not CI-gated)
-- `adapters/codex/` — native OpenAI Codex CLI binding: a local marketplace with two plugin
-  entries (the shared craft `skills/` by reference, plus the adapter's own `hooks/`/`agents/`),
-  a **denying** PreToolUse guard hook (exit code 2 genuinely blocks the call), execpolicy rules as
-  defence-in-depth, driving the same engine core via `multi_agent_v1` subagent dispatch
-  (on-demand, not CI-gated)
+- `adapters/<tool>/` — native bindings of the same engine core on non-Claude runtimes.
+  Each has its own README plus a live contract-discovery record in
+  `docs/adapters/<tool>-poc-record.md`; all proofs are on-demand, not CI-gated.
+
+| Binding | Kind | Guard posture |
+|---|---|---|
+| [`pi`](adapters/pi/) | headless subprocess — the `craft-pi` bin drives the full 11-phase walk (the original HaaS portability proof) | `tool_call` predicate + gate-command wrapper |
+| [`opencode`](adapters/opencode/) | native-interactive — commands + subagents + `opencode.json` via opencode's own subagent dispatch | enforcing `tool.execute.before` plugin |
+| [`copilot`](adapters/copilot/) | native plugin — local `agents`/`hooks`/`commands` + shared craft `skills/` via two `--plugin-dir` flags | path containment + `--deny-tool` enforce; the `preToolUse` hook is an observational audit trail |
+| [`codex`](adapters/codex/) | local marketplace (shared `skills/` by reference) via `multi_agent_v1` subagent dispatch | **denying** PreToolUse hook (exit 2 genuinely blocks) + execpolicy defence-in-depth |
+| [`cursor`](adapters/cursor/) | headless one-turn agent (`cursor-agent -p`), live-proven incl. a full construction run | enforcing `beforeShellExecution` deny — `failClosed: true` is load-bearing |
+| [`aider`](adapters/aider/) | headless edit loop — the auto-commit is the handoff (exit code is not the success signal); execution GO | **NO-GO** — no deny-capable pre-execution surface exists; declined honestly |
+| [`antigravity`](adapters/antigravity/) | customization declination — **not** a runnable port binding (no headless execution port); human-driven in the GUI | shipped but pinned from docs, not live-verified |
 
 ## Design provenance
 

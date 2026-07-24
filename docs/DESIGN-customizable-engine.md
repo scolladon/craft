@@ -105,8 +105,9 @@ artifacts and hold the boundary as a **design discipline**, not a type system:
   the *policy*; the port exposes only *mechanism*.
 - **Adapter** = the binding of those operations to concrete Claude Code primitives (Task,
   Bash, PreToolUse hooks, `gh`/git CLI, the per-invocation model param, the Skill tool). Today
-  **craft *is* the Claude Code adapter.** Additional adapters (P16 — Pi, opencode) re-bind the
-  same operations — out of scope here; we only fix the boundary so they *can*.
+  **craft *is* the Claude Code adapter.** Additional adapters re-bind the same operations
+  (P16 shipped Pi and opencode; copilot, codex, cursor, aider, and antigravity followed) —
+  out of scope here; we only fix the boundary so they *can*.
 
 The payoff is twofold and concrete: (1) **testability** — the deterministic operations
 (parse/resolve/validate/assemble) live in the portable Node core module (ADR-002) that P1
@@ -161,7 +162,13 @@ opencode binding under `adapters/opencode/` re-binds Execution and Model against
 subagent dispatch and tier→`provider/model` map, supplying its own guard (a
 `tool.execute.before` plugin, since opencode's `permission.bash` cannot express "flag absent").
 Both adapters' deterministic seams are unit-tested; each has an on-demand, non-CI-gated live
-smoke (`docs/adapters/pi-poc-record.md`, `docs/adapters/opencode-poc-record.md`). Execution and
+smoke (`docs/adapters/pi-poc-record.md`, `docs/adapters/opencode-poc-record.md`). Five further
+native bindings followed the same recipe after P16 — copilot, codex, and cursor as enforcing
+port bindings; aider as an execution-only binding (guard honestly declined — Aider exposes no
+deny-capable pre-execution surface); antigravity as a customization declination (no headless
+execution port exists to bind). Each keeps the discipline: deterministic seams unit-tested, a
+live contract-discovery record under `docs/adapters/<tool>-poc-record.md`, never CI-gated.
+Execution and
 Model are documented seams, not executable port-interface modules in `engine/src` — the
 realised hexagon stays *policy text + data + portable Node core*, proven portable by each
 adapter actually binding it.
