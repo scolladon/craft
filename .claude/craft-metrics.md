@@ -243,3 +243,15 @@ native-aider-binding review-tests tokens=110771 duration_ms=316837 cache=na
 native-aider-binding review-perf tokens=51716 duration_ms=64856 cache=na
 native-aider-binding validation tokens=70094 duration_ms=132000 cache=na
 native-aider-binding documentation tokens=86572 duration_ms=124267 cache=na
+communication-revamp-four-frames design tokens=124955 duration_ms=364445 cache=na
+communication-revamp-four-frames planning tokens=131247 duration_ms=632065 cache=na
+communication-revamp-four-frames implementation-part1 tokens=123657 duration_ms=417503 cache=na
+communication-revamp-four-frames implementation-part2 tokens=63400 duration_ms=57874 cache=na
+communication-revamp-four-frames implementation-part3 tokens=88737 duration_ms=203261 cache=na
+communication-revamp-four-frames review-code tokens=95929 duration_ms=327850 cache=na
+communication-revamp-four-frames review-security tokens=57513 duration_ms=117236 cache=na
+communication-revamp-four-frames review-tests tokens=71915 duration_ms=233188 cache=na
+communication-revamp-four-frames review-perf tokens=50711 duration_ms=114072 cache=na
+communication-revamp-four-frames implementation-diagrams tokens=93463 duration_ms=310627 cache=na
+communication-revamp-four-frames review-scoped-diagrams tokens=75317 duration_ms=258064 cache=na
+communication-revamp-four-frames review-fix-delta tokens=59581 duration_ms=170370 cache=na

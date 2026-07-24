@@ -233,6 +233,24 @@ findings:
       run: native-copilot-binding
       commit: 27e9c72
       date: '2026-07-20'
+  - concern: findings
+    file: docs/GUIDE-concepts.md
+    severity: medium
+    pattern: hand-drawn ASCII box diagrams ship ragged right borders invisible while editing; generate them with a fixed-width padding builder and verify column-constant edges in DISPLAY columns (box glyphs are 3-byte UTF-8, so byte-length checks false-alarm) before committing
+    confidence: 0.7
+    provenance:
+      run: communication-revamp-four-frames
+      commit: 10a1ecf
+      date: '2026-07-24'
+  - concern: findings
+    file: test/source-hygiene.test.js
+    severity: low
+    pattern: allowlist comments that hardcode a line number re-stale on unrelated prose edits to the scanned file — keep allowlist comments line-agnostic to match the deliberately line-agnostic regex
+    confidence: 0.6
+    provenance:
+      run: communication-revamp-four-frames
+      commit: 10a1ecf
+      date: '2026-07-24'
 part-sizing:
   - concern: part-sizing
     size: pure-module
@@ -380,6 +398,8 @@ part-sizing:
 - engine/bin (shim convention) — confidence 0.7 | 5451144 (engine bins are 5-line shims over engine/src/<name>-main.js; put bin logic in engine/src so Stryker covers it — mutate scope is engine/src/** ONLY, bin files are never mutated; bin spawn-smoke tests belong in engine/test/<name>.bin.test.js. Do NOT relocate a bin's tests to repo-root test/ on a mutation-coverage rationale — that argument is void since bins aren't mutated.)
 - adapters/pi/src/tool-call-hook.js — confidence 0.7 | bb8d2cd (a field-bridge that prefers the guard's INSPECTED field over the field the tool EXECUTES on lets a decoy mask an escape; pi writes `path`, so bridge `path`→file_path unconditionally; only map the tool names the shared predicate branches on — inert casing entries are dead code)
 - adapters/pi/test/cli.test.js — confidence 0.8 | bb8d2cd (spawns the REAL pi via spawnSync, written for CI where pi is ABSENT → main exits 2 fast; in a dev sandbox with pi installed the spawn does slow provider work and the pi suite / ci.sh hangs tens of minutes — prepend a fast-failing `pi` stub (`exit 2`) to PATH to reproduce CI; node/npx stay real)
+- docs/GUIDE-concepts.md — confidence 0.7 | 10a1ecf (hand-drawn ASCII diagrams ship ragged borders; generate via fixed-width padding builder, verify column-constant edges in display columns not bytes)
+- test/source-hygiene.test.js — confidence 0.6 | 10a1ecf (allowlist comments hardcoding line numbers re-stale on unrelated prose edits; keep them line-agnostic like the regex)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1
