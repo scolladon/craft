@@ -128,6 +128,10 @@ test(
       // discriminator the copilot binding matches on — a vendor identifier documented at
       // the telemetry port, not a host-CLI reference.
       /\/docs\/adapters\/telemetry\.md:[0-9]+:.*github\.copilot/,
+      // README.md public front door: the project's own canonical repo URL (install
+      // command, CI badge) is a pinned public address, not a VCS-host CLI reference.
+      // A bare `gh`/`github` prose token in the README still trips this gate.
+      /README\.md:[0-9]+:.*github\.com\/scolladon\/craft/,
     ]);
     assert.strictEqual(
       offenders.length,
