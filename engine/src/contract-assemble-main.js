@@ -89,8 +89,10 @@ function loadFragments(contractsDir) {
 function readDescriptorJson(source, io) {
   let text;
   try {
+    // fd 0, not '/dev/stdin': the device path is ENXIO on Linux CI runners
+    // when stdin is a pipe; the raw descriptor reads the same bytes portably.
     text = source === '-'
-      ? readFileSync('/dev/stdin', 'utf8')
+      ? readFileSync(0, 'utf8')
       : readFileSync(source, 'utf8');
   } catch (err) {
     io.stderr.write(`contract-assemble: failed to read --descriptor-json: ${err.message}\n`);
