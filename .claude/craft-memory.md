@@ -251,6 +251,24 @@ findings:
       run: communication-revamp-four-frames
       commit: 10a1ecf
       date: '2026-07-24'
+  - concern: findings
+    file: test/source-hygiene.test.js
+    severity: medium
+    pattern: the hygiene allowlist filters per grep LINE — a multi-line survivor-proof comment whose continuation line carries a banned token without the allowlist phrase trips the gate; keep banned tokens on the phrase-bearing line or reword continuations
+    confidence: 0.5
+    provenance:
+      run: readme-drift-guards
+      commit: b63c79c
+      date: '2026-07-25'
+  - concern: findings
+    file: engine/src/contract-assemble-main.js
+    severity: medium
+    pattern: read piped stdin via fd 0, never the /dev/stdin device path — ENXIO on Linux CI runners while green on macOS; device-path I/O is a local-green-runner-red class, verify on the runner
+    confidence: 0.5
+    provenance:
+      run: readme-drift-guards
+      commit: b63c79c
+      date: '2026-07-25'
 part-sizing:
   - concern: part-sizing
     size: pure-module
