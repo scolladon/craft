@@ -175,6 +175,23 @@ Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `do
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-07-25 — follow-ups surfaced by the readme-drift-guards run, not yet scheduled)
+
+**Scripted, CI-regenerable README demo.** A committed terminal-recording tape (e.g. a
+charmbracelet/vhs script) that renders the decisions-checkpoint moment of a run into the
+README's hero GIF deterministically — the demo is code, regenerated after UI changes with one
+command, never a stale hand-recorded capture. Needs a live run to record against; pairs with
+the drift-guard ethos (`docs/design/readme-drift-guards.md`): a demo that can be regenerated is
+a demo that can be gated.
+
+**Public front-door completion set.** The remaining world-class-README items scoped during the
+2026-07-25 README revamp, each small but distinct: an honest comparison table vs adjacent
+approaches (spec-driven kits, plain agent prompting); a devcontainer + cloud-IDE badge making
+"try craft in 2 minutes" literal; community scaffolding (CONTRIBUTING.md with the local
+`scripts/ci.sh` loop, SECURITY.md, issue templates incl. an adapter-request form); release
+discipline (CHANGELOG, tagged releases, marketplace-version badge) so `plugin.json`'s version
+stops being the only maturity signal.
+
 ### Open (scoped 2026-07-23 — follow-ups surfaced by the aider binding, not yet scheduled)
 
 **Per-source zero-files note in the usage miner.** `usage-mine-main.js`'s `NO_FILES_NOTE`

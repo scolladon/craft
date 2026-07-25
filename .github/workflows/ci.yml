@@ -34,6 +34,21 @@ jobs:
       - name: Substrate gate
         run: bash scripts/ci.sh
 
+  readme-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: engine/package-lock.json
+      # The guard's only runtime dependency is js-yaml — skip the dev toolchain.
+      - name: Install engine dependencies
+        run: cd engine && npm ci --omit=dev
+      - name: README drift guard
+        run: bash scripts/readme-drift.sh
+
   links:
     runs-on: ubuntu-latest
     steps:
