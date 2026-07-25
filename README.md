@@ -124,7 +124,7 @@ The README itself is gated: its example config, pipeline diagram, and cost numbe
 are recomputed and checked in CI by [`scripts/readme-drift.sh`](scripts/readme-drift.sh),
 so these claims can't silently drift out of sync.
 
-Current status: `v0.2.0`. The engine and Claude Code plugin are dogfooded daily; the
+Current status: `v1.0.0`. The engine and Claude Code plugin are dogfooded daily; the
 seven adapter bindings are portability proofs, not supported products. The roadmap is
 the [BACKLOG](BACKLOG.md), maintained by craft's own documentation phase.
 
