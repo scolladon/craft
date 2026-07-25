@@ -35,6 +35,19 @@ const CLASS_B_PATTERN = '\\bgh\\b|\\bgithub\\b';
 const VENDOR_SUFFIXES = ['claude', 'anthropic', 'openai', 'gemini'];
 const CLASS_C_PATTERN = new RegExp(`-(${VENDOR_SUFFIXES.join('|')})\\.(js|ts)$`);
 
+// README.md public front door: the project's own canonical repo URL (install
+// command, CI badge) is a pinned public address, not a VCS-host CLI reference.
+// The filter excuses ONLY the URL token: it strips every canonical-URL
+// occurrence and re-scans the residue, so a bare `gh`/`github` co-located on
+// the same README line still trips the gate.
+const README_CANONICAL_URL = 'github.com/scolladon/craft';
+const readmeCanonicalUrlOnlyFilter = {
+  test: (line) =>
+    /README\.md:[0-9]+:/.test(line) &&
+    line.includes(README_CANONICAL_URL) &&
+    !new RegExp(CLASS_B_PATTERN).test(line.split(README_CANONICAL_URL).join('')),
+};
+
 function runGrep(pattern, paths, allowlistFilters) {
   let result;
   try {
@@ -128,16 +141,26 @@ test(
       // discriminator the copilot binding matches on — a vendor identifier documented at
       // the telemetry port, not a host-CLI reference.
       /\/docs\/adapters\/telemetry\.md:[0-9]+:.*github\.copilot/,
-      // README.md public front door: the project's own canonical repo URL (install
-      // command, CI badge) is a pinned public address, not a VCS-host CLI reference.
-      // A bare `gh`/`github` prose token in the README still trips this gate.
-      /README\.md:[0-9]+:.*github\.com\/scolladon\/craft/,
+      readmeCanonicalUrlOnlyFilter,
     ]);
     assert.strictEqual(
       offenders.length,
       0,
       `Source-hygiene FAIL — un-allowlisted class-B hits:\n${offenders.join('\n')}`,
     );
+  },
+);
+
+test(
+  'Given a README line carrying both the canonical URL and a bare host-CLI token, when the URL-only filter judges it, then the line is NOT allowlisted',
+  () => {
+    const sut = readmeCanonicalUrlOnlyFilter;
+
+    const urlOnlyLine = `${path.join(ROOT, 'README.md')}:70:claude plugin marketplace add https://github.com/scolladon/craft`;
+    const coLocatedLine = `${path.join(ROOT, 'README.md')}:70:run \`gh pr create\` — docs at github.com/scolladon/craft`;
+
+    assert.strictEqual(sut.test(urlOnlyLine), true, 'pure canonical-URL line must be excused');
+    assert.strictEqual(sut.test(coLocatedLine), false, 'a co-located host-CLI token must still trip the gate');
   },
 );
 

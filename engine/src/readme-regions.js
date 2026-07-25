@@ -1,7 +1,9 @@
 /**
  * README drift-guard region extraction — pure string -> value, no fs/YAML here.
  * Every region is anchored on a fenced-block info-string or the FAQ heading
- * text, never a line number, so unrelated README edits never shift the guard.
+ * text, never a line number, so line-position shifts never move the guard.
+ * The first `mermaid`/`text` fenced block is assumed to be the pipeline
+ * diagram/run timeline — the README's front-matter contract, not a derived fact.
  */
 
 const FENCE_LINE = /^```(\S*)\s*$/;
@@ -16,7 +18,7 @@ const TRAILING_PERSON_TAG = /\s*🧑\s*$/;
 const FAQ_ANCHOR = 'What does a run cost?';
 const RUN_COUNT_PATTERN = /(\d+) telemetered runs/;
 const MEDIAN_PATTERN = /≈([\d.]+) hours/;
-const MAX_PATTERN = /≈(\d+) hours/;
+const MAX_PATTERN = /to ≈(\d+) hours/;
 const MIN_PHRASE = 'half an hour';
 
 /**
@@ -110,9 +112,9 @@ function extractTimelinePhases(block) {
 
 /**
  * FAQ cost claims, anchored on the question text rather than a line number.
- * `≈1.3 hours` never matches the integer-only max pattern (the `.` breaks
- * `\d+`), so the median and max regexes each land on their own distinct
- * `≈… hours` occurrence without needing to exclude one another.
+ * The max claim is anchored on its `to ≈N hours` range clause so it stays
+ * distinct from the median even when the median is written as a whole number
+ * of hours (`≈2 hours`).
  */
 function extractCostClaims(readme) {
   const anchorIndex = readme.indexOf(FAQ_ANCHOR);

@@ -28,6 +28,9 @@ const NO_MANIFEST_SNIPPET = 'manifest-snippet: README carries no yaml fenced blo
  * @returns {string[]} findings, empty when the snippet is a valid manifest
  */
 function validateSnippetBlock(block) {
+  if (block.trim() === '') {
+    return ['manifest-snippet: empty yaml block — the README example must show a real manifest'];
+  }
   const wrapped = `---\n${block}\n---\nx\n`;
   let parsed;
   try {
@@ -104,19 +107,41 @@ function printFindings(findings, io) {
 }
 
 /**
+ * Run one sub-guard, converting any thrown input failure (unreadable file,
+ * malformed YAML/JSON, degenerate report) into a printed finding on the named
+ * surface — the guard stays fail-closed without leaking a stack trace.
+ * @param {string} surface
+ * @param {() => string[]} subGuard
+ * @returns {string[]} findings
+ */
+function guarded(surface, subGuard) {
+  try {
+    return subGuard();
+  } catch (err) {
+    return [`${surface}: unusable input: ${err.message}`];
+  }
+}
+
+/**
  * @param {string[]} argv
  * @param {{ stdout: { write(s: string): void }, stderr: { write(s: string): void } }} io
  * @returns {number} exit code — 0 clean, 1 drift/error
  */
 export function main(argv, io) {
   const root = argv[0] ? resolve(argv[0]) : DEFAULT_ROOT;
-  const readme = readFileSync(join(root, 'README.md'), 'utf8');
-  const regions = extractReadmeRegions(readme);
+
+  let regions;
+  try {
+    regions = extractReadmeRegions(readFileSync(join(root, 'README.md'), 'utf8'));
+  } catch (err) {
+    printFindings([`readme: unusable input: ${err.message}`], io);
+    return EXIT_DRIFT;
+  }
 
   const findings = [
-    ...manifestSnippetFindings(regions.yamlBlocks),
-    ...phaseNameFindings(root, regions),
-    ...telemetryFindings(root, regions.costClaims),
+    ...guarded('manifest-snippet', () => manifestSnippetFindings(regions.yamlBlocks)),
+    ...guarded('phase-names', () => phaseNameFindings(root, regions)),
+    ...guarded('telemetry', () => telemetryFindings(root, regions.costClaims)),
   ];
 
   printFindings(findings, io);

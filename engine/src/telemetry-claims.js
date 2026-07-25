@@ -43,6 +43,9 @@ export function recomputeClaims(report) {
   const durationBearingHours = report.runs
     .map((run) => runDurationMs(run) / MS_PER_HOUR)
     .filter((hours) => hours > 0);
+  if (durationBearingHours.length === 0) {
+    throw new Error('no duration-bearing runs in report — median/min/max are undefined');
+  }
   const sortedHours = sortedAscending(durationBearingHours);
 
   return {
