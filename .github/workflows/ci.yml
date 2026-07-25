@@ -43,8 +43,9 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: engine/package-lock.json
+      # The guard's only runtime dependency is js-yaml — skip the dev toolchain.
       - name: Install engine dependencies
-        run: cd engine && npm ci
+        run: cd engine && npm ci --omit=dev
       - name: README drift guard
         run: bash scripts/readme-drift.sh
 
