@@ -68,8 +68,11 @@ Round roles:
   Verify SUSPECT lines against the diff; promote to VERIFIED or demote to RULED-OUT.
   Output nothing but the updated REFINED-STATE block.
 - SOLVER-FINAL (last round): from diff + refined state, emit the final structured findings
-  list — severity-tagged (CRITICAL/HIGH/MEDIUM/LOW), one per line, format
-  `SEVERITY | file:line | summary`. No prose around it, no REFINED-STATE block.
+  list in the canonical per-line shape the review normalizer accepts, one per line:
+  `[<STATUS>: ]<severity> <file>:<line> — <finding> [ | <fix>]` (severity in
+  CRITICAL/HIGH/MEDIUM/LOW; the pipe is reserved for the optional fix; tag surviving
+  claims with their status, e.g. `RULED-OUT: LOW src/x.js:4 — checked, not a defect`).
+  No prose around it, no REFINED-STATE block.
 
 REFINED-STATE contract (the latent analog — hard limits):
 
