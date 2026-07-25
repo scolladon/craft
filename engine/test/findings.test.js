@@ -243,6 +243,38 @@ test('Given a JSON object with status listed before fix, when normalizeFindings 
   assert.deepEqual(Object.keys(result[0]), ['file', 'line', 'severity', 'finding', 'fix', 'status']);
 });
 
+test('Given a status token with no space after the colon, when normalizeFindings runs, then the whole token is the severity and no status is peeled', () => {
+  const raw = 'VERIFIED:HIGH src/x.js:1 — x';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].severity, 'VERIFIED:HIGH');
+  assert.ok(!('status' in result[0]), 'a colon not followed by whitespace must not peel a status');
+});
+
+test('Given a JSON status value outside the four-token vocabulary, when normalizeFindings runs, then it passes through unchanged', () => {
+  const raw = JSON.stringify([
+    { file: 'src/x.js', line: 1, severity: 'HIGH', finding: 'x', status: 'WHATEVER' },
+  ]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].status, 'WHATEVER');
+});
+
+test('Given a status-bearing record without a fix, when normalizeFindings runs, then the output key order is file, line, severity, finding, status', () => {
+  const raw = JSON.stringify([
+    { file: 'a.js', line: 1, severity: 'MEDIUM', finding: 'x', status: 'SUSPECT' },
+  ]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.deepEqual(Object.keys(result[0]), ['file', 'line', 'severity', 'finding', 'status']);
+});
+
 // ─── backward compatibility: existing fixtures gain no status key ────────────
 
 test('Given existing fixtures without status prefixes, when normalizeFindings runs, then results are unchanged and carry no status key', () => {
