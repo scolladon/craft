@@ -125,7 +125,7 @@ function extractTimelinePhases(block) {
 function extractCostClaims(readme) {
   const anchorIndex = readme.indexOf(FAQ_ANCHOR);
   // equivalent mutant (ConditionalExpression `anchorIndex === -1` → false, and StringLiteral
-  // `''` → "Stryker was here!"): both mutations only change `section` on the anchor-absent
+  // `''` → the tool's fixed placeholder string): both changes only affect `section` on the anchor-absent
   // path, to either readme.slice(-1) (at most one character) or a fixed 18-character literal
   // with no digits, no ≈, and no 'half an hour' substring. Neither can satisfy
   // RUN_COUNT_PATTERN, MEDIAN_PATTERN, MAX_PATTERN, or the MIN_PHRASE include check, so
