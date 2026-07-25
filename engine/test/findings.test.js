@@ -171,6 +171,17 @@ test('Given a fix explicitly set to null in JSON, when normalizeFindings runs, t
   assert.ok(!('fix' in result[0]), 'an explicit null fix must be omitted, never coerced to "null"');
 });
 
+test('Given a JSON fix value padded with whitespace, when normalizeFindings runs, then fix is trimmed', () => {
+  const raw = JSON.stringify([
+    { file: 'src/x.js', line: 1, severity: 'info', finding: 'Some note', fix: '  y  ' },
+  ]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].fix, 'y');
+});
+
 // ─── status field (optional) ─────────────────────────────────────────────────
 
 const EXPECTED_WITH_STATUS = [
