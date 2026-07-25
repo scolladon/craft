@@ -264,6 +264,80 @@ test('Given one sub-guard with unusable input and another with real drift, when 
   assert.match(cap.stdout(), /phase-names/);
 });
 
+test('Given no root argument, when main runs, then it resolves DEFAULT_ROOT against the real repo root and finds no unusable-input errors', () => {
+  const sut = main;
+  const cap = captureIo();
+
+  const status = sut([], cap.io);
+
+  assert.equal(status, 0);
+  assert.equal(cap.stdout(), '');
+});
+
+test('Given a tree whose README yaml block is whitespace-only, when main runs, then it returns 1 with a manifest-snippet finding (blank-after-trim is still empty)', () => {
+  const sut = main;
+  const cap = captureIo();
+  const whitespaceYamlReadme = readmeWithYaml(['```yaml', '   ', '```'].join('\n'));
+
+  const status = withFixtureRoot({ readme: whitespaceYamlReadme }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /manifest-snippet/);
+  assert.match(cap.stdout(), /empty yaml block/);
+});
+
+test('Given a default.yml carrying two enabled ids absent from the README, when main runs, then both surfaces join them with a comma-space (list-join wording)', () => {
+  const sut = main;
+  const cap = captureIo();
+  const multiMissingYml = `${CLEAN_DEFAULT_YML}- id: epsilon\n  archetype: delivery\n- id: zeta\n  archetype: delivery\n`;
+
+  const status = withFixtureRoot({ defaultYml: multiMissingYml }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /phase-names:mermaid: missing epsilon, zeta/);
+  assert.match(cap.stdout(), /phase-names:timeline: missing epsilon, zeta/);
+});
+
+test('Given a README that lists two ids absent from default.yml, when main runs, then both surfaces join them with a comma-space (list-join wording)', () => {
+  const sut = main;
+  const cap = captureIo();
+  const extraMermaid = [
+    '```mermaid',
+    'flowchart LR',
+    '  A[alpha] --> B[beta] --> D[delta] --> X[xray] --> Y[yankee]',
+    '```',
+  ].join('\n');
+  const extraTimeline = [
+    '```text',
+    '/craft:run "example"',
+    '',
+    'alpha       → does one thing',
+    'beta        → does another',
+    'delta       → does a third',
+    'xray        → does a fourth',
+    'yankee      → does a fifth',
+    '```',
+  ].join('\n');
+  const extraIdsReadme = ['# fixture', '', extraMermaid, '', extraTimeline, '', CLEAN_YAML_BLOCK, '', FAQ_SECTION, ''].join('\n');
+
+  const status = withFixtureRoot({ readme: extraIdsReadme }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /phase-names:mermaid: extra xray, yankee/);
+  assert.match(cap.stdout(), /phase-names:timeline: extra xray, yankee/);
+});
+
+test('Given a tree whose pipeline/default.yml is malformed YAML, when main runs, then it returns 1 with a phase-names unusable-input finding naming the surface', () => {
+  const sut = main;
+  const cap = captureIo();
+  const malformedDefaultYml = '- id: alpha\n[unterminated';
+
+  const status = withFixtureRoot({ defaultYml: malformedDefaultYml }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /phase-names: unusable input/);
+});
+
 test('Given a tree with a renamed phase, an unknown snippet key, and a telemetry bump, when main runs, then stdout carries findings for all three surfaces and it returns 1', () => {
   const sut = main;
   const cap = captureIo();

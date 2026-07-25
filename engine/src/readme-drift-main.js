@@ -78,6 +78,9 @@ function surfaceDiffFindings(surface, truth, actual) {
  * @returns {string[]} findings
  */
 function phaseNameFindings(root, regions) {
+  // equivalent mutant (StringLiteral encoding '' instead of 'utf8'): readFileSync(path, '')
+  // returns a Buffer; js-yaml's load() coerces its input via String(), which for a Buffer
+  // calls Buffer.toString('utf8') — identical decoded text either way.
   const descriptors = load(readFileSync(join(root, 'pipeline/default.yml'), 'utf8'));
   const truth = new Set(enabledPhaseIds(descriptors));
   return [
@@ -94,6 +97,9 @@ function phaseNameFindings(root, regions) {
  * @returns {string[]} findings
  */
 function telemetryFindings(root, costClaims) {
+  // equivalent mutant (StringLiteral encoding '' instead of 'utf8'): readFileSync(path, '')
+  // returns a Buffer; JSON.parse coerces its argument via String(), which for a Buffer calls
+  // Buffer.toString('utf8') — identical parsed result either way.
   const report = JSON.parse(readFileSync(join(root, 'docs/metrics-baseline.report.json'), 'utf8'));
   return compareClaims(recomputeClaims(report), costClaims);
 }
@@ -139,6 +145,11 @@ export function main(argv, io) {
   }
 
   const findings = [
+    // equivalent mutant (StringLiteral surface '' instead of 'manifest-snippet'): the surface
+    // name is observable only from guarded()'s catch block, and manifestSnippetFindings never
+    // throws — validateSnippetBlock catches the sole throwing call (load) itself, and
+    // validateManifest is documented and defensively coded to never throw for any js-yaml
+    // output. The catch branch is unreachable here, so the surface argument is unobservable.
     ...guarded('manifest-snippet', () => manifestSnippetFindings(regions.yamlBlocks)),
     ...guarded('phase-names', () => phaseNameFindings(root, regions)),
     ...guarded('telemetry', () => telemetryFindings(root, regions.costClaims)),

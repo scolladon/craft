@@ -69,6 +69,12 @@ function extractFencedBlocks(readme, infoString) {
 }
 
 function firstToken(line) {
+  // equivalent mutant (Regex `\s+` → `\s`): split()'s first element is the substring
+  // before the FIRST delimiter match, and one-or-more vs exactly-one whitespace both start
+  // that match at the same character — index [0] is identical either way.
+  // equivalent mutant (`?? ''` fallback, e.g. → "Stryker was here!"): String.split always
+  // returns an array with at least one element (even '' splits to ['']), so [0] is never
+  // nullish — the fallback is unreachable for any string input.
   return line.trim().split(/\s+/)[0] ?? '';
 }
 
@@ -118,6 +124,12 @@ function extractTimelinePhases(block) {
  */
 function extractCostClaims(readme) {
   const anchorIndex = readme.indexOf(FAQ_ANCHOR);
+  // equivalent mutant (ConditionalExpression `anchorIndex === -1` → false, and StringLiteral
+  // `''` → "Stryker was here!"): both mutations only change `section` on the anchor-absent
+  // path, to either readme.slice(-1) (at most one character) or a fixed 18-character literal
+  // with no digits, no ≈, and no 'half an hour' substring. Neither can satisfy
+  // RUN_COUNT_PATTERN, MEDIAN_PATTERN, MAX_PATTERN, or the MIN_PHRASE include check, so
+  // costClaims stays all-null exactly as when section === ''.
   const section = anchorIndex === -1 ? '' : readme.slice(anchorIndex);
 
   return {

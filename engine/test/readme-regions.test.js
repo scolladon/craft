@@ -96,6 +96,53 @@ test('Given a fragment with two yaml fenced blocks, when extracted, then yamlBlo
   assert.deepEqual(result.yamlBlocks, ['a: 1', 'b: 2']);
 });
 
+// ─── fence-line anchoring (FENCE_LINE regex) ───────────────────────────────
+
+test('Given a yaml block body line that ends with a bare triple-backtick sequence mid-line, when extracted, then that line stays inside the block (fence detection is anchored to line-start)', () => {
+  const sut = extractReadmeRegions;
+  const readme = ['```yaml', 'a: 1', 'b: 2 // see appendix below ```', 'c: 3', '```'].join('\n');
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.yamlBlocks, ['a: 1\nb: 2 // see appendix below ```\nc: 3']);
+});
+
+test('Given a fence line carrying trailing prose after the info string, when extracted, then it is not treated as a fence (fence lines must be bare)', () => {
+  const sut = extractReadmeRegions;
+  const readme = ['```yaml trailing note', 'a: 1', '```', '', '```yaml', 'b: 2', '```'].join('\n');
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.yamlBlocks, ['b: 2']);
+});
+
+test('Given a yaml fence line carrying a trailing carriage return, when extracted, then the fence still opens and closes the block (trailing-whitespace tolerance)', () => {
+  const sut = extractReadmeRegions;
+  const readme = ['```yaml\r', 'a: 1', '```\r'].join('\n');
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.yamlBlocks, ['a: 1']);
+});
+
+test('Given a yaml block whose body contains a line that itself reads as another yaml opening fence, when extracted, then the block does not reset — the whole span between the true fences is kept', () => {
+  const sut = extractReadmeRegions;
+  const readme = ['```yaml', 'first: 1', '```yaml', 'second: 2', '```'].join('\n');
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.yamlBlocks, ['first: 1\n```yaml\nsecond: 2']);
+});
+
+test('Given a yaml block whose body contains a fence line with a different non-empty info string, when extracted, then that line does not close the block — only a bare closing fence does', () => {
+  const sut = extractReadmeRegions;
+  const readme = ['```yaml', 'first: 1', '```mermaid', 'second: 2', '```'].join('\n');
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.yamlBlocks, ['first: 1\n```mermaid\nsecond: 2']);
+});
+
 // ─── mermaidPhases ──────────────────────────────────────────────────────────
 
 test('Given the pinned mermaid block, when extracted, then mermaidPhases is the 11 enabled ids with subgraph labels excluded and 🧑 stripped', () => {
@@ -106,6 +153,42 @@ test('Given the pinned mermaid block, when extracted, then mermaidPhases is the 
   assert.deepEqual(result.mermaidPhases, ENABLED_PHASE_IDS);
 });
 
+test('Given a fragment with no mermaid fenced block, when extracted, then mermaidPhases is empty', () => {
+  const sut = extractReadmeRegions;
+  const readme = 'Just prose, no mermaid block here.\n';
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.mermaidPhases, []);
+});
+
+test('Given a subgraph line that also carries a hexagon-style label, when extracted, then the bracket group label is dropped but the hexagon label is kept', () => {
+  const sut = extractReadmeRegions;
+  const block = ['```mermaid', 'flowchart LR', '  subgraph spec [specify] --- X{{"extra"}}', '```'].join('\n');
+
+  const result = sut(block);
+
+  assert.deepEqual(result.mermaidPhases, ['extra']);
+});
+
+test('Given a hexagon label whose 🧑 marker is followed by trailing whitespace before the closing quote, when extracted, then the marker is still stripped', () => {
+  const sut = extractReadmeRegions;
+  const block = ['```mermaid', 'flowchart LR', '  DC{{"decisions 🧑  "}}', '```'].join('\n');
+
+  const result = sut(block);
+
+  assert.deepEqual(result.mermaidPhases, ['decisions']);
+});
+
+test('Given a hexagon label whose 🧑 marker sits before trailing text (not at the true end), when extracted, then the marker is left untouched (TRAILING_PERSON_TAG only strips a trailing tag)', () => {
+  const sut = extractReadmeRegions;
+  const block = ['```mermaid', 'flowchart LR', '  DC{{"decisions 🧑 marker"}}', '```'].join('\n');
+
+  const result = sut(block);
+
+  assert.deepEqual(result.mermaidPhases, ['decisions 🧑 marker']);
+});
+
 // ─── timelinePhases ─────────────────────────────────────────────────────────
 
 test('Given the pinned timeline block, when extracted, then timelinePhases is the 11 enabled ids and the /craft:run line is skipped', () => {
@@ -114,6 +197,15 @@ test('Given the pinned timeline block, when extracted, then timelinePhases is th
   const result = sut(TIMELINE_BLOCK);
 
   assert.deepEqual(result.timelinePhases, ENABLED_PHASE_IDS);
+});
+
+test('Given a fragment with no text fenced block, when extracted, then timelinePhases is empty', () => {
+  const sut = extractReadmeRegions;
+  const readme = 'Just prose, no text block here.\n';
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.timelinePhases, []);
 });
 
 // ─── costClaims ─────────────────────────────────────────────────────────────
@@ -161,6 +253,33 @@ test('Given a timeline line whose phase id carries an attached 🧑 marker, when
   const result = sut(block);
 
   assert.deepEqual(result.timelinePhases, ['decisions']);
+});
+
+test('Given a max claim written as a two-digit number, when extracted, then costClaims.max captures the full number', () => {
+  const sut = extractReadmeRegions;
+  const readme = [
+    '**What does a run cost?** Across the 27 telemetered runs that built this repo: the median',
+    'run logs ≈1.3 hours of role-agent activity, from half an hour for a small change to ≈12 hours',
+    'for the largest feature.',
+  ].join('\n');
+
+  const result = sut(readme);
+
+  assert.equal(result.costClaims.max, '12');
+});
+
+test('Given the FAQ anchor starting at index 1 of the readme (not index -1 or +1 specifically), when extracted, then costClaims still resolve — the absent check is "not found", not "found at a fixed offset"', () => {
+  const sut = extractReadmeRegions;
+  const readme = [
+    'X',
+    'What does a run cost? Across the 27 telemetered runs that built this repo: the median',
+    'run logs ≈1.3 hours of role-agent activity, from half an hour for a small change to ≈5 hours',
+    'for the largest feature.',
+  ].join('');
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.costClaims, EXPECTED_COST_CLAIMS);
 });
 
 // ─── anchor-not-offset proof ────────────────────────────────────────────────

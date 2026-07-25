@@ -104,6 +104,17 @@ test('Given a recomputed maxHours that rounds to 6 while the README claims 5, wh
   assert.match(finding, /6/);
 });
 
+test('Given duration-bearing runs supplied out of order [4,1,3,2], when recomputeClaims, then min/median/max reflect ascending order, not input order', () => {
+  const sut = recomputeClaims;
+  const report = buildReport([4, 1, 3, 2]);
+
+  const result = sut(report);
+
+  assert.equal(result.minHours, 1);
+  assert.equal(result.medianHours, 2.5);
+  assert.equal(result.maxHours, 4);
+});
+
 test('Given a report with no duration-bearing run, when recomputeClaims, then it throws a descriptive error instead of yielding NaN', () => {
   const sut = recomputeClaims;
   const report = buildReport([0, 0]);
@@ -120,4 +131,15 @@ test('Given a recomputed minHours that rounds to 1.0 instead of 0.5, when compar
 
   const finding = result.find((line) => line.startsWith('telemetry:min'));
   assert.ok(finding, 'expected a telemetry:min finding');
+});
+
+test('Given a recomputed minHours that rounds to 0.5 but the README claims different wording, when compareClaims, then a telemetry:min finding is still produced (both the number and the phrase must match)', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 27, medianHours: 1.2942, minHours: 0.4609, maxHours: 5.0083 };
+  const costClaims = { runCount: '27', median: '1.3', min: 'twenty minutes', max: '5' };
+
+  const result = sut(recomputed, costClaims);
+
+  const finding = result.find((line) => line.startsWith('telemetry:min'));
+  assert.ok(finding, 'expected a telemetry:min finding even though rounded minHours is 0.5');
 });
