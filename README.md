@@ -1,6 +1,7 @@
 # craft
 
-A feature-delivery workflow engine for Claude Code, packaged as a plugin. One abstract
+A feature-delivery workflow engine for agentic coding tools — shipped as a Claude Code
+plugin, with native bindings for seven other runtimes under `adapters/`. One abstract
 phase sequence — **workspace → design → decisions → planning → implementation → review →
 refactoring → validation → documentation → propose → integrate** — that any repo adopts
 as-is and customizes through a committed declination manifest. Zero session-memory
@@ -30,7 +31,7 @@ loop + the Verdict — so the shape above reads as familiar, not new.
 ## Install
 
 ```bash
-claude plugin marketplace add <this-repo-path-or-url>
+claude plugin marketplace add https://github.com/scolladon/craft
 claude plugin install craft@scolladon
 ```
 
