@@ -126,6 +126,43 @@ test('Given the pinned FAQ sentence, when extracted, then costClaims holds the f
   assert.deepEqual(result.costClaims, EXPECTED_COST_CLAIMS);
 });
 
+test('Given an FAQ sentence whose median is a whole number of hours, when extracted, then median and max stay distinct claims', () => {
+  const sut = extractReadmeRegions;
+  const integerMedianFaq = [
+    '**What does a run cost?** Across the [27 telemetered runs](docs/metrics-baseline.report.json)',
+    'that built this repo: the median run logs ≈2 hours of role-agent activity, from',
+    'half an hour for a small change to ≈5 hours for the largest feature …',
+  ].join('\n');
+
+  const result = sut(integerMedianFaq);
+
+  assert.equal(result.costClaims.median, '2');
+  assert.equal(result.costClaims.max, '5');
+});
+
+test('Given decoy numbers before the FAQ anchor, when extracted, then costClaims resolve to the post-anchor tokens only', () => {
+  const sut = extractReadmeRegions;
+  const readme = [
+    'Earlier prose bragging about 99 telemetered runs somewhere else entirely,',
+    'a stray ≈9 hours estimate, and even a bogus range to ≈9 hours for effect.',
+    '',
+    FAQ_SENTENCE,
+  ].join('\n');
+
+  const result = sut(readme);
+
+  assert.deepEqual(result.costClaims, EXPECTED_COST_CLAIMS);
+});
+
+test('Given a timeline line whose phase id carries an attached 🧑 marker, when extracted, then the marker is stripped from the token', () => {
+  const sut = extractReadmeRegions;
+  const block = ['```text', 'decisions🧑 → you ratify the choices', '```'].join('\n');
+
+  const result = sut(block);
+
+  assert.deepEqual(result.timelinePhases, ['decisions']);
+});
+
 // ─── anchor-not-offset proof ────────────────────────────────────────────────
 
 test('Given all four regions surrounded by unrelated prose and blank lines, when extracted, then every region result is unchanged', () => {

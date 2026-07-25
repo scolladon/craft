@@ -159,6 +159,82 @@ test('Given a tree whose report bumps a duration so the median rounds off, when 
   assert.match(cap.stdout(), /1\.8/);
 });
 
+test('Given a tree whose README yaml block is syntactically invalid YAML, when main runs, then it returns 1 with a manifest-snippet finding instead of throwing', () => {
+  const sut = main;
+  const cap = captureIo();
+  const malformedYamlReadme = readmeWithYaml(['```yaml', 'pipeline: [unterminated', '```'].join('\n'));
+
+  const status = withFixtureRoot({ readme: malformedYamlReadme }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /manifest-snippet/);
+  assert.match(cap.stdout(), /malformed YAML/);
+});
+
+test('Given a tree whose README yaml block is empty, when main runs, then it returns 1 with a manifest-snippet finding (blank snippet is drift)', () => {
+  const sut = main;
+  const cap = captureIo();
+  const emptyYamlReadme = readmeWithYaml(['```yaml', '```'].join('\n'));
+
+  const status = withFixtureRoot({ readme: emptyYamlReadme }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /manifest-snippet/);
+  assert.match(cap.stdout(), /empty yaml block/);
+});
+
+test('Given a default.yml carrying an enabled id absent from the README, when main runs, then both surfaces report it as missing (pure-missing wording)', () => {
+  const sut = main;
+  const cap = captureIo();
+  const pureMissingYml = `${CLEAN_DEFAULT_YML}- id: epsilon\n  archetype: delivery\n`;
+
+  const status = withFixtureRoot({ defaultYml: pureMissingYml }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /phase-names:mermaid: missing epsilon/);
+  assert.match(cap.stdout(), /phase-names:timeline: missing epsilon/);
+  assert.doesNotMatch(cap.stdout(), /extra/);
+});
+
+test('Given a default.yml missing an id the README still lists, when main runs, then both surfaces report it as extra (pure-extra wording)', () => {
+  const sut = main;
+  const cap = captureIo();
+  const pureExtraYml = CLEAN_DEFAULT_YML.replace('- id: delta\n  archetype: specification\n', '');
+
+  const status = withFixtureRoot({ defaultYml: pureExtraYml }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /phase-names:mermaid: extra delta/);
+  assert.match(cap.stdout(), /phase-names:timeline: extra delta/);
+  assert.doesNotMatch(cap.stdout(), /missing/);
+});
+
+test('Given a report whose runs all sum to zero duration, when main runs, then it returns 1 with a telemetry unusable-input finding instead of NaN output', () => {
+  const sut = main;
+  const cap = captureIo();
+  const zeroDurationReport = JSON.stringify({
+    schemaVersion: 1,
+    recommendations: [],
+    runs: [{ run: 1, slug: 'a', reviewCycles: 1, groups: [{ durationMs: 0 }] }],
+  });
+
+  const status = withFixtureRoot({ report: zeroDurationReport }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /telemetry: unusable input/);
+  assert.match(cap.stdout(), /no duration-bearing runs/);
+});
+
+test('Given a report file that is not valid JSON, when main runs, then it returns 1 with a telemetry unusable-input finding instead of a stack trace', () => {
+  const sut = main;
+  const cap = captureIo();
+
+  const status = withFixtureRoot({ report: '{not json' }, (root) => sut([root], cap.io));
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /telemetry: unusable input/);
+});
+
 test('Given a tree with a renamed phase, an unknown snippet key, and a telemetry bump, when main runs, then stdout carries findings for all three surfaces and it returns 1', () => {
   const sut = main;
   const cap = captureIo();

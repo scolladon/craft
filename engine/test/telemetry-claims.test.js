@@ -78,6 +78,39 @@ test('Given a recomputed median that rounds to 1.4 while the README claims 1.3, 
   assert.match(finding, /1\.4/);
 });
 
+test('Given a recomputed runCount that differs from the README claim, when compareClaims, then a telemetry:runCount finding names both values', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 28, medianHours: 1.2942, minHours: 0.4609, maxHours: 5.0083 };
+  const costClaims = { runCount: '27', median: '1.3', min: 'half an hour', max: '5' };
+
+  const result = sut(recomputed, costClaims);
+
+  const finding = result.find((line) => line.startsWith('telemetry:runCount'));
+  assert.ok(finding, 'expected a telemetry:runCount finding');
+  assert.match(finding, /27/);
+  assert.match(finding, /28/);
+});
+
+test('Given a recomputed maxHours that rounds to 6 while the README claims 5, when compareClaims, then a telemetry:max finding names both values', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 27, medianHours: 1.2942, minHours: 0.4609, maxHours: 5.6 };
+  const costClaims = { runCount: '27', median: '1.3', min: 'half an hour', max: '5' };
+
+  const result = sut(recomputed, costClaims);
+
+  const finding = result.find((line) => line.startsWith('telemetry:max'));
+  assert.ok(finding, 'expected a telemetry:max finding');
+  assert.match(finding, /5/);
+  assert.match(finding, /6/);
+});
+
+test('Given a report with no duration-bearing run, when recomputeClaims, then it throws a descriptive error instead of yielding NaN', () => {
+  const sut = recomputeClaims;
+  const report = buildReport([0, 0]);
+
+  assert.throws(() => sut(report), /no duration-bearing runs/);
+});
+
 test('Given a recomputed minHours that rounds to 1.0 instead of 0.5, when compareClaims, then a telemetry:min finding is produced', () => {
   const sut = compareClaims;
   const recomputed = { runCount: 27, medianHours: 1.2942, minHours: 1.1, maxHours: 5.0083 };
