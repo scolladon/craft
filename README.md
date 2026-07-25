@@ -120,6 +120,10 @@ receipts: [18 design docs](docs/design/), [17 parted plans](docs/plan/),
 — plus an [instantiation record](docs/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
+The README itself is gated: its example config, pipeline diagram, and cost numbers
+are recomputed and checked in CI by [`scripts/readme-drift.sh`](scripts/readme-drift.sh),
+so these claims can't silently drift out of sync.
+
 Current status: `v0.2.0`. The engine and Claude Code plugin are dogfooded daily; the
 seven adapter bindings are portability proofs, not supported products. The roadmap is
 the [BACKLOG](BACKLOG.md), maintained by craft's own documentation phase.
