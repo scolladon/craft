@@ -80,7 +80,7 @@ craft is built **hexagonally**. This is the whole model:
   the Claude Code adapter today.** Code-access is the deliberate exception: it is environment-sourced
   (your LSP/RAG/RTK/Serena/native tools), never bound by the adapter. Seven native bindings under
   `adapters/` (pi, opencode, copilot, codex, cursor, aider, antigravity) re-bind the same ports to
-  other runtimes — proof the seams are real; see the bindings table in the [README](../README.md#layout).
+  other runtimes — proof the seams are real; see the bindings table in [adapters/README.md](../adapters/README.md).
 
 **The whole catalog below is just "configure or swap a port."** Customizing = answering a few
 questions per phase: *does it run? · which agent/model? · inline or subagent? · which harness config?

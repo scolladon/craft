@@ -1,112 +1,206 @@
 # craft
 
-A feature-delivery workflow engine for agentic coding tools — shipped as a Claude Code
-plugin, with native bindings for seven other runtimes under `adapters/`. One abstract
-phase sequence — **workspace → design → decisions → planning → implementation → review →
-refactoring → validation → documentation → propose → integrate** — that any repo adopts
-as-is and customizes through a committed declination manifest. Zero session-memory
-dependence: every load-bearing rule lives in a hook, a script, or versioned instruction text.
+**A feature-delivery pipeline for your coding agent.** Your agent writes code fast —
+craft makes it *deliver*: design docs, ratified decisions, TDD implementation,
+multi-dimension review, validation, docs, and a PR, in one gated, resumable run.
 
-craft applies a **Harness-as-a-Service (HaaS)** pattern: the model (Model port), the runtime
-(Execution port), the per-repo advisory memory store (Memory port), the usage-telemetry sink
-(Telemetry port), and each per-phase harness are pluggable; the engine-owned invariant contract is not. This is a *pattern* — a reusable, governed
-layer you install — not a hosted SaaS.
+[![CI](https://github.com/scolladon/craft/actions/workflows/ci.yml/badge.svg)](https://github.com/scolladon/craft/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-## Why craft
+Shipped as a Claude Code plugin, with native bindings for seven other runtimes
+([`adapters/`](adapters/)). Works zero-config on any repo with a discoverable test command.
 
-- **Industrialize delivery** — one gated phase sequence, repeatable; every load-bearing rule lives in a hook, a script, or versioned instruction text, not session memory.
-- **Declinate per repo** — a committed `.claude/workflow.md` manifest customizes the pipeline (skip / insert / reorder / swap agent or skill / profile / per-phase harness config); no manifest = strong probed defaults.
-- **Manage comprehension debt** — design docs + parted plans with pre-chewed context blocks capture *what* the change is and *how* it was built, so understanding survives context resets.
-- **Manage intention debt** — ADRs and user-ratified decision candidates capture *why* every load-bearing choice was made.
-- **Formalize the architecture harness with its own lifecycle** — a standalone `architecture` phase (probe → run → triage violations → gate the PR), default-off, enabled by one manifest line. Uses executing-harnesses (techniques declared per repo).
-- **Formalize engineering harnesses with their own lifecycles** — `review` (dimensions / passes / convergence) and `validation` are first-class AI harnesses with their own config and gates. Both are executing-harnesses (techniques declared per repo).
-- **Harness-as-a-Service (HaaS)** — craft is itself a delivery harness offered as a reusable, configurable, governed layer (sense a); it also *hosts* harnesses (review, validation, architecture, …) as pluggable sub-services (sense b). The engine wires and gates each harness around an engine-owned invariant contract; the harness is pluggable, the contract is not. Seven native bindings under `adapters/` drive the same engine core on non-Claude runtimes, proving the ports are pluggable — see the bindings table under [Layout](#layout).
-- **Bounded long-running work** — git-worktree isolation + parted TDD + per-phase role agents (some parallel, e.g. the review fan-out) + bounded per-phase scope, so large multi-step work stays safe and resumable.
+```mermaid
+flowchart LR
+  W[workspace] --> spec
+  subgraph spec [specify]
+    D[design] --> DC{{"decisions 🧑"}} --> P[planning]
+  end
+  spec --> I[implementation] --> verify
+  subgraph verify [verify]
+    R[review] --> RF[refactoring] --> V[validation]
+  end
+  verify --> ship
+  subgraph ship [ship]
+    DO[documentation] --> PR[propose] --> IN{{"integrate 🧑"}}
+  end
+```
 
-Recognize any of these? [docs/GUIDE-concepts.md](docs/GUIDE-concepts.md) maps craft's
-mechanisms onto four frames people already use for agentic delivery — Karpathy's
-*write-the-loop*, Böckeler's harness taxonomy, config layers, and Osmani's inner/outer
-loop + the Verdict — so the shape above reads as familiar, not new.
+🧑 = you decide. Everything else is agents, wired and gated by the engine. Two more
+phases ship default-off and turn on with one manifest line: `requirements`
+(front-of-pipeline product spec) and `architecture` (a dependency/layering harness).
 
-## Install
+## Why
+
+Coding agents are great at writing code and bad at *delivering features*: the design
+rationale dies with the chat session, nothing forces a review or a green test suite
+before commit, and three days later nobody knows why a load-bearing choice was made.
+
+craft externalizes the delivery loop so it survives the transcript:
+
+- **Every rule lives on disk** — in a hook, a script, or versioned instruction text.
+  Kill the session mid-run; the next agent resumes from the last committed artifact.
+- **Never commit on red.** The engine runs your repo's gate at every cadence boundary.
+  Non-negotiable.
+- **Decisions are yours, captured as ADRs.** The design phase surfaces decision
+  candidates; you ratify them; the *why* outlives the run.
+- **Review and validation are real phases**, not vibes — configurable dimensions,
+  convergence rounds, and triage, each gating the PR.
+- **Big work stays bounded** — git-worktree isolation, a parted TDD plan where each
+  part carries its own pre-chewed context block, one role agent per phase.
+
+New to this way of working? [docs/GUIDE-concepts.md](docs/GUIDE-concepts.md) maps
+craft onto four frames you may already know — Karpathy's *write-the-loop*, Böckeler's
+harness taxonomy, config layering, and Osmani's inner/outer loop.
+
+## What craft is not
+
+- **Not a prompt pack.** Behavior lives in hooks, scripts, and versioned contracts —
+  swap any agent, the contract still binds.
+- **Not an autonomy maximizer.** The two human checkpoints are the point: you ratify
+  the design decisions, you confirm the merge.
+- **Not a hosted service.** A plugin you install; nothing runs anywhere you didn't
+  put it.
+- **Not a spec generator.** Specs are one optional phase; the unit of work is a
+  delivered PR — designed, decided, tested, reviewed, validated, documented.
+
+## Quickstart
 
 ```bash
 claude plugin marketplace add https://github.com/scolladon/craft
 claude plugin install craft@scolladon
 ```
 
-Dev loop: `claude --plugin-dir /path/to/craft`.
-
-## Use
+Then, in any repo that has a test command:
 
 ```
-/craft:run <backlog-id | path/to/spec.md | "feature description">
-/craft:run --config <name> <backlog-id | path/to/spec.md | "feature description">
+/craft:run "add rate limiting to the public API"
+/craft:run BACKLOG-42            # or a backlog id
+/craft:run path/to/spec.md       # or a spec/PRD file
 ```
 
-`--config <name>` resolves the manifest for that run across two scopes — repo-local
-`./.claude/craft-<name>.md` first, then user-scope `~/.claude/craft-<name>.md` — local always wins
-when both exist (distinct from `--profile`, which sets the execution map inside whichever manifest
-is read). An absent target at both scopes is a loud stop naming both paths — it never silently
-falls back to `.claude/workflow.md`.
+Requirement: **a discoverable test command** (`pytest`, `go test`, `cargo test`,
+`make test`, …). No test command → craft refuses to run, by design.
 
-Phase skills also run standalone: `/craft:review` (multi-dimension review battery on
-the current branch), `/craft:validation` (scoped harness run + triage),
-`/craft:init` (interview-driven named-manifest generator — writes `.claude/craft-<name>.md` locally
-or, with `--scope user`, to `~/.claude/craft-<name>.md`),
-`/craft:promote-config` (relocates a named config between the two scopes),
-`/craft:metrics` (zero-arg usage-telemetry miner — mines transcript history and prints a structured usage report), etc.
+## What a run looks like
 
-## Customize — `.claude/workflow.md` in your repo
+```text
+/craft:run "add rate limiting to the public API"
 
-No manifest = sensible defaults via capability probing (lockfile detection, test-script
-discovery, technique-config probe, remote probe). The manifest declares only what
-probing can't infer. Zero-config delivery requires one precondition: **a discoverable
-test/validate command** — a repo with one runs the full default pipeline on any toolchain
-(validated on a non-tsgit Python/pytest repo; see
-[docs/archive/SC5-second-instantiation-record.md](docs/archive/SC5-second-instantiation-record.md)); a
-repo with no test command hits the gate-floor refusal by design (non-negotiable). **Start with [docs/GUIDE-customizing.md](docs/GUIDE-customizing.md)** —
-the mental model (hexagon · ports · the invariant core you can't change) plus the full
-injection catalog (skip / model / gate / execution / profile / harness / backlog / memory /
-context / override / swap / insert), each linked to a runnable [`examples/`](examples/)
-sample. Deeper schema, declination verbs, and protected phases: see
-[docs/DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md).
-`scripts/manifest-lint.sh` validates the manifest
-and refuses to run on unknown keys — misconfiguration fails loudly.
+workspace       → feature branch + isolated git worktree, deps installed
+design          → designer agent writes the design doc, self-reviews to convergence
+decisions   🧑  → you ratify each load-bearing choice; each becomes an ADR
+planning        → TDD plan split into parts, each with its own pre-chewed context block
+implementation  → one implementer agent per part; RED → GREEN → REFACTOR; one commit per part
+review          → parallel reviewers, one dimension each; fixes applied until convergence
+refactoring     → whole-codebase lens, behavior-preserving; may be an honest no-op
+validation      → your repo's engineering harness runs; findings fixed or proven benign
+documentation   → affected pages refreshed, backlog entry ticked
+propose         → pre-PR gate, push, PR created
+integrate   🧑  → CI to green; you confirm the merge; worktree torn down
+```
 
-## Layout
+Every phase hands off through a committed artifact — never through chat context — and
+the run record accounts for every skip, swap, gate result, and model degradation.
 
-- `skills/run` — orchestrator (cross-phase invariants, run record)
-- `skills/<phase>` — one per phase: non-overridable Preamble + overridable Procedure
-- `agents/` — role contracts with pinned models (designer, planner, reviewer,
-  part-implementer, refactor-executor, validation-triager, docs-writer, backlog-ticker,
-  requirements-writer, architecture-triager).
-  A pinned model that goes down falls back (manifest `models.fallback` → session model)
-  and the degraded tier is remembered for the rest of the run.
-- `hooks/` — PreToolUse guard: `git diff/show` without `--no-ext-diff` is denied with
-  the corrected command (`--no-verify` is the consumer's discretion — craft does not block it)
-- `scripts/` — worktree setup/teardown (validation run-lock aware), manifest lint, plan lint
-- `templates/` — design / plan (defines the part schema plan-lint enforces) / ADR
-- `adapters/<tool>/` — native bindings of the same engine core on non-Claude runtimes.
-  Each has its own README plus a live contract-discovery record in
-  `docs/adapters/<tool>-poc-record.md`; all proofs are on-demand, not CI-gated.
+Phases also run standalone, on any branch:
 
-| Binding | Kind | Guard posture |
-|---|---|---|
-| [`pi`](adapters/pi/) | headless subprocess — the `craft-pi` bin drives the full 11-phase walk (the original HaaS portability proof) | `tool_call` predicate + gate-command wrapper |
-| [`opencode`](adapters/opencode/) | native-interactive — commands + subagents + `opencode.json` via opencode's own subagent dispatch | enforcing `tool.execute.before` plugin |
-| [`copilot`](adapters/copilot/) | native plugin — local `agents`/`hooks`/`commands` + shared craft `skills/` via two `--plugin-dir` flags | path containment + `--deny-tool` enforce; the `preToolUse` hook is an observational audit trail |
-| [`codex`](adapters/codex/) | local marketplace (shared `skills/` by reference) via `multi_agent_v1` subagent dispatch | **denying** PreToolUse hook (exit 2 genuinely blocks) + execpolicy defence-in-depth |
-| [`cursor`](adapters/cursor/) | headless one-turn agent (`cursor-agent -p`), live-proven incl. a full construction run | enforcing `beforeShellExecution` deny — `failClosed: true` is load-bearing |
-| [`aider`](adapters/aider/) | headless edit loop — the auto-commit is the handoff (exit code is not the success signal); execution GO | **NO-GO** — no deny-capable pre-execution surface exists; declined honestly |
-| [`antigravity`](adapters/antigravity/) | customization declination — **not** a runnable port binding (no headless execution port); human-driven in the GUI | shipped but pinned from docs, not live-verified |
+| Command | What it does |
+|---|---|
+| `/craft:review` | multi-dimension review battery on the current branch |
+| `/craft:validation` | scoped harness run + finding triage |
+| `/craft:init` | interview-driven manifest generator |
+| `/craft:metrics` | mines your transcript history into a usage report |
 
-## Design provenance
+## craft builds craft
 
-[docs/DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md) — the living
-engine architecture (phases, contract injection, ports, enforcement hierarchy);
-[docs/DESIGN-history.md](docs/DESIGN-history.md) — the frozen workflow-promotion
-migration record. [docs/archive/SPIKE.md](docs/archive/SPIKE.md) — the empirical
-spike that pinned hook inheritance, `updatedInput` composition (same-snapshot,
-last-writer-wins → hence deny-based hooks), model override precedence, and the skill
-invocation surface.
+Every feature in this repo was delivered by a craft run, and the artifacts are the
+receipts: [18 design docs](docs/design/), [17 parted plans](docs/plan/),
+[270 ADRs](docs/adr/), and [raw telemetry for 27 runs](docs/metrics-baseline.report.json)
+— plus an [instantiation record](docs/archive/SC5-second-instantiation-record.md)
+proving the zero-config pipeline on a second, unrelated Python/pytest repo.
+
+Current status: `v0.2.0`. The engine and Claude Code plugin are dogfooded daily; the
+seven adapter bindings are portability proofs, not supported products. The roadmap is
+the [BACKLOG](BACKLOG.md), maintained by craft's own documentation phase.
+
+## Make it yours
+
+No manifest = sensible defaults via capability probing. To customize, commit a
+`.claude/workflow.md`:
+
+```yaml
+pipeline:
+  skip: [refactoring]   # dependency-checked: a skip that strands a
+                        # downstream phase is refused, not silently applied
+```
+
+That's the cheapest of a dozen injection points — skip, insert, reorder, swap
+agents/skills, route models per role, tune each harness, change the backlog source,
+profiles, up to a derived plugin. Each one has a runnable sample in
+[`examples/`](examples/) and a chapter in
+[docs/GUIDE-customizing.md](docs/GUIDE-customizing.md) — the one doc to read before
+tailoring. Named configs (`.claude/craft-<name>.md`, repo or user scope) select whole
+manifests per run: `/craft:run --config <name> …`.
+
+What you *cannot* configure is the invariant core: never commit on red, a gate must
+exist for code-producing phases, artifacts (never chat context) are the handoff, and
+the run record logs every deviation. Misconfiguration fails loudly
+(`scripts/manifest-lint.sh` refuses unknown keys).
+
+## Beyond Claude Code
+
+craft is built hexagonally: a provider-neutral core behind nine ports (execution,
+model, gate, backlog, VCS, memory, …). Claude Code is the primary adapter; seven
+native bindings under [`adapters/`](adapters/) drive the same engine elsewhere —
+proof the seams are real:
+
+| Runtime | Binding shape |
+|---|---|
+| [pi](adapters/pi/) | headless subprocess — full 11-phase walk (original portability proof) |
+| [opencode](adapters/opencode/) | native commands + subagents + enforcing plugin |
+| [copilot](adapters/copilot/) | native plugin, shares craft skills by reference |
+| [codex](adapters/codex/) | local marketplace + blocking PreToolUse guard |
+| [cursor](adapters/cursor/) | headless one-turn agent, live-proven end to end |
+| [aider](adapters/aider/) | edit-loop binding; guard declined honestly (no deny surface) |
+| [antigravity](adapters/antigravity/) | GUI-driven customization, not a runnable port |
+
+Guard postures and contract-discovery records: [adapters/README.md](adapters/README.md).
+
+## FAQ
+
+**What does a run cost?** Across the [27 telemetered runs](docs/metrics-baseline.report.json)
+that built this repo: the median run logs ≈1.3 hours of role-agent activity, from
+half an hour for a small change to ≈5 hours for the largest feature (parallel
+fan-outs mean wall-clock is lower). Time concentrates in implementation, validation,
+and review. Heavy-reasoning roles (design, review) run on the frontier model;
+mechanical roles (implementation, validation, docs) run on a cheaper tier — all
+routable per role from the manifest. `/craft:metrics` mines the same report from
+your own history.
+
+**Does it work on an existing, messy repo?** Yes — the only precondition is a
+discoverable test command. Phases whose tools are absent no-op with a note;
+`propose`/`integrate` no-op without a git remote.
+
+**What happens when a gate goes red?** Nothing gets committed — the invariant is
+orchestrator-enforced. The phase enters its fix loop; if it can't reach green, the
+blocker protocol escalates to you rather than papering over it.
+
+**Can I stop mid-run?** Yes. Every handoff is a committed artifact, so a killed
+session resumes from the last artifact — the plan's context blocks, not scrollback.
+
+## Docs
+
+| | |
+|---|---|
+| [GUIDE-customizing.md](docs/GUIDE-customizing.md) | mental model + full injection catalog |
+| [GUIDE-concepts.md](docs/GUIDE-concepts.md) | why craft is shaped this way, in four familiar frames |
+| [DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md) | living architecture: phases, ports, enforcement |
+| [docs/adr/](docs/adr/) | decision records |
+| [examples/](examples/) | one runnable sample per injection point |
+
+Contributing to craft itself? Dev loop: `claude --plugin-dir /path/to/craft`.
+
+## License
+
+[MIT](LICENSE) © Sébastien Colladon
