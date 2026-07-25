@@ -363,7 +363,7 @@ named by the descriptor's `contract:` field:
 | **U — universal core** | every phase, every mode | never commit on red gate; artifact-is-the-handoff; blocker protocol `{ unit, reason, ≤3 options }` — never spin/guess; no provenance refs (phase/ADR/backlog) in source or test; no suppression directives; bounded scope; work only in the given working directory |
 | **producer** | specification/construction artifact producers (design, requirements, planning) | fill the named template/schema; **Decision-candidates / pre-chewed-context** mandate; self-review to convergence (≤3); state-mutating probes run in a `mktemp` throwaway, never the worktree (generalised from the designer carve-out) |
 | **construction** | implementation parts | RED→GREEN→REFACTOR strictly; gate-before-commit; one atomic commit; G/W/T·AAA·`sut` test conventions absent a context override |
-| **harness-read** | `review` | read-only; structured findings `{file:line, severity, finding, fix}`; zero findings legitimate; fix-delta rounds verify prior + review the fix diff |
+| **harness-read** | `review` | read-only; structured findings `{file:line, severity, finding, fix, status?}`; zero findings legitimate; fix-delta rounds verify prior + review the fix diff over a bounded, status-tagged findings-state |
 | **harness-exec** | `validation`, `architecture`, security/perf… | a tool runs, the AI triages survivors/violations (kill or prove-equivalent / fix or justify); never weaken a test; gate-green before commit |
 | **delivery** | documentation, backlog, propose, integrate | content traceable to committed artifacts/shipped surface; touch only listed targets; the session owns synthesis records |
 
@@ -401,9 +401,12 @@ context files appended; assert the inline variant swaps exactly the two carve-ou
 **Output shape (R10) — principle in core, parser deferred.** SP5 showed structured output
 *shape* varies by model (Haiku emitted review findings as JSON, not one-per-line). The **core
 principle** (this design): every structured-output bundle (harness-read findings; U blocker
-protocol; producer plan-part headings) **pins a canonical field set**, and any consumer **keys
-on the fields** (`severity`, `file:line`, `reason`, `### Context`) **never on the layout** —
-tolerating a JSON array or a per-line list interchangeably; where a *script* parses (plan-lint),
+protocol; producer plan-part headings) **pins a canonical field set** — for harness-read,
+`file, line, severity, finding, fix?, status?`, the optional `status` over
+`{VERIFIED, SUSPECT, RULED-OUT, PROBE}` extending this interchangeability the same way `fix`
+does — and any consumer **keys on the fields** (`severity`, `file:line`, `reason`,
+`### Context`) **never on the layout** — tolerating a JSON array or a per-line list
+interchangeably; where a *script* parses (plan-lint),
 the schema stays **structural** (required headings), the most shape-robust form. The concrete
 **normaliser is a named deterministic seam** (`findings-normalize`: raw role output → the
 canonical field set) that P1 fixture-tests across both shapes; its *implementation* lands with
