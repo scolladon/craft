@@ -538,4 +538,4 @@ section specifies the seams it targets.)*
 - **P16 provider adapter** — the 6-port boundary is fixed so further adapters *can* exist; the
   Pi and opencode adapters are P16.
 - **P1 test-harness implementation** — seams specified above; the harness build is P1.
-- **DX docs / examples** (P12), **NFR matrix** (P13), **second-instantiation** (P15) — validated; see [docs/SC5-second-instantiation-record.md](SC5-second-instantiation-record.md).
+- **DX docs / examples** (P12), **NFR matrix** (P13), **second-instantiation** (P15) — validated; see [docs/archive/SC5-second-instantiation-record.md](archive/SC5-second-instantiation-record.md).

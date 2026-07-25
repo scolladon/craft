@@ -8,9 +8,9 @@ subjects: ['engine/src/observability/**']
 - `collect(opts, deps) → UsageEvent[]` — parse transcript data into a vendor-neutral stream of
   usage events that the pure core can aggregate.
   - **pre**: `opts` carries a `runFilter` (optional, restricts which run IDs to include),
-    `includeInline` flag (opt-in, see [ADR-187 gap](#inline-gap)); `deps` carries
+    `includeInline` flag (opt-in, see [ADR-187 gap](#inline-gap----include-inline-adr-187)); `deps` carries
     `readTranscripts: () => AsyncIterable<string>` and an optional `sessionId` (the run-identity
-    string, see [ADR-186 below](#run-identity-sessionid)). The adapter never receives an absolute
+    string, see [ADR-186 below](#run-identity-sessionid-adr-186)). The adapter never receives an absolute
     path; the `readTranscripts` provider owns the runtime path.
   - **post**: each returned `UsageEvent` is path-free, PII-free, and carries only the fields the
     core expects: `run`, `slug?`, `phase`, `role?`, `model`, `tokens`, `messages`,

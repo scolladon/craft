@@ -33,3 +33,16 @@ jobs:
 
       - name: Substrate gate
         run: bash scripts/ci.sh
+
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # Offline mode: verifies every relative link and #fragment across the repo's
+      # markdown deterministically (no network flakes); external URLs are not checked.
+      - name: Check markdown links
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --offline --include-fragments --no-progress --exclude-path engine/node_modules './**/*.md'
+          fail: true
