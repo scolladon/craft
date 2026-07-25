@@ -171,6 +171,151 @@ test('Given a fix explicitly set to null in JSON, when normalizeFindings runs, t
   assert.ok(!('fix' in result[0]), 'an explicit null fix must be omitted, never coerced to "null"');
 });
 
+// ─── status field (optional) ─────────────────────────────────────────────────
+
+const EXPECTED_WITH_STATUS = [
+  { file: 'src/a.js', line: 1, severity: 'CRITICAL', finding: 'real defect', fix: 'patch it', status: 'VERIFIED' },
+  { file: 'src/b.js', line: 2, severity: 'HIGH', finding: 'maybe unsafe', status: 'SUSPECT' },
+  { file: 'src/c.js', line: 3, severity: 'MEDIUM', finding: 'check this path', status: 'PROBE' },
+  { file: 'src/d.js', line: 4, severity: 'LOW', finding: 'not a bug', fix: 'no change', status: 'RULED-OUT' },
+  { file: 'src/e.js', line: 5, severity: 'error', finding: 'plain finding' },
+];
+
+test('Given a per-line fixture with status prefixes, when normalizeFindings runs, then each status is carried and the status-less row omits it', () => {
+  const raw = readFixture('with-status.txt');
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.deepEqual(result, EXPECTED_WITH_STATUS);
+  assert.ok(!('status' in result[4]), 'status-less line must not gain a status key');
+});
+
+test('Given a JSON fixture with status keys, when normalizeFindings runs, then each status is carried and the status-less record omits it', () => {
+  const raw = readFixture('with-status.json');
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.deepEqual(result, EXPECTED_WITH_STATUS);
+  assert.ok(!('status' in result[4]), 'status-less record must not gain a status key');
+});
+
+test('Given JSON and per-line with-status fixtures, when normalizeFindings runs on each, then results are deeply equal (R10)', () => {
+  const sut = normalizeFindings;
+
+  const fromJson = sut(readFixture('with-status.json'));
+  const fromLine = sut(readFixture('with-status.txt'));
+
+  assert.deepEqual(fromJson, fromLine);
+});
+
+test('Given a JSON entry without a status field, when normalizeFindings runs, then it returns the Finding with status genuinely absent', () => {
+  const raw = JSON.stringify([
+    { file: 'src/x.js', line: 1, severity: 'info', finding: 'Some note' },
+  ]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.ok(!('status' in result[0]), 'status must be genuinely absent, not set to undefined');
+});
+
+test('Given a status explicitly set to null in JSON, when normalizeFindings runs, then status is omitted (not the string "null")', () => {
+  const raw = JSON.stringify([
+    { file: 'src/x.js', line: 1, severity: 'info', finding: 'Some note', status: null },
+  ]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.ok(!('status' in result[0]), 'an explicit null status must be omitted, never coerced to "null"');
+});
+
+test('Given a JSON object with status listed before fix, when normalizeFindings runs, then the output key order is still file, line, severity, finding, fix, status', () => {
+  const raw = JSON.stringify([
+    { file: 'a.js', line: 1, severity: 'HIGH', finding: 'x', status: 'VERIFIED', fix: 'y' },
+  ]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.deepEqual(Object.keys(result[0]), ['file', 'line', 'severity', 'finding', 'fix', 'status']);
+});
+
+// ─── backward compatibility: existing fixtures gain no status key ────────────
+
+test('Given existing fixtures without status prefixes, when normalizeFindings runs, then results are unchanged and carry no status key', () => {
+  const sut = normalizeFindings;
+
+  const fromArray = sut(readFixture('array.json'));
+  const fromLine = sut(readFixture('per-line.txt'));
+  const fromMixed = sut(readFixture('mixed-whitespace.txt'));
+
+  assert.deepEqual(fromArray, EXPECTED_FINDINGS);
+  assert.deepEqual(fromLine, EXPECTED_FINDINGS);
+  assert.deepEqual(fromMixed, EXPECTED_FINDINGS);
+  assert.ok(!('status' in fromArray[0]));
+  assert.ok(!('status' in fromLine[0]));
+  assert.ok(!('status' in fromMixed[0]));
+});
+
+// ─── disambiguation matrix: status-shaped words that are actually severities ──
+
+test('Given a line starting with INFO (not a status token), when normalizeFindings runs, then severity is INFO and no status is set', () => {
+  const raw = 'INFO src/x.js:1 — some info finding';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].severity, 'INFO');
+  assert.ok(!('status' in result[0]));
+});
+
+test('Given a line starting with PROBE but no trailing colon, when normalizeFindings runs, then severity is PROBE and no status is set', () => {
+  const raw = 'PROBE src/x.js:1 — check this path';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].severity, 'PROBE');
+  assert.ok(!('status' in result[0]));
+});
+
+test('Given a finding whose text contains a status-shaped word mid-line, when normalizeFindings runs, then it is not treated as a status prefix (anchored match)', () => {
+  const raw = 'error a.js:1 — please check VERIFIED: manually';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].severity, 'error');
+  assert.equal(result[0].finding, 'please check VERIFIED: manually');
+  assert.ok(!('status' in result[0]));
+});
+
+test('Given a status prefix followed by multiple spaces, when normalizeFindings runs, then the status is still peeled correctly', () => {
+  const raw = 'SUSPECT:   HIGH a.js:1 — something odd';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].status, 'SUSPECT');
+  assert.equal(result[0].severity, 'HIGH');
+  assert.equal(result[0].finding, 'something odd');
+});
+
+// ─── ReDoS resistance still holds with a status prefix ───────────────────────
+
+test('Given a status-prefixed pathological line, when normalizeFindings runs, then it rejects promptly without catastrophic backtracking', () => {
+  const raw = `VERIFIED: error a.js:1 — ${' '.repeat(5000)}|`;
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    /Cannot parse findings/,
+  );
+});
+
 // ─── malformed → throws ───────────────────────────────────────────────────────
 
 test('Given a malformed fixture, when normalizeFindings runs, then it throws on structurally unrecoverable input', () => {

@@ -1,0 +1,5 @@
+VERIFIED: CRITICAL src/a.js:1 — real defect | patch it
+SUSPECT: HIGH src/b.js:2 — maybe unsafe
+PROBE: MEDIUM src/c.js:3 — check this path
+RULED-OUT: LOW src/d.js:4 — not a bug | no change
+error src/e.js:5 — plain finding

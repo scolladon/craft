@@ -38,6 +38,11 @@ const JSON_INPUT = JSON.stringify([{ file: 'a.js', line: 3, severity: 'HIGH', fi
 const LINE_INPUT = 'HIGH a.js:3 — x | y';
 const EXPECTED = JSON.stringify([{ file: 'a.js', line: 3, severity: 'HIGH', finding: 'x', fix: 'y' }], null, 2) + '\n';
 
+// Status trio: same finding, both shapes carry a status field.
+const LINE_STATUS = 'RULED-OUT: HIGH a.js:3 — x | y';
+const JSON_STATUS = JSON.stringify([{ file: 'a.js', line: 3, severity: 'HIGH', finding: 'x', fix: 'y', status: 'RULED-OUT' }]);
+const EXPECTED_STATUS = JSON.stringify([{ file: 'a.js', line: 3, severity: 'HIGH', finding: 'x', fix: 'y', status: 'RULED-OUT' }], null, 2) + '\n';
+
 // ─── file-path mode with JSON input → returns 0 + exact canonical bytes ───────
 
 test('Given a JSON-array file path arg, when main runs, then returns 0 and stdout equals the canonical bytes', () => {
@@ -64,6 +69,30 @@ test('Given a per-line file path arg, when main runs, then returns 0 and stdout 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.equal(io.stdout.joined(), EXPECTED);
   assert.equal(io.stderr.joined(), '');
+});
+
+// ─── file-path mode with a status field → byte-identical across both shapes ──
+
+test('Given a JSON file path arg with a status field, when main runs, then returns 0 and stdout equals the canonical bytes with status', () => {
+  const sut = main;
+  const io = makeIo();
+  const path = writeTmp('findings-status.json', JSON_STATUS);
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.equal(io.stdout.joined(), EXPECTED_STATUS);
+});
+
+test('Given a per-line file path arg with a status prefix, when main runs, then returns 0 and stdout equals the same canonical bytes as JSON mode', () => {
+  const sut = main;
+  const io = makeIo();
+  const path = writeTmp('findings-status.txt', LINE_STATUS);
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.equal(io.stdout.joined(), EXPECTED_STATUS);
 });
 
 // ─── structurally-unrecoverable garbage file → returns 2 + stderr prefix ─────

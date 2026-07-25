@@ -1,5 +1,5 @@
 /**
- * @typedef {{ file: string, line: number, severity: string, finding: string, fix?: string }} Finding
+ * @typedef {{ file: string, line: number, severity: string, finding: string, fix?: string, status?: string }} Finding
  */
 
 /**
@@ -13,23 +13,35 @@
 const PIPE_DELIMITER = /\s+\|\s+/u;
 const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
 
+/**
+ * Optional leading status token on a per-line record, e.g. `VERIFIED: ...`.
+ * Colon-anchored so a bare status-shaped word without the trailing colon
+ * (or any other leading word) is left alone and parsed as `severity` instead.
+ * A separate anchored pattern — not folded into LINE_HEAD_PATTERN — so it adds
+ * no new backtracking shape to the line-head match.
+ */
+const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
+
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
 /**
  * Build a canonical Finding from raw field values, regardless of source shape.
- * `fix` is omitted when null or undefined (it is the only optional field).
+ * `fix` and `status` are omitted when null or undefined.
  *
- * @param {{ file: unknown, line: unknown, severity: unknown, finding: unknown, fix?: unknown }} fields
+ * @param {{ file: unknown, line: unknown, severity: unknown, finding: unknown, fix?: unknown, status?: unknown }} fields
  * @returns {Finding}
  */
-function toFinding({ file, line, severity, finding, fix }) {
+function toFinding({ file, line, severity, finding, fix, status }) {
   const base = {
     file: String(file),
     line: Number(line),
     severity: String(severity),
     finding: String(finding).trim(),
   };
-  return fix != null ? { ...base, fix: String(fix).trim() } : base;
+  const withFix = fix != null ? { ...base, fix: String(fix).trim() } : base;
+  // status mirrors severity: passed through unvalidated and un-trimmed — it is
+  // free-form deliberation vocabulary, not a structural field to normalize.
+  return status != null ? { ...withFix, status: String(status) } : withFix;
 }
 
 /**
@@ -88,7 +100,12 @@ function parseJsonShape(raw) {
  * @returns {Finding | null}
  */
 function parseLine(line) {
-  const parts = line.trim().split(PIPE_DELIMITER);
+  const trimmed = line.trim();
+  const statusMatch = trimmed.match(STATUS_PREFIX_PATTERN);
+  const status = statusMatch ? statusMatch[1] : undefined;
+  const remainder = statusMatch ? trimmed.slice(statusMatch[0].length) : trimmed;
+
+  const parts = remainder.split(PIPE_DELIMITER);
   // finding and fix can't span a second delimiter — more than one is unparseable.
   if (parts.length > 2) {
     return null;
@@ -103,7 +120,7 @@ function parseLine(line) {
   if (finding.includes('|') || (fix !== undefined && fix.includes('|'))) {
     return null;
   }
-  return toFinding({ file, line: rawLine, severity, finding, fix });
+  return toFinding({ file, line: rawLine, severity, finding, fix, status });
 }
 
 /**
