@@ -235,6 +235,35 @@ test('Given a report file that is not valid JSON, when main runs, then it return
   assert.match(cap.stdout(), /telemetry: unusable input/);
 });
 
+test('Given a root with no README at all, when main runs, then it returns 1 with a readme unusable-input finding instead of throwing', () => {
+  const sut = main;
+  const cap = captureIo();
+  const bareRoot = mkdtempSync(join(tmpdir(), 'readme-drift-'));
+
+  try {
+    const status = sut([bareRoot], cap.io);
+
+    assert.equal(status, 1);
+    assert.match(cap.stdout(), /readme: unusable input/);
+  } finally {
+    rmSync(bareRoot, { recursive: true, force: true });
+  }
+});
+
+test('Given one sub-guard with unusable input and another with real drift, when main runs, then stdout carries both findings (run-all survives a throw)', () => {
+  const sut = main;
+  const cap = captureIo();
+
+  const status = withFixtureRoot(
+    { report: '{not json', defaultYml: RENAMED_PHASE_YML },
+    (root) => sut([root], cap.io),
+  );
+
+  assert.equal(status, 1);
+  assert.match(cap.stdout(), /telemetry: unusable input/);
+  assert.match(cap.stdout(), /phase-names/);
+});
+
 test('Given a tree with a renamed phase, an unknown snippet key, and a telemetry bump, when main runs, then stdout carries findings for all three surfaces and it returns 1', () => {
   const sut = main;
   const cap = captureIo();
