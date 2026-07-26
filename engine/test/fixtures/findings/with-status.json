@@ -1,0 +1,38 @@
+[
+  {
+    "file": "src/a.js",
+    "line": 1,
+    "severity": "CRITICAL",
+    "finding": "real defect",
+    "fix": "patch it",
+    "status": "VERIFIED"
+  },
+  {
+    "file": "src/b.js",
+    "line": 2,
+    "severity": "HIGH",
+    "finding": "maybe unsafe",
+    "status": "SUSPECT"
+  },
+  {
+    "file": "src/c.js",
+    "line": 3,
+    "severity": "MEDIUM",
+    "finding": "check this path",
+    "status": "PROBE"
+  },
+  {
+    "file": "src/d.js",
+    "line": 4,
+    "severity": "LOW",
+    "finding": "not a bug",
+    "fix": "no change",
+    "status": "RULED-OUT"
+  },
+  {
+    "file": "src/e.js",
+    "line": 5,
+    "severity": "error",
+    "finding": "plain finding"
+  }
+]

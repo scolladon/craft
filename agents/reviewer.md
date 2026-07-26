@@ -16,4 +16,7 @@ Contract:
 - If your dimension is tests: do NOT run the executing-harness techniques (a dedicated
   phase owns it) — but you MAY flag suspected-benign harness findings as advisory notes;
   they feed the harness-triager's prompt.
+- Tag each emitted finding with its claim status over
+  {VERIFIED, SUSPECT, RULED-OUT, PROBE}, defaulting to the actionable case when reporting
+  a plain defect; omit status when you are not deliberating.
 - Final message: the structured findings list — no prose around it.

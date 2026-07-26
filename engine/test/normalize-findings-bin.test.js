@@ -33,6 +33,11 @@ const JSON_NOFIX = JSON.stringify([{ file: 'a.js', line: 3, severity: 'HIGH', fi
 const LINE_NOFIX = 'HIGH a.js:3 — x';
 const EXPECTED_NOFIX = JSON.stringify([{ file: 'a.js', line: 3, severity: 'HIGH', finding: 'x' }], null, 2) + '\n';
 
+// Status trio: same finding, both shapes carry a status field emitted after fix.
+const LINE_STATUS = 'RULED-OUT: HIGH a.js:3 — x | y';
+const JSON_STATUS = JSON.stringify([{ file: 'a.js', line: 3, severity: 'HIGH', finding: 'x', fix: 'y', status: 'RULED-OUT' }]);
+const EXPECTED_STATUS = JSON.stringify([{ file: 'a.js', line: 3, severity: 'HIGH', finding: 'x', fix: 'y', status: 'RULED-OUT' }], null, 2) + '\n';
+
 // ─── (a) JSON-array stdin → exact canonical bytes, exit 0 ────────────────────
 
 test('Given a JSON-array input on stdin, when normalize-findings runs, then it prints the exact canonical bytes and exits 0', () => {
@@ -79,6 +84,25 @@ test('Given fix-absent inputs in both shapes, when normalize-findings runs, then
   assert.equal(fromJson.stdout, EXPECTED_NOFIX);
   assert.equal(fromLine.stdout, EXPECTED_NOFIX);
   assert.ok(!fromJson.stdout.includes('"fix"'), 'fix key must be absent when no fix is given');
+});
+
+// ─── status field: both shapes byte-identical, emitted after fix ────────────
+
+test('Given JSON and per-line stdin inputs carrying a status field, when normalize-findings runs on each, then stdout is byte-identical canonical bytes with status emitted after fix', () => {
+  const sut = runStdin;
+
+  const fromJson = sut(JSON_STATUS);
+  const fromLine = sut(LINE_STATUS);
+
+  assert.equal(fromJson.status, 0, `JSON stderr: ${fromJson.stderr}`);
+  assert.equal(fromLine.status, 0, `per-line stderr: ${fromLine.stderr}`);
+  assert.equal(fromJson.stdout, EXPECTED_STATUS);
+  assert.equal(fromLine.stdout, EXPECTED_STATUS);
+  assert.ok(fromJson.stdout.includes('"status": "RULED-OUT"'), 'status value must appear in the emitted bytes');
+  assert.ok(
+    fromJson.stdout.indexOf('"fix"') < fromJson.stdout.indexOf('"status"'),
+    'status must be emitted after fix (key-order pin)',
+  );
 });
 
 // ─── (c) per-line garbage → stderr message, exit 2, no stdout ────────────────

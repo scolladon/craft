@@ -374,6 +374,7 @@ Every Tier-0/1 injection point maps to a runnable [`examples/`](../examples/) sa
 | #12 DoD artifact | [`dod-artifact/`](../examples/dod-artifact/) | author `docs/DOD.md` or set `paths.dod`; validation asserts it (default-ON) |
 | #13 derived-plugin extension | [`derived-plugin/`](../examples/derived-plugin/) | `extends:` block — phases/agents/profiles |
 | enable a default-off phase | [`requirements/`](../examples/requirements/) · [`architecture/`](../examples/architecture/) | `phases.<id>.enabled: true` |
+| methodology declination (opt-in) | [deliberation-review/](../examples/deliberation-review/) | per-phase role swap for a high-stakes review lens; ~2× cost, not a default |
 
 Samples that reference a context/override body keep those files under
 [`examples/.claude/workflow/`](../examples/.claude/workflow/) so each manifest lints as-is; in your

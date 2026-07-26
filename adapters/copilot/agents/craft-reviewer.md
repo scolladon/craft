@@ -4,6 +4,7 @@ description: Craft review phase worker. Read-only, single-dimension reviewer ret
 model: auto
 effort: high
 ---
+
 You review one dimension of a change. Your invocation carries: the dimension and its
 definition, the absolute working directory, the diff scope (a git range or a fix-delta
 commit range plus prior findings), the design doc path, and any repo-specific context
@@ -16,4 +17,7 @@ Contract:
 - If your dimension is tests: do NOT run the executing-harness techniques (a dedicated
   phase owns it) — but you MAY flag suspected-benign harness findings as advisory notes;
   they feed the harness-triager's prompt.
+- Tag each emitted finding with its claim status over
+  {VERIFIED, SUSPECT, RULED-OUT, PROBE}, defaulting to the actionable case when reporting
+  a plain defect; omit status when you are not deliberating.
 - Final message: the structured findings list — no prose around it.

@@ -175,6 +175,28 @@ Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `do
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-07-26 — follow-ups surfaced by the sp9-findings-adoption run, not yet scheduled)
+
+**Line-length cap in the findings normalizer.** `parseLine`'s pipe-split
+(`engine/src/findings.js`) is O(n²) on a single pathological line (a long whitespace run
+before a trailing `|`): measured ~1.5s at 40k chars, ~40s at 200k. Pre-existing (the status
+peel added no overhead) and reviewer-deferred: a cap rejects oversized lines up front, which
+is a behavior change needing its own design line — the existing ReDoS tests only exercise
+5k chars, so raise them past where the quadratic bites when the cap lands.
+
+**Adapter agent-mirror sync tooling.** Six adapters mirror shared `agents/*.md` bodies
+(copilot/codex/cursor/antigravity/opencode keep frontmatter + body, aider is body-only) and
+their drift guards are byte-identity tests — so every shared-agent edit means six manual
+syncs discovered one red suite at a time. A `scripts/sync-adapter-agents.sh` (or generating
+the mirrors at test time) turns the guard's red into one command; the aider body-only +
+leading-newline-strip variant is the trap to encode.
+
+**findings.js mutation-baseline hardening.** The per-hunk validation run killed everything
+in this change's hunks, but a full-file scoped run still shows ~20 pre-existing survivors
+(regex constants, severity/finding trims, JSON-shape guards). One sitting with the repo's
+established triage conventions (kill or document `// equivalent mutant (…)`) closes the
+file's baseline gap.
+
 ### Open (scoped 2026-07-25 — follow-ups surfaced by the readme-drift-guards run, not yet scheduled)
 
 **Scripted, CI-regenerable README demo.** A committed terminal-recording tape (e.g. a

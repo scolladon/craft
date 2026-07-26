@@ -363,7 +363,7 @@ named by the descriptor's `contract:` field:
 | **U — universal core** | every phase, every mode | never commit on red gate; artifact-is-the-handoff; blocker protocol `{ unit, reason, ≤3 options }` — never spin/guess; no provenance refs (phase/ADR/backlog) in source or test; no suppression directives; bounded scope; work only in the given working directory |
 | **producer** | specification/construction artifact producers (design, requirements, planning) | fill the named template/schema; **Decision-candidates / pre-chewed-context** mandate; self-review to convergence (≤3); state-mutating probes run in a `mktemp` throwaway, never the worktree (generalised from the designer carve-out) |
 | **construction** | implementation parts | RED→GREEN→REFACTOR strictly; gate-before-commit; one atomic commit; G/W/T·AAA·`sut` test conventions absent a context override |
-| **harness-read** | `review` | read-only; structured findings `{file:line, severity, finding, fix}`; zero findings legitimate; fix-delta rounds verify prior + review the fix diff |
+| **harness-read** | `review` | read-only; structured findings `{file:line, severity, finding, fix, status?}`; zero findings legitimate; fix-delta rounds verify prior + review the fix diff over a bounded, status-tagged findings-state |
 | **harness-exec** | `validation`, `architecture`, security/perf… | a tool runs, the AI triages survivors/violations (kill or prove-equivalent / fix or justify); never weaken a test; gate-green before commit |
 | **delivery** | documentation, backlog, propose, integrate | content traceable to committed artifacts/shipped surface; touch only listed targets; the session owns synthesis records |
 
@@ -401,10 +401,13 @@ context files appended; assert the inline variant swaps exactly the two carve-ou
 **Output shape (R10) — principle in core, parser deferred.** SP5 showed structured output
 *shape* varies by model (Haiku emitted review findings as JSON, not one-per-line). The **core
 principle** (this design): every structured-output bundle (harness-read findings; U blocker
-protocol; producer plan-part headings) **pins a canonical field set**, and any consumer **keys
-on the fields** (`severity`, `file:line`, `reason`, `### Context`) **never on the layout** —
-tolerating a JSON array or a per-line list interchangeably; where a *script* parses (plan-lint),
-the schema stays **structural** (required headings), the most shape-robust form. The concrete
+protocol; producer plan-part headings) **pins a canonical field set** — for harness-read,
+`file, line, severity, finding, fix?, status?`, the optional `status` over
+`{VERIFIED, SUSPECT, RULED-OUT, PROBE}` extending this interchangeability the same way `fix`
+does — and any consumer **keys on the fields** (`severity`, `file:line`, `reason`,
+`### Context`) **never on the layout** — tolerating a JSON array or a per-line list
+interchangeably; where a *script* parses (plan-lint),
+the schema stays **structural** (required headings), the most shape-tolerant form. The concrete
 **normaliser is a named deterministic seam** (`findings-normalize`: raw role output → the
 canonical field set) that P1 fixture-tests across both shapes; its *implementation* lands with
 the consumers it serves (review at P5-relocation, per-harness specifics at P8). This doc fixes
@@ -457,7 +460,7 @@ The to-be `run/SKILL.md` walk, generalised away from hardcoded phase names:
 | `agents/<role>.md` carrying full contracts | **thin** role defs (identity + craft); invariant text relocated to the engine **contract store**; agents renamed to concern names (`mutation-triager→validation-triager`, …) | P4,P5 |
 | `manifest-lint.sh` (shape, static `PROTECTED`, old `PHASE_NAMES`) | extended for new keys; reads the shared **alias map** (ADR-004); static `PROTECTED` removed (the graph computes stranding); P2 hardens it (yq + fallback) under test — **or folds into the Node core** (ADR-002 follow-up) | P2,P3,P4 |
 | — (no resolver) | **new portable Node core module** (ADR-002): parse `pipeline/default.yml`, alias-resolve, expand profile, apply edits, validate the graph, assemble the injected block — the deterministic core functions, P1-unit-tested with a Node runner | P3,P5 |
-| `plan-lint.sh` | unchanged (structural part-schema gate — the shape-robust output model) | — |
+| `plan-lint.sh` | unchanged (structural part-schema gate — the shape-tolerant output model) | — |
 | `worktree-setup/teardown.sh` | unchanged mechanically; **named as the VCS adapter** (isolate/teardown verbs); lock policy is core | P3 (name), P16 (extract) |
 | `hooks/*` | unchanged; **named as the Gate/tool-guard mechanical adapter** | — |
 | `templates/*` | unchanged; `templates/requirements.md` added (P10) — `architecture` is a harness and needs no template; `agents/requirements-writer.md` + `agents/architecture-triager.md` + `skills/requirements/` + `skills/architecture/` now ship | P10 |
@@ -512,7 +515,7 @@ the remaining Bash (hooks, worktree scripts). Seams P1 needs:
   the two carve-out lines and nothing else. No LLM needed.
 - **`manifest-lint` valid/invalid fixtures** — including the historical comma-in-array +
   quoting regressions, and (at P4) the alias-resolution fixture.
-- **Output-shape robustness** — the consumer parser accepts a JSON array and a per-line list of
+- **Output-shape tolerance** — the consumer parser accepts a JSON array and a per-line list of
   findings interchangeably (R10); `plan-lint` stays structural.
 - **Scenario suite (golden runs S1–S9)** — assert *pipeline resolution + gate decisions*
   (mechanism), never LLM prose. SC1 = the zero-config golden walk equals today's order/agents.

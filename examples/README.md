@@ -51,6 +51,11 @@ point:
 - [`role-swap/`](role-swap/) and [`override-procedure/`](override-procedure/) show the G5 guarantee:
   swap *who* runs a phase, or *the steps* it runs, and the engine still injects the invariant contract
   around your worker — a swap can't drop what binds the phase.
+- Unlike the Superpowers peer row, a **methodology** can also land as a catalog example rather than
+  stay a peer: [`deliberation-review/`](deliberation-review/) swaps the review phase's `role:` (#10)
+  to a multi-round deliberation topology and narrows `harness.dimensions` (#6) to one costly lens —
+  opt-in, ~2× cost for depth, not a default. It wires the same two points every swap uses; no new
+  injection point.
 
 ## A use-pattern: running craft in a loop
 

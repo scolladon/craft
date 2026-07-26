@@ -38,21 +38,30 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    them for the validation phase).
 2. **Normalize findings:** before applying, pipe each reviewer's raw output through
    `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js"` to obtain a
-   canonical `Finding[]` (`{file, line, severity, finding, fix?}`). Key on these
+   canonical `Finding[]` (`{file, line, severity, finding, fix?, status?}`). Key on these
    fields — never on whether the reviewer emitted a JSON array or a per-line list.
-3. **Fixes — session-owned:** apply every accepted finding yourself, batched per
+3. **Fixes — session-owned:** the **actionable set** is `status ∈ {absent, VERIFIED,
+   SUSPECT, PROBE}` — engage each of these exactly as today (apply the fix, or
+   investigate and either fix it or record it as RULED-OUT). **`RULED-OUT` is
+   record-only:** write it to the run record as "examined, not a defect" and drop it
+   from the fix set. Apply every accepted actionable finding yourself, batched per
    dimension; each batch gates on the targeted checks (`gates.part` over touched
    files) + `gates.review-batch` before its conventional commit (e.g.
    `refactor(<scope>): apply code-review fixes`); `gates.phase` after the round.
 4. **Converge per dimension, up to `max_cycles` cycles** (default 3), per
-   `phase.harness.reviewPlan.stop_rule` (engine-emitted, binding):
-   - `low-only` → converged once only LOW-severity findings remain; NO relaunch.
+   `phase.harness.reviewPlan.stop_rule` (engine-emitted, binding). Both rules below
+   count only **actionable** findings (Step 3) — a `RULED-OUT` record never blocks
+   convergence:
+   - `low-only` → converged once only LOW-severity actionable findings remain; NO relaunch.
    - `none` → no convergence loop; single pass only.
-   - `non-low-count<=<n>` → stop when the count of remaining non-LOW findings
+   - `non-low-count<=<n>` → stop when the count of remaining non-LOW actionable findings
      (severity ≥ MEDIUM, off the normalized `Finding[]`) is ≤ n. The threshold n is
      read directly from the rule string — no re-derivation.
    MEDIUM+ → fresh reviewer scoped to the FIX DELTA only (prior findings + fix
-   commits' diff; mission: verify resolutions + review the fix diff). Fresh agent each
+   commits' diff; mission: verify resolutions + review the fix diff). The prior-findings
+   payload carries `RULED-OUT` records too, labelled: do not re-raise a RULED-OUT claim
+   unless the fix diff reintroduces the condition. This threaded payload is a **bounded,
+   status-tagged findings-state, never an accumulated transcript**. Fresh agent each
    cycle — never continue a reviewer.
 5. **Security gate:** HIGH/CRITICAL security findings — show the user the fix diff
    BEFORE committing. Everything else: fix-all-then-converge, no user round-trip.
