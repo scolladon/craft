@@ -269,6 +269,24 @@ findings:
       run: readme-drift-guards
       commit: b63c79c
       date: '2026-07-25'
+  - concern: findings
+    file: agents/reviewer.md
+    severity: medium
+    pattern: editing a shared agents/*.md body requires syncing SIX adapter mirrors in one pass (copilot/codex/cursor/antigravity/opencode keep own frontmatter + shared body; aider is body-only with leading blank lines stripped) — the drift guards are per-adapter byte-identity tests that surface one red suite at a time, so sweep grep -rln the body's first sentence across adapters/ before running the gate
+    confidence: 0.8
+    provenance:
+      run: sp9-findings-adoption
+      commit: '9184452'
+      date: '2026-07-26'
+  - concern: findings
+    file: examples/deliberation-review/workflow.md
+    severity: medium
+    pattern: an example that teaches an agent output format must emit the exact shape the engine normalizer parses — a pipe-delimited findings format taught in prose failed normalize-findings (pipe is reserved for the optional fix); run taught formats through the real parser before shipping
+    confidence: 0.6
+    provenance:
+      run: sp9-findings-adoption
+      commit: '9184452'
+      date: '2026-07-26'
 part-sizing:
   - concern: part-sizing
     size: pure-module
@@ -418,6 +436,8 @@ part-sizing:
 - adapters/pi/test/cli.test.js — confidence 0.8 | bb8d2cd (spawns the REAL pi via spawnSync, written for CI where pi is ABSENT → main exits 2 fast; in a dev sandbox with pi installed the spawn does slow provider work and the pi suite / ci.sh hangs tens of minutes — prepend a fast-failing `pi` stub (`exit 2`) to PATH to reproduce CI; node/npx stay real)
 - docs/GUIDE-concepts.md — confidence 0.7 | 10a1ecf (hand-drawn ASCII diagrams ship ragged borders; generate via fixed-width padding builder, verify column-constant edges in display columns not bytes)
 - test/source-hygiene.test.js — confidence 0.6 | 10a1ecf (allowlist comments hardcoding line numbers re-stale on unrelated prose edits; keep them line-agnostic like the regex)
+- agents/reviewer.md — confidence 0.8 | 9184452 (shared agent-body edits need all six adapter mirrors synced in one pass; aider is body-only, leading blanks stripped; guards are byte-identity tests that go red one suite at a time)
+- examples/deliberation-review/workflow.md — confidence 0.6 | 9184452 (taught output formats must round-trip through the real normalizer; pipe is reserved for the optional fix)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1

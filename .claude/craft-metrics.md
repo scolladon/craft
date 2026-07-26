@@ -270,3 +270,15 @@ readme-drift-guards review-fix-delta-tests tokens=91903 duration_ms=327191 cache
 readme-drift-guards review-fix-delta-perf tokens=53427 duration_ms=116528 cache=na
 readme-drift-guards validation-triage tokens=181699 duration_ms=892739 cache=na
 readme-drift-guards documentation tokens=67297 duration_ms=56398 cache=na
+sp9-findings-adoption design tokens=158836 duration_ms=671522 cache=na
+sp9-findings-adoption planning tokens=157580 duration_ms=733122 cache=na
+sp9-findings-adoption implementation-part-1 tokens=116609 duration_ms=465726 cache=na
+sp9-findings-adoption implementation-part-2 tokens=99438 duration_ms=195419 cache=na
+sp9-findings-adoption implementation-part-3 tokens=101705 duration_ms=333489 cache=na
+sp9-findings-adoption review-code tokens=91836 duration_ms=258341 cache=na
+sp9-findings-adoption review-security tokens=83719 duration_ms=460821 cache=na
+sp9-findings-adoption review-tests tokens=88269 duration_ms=243382 cache=na
+sp9-findings-adoption review-perf tokens=49176 duration_ms=43749 cache=na
+sp9-findings-adoption review-fix-delta tokens=55530 duration_ms=81666 cache=na
+sp9-findings-adoption validation-triage tokens=85664 duration_ms=125014 cache=na
+sp9-findings-adoption documentation tokens=107162 duration_ms=238041 cache=na
