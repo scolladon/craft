@@ -103,7 +103,7 @@ collision lint in `manifest.js`, and walk prose — **no new runtime port, no en
 
 **P27 delivered 2026-06-25** — de-specialize craft: no validation **technique** (mutation/Stryker,
 dependency-cruiser) or VCS-host **CLI** (`gh`) name survives in any plugin-defining source
-(`pipeline/ skills/ agents/ contracts/ templates/ engine/src/ docs/adapters/ docs/contributing/DOD.md
+(`pipeline/ skills/ agents/ contracts/ templates/ engine/src/ docs/adapters/ docs/DOD.md
 docs/GUIDE-customizing.md README.md`); concrete tools live only in consumer config, `examples/`, a
 port's adapter binding, and the kept `// equivalent mutant` dogfood comments. The two executing-harness
 phases (`validation`, `architecture`) collapse onto ONE generic gate-harness mechanism: an opaque

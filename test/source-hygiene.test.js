@@ -92,6 +92,23 @@ function findMisplacedVendorFiles(filePaths) {
 }
 
 test(
+  'Given the scanned-path list, when each entry is resolved against the tracked tree, then every entry yields at least one tracked file',
+  () => {
+    // A scanned path that stops existing silently drops out of the class-A/B
+    // scans (grep's error is swallowed to zero hits) — pin each entry
+    // positively so a moved or renamed location fails loud here instead.
+    for (const scannedPath of SCANNED_PATHS) {
+      const relative = path.relative(ROOT, scannedPath);
+      const tracked = listTrackedFiles([relative]);
+      assert.ok(
+        tracked.length > 0,
+        `Source-hygiene FAIL — scanned path has no tracked files (stale entry?): ${relative}`,
+      );
+    }
+  },
+);
+
+test(
   'Given Parts 1-10 removed technique names, when class-A tokens are grepped across the scanned set, then zero un-allowlisted hits remain',
   () => {
     const offenders = runGrep(CLASS_A_PATTERN, SCANNED_PATHS, [

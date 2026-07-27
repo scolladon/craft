@@ -21,13 +21,21 @@ if [ "${1:-}" = "--audience" ]; then
   rel="$(cd "$dir" && pwd)"
   rel="${rel#"$root"/}"
 
+  # Prefix-strip via literal parameter expansion (never a sed program built from
+  # the caller-controlled path) and dedupe in-shell; guarded expansions keep
+  # bash 3.2 `set -u` happy when the directory has zero tracked entries.
   top_level=()
-  while IFS= read -r entry; do
-    top_level+=("$entry")
-  done < <(git -C "$root" ls-files -- "$rel" | sed -E "s#^${rel}/##" | cut -d/ -f1 | sort -u)
+  while IFS= read -r path; do
+    path="${path#"$rel"/}"
+    entry="${path%%/*}"
+    case " ${top_level[*]:-} " in
+      *" $entry "*) : ;;
+      *) top_level+=("$entry") ;;
+    esac
+  done < <(git -C "$root" ls-files -- "$rel")
 
   offenders=()
-  for entry in "${top_level[@]}"; do
+  for entry in ${top_level[@]+"${top_level[@]}"}; do
     case "$entry" in
       README.md|guides|contributing) : ;;
       *) offenders+=("$entry") ;;

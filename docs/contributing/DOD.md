@@ -87,7 +87,7 @@ design doc is where a change states what "done" means for itself.
 ---
 
 _Reference (kept out of the verbatim-asserted checklist lines above): the DoD-assertion mechanism
-is specified in `docs/archive/DESIGN-P20-dod-aware-verification.md` and ADRs 104–110._
+is specified in `docs/contributing/archive/DESIGN-P20-dod-aware-verification.md` and ADRs 104–110._
 
 _Structured sidecar (opt-in): a DoD file may carry a YAML frontmatter `criteria` list tagging
 each entry `kind: auto` or `kind: judgment`. Auto criteria are verified mechanically against

@@ -81,6 +81,7 @@ shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/
   && for b in BACKLOG.md templates/backlog.md; do bash scripts/backlog-lint.sh "$b" || exit 1; done \
   && for d in templates/design.md docs/contributing/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \
   && bash scripts/docs-structure-lint.sh docs/contributing \
+  && bash scripts/docs-structure-lint.sh docs/guides \
   && bash scripts/docs-structure-lint.sh --audience docs
 
 # --- hygiene gates (workstream C): touched-diff stub + prose lints ---

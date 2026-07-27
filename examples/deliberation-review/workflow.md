@@ -91,7 +91,7 @@ committed findings artifact, the invariant core is untouched.
 ## Measured (probe date 2026-07-25)
 
 Full method and matrix:
-[docs/design/sp9-findings-adoption.md](../../docs/contributing/design/sp9-findings-adoption.md). Headless
+[docs/contributing/design/sp9-findings-adoption.md](../../docs/contributing/design/sp9-findings-adoption.md). Headless
 A/B/C on a 4-planted-bug diff, sonnet all arms, no tools:
 
 | arm | shape | output tokens | planted caught |
