@@ -21,7 +21,7 @@
  * NOT live-verified: the exact stdout-decision wire (vs an exit code) and the
  * empty-output benign semantics are pinned from the shipped docs, not from a
  * triggered hook (Antigravity exposes no headless port to fire one). See
- * docs/adapters/antigravity-poc-record.md.
+ * docs/contributing/specs/antigravity-poc-record.md.
  */
 import { decideGuard } from '../src/antigravity-guard-adapter.js';
 

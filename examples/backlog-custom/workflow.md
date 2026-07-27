@@ -13,7 +13,7 @@ The **Backlog SoT** port has two operations — `resolve(id) → {title, brief}`
 `complete(id, refs[])` — and two built-in sources: `file` (a markdown backlog, the zero-config
 default) and `custom` (a script you supply). This manifest routes both operations through
 `./scripts/your-tracker.sh`; GitHub Issues, Jira, and Linear are written as **`custom` recipes**
-(see [`docs/adapters/backlog.md`](../../docs/adapters/backlog.md)), not first-class sources.
+(see [`docs/contributing/specs/backlog.md`](../../docs/contributing/specs/backlog.md)), not first-class sources.
 
 | | `source: file` (default) | `source: custom` (here) |
 |---|---|---|

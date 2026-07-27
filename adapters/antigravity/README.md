@@ -4,7 +4,7 @@ This is **not** a runnable, live-proven port binding like the codex/copilot/open
 adapters. Antigravity (2.3.0) exposes **no headless execution port** — no scriptable
 one-turn-and-exit agent CLI with machine-readable output — so craft's orchestrator cannot
 drive it, and the live Phase-B proofs cannot run. Full rationale and evidence:
-`docs/adapters/antigravity-poc-record.md`.
+`docs/contributing/specs/antigravity-poc-record.md`.
 
 What this adapter IS: a **customization declination** — craft's content packaged for
 Antigravity's documented filesystem customization contract, driven by a human inside the
@@ -59,7 +59,7 @@ capture a transcript without a GUI session through Google OAuth against real sta
   `git-ext-diff-predicate`, which previously failed open on leading whitespace, a
   newline-separated `git diff`, or `--no-ext-diff` appearing anywhere. It now judges each
   shell-separated segment independently, and all five bindings were re-tested green. See
-  `docs/adapters/antigravity-poc-record.md`.
+  `docs/contributing/specs/antigravity-poc-record.md`.
 - **Sandbox/permission blocking — not measured.** Antigravity has an internal
   permission/sandbox model; what each mode actually blocks was not measured (no execution port
   to measure against).

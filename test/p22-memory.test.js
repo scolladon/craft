@@ -60,8 +60,8 @@ test(
   'Given the memory port doc was authored in S4, when its path is checked, then it exists',
   () => {
     assert.ok(
-      fs.existsSync(path.join(ROOT, 'docs/adapters/memory.md')),
-      'docs/adapters/memory.md should exist',
+      fs.existsSync(path.join(ROOT, 'docs/contributing/specs/memory.md')),
+      'docs/contributing/specs/memory.md should exist',
     );
   },
 );

@@ -5,7 +5,7 @@ headless agent CLI — the VS Code-lineage editor's one-turn-and-exit agent). It
 runnable analog of the codex/copilot/opencode/pi bindings: a real headless execution
 port plus an enforcing pre-execution guard. Every posture below is **measured live**
 against `cursor-agent 2026.07.20-8cc9c0b`, not assumed — see
-`docs/adapters/cursor-poc-record.md` for the full contract-discovery record.
+`docs/contributing/specs/cursor-poc-record.md` for the full contract-discovery record.
 
 ## What this binds
 

@@ -6,7 +6,7 @@ import { dirname, resolve } from 'node:path';
 
 import { assertFresh } from '../src/intention.js';
 
-const PAGE = 'docs/adapters/intention.md';
+const PAGE = 'docs/contributing/specs/intention.md';
 const CONTENT = readFileSync(
   resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', PAGE),
   'utf8',

@@ -15,7 +15,7 @@ const SCANNED_PATHS = [
   path.join(ROOT, 'contracts'),
   path.join(ROOT, 'templates'),
   path.join(ROOT, 'engine/src'),
-  path.join(ROOT, 'docs/adapters'),
+  path.join(ROOT, 'docs/contributing/specs'),
   path.join(ROOT, 'docs/DOD.md'),
   path.join(ROOT, 'docs/GUIDE-customizing.md'),
   path.join(ROOT, 'README.md'),
@@ -99,9 +99,9 @@ test(
       // comments documenting why specific lines survive mutation analysis — intentional
       // evidence in engine/src/**; a mutant-name comment outside this pattern still fails.
       /equivalent mutant|EQUIVALENT-MUTANT|mutant unreachable/,
-      // docs/adapters/pi-poc-record.md: frozen PoC record — filesystem-mutation sense
-      // ("Pi's mutations confined to throwaway"), not a technique-name leak.
-      /\/docs\/adapters\/pi-poc-record\.md:/,
+      // docs/contributing/specs/pi-poc-record.md: frozen PoC record — filesystem-mutation
+      // sense ("Pi's mutations confined to throwaway"), not a technique-name leak.
+      /\/docs\/contributing\/specs\/pi-poc-record\.md:/,
     ]);
     assert.strictEqual(
       offenders.length,
@@ -115,16 +115,16 @@ test(
   'Given Parts 1-10 removed VCS-host CLI references, when class-B tokens are grepped across the scanned set, then zero un-allowlisted hits remain',
   () => {
     const offenders = runGrep(CLASS_B_PATTERN, SCANNED_PATHS, [
-      // docs/adapters/vcs.md: content-scoped exemption — only the adapter binding lines
-      // ("git and gh CLI called directly", "same git/gh CLI called directly by the
-      // adapter") carry the binding marker "CLI called directly"; that is the reviewed
-      // boundary where the host CLI is allowed to live. A future 'gh' in vcs.md PROSE
-      // (outside a "CLI called directly" binding line) is NOT exempt and trips this gate.
-      /\/docs\/adapters\/vcs\.md:[0-9]+:.*CLI called directly/,
-      // docs/adapters/backlog.md: the Backlog port adapter recipe documents 'gh' as
-      // an example custom-script tool — an allowed host-CLI location (Backlog axis,
+      // docs/contributing/specs/vcs.md: content-scoped exemption — only the adapter
+      // binding lines ("git and gh CLI called directly", "same git/gh CLI called directly
+      // by the adapter") carry the binding marker "CLI called directly"; that is the
+      // reviewed boundary where the host CLI is allowed to live. A future 'gh' in vcs.md
+      // PROSE (outside a "CLI called directly" binding line) is NOT exempt and trips this gate.
+      /\/docs\/contributing\/specs\/vcs\.md:[0-9]+:.*CLI called directly/,
+      // docs/contributing/specs/backlog.md: the Backlog port adapter recipe documents 'gh'
+      // as an example custom-script tool — an allowed host-CLI location (Backlog axis,
       // not VCS axis).
-      /\/docs\/adapters\/backlog\.md:/,
+      /\/docs\/contributing\/specs\/backlog\.md:/,
       // engine/src/manifest.js 'github-issues': the NON_BUILTIN_TRACKERS constant
       // names the backlog tracker id — a tracker name, not a VCS-host CLI reference.
       /engine\/src\/manifest\.js:[0-9]+:.*github-issues/,
@@ -137,10 +137,10 @@ test(
       // separates span records from metric records — a vendor identifier at
       // the vendor binding's own home, not a host-CLI call.
       /engine\/src\/observability\/adapters\/copilot\/telemetry\.js:[0-9]+:.*github\.copilot/,
-      // docs/adapters/telemetry.md: the OTel instrumentation-scope name is the protocol
-      // discriminator the copilot binding matches on — a vendor identifier documented at
-      // the telemetry port, not a host-CLI reference.
-      /\/docs\/adapters\/telemetry\.md:[0-9]+:.*github\.copilot/,
+      // docs/contributing/specs/telemetry.md: the OTel instrumentation-scope name is the
+      // protocol discriminator the copilot binding matches on — a vendor identifier
+      // documented at the telemetry port, not a host-CLI reference.
+      /\/docs\/contributing\/specs\/telemetry\.md:[0-9]+:.*github\.copilot/,
       readmeCanonicalUrlOnlyFilter,
     ]);
     assert.strictEqual(

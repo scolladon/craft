@@ -14,7 +14,7 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
 
 1. **Monitor CI → fix to green**, ignoring jobs listed in `non-blocking-jobs`. Fixes
    land as conventional commits through the same gates as review fixes.
-2. **Consult `integrate` action** (see `docs/adapters/policy.md` for surface semantics).
+2. **Consult `integrate` action** (see `docs/contributing/specs/policy.md` for surface semantics).
    Obey the returned surface:
    - `ask` (default, ADR-127) — ask the user to confirm the merge, exactly as today;
      on approval proceed, on decline record `POLICY(ask:integrate→declined)` and block.
@@ -22,11 +22,11 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    - `always` — proceed with no confirmation; record `POLICY(always:integrate)`;
      supersedes the former hardcoded merge confirmation (ADR-128 — Supersede).
 
-   Then invoke the VCS port `integrate(prUrl)` (see `docs/adapters/vcs.md`); the adapter
+   Then invoke the VCS port `integrate(prUrl)` (see `docs/contributing/specs/vcs.md`); the adapter
    owns the host CLI. `--squash` / `--delete-branch` / `merge-flags` semantics live in
    the adapter binding. Always delete-branch: no merged branch lingers on the remote.
 3. **Consult `teardown` action** separately before worktree teardown (per-verb
-   granularity, ADR-126; see `docs/adapters/policy.md`). Then:
+   granularity, ADR-126; see `docs/contributing/specs/policy.md`). Then:
    ```bash
    "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \
      [--pre-teardown <manifest scripts.pre-teardown>]

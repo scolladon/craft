@@ -18,9 +18,9 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
    remediation + documented exceptions (both live in the manifest body or a phase
    context file — never memory). Run it; apply the remediation in its own
    conventional commit; re-gate.
-2. **Consult `push` action** (see `docs/adapters/policy.md` for surface semantics).
+2. **Consult `push` action** (see `docs/contributing/specs/policy.md` for surface semantics).
    Obey the returned surface, then push `-u origin <branch>`.
-3. **Consult `propose` action** (see `docs/adapters/policy.md`). Obey the returned surface:
+3. **Consult `propose` action** (see `docs/contributing/specs/policy.md`). Obey the returned surface:
    - `ask` (default, ADR-127) — hand the drafted body to the user and stop (`pr.creator: user`
      behaviour); on approval proceed with the PR creation, on decline record
      `POLICY(ask:propose→declined)` and block.
@@ -38,7 +38,7 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
    body is its own waiver source, so a deliberate ban-list word can be waived in-body).
    PR body only — never the ci.sh touched-docs cadence.
 
-   Invoke the VCS port `propose(title, body)` (see `docs/adapters/vcs.md`); the adapter
+   Invoke the VCS port `propose(title, body)` (see `docs/contributing/specs/vcs.md`); the adapter
    owns the host CLI. Body: drafted in the documentation phase per `templates/pr-body.md`
    — a Background · Intuition · Code narrative, then a Provenance & verification trailer
    (decisions + ADRs, design path, divergences, pinned behaviours, test plan, run record).

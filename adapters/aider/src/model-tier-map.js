@@ -2,7 +2,7 @@
  * craft tier → Aider `--model` id.
  *
  * Ids are pinned against the LIVE `aider --list-models` catalogue
- * (docs/adapters/aider-poc-record.md), never assumed. Aider bakes NO reasoning
+ * (docs/contributing/specs/aider-poc-record.md), never assumed. Aider bakes NO reasoning
  * effort into the model id — effort is a separate `--reasoning-effort` flag — so this
  * map is a plain tier→id, unlike Cursor's effort-suffixed ids.
  */

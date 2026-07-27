@@ -39,5 +39,5 @@ This example registers a named backlog adapter via `extends.backlog-adapters`, e
 The adapter script validates `id` against the id-form allowlist (`^#?[0-9]+$`) before any
 tool call and passes `id` as a discrete argv element — never interpolated into a shell string.
 
-See [`docs/adapters/backlog.md`](../../docs/adapters/backlog.md) for the full port contract
+See [`docs/contributing/specs/backlog.md`](../../docs/contributing/specs/backlog.md) for the full port contract
 and safe-invocation guidelines.

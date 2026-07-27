@@ -60,7 +60,7 @@ run_suite adapters/aider adapters/aider/test adapters/aider
 run_suite process test
 
 # run_intention_lint — enumerates the design's zero-config living corpus
-# (docs/adapters/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/GUIDE-customizing.md)
+# (docs/contributing/specs/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/GUIDE-customizing.md)
 # plus BACKLOG.md, mirroring run_suite's zero-file discipline: a zero-file
 # enumeration is a hard error, never a silent skip.
 run_intention_lint() {
@@ -129,7 +129,7 @@ run_prose_lint() {
   while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     case "$f" in
-      docs/adr/*|docs/design/*|docs/archive/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
+      docs/adr/*|docs/design/*|docs/archive/*|docs/contributing/specs/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
       *.md) docs+=("$f"); waivers+=(--waiver-source "$f") ;;
     esac
   done < "$hygiene_touched"

@@ -12,7 +12,7 @@ description: Craft phase 3 - the user decides every load-bearing design choice; 
    `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/adr.md"`; next ADR number = highest existing + 1.
 2. ADR writes route through the intention port's `record` — for the `file` adapter this
    is a thin relabel of today's `docs/adr/` writes byte-for-byte (see
-   `docs/adapters/intention.md`); the authoring below is unchanged.
+   `docs/contributing/specs/intention.md`); the authoring below is unchanged.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

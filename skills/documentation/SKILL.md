@@ -12,7 +12,7 @@ description: Craft phase 9 - refresh affected documentation pages, tick the back
    mechanical**: `(diff ∩ subjects) ∪ probe` — the existing judgment probe (public
    surface, behaviour a page states) UNIONed with every living page whose declared
    `subjects` the diff matches (via the intention port's `consult`; see
-   `docs/adapters/intention.md`). A **coverage gap** — a load-bearing changed scope
+   `docs/contributing/specs/intention.md`). A **coverage gap** — a load-bearing changed scope
    matched by no page's `subjects`, under `intention.covers` — escalates via the
    blocker protocol `{ unit, reason, ≤3 options }` rather than silently passing.
 
@@ -27,18 +27,18 @@ Runs in parallel with the validation phase's background run.
    update-only** — it never creates a new page; a coverage gap that implies a missing
    page is a human decision, escalated per the Preamble, never auto-created. No affected
    pages → skip honestly (run record).
-2. **Backlog tick — guarded by source** (see `docs/adapters/backlog.md`):
+2. **Backlog tick — guarded by source** (see `docs/contributing/specs/backlog.md`):
    - `source: file` — **consult `backlog-write` action** (default `always`, ADR-127;
-     see `docs/adapters/policy.md` for surface semantics); then spawn **craft:backlog-ticker**
+     see `docs/contributing/specs/policy.md` for surface semantics); then spawn **craft:backlog-ticker**
      with the exact entry line and the exact reference suffix. **Accept ONLY if the diff
      touches exactly the expected line(s)** — otherwise discard and do the one-line edit
      yourself.
    - `source: custom` — **consult `external-send` action** (default `ask`, ADR-127;
-     see `docs/adapters/policy.md`); on proceed, run `ref` with argv `["complete", id, ...refs]`;
+     see `docs/contributing/specs/policy.md`); on proceed, run `ref` with argv `["complete", id, ...refs]`;
      `id`/`refs` are untrusted, passed as discrete arguments (never spliced into a shell
      string) and `id` validated against the source's id-form before invoking (see the spec's
      safe-invocation note). A **non-zero exit is a blocker** (never a silent tick-skip);
-     idempotency is the custom script's documented contract (see `docs/adapters/backlog.md`),
+     idempotency is the custom script's documented contract (see `docs/contributing/specs/backlog.md`),
      not framework-asserted.
 
    Commit `docs(<slug>): backlog flip`.

@@ -1,6 +1,6 @@
 {
   "_note": "Antigravity customization install template. Antigravity discovers customizations from a customization root: the project-local <workspace>/.agents/ or the global ~/.gemini/config/. Place (or symlink) this adapter's agents/, skills/, and plugins/ under one of those roots, and export CRAFT_ROOT to the craft checkout so the guard hook and engine bins resolve.",
-  "_unverified": "The exact settings-file schema, the enable-customization-skills toggle, and whether install copies vs references out-of-tree paths are NOT live-verified (Antigravity has no headless port to enumerate loaded customizations). See docs/adapters/antigravity-poc-record.md.",
+  "_unverified": "The exact settings-file schema, the enable-customization-skills toggle, and whether install copies vs references out-of-tree paths are NOT live-verified (Antigravity has no headless port to enumerate loaded customizations). See docs/contributing/specs/antigravity-poc-record.md.",
   "customizationRoot": "${HOME}/.gemini/config",
   "craftRoot": "/absolute/path/to/craft",
   "install": {
