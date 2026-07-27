@@ -12,9 +12,12 @@ const ROOT = path.resolve(__dirname, '..');
 const MOVED = [
   ['docs/contributing/specs/telemetry.md', 'docs/adapters/telemetry.md'],
   ['docs/guides/customizing.md', 'docs/GUIDE-customizing.md'],
-  ['docs/contributing/adr/283-docs-move-redirect-via-manifest-paths.md', 'docs/adr/283-docs-move-redirect-via-manifest-paths.md'],
-  ['docs/contributing/design/docs-audience-split.md', 'docs/design/docs-audience-split.md'],
-  ['docs/contributing/plan/docs-audience-split.md', 'docs/plan/docs-audience-split.md'],
+  // Representatives must pre-date the audience-split branch: the squash-merge
+  // collapses a branch-internal create+move into a create at the final path,
+  // so a file authored on that branch has no pre-move path in main's history.
+  ['docs/contributing/adr/001-descriptor-storage-form.md', 'docs/adr/001-descriptor-storage-form.md'],
+  ['docs/contributing/design/sp9-findings-adoption.md', 'docs/design/sp9-findings-adoption.md'],
+  ['docs/contributing/plan/sp9-findings-adoption.md', 'docs/plan/sp9-findings-adoption.md'],
   ['docs/contributing/archive/SPIKE.md', 'docs/archive/SPIKE.md'],
   ['docs/contributing/prd/DESIGN-history.md', 'docs/DESIGN-history.md'],
   ['docs/contributing/DOD.md', 'docs/DOD.md'],
