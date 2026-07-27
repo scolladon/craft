@@ -39,7 +39,7 @@ The resolver script at `ref` implements two argv commands:
 **Safe invocation:** `id` is passed as a discrete positional argument (never interpolated into a
 shell string), and validated against an id-form allowlist before any tool call.
 
-See [`resolve.sh`](./resolve.sh) for the complete implementation and [`docs/adapters/backlog.md`](../../docs/adapters/backlog.md)
+See [`resolve.sh`](./resolve.sh) for the complete implementation and [`docs/contributing/specs/backlog.md`](../../docs/contributing/specs/backlog.md)
 for the full port specification.
 
 ## The `extends.backlog-adapters` sub-block

@@ -28,7 +28,7 @@ attribute-co-authored-by: false
 # added per invocation via --read; CONVENTIONS.md rides here as the standing convention.
 read: [CONVENTIONS.md]
 
-# Model tiers — live-pinned anthropic/ ids (docs/adapters/aider-poc-record.md
+# Model tiers — live-pinned anthropic/ ids (docs/contributing/specs/aider-poc-record.md
 # --list-models catalogue). Aider bakes no effort into the id; reasoning effort is the
 # separate --reasoning-effort flag.
 models:

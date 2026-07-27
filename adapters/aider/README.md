@@ -4,7 +4,7 @@ A native binding of the craft harness for **Aider** (`aider-chat`, Paul Gauthier
 git-native AI pair-programmer CLI). Unlike the codex/copilot/opencode/pi/cursor bindings,
 Aider is not a tool-calling agent — it is a focused **edit loop**: it adds files to a chat,
 proposes and applies edits, and **auto-commits to git**. Every posture below is measured
-live against `aider 0.86.2`, not assumed — see `docs/adapters/aider-poc-record.md` for the
+live against `aider 0.86.2`, not assumed — see `docs/contributing/specs/aider-poc-record.md` for the
 full contract-discovery record.
 
 ## What this binds

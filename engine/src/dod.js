@@ -18,7 +18,7 @@ const VALID_KINDS = Object.freeze(new Set(['auto', 'judgment']));
  * - Frontmatter present but malformed YAML → throws (author error, surfaced loud).
  * - Structured: returns { criteria: Criterion[] }.
  *
- * Back-compat: an existing free-text DoD file (docs/DOD.md) has no frontmatter
+ * Back-compat: an existing free-text DoD file (docs/contributing/DOD.md) has no frontmatter
  * and returns null — callers treat null as "no structured criteria". A file that
  * opens a frontmatter block but mis-types it is a genuine mistake and fails loud
  * rather than silently degrading to free-text.

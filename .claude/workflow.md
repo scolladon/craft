@@ -1,4 +1,9 @@
 ---
+paths:
+  design: docs/contributing/design
+  adr: docs/contributing/adr
+  plan: docs/contributing/plan
+  dod: docs/contributing/DOD.md
 phases:
   validation:
     harness:

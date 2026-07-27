@@ -20,4 +20,4 @@ The name must be kebab-case (`[a-z0-9]+(-[a-z0-9]+)*`). The resolved path is cap
 by `init-config.js` and reused throughout — no raw-name re-splice at the move step.
 
 See `workflow.md` in this directory for the manifest shape, and
-[docs/GUIDE-customizing.md](../../docs/GUIDE-customizing.md) for the full injection catalog.
+[docs/guides/customizing.md](../../docs/guides/customizing.md) for the full injection catalog.

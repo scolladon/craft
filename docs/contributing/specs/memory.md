@@ -106,8 +106,8 @@ Identical filesystem semantics rooted at the pi run's working directory; `deps.r
 Pi has no fan-out, so per-phase context injection is sequential: between each `pi -p` subprocess
 invocation the orchestrator reads the concern slice from the in-memory view and prepends it to
 the next invocation's injected block. The artifact-handoff invariant carries state between pi
-phases (see `docs/adapters/execution.md` Pi binding). Metrics are collected per-phase from each
-subprocess's output.
+phases (see `docs/contributing/specs/execution.md` Pi binding). Metrics are collected per-phase
+from each subprocess's output.
 
 ### Custom adapter (documented future seam)
 

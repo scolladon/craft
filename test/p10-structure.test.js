@@ -177,8 +177,8 @@ test(
   'Given the loop recipe is catalog-indexed, when the GUIDE is checked, then it references examples/loop/',
   () => {
     assert.ok(
-      grepQ_plain('examples/loop/', path.join(ROOT, 'docs/GUIDE-customizing.md')),
-      'docs/GUIDE-customizing.md should reference examples/loop/',
+      grepQ_plain('examples/loop/', path.join(ROOT, 'docs/guides/customizing.md')),
+      'docs/guides/customizing.md should reference examples/loop/',
     );
   },
 );

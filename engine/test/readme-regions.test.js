@@ -60,7 +60,7 @@ const TIMELINE_BLOCK = [
 ].join('\n');
 
 const FAQ_SENTENCE = [
-  '**What does a run cost?** Across the [27 telemetered runs](docs/metrics-baseline.report.json)',
+  '**What does a run cost?** Across the [27 telemetered runs](docs/contributing/metrics-baseline.report.json)',
   'that built this repo: the median run logs ≈1.3 hours of role-agent activity, from',
   'half an hour for a small change to ≈5 hours for the largest feature …',
 ].join('\n');
@@ -221,7 +221,7 @@ test('Given the pinned FAQ sentence, when extracted, then costClaims holds the f
 test('Given an FAQ sentence whose median is a whole number of hours, when extracted, then median and max stay distinct claims', () => {
   const sut = extractReadmeRegions;
   const integerMedianFaq = [
-    '**What does a run cost?** Across the [27 telemetered runs](docs/metrics-baseline.report.json)',
+    '**What does a run cost?** Across the [27 telemetered runs](docs/contributing/metrics-baseline.report.json)',
     'that built this repo: the median run logs ≈2 hours of role-agent activity, from',
     'half an hour for a small change to ≈5 hours for the largest feature …',
   ].join('\n');

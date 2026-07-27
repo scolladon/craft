@@ -94,7 +94,7 @@ description: Craft phase 8 - run the repo's engineering harness over the change,
    declined: the phase ends here (equivalent to the no-op terminal above).
 
 5. **Intention freshness (advisory).** Run `assert-fresh(change)` — see
-   `docs/adapters/intention.md`. The returned `report.stale[]` array carries **one row
+   `docs/contributing/specs/intention.md`. The returned `report.stale[]` array carries **one row
    per stale page, including waived pages** — a waived row carries `waived: true`; it is
    **not** removed from `stale[]`, it is only flagged. `report.stale.length` is therefore
    **not** the drift count. Emit an `INTENTION-DRIFT(<page>): <path>` line into the run

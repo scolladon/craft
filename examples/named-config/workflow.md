@@ -31,7 +31,7 @@ sibling, then landed atomically only on a clean lint.
 | `pipeline.skip` | `[documentation]` | Drop the documentation phase for this profile |
 
 In your repo, replace these with your project-specific values. The full catalog of injection
-points is in [docs/GUIDE-customizing.md](../../docs/GUIDE-customizing.md).
+points is in [docs/guides/customizing.md](../../docs/guides/customizing.md).
 
 ## Generating a named config
 

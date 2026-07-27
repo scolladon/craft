@@ -3,7 +3,7 @@
 An orientation layer, not a reference: four external ways of talking about agentic delivery,
 each mapped onto the real craft mechanism it describes. Start here to recognize *why* the
 pipeline, the harnesses, the manifest, and the human checkpoints look the way they do; go to
-[GUIDE-customizing.md](GUIDE-customizing.md) for *how* to configure any of them.
+[customizing.md](customizing.md) for *how* to configure any of them.
 
 craft's own vocabulary is what actually runs the system — review, validation, architecture,
 policy, manifest, declination, verdict — and stays primary everywhere else in the docs. The
@@ -51,12 +51,12 @@ the plan's pre-chewed context block — never from scrollback that no longer exi
 
 | External concept | craft mechanism (real) | Owning doc / key |
 |---|---|---|
-| The loop, written down (gather → reason → act → verify) | the 11-phase pipeline walk `workspace → design → decisions → planning → implementation → review → refactoring → validation → documentation → propose → integrate`, driven by `skills/run` | [../README.md](../README.md); [DESIGN-customizable-engine.md](DESIGN-customizable-engine.md) §Orchestrator pipeline walk |
-| Loops nest | review convergence rounds (`phases.review.harness.passes` / `max_cycles` / `convergence`); part-level RED→GREEN→REFACTOR (construction bundle); reset-on-red = never-commit-on-red + respawn-from-artifact | [GUIDE-customizing.md](GUIDE-customizing.md) §3 (harness config); [DESIGN-customizable-engine.md](DESIGN-customizable-engine.md) §Engine-owned contract injection; [GUIDE-customizing.md](GUIDE-customizing.md) §2 |
-| Roles separated (Planner / Generator / Evaluator), each fresh-context | **Planner:** `requirements-writer`, `designer`, `planner` · **Generator:** `part-implementer`, `refactor-executor`, `docs-writer` (+ `backlog-ticker`) · **Evaluator:** `reviewer`, `harness-triager` — each a fresh-context subagent fed from the artifact | [../agents/](../agents/); [DESIGN-customizable-engine.md](DESIGN-customizable-engine.md) §Orchestrator pipeline walk (respawn-from-artifact) |
-| State on disk, not in the model | zero session-memory dependence; the artifact chain brief → PRD → design → ADRs → parted plan (pre-chewed context blocks) → run record → Memory port; every hop survives a reset | [../README.md](../README.md) (opening); [GUIDE-customizing.md](GUIDE-customizing.md) §1–§2; [adapters/memory.md](adapters/memory.md) |
-| Bounded state, threaded within a loop | the same artifact-over-transcript rule applied *inside* a phase: a multi-round intra-phase loop (e.g. review convergence) threads a bounded structured state — the normalized, status-tagged `Finding[]` plus the fix diff — never an accumulated transcript; a probe comparing bounded-state threading against full-transcript threading measured comparable quality at ~31% fewer output tokens (n=1, one synthetic diff, directional) | [skills/review](../skills/review); [contracts/harness-read.md](../contracts/harness-read.md) |
-| The frame is generative | `/craft:prune` and the `hygiene.gate` stub/prose lints — both shipped out of the Karpathy-gist comparison | [../skills/prune](../skills/prune); [GUIDE-customizing.md](GUIDE-customizing.md) §3 (`hygiene.gate`) |
+| The loop, written down (gather → reason → act → verify) | the 11-phase pipeline walk `workspace → design → decisions → planning → implementation → review → refactoring → validation → documentation → propose → integrate`, driven by `skills/run` | [../../README.md](../../README.md); [../contributing/prd/DESIGN-customizable-engine.md](../contributing/prd/DESIGN-customizable-engine.md) §Orchestrator pipeline walk |
+| Loops nest | review convergence rounds (`phases.review.harness.passes` / `max_cycles` / `convergence`); part-level RED→GREEN→REFACTOR (construction bundle); reset-on-red = never-commit-on-red + respawn-from-artifact | [customizing.md](customizing.md) §3 (harness config); [../contributing/prd/DESIGN-customizable-engine.md](../contributing/prd/DESIGN-customizable-engine.md) §Engine-owned contract injection; [customizing.md](customizing.md) §2 |
+| Roles separated (Planner / Generator / Evaluator), each fresh-context | **Planner:** `requirements-writer`, `designer`, `planner` · **Generator:** `part-implementer`, `refactor-executor`, `docs-writer` (+ `backlog-ticker`) · **Evaluator:** `reviewer`, `harness-triager` — each a fresh-context subagent fed from the artifact | [../../agents/](../../agents/); [../contributing/prd/DESIGN-customizable-engine.md](../contributing/prd/DESIGN-customizable-engine.md) §Orchestrator pipeline walk (respawn-from-artifact) |
+| State on disk, not in the model | zero session-memory dependence; the artifact chain brief → PRD → design → ADRs → parted plan (pre-chewed context blocks) → run record → Memory port; every hop survives a reset | [../../README.md](../../README.md) (opening); [customizing.md](customizing.md) §1–§2; [../contributing/specs/memory.md](../contributing/specs/memory.md) |
+| Bounded state, threaded within a loop | the same artifact-over-transcript rule applied *inside* a phase: a multi-round intra-phase loop (e.g. review convergence) threads a bounded structured state — the normalized, status-tagged `Finding[]` plus the fix diff — never an accumulated transcript; a probe comparing bounded-state threading against full-transcript threading measured comparable quality at ~31% fewer output tokens (n=1, one synthetic diff, directional) | [skills/review](../../skills/review); [contracts/harness-read.md](../../contracts/harness-read.md) |
+| The frame is generative | `/craft:prune` and the `hygiene.gate` stub/prose lints — both shipped out of the Karpathy-gist comparison | [../../skills/prune](../../skills/prune); [customizing.md](customizing.md) §3 (`hygiene.gate`) |
 
 Read that last row as the frame closing on itself: comparing craft against an external loop
 description didn't just relabel existing behaviour, it found a gap (nothing was pruning stale
@@ -79,13 +79,13 @@ repo happens to have installed.
 
 | External concept | craft mechanism (real) | Owning doc / key |
 |---|---|---|
-| "Harness" = automated, repeatable verification of one concern (a gate + optional AI triage) | craft's **harness archetype** definition | [GUIDE-customizing.md](GUIDE-customizing.md) §1 |
-| Computational sensor | lints + gates (`design-lint`, `plan-lint`, `manifest-lint`, `docs-structure-lint`, the hygiene lints) via the Gate port `run(cmd)` | [../scripts/](../scripts/); [adapters/gate.md](adapters/gate.md) |
-| Inferential sensor | AI review dimensions + harness triage | [../agents/reviewer.md](../agents/reviewer.md); [../agents/harness-triager.md](../agents/harness-triager.md) |
-| Behaviour harness | TDD gates (construction bundle RED→GREEN→REFACTOR + gate-before-commit) + `validation` phase; **feed-forward** = design/plan pre-chewed context blocks; **feed-back** = the phase gate + the never-commit-on-red floor | [../skills/implementation](../skills/implementation); [../skills/validation](../skills/validation); [GUIDE-customizing.md](GUIDE-customizing.md) §2 |
-| Maintainability harness | `review` phase (inferential dimensions) + lints/hygiene gates (computational) + `refactoring` phase | [../skills/review](../skills/review); [../skills/refactoring](../skills/refactoring); [GUIDE-customizing.md](GUIDE-customizing.md) §3 |
-| Architecture-fitness harness | `architecture` phase (probe → run → triage → gate) + the intention port (living pages as fitness pages; `INTENTION-DRIFT` as the sensor) | [../skills/architecture](../skills/architecture); [adapters/intention.md](adapters/intention.md) |
-| Harness-as-a-Service | **sense a** — craft *is* a delivery harness offered as a governed, reusable layer; **sense b** — it *hosts* harnesses (review / validation / architecture) as pluggable sub-services; the seven native adapter bindings prove the ports are pluggable | [../README.md](../README.md) HaaS bullet + the Layout bindings table (linked, not copied) |
+| "Harness" = automated, repeatable verification of one concern (a gate + optional AI triage) | craft's **harness archetype** definition | [customizing.md](customizing.md) §1 |
+| Computational sensor | lints + gates (`design-lint`, `plan-lint`, `manifest-lint`, `docs-structure-lint`, the hygiene lints) via the Gate port `run(cmd)` | [../../scripts/](../../scripts/); [../contributing/specs/gate.md](../contributing/specs/gate.md) |
+| Inferential sensor | AI review dimensions + harness triage | [../../agents/reviewer.md](../../agents/reviewer.md); [../../agents/harness-triager.md](../../agents/harness-triager.md) |
+| Behaviour harness | TDD gates (construction bundle RED→GREEN→REFACTOR + gate-before-commit) + `validation` phase; **feed-forward** = design/plan pre-chewed context blocks; **feed-back** = the phase gate + the never-commit-on-red floor | [../../skills/implementation](../../skills/implementation); [../../skills/validation](../../skills/validation); [customizing.md](customizing.md) §2 |
+| Maintainability harness | `review` phase (inferential dimensions) + lints/hygiene gates (computational) + `refactoring` phase | [../../skills/review](../../skills/review); [../../skills/refactoring](../../skills/refactoring); [customizing.md](customizing.md) §3 |
+| Architecture-fitness harness | `architecture` phase (probe → run → triage → gate) + the intention port (living pages as fitness pages; `INTENTION-DRIFT` as the sensor) | [../../skills/architecture](../../skills/architecture); [../contributing/specs/intention.md](../contributing/specs/intention.md) |
+| Harness-as-a-Service | **sense a** — craft *is* a delivery harness offered as a governed, reusable layer; **sense b** — it *hosts* harnesses (review / validation / architecture) as pluggable sub-services; the seven native adapter bindings prove the ports are pluggable | [../../README.md](../../README.md) HaaS bullet + the Layout bindings table (linked, not copied) |
 
 The taxonomy earns its keep in how it draws the line between a lint and a review dimension.
 One is cheap, deterministic, and expected to run every cycle; the other is a judgment call
@@ -122,12 +122,12 @@ order applies whether the knob is a harness pass count, a model pin, or a policy
 
 | External concept | craft mechanism (real) | Owning doc / key |
 |---|---|---|
-| Config precedence as layers | engine defaults (capability probing) **<** user scope (`~/.claude/craft-<name>.md`, `~/.claude/craft-policy.md`) **<** project manifest (`.claude/workflow.md` / `.claude/craft-<name>.md`) **<** per-invocation flags (`--config` / `--profile` / `--harness` / `--policy`) | [GUIDE-customizing.md](GUIDE-customizing.md) §Precedence; [../README.md](../README.md) *Use* |
-| The invariant floor (what no layer touches) | never-commit-on-red; a gate must exist for code-producing phases; contract injection; artifact-is-the-handoff; gate cadence; model resolution + fallback; dependency graph honored | [GUIDE-customizing.md](GUIDE-customizing.md) §2 |
-| The knobs | the injection verbs skip / model / gate / execution / profile / harness / backlog / memory / context / override / swap / insert — one line each, pointing to the catalog | [GUIDE-customizing.md](GUIDE-customizing.md) §3 (linked, not duplicated) |
+| Config precedence as layers | engine defaults (capability probing) **<** user scope (`~/.claude/craft-<name>.md`, `~/.claude/craft-policy.md`) **<** project manifest (`.claude/workflow.md` / `.claude/craft-<name>.md`) **<** per-invocation flags (`--config` / `--profile` / `--harness` / `--policy`) | [customizing.md](customizing.md) §Precedence; [../../README.md](../../README.md) *Use* |
+| The invariant floor (what no layer touches) | never-commit-on-red; a gate must exist for code-producing phases; contract injection; artifact-is-the-handoff; gate cadence; model resolution + fallback; dependency graph honored | [customizing.md](customizing.md) §2 |
+| The knobs | the injection verbs skip / model / gate / execution / profile / harness / backlog / memory / context / override / swap / insert — one line each, pointing to the catalog | [customizing.md](customizing.md) §3 (linked, not duplicated) |
 
 > The per-knob precedence details (execution, model, `--config` two-scope fold, `--harness` /
-> `--policy` grammar) are owned by [GUIDE-customizing.md](GUIDE-customizing.md) §Precedence —
+> `--policy` grammar) are owned by [customizing.md](customizing.md) §Precedence —
 > this guide states the layer story once and links there for the exact fold order per knob.
 
 None of the three layers above engine defaults can be used to reach the floor. A user-scope
@@ -169,11 +169,11 @@ silently skipped just because nobody configured one.
 
 | External concept | craft mechanism (real) | Owning doc / key |
 |---|---|---|
-| Inner loop (agent-owned) | the per-phase work: an agent executes the phase under the engine-injected contract | [DESIGN-customizable-engine.md](DESIGN-customizable-engine.md) §Orchestrator pipeline walk |
-| Outer loop — constraints sub-loop | manifest + gates + policy installed **before** the run (`manifest-lint` at resolve; the gate floor; policy verdicts; the invariant floor) | [GUIDE-customizing.md](GUIDE-customizing.md) §2, §5; [adapters/policy.md](adapters/policy.md) |
-| Outer loop — sampling sub-loop | decision candidates ratified in the `decisions` phase (ADRs); phase gates per round | [../skills/decisions](../skills/decisions); [../skills/design](../skills/design) |
-| Outer loop — ownership sub-loop | propose / integrate confirmations (`propose` and `integrate` default to the `ask` verdict) | [adapters/policy.md](adapters/policy.md) |
-| "Approved scenarios" / the Verdict | the Policy port names its `always` / `ask` / `never` settings **verdicts** (vocabulary already converged) — with the three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) deliberately un-nameable | [adapters/policy.md](adapters/policy.md) |
+| Inner loop (agent-owned) | the per-phase work: an agent executes the phase under the engine-injected contract | [../contributing/prd/DESIGN-customizable-engine.md](../contributing/prd/DESIGN-customizable-engine.md) §Orchestrator pipeline walk |
+| Outer loop — constraints sub-loop | manifest + gates + policy installed **before** the run (`manifest-lint` at resolve; the gate floor; policy verdicts; the invariant floor) | [customizing.md](customizing.md) §2, §5; [../contributing/specs/policy.md](../contributing/specs/policy.md) |
+| Outer loop — sampling sub-loop | decision candidates ratified in the `decisions` phase (ADRs); phase gates per round | [../../skills/decisions](../../skills/decisions); [../../skills/design](../../skills/design) |
+| Outer loop — ownership sub-loop | propose / integrate confirmations (`propose` and `integrate` default to the `ask` verdict) | [../contributing/specs/policy.md](../contributing/specs/policy.md) |
+| "Approved scenarios" / the Verdict | the Policy port names its `always` / `ask` / `never` settings **verdicts** (vocabulary already converged) — with the three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) deliberately un-nameable | [../contributing/specs/policy.md](../contributing/specs/policy.md) |
 
 Splitting the outer loop into three sub-loops pays off when something goes wrong: a bad
 outcome traces to exactly one of them — a constraint that should have been installed but
@@ -192,14 +192,14 @@ skim it first, then open the frame section above for the full mapping and its ow
 |---|---|---|
 | The loop, written down | the 11-phase pipeline walk | `skills/run` |
 | Roles (Planner / Generator / Evaluator) | per-phase role agents | `agents/` |
-| State on disk | artifact chain + Memory port | [adapters/memory.md](adapters/memory.md) |
-| Harness | the harness archetype | [GUIDE-customizing.md](GUIDE-customizing.md) §1 |
-| Computational / inferential sensor | lints+gates / AI review+triage | [adapters/gate.md](adapters/gate.md); [../agents/reviewer.md](../agents/reviewer.md) |
+| State on disk | artifact chain + Memory port | [../contributing/specs/memory.md](../contributing/specs/memory.md) |
+| Harness | the harness archetype | [customizing.md](customizing.md) §1 |
+| Computational / inferential sensor | lints+gates / AI review+triage | [../contributing/specs/gate.md](../contributing/specs/gate.md); [../../agents/reviewer.md](../../agents/reviewer.md) |
 | Harness-as-a-Service | craft-as-harness + hosted sub-harnesses | `../README.md` HaaS bullet + bindings table |
-| Config layers | engine < user < manifest < per-invocation | [GUIDE-customizing.md](GUIDE-customizing.md) §Precedence |
-| The floor | the invariant core | [GUIDE-customizing.md](GUIDE-customizing.md) §2 |
-| Inner loop / outer loop | phase work vs. manifest/gates/policy | [adapters/policy.md](adapters/policy.md) |
-| The Verdict | Policy `always` / `ask` / `never` | [adapters/policy.md](adapters/policy.md) |
+| Config layers | engine < user < manifest < per-invocation | [customizing.md](customizing.md) §Precedence |
+| The floor | the invariant core | [customizing.md](customizing.md) §2 |
+| Inner loop / outer loop | phase work vs. manifest/gates/policy | [../contributing/specs/policy.md](../contributing/specs/policy.md) |
+| The Verdict | Policy `always` / `ask` / `never` | [../contributing/specs/policy.md](../contributing/specs/policy.md) |
 
 ## Sources
 

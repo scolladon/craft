@@ -4,7 +4,53 @@
 # Filename check only — prose/ADR references to those names are unaffected.
 #
 # Usage: docs-structure-lint.sh <docs-dir>
+#        docs-structure-lint.sh --audience <dir>
+#
+# --audience enforces the top-level audience split: the only TRACKED entries
+# directly under <dir> may be README.md, guides/, contributing/ — a loud fence
+# against a stray file or a new top-level subdir creeping back in. Tracked-only
+# (via `git ls-files`) so untracked developer junk (e.g. docs/.DS_Store) never
+# trips it.
 set -euo pipefail
+
+if [ "${1:-}" = "--audience" ]; then
+  dir="${2:?usage: docs-structure-lint.sh --audience <dir>}"
+  [ -d "$dir" ] || { echo "docs-structure-lint: no such directory: $dir" >&2; exit 2; }
+
+  root="$(git rev-parse --show-toplevel)"
+  rel="$(cd "$dir" && pwd)"
+  rel="${rel#"$root"/}"
+
+  # Prefix-strip via literal parameter expansion (never a sed program built from
+  # the caller-controlled path) and dedupe in-shell; guarded expansions keep
+  # bash 3.2 `set -u` happy when the directory has zero tracked entries.
+  top_level=()
+  while IFS= read -r path; do
+    path="${path#"$rel"/}"
+    entry="${path%%/*}"
+    case " ${top_level[*]:-} " in
+      *" $entry "*) : ;;
+      *) top_level+=("$entry") ;;
+    esac
+  done < <(git -C "$root" ls-files -- "$rel")
+
+  offenders=()
+  for entry in ${top_level[@]+"${top_level[@]}"}; do
+    case "$entry" in
+      README.md|guides|contributing) : ;;
+      *) offenders+=("$entry") ;;
+    esac
+  done
+
+  if [ "${#offenders[@]}" -gt 0 ]; then
+    printf 'docs-structure-lint: unexpected top-level entry under %s:\n' "$dir" >&2
+    printf '  %s\n' "${offenders[@]}" >&2
+    exit 2
+  fi
+
+  echo "docs-structure-lint: top-level audience shape OK — README.md + guides/ + contributing/."
+  exit 0
+fi
 
 DOCS_DIR="${1:?usage: docs-structure-lint.sh <docs-dir>}"
 [ -d "$DOCS_DIR" ] || { echo "docs-structure-lint: no such directory: $DOCS_DIR" >&2; exit 2; }

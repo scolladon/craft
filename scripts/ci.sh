@@ -60,7 +60,7 @@ run_suite adapters/aider adapters/aider/test adapters/aider
 run_suite process test
 
 # run_intention_lint — enumerates the design's zero-config living corpus
-# (docs/adapters/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/GUIDE-customizing.md)
+# (docs/contributing/specs/*.md, docs/contributing/prd/DESIGN-*.md, docs/contributing/DOD.md, docs/guides/customizing.md)
 # plus BACKLOG.md, mirroring run_suite's zero-file discipline: a zero-file
 # enumeration is a hard error, never a silent skip.
 run_intention_lint() {
@@ -79,8 +79,10 @@ run_intention_lint
 
 shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts \
   && for b in BACKLOG.md templates/backlog.md; do bash scripts/backlog-lint.sh "$b" || exit 1; done \
-  && for d in templates/design.md docs/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \
-  && bash scripts/docs-structure-lint.sh docs
+  && for d in templates/design.md docs/contributing/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \
+  && bash scripts/docs-structure-lint.sh docs/contributing \
+  && bash scripts/docs-structure-lint.sh docs/guides \
+  && bash scripts/docs-structure-lint.sh --audience docs
 
 # --- hygiene gates (workstream C): touched-diff stub + prose lints ---
 # Posture is the manifest's resolved hygiene.gate (advisory | blocking); flipping
@@ -129,7 +131,7 @@ run_prose_lint() {
   while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     case "$f" in
-      docs/adr/*|docs/design/*|docs/archive/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
+      docs/contributing/adr/*|docs/contributing/design/*|docs/contributing/archive/*|docs/contributing/specs/*|docs/contributing/prd/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
       *.md) docs+=("$f"); waivers+=(--waiver-source "$f") ;;
     esac
   done < "$hygiene_touched"

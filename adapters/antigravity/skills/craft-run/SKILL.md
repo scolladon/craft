@@ -9,7 +9,7 @@ The full orchestrator procedure lives in `${CRAFT_ROOT}/skills/run/SKILL.md`. Re
 and follow it as the orchestrator — this file only records the Antigravity-specific
 binding notes; it does not restate the procedure.
 
-Binding notes (measured, not assumed — see `docs/adapters/antigravity-poc-record.md`):
+Binding notes (measured, not assumed — see `docs/contributing/specs/antigravity-poc-record.md`):
 
 - **Single-agent topology.** The Antigravity (Gemini) agent IS both orchestrator and
   worker. The role agents in `agents/craft-*.md` are followed as self-directed guidance

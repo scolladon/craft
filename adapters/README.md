@@ -5,9 +5,9 @@ backlog, VCS, memory, policy, intention). **craft itself is the Claude Code adap
 directory here re-binds the same engine core to another runtime — proof the seams are real.
 
 Each binding ships its own README (install, how to drive it, guard posture) plus a live
-contract-discovery record in [`../docs/adapters/<tool>-poc-record.md`](../docs/adapters/).
+contract-discovery record in [`../docs/contributing/specs/<tool>-poc-record.md`](../docs/contributing/specs/).
 All proofs are on-demand, not CI-gated. The port contracts themselves are documented in
-[`../docs/adapters/`](../docs/adapters/) (`execution.md`, `gate.md`, `model.md`, …).
+[`../docs/contributing/specs/`](../docs/contributing/specs/) (`execution.md`, `gate.md`, `model.md`, …).
 
 ## Bindings and guard postures
 

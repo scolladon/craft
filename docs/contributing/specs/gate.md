@@ -107,9 +107,10 @@ these enforce at the CLI boundary before a tool ever runs, they cover the destru
 out-of-tree path access directly.
 
 **`--deny-tool` is defence-in-depth, not an adversarial sandbox.** The matcher is live-pinned as
-**prefix matching on the command string** — it does not parse argv (`docs/adapters/copilot-poc-
-record.md` row 20). Each pattern therefore only covers the literal flag orders it enumerates: an
-interposed global option (`git -C <dir> push`, `git --git-dir=… push`, `git -c k=v push`) bypasses
+**prefix matching on the command string** — it does not parse argv
+(`docs/contributing/specs/copilot-poc-record.md` row 20). Each pattern therefore only covers the
+literal flag orders it enumerates: an interposed global option (`git -C <dir> push`,
+`git --git-dir=… push`, `git -c k=v push`) bypasses
 every pattern in the set, live-confirmed for `git -C . push` against `shell(git push)`. A blanket
 `shell(git:*)` would close that gap but is deliberately rejected — it denies *all* git, which would
 break craft's own git-heavy workflow. This layer catches accidental destructive git; it is not a

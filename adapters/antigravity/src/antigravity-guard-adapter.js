@@ -22,7 +22,7 @@ import { toolCallGuard } from '../../../engine/src/guards/tool-call-guard.js';
 // hooks.json matcher scopes the guard to it. If Antigravity exposes another tool (or a
 // run_command alias/variant) that runs a shell command, a `git diff` issued through it
 // never reaches this guard. Widen the matcher + this branch once the live tool set is
-// enumerated. See docs/adapters/antigravity-poc-record.md.
+// enumerated. See docs/contributing/specs/antigravity-poc-record.md.
 const RUN_COMMAND_TOOL = 'run_command';
 const BASH_TOOL = 'Bash';
 

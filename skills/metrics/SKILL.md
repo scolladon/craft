@@ -58,13 +58,13 @@ Optional flags (pass through verbatim when the user supplies them):
 | Flag | Purpose |
 |---|---|
 | `--dir <path>` | Override the resolved transcript directory |
-| `--baseline <path>` | Baseline report for delta comparison and drift detection — e.g. the committed `docs/metrics-baseline.report.json` snapshot |
+| `--baseline <path>` | Baseline report for delta comparison and drift detection — e.g. the committed `docs/contributing/metrics-baseline.report.json` snapshot |
 | `--threshold <n>` | Relative-delta threshold for the drift signal (default `0.25`); only used when `--baseline` is also supplied |
 | `--since <date>` | Restrict to transcripts on or after this date |
 | `--prices <path>` | Custom pricing table (JSON) |
 | `--include-inline` | Include inline-phase transcript segments |
 
-Passing `--baseline docs/metrics-baseline.report.json` compares the current run against the
+Passing `--baseline docs/contributing/metrics-baseline.report.json` compares the current run against the
 committed snapshot: `report.json` gains a `drift` array flagging any `(phase, dimension)` pair
 whose per-occurrence mean token cost or duration moved beyond `--threshold` relative to the
 baseline's mean — corpus-size-invariant, so re-mining a grown corpus is not drift; a phase
@@ -81,7 +81,7 @@ The bin writes two artefacts inside the repo and exits 0 in all handled cases:
 
 ### Refreshing the committed baseline
 
-`docs/metrics-baseline.report.json` is the drift reference. Refreshing it is a
+`docs/contributing/metrics-baseline.report.json` is the drift reference. Refreshing it is a
 **deliberate, reviewed act** — never a side effect of running the miner:
 
 1. Refresh **when the prompt surface changed on purpose** — a run that edited
@@ -90,7 +90,7 @@ The bin writes two artefacts inside the repo and exits 0 in all handled cases:
    forever. The integrate phase offers this step when the merged run touched those
    paths.
 2. Re-mine over the full transcript corpus, then copy `report.json` over
-   `docs/metrics-baseline.report.json` and commit it in the same PR/change that
+   `docs/contributing/metrics-baseline.report.json` and commit it in the same PR/change that
    altered the prompts (`chore(metrics): refresh drift baseline`), so the diff review
    sees old-vs-new economics side by side.
 3. Never refresh to silence an *uninvestigated* drift flag — that converts the alarm

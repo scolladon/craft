@@ -11,7 +11,7 @@ const SCRIPT = path.join(ROOT, 'scripts', 'readme-drift.sh');
 
 const README_PATH = path.join(ROOT, 'README.md');
 const PIPELINE_PATH = path.join(ROOT, 'pipeline', 'default.yml');
-const REPORT_PATH = path.join(ROOT, 'docs', 'metrics-baseline.report.json');
+const REPORT_PATH = path.join(ROOT, 'docs', 'contributing', 'metrics-baseline.report.json');
 
 function runDrift(rootArg) {
   try {
@@ -38,11 +38,11 @@ function withMutatedCopy(mutateFn) {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'readme-drift-'));
   try {
     fs.mkdirSync(path.join(tmpRoot, 'pipeline'), { recursive: true });
-    fs.mkdirSync(path.join(tmpRoot, 'docs'), { recursive: true });
+    fs.mkdirSync(path.join(tmpRoot, 'docs', 'contributing'), { recursive: true });
     const paths = {
       readmePath: path.join(tmpRoot, 'README.md'),
       pipelinePath: path.join(tmpRoot, 'pipeline', 'default.yml'),
-      reportPath: path.join(tmpRoot, 'docs', 'metrics-baseline.report.json'),
+      reportPath: path.join(tmpRoot, 'docs', 'contributing', 'metrics-baseline.report.json'),
     };
     fs.copyFileSync(README_PATH, paths.readmePath);
     fs.copyFileSync(PIPELINE_PATH, paths.pipelinePath);

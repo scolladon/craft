@@ -78,16 +78,16 @@ Input: `$ARGUMENTS`
 1c-mem. **Load memory store (once per run).** Resolve the store path from the
     manifest's `memory.ref` (default `.claude/craft-memory.md`, ADR-118/121), rooted
     at the repo ROOT (the worktree/checkout root — NEVER `${CLAUDE_PLUGIN_ROOT}`, hard
-    constraint). Call `load(repoRoot, deps)` — see `docs/adapters/memory.md` Claude
+    constraint). Call `load(repoRoot, deps)` — see `docs/contributing/specs/memory.md` Claude
     binding. Hold the single `MemoryView` in-session beside the run record for the
     duration of this run. A cold, absent, or malformed store yields an empty view and
     records a load no-op — the run proceeds exactly as today (advisory-only, never a
     blocker; ADR-116/120). `load` is called **once per run, not per phase**.
 
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
-    the intention port's `consult` — see `docs/adapters/intention.md` `file` adapter
+    the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
     procedure. With no `intention:` manifest key, probe the zero-config corpus
-    (`docs/adapters/*.md`, `docs/DESIGN-*.md`, `docs/DOD.md`, `docs/GUIDE-customizing.md`);
+    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`);
     hold the single `IntentionView` in-session beside the run record for the duration of
     this run. A cold or absent corpus yields an empty view and records a load no-op —
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
@@ -96,7 +96,7 @@ Input: `$ARGUMENTS`
     Two fixed, greppable run-record tokens join the existing family
     (`NO-OP(<phase>):`, `GATE(<phase>):`, `auto-skip:`, `WAIVER:`, `POLICY(...)`):
     `INTENTION-DRIFT(<page>): <changed-path>` and `INTENTION-WAIVE(<page>): <reason>` —
-    see `docs/adapters/intention.md` Token vocabulary; emitted by the `validation` phase's
+    see `docs/contributing/specs/intention.md` Token vocabulary; emitted by the `validation` phase's
     `assert-fresh` walk. Four more tokens join the same family from the `ci.sh` hygiene
     cadence: `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`,
     `SLOP-FOUND(<file>): <entry>`, and `SLOP-WAIVE(<file>): <reason>`.
@@ -120,7 +120,7 @@ Input: `$ARGUMENTS`
    repo's backlog convention — only if the manifest declares `backlog:`; look the entry
    up there) | **file path** (read it) | **free-text brief** (use verbatim). Empty or
    ambiguous → STOP and ask. For the per-source `resolve` mechanism see
-   `docs/adapters/backlog.md`: for `source: file`, classify by the repo's backlog
+   `docs/contributing/specs/backlog.md`: for `source: file`, classify by the repo's backlog
    convention (prose-judgment) and resolve by reading the entry; for `source: custom`,
    the script owns the id-form and resolve runs `ref` with argv `["resolve", id]` —
    `id` is untrusted, passed as a discrete argument (never spliced into a shell string)
@@ -220,13 +220,13 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    invariant below (the same slot whether the phase is agent-spawned or inline; no
    second injection surface is added). A hint that failed validate-on-read was already
    dropped at `load` — if the slice is empty, the phase probes as today. This read is
-   purely advisory and never gates. See `docs/adapters/memory.md` Claude binding.
+   purely advisory and never gates. See `docs/contributing/specs/memory.md` Claude binding.
 
    **Intention hint (advisory).** For the `design` and `planning` phases only, slice the
    in-session `IntentionView` for this phase's change scope: the `entries` whose subjects
    intersect the phase's touched set. If the slice is non-empty, prepend it into the SAME
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
-   means the phase probes as today. See `docs/adapters/intention.md`.
+   means the phase probes as today. See `docs/contributing/specs/intention.md`.
 
 5. **Execute** via the resolved execution mode (`phase.execution`).
 
@@ -362,7 +362,7 @@ bring their own `procedure`, dispatched verbatim (step 2).
   1. **Injected contract block** (from step 4 above, includes the assembled core +
      bundle invariants + derived retrieval note + manifest `context:` appended by
      the assembler; **plus the memory hint prepended** when the MemoryView slice for
-     this phase is non-empty — see step 4 memory-hint clause and `docs/adapters/memory.md`
+     this phase is non-empty — see step 4 memory-hint clause and `docs/contributing/specs/memory.md`
      Claude binding). Do NOT separately re-inject `context:` — the assembler already
      appends it; double-injection is a breach.
   2. **Working directory** and **task dynamics** (phase id, part text, gate string).
@@ -372,7 +372,7 @@ bring their own `procedure`, dispatched verbatim (step 2).
      on-disk state rather than re-transcribing it.
   The pre-chew mandate forbids making an agent re-explore the codebase — reading a
   committed plan is not re-exploring.
-  (This block is the Execution port's spawn verb — the Claude binding. See docs/adapters/execution.md.)
+  (This block is the Execution port's spawn verb — the Claude binding. See docs/contributing/specs/execution.md.)
 
 - **Model resolution & fallback**: resolve each spawn's model as manifest
   `models.<role>` → the descriptor's `model:` field (the canonical per-role tier;
@@ -385,20 +385,20 @@ bring their own `procedure`, dispatched verbatim (step 2).
   own model (guaranteed available). Record the degradation in the run record,
   then respawn from the artifact. Once a tier is known degraded this run, later spawns
   skip straight to the fallback — never pay the same dead spawn twice.
-  (This is the Model port's select/isAvailable — the Claude binding. See docs/adapters/model.md.)
+  (This is the Model port's select/isAvailable — the Claude binding. See docs/contributing/specs/model.md.)
 
 - **Blockers** escalate to the user as `{ phase/part, reason, ≤3 candidate options }`
   — never spin, never silently abandon.
 
 - **Policy consult**: before any phase performs a nameable outward action (a member of
-  `POLICY_ACTIONS` — see `docs/adapters/policy.md`), the session calls
+  `POLICY_ACTIONS` — see `docs/contributing/specs/policy.md`), the session calls
   `Policy.consult(action, { effectivePolicy: Resolution.policy, binding })` over the
   held `Resolution.policy` and the active binding, and obeys the returned surface:
   `proceed` (execute silently), `ask-then-proceed` (raise `AskUserQuestion` then
   execute on approval), `refuse` (do not execute; no-op or block per reversibility),
   or `degrade-to-blocker` (headless `ask` with no pre-approval — block and record).
   One `POLICY(...)` token is appended to the run record per consult (see
-  `docs/adapters/policy.md` greppable record tokens). The three engine floors
+  `docs/contributing/specs/policy.md` greppable record tokens). The three engine floors
   (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are
   **not** in `POLICY_ACTIONS` and are never consulted — they remain absolute.
 
@@ -412,7 +412,7 @@ real brief, confirm the inline phases commit artifacts in the same shape as the 
 (the injected block differs only by the two carve-out lines —
 `engine/test/contract-equivalence.test.js` proves that bound per descriptor), and record
 the result in the run record under `inline-fidelity-check`. Rationale:
-`docs/archive/DESIGN-P6-execution-topology.md`.
+`docs/contributing/archive/DESIGN-P6-execution-topology.md`.
 
 ## Model-class matrix (cross-tier) — not CI-gated
 
@@ -427,9 +427,9 @@ tokens + wall-clock into the committed artifact and the run record.
 `duration_ms` from the usage block the spawn already returns — exact, zero-cost. No
 agent is asked to report its own usage.
 
-**Where results land:** fill `docs/model-class-matrix.md` (the committed, diffable
+**Where results land:** fill `docs/guides/model-class-matrix.md` (the committed, diffable
 artifact template) and append a one-line entry to the run record under
-`model-class-matrix`. Rationale: `docs/archive/DESIGN-P13-nfr-hardening.md`.
+`model-class-matrix`. Rationale: `docs/contributing/archive/DESIGN-P13-nfr-hardening.md`.
 
 ## Registered-phase dispatch smoke — not CI-gated
 
@@ -454,7 +454,7 @@ test command (`pytest`/`go test`/`cargo test`/…) and `implementation` runs rat
 the gate-floor REFUSE; `validation` no-ops with a note when no techniques declared/probed
 (and its `propose`-gate entry is released, so the walk reaches `propose`); `propose`/`integrate`
 no-op when there is no remote. Record the target's identity, toolchain, discovered gate command,
-and per-phase outcomes in `docs/archive/SC5-second-instantiation-record.md`. This smoke is on-demand, NOT
+and per-phase outcomes in `docs/contributing/archive/SC5-second-instantiation-record.md`. This smoke is on-demand, NOT
 CI-gated — the engine path it exercises (toolchain-neutral resolution) is CI-proven by the `SC5`
 scenario fixture; this smoke adds runtime fidelity on a real second toolchain without coupling CI
 to a non-JS install.

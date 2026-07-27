@@ -20,8 +20,8 @@ subjects:
 
   ```json
   {
-    "entries": [{ "path": "docs/adapters/telemetry.md", "purpose": "Telemetry adapter spec" }],
-    "skipped": [{ "page": "docs/DESIGN-history.md", "reason": "no-subjects" }]
+    "entries": [{ "path": "docs/contributing/specs/telemetry.md", "purpose": "Telemetry adapter spec" }],
+    "skipped": [{ "page": "docs/contributing/prd/DESIGN-history.md", "reason": "no-subjects" }]
   }
   ```
 
@@ -53,11 +53,11 @@ subjects:
   {
     "note": "no living pages carry subjects",
     "schemaVersion": 1,
-    "skipped": [{ "page": "docs/DESIGN-history.md", "reason": "no-subjects" }],
+    "skipped": [{ "page": "docs/contributing/prd/DESIGN-history.md", "reason": "no-subjects" }],
     "stale": [
       {
         "changedPaths": ["engine/src/observability/memory.js"],
-        "page": "docs/adapters/telemetry.md",
+        "page": "docs/contributing/specs/telemetry.md",
         "waived": false
       }
     ],
@@ -161,8 +161,9 @@ Without a `covers` declaration, the coverage check is a recorded no-op — probi
 covers list, never *impose* one.
 
 **Zero-config probe.** With no `intention:` configuration key at all, the `file` backend probes
-the conventional corpus: `docs/adapters/*.md`, `docs/DESIGN-*.md`, `docs/DOD.md`,
-`docs/GUIDE-customizing.md`. Pages in that corpus without `subjects` yield advisory notes only —
+the conventional corpus: `docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`,
+`docs/contributing/DOD.md`, `docs/guides/customizing.md`, `docs/guides/concepts.md`. Pages in
+that corpus without `subjects` yield advisory notes only —
 a bare repository runs exactly as it does today. Frozen records (design history, archived docs,
 per-run design docs, decision records) simply carry no `subjects`, so they are never
 freshness-guarded, by construction.

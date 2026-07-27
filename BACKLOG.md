@@ -5,8 +5,8 @@
 > insert / reorder), strong zero-config defaults, a small invariant core, per-port
 > customization.
 
-> SoT — *intent:* `docs/PRD-customizable-engine.md` · *architecture:* `docs/DESIGN-customizable-engine.md`
-> · *decisions:* `docs/adr/` · *build scripts:* `docs/archive/PLAN-*.md` · *spikes:* `docs/archive/SPIKE.md`
+> SoT — *intent:* `docs/contributing/prd/PRD-customizable-engine.md` · *architecture:* `docs/contributing/prd/DESIGN-customizable-engine.md`
+> · *decisions:* `docs/contributing/adr/` · *build scripts:* `docs/contributing/archive/PLAN-*.md` · *spikes:* `docs/contributing/archive/SPIKE.md`
 
 ## Status — PRD program complete (P0–P16 ✅)
 
@@ -127,7 +127,7 @@ criterion is mechanically asserted against the run's recorded per-phase gate evi
 `GATE(<phase.id>): green|red` token), with `judgment` criteria human-asserted and the non-blocking
 `NO-OP(verify)` no-DoD path preserved; and the **structure linters now guard the live docs** —
 `backlog-lint`/`design-lint` enforce `BACKLOG.md`, the migrated `templates/backlog.md`, and every
-`docs/design/*.md` in `scripts/ci.sh`, not just the templates (ADRs 178–181).
+`docs/contributing/design/*.md` in `scripts/ci.sh`, not just the templates (ADRs 178–181).
 
 **P29 delivered 2026-06-29** — usage telemetry miner: a new **Telemetry port** (`docs/adapters/telemetry.md`) with `collect`/`aggregate` verbs — `collect` parses transcript data into a vendor-neutral, path-free, PII-free `UsageEvent[]` stream (a `telemetry-claude.js` binding reads the Claude JSONL transcript format and hosts the per-model pricing table + `--prices` override); `aggregate` is a pure deterministic core (`engine/src/usage-aggregate.js`) consuming the stream and emitting a structured report. The per-run `.claude/craft-metrics.md` writer is upgraded to record the real `cache_read`/`cache_creation` split (previously lossy `cache=hit|miss`) by reusing the `telemetry-claude` line parser. A new standalone skill `craft:metrics` (zero-arg) mines transcript history and prints the usage report; the miner is advisory, never gating (ADRs 182–188).
 
@@ -160,7 +160,7 @@ criterion is mechanically asserted against the run's recorded per-phase gate evi
 | P21 | Running craft in a loop — operator-owned outer-loop recipe (`/loop /craft:run` self-paced on the run-record verdict; headless `craft-pi` exit-code contrast); docs + `examples/loop/`, no engine change | 111–115 |
 | P29 | Usage telemetry miner — new Telemetry port (`collect`/`aggregate`); `telemetry-claude` binding + per-model pricing table; deterministic `usage-aggregate.js` core; `.claude/craft-metrics.md` writer upgraded to real `cache_read`/`cache_creation` split; `craft:metrics` standalone skill (advisory, never gating) | 182–188 |
 
-Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `docs/adr/` — not here.
+Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*.md`, and `docs/contributing/adr/` — not here.
 
 **Standing invariants (the working contract):**
 - **Data is the SoT, not prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.
@@ -174,6 +174,27 @@ Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `do
 ## Candidate phases (un-PRD'd — promoted from parked)
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
+
+### Open (scoped 2026-07-27 — follow-ups surfaced by the docs-audience-split run, not yet scheduled)
+
+**Prose-lint excuse coverage for `docs/contributing/plan/`.** The `run_prose_lint` excuse
+globs in `scripts/ci.sh` cover `docs/contributing/{adr,design,archive,specs,prd}/*` but not
+`plan/*`, and several plan docs legitimately quote ban-list words while documenting the lint
+itself — so every ci run prints advisory `SLOP-FOUND` noise for them. Harmless under the
+`advisory` default, a hard red the day `hygiene.gate` flips to `blocking`. One glob clause +
+the `test/hygiene-gates-ci.test.js` case-arm regex extension (the pinned pair moves together).
+
+**README corpus-count freshness.** `README.md` says "270 ADRs" and "18 design docs" while
+the tree holds 289 and 21 — the counts drift on every run because nothing recomputes them.
+Either fold live counts into the readme-drift recompute (it already pins the telemetry
+claims) or drop the numbers for count-free phrasing.
+
+**docs-lint small hardenings.** Two benign residuals from the audience-split review: the
+`--audience` dedupe under-lists co-offenders when a top-level entry name contains a space
+(a false pass stays impossible — allowlisted names are spaceless); and
+`docs/contributing/plan/readme-drift-guards.md`'s metrics link is invisible to lychee via a
+parser quirk in that heavily-backticked file, not the fenced-block rationale its prose
+claims — a fence-rebalancing edit would expose it. Both are one-line fixes when touched.
 
 ### Open (scoped 2026-07-26 — follow-ups surfaced by the sp9-findings-adoption run, not yet scheduled)
 
