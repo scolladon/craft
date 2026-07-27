@@ -6,10 +6,10 @@ const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 
-// One representative file per moved tree (docs-audience-split) — proves each
-// `git mv` preserved history rather than delete+add. `git log --follow` walks
-// renames only when the tool actually recorded a rename, so a stale entry
-// here would mean a tree lost its history at some point in the migration.
+// One representative file per relocated docs tree — proves each `git mv`
+// preserved history rather than delete+add. `git log --follow` walks renames
+// only when git actually recorded a rename, so a failure here means a tree
+// lost its history.
 const MOVED = [
   ['docs/contributing/specs/telemetry.md', 'docs/adapters/telemetry.md'],
   ['docs/guides/customizing.md', 'docs/GUIDE-customizing.md'],
