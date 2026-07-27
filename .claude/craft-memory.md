@@ -287,6 +287,15 @@ findings:
       run: sp9-findings-adoption
       commit: '9184452'
       date: '2026-07-26'
+  - concern: findings
+    file: test/hygiene-gates-ci.test.js
+    severity: medium
+    pattern: the run_prose_lint excuse-glob case-arm in scripts/ci.sh is pinned byte-wise by this test — every glob clause added or retargeted must extend the pinned regex in the SAME change, or the suite goes red one part at a time (bit three separate parts in one run)
+    confidence: 0.8
+    provenance:
+      run: docs-audience-split
+      commit: e59ca69
+      date: '2026-07-27'
 part-sizing:
   - concern: part-sizing
     size: pure-module
@@ -438,6 +447,7 @@ part-sizing:
 - test/source-hygiene.test.js — confidence 0.6 | 10a1ecf (allowlist comments hardcoding line numbers re-stale on unrelated prose edits; keep them line-agnostic like the regex)
 - agents/reviewer.md — confidence 0.8 | 9184452 (shared agent-body edits need all six adapter mirrors synced in one pass; aider is body-only, leading blanks stripped; guards are byte-identity tests that go red one suite at a time)
 - examples/deliberation-review/workflow.md — confidence 0.6 | 9184452 (taught output formats must round-trip through the real normalizer; pipe is reserved for the optional fix)
+- test/hygiene-gates-ci.test.js — confidence 0.8 | e59ca69 (ci.sh excuse-glob case-arm is pinned byte-wise here; extend the pinned regex in the same change as any glob edit — bit three parts in one run)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1

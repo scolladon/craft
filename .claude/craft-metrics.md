@@ -282,3 +282,17 @@ sp9-findings-adoption review-perf tokens=49176 duration_ms=43749 cache=na
 sp9-findings-adoption review-fix-delta tokens=55530 duration_ms=81666 cache=na
 sp9-findings-adoption validation-triage tokens=85664 duration_ms=125014 cache=na
 sp9-findings-adoption documentation tokens=107162 duration_ms=238041 cache=na
+docs-audience-split design tokens=142019 duration_ms=752116 cache=na
+docs-audience-split planning tokens=282449 duration_ms=2239245 cache=na
+docs-audience-split implementation-part-1 tokens=143398 duration_ms=510675 cache=na
+docs-audience-split implementation-part-2 tokens=216114 duration_ms=920469 cache=na
+docs-audience-split implementation-parts-3-4 tokens=116016 duration_ms=362373 cache=na
+docs-audience-split implementation-parts-5-7 tokens=147988 duration_ms=786235 cache=na
+docs-audience-split implementation-part-8 tokens=172389 duration_ms=894779 cache=na
+docs-audience-split implementation-part-9 tokens=149599 duration_ms=566715 cache=na
+docs-audience-split review-code tokens=194344 duration_ms=1132626 cache=na
+docs-audience-split review-security tokens=70601 duration_ms=179494 cache=na
+docs-audience-split review-tests tokens=114398 duration_ms=367927 cache=na
+docs-audience-split review-perf tokens=65146 duration_ms=93051 cache=na
+docs-audience-split review-fix-delta tokens=69312 duration_ms=237558 cache=na
+docs-audience-split validation-triage tokens=95485 duration_ms=253868 cache=na
