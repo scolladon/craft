@@ -175,6 +175,27 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-07-27 — follow-ups surfaced by the docs-audience-split run, not yet scheduled)
+
+**Prose-lint excuse coverage for `docs/contributing/plan/`.** The `run_prose_lint` excuse
+globs in `scripts/ci.sh` cover `docs/contributing/{adr,design,archive,specs,prd}/*` but not
+`plan/*`, and several plan docs legitimately quote ban-list words while documenting the lint
+itself — so every ci run prints advisory `SLOP-FOUND` noise for them. Harmless under the
+`advisory` default, a hard red the day `hygiene.gate` flips to `blocking`. One glob clause +
+the `test/hygiene-gates-ci.test.js` case-arm regex extension (the pinned pair moves together).
+
+**README corpus-count freshness.** `README.md` says "270 ADRs" and "18 design docs" while
+the tree holds 289 and 21 — the counts drift on every run because nothing recomputes them.
+Either fold live counts into the readme-drift recompute (it already pins the telemetry
+claims) or drop the numbers for count-free phrasing.
+
+**docs-lint small hardenings.** Two benign residuals from the audience-split review: the
+`--audience` dedupe under-lists co-offenders when a top-level entry name contains a space
+(a false pass stays impossible — allowlisted names are spaceless); and
+`docs/contributing/plan/readme-drift-guards.md`'s metrics link is invisible to lychee via a
+parser quirk in that heavily-backticked file, not the fenced-block rationale its prose
+claims — a fence-rebalancing edit would expose it. Both are one-line fixes when touched.
+
 ### Open (scoped 2026-07-26 — follow-ups surfaced by the sp9-findings-adoption run, not yet scheduled)
 
 **Line-length cap in the findings normalizer.** `parseLine`'s pipe-split
