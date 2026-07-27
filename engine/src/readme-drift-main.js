@@ -100,7 +100,9 @@ function telemetryFindings(root, costClaims) {
   // equivalent mutant (StringLiteral encoding '' instead of 'utf8'): readFileSync(path, '')
   // returns a Buffer; JSON.parse coerces its argument via String(), which for a Buffer calls
   // Buffer.toString('utf8') — identical parsed result either way.
-  const report = JSON.parse(readFileSync(join(root, 'docs/metrics-baseline.report.json'), 'utf8'));
+  const report = JSON.parse(
+    readFileSync(join(root, 'docs/contributing/metrics-baseline.report.json'), 'utf8')
+  );
   return compareClaims(recomputeClaims(report), costClaims);
 }
 

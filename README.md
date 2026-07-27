@@ -116,7 +116,7 @@ Phases also run standalone, on any branch:
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
 receipts: [18 design docs](docs/contributing/design/), [17 parted plans](docs/contributing/plan/),
-[270 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/metrics-baseline.report.json)
+[270 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
@@ -173,7 +173,7 @@ Guard postures and contract-discovery records: [adapters/README.md](adapters/REA
 
 ## FAQ
 
-**What does a run cost?** Across the [27 telemetered runs](docs/metrics-baseline.report.json)
+**What does a run cost?** Across the [27 telemetered runs](docs/contributing/metrics-baseline.report.json)
 that built this repo: the median run logs ≈1.3 hours of role-agent activity, from
 half an hour for a small change to ≈5 hours for the largest feature (parallel
 fan-outs mean wall-clock is lower). Time concentrates in implementation, validation,

@@ -16,7 +16,7 @@ const SCANNED_PATHS = [
   path.join(ROOT, 'templates'),
   path.join(ROOT, 'engine/src'),
   path.join(ROOT, 'docs/contributing/specs'),
-  path.join(ROOT, 'docs/DOD.md'),
+  path.join(ROOT, 'docs/contributing/DOD.md'),
   path.join(ROOT, 'docs/guides/customizing.md'),
   path.join(ROOT, 'README.md'),
 ];

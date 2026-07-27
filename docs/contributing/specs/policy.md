@@ -42,7 +42,8 @@ adapter:
   confirmation because `integrate` defaults to `ask`.
 
 - **Canonical action vocabulary** (`POLICY_ACTIONS`, ADR-126): the frozen set of nameable
-  outward/hard-to-reverse actions. See D2 table in `docs/DESIGN-P23-configurable-policy-hooks.md`.
+  outward/hard-to-reverse actions. See D2 table in
+  `docs/contributing/archive/DESIGN-P23-configurable-policy-hooks.md`.
   An action name not in this set named in any `policy:` scope is a **config error** (R7).
 
   > **Alias note (ADR-126).** The canonical token for merging a PR is **`integrate`**
@@ -133,7 +134,7 @@ unapproved `ask` are recorded outcomes, never silent skips (R9):
   actions (`isolate`, `commit`, `backlog-write`) no-op with a note.
 - A headless unapproved `ask` is a **recorded blocker** via the `contracts/core.md` blocker
   protocol — this spec relies on that injected invariant and does not restate it (same
-  pattern as `docs/adapters/vcs.md`).
+  pattern as `docs/contributing/specs/vcs.md`).
 
 **Config errors** (knowable from the manifest alone, no I/O): an unknown action name, an
 unknown verdict key, a non-list value, an intra-scope double-verdict (ADR-129), or a

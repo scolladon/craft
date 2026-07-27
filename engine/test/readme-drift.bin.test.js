@@ -68,10 +68,13 @@ function withFixtureRoot(overrides, run) {
   const root = mkdtempSync(join(tmpdir(), 'readme-drift-bin-'));
   try {
     mkdirSync(join(root, 'pipeline'), { recursive: true });
-    mkdirSync(join(root, 'docs'), { recursive: true });
+    mkdirSync(join(root, 'docs', 'contributing'), { recursive: true });
     writeFileSync(join(root, 'README.md'), overrides.readme ?? CLEAN_README);
     writeFileSync(join(root, 'pipeline', 'default.yml'), overrides.defaultYml ?? CLEAN_DEFAULT_YML);
-    writeFileSync(join(root, 'docs', 'metrics-baseline.report.json'), overrides.report ?? CLEAN_REPORT);
+    writeFileSync(
+      join(root, 'docs', 'contributing', 'metrics-baseline.report.json'),
+      overrides.report ?? CLEAN_REPORT
+    );
     return run(root);
   } finally {
     rmSync(root, { recursive: true, force: true });
