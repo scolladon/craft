@@ -74,7 +74,7 @@ test('Given scripts/ci.sh, when its content is read, then run_prose_lint exclude
   // the provenance globs must sit in an EMPTY (skip) case arm, not the inclusion arm
   assert.match(
     body,
-    /docs\/contributing\/adr\/\*\|docs\/design\/\*\|docs\/archive\/\*\|docs\/contributing\/specs\/\*\)\s*;;/,
+    /docs\/contributing\/adr\/\*\|docs\/contributing\/design\/\*\|docs\/archive\/\*\|docs\/contributing\/specs\/\*\)\s*;;/,
     `provenance dirs must be a skipped case arm inside run_prose_lint: ${body}`,
   );
 });

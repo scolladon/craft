@@ -127,7 +127,7 @@ criterion is mechanically asserted against the run's recorded per-phase gate evi
 `GATE(<phase.id>): green|red` token), with `judgment` criteria human-asserted and the non-blocking
 `NO-OP(verify)` no-DoD path preserved; and the **structure linters now guard the live docs** —
 `backlog-lint`/`design-lint` enforce `BACKLOG.md`, the migrated `templates/backlog.md`, and every
-`docs/design/*.md` in `scripts/ci.sh`, not just the templates (ADRs 178–181).
+`docs/contributing/design/*.md` in `scripts/ci.sh`, not just the templates (ADRs 178–181).
 
 **P29 delivered 2026-06-29** — usage telemetry miner: a new **Telemetry port** (`docs/adapters/telemetry.md`) with `collect`/`aggregate` verbs — `collect` parses transcript data into a vendor-neutral, path-free, PII-free `UsageEvent[]` stream (a `telemetry-claude.js` binding reads the Claude JSONL transcript format and hosts the per-model pricing table + `--prices` override); `aggregate` is a pure deterministic core (`engine/src/usage-aggregate.js`) consuming the stream and emitting a structured report. The per-run `.claude/craft-metrics.md` writer is upgraded to record the real `cache_read`/`cache_creation` split (previously lossy `cache=hit|miss`) by reusing the `telemetry-claude` line parser. A new standalone skill `craft:metrics` (zero-arg) mines transcript history and prints the usage report; the miner is advisory, never gating (ADRs 182–188).
 

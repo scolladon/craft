@@ -33,7 +33,7 @@
      the run produced; where one is genuinely empty, write "none" instead of dropping it. -->
 
 - **Decisions:** <ADR-### … or none>
-- **Design:** <docs/design/<slug>.md or none>
+- **Design:** <docs/contributing/design/<slug>.md or none>
 - **Divergences:** <plan → implementation deltas, or none>
 - **Pinned behaviours:** <invariants locked by tests, or none>
 - **Test plan:** <what proves it — suites run, coverage, manual checks>
