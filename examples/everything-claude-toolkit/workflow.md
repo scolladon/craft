@@ -1,15 +1,15 @@
 ---
 # A capability toolkit (everything-claude-style: agents/commands/hooks/rules) slotted into
 # craft across FIVE injection points. craft orchestrates the pieces; it does not replace them.
-# Surfaces tagged (current) work today; (PRD) land in the customizable-engine program.
+# All five surfaces work on craft today — every one is tagged (current).
 
 context: .claude/workflow/house-rules.md          # toolkit "rules" → global context        (current, §7 #8)
 gates:
   phase: "npm run validate"                        # toolkit validate script → phase gate     (current, §7 #3)
 phases:
-  plan:   { role: my-toolkit:planner }             # swap in the toolkit's planner agent       (PRD,    §7 #10)
+  plan:   { role: my-toolkit:planner }             # swap in the toolkit's planner agent       (current, §7 #10)
   review: { context: .claude/workflow/sec-rules.md } # toolkit security rules into review only (current, §7 #8)
-pipeline:                                           #                                           (PRD,    §7 #11)
+pipeline:                                           #                                           (current, §7 #11)
   insert:
     - after: implementation
       id: license-scan
