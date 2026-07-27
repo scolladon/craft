@@ -5,15 +5,16 @@
 > **examples index** (a runnable sample per injection point). By the end you should be able to write
 > a `.claude/workflow.md` for your repo in one sitting.
 >
-> Deeper provenance: [PRD](PRD-customizable-engine.md) (intent) ·
-> [DESIGN](DESIGN-customizable-engine.md) (architecture) · [adr/](adr/) (decisions).
+> Deeper provenance: [PRD](../contributing/prd/PRD-customizable-engine.md) (intent) ·
+> [DESIGN](../contributing/prd/DESIGN-customizable-engine.md) (architecture) ·
+> [../contributing/adr/](../contributing/adr/) (decisions).
 
 ---
 
 ## 1. The mental model (five minutes)
 
 This page is task-oriented — how you customize craft. For the orientation-level *why*
-behind these mechanisms, see [GUIDE-concepts.md](GUIDE-concepts.md).
+behind these mechanisms, see [concepts.md](concepts.md).
 
 ### A run is a pipeline of phases
 
@@ -42,7 +43,7 @@ precondition every useful repo already satisfies. `validation` and the
 default-off `architecture` **no-op with a note** when their configured tools are
 absent; `propose`/`integrate` no-op without a git remote; a repo with no discoverable test
 command hits the gate-floor refusal by design. See
-[docs/archive/SC5-second-instantiation-record.md](archive/SC5-second-instantiation-record.md) for
+[docs/contributing/archive/SC5-second-instantiation-record.md](../contributing/archive/SC5-second-instantiation-record.md) for
 the empirical proof on a Python/pytest repo.
 
 ### The hexagon — core, ports, adapter
@@ -80,7 +81,7 @@ craft is built **hexagonally**. This is the whole model:
   the Claude Code adapter today.** Code-access is the deliberate exception: it is environment-sourced
   (your LSP/RAG/RTK/Serena/native tools), never bound by the adapter. Seven native bindings under
   `adapters/` (pi, opencode, copilot, codex, cursor, aider, antigravity) re-bind the same ports to
-  other runtimes — proof the seams are real; see the bindings table in [adapters/README.md](../adapters/README.md).
+  other runtimes — proof the seams are real; see the bindings table in [adapters/README.md](../../adapters/README.md).
 
 **The whole catalog below is just "configure or swap a port."** Customizing = answering a few
 questions per phase: *does it run? · which agent/model? · inline or subagent? · which harness config?
@@ -144,24 +145,24 @@ Tier = effort: **0** = one line in `.claude/workflow.md` · **1** = add a file �
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
-| **model** per agent *(Tier 0)* | cheap model routing per concern | wrong tier hurts quality (never safety) | [`model-routing/`](../examples/model-routing/) |
-| **execution** inline/agent *(Tier 0)* | speed / token control per phase | inline loses subagent isolation | [`lean-profile/`](../examples/lean-profile/) |
-| **profile** *(Tier 0)* | a whole-flow mode in one word (`solo`/`lean`/`full`) | coarse — a preset, not a scalpel | [`lean-profile/`](../examples/lean-profile/) |
-| **role** swap (`role:`) *(Tier 1)* | domain-specific agent, contract still injected | your agent must do the job | [`role-swap/`](../examples/role-swap/) |
+| **model** per agent *(Tier 0)* | cheap model routing per concern | wrong tier hurts quality (never safety) | [`model-routing/`](../../examples/model-routing/) |
+| **execution** inline/agent *(Tier 0)* | speed / token control per phase | inline loses subagent isolation | [`lean-profile/`](../../examples/lean-profile/) |
+| **profile** *(Tier 0)* | a whole-flow mode in one word (`solo`/`lean`/`full`) | coarse — a preset, not a scalpel | [`lean-profile/`](../../examples/lean-profile/) |
+| **role** swap (`role:`) *(Tier 1)* | domain-specific agent, contract still injected | your agent must do the job | [`role-swap/`](../../examples/role-swap/) |
 
 ### WHAT it does — override file · procedure
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
-| **override file** (procedure body) *(Tier 1)* | a fully project-shaped procedure | you own that body; the preamble still binds | [`override-procedure/`](../examples/override-procedure/) |
-| **procedure** swap (`procedure:`) *(Tier 1)* | dispatch to a namespaced procedure, contract still injected | your agent must do the job | [`role-swap/`](../examples/role-swap/) |
+| **override file** (procedure body) *(Tier 1)* | a fully project-shaped procedure | you own that body; the preamble still binds | [`override-procedure/`](../../examples/override-procedure/) |
+| **procedure** swap (`procedure:`) *(Tier 1)* | dispatch to a namespaced procedure, contract still injected | your agent must do the job | [`role-swap/`](../../examples/role-swap/) |
 
 ### HOW it's checked — gate · harness config
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
-| **gate** command *(Tier 0)* | your harness, any tech | a weak gate weakens your own floor | [`gate-command/`](../examples/gate-command/) |
-| **harness config** *(Tier 0)* | tune rigor per concern (dimensions / passes / cycles / convergence / tool) | mis-tuning over/under-verifies | [`review-harness/`](../examples/review-harness/) |
+| **gate** command *(Tier 0)* | your harness, any tech | a weak gate weakens your own floor | [`gate-command/`](../../examples/gate-command/) |
+| **harness config** *(Tier 0)* | tune rigor per concern (dimensions / passes / cycles / convergence / tool) | mis-tuning over/under-verifies | [`review-harness/`](../../examples/review-harness/) |
 
 #### `hygiene.gate` — stub + prose lint posture
 
@@ -175,19 +176,19 @@ same fixed set as `intention.gate`, fail-closed on anything else.
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
-| **skip** a phase *(Tier 0)* | drop a step; dependency-checked | over-skipping erodes guarantees (refused if it strands a consumer) | [`skip-phase/`](../examples/skip-phase/) |
+| **skip** a phase *(Tier 0)* | drop a step; dependency-checked | over-skipping erodes guarantees (refused if it strands a consumer) | [`skip-phase/`](../../examples/skip-phase/) |
 | **required** *(Tier 0)* | pin a phase so craft never auto-skips it — `phases.<id>.required: true` forces the phase to run even when craft's necessity evaluation would otherwise skip it. Does not override an explicit `pipeline.skip` or `enabled: false` (the operator's own waiver still wins); setting both `required: true` and a `pipeline.skip` for the same phase is a manifest-lint error. | over-pinning forfeits the cost saving that auto-skip provides | — |
-| **context file** (global / per-phase) *(Tier 1)* | additive constraints, contract-safe | drift if unmaintained | [`karpathy-as-context/`](../examples/karpathy-as-context/) |
-| **insert** a phase *(Tier 1)* | a new SE step with full guarantees | you supply its procedure | [`everything-claude-toolkit/`](../examples/everything-claude-toolkit/) † |
+| **context file** (global / per-phase) *(Tier 1)* | additive constraints, contract-safe | drift if unmaintained | [`karpathy-as-context/`](../../examples/karpathy-as-context/) |
+| **insert** a phase *(Tier 1)* | a new SE step with full guarantees | you supply its procedure | [`everything-claude-toolkit/`](../../examples/everything-claude-toolkit/) † |
 | **reorder** (pipeline op) *(Tier 1)* | change phase sequence; dependency-checked | must not strand a consumer — refused/flagged if it does | — |
-| **extends** — derived local plugin *(Tier 2)* | register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned; most setup; depends on cross-plugin dispatch | [`derived-plugin/`](../examples/derived-plugin/) |
+| **extends** — derived local plugin *(Tier 2)* | register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned; most setup; depends on cross-plugin dispatch | [`derived-plugin/`](../../examples/derived-plugin/) |
 
 † Phase **dispatch** and *contract execution* for an inserted phase both ship: the walk passes the
 resolved descriptor to `contract-assemble`, so a brand-new inserted id executes under the
 engine-owned contract. The toolkit example shows insert alongside four other points.
 
-Default-off phases turn on the same way (one line): see [`requirements/`](../examples/requirements/)
-and [`architecture/`](../examples/architecture/).
+Default-off phases turn on the same way (one line): see [`requirements/`](../../examples/requirements/)
+and [`architecture/`](../../examples/architecture/).
 
 ### The floor (untouchable) — invariant preamble · core contract · gate cadence
 
@@ -198,12 +199,12 @@ none can lower this floor. See [§2](#2-the-invariant-core--what-you-cannot-inje
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
-| **backlog source** *(Tier 0)* | use your tracker (`file` or `custom`) | a custom ref is resolved at runtime | [`backlog-custom/`](../examples/backlog-custom/) |
-| **tracker adapter** *(Tier 2)* | register a named backlog source via `extends.backlog-adapters`; selectable as `backlog.source: <name>`; the adapter script is verified at lint time | the host CLI lives only in your adapter script | see [`examples/`](../examples/) for a worked tracker adapter |
-| **memory** *(Tier 0)* | per-repo advisory cache (`memory: { source: file, ref }`) — stores mechanically-derived learnings (toolchain, gate commands, findings, part sizing) so subsequent runs skip re-probing; default store at `.claude/craft-memory.md`, committed via a `.gitignore` re-include. Advisory-only: deleting it changes run cost, never correctness. See [`docs/adapters/memory.md`](adapters/memory.md) for the port contract. | a custom `ref` that escapes the repo root is silently skipped — the port never reads or writes outside the repo | — |
-| **intention** *(Tier 0)* | per-repo architectural-intention corpus (`intention: { source: file, ref, gate, covers }`) — `consult` prepends the phase's matching living pages into the design/planning contract slot (advisory, slot 1 — no second injection surface); `record` routes ADR/page writes through the same seam the `file` adapter already uses; `assert-fresh` flags a changed path whose covering page went untouched (`INTENTION-DRIFT`), waivable per page (`INTENTION-WAIVE`). `intention.gate` chooses `advisory` (default) or `blocking`; `intention.covers` names load-bearing scopes a page must exist for. See [`docs/adapters/intention.md`](adapters/intention.md) for the port contract. | a `blocking` gate on a thin/under-adopted corpus stalls on false positives — start `advisory` and promote once the corpus is populated | — |
-| **policy** *(Tier 0)* | per-repo/per-user permission layer over outward/hard-to-reverse VCS-port actions. The `policy:` manifest key accepts `always`, `ask`, and `never` verdict lists over the action vocabulary (`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write` — note `integrate` = merge, `propose` = pr-create). Per-action defaults are keyed by reversibility: local reversible actions (`isolate`, `commit`, `backlog-write`) default to `always`; remote/hard-to-reverse actions (`push`, `propose`, `integrate`, `teardown`, `external-send`) default to `ask`, so an unconfigured repo behaves as today (merge still stops for confirmation). Three scopes fold in one direction (`per-invocation > project > user`): user `~/.claude/craft-policy.md` < project manifest `policy:` < per-invocation `--policy`. An explicit `always` verdict for `integrate` or `propose` supersedes craft's hardcoded merge/PR confirmation, enabling unattended headless auto-merge. The three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are not nameable actions and cannot be reached by any verdict. See [`docs/adapters/policy.md`](adapters/policy.md) for the port contract. | a misconfigured policy (unknown action or verdict, non-list value, intra-scope double-verdict) fails manifest-lint loudly, never silently | — |
-| **DoD artifact** (`docs/DOD.md` or `paths.dod`) *(Tier 1)* | per-criterion acceptance-criteria check in the `validation` phase (default-ON); absence warns, never blocks | you own and maintain the checklist | [`dod-artifact/`](../examples/dod-artifact/) |
+| **backlog source** *(Tier 0)* | use your tracker (`file` or `custom`) | a custom ref is resolved at runtime | [`backlog-custom/`](../../examples/backlog-custom/) |
+| **tracker adapter** *(Tier 2)* | register a named backlog source via `extends.backlog-adapters`; selectable as `backlog.source: <name>`; the adapter script is verified at lint time | the host CLI lives only in your adapter script | see [`examples/`](../../examples/) for a worked tracker adapter |
+| **memory** *(Tier 0)* | per-repo advisory cache (`memory: { source: file, ref }`) — stores mechanically-derived learnings (toolchain, gate commands, findings, part sizing) so subsequent runs skip re-probing; default store at `.claude/craft-memory.md`, committed via a `.gitignore` re-include. Advisory-only: deleting it changes run cost, never correctness. See [`docs/contributing/specs/memory.md`](../contributing/specs/memory.md) for the port contract. | a custom `ref` that escapes the repo root is silently skipped — the port never reads or writes outside the repo | — |
+| **intention** *(Tier 0)* | per-repo architectural-intention corpus (`intention: { source: file, ref, gate, covers }`) — `consult` prepends the phase's matching living pages into the design/planning contract slot (advisory, slot 1 — no second injection surface); `record` routes ADR/page writes through the same seam the `file` adapter already uses; `assert-fresh` flags a changed path whose covering page went untouched (`INTENTION-DRIFT`), waivable per page (`INTENTION-WAIVE`). `intention.gate` chooses `advisory` (default) or `blocking`; `intention.covers` names load-bearing scopes a page must exist for. See [`docs/contributing/specs/intention.md`](../contributing/specs/intention.md) for the port contract. | a `blocking` gate on a thin/under-adopted corpus stalls on false positives — start `advisory` and promote once the corpus is populated | — |
+| **policy** *(Tier 0)* | per-repo/per-user permission layer over outward/hard-to-reverse VCS-port actions. The `policy:` manifest key accepts `always`, `ask`, and `never` verdict lists over the action vocabulary (`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write` — note `integrate` = merge, `propose` = pr-create). Per-action defaults are keyed by reversibility: local reversible actions (`isolate`, `commit`, `backlog-write`) default to `always`; remote/hard-to-reverse actions (`push`, `propose`, `integrate`, `teardown`, `external-send`) default to `ask`, so an unconfigured repo behaves as today (merge still stops for confirmation). Three scopes fold in one direction (`per-invocation > project > user`): user `~/.claude/craft-policy.md` < project manifest `policy:` < per-invocation `--policy`. An explicit `always` verdict for `integrate` or `propose` supersedes craft's hardcoded merge/PR confirmation, enabling unattended headless auto-merge. The three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are not nameable actions and cannot be reached by any verdict. See [`docs/contributing/specs/policy.md`](../contributing/specs/policy.md) for the port contract. | a misconfigured policy (unknown action or verdict, non-list value, intra-scope double-verdict) fails manifest-lint loudly, never silently | — |
+| **DoD artifact** (`docs/DOD.md` or `paths.dod`) *(Tier 1)* | per-criterion acceptance-criteria check in the `validation` phase (default-ON); absence warns, never blocks | you own and maintain the checklist | [`dod-artifact/`](../../examples/dod-artifact/) |
 
 ### How Tier 2 works — the `extends:` block
 
@@ -269,7 +270,7 @@ reaches the invariant core (§2).
 ### Precedence — when two settings touch the same knob
 
 The four-layer story — engine defaults < user scope < project manifest < per-invocation
-flags — is stated once in [GUIDE-concepts.md](GUIDE-concepts.md) Frame 3; what follows is
+flags — is stated once in [concepts.md](concepts.md) Frame 3; what follows is
 the exact per-knob fold order underneath it.
 
 - **Execution:** `phases.<id>.execution` > `pipeline.profile` > top-level `execution:`.
@@ -356,28 +357,28 @@ affected.
 
 ## 4. Examples index — a sample per point
 
-Every Tier-0/1 injection point maps to a runnable [`examples/`](../examples/) sample. Each example's
+Every Tier-0/1 injection point maps to a runnable [`examples/`](../../examples/) sample. Each example's
 `workflow.md` is a real, lint-clean manifest with prose; the `examples-lint` CI gate keeps them valid.
 
 | Point | Sample | Notes |
 |---|---|---|
-| #1 skip | [`skip-phase/`](../examples/skip-phase/) | dependency-checked skip |
-| #2 model | [`model-routing/`](../examples/model-routing/) | per-agent model + fallback |
-| #3 gate | [`gate-command/`](../examples/gate-command/) | supply the gate command |
-| #4 execution / #5 profile | [`lean-profile/`](../examples/lean-profile/) | profiles are sugar over per-phase `execution:` |
-| #6 harness config | [`review-harness/`](../examples/review-harness/) | tune the review harness |
-| #7 backlog source | [`backlog-custom/`](../examples/backlog-custom/) | `custom` resolver script |
-| #8 context file | [`karpathy-as-context/`](../examples/karpathy-as-context/) | global behavioral pack |
-| #9 override file | [`override-procedure/`](../examples/override-procedure/) | project-shaped procedure body |
-| #10 agent/skill swap | [`role-swap/`](../examples/role-swap/) | `role:` / `procedure:`, contract preserved |
-| #11 insert a phase | [`everything-claude-toolkit/`](../examples/everything-claude-toolkit/) | five points in one grab-bag |
-| #12 DoD artifact | [`dod-artifact/`](../examples/dod-artifact/) | author `docs/DOD.md` or set `paths.dod`; validation asserts it (default-ON) |
-| #13 derived-plugin extension | [`derived-plugin/`](../examples/derived-plugin/) | `extends:` block — phases/agents/profiles |
-| enable a default-off phase | [`requirements/`](../examples/requirements/) · [`architecture/`](../examples/architecture/) | `phases.<id>.enabled: true` |
-| methodology declination (opt-in) | [deliberation-review/](../examples/deliberation-review/) | per-phase role swap for a high-stakes review lens; ~2× cost, not a default |
+| #1 skip | [`skip-phase/`](../../examples/skip-phase/) | dependency-checked skip |
+| #2 model | [`model-routing/`](../../examples/model-routing/) | per-agent model + fallback |
+| #3 gate | [`gate-command/`](../../examples/gate-command/) | supply the gate command |
+| #4 execution / #5 profile | [`lean-profile/`](../../examples/lean-profile/) | profiles are sugar over per-phase `execution:` |
+| #6 harness config | [`review-harness/`](../../examples/review-harness/) | tune the review harness |
+| #7 backlog source | [`backlog-custom/`](../../examples/backlog-custom/) | `custom` resolver script |
+| #8 context file | [`karpathy-as-context/`](../../examples/karpathy-as-context/) | global behavioral pack |
+| #9 override file | [`override-procedure/`](../../examples/override-procedure/) | project-shaped procedure body |
+| #10 agent/skill swap | [`role-swap/`](../../examples/role-swap/) | `role:` / `procedure:`, contract preserved |
+| #11 insert a phase | [`everything-claude-toolkit/`](../../examples/everything-claude-toolkit/) | five points in one grab-bag |
+| #12 DoD artifact | [`dod-artifact/`](../../examples/dod-artifact/) | author `docs/DOD.md` or set `paths.dod`; validation asserts it (default-ON) |
+| #13 derived-plugin extension | [`derived-plugin/`](../../examples/derived-plugin/) | `extends:` block — phases/agents/profiles |
+| enable a default-off phase | [`requirements/`](../../examples/requirements/) · [`architecture/`](../../examples/architecture/) | `phases.<id>.enabled: true` |
+| methodology declination (opt-in) | [deliberation-review/](../../examples/deliberation-review/) | per-phase role swap for a high-stakes review lens; ~2× cost, not a default |
 
 Samples that reference a context/override body keep those files under
-[`examples/.claude/workflow/`](../examples/.claude/workflow/) so each manifest lints as-is; in your
+[`examples/.claude/workflow/`](../../examples/.claude/workflow/) so each manifest lints as-is; in your
 repo they'd sit at your project root's `.claude/workflow/`.
 
 To generate a manifest covering the full catalog interactively rather than hand-writing it, use `craft:init` (see §5).
@@ -393,7 +394,7 @@ reads the run record's `verify:` verdict — stop on `verify: DoD met`, run anot
 on its binary exit code (`0` = met, `2` = another pass needed or blocked) under a DoD-presence
 precondition that makes `exit 0 ⇒ met` sound. Both forms are bounded and loud: a small iteration cap prevents an infinite
 spin; non-convergence is surfaced, never swallowed. See the recipe for the full stop-condition tables
-and the engine-native-loop rejection: [examples/loop/](../examples/loop/).
+and the engine-native-loop rejection: [examples/loop/](../../examples/loop/).
 
 ---
 
@@ -438,7 +439,7 @@ declare only what probing can't infer.
 
 That's the loop: pick the points, write the lines, lint, run. Reach for Tier 1 when one line isn't
 enough (your own agent, your own procedure body, a new phase), and Tier 2 when you want to package it
-as a shareable plugin — see [`derived-plugin/`](../examples/derived-plugin/) and §3 above.
+as a shareable plugin — see [`derived-plugin/`](../../examples/derived-plugin/) and §3 above.
 
 ### Interactive alternative — `craft:init`
 

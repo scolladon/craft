@@ -87,7 +87,7 @@ Input: `$ARGUMENTS`
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
     the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
     procedure. With no `intention:` manifest key, probe the zero-config corpus
-    (`docs/contributing/specs/*.md`, `docs/DESIGN-*.md`, `docs/DOD.md`, `docs/GUIDE-customizing.md`);
+    (`docs/contributing/specs/*.md`, `docs/DESIGN-*.md`, `docs/DOD.md`, `docs/guides/customizing.md`);
     hold the single `IntentionView` in-session beside the run record for the duration of
     this run. A cold or absent corpus yields an empty view and records a load no-op —
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
@@ -427,7 +427,7 @@ tokens + wall-clock into the committed artifact and the run record.
 `duration_ms` from the usage block the spawn already returns — exact, zero-cost. No
 agent is asked to report its own usage.
 
-**Where results land:** fill `docs/model-class-matrix.md` (the committed, diffable
+**Where results land:** fill `docs/guides/model-class-matrix.md` (the committed, diffable
 artifact template) and append a one-line entry to the run record under
 `model-class-matrix`. Rationale: `docs/archive/DESIGN-P13-nfr-hardening.md`.
 

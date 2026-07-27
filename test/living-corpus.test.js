@@ -19,8 +19,6 @@ const EXPECTED = new Set([
   'docs/DESIGN-portable-named-configs.md',
   'docs/DESIGN-shrink-core-prune-guardrails.md',
   'docs/DOD.md',
-  'docs/GUIDE-concepts.md',
-  'docs/GUIDE-customizing.md',
   'docs/contributing/specs/aider-poc-record.md',
   'docs/contributing/specs/antigravity-poc-record.md',
   'docs/contributing/specs/backlog.md',
@@ -37,6 +35,8 @@ const EXPECTED = new Set([
   'docs/contributing/specs/policy.md',
   'docs/contributing/specs/telemetry.md',
   'docs/contributing/specs/vcs.md',
+  'docs/guides/concepts.md',
+  'docs/guides/customizing.md',
 ]);
 
 test('Given the repo root, when living-corpus.sh runs, then it emits exactly the pinned corpus as a set', () => {

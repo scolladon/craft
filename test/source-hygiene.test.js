@@ -17,7 +17,7 @@ const SCANNED_PATHS = [
   path.join(ROOT, 'engine/src'),
   path.join(ROOT, 'docs/contributing/specs'),
   path.join(ROOT, 'docs/DOD.md'),
-  path.join(ROOT, 'docs/GUIDE-customizing.md'),
+  path.join(ROOT, 'docs/guides/customizing.md'),
   path.join(ROOT, 'README.md'),
 ];
 
@@ -128,10 +128,10 @@ test(
       // engine/src/manifest.js 'github-issues': the NON_BUILTIN_TRACKERS constant
       // names the backlog tracker id — a tracker name, not a VCS-host CLI reference.
       /engine\/src\/manifest\.js:[0-9]+:.*github-issues/,
-      // docs/GUIDE-customizing.md 'file / gh /': the Backlog-axis label in the
+      // docs/guides/customizing.md 'file / gh /': the Backlog-axis label in the
       // hexagon diagram — explicitly kept (Backlog port, out of scope per Part 9
       // plan note); the regex is deliberately line-agnostic.
-      /docs\/GUIDE-customizing\.md:[0-9]+:.*file \/ gh \//,
+      /docs\/guides\/customizing\.md:[0-9]+:.*file \/ gh \//,
       // engine/src/observability/adapters/copilot/telemetry.js: the OTel
       // instrumentation-scope name is the protocol-level discriminator that
       // separates span records from metric records — a vendor identifier at

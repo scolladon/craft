@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # craft — single source of truth for the intention port's living corpus
-# (docs/contributing/specs/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/GUIDE-concepts.md,
-# docs/GUIDE-customizing.md, plus BACKLOG.md). Both scripts/ci.sh and
+# (docs/contributing/specs/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/guides/concepts.md,
+# docs/guides/customizing.md, plus BACKLOG.md). Both scripts/ci.sh and
 # test/intention-lint-ci.test.js shell out here so the corpus is enumerated in
 # exactly one place.
 #
@@ -15,7 +15,8 @@ while IFS= read -r found; do
 done < <(
   {
     find docs/contributing/specs -maxdepth 1 -name '*.md'
-    find docs -maxdepth 1 \( -name 'DESIGN-*.md' -o -name 'DOD.md' -o -name 'GUIDE-customizing.md' -o -name 'GUIDE-concepts.md' \)
+    find docs -maxdepth 1 \( -name 'DESIGN-*.md' -o -name 'DOD.md' \)
+    find docs/guides -maxdepth 1 \( -name 'concepts.md' -o -name 'customizing.md' \)
   } 2>/dev/null
 )
 

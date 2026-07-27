@@ -49,7 +49,7 @@ craft externalizes the delivery loop so it survives the transcript:
 - **Big work stays bounded** — git-worktree isolation, a parted TDD plan where each
   part carries its own pre-chewed context block, one role agent per phase.
 
-New to this way of working? [docs/GUIDE-concepts.md](docs/GUIDE-concepts.md) maps
+New to this way of working? [docs/guides/concepts.md](docs/guides/concepts.md) maps
 craft onto four frames you may already know — Karpathy's *write-the-loop*, Böckeler's
 harness taxonomy, config layering, and Osmani's inner/outer loop.
 
@@ -143,7 +143,7 @@ That's the cheapest of a dozen injection points — skip, insert, reorder, swap
 agents/skills, route models per role, tune each harness, change the backlog source,
 profiles, up to a derived plugin. Each one has a runnable sample in
 [`examples/`](examples/) and a chapter in
-[docs/GUIDE-customizing.md](docs/GUIDE-customizing.md) — the one doc to read before
+[docs/guides/customizing.md](docs/guides/customizing.md) — the one doc to read before
 tailoring. Named configs (`.claude/craft-<name>.md`, repo or user scope) select whole
 manifests per run: `/craft:run --config <name> …`.
 
@@ -197,8 +197,8 @@ session resumes from the last artifact — the plan's context blocks, not scroll
 
 | | |
 |---|---|
-| [GUIDE-customizing.md](docs/GUIDE-customizing.md) | mental model + full injection catalog |
-| [GUIDE-concepts.md](docs/GUIDE-concepts.md) | why craft is shaped this way, in four familiar frames |
+| [guides/customizing.md](docs/guides/customizing.md) | mental model + full injection catalog |
+| [guides/concepts.md](docs/guides/concepts.md) | why craft is shaped this way, in four familiar frames |
 | [DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md) | living architecture: phases, ports, enforcement |
 | [docs/adr/](docs/adr/) | decision records |
 | [examples/](examples/) | one runnable sample per injection point |

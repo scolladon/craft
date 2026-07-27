@@ -60,7 +60,7 @@ run_suite adapters/aider adapters/aider/test adapters/aider
 run_suite process test
 
 # run_intention_lint — enumerates the design's zero-config living corpus
-# (docs/contributing/specs/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/GUIDE-customizing.md)
+# (docs/contributing/specs/*.md, docs/DESIGN-*.md, docs/DOD.md, docs/guides/customizing.md)
 # plus BACKLOG.md, mirroring run_suite's zero-file discipline: a zero-file
 # enumeration is a hard error, never a silent skip.
 run_intention_lint() {

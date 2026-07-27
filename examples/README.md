@@ -1,6 +1,6 @@
 # craft examples — a runnable sample per injection point
 
-> New to customizing craft? Read **[docs/GUIDE-customizing.md](../docs/GUIDE-customizing.md)** first —
+> New to customizing craft? Read **[docs/guides/customizing.md](../docs/guides/customizing.md)** first —
 > the mental model + the full injection catalog. This directory is its example index: every Tier-0/1
 > injection point (PRD §7) has a lint-clean sample `workflow.md` you can copy. The `examples-lint` CI
 > gate keeps them all valid, so nothing here advertises a surface that no longer resolves.
@@ -31,7 +31,7 @@ Tier 2 ships: the `extends:` registration surface is proven end-to-end (engine S
 [`derived-plugin/`](derived-plugin/) shows a manifest registering a new phase, an agent, and a
 profile via a derived plugin. [`backlog-github-issues/`](backlog-github-issues/) shows a named
 backlog adapter registered via `extends.backlog-adapters`. See
-[docs/GUIDE-customizing.md §3 Tier 2](../docs/GUIDE-customizing.md) for the full how-to.
+[docs/guides/customizing.md §3 Tier 2](../docs/guides/customizing.md) for the full how-to.
 
 ## Integrating external skill collections
 
@@ -74,5 +74,5 @@ resolves a manifest's relative file refs against its grandparent dir — here, `
 repo those files sit at your project root's `.claude/workflow/`.
 
 The point: craft stays opinion-free about *what* you inject — it owns only the orchestration
-guarantees (the invariant core, [GUIDE §2](../docs/GUIDE-customizing.md)). Bring your own rules,
+guarantees (the invariant core, [GUIDE §2](../docs/guides/customizing.md)). Bring your own rules,
 agents, and tools; craft wires and gates them.

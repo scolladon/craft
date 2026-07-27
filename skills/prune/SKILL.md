@@ -42,7 +42,7 @@ Read-only, over exactly these paths:
 - Skill and agent prose — `skills/**`, `agents/**`.
 
 Resolve the current model identity from the run context; when the run context does not
-carry it, read `docs/model-class-matrix.md`. Flag drag the resolved model no longer needs:
+carry it, read `docs/guides/model-class-matrix.md`. Flag drag the resolved model no longer needs:
 belt-and-braces guidance that duplicates behaviour the model already carries natively, a
 lint superseded by a newer mechanism, or prose restating what the model now does without
 being told.
@@ -68,7 +68,7 @@ family, and no other skill or script emits it.
 
 1. Read `contracts/core.md`. Unreadable → report the read failure and stop; emit no
    proposals (fail-closed — see Preamble).
-2. Resolve the current model identity (run context, else `docs/model-class-matrix.md`).
+2. Resolve the current model identity (run context, else `docs/guides/model-class-matrix.md`).
 3. Walk the inspection scope. For each unit that looks like drag against the resolved
    model, draft a candidate with the three fields above.
 4. Check every drafted candidate against the denylist read in step 1. A candidate mapping
@@ -90,7 +90,7 @@ This skill itself never deletes or edits a harness file.
 Manual and documented here — the ratified floor. There is no auto-detection of a model
 change, no cadence timer, and no new pipeline phase. A session runs this skill by name when
 a human decides a review is warranted — for example, after a run deliberately records a new
-model class in `docs/model-class-matrix.md`.
+model class in `docs/guides/model-class-matrix.md`.
 
 ---
 
