@@ -296,6 +296,24 @@ findings:
       run: docs-audience-split
       commit: e59ca69
       date: '2026-07-27'
+  - concern: findings
+    file: docs/contributing/plan/examples-catalog-gap-closure.md
+    severity: medium
+    pattern: a plan/design doc that quotes markdown index-row snippets as inline code with escaped backticks breaks the code span and exposes raw relative links, which the CI link checker resolves against the doc's own directory and fails — fence any quoted link-bearing snippet in a text code block instead of an inline span
+    confidence: 0.6
+    provenance:
+      run: examples-catalog-gap-closure
+      commit: be64001
+      date: '2026-07-27'
+  - concern: findings
+    file: examples/README.md
+    severity: medium
+    pattern: when adding rows to a doubly-indexed catalog, cross-check every derived cell (tier/cost class) against the canonical table, not just presence and numbering — a tier cell drifted while presence and numbering were both guarded
+    confidence: 0.5
+    provenance:
+      run: examples-catalog-gap-closure
+      commit: 7d72b47
+      date: '2026-07-27'
 part-sizing:
   - concern: part-sizing
     size: pure-module
@@ -448,6 +466,8 @@ part-sizing:
 - agents/reviewer.md — confidence 0.8 | 9184452 (shared agent-body edits need all six adapter mirrors synced in one pass; aider is body-only, leading blanks stripped; guards are byte-identity tests that go red one suite at a time)
 - examples/deliberation-review/workflow.md — confidence 0.6 | 9184452 (taught output formats must round-trip through the real normalizer; pipe is reserved for the optional fix)
 - test/hygiene-gates-ci.test.js — confidence 0.8 | e59ca69 (ci.sh excuse-glob case-arm is pinned byte-wise here; extend the pinned regex in the same change as any glob edit — bit three parts in one run)
+- docs/contributing/plan/examples-catalog-gap-closure.md — confidence 0.6 | be64001 (inline-code snippets quoting markdown links with escaped backticks break the span and expose raw relative links the link-check CI resolves against the doc's dir; fence quoted link-bearing snippets in text blocks)
+- examples/README.md — confidence 0.5 | 7d72b47 (doubly-indexed catalog rows: cross-check derived cells like tier against the canonical table, not just presence/numbering — a tier cell drifted while both were guarded)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1

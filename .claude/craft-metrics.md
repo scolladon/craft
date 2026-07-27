@@ -296,3 +296,14 @@ docs-audience-split review-tests tokens=114398 duration_ms=367927 cache=na
 docs-audience-split review-perf tokens=65146 duration_ms=93051 cache=na
 docs-audience-split review-fix-delta tokens=69312 duration_ms=237558 cache=na
 docs-audience-split validation-triage tokens=95485 duration_ms=253868 cache=na
+examples-catalog-gap-closure design tokens=129666 duration_ms=528116 cache=na
+examples-catalog-gap-closure planning tokens=136775 duration_ms=671737 cache=na
+examples-catalog-gap-closure implementation-part-1 tokens=68596 duration_ms=108485 cache=na
+examples-catalog-gap-closure implementation-part-2 tokens=64822 duration_ms=71214 cache=na
+examples-catalog-gap-closure implementation-part-3 tokens=105218 duration_ms=215982 cache=na
+examples-catalog-gap-closure implementation-part-4 tokens=102976 duration_ms=168910 cache=na
+examples-catalog-gap-closure review-code tokens=123103 duration_ms=389977 cache=na
+examples-catalog-gap-closure review-security tokens=63960 duration_ms=100347 cache=na
+examples-catalog-gap-closure review-tests tokens=64470 duration_ms=193193 cache=na
+examples-catalog-gap-closure review-perf tokens=44989 duration_ms=40190 cache=na
+examples-catalog-gap-closure review-fix-delta tokens=56524 duration_ms=115697 cache=na
