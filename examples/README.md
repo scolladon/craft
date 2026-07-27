@@ -30,6 +30,7 @@ real repo the file lives at your project root as `.claude/workflow.md`.
 | — | **policy** — headless auto-merge (`policy:`) | [`policy-headless-merge/`](policy-headless-merge/) | 0 |
 | — | **intention** corpus (`intention:`) | [`intention-corpus/`](intention-corpus/) | 0 |
 | — | **memory** cache (`memory:`) | [`memory-cache/`](memory-cache/) | 0 |
+| — | **decisions → Slack** — route the fork conversation remotely (`phases.decisions.context`) | [`decisions-remote/`](decisions-remote/) | 1 |
 | — | **required** — pin a phase (`phases.<id>.required`) | [`phase-required/`](phase-required/) | 0 |
 | — | **reorder** phases (`pipeline.reorder`) | [`pipeline-reorder/`](pipeline-reorder/) | 1 |
 | — | **hygiene gate** (`hygiene.gate`) | [`hygiene-gate/`](hygiene-gate/) | 0 |

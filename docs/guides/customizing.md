@@ -381,6 +381,7 @@ Every Tier-0/1 injection point maps to a runnable [`examples/`](../../examples/)
 | policy — headless auto-merge | [`policy-headless-merge/`](../../examples/policy-headless-merge/) | `policy: { always: [integrate, propose] }` — supersedes merge/PR confirmation |
 | intention corpus | [`intention-corpus/`](../../examples/intention-corpus/) | `intention: { source: file, gate, covers }` — living pages into the design/plan contract |
 | memory cache | [`memory-cache/`](../../examples/memory-cache/) | `memory: { source: file }` — advisory per-repo learning cache |
+| decisions → Slack (remote escalation) | [`decisions-remote/`](../../examples/decisions-remote/) | `phases.decisions.context` + `policy: { always: [external-send] }` — route the fork conversation to Slack |
 | phase required | [`phase-required/`](../../examples/phase-required/) | `phases.<id>.required: true` — pin a phase against auto-skip |
 | pipeline reorder | [`pipeline-reorder/`](../../examples/pipeline-reorder/) | `pipeline: { reorder: [...] }` — dependency-checked phase reordering |
 | hygiene gate | [`hygiene-gate/`](../../examples/hygiene-gate/) | `hygiene: { gate: blocking }` — promote the two touched-diff lints together |
