@@ -30,6 +30,9 @@ real repo the file lives at your project root as `.claude/workflow.md`.
 | — | **policy** — headless auto-merge (`policy:`) | [`policy-headless-merge/`](policy-headless-merge/) | 0 |
 | — | **intention** corpus (`intention:`) | [`intention-corpus/`](intention-corpus/) | 0 |
 | — | **memory** cache (`memory:`) | [`memory-cache/`](memory-cache/) | 0 |
+| — | **required** — pin a phase (`phases.<id>.required`) | [`phase-required/`](phase-required/) | 0 |
+| — | **reorder** phases (`pipeline.reorder`) | [`pipeline-reorder/`](pipeline-reorder/) | 0 |
+| — | **hygiene gate** (`hygiene.gate`) | [`hygiene-gate/`](hygiene-gate/) | 0 |
 
 Tier 2 ships: the `extends:` registration surface is proven end-to-end (engine S7 fixture green).
 [`derived-plugin/`](derived-plugin/) shows a manifest registering a new phase, an agent, and a

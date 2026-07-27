@@ -172,15 +172,17 @@ prose lint. Default `advisory`: findings print but the run stays green. `blockin
 both lints together — there is no separate knob per lint. The value is validated against the
 same fixed set as `intention.gate`, fail-closed on anything else.
 
+Sample: [`hygiene-gate/`](../../examples/hygiene-gate/)
+
 ### Reshape the spine — skip · required · context · insert · reorder · extends
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
 | **skip** a phase *(Tier 0)* | drop a step; dependency-checked | over-skipping erodes guarantees (refused if it strands a consumer) | [`skip-phase/`](../../examples/skip-phase/) |
-| **required** *(Tier 0)* | pin a phase so craft never auto-skips it — `phases.<id>.required: true` forces the phase to run even when craft's necessity evaluation would otherwise skip it. Does not override an explicit `pipeline.skip` or `enabled: false` (the operator's own waiver still wins); setting both `required: true` and a `pipeline.skip` for the same phase is a manifest-lint error. | over-pinning forfeits the cost saving that auto-skip provides | — |
+| **required** *(Tier 0)* | pin a phase so craft never auto-skips it — `phases.<id>.required: true` forces the phase to run even when craft's necessity evaluation would otherwise skip it. Does not override an explicit `pipeline.skip` or `enabled: false` (the operator's own waiver still wins); setting both `required: true` and a `pipeline.skip` for the same phase is a manifest-lint error. | over-pinning forfeits the cost saving that auto-skip provides | [`phase-required/`](../../examples/phase-required/) |
 | **context file** (global / per-phase) *(Tier 1)* | additive constraints, contract-safe | drift if unmaintained | [`karpathy-as-context/`](../../examples/karpathy-as-context/) |
 | **insert** a phase *(Tier 1)* | a new SE step with full guarantees | you supply its procedure | [`everything-claude-toolkit/`](../../examples/everything-claude-toolkit/) † |
-| **reorder** (pipeline op) *(Tier 1)* | change phase sequence; dependency-checked | must not strand a consumer — refused/flagged if it does | — |
+| **reorder** (pipeline op) *(Tier 1)* | change phase sequence; dependency-checked | must not strand a consumer — refused/flagged if it does | [`pipeline-reorder/`](../../examples/pipeline-reorder/) |
 | **extends** — derived local plugin *(Tier 2)* | register phases/agents/profiles/backlog-adapters from your own plugin | deepest power; shareable; versioned; most setup; depends on cross-plugin dispatch | [`derived-plugin/`](../../examples/derived-plugin/) |
 
 † Phase **dispatch** and *contract execution* for an inserted phase both ship: the walk passes the
@@ -379,6 +381,9 @@ Every Tier-0/1 injection point maps to a runnable [`examples/`](../../examples/)
 | policy — headless auto-merge | [`policy-headless-merge/`](../../examples/policy-headless-merge/) | `policy: { always: [integrate, propose] }` — supersedes merge/PR confirmation |
 | intention corpus | [`intention-corpus/`](../../examples/intention-corpus/) | `intention: { source: file, gate, covers }` — living pages into the design/plan contract |
 | memory cache | [`memory-cache/`](../../examples/memory-cache/) | `memory: { source: file }` — advisory per-repo learning cache |
+| phase required | [`phase-required/`](../../examples/phase-required/) | `phases.<id>.required: true` — pin a phase against auto-skip |
+| pipeline reorder | [`pipeline-reorder/`](../../examples/pipeline-reorder/) | `pipeline: { reorder: [...] }` — dependency-checked phase reordering |
+| hygiene gate | [`hygiene-gate/`](../../examples/hygiene-gate/) | `hygiene: { gate: blocking }` — promote the two touched-diff lints together |
 
 Samples that reference a context/override body keep those files under
 [`examples/.claude/workflow/`](../../examples/.claude/workflow/) so each manifest lints as-is; in your
