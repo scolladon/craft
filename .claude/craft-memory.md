@@ -36,6 +36,15 @@ validation-tool:
       date: '2026-06-26'
 findings:
   - concern: findings
+    file: skills/integrate/SKILL.md
+    severity: low
+    pattern: this repo's main branch requires an approving review before merge, so the squash-merge of a craft PR is performed by the operator (repo admin) rather than by the session; teardown proceeds normally once the operator confirms the merge landed
+    confidence: 0.65
+    provenance:
+      run: decisions-remote-slack-example
+      commit: 9229d3f
+      date: '2026-07-27'
+  - concern: findings
     file: skills/init/SKILL.md
     severity: medium
     pattern: LLM-prose bash temp-file handling needs trailing-X mktemp and reuse of the validated path, not raw-name re-splice
@@ -336,9 +345,9 @@ part-sizing:
     outcome: pass
     confidence: 1
     provenance:
-      run: p27-despecialize-craft-sources
-      commit: a4849a1
-      date: '2026-06-26'
+      run: decisions-remote-slack-example
+      commit: 9229d3f
+      date: '2026-07-27'
   - concern: part-sizing
     size: resolver-wiring
     outcome: pass

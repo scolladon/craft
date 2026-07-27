@@ -307,3 +307,6 @@ examples-catalog-gap-closure review-security tokens=63960 duration_ms=100347 cac
 examples-catalog-gap-closure review-tests tokens=64470 duration_ms=193193 cache=na
 examples-catalog-gap-closure review-perf tokens=44989 duration_ms=40190 cache=na
 examples-catalog-gap-closure review-fix-delta tokens=56524 duration_ms=115697 cache=na
+decisions-remote-slack-example design tokens=103600 duration_ms=463477 cache=na
+decisions-remote-slack-example planning tokens=84433 duration_ms=248832 cache=na
+decisions-remote-slack-example implementation-part-1 tokens=75730 duration_ms=175579 cache=na
