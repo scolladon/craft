@@ -248,21 +248,27 @@ changes run cost, never correctness; a custom `ref` escaping the repo root is si
 
 1. **§3 Sample cell** — replace the trailing `| — |` on each Ports row in `docs/guides/customizing.md`.
    Anchor each on its unique cost-column tail (Edit, not replace_all):
-   - memory (line 204): old `outside the repo | — |` → new `outside the repo | [\`memory-cache/\`](../../examples/memory-cache/) |`
-   - intention (line 205): old `corpus is populated | — |` → new `corpus is populated | [\`intention-corpus/\`](../../examples/intention-corpus/) |`
-   - policy (line 206): old `never silently | — |` → new `never silently | [\`policy-headless-merge/\`](../../examples/policy-headless-merge/) |`
+   ```text
+   memory (line 204):    old `outside the repo | — |`     → new `outside the repo | [`memory-cache/`](../../examples/memory-cache/) |`
+   intention (line 205): old `corpus is populated | — |`  → new `corpus is populated | [`intention-corpus/`](../../examples/intention-corpus/) |`
+   policy (line 206):    old `never silently | — |`       → new `never silently | [`policy-headless-merge/`](../../examples/policy-headless-merge/) |`
+   ```
 2. **§4 index rows** — append three un-numbered rows (ADR 291) to the `## 4. Examples index` table,
    after the existing un-numbered rows (current last: the `methodology declination` row, line 378).
    Columns are `Point | Sample | Notes`; links are `../../examples/<dir>/`:
-   - `| policy — headless auto-merge | [\`policy-headless-merge/\`](../../examples/policy-headless-merge/) | \`policy: { always: [integrate, propose] }\` — supersedes merge/PR confirmation |`
-   - `| intention corpus | [\`intention-corpus/\`](../../examples/intention-corpus/) | \`intention: { source: file, gate, covers }\` — living pages into the design/plan contract |`
-   - `| memory cache | [\`memory-cache/\`](../../examples/memory-cache/) | \`memory: { source: file }\` — advisory per-repo learning cache |`
+   ```text
+   | policy — headless auto-merge | [`policy-headless-merge/`](../../examples/policy-headless-merge/) | `policy: { always: [integrate, propose] }` — supersedes merge/PR confirmation |
+   | intention corpus | [`intention-corpus/`](../../examples/intention-corpus/) | `intention: { source: file, gate, covers }` — living pages into the design/plan contract |
+   | memory cache | [`memory-cache/`](../../examples/memory-cache/) | `memory: { source: file }` — advisory per-repo learning cache |
+   ```
 3. **README rows** — append three un-numbered (`—`) rows (ADR 291) to the `## By injection point`
    table in `examples/README.md`, after the existing `—` rows (current last: named-config, line 28).
    Columns are `# | Injection point | Example | Tier`; links are relative (`<dir>/`), all Tier 0:
-   - `| — | **policy** — headless auto-merge (\`policy:\`) | [\`policy-headless-merge/\`](policy-headless-merge/) | 0 |`
-   - `| — | **intention** corpus (\`intention:\`) | [\`intention-corpus/\`](intention-corpus/) | 0 |`
-   - `| — | **memory** cache (\`memory:\`) | [\`memory-cache/\`](memory-cache/) | 0 |`
+   ```text
+   | — | **policy** — headless auto-merge (`policy:`) | [`policy-headless-merge/`](policy-headless-merge/) | 0 |
+   | — | **intention** corpus (`intention:`) | [`intention-corpus/`](intention-corpus/) | 0 |
+   | — | **memory** cache (`memory:`) | [`memory-cache/`](memory-cache/) | 0 |
+   ```
 
 Keep the six new samples un-numbered — the `#1…#13` PRD numbering stays stable (ADR 291).
 
@@ -351,20 +357,29 @@ The sample file is itself a touched `*.md` that the phase-boundary anti-slop lin
 **Index landings for all three (R5/R6).**
 
 1. **§3 landings** in `docs/guides/customizing.md`:
-   - required (line 180, spine table): old `auto-skip provides | — |` → new `auto-skip provides | [\`phase-required/\`](../../examples/phase-required/) |`
-   - reorder (line 183, spine table): old `if it does | — |` → new `if it does | [\`pipeline-reorder/\`](../../examples/pipeline-reorder/) |`
+   ```text
+   required (line 180, spine table): old `auto-skip provides | — |` → new `auto-skip provides | [`phase-required/`](../../examples/phase-required/) |`
+   reorder (line 183, spine table):  old `if it does | — |`         → new `if it does | [`pipeline-reorder/`](../../examples/pipeline-reorder/) |`
+   ```
    - hygiene.gate has **no Sample column** (it is a `#### hygiene.gate` prose subsection, lines 167–173
      ending `…the same fixed set as \`intention.gate\`, fail-closed on anything else.`). Add a new line
-     immediately after that closing sentence: `Sample: [\`hygiene-gate/\`](../../examples/hygiene-gate/)`
+     immediately after that closing sentence:
+   ```text
+   Sample: [`hygiene-gate/`](../../examples/hygiene-gate/)
+   ```
 2. **§4 index rows** — append three un-numbered rows (ADR 291) after the Part-3 rows in the §4 table:
-   - `| phase required | [\`phase-required/\`](../../examples/phase-required/) | \`phases.<id>.required: true\` — pin a phase against auto-skip |`
-   - `| pipeline reorder | [\`pipeline-reorder/\`](../../examples/pipeline-reorder/) | \`pipeline: { reorder: [...] }\` — dependency-checked phase reordering |`
-   - `| hygiene gate | [\`hygiene-gate/\`](../../examples/hygiene-gate/) | \`hygiene: { gate: blocking }\` — promote the two touched-diff lints together |`
+   ```text
+   | phase required | [`phase-required/`](../../examples/phase-required/) | `phases.<id>.required: true` — pin a phase against auto-skip |
+   | pipeline reorder | [`pipeline-reorder/`](../../examples/pipeline-reorder/) | `pipeline: { reorder: [...] }` — dependency-checked phase reordering |
+   | hygiene gate | [`hygiene-gate/`](../../examples/hygiene-gate/) | `hygiene: { gate: blocking }` — promote the two touched-diff lints together |
+   ```
 3. **README rows** — append three un-numbered (`—`) rows after the Part-3 rows in the README table
    (relative links, Tier 0):
-   - `| — | **required** — pin a phase (\`phases.<id>.required\`) | [\`phase-required/\`](phase-required/) | 0 |`
-   - `| — | **reorder** phases (\`pipeline.reorder\`) | [\`pipeline-reorder/\`](pipeline-reorder/) | 0 |`
-   - `| — | **hygiene gate** (\`hygiene.gate\`) | [\`hygiene-gate/\`](hygiene-gate/) | 0 |`
+   ```text
+   | — | **required** — pin a phase (`phases.<id>.required`) | [`phase-required/`](phase-required/) | 0 |
+   | — | **reorder** phases (`pipeline.reorder`) | [`pipeline-reorder/`](pipeline-reorder/) | 0 |
+   | — | **hygiene gate** (`hygiene.gate`) | [`hygiene-gate/`](hygiene-gate/) | 0 |
+   ```
 
 ### TDD steps
 <!-- Docs-prose part — verification loop + closing cross-consistency checkpoint. -->
