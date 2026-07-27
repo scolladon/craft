@@ -27,6 +27,9 @@ real repo the file lives at your project root as `.claude/workflow.md`.
 | 13 | **derived-plugin extension surface** | [`derived-plugin/`](derived-plugin/) | 2 |
 | — | **named tracker adapter** (`extends.backlog-adapters`) | [`backlog-github-issues/`](backlog-github-issues/) | 2 |
 | — | **named config** (`craft:init` → `craft:run --config <name>`) | [`named-config/`](named-config/) | 0 |
+| — | **policy** — headless auto-merge (`policy:`) | [`policy-headless-merge/`](policy-headless-merge/) | 0 |
+| — | **intention** corpus (`intention:`) | [`intention-corpus/`](intention-corpus/) | 0 |
+| — | **memory** cache (`memory:`) | [`memory-cache/`](memory-cache/) | 0 |
 
 Tier 2 ships: the `extends:` registration surface is proven end-to-end (engine S7 fixture green).
 [`derived-plugin/`](derived-plugin/) shows a manifest registering a new phase, an agent, and a
