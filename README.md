@@ -116,7 +116,7 @@ Phases also run standalone, on any branch:
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
 receipts: [18 design docs](docs/design/), [17 parted plans](docs/plan/),
-[270 ADRs](docs/adr/), and [raw telemetry for 27 runs](docs/metrics-baseline.report.json)
+[270 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/metrics-baseline.report.json)
 — plus an [instantiation record](docs/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
@@ -200,7 +200,7 @@ session resumes from the last artifact — the plan's context blocks, not scroll
 | [guides/customizing.md](docs/guides/customizing.md) | mental model + full injection catalog |
 | [guides/concepts.md](docs/guides/concepts.md) | why craft is shaped this way, in four familiar frames |
 | [DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md) | living architecture: phases, ports, enforcement |
-| [docs/adr/](docs/adr/) | decision records |
+| [docs/contributing/adr/](docs/contributing/adr/) | decision records |
 | [examples/](examples/) | one runnable sample per injection point |
 
 Contributing to craft itself? Dev loop: `claude --plugin-dir /path/to/craft`.

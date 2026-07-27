@@ -129,7 +129,7 @@ run_prose_lint() {
   while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     case "$f" in
-      docs/adr/*|docs/design/*|docs/archive/*|docs/contributing/specs/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
+      docs/contributing/adr/*|docs/design/*|docs/archive/*|docs/contributing/specs/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
       *.md) docs+=("$f"); waivers+=(--waiver-source "$f") ;;
     esac
   done < "$hygiene_touched"
