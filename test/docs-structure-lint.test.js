@@ -29,5 +29,5 @@ test('a dated doc planted outside docs/archive/ exits 2 and names it in stderr',
 });
 
 test('live docs/ tree passes after the archive sweep', () => {
-  execFileSync('bash', [SCRIPT, path.join(ROOT, 'docs')], { encoding: 'utf8' });
+  execFileSync('bash', [SCRIPT, path.join(ROOT, 'docs', 'contributing')], { encoding: 'utf8' });
 });

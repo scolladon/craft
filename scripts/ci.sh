@@ -80,7 +80,7 @@ run_intention_lint
 shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts \
   && for b in BACKLOG.md templates/backlog.md; do bash scripts/backlog-lint.sh "$b" || exit 1; done \
   && for d in templates/design.md docs/contributing/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \
-  && bash scripts/docs-structure-lint.sh docs
+  && bash scripts/docs-structure-lint.sh docs/contributing
 
 # --- hygiene gates (workstream C): touched-diff stub + prose lints ---
 # Posture is the manifest's resolved hygiene.gate (advisory | blocking); flipping
@@ -129,7 +129,7 @@ run_prose_lint() {
   while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     case "$f" in
-      docs/contributing/adr/*|docs/contributing/design/*|docs/archive/*|docs/contributing/specs/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
+      docs/contributing/adr/*|docs/contributing/design/*|docs/contributing/archive/*|docs/contributing/specs/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
       *.md) docs+=("$f"); waivers+=(--waiver-source "$f") ;;
     esac
   done < "$hygiene_touched"

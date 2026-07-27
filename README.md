@@ -117,7 +117,7 @@ Phases also run standalone, on any branch:
 Every feature in this repo was delivered by a craft run, and the artifacts are the
 receipts: [18 design docs](docs/contributing/design/), [17 parted plans](docs/contributing/plan/),
 [270 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/metrics-baseline.report.json)
-— plus an [instantiation record](docs/archive/SC5-second-instantiation-record.md)
+— plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
 The README itself is gated: its example config, pipeline diagram, and cost numbers

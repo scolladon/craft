@@ -6,7 +6,7 @@
 > customization.
 
 > SoT — *intent:* `docs/PRD-customizable-engine.md` · *architecture:* `docs/DESIGN-customizable-engine.md`
-> · *decisions:* `docs/contributing/adr/` · *build scripts:* `docs/archive/PLAN-*.md` · *spikes:* `docs/archive/SPIKE.md`
+> · *decisions:* `docs/contributing/adr/` · *build scripts:* `docs/contributing/archive/PLAN-*.md` · *spikes:* `docs/contributing/archive/SPIKE.md`
 
 ## Status — PRD program complete (P0–P16 ✅)
 
@@ -160,7 +160,7 @@ criterion is mechanically asserted against the run's recorded per-phase gate evi
 | P21 | Running craft in a loop — operator-owned outer-loop recipe (`/loop /craft:run` self-paced on the run-record verdict; headless `craft-pi` exit-code contrast); docs + `examples/loop/`, no engine change | 111–115 |
 | P29 | Usage telemetry miner — new Telemetry port (`collect`/`aggregate`); `telemetry-claude` binding + per-model pricing table; deterministic `usage-aggregate.js` core; `.claude/craft-metrics.md` writer upgraded to real `cache_read`/`cache_creation` split; `craft:metrics` standalone skill (advisory, never gating) | 182–188 |
 
-Per-part history lives in `git log`, `docs/archive/{DESIGN,PLAN}-P*.md`, and `docs/contributing/adr/` — not here.
+Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*.md`, and `docs/contributing/adr/` — not here.
 
 **Standing invariants (the working contract):**
 - **Data is the SoT, not prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.
