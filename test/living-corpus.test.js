@@ -9,7 +9,7 @@ const path = require('node:path');
 const ROOT = path.resolve(__dirname, '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'living-corpus.sh');
 
-// Pinned live corpus — see docs/plan/harness-hygiene-prune-gates.md "Part 2":
+// Pinned live corpus — see docs/contributing/plan/harness-hygiene-prune-gates.md "Part 2":
 // verified with `bash scripts/living-corpus.sh` against this branch's docs tree.
 const EXPECTED = new Set([
   'BACKLOG.md',

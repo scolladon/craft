@@ -80,7 +80,8 @@ run_intention_lint
 shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/default.yml && node engine/bin/pipeline-resolve.js pipeline/default.yml && node engine/bin/contracts-lint.js contracts \
   && for b in BACKLOG.md templates/backlog.md; do bash scripts/backlog-lint.sh "$b" || exit 1; done \
   && for d in templates/design.md docs/contributing/design/*.md; do bash scripts/design-lint.sh "$d" || exit 1; done \
-  && bash scripts/docs-structure-lint.sh docs/contributing
+  && bash scripts/docs-structure-lint.sh docs/contributing \
+  && bash scripts/docs-structure-lint.sh --audience docs
 
 # --- hygiene gates (workstream C): touched-diff stub + prose lints ---
 # Posture is the manifest's resolved hygiene.gate (advisory | blocking); flipping

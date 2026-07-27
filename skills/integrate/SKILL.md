@@ -39,7 +39,7 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    `agents/` (the prompt surface whose economics the drift signal watches), offer the
    user a baseline refresh per `skills/metrics/SKILL.md` § Refreshing the committed
    baseline — the per-phase economics shifted on purpose, so the pre-change
-   `docs/metrics-baseline.report.json` would flag the intended shift as drift forever.
+   `docs/contributing/metrics-baseline.report.json` would flag the intended shift as drift forever.
    Declining is fine (the offer is advisory, like the signal itself); never refresh
    silently.
 5. Close the run record; deliver the final summary (PR URL, what shipped, record).
