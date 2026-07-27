@@ -113,7 +113,7 @@ and derived plugin — changing them is an *engine* change, not a customization:
   phases (`workspace`, `implementation`, `propose`, `integrate`) are categorically ineligible and
   never auto-skipped. The strand guard that protects `pipeline.skip` equally protects auto-skip —
   a phase whose artifact a later enabled phase needs is never auto-skipped. Pin `phases.<id>.required:
-  true` (Tier 0, #10) to force a specific phase to always run regardless of the evaluation.
+  true` (Tier 0) to force a specific phase to always run regardless of the evaluation.
 - **The run record** logs every skip / insert / swap / inline / override / auto-skip / degradation — flexibility
   *with visible accountability*.
 - **Adapter failure is a blocker, never a silent pass** — an unreachable backlog `resolve`/`complete`,

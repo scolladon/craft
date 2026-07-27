@@ -51,3 +51,13 @@ test(
     }
   },
 );
+
+test(
+  'Given every auto-discovered example dir, when README is scanned, then each appears as a linked ](<dir>/) token',
+  () => {
+    const sut = fs.readFileSync(path.join(EXAMPLES, 'README.md'), 'utf8');
+    const dirs = findExampleManifests().map((p) => path.basename(path.dirname(p)));
+    const missing = dirs.filter((dir) => !sut.includes(`](${dir}/)`));
+    assert.deepStrictEqual(missing, [], `examples/README.md missing linked rows for: ${missing.join(', ')}`);
+  },
+);

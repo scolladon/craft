@@ -23,7 +23,8 @@ real repo the file lives at your project root as `.claude/workflow.md`.
 | 10 | **agent / skill swap** (`role:` / `procedure:`) | [`role-swap/`](role-swap/) | 1 |
 | 11 | **insert** a phase | [`everything-claude-toolkit/`](everything-claude-toolkit/) | 1 |
 | — | enable a default-off phase (`enabled: true`) | [`requirements/`](requirements/) · [`architecture/`](architecture/) | 0 |
-| 12 | **derived-plugin extension surface** | [`derived-plugin/`](derived-plugin/) | 2 |
+| 12 | **DoD artifact** | [`dod-artifact/`](dod-artifact/) | 1 |
+| 13 | **derived-plugin extension surface** | [`derived-plugin/`](derived-plugin/) | 2 |
 | — | **named tracker adapter** (`extends.backlog-adapters`) | [`backlog-github-issues/`](backlog-github-issues/) | 2 |
 | — | **named config** (`craft:init` → `craft:run --config <name>`) | [`named-config/`](named-config/) | 0 |
 
