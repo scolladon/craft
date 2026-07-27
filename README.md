@@ -199,7 +199,7 @@ session resumes from the last artifact — the plan's context blocks, not scroll
 |---|---|
 | [guides/customizing.md](docs/guides/customizing.md) | mental model + full injection catalog |
 | [guides/concepts.md](docs/guides/concepts.md) | why craft is shaped this way, in four familiar frames |
-| [DESIGN-customizable-engine.md](docs/DESIGN-customizable-engine.md) | living architecture: phases, ports, enforcement |
+| [DESIGN-customizable-engine.md](docs/contributing/prd/DESIGN-customizable-engine.md) | living architecture: phases, ports, enforcement |
 | [docs/contributing/adr/](docs/contributing/adr/) | decision records |
 | [examples/](examples/) | one runnable sample per injection point |
 

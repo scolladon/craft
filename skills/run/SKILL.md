@@ -87,7 +87,7 @@ Input: `$ARGUMENTS`
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
     the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
     procedure. With no `intention:` manifest key, probe the zero-config corpus
-    (`docs/contributing/specs/*.md`, `docs/DESIGN-*.md`, `docs/DOD.md`, `docs/guides/customizing.md`);
+    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/DOD.md`, `docs/guides/customizing.md`);
     hold the single `IntentionView` in-session beside the run record for the duration of
     this run. A cold or absent corpus yields an empty view and records a load no-op —
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a

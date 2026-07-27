@@ -13,12 +13,12 @@ const SCRIPT = path.join(ROOT, 'scripts', 'living-corpus.sh');
 // verified with `bash scripts/living-corpus.sh` against this branch's docs tree.
 const EXPECTED = new Set([
   'BACKLOG.md',
-  'docs/DESIGN-customizable-engine.md',
-  'docs/DESIGN-history.md',
-  'docs/DESIGN-nested-insert-fail-loud.md',
-  'docs/DESIGN-portable-named-configs.md',
-  'docs/DESIGN-shrink-core-prune-guardrails.md',
   'docs/DOD.md',
+  'docs/contributing/prd/DESIGN-customizable-engine.md',
+  'docs/contributing/prd/DESIGN-history.md',
+  'docs/contributing/prd/DESIGN-nested-insert-fail-loud.md',
+  'docs/contributing/prd/DESIGN-portable-named-configs.md',
+  'docs/contributing/prd/DESIGN-shrink-core-prune-guardrails.md',
   'docs/contributing/specs/aider-poc-record.md',
   'docs/contributing/specs/antigravity-poc-record.md',
   'docs/contributing/specs/backlog.md',

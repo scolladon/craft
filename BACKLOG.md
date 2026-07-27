@@ -5,7 +5,7 @@
 > insert / reorder), strong zero-config defaults, a small invariant core, per-port
 > customization.
 
-> SoT — *intent:* `docs/PRD-customizable-engine.md` · *architecture:* `docs/DESIGN-customizable-engine.md`
+> SoT — *intent:* `docs/contributing/prd/PRD-customizable-engine.md` · *architecture:* `docs/contributing/prd/DESIGN-customizable-engine.md`
 > · *decisions:* `docs/contributing/adr/` · *build scripts:* `docs/contributing/archive/PLAN-*.md` · *spikes:* `docs/contributing/archive/SPIKE.md`
 
 ## Status — PRD program complete (P0–P16 ✅)
