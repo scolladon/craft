@@ -44,8 +44,13 @@ test('Given the flags the skill documents, then the engine bin accepts them and 
 });
 
 test('Given a technique whose output is not canonical, then the skill routes it away from the pipe', () => {
-  const result = skill.slice(skill.indexOf('Non-canonical output'));
+  const start = skill.indexOf('non-canonical**');
+  assert.notEqual(start, -1, 'the skill must describe the non-canonical route');
+  const result = skill.slice(start, skill.indexOf('Read **only**', start));
 
-  assert.match(result, /do NOT pipe it/u);
-  assert.match(result, /triage-procedure/u, 'the non-canonical route must name who shapes the output');
+  assert.match(result, /Do not pipe it/u);
+  assert.ok(
+    result.includes("let the technique's `triage-procedure` own the shaping"),
+    'the non-canonical route must name who shapes the output, inside its own section',
+  );
 });

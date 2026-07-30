@@ -4,7 +4,10 @@ description: Craft harness phase worker. Triages findings from a harness run —
 ---
 
 You triage the findings of a harness run. Your invocation carries: the absolute
-working directory (work ONLY there), the findings filtered to the change's lines,
+working directory (work ONLY there), and EITHER the findings already filtered to the
+change's lines OR — when the technique's output is not canonical — the path to the raw
+output file plus the scope spec, in which case shaping and scoping are yours to do under
+the technique's `triage-procedure`,
 **any reviewer-predicted advisory notes verbatim** (advisory head start — verify,
 don't trust), the gate command(s), the commit message, and any repo-specific context
 block — binding constraints, including the technique's `triage-procedure` ref verbatim

@@ -71,6 +71,7 @@ export function main(argv, io) {
 
   let findings;
   let parsedCount;
+  let droppedFindings = [];
   try {
     const ranges = parseScopeSpec(scope);
     const parsed = JSON.parse(raw);
@@ -79,16 +80,30 @@ export function main(argv, io) {
     }
     parsedCount = parsed.length;
     findings = filterFindings(parsed, ranges, repoRoot);
+    const kept = new Set(findings);
+    droppedFindings = parsed.filter(f => !kept.has(f));
   } catch (err) {
     return fail(err.message, io);
   }
 
-  // A scope filter is a safety control, so a total drop must never read as
-  // "clean". Path-shape divergence between the technique and the spec is the
-  // likely cause, and it would otherwise be invisible.
-  if (parsedCount > 0 && findings.length === 0) {
+  // A scope filter is a safety control, so every drop must be visible — not just
+  // the all-dropped case. A mixed payload where one finding matches and a
+  // CRITICAL silently vanishes on path shape is the realistic failure, and it is
+  // exactly what an aggregate-only notice hides.
+  const dropped = parsedCount - findings.length;
+  if (dropped > 0) {
+    for (const finding of droppedFindings) {
+      // Name the likeliest cause rather than leaving the operator to guess: an
+      // absolute path dropped with no root supplied is the opt-in-flag trap.
+      const rootHint = repoRoot === '' && String(finding.file).startsWith('/')
+        ? ' (absolute path, no --repo-root supplied)'
+        : '';
+      io.stderr.write(
+        `filter-findings: dropped ${finding.file}:${finding.line} — outside the scope${rootHint}\n`,
+      );
+    }
     io.stderr.write(
-      `filter-findings: all ${parsedCount} finding(s) fell outside the scope — `
+      `filter-findings: ${dropped} of ${parsedCount} finding(s) fell outside the scope — `
       + 'check that the technique emits repo-relative paths matching the spec\n',
     );
   }

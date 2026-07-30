@@ -134,33 +134,41 @@ sub-concern also no-op'd.
      by one of the agents running in parallel during `documentation`; an out-of-tree
      temp needs no ignore rule and no cleanup contract — `contracts/producer.md:5`
      throwaway discipline). Build the comma-joined scope spec from the **same**
-     `git diff -U0` walk the Scope bullet above already runs, and **write it to a file,
-     then read it into a shell variable** — never interpolate repo-derived paths into
-     command text, since a filename may legitimately contain quotes or `$(…)`. Under
-     `per-hunk` each entry is `<file>:<start>-<end>`; under `per-file` each entry is
-     `<file>` alone, which the filter reads as the whole file.
+     `git diff -U0` walk the Scope bullet above already runs, and **write it to a second
+     `mktemp` file outside the worktree** (`$specfile`, same placement and same reason as
+     `$out`), **then read it into a shell variable** — never interpolate repo-derived
+     paths into command text, since a filename may legitimately contain quotes or `$(…)`.
+     Under `per-hunk` each entry is `<file>:<start>-<end>`; under `per-file` each entry is
+     `<file>:*` — the `*` marker is required, because a bare path would let a mistyped
+     range read as a silent whole-file grant.
 
      **Digest at the boundary.** The invariant is that raw run output never enters
      orchestrator context. The pipe below is the mechanism for that only when the
-     technique's output is already canonical — decide per technique:
-     - **Canonical output** (a `Finding[]` JSON array, or the per-line
-       `<severity> <file>:<line> — <finding>` shape): digest with this two-invocation
-       pipe and read only its stdout.
-       ```bash
-       spec="$(cat "$specfile")"
+     technique's output is canonical. **Decide mechanically, never by inspection** — the
+     technique descriptor declares no output shape, and reading the output to classify it
+     would breach the very invariant this protects. Run the normalizer with its output
+     discarded and branch on its exit code:
+     ```bash
+     spec="$(cat "$specfile")"
+     if node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" >/dev/null 2>&1; then
+       # canonical → digest, and read only this stdout
        node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" \
          | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/filter-findings.js" \
-             --scope "$spec" --repo-root "$PWD"
-       ```
-       `--repo-root` lets the filter match a technique that emits absolute paths. If the
-       filter reports that every finding fell outside the scope, that is a **signal to
-       investigate the path convention**, never a clean run.
-     - **Non-canonical output** (a human-readable report, which is the common case for a
-       declared technique): do NOT pipe it. `normalize-findings` fails loud by
-       design, and forcing it would hard-fail the phase. Pass the **path** of the
-       out-of-tree output file to the triager along with the scope spec, and let the
-       technique's `triage-procedure` own the shaping. The orchestrator still never reads
-       the raw output — the invariant holds by delegation instead of by filtering.
+             --scope "$spec" --repo-root "$(git rev-parse --show-toplevel)"
+     fi
+     ```
+     `--repo-root` must be the repository toplevel, not `$PWD`: the spec is built from
+     `git diff`, which emits toplevel-relative paths, and the two coincide only by
+     accident. The filter names every finding it drops on stderr; **any drop is a signal
+     to investigate the path convention**, never a clean run.
+
+     When that exit code is non-zero the output is **non-canonical** (a human-readable
+     report, the common case for a declared technique). Do not pipe it —
+     `normalize-findings` fails loud by design, and forcing it would hard-fail the phase.
+     Pass the **path** of the out-of-tree output file to the triager along with the scope
+     spec, and let the technique's `triage-procedure` own the shaping. The orchestrator
+     still never reads the raw output — the invariant holds by delegation instead of by
+     filtering, and `contracts/harness-exec.md` carries the matching triager carve-out.
 
      Read **only** the digested stdout — or, in the non-canonical case, nothing but the
      file path — into context, never the raw run output. Then spawn

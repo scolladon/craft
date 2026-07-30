@@ -13,8 +13,9 @@
  * 1. `### ` sections appearing before the first part heading no longer satisfy the
  *    first part. The awk `flush()` returned early on an empty part without clearing
  *    `seen[]`, so preamble headings leaked into the first part and a bare opening
- *    part passed. This is a gate flipping 0 → 2 on such a plan; no plan in the
- *    corpus hits it.
+ *    part passed. This is a gate flipping 0 → 2 on such a plan. No plan's verdict
+ *    changes today: two committed plans do carry preamble `### ` headings, but
+ *    none of them use the four required names.
  * 2. A missing argv[0] is a clean usage error (exit 2), not a bash `${1:?…}` exit 1.
  */
 
@@ -32,9 +33,9 @@ const BLOCK_BOUNDARY = /^(### |## )/;
 const BACKTICK_PATTERN = /`([^`]+)`/g;
 const PART_LABEL_PATTERN = /^## Part\s+(\S+)/;
 // Above this many parts, a shared path is repo infrastructure (a CI script, an
-// index, a config), not a shared unit of work — and the warning's own remedy,
-// "merge the parts", stops being an option anyone can take. Under-reporting is
-// the deliberate failure mode for an advisory check.
+// index, a config) rather than a shared unit of work, so "merge the parts" stops
+// being an available action. The signal is still reported — only the suggested
+// remedy changes, because the widest overlaps are the ones worth seeing.
 const MERGEABLE_PART_LIMIT = 3;
 
 /**
@@ -218,11 +219,11 @@ function overlapWarnings(lines, parts, repoRoot, selfPath) {
 
   return [...pathToLabels.entries()]
     .filter(([path]) => path !== selfPath)
-    .filter(([, labels]) =>
-      labels.length >= 2 && labels.length <= MERGEABLE_PART_LIMIT)
+    .filter(([, labels]) => labels.length >= 2)
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([path, labels]) =>
-      `plan-lint: cognitive-locality warning — \`${path}\` declared in ${labels.join(', ')}. Merge the parts or state why they are separate.`,
+    .map(([path, labels]) => (labels.length <= MERGEABLE_PART_LIMIT
+      ? `plan-lint: cognitive-locality warning — \`${path}\` declared in ${labels.join(', ')}. Merge the parts or state why they are separate.`
+      : `plan-lint: cognitive-locality warning — \`${path}\` declared in ${labels.length} parts — shared infrastructure; confirm this is intentional.`),
     );
 }
 
@@ -264,7 +265,7 @@ export function main(argv, io) {
   }
 
   const repoRoot = findRepoRoot(planPath);
-  const selfPath = resolveDeclaredFile(repoRoot, planPath);
+  const selfPath = resolveDeclaredFile(repoRoot, resolve(planPath));
   for (const warning of overlapWarnings(lines, parts, repoRoot, selfPath)) {
     io.stdout.write(`${warning}\n`);
   }

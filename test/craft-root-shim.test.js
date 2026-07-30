@@ -27,7 +27,7 @@ const TARGET_FILES = [
   { file: 'skills/review/SKILL.md', count: 1 },
   { file: 'skills/run/SKILL.md', count: 6 },
   { file: 'skills/tune/SKILL.md', count: 5 },
-  { file: 'skills/validation/SKILL.md', count: 3 },
+  { file: 'skills/validation/SKILL.md', count: 4 },
   { file: 'skills/workspace/SKILL.md', count: 2 },
 ];
 

@@ -110,8 +110,8 @@ test('Given skills/integrate/SKILL.md step 3, when the step region is read, then
   assert.ok(result.includes('run-record.md'), 'step 3 must cite the ledger spec');
   // The derivation must precede the teardown invocation within this same region.
   assert.ok(
-    result.indexOf('delta') < result.indexOf('worktree-teardown.sh'),
-    'the derivation must be stated before the teardown invocation',
+    result.indexOf('read this') < result.indexOf('worktree-teardown.sh'),
+    'the imperative read must be stated before the teardown invocation',
   );
 });
 
@@ -132,9 +132,8 @@ test('Given the run-record spec, when the present-file section is read, then it 
 
   const result = sliceRegion(spec, /^## The present-file case/u, /^## /u);
 
-  assert.match(result, /append/iu);
-  assert.ok(!/rewrit/iu.test(result) || /never rewritten/iu.test(result),
-    'the present-file section must not describe a rewrite');
+  assert.ok(result.includes('no header is re-written'), result);
+  assert.ok(result.includes('`>>` semantics'), result);
 });
 
 test('Given the run-record spec, when the inherited-edges section is read, then the run-id-collision edge is documented there', () => {
@@ -143,4 +142,6 @@ test('Given the run-record spec, when the inherited-edges section is read, then 
   const result = sliceRegion(spec, /^## Inherited edges/u, /^## /u);
 
   assert.match(result, /collision/iu);
+  // Both inherited edges live in this region; the earlier rewrite dropped this one.
+  assert.match(result, /decay-merges against the run-start/u);
 });

@@ -400,7 +400,9 @@ test('Given two parts sharing two files, when main runs, then the warnings are o
 test('Given a plan that declares its own path in two parts, when main runs, then the self-reference is not warned about', () => {
   const sut = main;
   const root = repoRoot();
-  const body = 'See `docs/contributing/plan/self.md` for the provenance.';
+  // The span must be the path as it actually resolves under repoRoot, or the
+  // exclusion branch is never reached and this test proves nothing.
+  const body = 'See `self.md` for the provenance.';
   const plan = `# Plan — Test topic\n\n${part('1', body)}\n\n${part('2', body)}`;
   const path = writePlan(root, plan, 'self.md');
   const io = makeCaptureIo();
@@ -409,6 +411,21 @@ test('Given a plan that declares its own path in two parts, when main runs, then
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given the identical span in a plan that is NOT that file, when main runs, then it does warn (premise for the self-exclusion)', () => {
+  const sut = main;
+  const root = repoRoot();
+  const body = 'See `self.md` for the provenance.';
+  const plan = `# Plan — Test topic\n\n${part('1', body)}\n\n${part('2', body)}`;
+  writePlan(root, '# placeholder\n', 'self.md');
+  const path = writePlan(root, plan, 'other.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().includes('`self.md` declared in Part 1, Part 2'), io.stdout.joined());
 });
 
 test('Given sections headed with three hashes before the first part, when main runs, then they do not satisfy the first part schema', () => {
@@ -421,10 +438,15 @@ test('Given sections headed with three hashes before the first part, when main r
   const result = sut([path], io);
 
   assert.equal(result, 2);
-  assert.match(io.stdout.joined() + io.stderr.joined(), /missing: ### Context/u);
+  assert.ok(
+    io.stdout.joined().includes(
+      'plan-lint: part "## Part 1 — bare" missing: ### Context, ### TDD steps, ### Gate, ### Commit\n',
+    ),
+    io.stdout.joined(),
+  );
 });
 
-test('Given a file declared by more parts than could be merged, when main runs, then it is treated as shared infrastructure and not warned about', () => {
+test('Given a file declared by more parts than could be merged, when main runs, then it is still reported but as shared infrastructure', () => {
   const sut = main;
   const root = repoRoot();
   const body = 'Touches `engine/src/findings.js` here.';
@@ -435,5 +457,24 @@ test('Given a file declared by more parts than could be merged, when main runs, 
   const result = sut([path], io);
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
-  assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+  const out = io.stdout.joined();
+  // The signal survives above the limit — only the suggested remedy changes,
+  // because "merge the parts" is not an action anyone can take at four parts.
+  assert.ok(out.includes('`engine/src/findings.js` declared in 4 parts — shared infrastructure'), out);
+  assert.ok(!out.includes('Merge the parts'), out);
+});
+
+test('Given a file declared by exactly the merge limit, when main runs, then the mergeable remedy is still offered', () => {
+  const sut = main;
+  const root = repoRoot();
+  const body = 'Touches `engine/src/findings.js` here.';
+  const plan = ['1', '2', '3'].map((n) => part(n, body)).join('\n\n');
+  const path = writePlan(root, `# Plan — Test topic\n\n${plan}`, 'atlimit.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().includes('Merge the parts or state why they are separate.'),
+    io.stdout.joined());
 });

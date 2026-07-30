@@ -25,7 +25,7 @@ function frameHeadingCount(content) {
 function sliceFrom(content, startPattern, endPattern) {
   const lines = content.split('\n');
   const startIdx = lines.findIndex((line) => startPattern.test(line));
-  if (startIdx === -1) return '';
+  assert.notEqual(startIdx, -1, `region start ${startPattern} not found — heading renamed?`);
   const searchFrom = startIdx + 1;
   const relativeEnd = endPattern
     ? lines.slice(searchFrom).findIndex((line) => endPattern.test(line))
@@ -52,17 +52,21 @@ test('Given the frame count, when README.md states it in prose, then the stated 
   // unfixable red the day the count legitimately returns to that number.
   const staleCounts = Object.values(COUNT_WORDS).filter((w) => w !== word);
   for (const stale of staleCounts) {
-    assert.ok(
-      !readme.includes(`${stale} frames`),
-      `README.md must not still say "${stale} frames"`
-    );
+    for (const shape of [`${stale} frames`, `${stale} familiar frames`]) {
+      assert.ok(!readme.includes(shape), `README.md must not still say "${shape}"`);
+    }
   }
 });
 
 test('Given the README enumerates the frames, then every frame source is named', () => {
-  const sentence = readme.slice(readme.indexOf('maps'), readme.indexOf('maps') + 400);
+  const sentence = sliceFrom(readme, /^New to this way of working\?/, /^## /);
 
-  for (const source of ['Karpathy', 'Böckeler', 'Osmani', 'Fowler']) {
+  // Derived, not hardcoded: a sixth frame's source must not be droppable silently.
+  // Newline-excluded: a frame with no external source (e.g. "configuration
+  // layers") carries no colon, and must not swallow the next frame's heading.
+  const sources = [...concepts.matchAll(/^## Frame \d+ — ([^:\n]+?):/gm)].map((m) => m[1].trim());
+  assert.ok(sources.length >= 4, `expected frame sources in the guide, got ${sources.length}`);
+  for (const source of sources) {
     assert.ok(sentence.includes(source), `README.md frame list omits ${source}`);
   }
 });

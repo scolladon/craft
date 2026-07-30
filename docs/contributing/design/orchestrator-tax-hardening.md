@@ -762,32 +762,41 @@ original reasoning; the other thirteen stand as written.
 
 ### Acceptance notes — locality-detector calibration (recorded, as this strategy requires)
 
-Measured over the repo's own 23 committed plans, after both narrowings (the plan's own
-path excluded; a path shared by more parts than could plausibly be merged excluded):
+Measured over the repo's own 23 committed plans, before and after the self-path exclusion:
 
-| | value |
-|---|---|
-| plans emitting at least one warning | 14 of 23 |
-| total warnings | 45 |
-| dominant shape | two parts sharing one file |
+| | before | after |
+|---|---|---|
+| plans emitting at least one warning | 14 of 23 | 14 of 23 |
+| total warnings | 50 | 49 |
+| overlap widths (parts per shared path) | 2:37 · 3:8 · 4:1 · 6:1 · 7:2 | 2:37 · 3:8 · 4:1 · 6:1 · 7:2 |
 
-This strategy set the bar that a detector warning on most historical plans is mis-tuned
-regardless of what the fixtures say. The rate sits near that bar, so the composition was
-inspected rather than the number accepted:
+**State the uncomfortable number plainly: the fire rate did not move.** 14 of 23 is 61%,
+which is *over* the bar this strategy set ("a detector that warns on most historical plans
+is mis-tuned"), not near it. The self-path exclusion removed exactly one warning. An
+earlier revision of this section reported only the after-figures and described the rate as
+sitting "near" the bar; both were flattering, and the review round caught it.
 
-- The pre-narrowing tail was the mis-tuned part — one file declared by 7 parts, another
-  by 6, a config by 4. Those are repo infrastructure, and the warning's own remedy
-  ("merge the parts") is not an available action at that count. Both narrowings target
-  exactly that tail.
-- What remains is dominated by genuine two-part overlaps. This change's own plan is one:
-  `contracts/core.md` in Part 1 and Part 2, a true positive — Part 1 adds the line and
-  Part 2 reads it as a denylist, so the two parts really do share one mental model and a
-  hard ordering constraint.
+An intermediate revision also *suppressed* every overlap wider than three parts, which cut
+the total to 45 and looked like tuning. That was rejected on two grounds: the cut point was
+post-hoc on a single 4-part observation (limits of 4 and 5 give identical results), and
+suppressing the widest overlaps discards the most severe locality violations to improve a
+statistic. Wide overlaps are now still reported — only the suggested remedy changes, since
+"merge the parts" is not an available action at seven.
 
-The residual rate is high because this repo's plans genuinely share files across parts —
-the cost the frame names — not because the detector over-fires. The number is recorded
-here rather than tuned away; if it proves noisy in practice, the thing to revisit is the
-detector's specificity, not its advisory status.
+What the composition does show:
+
+- The distribution is dominated by two-part overlaps (37 of 49). This change's own plan is
+  one: `contracts/core.md` in Part 1 and Part 2, a true positive — Part 1 adds the line and
+  Part 2 reads it as a denylist, so the two parts share one mental model and a hard
+  ordering constraint.
+- The wide tail is real but small: two paths at 7 parts, one at 6, one at 4 — repo
+  infrastructure (a CI script, two indexes, a config) rather than shared units of work.
+
+So the honest reading is that this repo's plans genuinely share files across parts at a
+high rate — the cost the frame names — and the detector reports it accurately. Whether 61%
+is *useful* is a separate question this data cannot settle, and it is deliberately left
+open: the advisory ships, the number is on the record, and if operators learn to ignore it
+the thing to revisit is the detector's specificity, not its advisory status.
 
 **Item 1 — on-disk run record.** The mechanism is orchestrator prose plus a file
 convention, so the tests are presence-and-shape tests in the `test/` process suite,

@@ -28,9 +28,11 @@ test('Given the fan-out threshold is stated in prose, then every surface carries
 
   for (const rel of PROSE_SURFACES) {
     const prose = fs.readFileSync(path.join(ROOT, ...rel), 'utf8');
+    // The bare digit is NOT accepted: both guides carry unrelated numerals
+    // (token counts, footnote markers), so a digit grep pins nothing.
     assert.ok(
-      prose.includes(word) || prose.includes(digits),
-      `${rel.join('/')} must state the fan-out threshold (${digits} / ${word})`,
+      prose.includes(word),
+      `${rel.join('/')} must state the fan-out threshold as the word "${word}" (engine value ${digits})`,
     );
   }
 });

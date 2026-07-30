@@ -627,22 +627,14 @@ test('Given an absolute finding path outside the repo root, when filtered, then 
   assert.deepEqual(result, []);
 });
 
-test('Given a range-less entry, when the spec is parsed, then it covers the whole file', () => {
-  const sut = parseScopeSpec;
-
-  const result = sut('engine/src/glob.js');
-
-  assert.deepEqual(result, [{ file: 'engine/src/glob.js', start: 1, end: Number.MAX_SAFE_INTEGER }]);
-});
-
-test('Given a range-less entry, when findings on any line are filtered, then all are kept', () => {
+test('Given a whole-file marker, when findings on any line are filtered, then all are kept', () => {
   const sut = filterFindings;
   const findings = [
     { file: 'a.js', line: 1, severity: 'HIGH', finding: 'first' },
     { file: 'a.js', line: 99999, severity: 'LOW', finding: 'far down' },
   ];
 
-  const result = sut(findings, parseScopeSpec('a.js'));
+  const result = sut(findings, parseScopeSpec('a.js:*'));
 
   assert.deepEqual(result, findings);
 });
@@ -651,4 +643,36 @@ test('Given an entry with a malformed range, when the spec is parsed, then it is
   const sut = parseScopeSpec;
 
   assert.throws(() => sut('a.js:9-1'), /malformed scope entry/u);
+});
+
+test('Given a colon-free entry, when the spec is parsed, then it is rejected rather than silently granting the whole file', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js'), /malformed scope entry/u);
+  assert.throws(() => sut('-9'), /malformed scope entry/u);
+});
+
+test('Given an explicit whole-file marker, when the spec is parsed, then it covers every line including line zero', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('engine/src/glob.js:*');
+
+  assert.deepEqual(result, [{ file: 'engine/src/glob.js', start: 0, end: Number.MAX_SAFE_INTEGER }]);
+});
+
+test('Given a file-scoped finding reported at line zero, when filtered against a whole-file marker, then it is kept', () => {
+  const sut = filterFindings;
+  const findings = [{ file: 'a.js', line: 0, severity: 'CRITICAL', finding: 'hardcoded key' }];
+
+  const result = sut(findings, parseScopeSpec('a.js:*'));
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given whitespace between the path and its range, when the spec is parsed, then the path carries no stray space', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('a.js :1-9');
+
+  assert.deepEqual(result, [{ file: 'a.js', start: 1, end: 9 }]);
 });

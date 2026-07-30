@@ -32,10 +32,10 @@ const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
  * tolerating colons inside the path itself.
  */
 const SCOPE_ENTRY_PATTERN = /^(.+):(\d+)-(\d+)$/u;
-// The per-file scope form: a bare path, no range. Rejects an empty entry and
-// anything carrying the range separator, so a mistyped range never reads as a
-// whole-file grant.
-const WHOLE_FILE_ENTRY_PATTERN = /^[^:]+$/u;
+// The per-file scope form. The `:*` marker is REQUIRED: inferring a whole-file
+// grant from a colon-free string turned a mistyped range into a silent widen,
+// which is the mirror of the silent drop this module exists to prevent.
+const WHOLE_FILE_ENTRY_PATTERN = /^(.+):\*$/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
@@ -197,9 +197,9 @@ export function normalizeFindings(raw) {
 
 /**
  * Parses a single scope-spec entry. `<file>:<start>-<end>` bounds a hunk;
- * a bare `<file>` covers the whole file, which is the per-file scope form.
- * Throws on any other shape, or a range where `start < 1` or `end < start`
- * — never a silent drop.
+ * `<file>:*` covers the whole file, which is the per-file scope form. Throws on
+ * any other shape, or a range where `start < 1` or `end < start` — never a
+ * silent drop, and never a silent widen.
  *
  * @param {string} entry
  * @returns {ScopeRange}
@@ -207,8 +207,11 @@ export function normalizeFindings(raw) {
 function parseScopeEntry(entry) {
   const match = entry.match(SCOPE_ENTRY_PATTERN);
   if (match === null) {
-    if (WHOLE_FILE_ENTRY_PATTERN.test(entry)) {
-      return { file: entry, start: 1, end: Number.MAX_SAFE_INTEGER };
+    const wholeFile = entry.match(WHOLE_FILE_ENTRY_PATTERN);
+    if (wholeFile !== null) {
+      // start 0, not 1: file-scoped findings are commonly reported at line 0,
+      // and a whole-file grant that misses them is a silent drop.
+      return { file: wholeFile[1].trim(), start: 0, end: Number.MAX_SAFE_INTEGER };
     }
     throw new Error(`malformed scope entry: "${entry}"`);
   }
@@ -217,7 +220,7 @@ function parseScopeEntry(entry) {
   if (!(start >= 1 && end >= start)) {
     throw new Error(`malformed scope entry: "${entry}"`);
   }
-  return { file: match[1], start, end };
+  return { file: match[1].trim(), start, end };
 }
 
 /**
@@ -270,11 +273,10 @@ export function filterFindings(findings, ranges, repoRoot = '') {
     ...range,
     file: canonicalPath(range.file, repoRoot),
   }));
-  return findings.filter(finding =>
-    canonicalRanges.some(range =>
-      range.file === canonicalPath(finding.file, repoRoot)
-      && range.start <= finding.line
-      && finding.line <= range.end,
-    ),
-  );
+  return findings.filter((finding) => {
+    const file = canonicalPath(finding.file, repoRoot);
+    return canonicalRanges.some(range =>
+      range.file === file && range.start <= finding.line && finding.line <= range.end,
+    );
+  });
 }

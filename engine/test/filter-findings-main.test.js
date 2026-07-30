@@ -148,7 +148,7 @@ test('Given a non-empty input that filters to nothing, when main runs, then the 
   const result = main([path, '--scope', 'b.js:1-9'], io);
 
   assert.equal(result, 0);
-  assert.match(io.stderr.joined(), /all 1 finding\(s\) fell outside the scope/u);
+  assert.match(io.stderr.joined(), /1 of 1 finding\(s\) fell outside the scope/u);
 });
 
 test('Given an input that filters to a non-empty result, when main runs, then no drop notice is written', () => {
@@ -159,4 +159,62 @@ test('Given an input that filters to a non-empty result, when main runs, then no
 
   assert.equal(result, 0);
   assert.equal(io.stderr.joined(), '');
+});
+
+test('Given a mixed payload where some findings fall outside the scope, when main runs, then each drop is named on stderr', () => {
+  const io = makeIo();
+  const path = writeTmp('mixed.json', JSON.stringify([
+    { file: 'a.js', line: 5, severity: 'LOW', finding: 'style' },
+    { file: '/abs/a.js', line: 7, severity: 'CRITICAL', finding: 'hardcoded key' },
+  ]));
+
+  const result = main([path, '--scope', 'a.js:1-9'], io);
+
+  assert.equal(result, 0);
+  assert.match(io.stderr.joined(), /dropped \/abs\/a\.js:7 — outside the scope/u);
+  assert.match(io.stderr.joined(), /1 of 2 finding\(s\) fell outside the scope/u);
+});
+
+test('Given an empty findings array, when main runs, then nothing is reported as dropped', () => {
+  const io = makeIo();
+  const path = writeTmp('empty.json', '[]');
+
+  const result = main([path, '--scope', 'a.js:1-9'], io);
+
+  assert.equal(result, 0);
+  assert.equal(io.stderr.joined(), '');
+  assert.equal(io.stdout.joined(), '[]\n');
+});
+
+test('Given --repo-root as the final argument with no value, when main runs, then it reports the missing value', () => {
+  const io = makeIo();
+
+  const result = main(['--scope', 'a.js:1-9', '--repo-root'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /missing --repo-root value/u);
+});
+
+test('Given a repo root written with a trailing slash, when findings are filtered, then it matches the same as without', () => {
+  const io = makeIo();
+  const path = writeTmp('abs.json', JSON.stringify([
+    { file: '/repo/a.js', line: 5, severity: 'HIGH', finding: 'x' },
+  ]));
+
+  const result = main([path, '--scope', 'a.js:1-9', '--repo-root', '/repo/'], io);
+
+  assert.equal(result, 0);
+  assert.equal(JSON.parse(io.stdout.joined()).length, 1);
+});
+
+test('Given an absolute-path finding dropped with no repo root supplied, when main runs, then the notice names that cause', () => {
+  const io = makeIo();
+  const path = writeTmp('absnoroot.json', JSON.stringify([
+    { file: '/repo/a.js', line: 5, severity: 'HIGH', finding: 'x' },
+  ]));
+
+  const result = main([path, '--scope', 'a.js:1-9'], io);
+
+  assert.equal(result, 0);
+  assert.match(io.stderr.joined(), /absolute path, no --repo-root supplied/u);
 });
