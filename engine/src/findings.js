@@ -221,7 +221,29 @@ export function parseScopeSpec(spec) {
   if (spec === '') {
     return [];
   }
-  return spec.split(',').map(parseScopeEntry);
+  // A spec is hand-authored as often as generated, so "a.js:1-9, b.js:1-9" is a
+  // likely form. Untrimmed, the space joins the filename and every finding for
+  // that file drops silently.
+  return spec.split(',').map(entry => parseScopeEntry(entry.trim()));
+}
+
+/**
+ * Reduces a path to the repo-relative form the scope spec is built in. A
+ * technique may emit an absolute path or a `./` prefix for the same file the
+ * spec names bare; without this the two sides never compare equal and every
+ * finding for that file drops silently.
+ *
+ * @param {string} file
+ * @param {string} repoRoot — absolute root, or '' to skip relativization
+ * @returns {string}
+ */
+function canonicalPath(file, repoRoot) {
+  if (typeof file !== 'string') {
+    return file;
+  }
+  const prefix = repoRoot.endsWith('/') ? repoRoot : `${repoRoot}/`;
+  const rooted = repoRoot !== '' && file.startsWith(prefix) ? file.slice(prefix.length) : file;
+  return rooted.startsWith('./') ? rooted.slice(2) : rooted;
 }
 
 /**
@@ -230,12 +252,19 @@ export function parseScopeSpec(spec) {
  *
  * @param {Finding[]} findings
  * @param {ScopeRange[]} ranges
+ * @param {string} [repoRoot] — absolute root, used to relativize absolute finding paths
  * @returns {Finding[]}
  */
-export function filterFindings(findings, ranges) {
+export function filterFindings(findings, ranges, repoRoot = '') {
+  const canonicalRanges = ranges.map(range => ({
+    ...range,
+    file: canonicalPath(range.file, repoRoot),
+  }));
   return findings.filter(finding =>
-    ranges.some(range =>
-      range.file === finding.file && range.start <= finding.line && finding.line <= range.end,
+    canonicalRanges.some(range =>
+      range.file === canonicalPath(finding.file, repoRoot)
+      && range.start <= finding.line
+      && finding.line <= range.end,
     ),
   );
 }

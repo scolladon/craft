@@ -121,3 +121,42 @@ test('Given a nonexistent findings file path, when main runs, then it returns 2 
   assert.ok(!io.stderr.joined().includes('    at '), 'stderr must not contain a stack trace');
   assert.equal(io.stdout.joined(), '');
 });
+
+test('Given --scope as the final argument with no value, when main runs, then it reports the missing value', () => {
+  const io = makeIo();
+
+  const result = main(['--scope'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /missing --scope value/u);
+});
+
+test('Given a JSON payload that is not an array, when main runs, then it reports the shape rather than an internal error', () => {
+  const io = makeIo();
+  const path = writeTmp('obj.json', '{"a":1}');
+
+  const result = main([path, '--scope', 'a.js:1-9'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /findings input must be a JSON array/u);
+});
+
+test('Given a non-empty input that filters to nothing, when main runs, then the total drop is announced on stderr', () => {
+  const io = makeIo();
+  const path = writeTmp('drop.json', JSON.stringify([{ file: 'a.js', line: 2, severity: 'HIGH', finding: 'x' }]));
+
+  const result = main([path, '--scope', 'b.js:1-9'], io);
+
+  assert.equal(result, 0);
+  assert.match(io.stderr.joined(), /all 1 finding\(s\) fell outside the scope/u);
+});
+
+test('Given an input that filters to a non-empty result, when main runs, then no drop notice is written', () => {
+  const io = makeIo();
+  const path = writeTmp('keep.json', JSON.stringify([{ file: 'a.js', line: 2, severity: 'HIGH', finding: 'x' }]));
+
+  const result = main([path, '--scope', 'a.js:1-9'], io);
+
+  assert.equal(result, 0);
+  assert.equal(io.stderr.joined(), '');
+});

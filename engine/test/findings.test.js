@@ -560,3 +560,69 @@ test('Given generated findings and range sets, when filterFindings runs, then th
     assert.deepEqual(sut(result, ranges), result, `not idempotent for ranges ${JSON.stringify(ranges)}`);
   }
 });
+
+test('Given a scope spec with spaces after its commas, when parsed, then every entry is still recognised', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('a.js:1-9, b.js:2-4 ,\tc.js:3-3');
+
+  assert.deepEqual(result, [
+    { file: 'a.js', start: 1, end: 9 },
+    { file: 'b.js', start: 2, end: 4 },
+    { file: 'c.js', start: 3, end: 3 },
+  ]);
+});
+
+test('Given an entry that is only whitespace, when the spec is parsed, then it is rejected as malformed', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js:1-9,   '), /malformed scope entry/u);
+});
+
+test('Given findings whose paths carry a leading dot-slash, when filtered against a bare-path range, then they are kept', () => {
+  const sut = filterFindings;
+  const findings = [{ file: './engine/src/glob.js', line: 13, severity: 'CRITICAL', finding: 'x' }];
+
+  const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }]);
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given a range whose path carries a leading dot-slash, when filtered against bare-path findings, then they are kept', () => {
+  const sut = filterFindings;
+  const findings = [{ file: 'engine/src/glob.js', line: 13, severity: 'CRITICAL', finding: 'x' }];
+
+  const result = sut(findings, [{ file: './engine/src/glob.js', start: 10, end: 20 }]);
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given findings whose paths differ only by a trailing-slash-free directory prefix, when filtered, then only genuine matches are kept', () => {
+  const sut = filterFindings;
+  const findings = [
+    { file: 'src/glob.js', line: 13, severity: 'HIGH', finding: 'kept' },
+    { file: 'other/src/glob.js', line: 13, severity: 'HIGH', finding: 'dropped' },
+  ];
+
+  const result = sut(findings, [{ file: 'src/glob.js', start: 10, end: 20 }]);
+
+  assert.deepEqual(result, [findings[0]]);
+});
+
+test('Given findings emitted with absolute paths, when filtered against a repo root, then they are matched repo-relatively', () => {
+  const sut = filterFindings;
+  const findings = [{ file: '/repo/engine/src/glob.js', line: 12, severity: 'CRITICAL', finding: 'x' }];
+
+  const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }], '/repo');
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given an absolute finding path outside the repo root, when filtered, then it is not matched', () => {
+  const sut = filterFindings;
+  const findings = [{ file: '/elsewhere/engine/src/glob.js', line: 12, severity: 'CRITICAL', finding: 'x' }];
+
+  const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }], '/repo');
+
+  assert.deepEqual(result, []);
+});
