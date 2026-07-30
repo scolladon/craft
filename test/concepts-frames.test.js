@@ -48,11 +48,23 @@ test('Given the frame count, when README.md states it in prose, then the stated 
     readme.includes(`${word} familiar frames`),
     `expected README.md to state "${word} familiar frames"`
   );
-  assert.ok(!readme.includes('four frames'), 'README.md must not still say "four frames"');
-  assert.ok(
-    !readme.includes('four familiar frames'),
-    'README.md must not still say "four familiar frames"'
-  );
+  // Derived, not hardcoded: asserting a specific stale word would become an
+  // unfixable red the day the count legitimately returns to that number.
+  const staleCounts = Object.values(COUNT_WORDS).filter((w) => w !== word);
+  for (const stale of staleCounts) {
+    assert.ok(
+      !readme.includes(`${stale} frames`),
+      `README.md must not still say "${stale} frames"`
+    );
+  }
+});
+
+test('Given the README enumerates the frames, then every frame source is named', () => {
+  const sentence = readme.slice(readme.indexOf('maps'), readme.indexOf('maps') + 400);
+
+  for (const source of ['Karpathy', 'Böckeler', 'Osmani', 'Fowler']) {
+    assert.ok(sentence.includes(source), `README.md frame list omits ${source}`);
+  }
 });
 
 test('Given the concepts guide states its own frame count, then every stated count matches the heading count', () => {
@@ -84,9 +96,15 @@ test('Given Frame 5 ships, then its mapping rows name only mechanisms that exist
   assert.ok(section.includes('engine/bin/plan-lint.js'));
 
   // The run-record ledger is a run-local, gitignored artifact (never a committed
-  // file), so its "landed" proof is the committed spec page that owns it, not
-  // the ephemeral ledger path itself — the other two rows name real shipped files.
-  assert.ok(fs.existsSync(path.join(ROOT, 'docs', 'contributing', 'specs', 'run-record.md')));
+  // file), so its "landed" proof is the committed spec page that owns it. The spec
+  // must name the same literal the row does, or renaming the path in the row alone
+  // would keep this green — the exact drift this test exists to catch.
+  const specPath = path.join(ROOT, 'docs', 'contributing', 'specs', 'run-record.md');
+  assert.ok(fs.existsSync(specPath));
+  assert.ok(
+    fs.readFileSync(specPath, 'utf8').includes('.claude/craft-run-record.md'),
+    'the spec page must name the same ledger path the Frame 5 row names'
+  );
   assert.ok(fs.existsSync(path.join(ROOT, 'engine', 'bin', 'filter-findings.js')));
   assert.ok(fs.existsSync(path.join(ROOT, 'engine', 'bin', 'plan-lint.js')));
 });

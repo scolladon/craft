@@ -188,7 +188,7 @@ supposed to be nameable that way.
 The core claims: subagents exist to protect the orchestrator's own working memory; context
 pollution taxes every later turn even when the window still has room to spare; and stating
 one missing fact usually beats encoding a decision procedure for finding it. craft already
-lived inside part of this frame before the change that added this section: every phase runs a
+lives inside part of this frame: every phase runs a
 fresh-context role agent (Frame 1's *Roles separated* row), the artifact is the handoff
 (`contracts/core.md:2`), the pre-chew mandate keeps a callee from re-exploring what the caller
 already resolved (`contracts/producer.md:3`), and a review round already threads bounded
@@ -200,10 +200,10 @@ living only in scrollback, a digest that keeps a full harness run's raw output o
 triager's context, and an advisory that catches the same fact declared twice before a human
 reads it twice. Frame 1's closing paragraph already sets this guide's bar for a new section —
 *"it has to change what you'd build next, not only what you'd call what already exists"* — and
-these three mechanisms clear it: none of them existed before this change produced them.
-Concretely: running `plan-lint` over this very plan warns that `contracts/core.md` is declared
-in Part 1 and Part 2 — advisory only, exit code unchanged — instead of a human noticing the
-duplication by reading both parts side by side.
+these three mechanisms clear it: the frame produced each of them. Concretely: when two plan
+parts declare the same file, `plan-lint` names the duplication at plan time — advisory only,
+exit code unchanged — instead of leaving a human to notice it by reading both parts side by
+side.
 
 | External concept | craft mechanism (real) | Owning doc / key |
 |---|---|---|

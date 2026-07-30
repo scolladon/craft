@@ -330,7 +330,7 @@ per-knob message a bad manifest produces (e.g. `phases.review.harness.passes mus
 Runs the review harness with 2 reviewers per dimension and stops when ≤ 3 non-LOW findings remain
 (numeric convergence, ADR-097), for this invocation only.
 
-**Cost basis for the fan-out advisory (R15).** This repo's own committed telemetry puts a reviewer
+**Cost basis for the fan-out advisory.** This repo's own committed telemetry puts a reviewer
 spawn at a pooled median near 92,500 tokens across 72 records, so eight reviewers is roughly 740,000
 tokens for round one alone, and the phase passes a million once the default `max_cycles: 3` adds its
 fix-delta rounds (measured median 58,052 each). Pipeline resolution records an advisory line when the

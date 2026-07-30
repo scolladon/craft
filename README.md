@@ -51,7 +51,8 @@ craft externalizes the delivery loop so it survives the transcript:
 
 New to this way of working? [docs/guides/concepts.md](docs/guides/concepts.md) maps
 craft onto five frames you may already know — Karpathy's *write-the-loop*, Böckeler's
-harness taxonomy, config layering, and Osmani's inner/outer loop.
+harness taxonomy, config layering, Osmani's inner/outer loop, and Fowler's *orchestrator
+tax*.
 
 ## What craft is not
 
