@@ -178,15 +178,19 @@ function resolveDeclaredFile(repoRoot, span) {
  * @param {string[]} lines
  * @param {Part} part
  * @param {string} repoRoot
+ * @param {Map<string, string|null>} cache — span → resolution, shared across parts
  * @returns {Set<string>}
  */
-function declaredFiles(lines, part, repoRoot) {
+function declaredFiles(lines, part, repoRoot, cache) {
   const block = contextBlock(lines, part);
   const declared = new Set();
   if (block === null) return declared;
 
   for (const match of block.matchAll(BACKTICK_PATTERN)) {
-    const resolved = resolveDeclaredFile(repoRoot, match[1]);
+    const span = match[1];
+    // Spans repeat within and across parts, and each miss costs a stat chain.
+    if (!cache.has(span)) cache.set(span, resolveDeclaredFile(repoRoot, span));
+    const resolved = cache.get(span);
     if (resolved !== null) declared.add(resolved);
   }
   return declared;
@@ -204,8 +208,9 @@ function declaredFiles(lines, part, repoRoot) {
  */
 function overlapWarnings(lines, parts, repoRoot, selfPath) {
   const pathToLabels = new Map();
+  const spanCache = new Map();
   for (const part of parts) {
-    for (const path of declaredFiles(lines, part, repoRoot)) {
+    for (const path of declaredFiles(lines, part, repoRoot, spanCache)) {
       if (!pathToLabels.has(path)) pathToLabels.set(path, []);
       pathToLabels.get(path).push(part.label);
     }
