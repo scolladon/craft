@@ -33,6 +33,7 @@ const EXPECTED = new Set([
   'docs/contributing/specs/opencode-poc-record.md',
   'docs/contributing/specs/pi-poc-record.md',
   'docs/contributing/specs/policy.md',
+  'docs/contributing/specs/run-record.md',
   'docs/contributing/specs/telemetry.md',
   'docs/contributing/specs/vcs.md',
   'docs/guides/concepts.md',

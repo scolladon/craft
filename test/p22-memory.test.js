@@ -57,6 +57,17 @@ test(
 );
 
 test(
+  'Given the ledger is run-local, when .gitignore is checked, then no re-include names the run record',
+  () => {
+    assert.strictEqual(
+      grepQX('!.claude/craft-run-record.md', GITIGNORE),
+      false,
+      '.gitignore should NOT contain "!.claude/craft-run-record.md"',
+    );
+  },
+);
+
+test(
   'Given the memory port doc was authored in S4, when its path is checked, then it exists',
   () => {
     assert.ok(

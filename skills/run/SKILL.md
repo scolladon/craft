@@ -129,9 +129,16 @@ Input: `$ARGUMENTS`
    **runtime blocker** (never a guessed brief).
 3. Derive a kebab-case topic slug (≤6 words). Print:
    `Resolved → topic: <slug>, brief: <one line>` for user confirmation.
-4. Open the **run record** (in-session ledger): seeded from `Resolution.record[]`
-   (step 1c); every subsequent phase outcome, skip reason, no-op justification, probe
-   result, and forced action is appended. It ships in the final summary and the PR body.
+4. Open the **run record** — an append-only on-disk ledger at
+   `.claude/craft-run-record.md` (repo ROOT, never `${CLAUDE_PLUGIN_ROOT}`; run-local,
+   gitignored by the existing `.claude/*` rule — see `docs/contributing/specs/run-record.md`).
+   If the file is absent, append the header line `# craft run record (append-only)`
+   first; then flush every seeded `Resolution.record[]` line (step 1c) as one
+   run-id-prefixed record per line. Every subsequent phase outcome, skip reason, no-op
+   justification, probe result, and forced action is appended the same way. **Only the
+   orchestrator ever appends to this file** — no role agent writes it, in any phase,
+   including phases that run in parallel. The final summary and the PR body take only
+   the lines whose run-id prefix is this run's.
 
 ## Phase walk (driven by Resolution.effective[])
 
@@ -272,7 +279,9 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    If `codeProducing: false` and gate non-empty: run gate once at phase boundary.
    If gate is empty string: no gate check.
 
-7. **Record outcome** in the run record (appended to the seeded entries). An
+7. **Record outcome** in the run record (appended to the seeded entries), flushing this
+   phase's lines to the on-disk ledger (`.claude/craft-run-record.md`) before moving to
+   the next descriptor — the phase-boundary flush. An
    inline-executed phase is noted: `inline: <phase.id> — ran in-session`. At each
    phase boundary where a gate ran, append the fixed greppable token
    `GATE(<phase.id>): green` or `GATE(<phase.id>): red` to the run record — one
@@ -470,16 +479,33 @@ its home.
 
 ## Done
 
-**Memory save (once per run).** Derive `delta` from the run-record-buffered observations
-(every concern-keyed fact each phase wrote to the run record this run). Resolve the store
-path from `memory.ref` (default `.claude/craft-memory.md`) rooted at the repo ROOT, same
-as `load` (the engine joins `ref` under the repo root and refuses a path that escapes it).
-Call `save(repoRoot, view, delta, deps)` **once**, atomically — `view` is the run-start
+**Ledger residual flush (only if the worktree still exists).** If `integrate`'s
+`teardown` action was declined, or the run stopped short of `integrate`, the tree is
+alive: append any remaining run-record lines to `.claude/craft-run-record.md` — the
+ledger ends up holding the whole run. When `integrate` already ran
+`worktree-teardown.sh`, the tree — and the ledger inside it — are already gone; the
+ledger's on-disk tail is the last phase boundary before teardown, and the `integrate`
+outcome line plus anything `Done` appends exist in-session only, where they already
+ship: in the final summary and the PR body.
+
+**Memory save (once per run).** `delta` is derived from the ledger's lines carrying this
+run's run-id — but that derivation (a read) must already have happened no later than
+`skills/integrate/SKILL.md` step 3, **before** it invokes `worktree-teardown.sh`, because
+teardown removes the worktree and the ledger inside it
+(`docs/contributing/specs/run-record.md`). Hold the derived `delta` in-session across the
+rest of the walk. Resolve the store path from `memory.ref` (default
+`.claude/craft-memory.md`) rooted at the repo ROOT, same as `load` (the engine joins
+`ref` under the repo root and refuses a path that escapes it). Call
+`save(repoRoot, view, delta, deps)` **once**, atomically — `view` is the run-start
 `MemoryView` (so non-re-observed entries decay rather than vanish) and `deps` carries
 `writeStore`/`caps`/`run`/`ref`. A failed save is a recorded
 warning in the run record — **never a blocker** (ADR-120); no locking (last-flush-wins).
 Writes are buffered all run and flushed once here, so a phase that blocked mid-run leaves
 the store unchanged (atomicity; Req 6).
+
+A failed ledger append (anywhere in the walk) is surfaced to the user in-session and the
+run continues; it is **not** recorded into the ledger itself (that would be circular) —
+same posture as a failed `save` above.
 
 **Metrics artifact (separate, append-only).** For each agent-spawned phase that returned a
 usage block, append one line to `.claude/craft-metrics.md` (ADR-119):

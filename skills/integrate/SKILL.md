@@ -26,7 +26,10 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    owns the host CLI. `--squash` / `--delete-branch` / `merge-flags` semantics live in
    the adapter binding. Always delete-branch: no merged branch lingers on the remote.
 3. **Consult `teardown` action** separately before worktree teardown (per-verb
-   granularity, ADR-126; see `docs/contributing/specs/policy.md`). Then:
+   granularity, ADR-126; see `docs/contributing/specs/policy.md`). **Before this step
+   runs:** the `Done`-bound memory delta must already have been derived from the
+   on-disk ledger's run-id lines (`docs/contributing/specs/run-record.md`) — this step's
+   teardown removes the worktree, and the ledger lives inside it. Then:
    ```bash
    "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \
      [--pre-teardown <manifest scripts.pre-teardown>]
