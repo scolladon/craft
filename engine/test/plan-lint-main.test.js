@@ -254,7 +254,7 @@ test('Given two parts naming disjoint files, when main runs, then no warning is 
 test('Given three parts sharing one declared file, when main runs, then it emits one warning naming all three part labels', () => {
   const sut = main;
   const root = repoRoot();
-  const plan = `# Plan — Test topic\n\n${part('1', 'Edit `engine/src/findings.js` here.')}\n\n${part('2', 'Edit `engine/src/other.js` here.')}\n\n${part('3', 'Also edit `engine/src/findings.js` here.')}`;
+  const plan = `# Plan — Test topic\n\n${part('1', 'Edit `engine/src/findings.js` here.')}\n\n${part('2', 'Also edit `engine/src/findings.js` here.')}\n\n${part('3', 'And again `engine/src/findings.js` here.')}`;
   const path = writePlan(root, plan);
   const io = makeCaptureIo();
 
@@ -262,7 +262,7 @@ test('Given three parts sharing one declared file, when main runs, then it emits
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(
-    io.stdout.joined().includes('`engine/src/findings.js` declared in Part 1, Part 3.'),
+    io.stdout.joined().includes('`engine/src/findings.js` declared in Part 1, Part 2, Part 3.'),
     `stdout was: ${io.stdout.joined()}`,
   );
 });
@@ -367,4 +367,73 @@ test('Given a repo root with no ancestor .git entry, when main runs over a plan 
     io.stdout.joined().includes('`engine/src/findings.js` declared in Part 1, Part 2.'),
     `stdout was: ${io.stdout.joined()}`,
   );
+});
+
+test('Given one part declaring the same file twice, when main runs, then no self-overlap warning is emitted', () => {
+  const sut = main;
+  const root = repoRoot();
+  const body = 'Edit `engine/src/findings.js` and again `engine/src/findings.js` here.';
+  const path = writePlan(root, `# Plan — Test topic\n\n${part('1', body)}`, 'dup-span.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given two parts sharing two files, when main runs, then the warnings are ordered lexicographically by path', () => {
+  const sut = main;
+  const root = repoRoot();
+  const body = 'Edit `engine/src/other.js` and `engine/src/findings.js` here.';
+  const plan = `# Plan — Test topic\n\n${part('1', body)}\n\n${part('2', body)}`;
+  const path = writePlan(root, plan, 'two-shared.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const out = io.stdout.joined();
+  assert.ok(out.indexOf('findings.js') < out.indexOf('other.js'), `stdout was: ${out}`);
+});
+
+test('Given a plan that declares its own path in two parts, when main runs, then the self-reference is not warned about', () => {
+  const sut = main;
+  const root = repoRoot();
+  const body = 'See `docs/contributing/plan/self.md` for the provenance.';
+  const plan = `# Plan — Test topic\n\n${part('1', body)}\n\n${part('2', body)}`;
+  const path = writePlan(root, plan, 'self.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given sections headed with three hashes before the first part, when main runs, then they do not satisfy the first part schema', () => {
+  const sut = main;
+  const root = repoRoot();
+  const plan = '# Plan — Test topic\n\n## Preamble\n\n### Context\n\nx\n\n### TDD steps\n\nx\n\n### Gate\n\nx\n\n### Commit\n\nx\n\n## Part 1 — bare\n';
+  const path = writePlan(root, plan, 'preamble.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stdout.joined() + io.stderr.joined(), /missing: ### Context/u);
+});
+
+test('Given a file declared by more parts than could be merged, when main runs, then it is treated as shared infrastructure and not warned about', () => {
+  const sut = main;
+  const root = repoRoot();
+  const body = 'Touches `engine/src/findings.js` here.';
+  const plan = ['1', '2', '3', '4'].map((n) => part(n, body)).join('\n\n');
+  const path = writePlan(root, `# Plan — Test topic\n\n${plan}`, 'infra.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
 });

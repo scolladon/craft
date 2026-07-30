@@ -7,8 +7,15 @@
  *
  * Moved from `scripts/plan-lint.sh` (awk) to this house bin-shim-over-pure-src
  * archetype so the new cross-part overlap detector — set intersection, awk-hostile —
- * lands on a testable, gated surface. Reproduces the awk script's observable
- * contract byte-for-byte, including its `^## Part` prefix-match quirk.
+ * lands on a testable, gated surface. It keeps the awk script's `^## Part`
+ * prefix-match quirk, and deliberately diverges from it twice:
+ *
+ * 1. `### ` sections appearing before the first part heading no longer satisfy the
+ *    first part. The awk `flush()` returned early on an empty part without clearing
+ *    `seen[]`, so preamble headings leaked into the first part and a bare opening
+ *    part passed. This is a gate flipping 0 → 2 on such a plan; no plan in the
+ *    corpus hits it.
+ * 2. A missing argv[0] is a clean usage error (exit 2), not a bash `${1:?…}` exit 1.
  */
 
 import { readFileSync, statSync, existsSync } from 'node:fs';
@@ -24,6 +31,11 @@ const CONTEXT_HEADING_PREFIX = '### Context';
 const BLOCK_BOUNDARY = /^(### |## )/;
 const BACKTICK_PATTERN = /`([^`]+)`/g;
 const PART_LABEL_PATTERN = /^## Part\s+(\S+)/;
+// Above this many parts, a shared path is repo infrastructure (a CI script, an
+// index, a config), not a shared unit of work — and the warning's own remedy,
+// "merge the parts", stops being an option anyone can take. Under-reporting is
+// the deliberate failure mode for an advisory check.
+const MERGEABLE_PART_LIMIT = 3;
 
 /**
  * Regular-file predicate mirroring the bash `[ -f <path> ]` test.
@@ -182,13 +194,15 @@ function declaredFiles(lines, part, repoRoot) {
 
 /**
  * One advisory warning line per file path declared by two or more parts,
- * sorted lexicographically by path for determinism.
+ * sorted lexicographically by path for determinism. The plan's own path is
+ * excluded: parts citing it are recording provenance, not sharing a unit of work.
  * @param {string[]} lines
  * @param {Part[]} parts
  * @param {string} repoRoot
+ * @param {string|null} selfPath — the plan's own repo-relative path
  * @returns {string[]}
  */
-function overlapWarnings(lines, parts, repoRoot) {
+function overlapWarnings(lines, parts, repoRoot, selfPath) {
   const pathToLabels = new Map();
   for (const part of parts) {
     for (const path of declaredFiles(lines, part, repoRoot)) {
@@ -198,7 +212,9 @@ function overlapWarnings(lines, parts, repoRoot) {
   }
 
   return [...pathToLabels.entries()]
-    .filter(([, labels]) => labels.length >= 2)
+    .filter(([path]) => path !== selfPath)
+    .filter(([, labels]) =>
+      labels.length >= 2 && labels.length <= MERGEABLE_PART_LIMIT)
     .sort(([a], [b]) => a.localeCompare(b))
     .map(([path, labels]) =>
       `plan-lint: cognitive-locality warning — \`${path}\` declared in ${labels.join(', ')}. Merge the parts or state why they are separate.`,
@@ -206,10 +222,9 @@ function overlapWarnings(lines, parts, repoRoot) {
 }
 
 /**
- * Main entrypoint for plan-lint logic. Reproduces `scripts/plan-lint.sh`'s
- * observable contract byte-for-byte, plus the advisory cross-part overlap
- * warning and one deliberate behaviour change: a missing argv[0] is a clean
- * usage error, not a bash `${1:?…}` exit 1.
+ * Main entrypoint for plan-lint logic. Carries the schema check, the advisory
+ * cross-part overlap warning, and the two deliberate divergences from the
+ * retired awk script documented in the module header above.
  * @param {string[]} argv
  * @param {{ stdout: { write(s: string): void }, stderr: { write(s: string): void } }} io
  * @returns {number} exit code
@@ -244,7 +259,8 @@ export function main(argv, io) {
   }
 
   const repoRoot = findRepoRoot(planPath);
-  for (const warning of overlapWarnings(lines, parts, repoRoot)) {
+  const selfPath = resolveDeclaredFile(repoRoot, planPath);
+  for (const warning of overlapWarnings(lines, parts, repoRoot, selfPath)) {
     io.stdout.write(`${warning}\n`);
   }
 

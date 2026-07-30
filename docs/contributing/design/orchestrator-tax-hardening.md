@@ -760,6 +760,35 @@ original reasoning; the other thirteen stand as written.
 
 ## Test strategy
 
+### Acceptance notes — locality-detector calibration (recorded, as this strategy requires)
+
+Measured over the repo's own 23 committed plans, after both narrowings (the plan's own
+path excluded; a path shared by more parts than could plausibly be merged excluded):
+
+| | value |
+|---|---|
+| plans emitting at least one warning | 14 of 23 |
+| total warnings | 45 |
+| dominant shape | two parts sharing one file |
+
+This strategy set the bar that a detector warning on most historical plans is mis-tuned
+regardless of what the fixtures say. The rate sits near that bar, so the composition was
+inspected rather than the number accepted:
+
+- The pre-narrowing tail was the mis-tuned part — one file declared by 7 parts, another
+  by 6, a config by 4. Those are repo infrastructure, and the warning's own remedy
+  ("merge the parts") is not an available action at that count. Both narrowings target
+  exactly that tail.
+- What remains is dominated by genuine two-part overlaps. This change's own plan is one:
+  `contracts/core.md` in Part 1 and Part 2, a true positive — Part 1 adds the line and
+  Part 2 reads it as a denylist, so the two parts really do share one mental model and a
+  hard ordering constraint.
+
+The residual rate is high because this repo's plans genuinely share files across parts —
+the cost the frame names — not because the detector over-fires. The number is recorded
+here rather than tuned away; if it proves noisy in practice, the thing to revisit is the
+detector's specificity, not its advisory status.
+
 **Item 1 — on-disk run record.** The mechanism is orchestrator prose plus a file
 convention, so the tests are presence-and-shape tests in the `test/` process suite,
 matching `test/hygiene-gates-ci.test.js`'s style of pinning skill prose and script content:
