@@ -129,14 +129,69 @@ sub-concern also no-op'd.
      grinds.
    - **`mode: gate`** — run the technique's `run` command; the exit code decides
      pass/fail. Green → record pass; red → escalate as a blocker.
-   - **`mode: triage`** — when the run lands, filter findings to the change's lines only
-     (pre-existing-line findings are out of scope), then spawn **craft:harness-triager**
-     with: the filtered findings; **reviewer-predicted suspected-benign harness findings
-     verbatim** (from the review phase's advisory notes); the gates; the commit message
-     `<commit-prefix>(validation): <technique-id> <scope>`; global + validation-phase
-     `context:` files verbatim; the technique's `triage-procedure` ref (if declared).
-     Remove the fix vocabulary specific to any one technique — the triager decides
-     whether to kill with a test or document a provable benign result.
+   - **`mode: triage`** — redirect the technique's `run` output to a `mktemp` file
+     **outside the worktree** (an in-tree `.craft-*` sibling can be swept into a commit
+     by one of the agents running in parallel during `documentation`; an out-of-tree
+     temp needs no ignore rule and no cleanup contract — `contracts/producer.md:5`
+     throwaway discipline). Build the comma-joined scope spec from the **same**
+     `git diff -U0` walk the Scope bullet above already runs, and **write it to a second
+     `mktemp` file outside the worktree** (`$specfile`, same placement and same reason as
+     `$out`), **then read it into a shell variable** — never interpolate repo-derived
+     paths into command text, since a filename may legitimately contain quotes or `$(…)`.
+     Under `per-hunk` each entry is `<file>:<start>-<end>`; under `per-file` each entry is
+     `<file>:*` — the `*` marker is required, because a bare path would let a mistyped
+     range read as a silent whole-file grant.
+
+     **Digest at the boundary.** The invariant is that raw run output never enters
+     orchestrator context. The pipe below is the mechanism for that only when the
+     technique's output is canonical. **Decide mechanically, never by inspection** — the
+     technique descriptor declares no output shape, and reading the output to classify it
+     would breach the very invariant this protects.
+
+     **First, assert the run produced something.** An empty `$out` parses as canonical and
+     would digest to `[]` — a crashed technique reading as a clean run, which is the
+     fail-open this whole boundary exists to prevent. Capture the technique's own exit
+     status at redirect time and treat empty output as a blocker, never as "no findings":
+     ```bash
+     spec="$(cat "$specfile")"
+     if [ ! -s "$out" ]; then
+       # blocker: { validation:<technique-id>, "technique produced no output (exit $run_status)", ≤3 options }
+       exit 1
+     fi
+     if digest="$(node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" 2>/dev/null)"; then
+       # canonical → digest, and read ONLY this stdout
+       printf '%s' "$digest" \
+         | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/filter-findings.js" \
+             --scope "$spec" --repo-root "$(git rev-parse --show-toplevel)"
+     else
+       echo 'NON-CANONICAL: route the output path plus the scope spec to the triager'
+     fi
+     ```
+     The `else` branch is the routing signal — do not infer the case from empty stdout.
+     `--repo-root` must be the repository toplevel, not `$PWD`: the spec is built from
+     `git diff`, which emits toplevel-relative paths, and the two coincide only by
+     accident. The filter names the findings it drops on stderr (capped, escaped);
+     **any drop is a signal to investigate the path convention**, never a clean run.
+
+     On the **non-canonical** branch (a human-readable report, the common case for a
+     declared technique): do not pipe it — `normalize-findings` fails loud by design, and
+     forcing it would hard-fail the phase. Pass the **path** of the out-of-tree output file
+     to the triager along with the scope spec, and let the technique's `triage-procedure`
+     own the shaping. The orchestrator still never reads the raw output — the invariant
+     holds by delegation instead of by filtering, and `contracts/harness-exec.md` carries
+     the matching triager carve-out, including the trust rule for that file.
+
+     Read **only** the digested stdout — or, in the non-canonical case, nothing but the
+     file path — into context, never the raw run output. Then spawn
+     **craft:harness-triager** with: that filtered findings output (or the output path
+     plus scope spec); **reviewer-predicted
+     suspected-benign harness findings verbatim** (from the review phase's advisory
+     notes — already bounded, structured, and normalized upstream, so it passes through
+     untouched); the gates; the commit message `<commit-prefix>(validation):
+     <technique-id> <scope>`; global + validation-phase `context:` files verbatim; the
+     technique's `triage-procedure` ref (if declared). Remove the fix vocabulary
+     specific to any one technique — the triager decides whether to kill with a test or
+     document a provable benign result.
 2. **The PR waits for triage** (orchestrator invariant): when each triage-mode run
    lands and its triager commits, verify the triager's commit; run `gates.phase`; record
    per-finding outcomes in the run record.

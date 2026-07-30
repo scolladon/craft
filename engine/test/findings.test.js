@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
-import { normalizeFindings } from '../src/findings.js';
+import { normalizeFindings, parseScopeSpec, filterFindings } from '../src/findings.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const fixturesDir = join(__dir, 'fixtures', 'findings');
@@ -428,4 +428,305 @@ test('Given a long unparseable line, when normalizeFindings runs, then the throw
     () => sut(longGarbage),
     (err) => err.message.includes('…') && !err.message.includes('y'.repeat(200)),
   );
+});
+
+// ─── parseScopeSpec ───────────────────────────────────────────────────────────
+
+test('Given an empty scope spec, when parseScopeSpec runs, then it returns []', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('');
+
+  assert.deepEqual(result, []);
+});
+
+test('Given a single-range scope spec, when parseScopeSpec runs, then it returns one ScopeRange', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('src/a.js:3-9');
+
+  assert.deepEqual(result, [{ file: 'src/a.js', start: 3, end: 9 }]);
+});
+
+test('Given a scope spec with two ranges on the same file, when parseScopeSpec runs, then it returns both ranges in order', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('src/a.js:3-9,src/a.js:20-25');
+
+  assert.deepEqual(result, [
+    { file: 'src/a.js', start: 3, end: 9 },
+    { file: 'src/a.js', start: 20, end: 25 },
+  ]);
+});
+
+test('Given a scope spec spanning multiple files, when parseScopeSpec runs, then it returns one range per file in order', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('src/a.js:3-9,src/b.js:1-2');
+
+  assert.deepEqual(result, [
+    { file: 'src/a.js', start: 3, end: 9 },
+    { file: 'src/b.js', start: 1, end: 2 },
+  ]);
+});
+
+for (const entry of ['a.js:3', 'a.js:x-9', 'a.js:9-3', 'a.js:0-3']) {
+  test(`Given a malformed scope entry "${entry}", when parseScopeSpec runs, then it throws naming the entry`, () => {
+    const sut = parseScopeSpec;
+
+    assert.throws(
+      () => sut(entry),
+      (err) => err.message === `malformed scope entry: "${entry}"`,
+    );
+  });
+}
+
+// Kills the Regex mutants at findings.js:34 (SCOPE_ENTRY_PATTERN's `^`/`$` anchors
+// removed). `.` never matches `\n`, so an anchored pattern cannot match a
+// range-shaped suffix that only appears after an embedded newline, and cannot
+// match past a `$` when garbage trails the range — an unanchored pattern would
+// silently accept both instead of rejecting them.
+test('Given a scope entry with an embedded newline before the range-shaped part, when parseScopeSpec runs, then it is rejected rather than matched from a later position', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('junk\na.js:1-9'), /malformed scope entry/u);
+});
+
+test('Given a scope entry with garbage trailing a valid-looking range, when parseScopeSpec runs, then it is rejected rather than accepted as a truncated prefix', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js:1-9extra'), /malformed scope entry/u);
+});
+
+// Kills the Regex mutants at findings.js:38 (WHOLE_FILE_ENTRY_PATTERN's `^`/`$`
+// anchors removed) — same reasoning as SCOPE_ENTRY_PATTERN above.
+test('Given a whole-file entry with an embedded newline before the marker, when parseScopeSpec runs, then it is rejected rather than matched from a later position', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('junk\na.js:*'), /malformed scope entry/u);
+});
+
+test('Given a whole-file entry with garbage trailing the "*" marker, when parseScopeSpec runs, then it is rejected rather than accepted as a truncated prefix', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js:*extra'), /malformed scope entry/u);
+});
+
+// ─── filterFindings ───────────────────────────────────────────────────────────
+
+function scopedFinding(file, line) {
+  return { file, line, severity: 'error', finding: 'x' };
+}
+
+test('Given findings on, below, and above a range boundary, when filterFindings runs, then only the in-range boundary findings are kept', () => {
+  const sut = filterFindings;
+  const ranges = [{ file: 'a.js', start: 5, end: 10 }];
+  const findings = [
+    scopedFinding('a.js', 4),
+    scopedFinding('a.js', 5),
+    scopedFinding('a.js', 10),
+    scopedFinding('a.js', 11),
+  ];
+
+  const result = sut(findings, ranges);
+
+  assert.deepEqual(result, [findings[1], findings[2]]);
+});
+
+test('Given a finding whose file matches no range, when filterFindings runs, then it is dropped', () => {
+  const sut = filterFindings;
+  const ranges = [{ file: 'a.js', start: 1, end: 10 }];
+  const findings = [scopedFinding('b.js', 5)];
+
+  const result = sut(findings, ranges);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given findings interleaved across matching and non-matching files, when filterFindings runs, then the kept findings preserve input order', () => {
+  const sut = filterFindings;
+  const ranges = [
+    { file: 'a.js', start: 1, end: 10 },
+    { file: 'c.js', start: 1, end: 10 },
+  ];
+  const findings = [
+    scopedFinding('a.js', 3),
+    scopedFinding('b.js', 3),
+    scopedFinding('c.js', 3),
+  ];
+
+  const result = sut(findings, ranges);
+
+  assert.deepEqual(result, [findings[0], findings[2]]);
+});
+
+// ─── property lens: subset, order-preserving, idempotent ─────────────────────
+
+test('Given generated findings and range sets, when filterFindings runs, then the result is an order-preserving subset of the input and re-filtering is a no-op', () => {
+  const sut = filterFindings;
+  const files = ['a.js', 'b.js'];
+  const findings = [];
+  for (const file of files) {
+    for (let line = 1; line <= 6; line += 1) {
+      findings.push(scopedFinding(file, line));
+    }
+  }
+  const rangeSets = [
+    [],
+    [{ file: 'a.js', start: 2, end: 4 }],
+    [{ file: 'a.js', start: 2, end: 4 }, { file: 'b.js', start: 1, end: 2 }],
+    [{ file: 'a.js', start: 1, end: 6 }, { file: 'b.js', start: 1, end: 6 }],
+  ];
+
+  for (const ranges of rangeSets) {
+    const result = sut(findings, ranges);
+
+    let cursor = 0;
+    for (const kept of result) {
+      const idx = findings.indexOf(kept, cursor);
+      assert.ok(idx !== -1, `kept finding out of order for ranges ${JSON.stringify(ranges)}`);
+      cursor = idx + 1;
+    }
+
+    assert.deepEqual(sut(result, ranges), result, `not idempotent for ranges ${JSON.stringify(ranges)}`);
+  }
+});
+
+test('Given a scope spec with spaces after its commas, when parsed, then every entry is still recognised', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('a.js:1-9, b.js:2-4 ,\tc.js:3-3');
+
+  assert.deepEqual(result, [
+    { file: 'a.js', start: 1, end: 9 },
+    { file: 'b.js', start: 2, end: 4 },
+    { file: 'c.js', start: 3, end: 3 },
+  ]);
+});
+
+test('Given an entry that is only whitespace, when the spec is parsed, then it is rejected as malformed', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js:1-9,   '), /malformed scope entry/u);
+});
+
+test('Given findings whose paths carry a leading dot-slash, when filtered against a bare-path range, then they are kept', () => {
+  const sut = filterFindings;
+  const findings = [{ file: './engine/src/glob.js', line: 13, severity: 'CRITICAL', finding: 'x' }];
+
+  const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }]);
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given a range whose path carries a leading dot-slash, when filtered against bare-path findings, then they are kept', () => {
+  const sut = filterFindings;
+  const findings = [{ file: 'engine/src/glob.js', line: 13, severity: 'CRITICAL', finding: 'x' }];
+
+  const result = sut(findings, [{ file: './engine/src/glob.js', start: 10, end: 20 }]);
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given findings whose paths differ only by a trailing-slash-free directory prefix, when filtered, then only genuine matches are kept', () => {
+  const sut = filterFindings;
+  const findings = [
+    { file: 'src/glob.js', line: 13, severity: 'HIGH', finding: 'kept' },
+    { file: 'other/src/glob.js', line: 13, severity: 'HIGH', finding: 'dropped' },
+  ];
+
+  const result = sut(findings, [{ file: 'src/glob.js', start: 10, end: 20 }]);
+
+  assert.deepEqual(result, [findings[0]]);
+});
+
+test('Given findings emitted with absolute paths, when filtered against a repo root, then they are matched repo-relatively', () => {
+  const sut = filterFindings;
+  const findings = [{ file: '/repo/engine/src/glob.js', line: 12, severity: 'CRITICAL', finding: 'x' }];
+
+  const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }], '/repo');
+
+  assert.deepEqual(result, findings);
+});
+
+// Kills the ConditionalExpression + StringLiteral mutants at findings.js:258
+// (`repoRoot !== ''` forced true / compared against a sentinel instead of '').
+// With no repoRoot supplied (the '' default), an absolute finding path must be
+// left exactly as-is — never have its leading slash silently stripped as if a
+// repo root were in effect.
+test('Given an absolute finding path with no repo root supplied, when filtered against a bare-path range, then it is not matched (no silent relativization)', () => {
+  const sut = filterFindings;
+  const findings = [{ file: '/engine/src/glob.js', line: 13, severity: 'HIGH', finding: 'x' }];
+
+  const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }]);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given an absolute finding path outside the repo root, when filtered, then it is not matched', () => {
+  const sut = filterFindings;
+  const findings = [{ file: '/elsewhere/engine/src/glob.js', line: 12, severity: 'CRITICAL', finding: 'x' }];
+
+  const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }], '/repo');
+
+  assert.deepEqual(result, []);
+});
+
+test('Given a whole-file marker, when findings on any line are filtered, then all are kept', () => {
+  const sut = filterFindings;
+  const findings = [
+    { file: 'a.js', line: 1, severity: 'HIGH', finding: 'first' },
+    { file: 'a.js', line: 99999, severity: 'LOW', finding: 'far down' },
+  ];
+
+  const result = sut(findings, parseScopeSpec('a.js:*'));
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given an entry with a malformed range, when the spec is parsed, then it is still rejected', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js:9-1'), /malformed scope entry/u);
+});
+
+test('Given a colon-free entry, when the spec is parsed, then it is rejected rather than silently granting the whole file', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js'), /malformed scope entry/u);
+  assert.throws(() => sut('-9'), /malformed scope entry/u);
+});
+
+test('Given an explicit whole-file marker, when the spec is parsed, then it covers every line including line zero', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('engine/src/glob.js:*');
+
+  assert.deepEqual(result, [{ file: 'engine/src/glob.js', start: 0, end: Number.MAX_SAFE_INTEGER }]);
+});
+
+test('Given a file-scoped finding reported at line zero, when filtered against a whole-file marker, then it is kept', () => {
+  const sut = filterFindings;
+  const findings = [{ file: 'a.js', line: 0, severity: 'CRITICAL', finding: 'hardcoded key' }];
+
+  const result = sut(findings, parseScopeSpec('a.js:*'));
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given whitespace between the path and its range, when the spec is parsed, then the path carries no stray space', () => {
+  const sut = parseScopeSpec;
+
+  // Both branches trim: an untrimmed whole-file path would never match anything,
+  // which is a silent drop by another route.
+  assert.deepEqual(sut('a.js :1-9'), [{ file: 'a.js', start: 1, end: 9 }]);
+  assert.deepEqual(sut('a.js :*'), [{ file: 'a.js', start: 0, end: Number.MAX_SAFE_INTEGER }]);
+});
+
+test('Given a finding whose file is not a string, when filtered, then it is dropped rather than throwing', () => {
+  const sut = filterFindings;
+
+  const result = sut([{ file: 123, line: 5, severity: 'HIGH', finding: 'x' }], parseScopeSpec('a.js:1-9'));
+
+  assert.deepEqual(result, []);
 });

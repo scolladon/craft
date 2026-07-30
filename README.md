@@ -50,8 +50,9 @@ craft externalizes the delivery loop so it survives the transcript:
   part carries its own pre-chewed context block, one role agent per phase.
 
 New to this way of working? [docs/guides/concepts.md](docs/guides/concepts.md) maps
-craft onto four frames you may already know — Karpathy's *write-the-loop*, Böckeler's
-harness taxonomy, config layering, and Osmani's inner/outer loop.
+craft onto five frames you may already know — Karpathy's *write-the-loop*, Böckeler's
+harness taxonomy, config layering, Osmani's inner/outer loop, and Fowler's *orchestrator
+tax*.
 
 ## What craft is not
 
@@ -198,7 +199,7 @@ session resumes from the last artifact — the plan's context blocks, not scroll
 | | |
 |---|---|
 | [guides/customizing.md](docs/guides/customizing.md) | mental model + full injection catalog |
-| [guides/concepts.md](docs/guides/concepts.md) | why craft is shaped this way, in four familiar frames |
+| [guides/concepts.md](docs/guides/concepts.md) | why craft is shaped this way, in five familiar frames |
 | [DESIGN-customizable-engine.md](docs/contributing/prd/DESIGN-customizable-engine.md) | living architecture: phases, ports, enforcement |
 | [docs/contributing/adr/](docs/contributing/adr/) | decision records |
 | [examples/](examples/) | one runnable sample per injection point |

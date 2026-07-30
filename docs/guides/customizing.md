@@ -330,6 +330,15 @@ per-knob message a bad manifest produces (e.g. `phases.review.harness.passes mus
 Runs the review harness with 2 reviewers per dimension and stops when ≤ 3 non-LOW findings remain
 (numeric convergence, ADR-097), for this invocation only.
 
+**Cost basis for the fan-out advisory.** This repo's own committed telemetry puts a reviewer
+spawn at a pooled median near 92,500 tokens across 72 records, so eight reviewers is roughly 740,000
+tokens for round one alone, and the phase passes a million once the default `max_cycles: 3` adds its
+fix-delta rounds (measured median 58,052 each). Pipeline resolution records an advisory line when the
+resolved `dimensions.length × passes` exceeds eight — double the shipped default of four — and it caps
+nothing. This is not the "2-4 agents" case: craft's reviewers are read-only, independently-oriented
+lenses over the same diff (`contracts/harness-read.md:1`), so independence is the feature and cost is
+the only thing the advisory speaks to.
+
 #### `--policy <action>=<verdict>` — per-invocation policy override
 
 Repeatable (one action per flag; repeat for several). Sets a single action's verdict at highest

@@ -57,6 +57,30 @@ test(
 );
 
 test(
+  'Given the ledger is run-local, when git is asked, then the ledger path is actually ignored',
+  () => {
+    // Positive check, not just the absence of a re-include: this also fails if the
+    // `.claude/*` rule that does the ignoring is ever lost.
+    let result = 0;
+    try {
+      execFileSync('git', ['check-ignore', '-q', '.claude/craft-run-record.md'], {
+        cwd: ROOT,
+        stdio: 'ignore',
+      });
+    } catch (err) {
+      result = err.status;
+    }
+
+    assert.strictEqual(result, 0, '.claude/craft-run-record.md must be gitignored');
+    assert.strictEqual(
+      grepQX('!.claude/craft-run-record.md', GITIGNORE),
+      false,
+      '.gitignore should NOT re-include the run record',
+    );
+  },
+);
+
+test(
   'Given the memory port doc was authored in S4, when its path is checked, then it exists',
   () => {
     assert.ok(

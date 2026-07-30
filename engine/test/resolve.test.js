@@ -479,6 +479,106 @@ test('Given no manifest, when resolvePipeline is called, then record notes defau
   );
 });
 
+// ─── fan-out advisory (ADR-312, ADR-313) ─────────────────────────────────────
+
+test('Given the shipped default (4 dimensions × 1 pass), when resolvePipeline runs, then record has no fan-out line', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /^fan-out:/.test(r)),
+    `Expected no fan-out line, got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given passes:3 over the default four dimensions (product 12), when resolvePipeline runs, then record has exactly one fan-out line naming 12 reviewers', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 3 } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const fanOutLines = result.record.filter(r => /^fan-out:/.test(r));
+  assert.equal(fanOutLines.length, 1, `Expected exactly one fan-out line, got: ${JSON.stringify(result.record)}`);
+  assert.equal(
+    fanOutLines[0],
+    'fan-out: review resolves to 12 reviewers (4 dimensions × 3 passes) — advisory only; nothing is capped. Cost basis: docs/guides/customizing.md.',
+  );
+});
+
+test('Given passes:3 restricted to one dimension (product 3), when resolvePipeline runs, then record has no fan-out line', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 3, dimensions: ['code'] } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /^fan-out:/.test(r)),
+    `Expected no fan-out line, got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given passes:2 over the default four dimensions (product 8, the threshold), when resolvePipeline runs, then record has no fan-out line', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 2 } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /^fan-out:/.test(r)),
+    `Expected no fan-out line at product 8 (the threshold, not above it), got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given passes:3 over three dimensions (product 9, one above the threshold), when resolvePipeline runs, then record has exactly one fan-out line', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 3, dimensions: ['code', 'security', 'tests'] } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const fanOutLines = result.record.filter(r => /^fan-out:/.test(r));
+  assert.equal(fanOutLines.length, 1, `Expected exactly one fan-out line at product 9, got: ${JSON.stringify(result.record)}`);
+});
+
+test('Given the product-12 manifest, when resolvePipeline runs, then the advisory changes no resolved value', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 3 } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    result.record.some(r => r.startsWith('fan-out:')),
+    'premise: the advisory must actually fire for this manifest, or inertness proves nothing',
+  );
+  assert.deepEqual(result.effective.map(d => d.id), SC1_IDS, 'the fan-out advisory must not change the resolved phase list');
+
+  const reviewDescriptor = result.effective.find(d => d.id === 'review');
+  assert.deepEqual(
+    reviewDescriptor.harness.reviewPlan,
+    { passes: 3, stop_rule: 'low-only' },
+    'deriveReviewPlan\'s projection must be unchanged by the advisory',
+  );
+
+  const reviewGateDecision = result.gateDecisions.find(g => g.phaseId === 'review');
+  assert.equal(reviewGateDecision.gate, '<gates.phase>', 'the review gate decision must be unchanged by the advisory');
+
+  const inertFields = JSON.stringify({
+    effective: result.effective,
+    gateDecisions: result.gateDecisions,
+    waivers: result.waivers,
+    errors: result.errors,
+  });
+  assert.ok(
+    !inertFields.includes('fan-out:'),
+    `Expected "fan-out:" to appear only in record, got it in: ${inertFields}`,
+  );
+});
+
 // ─── backlog record line names the active source ───────────────────────────────
 
 test('Given backlog { source: custom, ref: ./x.sh }, when resolvePipeline runs, then record has a line naming "custom" and the ref', () => {
@@ -1568,4 +1668,67 @@ test('Given pipeline.insert with a whitespace-only id, when resolvePipeline runs
     result.errors.some(e => e.includes('.id must be a non-empty string')),
     `Expected id error, got: ${result.errors.join('; ')}`,
   );
+});
+
+// Kills the OptionalChaining mutants at resolve.js:149 (`review?.harness?.dimensions`
+// dropping the `harness?.` link) and :150 (`review?.harness.reviewPlan?.passes`
+// dropping the same link): whenever review is enabled but carries no `harness`
+// block at all, buildFanOutRecords must return quietly, never throw reading
+// `.dimensions`/`.reviewPlan` off `undefined`.
+test('Given a review descriptor with no harness block at all, when resolvePipeline runs, then the fan-out probe finds nothing and does not throw', () => {
+  const sut = loadDefault();
+  const noHarnessReview = sut.map(d => (d.id === 'review' ? { ...d, harness: undefined } : d));
+
+  const result = resolvePipeline(noHarnessReview, null);
+
+  assert.equal(result.ok, true, `errors: ${JSON.stringify(result.errors)}`);
+  assert.ok(!result.record.some(r => /^fan-out:/.test(r)));
+});
+
+// Kills the LogicalOperator mutant at resolve.js:151 (`||` → `&&`) and the
+// ArrayDeclaration mutant on its `return []`: strip only `dimensions` from the
+// review harness (passes/convergence stay, so harness itself — and therefore
+// reviewPlan.passes, always derived from it — stays valid). `!Array.isArray(dimensions)`
+// is then true while `!Number.isInteger(passes)` is false — the only manifest
+// shape that tells `||` and `&&` apart, since every other route correlates them.
+test('Given a review harness with dimensions stripped but passes intact, when resolvePipeline runs, then the fan-out probe returns quietly with no injected record', () => {
+  const sut = loadDefault();
+  const noDimensions = sut.map(d => (d.id === 'review' ? { ...d, harness: { ...d.harness, dimensions: undefined } } : d));
+
+  const result = resolvePipeline(noDimensions, null);
+
+  assert.equal(result.ok, true, `errors: ${JSON.stringify(result.errors)}`);
+  assert.ok(!result.record.some(r => /^fan-out:/.test(r)));
+  assert.ok(!result.record.some(r => r.includes('Stryker')), `no poisoned record entry allowed, got: ${JSON.stringify(result.record)}`);
+});
+
+test('Given a pipeline with no review phase, when resolvePipeline runs, then the fan-out probe is inert and does not throw', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { skip: ['review'] } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(!result.record.some(r => /^fan-out:/.test(r)));
+});
+
+test('Given a gate-floor violation alongside a fan-out above the threshold, when resolvePipeline runs, then the advisory still reaches record on the early return', () => {
+  // The floor fires only when a code-producing descriptor carries no gate at all,
+  // which no manifest can express — strip it at the defaults layer instead.
+  const sut = loadDefault();
+  const gateless = sut.map(d => (d.id === 'implementation' ? { ...d, gate: undefined } : d));
+  const manifest = { phases: { review: { harness: { passes: 3 } } } };
+
+  const result = resolvePipeline(gateless, manifest);
+
+  assert.equal(result.ok, false, 'expected the gate floor to reject this pipeline');
+  assert.ok(
+    result.record.some(r => /^fan-out:/.test(r)),
+    `the early return must carry the advisory too, got: ${JSON.stringify(result.record)}`,
+  );
+  // Kills the three ArrayDeclaration mutants on this early return's other fields
+  // (resolve.js:396 — effective/gateDecisions/waivers poisoned with a non-empty array).
+  assert.deepEqual(result.effective, [], 'the floor-violation early return must yield an empty effective array');
+  assert.deepEqual(result.gateDecisions, [], 'the floor-violation early return must yield empty gateDecisions');
+  assert.deepEqual(result.waivers, [], 'the floor-violation early return must yield empty waivers');
 });

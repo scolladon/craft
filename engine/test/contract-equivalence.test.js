@@ -34,7 +34,7 @@ const PHASE_EXPECTATIONS = {
   producer:       ['template', 'Decision-candidates', 'convergence', 'mktemp'],
   construction:   ['RED→GREEN→REFACTOR', 'atomic commit', 'sut'],
   'harness-read': ['Read-only', 'findings', 'Zero findings'],
-  'harness-exec': ['triages', 'Never weaken'],
+  'harness-exec': ['triages', 'Never weaken', 'change-scoped'],
   delivery:       ['traceable', 'listed targets', 'synthesis records'],
   refinement:     ['Behavior-preserving', 'mechanically', 'refactor('],
 };
@@ -243,3 +243,25 @@ for (const descriptor of DESCRIPTORS) {
     );
   });
 }
+
+// ─── core git-safety invariant: must survive both execution modes ─────────
+// The per-descriptor CORE_MARKERS loop above runs agent mode only. This pin
+// guards against a future carve-out silently dropping the marker from the
+// inline variant.
+
+test('Given the core git-safety invariant, when a descriptor is assembled in agent and inline mode, then the repo-wide git-state line is present in both', () => {
+  const descriptor = DESCRIPTORS.find(d => d.id === 'planning');
+  const sut = assembleContract;
+
+  const agentBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+  const inlineBlock = sut(descriptor, {}, FRAGMENTS, { execution: 'inline' });
+
+  assert.ok(
+    hasCI(agentBlock, 'repo-wide git state'),
+    'Descriptor "planning": repo-wide git-state marker missing from agent-mode assembly',
+  );
+  assert.ok(
+    hasCI(inlineBlock, 'repo-wide git state'),
+    'Descriptor "planning": repo-wide git-state marker missing from inline-mode assembly',
+  );
+});

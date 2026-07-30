@@ -175,6 +175,35 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-07-30 — follow-ups surfaced by the orchestrator-tax-hardening run, not yet scheduled)
+
+**Newline-delimited scope specs.** `parseScopeSpec` splits on `,`, so a legal path containing a
+comma (`a,b.js:1-9`) splits into fragments. It fails LOUDLY today — the fragment `a` carries no
+range and is rejected — so nothing is silently mis-scoped, but the path form is unsupported. The
+spec is now written to a file before being read into a variable, so switching the delimiter to a
+newline would remove the ambiguity at the root (paths cannot contain newlines). Deferred because
+it deviates from ADR-305's ratified comma-joined form and wants its own decision.
+
+**Locality-advisory specificity.** `plan-lint`'s cognitive-locality warning fires on 14 of 23
+committed plans (49 warnings, 37 of them two-part overlaps). The calibration is recorded in
+`docs/contributing/design/orchestrator-tax-hardening.md` and the composition is honest — the
+overlaps are real — but 61% is above the bar the design itself set. If operators learn to ignore
+the line, revisit the detector's specificity (never its advisory status): candidates are weighting
+by whether the shared path is *edited* vs merely *referenced*, and skipping paths declared only
+inside quoted snippets.
+
+**Windows path separators in the boundary filter.** `canonicalPath` compares textually against a
+hardcoded `/`, so `--repo-root` is inert on a Windows root (`C:\repo` yields the prefix `C:\repo/`,
+which never matches) and `parseScopeEntry` rejects any colon-bearing whole-file path. Out of scope
+while the toolchain is POSIX-only; the fix is separator normalization before comparison.
+
+**Line-length cap reaches a new call-site.** The known O(n²) pipe-split in `parseLine` (tracked
+below) is now reachable from third-party tool output, not just bounded reviewer text: the
+validation digest pipes a technique's own output through it. Measured trigger is ≥10k contiguous
+whitespace on one line (progress bars, column-padded reporters): 10k → 88ms, 40k → 2.5s. A
+`cut`-style cap at the pipe was rejected — it would corrupt canonical JSON payloads, which are
+commonly one long line — so the fix belongs in `parseLine` itself.
+
 ### Open (scoped 2026-07-27 — follow-ups surfaced by the docs-audience-split run, not yet scheduled)
 
 **Prose-lint excuse coverage for `docs/contributing/plan/`.** The `run_prose_lint` excuse

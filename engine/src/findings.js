@@ -3,6 +3,10 @@
  */
 
 /**
+ * @typedef {{ file: string, start: number, end: number }} ScopeRange
+ */
+
+/**
  * Per-line shape: <severity> <file>:<line> — <finding> [ | <fix> ]
  * The em-dash separator (—) may be surrounded by any whitespace; the ` | ` fix part
  * is optional. We split on the pipe delimiter FIRST, then match the head with a single
@@ -21,6 +25,17 @@ const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
  * no new backtracking shape to the line-head match.
  */
 const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
+
+/**
+ * One scope-spec entry: `<file>:<start>-<end>`. The head is greedy so the
+ * LAST colon (not the first) separates the file path from the range —
+ * tolerating colons inside the path itself.
+ */
+const SCOPE_ENTRY_PATTERN = /^(.+):(\d+)-(\d+)$/u;
+// The per-file scope form. The `:*` marker is REQUIRED: inferring a whole-file
+// grant from a colon-free string turned a mistyped range into a silent widen,
+// which is the mirror of the silent drop this module exists to prevent.
+const WHOLE_FILE_ENTRY_PATTERN = /^(.+):\*$/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
@@ -178,4 +193,90 @@ export function normalizeFindings(raw) {
   }
 
   return parseLineShape(trimmed);
+}
+
+/**
+ * Parses a single scope-spec entry. `<file>:<start>-<end>` bounds a hunk;
+ * `<file>:*` covers the whole file, which is the per-file scope form. Throws on
+ * any other shape, or a range where `start < 1` or `end < start` — never a
+ * silent drop, and never a silent widen.
+ *
+ * @param {string} entry
+ * @returns {ScopeRange}
+ */
+function parseScopeEntry(entry) {
+  const match = entry.match(SCOPE_ENTRY_PATTERN);
+  if (match === null) {
+    const wholeFile = entry.match(WHOLE_FILE_ENTRY_PATTERN);
+    if (wholeFile !== null) {
+      // start 0, not 1: file-scoped findings are commonly reported at line 0,
+      // and a whole-file grant that misses them is a silent drop.
+      return { file: wholeFile[1].trim(), start: 0, end: Number.MAX_SAFE_INTEGER };
+    }
+    throw new Error(`malformed scope entry: "${entry}"`);
+  }
+  const start = Number(match[2]);
+  const end = Number(match[3]);
+  if (!(start >= 1 && end >= start)) {
+    throw new Error(`malformed scope entry: "${entry}"`);
+  }
+  return { file: match[1].trim(), start, end };
+}
+
+/**
+ * Parses a single comma-joined scope spec into `ScopeRange[]`.
+ * An empty spec is the honest "nothing changed" — it returns [].
+ *
+ * @param {string} spec
+ * @returns {ScopeRange[]}
+ */
+export function parseScopeSpec(spec) {
+  if (spec === '') {
+    return [];
+  }
+  // A spec is hand-authored as often as generated, so "a.js:1-9, b.js:1-9" is a
+  // likely form. Untrimmed, the space joins the filename and every finding for
+  // that file drops silently.
+  return spec.split(',').map(entry => parseScopeEntry(entry.trim()));
+}
+
+/**
+ * Reduces a path to the repo-relative form the scope spec is built in. A
+ * technique may emit an absolute path or a `./` prefix for the same file the
+ * spec names bare; without this the two sides never compare equal and every
+ * finding for that file drops silently.
+ *
+ * @param {string} file
+ * @param {string} repoRoot — absolute root, or '' to skip relativization
+ * @returns {string}
+ */
+function canonicalPath(file, repoRoot) {
+  if (typeof file !== 'string') {
+    return file;
+  }
+  const prefix = repoRoot.endsWith('/') ? repoRoot : `${repoRoot}/`;
+  const rooted = repoRoot !== '' && file.startsWith(prefix) ? file.slice(prefix.length) : file;
+  return rooted.startsWith('./') ? rooted.slice(2) : rooted;
+}
+
+/**
+ * Keeps a finding when some range covers its file and line (inclusive on
+ * both ends). Order-preserving; a finding matching no range is dropped.
+ *
+ * @param {Finding[]} findings
+ * @param {ScopeRange[]} ranges
+ * @param {string} [repoRoot] — absolute root, used to relativize absolute finding paths
+ * @returns {Finding[]}
+ */
+export function filterFindings(findings, ranges, repoRoot = '') { // equivalent mutant (StringLiteral default '' → sentinel): the default is only ever consumed via `repoRoot !== '' && file.startsWith(\`${repoRoot}/\`)` — any sentinel value a real finding path will never start with is observably identical to ''
+  const canonicalRanges = ranges.map(range => ({
+    ...range,
+    file: canonicalPath(range.file, repoRoot),
+  }));
+  return findings.filter((finding) => {
+    const file = canonicalPath(finding.file, repoRoot);
+    return canonicalRanges.some(range =>
+      range.file === file && range.start <= finding.line && finding.line <= range.end,
+    );
+  });
 }
