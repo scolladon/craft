@@ -29,5 +29,12 @@ worktree — not to worktree destruction.
 No `.gitignore` edit is in scope. The resume story is "a reset inside the worktree recovers
 the ledger", not "the ledger outlives the tree" — the design's requirements are narrowed to
 match, and any wording promising cross-teardown durability is wrong. `worktree-teardown.sh`
-is unaffected and needs no ledger-preservation step. The memory `delta` derived from the
-ledger at `Done` (302) is unaffected: `save` runs before teardown.
+is unaffected and needs no ledger-preservation step.
+
+The memory `delta` derived from the ledger (303) needs one ordering constraint this decision
+creates. `Done` runs after the whole phase walk, and the walk's last phase tears the worktree
+down — so `save` fires after the ledger's file is gone. The derivation must therefore read the
+ledger at the last pre-teardown boundary and hold the delta; `save` itself stays one atomic
+call at `Done`, unweakened. A consequence of that split: the ledger's on-disk tail ends at the
+last pre-teardown boundary, so the final phase's line and anything `Done` appends exist
+in-session only.
