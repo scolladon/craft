@@ -457,7 +457,7 @@ part-sizing:
 - phase: `bash scripts/ci.sh` — confidence 1 | 3078c6e / 2026-06-26
 
 ## validation-tool
-- stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | f17d07e / 2026-06-28 (RUN this batch — 13 survivors killed across contain/dod/manifest-lint-main; new null-id guard + memory dedupe had zero survivors)
+- stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | cb873b3 / 2026-07-30 (RUN this batch — 413 mutants per-hunk over 4 engine sources, 84.02%→95.84%, 49 killed / 17 documented equivalent; ONE combined --mutate flag, repeated flags drop all but the last)
 
 ## findings
 - skills/init/SKILL.md — confidence 0.5 | f4785cd (not re-observed since P25 — decayed)
@@ -477,6 +477,12 @@ part-sizing:
 - test/hygiene-gates-ci.test.js — confidence 0.8 | e59ca69 (ci.sh excuse-glob case-arm is pinned byte-wise here; extend the pinned regex in the same change as any glob edit — bit three parts in one run)
 - docs/contributing/plan/examples-catalog-gap-closure.md — confidence 0.6 | be64001 (inline-code snippets quoting markdown links with escaped backticks break the span and expose raw relative links the link-check CI resolves against the doc's dir; fence quoted link-bearing snippets in text blocks)
 - examples/README.md — confidence 0.5 | 7d72b47 (doubly-indexed catalog rows: cross-check derived cells like tier against the canonical table, not just presence/numbering — a tier cell drifted while both were guarded)
+
+- engine/src/filter-findings-main.js — confidence 0.8 | cb873b3 (a scope filter is a safety control: an aggregate-only drop notice hides PARTIAL drops, and echoing untrusted paths unescaped lets a newline forge log lines into orchestrator context — truncate+JSON.stringify and cap the enumeration, the trigger condition is also the all-drop condition)
+- engine/src/findings.js — confidence 0.8 | cb873b3 (inferring a whole-file grant from a colon-free entry turns a mistyped range into a silent WIDEN — the mirror of the silent drop; require an explicit `:*` marker. Whole-file ranges start at 0, not 1: file-scoped findings are commonly reported at line 0)
+- engine/src/plan-lint-main.js — confidence 0.75 | cb873b3 (a cwd-relative argv path must be resolve()d before containment or self-exclusion silently stops applying; suppressing wide overlaps to improve a warning-rate statistic discards the worst violations — vary the remedy wording instead)
+- skills/validation/SKILL.md — confidence 0.8 | cb873b3 (an empty technique output parses as canonical and reads as a clean run — assert `[ -s "$out" ]` before branching; classify by normalize-findings EXIT CODE, never by reading the output, and give the branch an explicit else or the routing is unreachable)
+- docs/contributing/design — confidence 0.7 | cb873b3 (calibration tables get flattering: state before AND after side by side, or a narrowing that moved nothing reads as an improvement)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1
@@ -501,6 +507,8 @@ part-sizing:
 - relocation: pass — confidence 1 | daf7f05 (observability carve-out — 6 git-mv movers, import retargets only, suite unmodified)
 - self-govern-frontmatter: pass — confidence 1 | 8501bd2 (subjects: frontmatter on an in-corpus page + assertFresh dogfood test; docs+test folded, no src delta)
 - bash-enumerator-single-source: pass — confidence 1 | 98e267e (living-corpus.sh emits LC_ALL=C-sorted paths; ci.sh + test both consume; compare as Set not ordered array)
+- lint-bin-port: pass — confidence 1 | cb873b3 (moving a bash lint to engine bin+src: keep the resolved gate string literal, document every deliberate divergence from the retired script in the module header, and pin each with a test — an unstated divergence in a gate is a silent behaviour flip)
+- boundary-filter-bin: pass — confidence 1 | cb873b3 (pure predicate in findings.js + main(argv,io) over it; the safety-control discipline is escape+truncate+cap on anything echoed, since stderr lands in orchestrator context)
 - lint-bin-module: pass — confidence 1 | 1a04acc (stub/prose lint = 6-line bin shim + pure src main(argv,io) mirroring intention-lint; self-exclusion + generative-marker + advisory/blocking exit tests)
 - manifest-enum-knob: pass — confidence 1 | 1cce5cc (hygiene.gate mirrors intention.gate: frozen set + validateHygiene + dispatch; init-emit.test.js keeps its OWN TOP_KEYS — do not touch)
 - ci-advisory-wiring: pass — confidence 1 | 6ebaf71 (ci.sh compute_touched→run_stub/prose_lint advisory; kept non-adjacent to run_intention_lint; token family in skills/run; each touched .md is its own --waiver-source; expected benign self-reference)
