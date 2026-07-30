@@ -147,7 +147,7 @@ const FAN_OUT_ADVISORY_THRESHOLD = 8;
 function buildFanOutRecords(effective) {
   const review = effective.find(d => d.id === REVIEW_PHASE_ID);
   const dimensions = review?.harness?.dimensions;
-  const passes = review?.harness?.reviewPlan?.passes;
+  const passes = review?.harness?.reviewPlan?.passes; // equivalent mutant (OptionalChaining on `reviewPlan?.`): buildFanOutRecords only ever sees `effective`, and the mapping above always sets `harness: {...harness, reviewPlan: deriveReviewPlan(harness)}` whenever `harness` is truthy — so `harness truthy, reviewPlan falsy` cannot occur; dropping this one link is unobservable
   if (!Array.isArray(dimensions) || !Number.isInteger(passes)) return [];
 
   const total = dimensions.length * passes;

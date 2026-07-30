@@ -481,6 +481,37 @@ for (const entry of ['a.js:3', 'a.js:x-9', 'a.js:9-3', 'a.js:0-3']) {
   });
 }
 
+// Kills the Regex mutants at findings.js:34 (SCOPE_ENTRY_PATTERN's `^`/`$` anchors
+// removed). `.` never matches `\n`, so an anchored pattern cannot match a
+// range-shaped suffix that only appears after an embedded newline, and cannot
+// match past a `$` when garbage trails the range — an unanchored pattern would
+// silently accept both instead of rejecting them.
+test('Given a scope entry with an embedded newline before the range-shaped part, when parseScopeSpec runs, then it is rejected rather than matched from a later position', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('junk\na.js:1-9'), /malformed scope entry/u);
+});
+
+test('Given a scope entry with garbage trailing a valid-looking range, when parseScopeSpec runs, then it is rejected rather than accepted as a truncated prefix', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js:1-9extra'), /malformed scope entry/u);
+});
+
+// Kills the Regex mutants at findings.js:38 (WHOLE_FILE_ENTRY_PATTERN's `^`/`$`
+// anchors removed) — same reasoning as SCOPE_ENTRY_PATTERN above.
+test('Given a whole-file entry with an embedded newline before the marker, when parseScopeSpec runs, then it is rejected rather than matched from a later position', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('junk\na.js:*'), /malformed scope entry/u);
+});
+
+test('Given a whole-file entry with garbage trailing the "*" marker, when parseScopeSpec runs, then it is rejected rather than accepted as a truncated prefix', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js:*extra'), /malformed scope entry/u);
+});
+
 // ─── filterFindings ───────────────────────────────────────────────────────────
 
 function scopedFinding(file, line) {
@@ -616,6 +647,20 @@ test('Given findings emitted with absolute paths, when filtered against a repo r
   const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }], '/repo');
 
   assert.deepEqual(result, findings);
+});
+
+// Kills the ConditionalExpression + StringLiteral mutants at findings.js:258
+// (`repoRoot !== ''` forced true / compared against a sentinel instead of '').
+// With no repoRoot supplied (the '' default), an absolute finding path must be
+// left exactly as-is — never have its leading slash silently stripped as if a
+// repo root were in effect.
+test('Given an absolute finding path with no repo root supplied, when filtered against a bare-path range, then it is not matched (no silent relativization)', () => {
+  const sut = filterFindings;
+  const findings = [{ file: '/engine/src/glob.js', line: 13, severity: 'HIGH', finding: 'x' }];
+
+  const result = sut(findings, [{ file: 'engine/src/glob.js', start: 10, end: 20 }]);
+
+  assert.deepEqual(result, []);
 });
 
 test('Given an absolute finding path outside the repo root, when filtered, then it is not matched', () => {

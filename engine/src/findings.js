@@ -268,7 +268,7 @@ function canonicalPath(file, repoRoot) {
  * @param {string} [repoRoot] — absolute root, used to relativize absolute finding paths
  * @returns {Finding[]}
  */
-export function filterFindings(findings, ranges, repoRoot = '') {
+export function filterFindings(findings, ranges, repoRoot = '') { // equivalent mutant (StringLiteral default '' → sentinel): the default is only ever consumed via `repoRoot !== '' && file.startsWith(\`${repoRoot}/\`)` — any sentinel value a real finding path will never start with is observably identical to ''
   const canonicalRanges = ranges.map(range => ({
     ...range,
     file: canonicalPath(range.file, repoRoot),

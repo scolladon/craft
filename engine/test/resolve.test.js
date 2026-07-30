@@ -1670,6 +1670,38 @@ test('Given pipeline.insert with a whitespace-only id, when resolvePipeline runs
   );
 });
 
+// Kills the OptionalChaining mutants at resolve.js:149 (`review?.harness?.dimensions`
+// dropping the `harness?.` link) and :150 (`review?.harness.reviewPlan?.passes`
+// dropping the same link): whenever review is enabled but carries no `harness`
+// block at all, buildFanOutRecords must return quietly, never throw reading
+// `.dimensions`/`.reviewPlan` off `undefined`.
+test('Given a review descriptor with no harness block at all, when resolvePipeline runs, then the fan-out probe finds nothing and does not throw', () => {
+  const sut = loadDefault();
+  const noHarnessReview = sut.map(d => (d.id === 'review' ? { ...d, harness: undefined } : d));
+
+  const result = resolvePipeline(noHarnessReview, null);
+
+  assert.equal(result.ok, true, `errors: ${JSON.stringify(result.errors)}`);
+  assert.ok(!result.record.some(r => /^fan-out:/.test(r)));
+});
+
+// Kills the LogicalOperator mutant at resolve.js:151 (`||` → `&&`) and the
+// ArrayDeclaration mutant on its `return []`: strip only `dimensions` from the
+// review harness (passes/convergence stay, so harness itself — and therefore
+// reviewPlan.passes, always derived from it — stays valid). `!Array.isArray(dimensions)`
+// is then true while `!Number.isInteger(passes)` is false — the only manifest
+// shape that tells `||` and `&&` apart, since every other route correlates them.
+test('Given a review harness with dimensions stripped but passes intact, when resolvePipeline runs, then the fan-out probe returns quietly with no injected record', () => {
+  const sut = loadDefault();
+  const noDimensions = sut.map(d => (d.id === 'review' ? { ...d, harness: { ...d.harness, dimensions: undefined } } : d));
+
+  const result = resolvePipeline(noDimensions, null);
+
+  assert.equal(result.ok, true, `errors: ${JSON.stringify(result.errors)}`);
+  assert.ok(!result.record.some(r => /^fan-out:/.test(r)));
+  assert.ok(!result.record.some(r => r.includes('Stryker')), `no poisoned record entry allowed, got: ${JSON.stringify(result.record)}`);
+});
+
 test('Given a pipeline with no review phase, when resolvePipeline runs, then the fan-out probe is inert and does not throw', () => {
   const sut = loadDefault();
   const manifest = { pipeline: { skip: ['review'] } };
@@ -1694,4 +1726,9 @@ test('Given a gate-floor violation alongside a fan-out above the threshold, when
     result.record.some(r => /^fan-out:/.test(r)),
     `the early return must carry the advisory too, got: ${JSON.stringify(result.record)}`,
   );
+  // Kills the three ArrayDeclaration mutants on this early return's other fields
+  // (resolve.js:396 — effective/gateDecisions/waivers poisoned with a non-empty array).
+  assert.deepEqual(result.effective, [], 'the floor-violation early return must yield an empty effective array');
+  assert.deepEqual(result.gateDecisions, [], 'the floor-violation early return must yield empty gateDecisions');
+  assert.deepEqual(result.waivers, [], 'the floor-violation early return must yield empty waivers');
 });

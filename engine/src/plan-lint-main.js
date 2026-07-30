@@ -31,7 +31,7 @@ const PART_HEADING_PREFIX = '## Part';
 const CONTEXT_HEADING_PREFIX = '### Context';
 const BLOCK_BOUNDARY = /^(### |## )/;
 const BACKTICK_PATTERN = /`([^`]+)`/g;
-const PART_LABEL_PATTERN = /^## Part\s+(\S+)/;
+const PART_LABEL_PATTERN = /^## Part\s+(\S+)/; // equivalent mutant (leading `^` removed): every heading `.match()`'d here already starts with the literal "## Part" (collectParts only builds a Part from a line satisfying `startsWith(PART_HEADING_PREFIX)`), so `.match()` finds the same match at position 0 whether or not the pattern is anchored
 // Above this many parts, a shared path is repo infrastructure (a CI script, an
 // index, a config) rather than a shared unit of work, so "merge the parts" stops
 // being an available action. The signal is still reported — only the suggested
@@ -81,7 +81,7 @@ function collectParts(lines) {
  */
 function partLabel(heading) {
   const m = heading.match(PART_LABEL_PATTERN);
-  return m ? `Part ${m[1]}` : heading.replace(/^## /, '');
+  return m ? `Part ${m[1]}` : heading.replace(/^## /, ''); // equivalent mutant (leading `^` removed from the replace pattern): `.replace()` without the global flag always resolves to the first match, and this fallback only ever runs on a heading that already starts with "## " literally — anchored or not, the match is found at position 0
 }
 
 /**
@@ -94,7 +94,7 @@ function missingSections(lines, part) {
   const seen = new Set();
   for (let i = part.startIdx; i < part.endIdx; i += 1) {
     const line = lines[i];
-    if (!line.startsWith('### ')) continue;
+    if (!line.startsWith('### ')) continue; // equivalent mutant (guard forced false / startsWith('') always-true): every REQUIRED entry itself starts with "### ", so `line.startsWith(req)` below can only ever match a line that also starts with "### " — this early skip changes no line's fate, only how many lines you compare `req` against
     for (const req of REQUIRED) {
       if (line.startsWith(req)) seen.add(req);
     }
@@ -118,10 +118,10 @@ function contextBlock(lines, part) {
       break;
     }
   }
-  if (contextIdx === -1) return null;
+  if (contextIdx === -1) return null; // equivalent mutant (forced false): the disabled guard falls through to `lines.slice(-1, blockEnd)`; a negative start normalizes to `lines.length - 1`, and blockEnd is always well before the file's last line for any part followed by more content, so the slice is empty either way — same observable "nothing declared" result
 
   let blockEnd = part.endIdx;
-  for (let i = contextIdx + 1; i < part.endIdx; i += 1) {
+  for (let i = contextIdx + 1; i < part.endIdx; i += 1) { // equivalent mutant (`i < part.endIdx` → `i <= part.endIdx`): the one extra index checked is `lines[part.endIdx]`, which is either out of bounds (last part) or the START of the NEXT part's own heading (`collectParts` defines `endIdx` as exactly that index) — a line that always matches BLOCK_BOUNDARY, setting `blockEnd` to the same value it already defaults to
     if (BLOCK_BOUNDARY.test(lines[i])) {
       blockEnd = i;
       break;
@@ -157,10 +157,17 @@ function findRepoRoot(planPath) {
  * @returns {string|null}
  */
 function resolveDeclaredFile(repoRoot, span) {
+  // equivalent mutants on this guard (whole condition forced false, `||` → `&&`,
+  // or just the `span === ''` half dropped): `span` is always `match[1]` of
+  // BACKTICK_PATTERN's `` `([^`]+)` `` (a `+` quantifier — never empty), and the
+  // one other caller passes `resolve(planPath)` (never empty either), so
+  // `span === ''` is dead on arrival. A disabled `span.endsWith('/')` check is
+  // redundant too: a real directory still fails `stat.isFile()` below, and a
+  // nonexistent one still throws into the catch — every route lands on `null`.
   if (span === '' || span.endsWith('/')) return null;
 
   const contained = containByRealpath(repoRoot, resolve(repoRoot, span));
-  if (contained === null) return null;
+  if (contained === null) return null; // equivalent mutant (forced false): a disabled guard passes `null` into `statSync(null)`, which throws (not a valid path) — caught immediately below, same `null` result
 
   let stat;
   try {
@@ -190,7 +197,7 @@ function declaredFiles(lines, part, repoRoot, cache) {
   for (const match of block.matchAll(BACKTICK_PATTERN)) {
     const span = match[1];
     // Spans repeat within and across parts, and each miss costs a stat chain.
-    if (!cache.has(span)) cache.set(span, resolveDeclaredFile(repoRoot, span));
+    if (!cache.has(span)) cache.set(span, resolveDeclaredFile(repoRoot, span)); // equivalent mutant (forced true): resolveDeclaredFile is pure over (repoRoot, span) with no side effects between calls in one invocation, so recomputing and overwriting an already-cached entry yields the identical value — a performance-only guard
     const resolved = cache.get(span);
     if (resolved !== null) declared.add(resolved);
   }

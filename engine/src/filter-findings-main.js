@@ -82,14 +82,14 @@ export function main(argv, io) {
 
   let raw;
   try {
-    raw = filePath ? readFileSync(filePath, 'utf8') : io.readStdin();
+    raw = filePath ? readFileSync(filePath, 'utf8') : io.readStdin(); // equivalent mutant (StringLiteral encoding '' instead of 'utf8'): readFileSync(path,'') returns a Buffer; the only use of `raw` is JSON.parse(raw), which coerces via Buffer.toString() (defaults to utf8) — identical result
   } catch (err) {
     return fail(err.message, io);
   }
 
   let findings;
   let parsedCount;
-  let droppedFindings = [];
+  let droppedFindings = []; // equivalent mutant (ArrayDeclaration poison array): always reassigned inside the try below before it is ever read, or the function returns early (either from the try's own `!Array.isArray` guard or the catch) before reaching the one read site at L118 — this initial value is never observable
   try {
     const ranges = parseScopeSpec(scope);
     const parsed = JSON.parse(raw);

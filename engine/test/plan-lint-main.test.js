@@ -503,3 +503,241 @@ test('Given a cwd-relative plan path from a subdirectory, when main runs, then t
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(!io.stdout.joined().includes('cognitive-locality'), io.stdout.joined());
 });
+
+// ─── mutation-hardening: BLOCK_BOUNDARY must anchor at line start ────────────
+// Kills the Regex mutant at plan-lint-main.js:32 (`BLOCK_BOUNDARY`'s leading `^`
+// removed): a Context line that merely mentions "## " mid-sentence must not be
+// mistaken for the next section/part boundary.
+
+test('Given a Context line that merely mentions "## " mid-sentence, when main runs, then it is not mistaken for a block boundary and the following backticked span is still captured', () => {
+  const sut = main;
+  const root = repoRoot();
+  const contextBody = 'See the note about a ## nested heading style.\n\nEdit `engine/src/findings.js` here.';
+  const plan = `# Plan — Test topic\n\n${part('1', contextBody)}\n\n${part('2', contextBody)}`;
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('`engine/src/findings.js` declared in Part 1, Part 2.'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+// ─── mutation-hardening: partLabel fallback replacement text ────────────────
+// Kills the StringLiteral mutant at plan-lint-main.js:84 (the replace's ''
+// replacement swapped for a sentinel): a heading that satisfies the `## Part`
+// prefix-match quirk but not the stricter label pattern must fall back to the
+// heading with exactly its leading "## " stripped — nothing injected.
+
+test('Given two parts sharing a file where one heading does not match the "## Part <label>" shape, when main runs, then the overlap warning uses the heading with only its leading "## " stripped', () => {
+  const sut = main;
+  const root = repoRoot();
+  const oddPart = '## Partition of risk\n\n### Context\n\nEdit `engine/src/findings.js` here.\n\n### TDD steps\n\n1. RED then GREEN.\n\n### Gate\n\necho ok\n\n### Commit\n\nfeat: partition\n';
+  const plan = `# Plan — Test topic\n\n${oddPart}\n\n${part('2', 'Also edit `engine/src/findings.js` here.')}`;
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('`engine/src/findings.js` declared in Partition of risk, Part 2.'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+// ─── mutation-hardening: PART_LABEL_PATTERN's quantifiers ───────────────────
+// Kills the Regex mutants at plan-lint-main.js:34 (`\s+` → `\s`, and `(\S+)` →
+// `(\S)`): a heading with more than one space before a multi-character label
+// must still resolve to the label in full.
+
+test('Given a part heading with two spaces before a multi-digit label ("## Part  12 — thing"), when main runs, then the resolved label is exactly "Part 12"', () => {
+  const sut = main;
+  const root = repoRoot();
+  const oddPart = '## Part  12 — thing\n\n### Context\n\nEdit `engine/src/findings.js` here.\n\n### TDD steps\n\n1. RED then GREEN.\n\n### Gate\n\necho ok\n\n### Commit\n\nfeat: twelve\n';
+  const plan = `# Plan — Test topic\n\n${oddPart}\n\n${part('2', 'Also edit `engine/src/findings.js` here.')}`;
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('`engine/src/findings.js` declared in Part 12, Part 2.'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+// ─── mutation-hardening: missingSections / contextBlock heading matches ─────
+// Kills the MethodExpression mutants at plan-lint-main.js:99 (`line.startsWith(req)`
+// → `.endsWith(req)`) and :116 (`lines[i].startsWith(CONTEXT_HEADING_PREFIX)` →
+// `.endsWith(...)`): a Context heading with trailing text must still satisfy
+// the schema check by prefix, and must still be found by contextBlock.
+
+test('Given a part whose Context heading carries trailing text ("### Context notes"), when main runs, then the section is recognized (schema-complete) and its backticked spans are still captured for the overlap check', () => {
+  const sut = main;
+  const root = repoRoot();
+  const part1 = '## Part 1 — thing\n\n### Context notes\n\nEdit `engine/src/findings.js` here.\n\n### TDD steps\n\n1. RED then GREEN.\n\n### Gate\n\necho ok\n\n### Commit\n\nfeat: thing\n';
+  const plan = `# Plan — Test topic\n\n${part1}\n\n${part('2', 'Also edit `engine/src/findings.js` here.')}`;
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('`engine/src/findings.js` declared in Part 1, Part 2.'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+// ─── mutation-hardening: contextIdx's not-found sentinel ────────────────────
+// Kills the UnaryOperator mutant at plan-lint-main.js:114 (`contextIdx = -1` →
+// `+1`): a part with no "### Context" heading, sharing a preamble backtick
+// span located at the file's actual line index 1, must never attribute that
+// unrelated preamble text to the missing-context part.
+
+test('Given a part with no "### Context" heading, when the plan\'s preamble (before any part) mentions a backticked path, then that preamble text is never attributed to the missing-context part', () => {
+  const sut = main;
+  const root = repoRoot();
+  const plan = '# Plan — Test topic\n\n'
+    + 'Some preamble text mentioning `engine/src/findings.js` for context.\n\n'
+    + '## Part 1 — headless\n\nBody with no Context heading at all.\n\n'
+    + '### TDD steps\n\n1. RED then GREEN.\n\n### Gate\n\necho ok\n\n### Commit\n\nfeat: headless\n\n'
+    + part('2', 'Also edit `engine/src/findings.js` here.');
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+});
+
+// ─── mutation-hardening: contextIdx's found value must never collide with the
+// not-found sentinel ──────────────────────────────────────────────────────────
+// Kills the UnaryOperator mutant at plan-lint-main.js:121 (`contextIdx === -1`
+// → `=== +1`): a Context heading that legitimately lands at absolute line
+// index 1 (a compact plan with no separate title line) must still be treated
+// as found.
+
+test('Given a Context heading positioned as literally the second line of the file (absolute index 1), when main runs, then it is still recognized as found (not conflated with the not-found sentinel)', () => {
+  const sut = main;
+  const root = repoRoot();
+  const plan = [
+    '## Part 1 — x',
+    '### Context',
+    'Edit `engine/src/findings.js` here.',
+    '### TDD steps',
+    '1. RED then GREEN.',
+    '### Gate',
+    'echo ok',
+    '### Commit',
+    'feat: x',
+    '## Part 2 — y',
+    '### Context',
+    'Also edit `engine/src/findings.js` here.',
+    '### TDD steps',
+    '1. RED then GREEN.',
+    '### Gate',
+    'echo ok',
+    '### Commit',
+    'feat: y',
+  ].join('\n');
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('`engine/src/findings.js` declared in Part 1, Part 2.'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+// ─── mutation-hardening: the blockEnd scan must actually stop at the boundary ─
+// Kills five mutants at plan-lint-main.js:124-125 (the for-loop's condition
+// forced false/inverted, its body emptied, the boundary `if` forced false, and
+// its body emptied) — all five collapse to the same bug: blockEnd never
+// advances past its `part.endIdx` default, so the Context block over-runs
+// into the next section.
+
+test('Given a backticked path appearing only in a part\'s TDD-steps section (after Context ends), when main runs, then it is not attributed to that part\'s Context block', () => {
+  const sut = main;
+  const root = repoRoot();
+  const part1 = '## Part 1 — x\n\n### Context\n\nDo the thing.\n\n### TDD steps\n\nTouch `engine/src/findings.js` here.\n\n### Gate\n\necho ok\n\n### Commit\n\nfeat: x\n';
+  const plan = `# Plan — Test topic\n\n${part1}\n\n${part('2', 'Edit `engine/src/findings.js` here.')}`;
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+});
+
+// ─── mutation-hardening: the Context block join separator ───────────────────
+// Kills the StringLiteral mutant at plan-lint-main.js:130 (`.join('\n')` →
+// `.join("")`): a backticked span deliberately split across two lines must
+// stay broken (the embedded newline is part of the captured span) rather than
+// being silently repaired by a no-separator join.
+
+test('Given a Context block where a backticked path is split across two lines, when main runs, then the embedded newline breaks the match (no false resolution via silent line-joining)', () => {
+  const sut = main;
+  const root = repoRoot();
+  const splitBody = 'See `\nengine/src/findings.js` here.';
+  const plan = `# Plan — Test topic\n\n${part('1', splitBody)}\n\n${part('2', splitBody)}`;
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+});
+
+// ─── mutation-hardening: findRepoRoot must actually walk up ─────────────────
+// Kills five mutants at plan-lint-main.js:144-146 (the `.git` existsSync check
+// forced true/false, its path built with an empty-string suffix, and the
+// top-of-filesystem fallback check forced true/inverted) — all five collapse
+// to the same bug: the walk stops at (or never leaves) the plan's own
+// directory instead of the real ancestor `.git` root.
+
+test('Given a plan file nested one directory below the repo root, when main runs, then declared spans resolve against the real repo root (not the plan\'s own directory)', () => {
+  const sut = main;
+  const root = repoRoot(); // has `.git`, plus engine/src/findings.js
+  const plansDir = join(root, 'plans');
+  mkdirSync(plansDir, { recursive: true });
+  const plan = `# Plan — Test topic\n\n${part('1', 'Edit `engine/src/findings.js` here.')}\n\n${part('2', 'Also edit `engine/src/findings.js` here.')}`;
+  const path = writePlan(plansDir, plan, 'nested.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('`engine/src/findings.js` declared in Part 1, Part 2.'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+// ─── mutation-hardening: a directory span without a trailing slash ──────────
+// Kills the ConditionalExpression mutant at plan-lint-main.js:171
+// (`!stat.isFile()` forced false): a span resolving to an existing directory
+// (no trailing slash, so the earlier `endsWith('/')` guard does not catch it)
+// must still be rejected as "not a declared file".
+
+test('Given two parts both backticking the same directory span WITHOUT a trailing slash, when main runs, then no warning is emitted (a directory is not a declared file)', () => {
+  const sut = main;
+  const root = repoRoot();
+  const plan = `# Plan — Test topic\n\n${part('1', 'Edit files under `engine/src` here.')}\n\n${part('2', 'Also edit files under `engine/src` here.')}`;
+  const path = writePlan(root, plan);
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+});
