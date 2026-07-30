@@ -501,7 +501,10 @@ test('Given passes:3 over the default four dimensions (product 12), when resolve
   assert.equal(result.ok, true);
   const fanOutLines = result.record.filter(r => /^fan-out:/.test(r));
   assert.equal(fanOutLines.length, 1, `Expected exactly one fan-out line, got: ${JSON.stringify(result.record)}`);
-  assert.ok(fanOutLines[0].includes('12 reviewers'), `Expected the line to name "12 reviewers", got: ${fanOutLines[0]}`);
+  assert.equal(
+    fanOutLines[0],
+    'fan-out: review resolves to 12 reviewers (4 dimensions × 3 passes) — advisory only; nothing is capped. Cost basis: docs/guides/customizing.md.',
+  );
 });
 
 test('Given passes:3 restricted to one dimension (product 3), when resolvePipeline runs, then record has no fan-out line', () => {
@@ -548,6 +551,10 @@ test('Given the product-12 manifest, when resolvePipeline runs, then the advisor
   const result = resolvePipeline(sut, manifest);
 
   assert.equal(result.ok, true);
+  assert.ok(
+    result.record.some(r => r.startsWith('fan-out:')),
+    'premise: the advisory must actually fire for this manifest, or inertness proves nothing',
+  );
   assert.deepEqual(result.effective.map(d => d.id), SC1_IDS, 'the fan-out advisory must not change the resolved phase list');
 
   const reviewDescriptor = result.effective.find(d => d.id === 'review');
@@ -1660,5 +1667,31 @@ test('Given pipeline.insert with a whitespace-only id, when resolvePipeline runs
   assert.ok(
     result.errors.some(e => e.includes('.id must be a non-empty string')),
     `Expected id error, got: ${result.errors.join('; ')}`,
+  );
+});
+
+test('Given a pipeline with no review phase, when resolvePipeline runs, then the fan-out probe is inert and does not throw', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { skip: ['review'] } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(!result.record.some(r => /^fan-out:/.test(r)));
+});
+
+test('Given a gate-floor violation alongside a fan-out above the threshold, when resolvePipeline runs, then the advisory still reaches record on the early return', () => {
+  // The floor fires only when a code-producing descriptor carries no gate at all,
+  // which no manifest can express — strip it at the defaults layer instead.
+  const sut = loadDefault();
+  const gateless = sut.map(d => (d.id === 'implementation' ? { ...d, gate: undefined } : d));
+  const manifest = { phases: { review: { harness: { passes: 3 } } } };
+
+  const result = resolvePipeline(gateless, manifest);
+
+  assert.equal(result.ok, false, 'expected the gate floor to reject this pipeline');
+  assert.ok(
+    result.record.some(r => /^fan-out:/.test(r)),
+    `the early return must carry the advisory too, got: ${JSON.stringify(result.record)}`,
   );
 });

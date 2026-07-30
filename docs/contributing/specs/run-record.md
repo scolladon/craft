@@ -51,8 +51,9 @@ since `save` performs no validation on the write path.
 
 ## The absent-file case
 
-When the ledger does not exist at a run's §0 open, the header line is appended first,
-then every seeded `Resolution.record[]` line from §1c.
+When the ledger does not exist at the point it is opened — `workspace`, once the tree
+the run works in exists — the header line is appended first, then the buffered
+pre-worktree lines (the seeded `Resolution.record[]` entries from §1c), in order.
 
 ## The present-file case
 
@@ -64,8 +65,10 @@ there.
 
 Three write points, all orchestrator-owned:
 
-1. **`skills/run/SKILL.md` §0 step 4 (open).** Append the header if absent, then flush
-   every seeded `Resolution.record[]` line.
+1. **`skills/run/SKILL.md` §0 step 4 (open), realized at `workspace`.** §0 buffers the
+   seeded `Resolution.record[]` lines in-session; at `workspace`, once the tree exists,
+   append the header if absent and flush those buffered lines into the worktree ledger.
+   Under the in-place strategy there is no second tree and the open happens at §0.
 2. **`skills/run/SKILL.md` Phase walk step 7 (record outcome).** Append this phase's
    lines to the ledger before moving to the next descriptor — the phase-boundary flush.
 3. **`skills/run/SKILL.md` §Done.** Flush any residual lines, if the worktree still

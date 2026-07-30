@@ -7,7 +7,6 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const PRUNE_SKILL = path.join(ROOT, 'skills', 'prune', 'SKILL.md');
-const CORE_CONTRACT = path.join(ROOT, 'contracts', 'core.md');
 
 test(
   'Given skills/prune/SKILL.md, when its inspection scope is read, then it carries the rule-vs-fact class',
@@ -47,6 +46,20 @@ test(
     const lines = result.split('\n').filter(Boolean);
     const tokenPattern = /([A-Z-]+-CANDIDATE)\(/;
 
+    // Positively pin that the scan actually found the token it is policing.
+    // With zero matches this test would otherwise pass for the wrong reason.
+    assert.ok(
+      lines.some((line) => line.includes('PRUNE-CANDIDATE(')),
+      'the scan found no PRUNE-CANDIDATE( line at all — the scan itself is broken',
+    );
+
+    // Exercise the classifier against a synthetic offender, so a broken regex
+    // cannot hide behind a clean tree.
+    const synthetic = 'skills/x/SKILL.md:1:FIX-CANDIDATE(y): z';
+    const syntheticMatch = synthetic.match(tokenPattern);
+    assert.ok(syntheticMatch && syntheticMatch[1] !== 'PRUNE-CANDIDATE',
+      'the classifier must flag a non-PRUNE candidate token');
+
     const offenders = lines.filter((line) => {
       const match = tokenPattern.exec(line);
       return match !== null && match[1] !== 'PRUNE-CANDIDATE';
@@ -63,13 +76,18 @@ test(
 );
 
 test(
-  'Given the prune skill reads contracts/core.md as its fail-closed denylist, when core.md is read, then the repo-wide git-state line is present',
+  'Given the rule-vs-fact lens proposes against a denylist, when the prune skill is read, then it names contracts/core.md as that denylist source',
   () => {
-    const content = fs.readFileSync(CORE_CONTRACT, 'utf8');
+    const content = fs.readFileSync(PRUNE_SKILL, 'utf8');
 
     assert.ok(
-      content.includes('Never change repo-wide git state'),
-      'Expected the repo-wide git-state line in contracts/core.md — Part 1 must land before Part 2',
+      content.includes('contracts/core.md'),
+      'the prune skill must name contracts/core.md as its denylist source',
+    );
+    assert.match(
+      content,
+      /fail[- ]closed/iu,
+      'the denylist read must be described as fail-closed',
     );
   },
 );

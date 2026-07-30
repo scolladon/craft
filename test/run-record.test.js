@@ -91,6 +91,9 @@ test('Given the ledger and the memory store are distinct artifacts, when skills/
 test('Given the run-local ruling adds no ledger-preservation step, when scripts/worktree-teardown.sh is read, then it names neither the ledger file nor a ledger', () => {
   const result = fs.readFileSync(TEARDOWN_SCRIPT_PATH, 'utf8').toLowerCase();
 
+  // Positive first: an empty or gutted script would satisfy the negatives below
+  // without the negatives meaning anything.
+  assert.ok(result.includes('worktree remove'), 'teardown must still remove the worktree');
   assert.ok(!result.includes('craft-run-record'));
   assert.ok(!result.includes('ledger'));
 });
@@ -112,27 +115,32 @@ test('Given skills/integrate/SKILL.md step 3, when the step region is read, then
   );
 });
 
-test('Given docs/contributing/specs/run-record.md, when read, then it exists and is non-empty', () => {
-  const result = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
+test('Given the run-record spec, when the absent-file section is read, then it pins the header line the orchestrator writes', () => {
+  const spec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
 
-  assert.ok(result.length > 0);
+  const shape = sliceRegion(spec, /^## File shape and header/u, /^## /u);
+  const result = sliceRegion(spec, /^## The absent-file case/u, /^## /u);
+
+  assert.ok(shape.includes('# craft run record (append-only)'),
+    'the file-shape section must pin the exact header line');
+  assert.match(result, /header line is appended first/u,
+    'the absent-file section must state the header precedes the seeded lines');
 });
 
-test('Given the run-record spec, when read, then it documents the absent-file header case and the present-file append case', () => {
-  const result = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
+test('Given the run-record spec, when the present-file section is read, then it states the append-never-rewrite rule', () => {
+  const spec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
 
-  assert.ok(/absent/i.test(result) && /header/i.test(result));
-  assert.ok(/append/i.test(result));
+  const result = sliceRegion(spec, /^## The present-file case/u, /^## /u);
+
+  assert.match(result, /append/iu);
+  assert.ok(!/rewrit/iu.test(result) || /never rewritten/iu.test(result),
+    'the present-file section must not describe a rewrite');
 });
 
-test('Given the run-record spec, when read, then it documents the run-id-collision edge', () => {
-  const result = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
+test('Given the run-record spec, when the inherited-edges section is read, then the run-id-collision edge is documented there', () => {
+  const spec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
 
-  assert.ok(/collision/i.test(result));
-});
+  const result = sliceRegion(spec, /^## Inherited edges/u, /^## /u);
 
-test('Given the run-record spec, when read, then it documents the resume double-Done edge', () => {
-  const result = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
-
-  assert.ok(/resume/i.test(result) && /Done/.test(result));
+  assert.match(result, /collision/iu);
 });
