@@ -672,7 +672,16 @@ test('Given a file-scoped finding reported at line zero, when filtered against a
 test('Given whitespace between the path and its range, when the spec is parsed, then the path carries no stray space', () => {
   const sut = parseScopeSpec;
 
-  const result = sut('a.js :1-9');
+  // Both branches trim: an untrimmed whole-file path would never match anything,
+  // which is a silent drop by another route.
+  assert.deepEqual(sut('a.js :1-9'), [{ file: 'a.js', start: 1, end: 9 }]);
+  assert.deepEqual(sut('a.js :*'), [{ file: 'a.js', start: 0, end: Number.MAX_SAFE_INTEGER }]);
+});
 
-  assert.deepEqual(result, [{ file: 'a.js', start: 1, end: 9 }]);
+test('Given a finding whose file is not a string, when filtered, then it is dropped rather than throwing', () => {
+  const sut = filterFindings;
+
+  const result = sut([{ file: 123, line: 5, severity: 'HIGH', finding: 'x' }], parseScopeSpec('a.js:1-9'));
+
+  assert.deepEqual(result, []);
 });

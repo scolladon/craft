@@ -146,29 +146,40 @@ sub-concern also no-op'd.
      orchestrator context. The pipe below is the mechanism for that only when the
      technique's output is canonical. **Decide mechanically, never by inspection** — the
      technique descriptor declares no output shape, and reading the output to classify it
-     would breach the very invariant this protects. Run the normalizer with its output
-     discarded and branch on its exit code:
+     would breach the very invariant this protects.
+
+     **First, assert the run produced something.** An empty `$out` parses as canonical and
+     would digest to `[]` — a crashed technique reading as a clean run, which is the
+     fail-open this whole boundary exists to prevent. Capture the technique's own exit
+     status at redirect time and treat empty output as a blocker, never as "no findings":
      ```bash
      spec="$(cat "$specfile")"
-     if node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" >/dev/null 2>&1; then
-       # canonical → digest, and read only this stdout
-       node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" \
+     if [ ! -s "$out" ]; then
+       # blocker: { validation:<technique-id>, "technique produced no output (exit $run_status)", ≤3 options }
+       exit 1
+     fi
+     if digest="$(node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" 2>/dev/null)"; then
+       # canonical → digest, and read ONLY this stdout
+       printf '%s' "$digest" \
          | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/filter-findings.js" \
              --scope "$spec" --repo-root "$(git rev-parse --show-toplevel)"
+     else
+       echo 'NON-CANONICAL: route the output path plus the scope spec to the triager'
      fi
      ```
+     The `else` branch is the routing signal — do not infer the case from empty stdout.
      `--repo-root` must be the repository toplevel, not `$PWD`: the spec is built from
      `git diff`, which emits toplevel-relative paths, and the two coincide only by
-     accident. The filter names every finding it drops on stderr; **any drop is a signal
-     to investigate the path convention**, never a clean run.
+     accident. The filter names the findings it drops on stderr (capped, escaped);
+     **any drop is a signal to investigate the path convention**, never a clean run.
 
-     When that exit code is non-zero the output is **non-canonical** (a human-readable
-     report, the common case for a declared technique). Do not pipe it —
-     `normalize-findings` fails loud by design, and forcing it would hard-fail the phase.
-     Pass the **path** of the out-of-tree output file to the triager along with the scope
-     spec, and let the technique's `triage-procedure` own the shaping. The orchestrator
-     still never reads the raw output — the invariant holds by delegation instead of by
-     filtering, and `contracts/harness-exec.md` carries the matching triager carve-out.
+     On the **non-canonical** branch (a human-readable report, the common case for a
+     declared technique): do not pipe it — `normalize-findings` fails loud by design, and
+     forcing it would hard-fail the phase. Pass the **path** of the out-of-tree output file
+     to the triager along with the scope spec, and let the technique's `triage-procedure`
+     own the shaping. The orchestrator still never reads the raw output — the invariant
+     holds by delegation instead of by filtering, and `contracts/harness-exec.md` carries
+     the matching triager carve-out, including the trust rule for that file.
 
      Read **only** the digested stdout — or, in the non-canonical case, nothing but the
      file path — into context, never the raw run output. Then spawn

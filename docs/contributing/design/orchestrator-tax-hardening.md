@@ -768,7 +768,7 @@ Measured over the repo's own 23 committed plans, before and after the self-path 
 |---|---|---|
 | plans emitting at least one warning | 14 of 23 | 14 of 23 |
 | total warnings | 50 | 49 |
-| overlap widths (parts per shared path) | 2:37 · 3:8 · 4:1 · 6:1 · 7:2 | 2:37 · 3:8 · 4:1 · 6:1 · 7:2 |
+| overlap widths (parts per shared path) | 2:38 · 3:8 · 4:1 · 6:1 · 7:2 | 2:37 · 3:8 · 4:1 · 6:1 · 7:2 |
 
 **State the uncomfortable number plainly: the fire rate did not move.** 14 of 23 is 61%,
 which is *over* the bar this strategy set ("a detector that warns on most historical plans

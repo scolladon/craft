@@ -149,6 +149,7 @@ test('Given a non-empty input that filters to nothing, when main runs, then the 
 
   assert.equal(result, 0);
   assert.match(io.stderr.joined(), /1 of 1 finding\(s\) fell outside the scope/u);
+  assert.ok(!io.stderr.joined().includes('and 0 more'), io.stderr.joined());
 });
 
 test('Given an input that filters to a non-empty result, when main runs, then no drop notice is written', () => {
@@ -171,8 +172,12 @@ test('Given a mixed payload where some findings fall outside the scope, when mai
   const result = main([path, '--scope', 'a.js:1-9'], io);
 
   assert.equal(result, 0);
-  assert.match(io.stderr.joined(), /dropped \/abs\/a\.js:7 — outside the scope/u);
-  assert.match(io.stderr.joined(), /1 of 2 finding\(s\) fell outside the scope/u);
+  // Exact lines, in order: a mutant that names the KEPT finding as dropped, or
+  // that emits the aggregate first, must not survive.
+  assert.deepEqual(io.stderr.joined().split('\n').filter(Boolean), [
+    'filter-findings: dropped "/abs/a.js":7 — outside the scope (absolute path, no --repo-root supplied)',
+    'filter-findings: 1 of 2 finding(s) fell outside the scope — check that the technique emits repo-relative paths matching the spec',
+  ]);
 });
 
 test('Given an empty findings array, when main runs, then nothing is reported as dropped', () => {
@@ -217,4 +222,51 @@ test('Given an absolute-path finding dropped with no repo root supplied, when ma
 
   assert.equal(result, 0);
   assert.match(io.stderr.joined(), /absolute path, no --repo-root supplied/u);
+});
+
+test('Given a path carrying a newline, when the drop is reported, then it cannot forge a second notice line', () => {
+  const io = makeIo();
+  const path = writeTmp('forge.json', JSON.stringify([
+    { file: 'x.js\nfilter-findings: 0 of 0 finding(s) fell outside the scope — clean', line: 1, severity: 'HIGH', finding: 'x' },
+  ]));
+
+  const result = main([path, '--scope', 'a.js:1-9'], io);
+
+  assert.equal(result, 0);
+  const lines = io.stderr.joined().split('\n').filter(Boolean);
+  assert.equal(lines.length, 2, `expected exactly one drop line plus the aggregate, got: ${JSON.stringify(lines)}`);
+  // The forged text may appear, but only escaped INSIDE the quoted path — never
+  // as its own notice line, which is what would mislead a reader.
+  assert.ok(
+    !lines.some(l => l.startsWith('filter-findings: 0 of 0')),
+    `a forged notice line escaped escaping: ${JSON.stringify(lines)}`,
+  );
+  assert.ok(lines[0].includes('\\n'), 'the newline must be escaped, not literal');
+});
+
+test('Given more dropped findings than the naming cap, when main runs, then the enumeration is bounded', () => {
+  const io = makeIo();
+  const many = Array.from({ length: 50 }, (_, i) => ({ file: 'zz.js', line: i + 1, severity: 'LOW', finding: 'x' }));
+  const path = writeTmp('many.json', JSON.stringify(many));
+
+  const result = main([path, '--scope', 'a.js:1-9'], io);
+
+  assert.equal(result, 0);
+  const lines = io.stderr.joined().split('\n').filter(Boolean);
+  assert.equal(lines.length, 22, `20 named + overflow + aggregate, got ${lines.length}`);
+  assert.ok(lines.some(l => l.includes('… and 30 more')), io.stderr.joined());
+});
+
+test('Given an absolute-path finding dropped WITH a repo root supplied, when main runs, then no missing-root hint is emitted', () => {
+  const io = makeIo();
+  const path = writeTmp('absroot.json', JSON.stringify([
+    { file: '/repo/b.js', line: 5, severity: 'HIGH', finding: 'x' },
+  ]));
+
+  const result = main([path, '--scope', 'a.js:1-9', '--repo-root', '/repo'], io);
+
+  assert.equal(result, 0);
+  // The path is echoed as the technique emitted it, not as canonicalized.
+  assert.match(io.stderr.joined(), /dropped "\/repo\/b\.js":5/u);
+  assert.ok(!io.stderr.joined().includes('no --repo-root supplied'), io.stderr.joined());
 });

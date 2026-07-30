@@ -478,3 +478,28 @@ test('Given a file declared by exactly the merge limit, when main runs, then the
   assert.ok(io.stdout.joined().includes('Merge the parts or state why they are separate.'),
     io.stdout.joined());
 });
+
+test('Given a cwd-relative plan path from a subdirectory, when main runs, then the self-exclusion still applies', () => {
+  const sut = main;
+  const root = repoRoot();
+  const subdir = join(root, 'sub');
+  mkdirSync(subdir, { recursive: true });
+  const body = 'See `sub/self.md` for the provenance.';
+  const plan = `# Plan — Test topic\n\n${part('1', body)}\n\n${part('2', body)}`;
+  writeFileSync(join(subdir, 'self.md'), plan);
+  const io = makeCaptureIo();
+
+  const cwd = process.cwd();
+  let result;
+  try {
+    process.chdir(subdir);
+    // Relative argv: without resolve() before containment the self path never
+    // matches and the exclusion silently stops applying for this invocation form.
+    result = sut(['self.md'], io);
+  } finally {
+    process.chdir(cwd);
+  }
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stdout.joined().includes('cognitive-locality'), io.stdout.joined());
+});

@@ -4,6 +4,24 @@ import { parseScopeSpec, filterFindings } from './findings.js';
 const SCOPE_FLAG = '--scope';
 const ROOT_FLAG = '--repo-root';
 
+// Drops are the normal mode under per-hunk scoping, so the enumeration is capped:
+// naming every drop would copy a projection of the whole run into the orchestrator's
+// context, which is the thing this boundary exists to prevent.
+const MAX_NAMED_DROPS = 20;
+// Echoed paths come from raw technique output. Same discipline the parse-error path
+// uses: truncate, then JSON-escape so newlines and control characters cannot forge
+// a second `filter-findings:` line.
+const MAX_ECHO_CHARS = 120;
+
+/**
+ * Render an untrusted path for a single-line stderr notice.
+ * @param {string} file
+ * @returns {string}
+ */
+function echoPath(file) {
+  return JSON.stringify(file.length > MAX_ECHO_CHARS ? `${file.slice(0, MAX_ECHO_CHARS)}…` : file);
+}
+
 /**
  * Emit a filter-findings error message to stderr.
  * @param {string} message
@@ -90,17 +108,29 @@ export function main(argv, io) {
   // the all-dropped case. A mixed payload where one finding matches and a
   // CRITICAL silently vanishes on path shape is the realistic failure, and it is
   // exactly what an aggregate-only notice hides.
-  const dropped = parsedCount - findings.length;
+  //
+  // Two disciplines apply to what gets echoed, because this stderr lands in the
+  // orchestrator's context and the values come from raw technique output:
+  //   - escape and truncate, so a path carrying newlines cannot forge log lines
+  //     (the same rule the parse-error path already applies);
+  //   - cap the enumeration, because the trigger condition (path-shape mismatch)
+  //     is exactly the condition under which EVERY finding drops.
+  const dropped = droppedFindings.length;
   if (dropped > 0) {
-    for (const finding of droppedFindings) {
+    for (const finding of droppedFindings.slice(0, MAX_NAMED_DROPS)) {
       // Name the likeliest cause rather than leaving the operator to guess: an
       // absolute path dropped with no root supplied is the opt-in-flag trap.
-      const rootHint = repoRoot === '' && String(finding.file).startsWith('/')
+      const file = String(finding.file);
+      const rootHint = repoRoot === '' && file.startsWith('/')
         ? ' (absolute path, no --repo-root supplied)'
         : '';
       io.stderr.write(
-        `filter-findings: dropped ${finding.file}:${finding.line} — outside the scope${rootHint}\n`,
+        `filter-findings: dropped ${echoPath(file)}:${Number(finding.line)}`
+        + ` — outside the scope${rootHint}\n`,
       );
+    }
+    if (dropped > MAX_NAMED_DROPS) {
+      io.stderr.write(`filter-findings: … and ${dropped - MAX_NAMED_DROPS} more\n`);
     }
     io.stderr.write(
       `filter-findings: ${dropped} of ${parsedCount} finding(s) fell outside the scope — `

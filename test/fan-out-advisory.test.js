@@ -37,10 +37,15 @@ test('Given the fan-out threshold is stated in prose, then every surface carries
   }
 });
 
-test('Given the advisory names a cost basis, then the guide section it points at exists', () => {
-  const guide = fs.readFileSync(path.join(ROOT, 'docs', 'guides', 'customizing.md'), 'utf8');
+test('Given the advisory names a cost basis, then the file it points at exists and discusses cost', () => {
+  const source = fs.readFileSync(RESOLVE_SRC, 'utf8');
 
-  const result = guide.includes('Cost basis for the fan-out advisory');
+  // Derived from production: pins the engine→doc link the advisory actually emits,
+  // not an arbitrary heading string no code references.
+  const pointer = source.match(/Cost basis: (\S+\.md)\b/);
+  assert.ok(pointer, 'the advisory line must name a cost-basis file');
+  const target = path.join(ROOT, pointer[1]);
 
-  assert.ok(result, 'customizing.md must carry the cost-basis section the advisory line cites');
+  assert.ok(fs.existsSync(target), `${pointer[1]} named by the advisory does not exist`);
+  assert.match(fs.readFileSync(target, 'utf8'), /cost basis/iu);
 });
