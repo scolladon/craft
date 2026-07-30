@@ -32,6 +32,10 @@ const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
  * tolerating colons inside the path itself.
  */
 const SCOPE_ENTRY_PATTERN = /^(.+):(\d+)-(\d+)$/u;
+// The per-file scope form: a bare path, no range. Rejects an empty entry and
+// anything carrying the range separator, so a mistyped range never reads as a
+// whole-file grant.
+const WHOLE_FILE_ENTRY_PATTERN = /^[^:]+$/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
@@ -192,19 +196,25 @@ export function normalizeFindings(raw) {
 }
 
 /**
- * Parses a single `<file>:<start>-<end>` scope-spec entry.
- * Throws on any shape that doesn't match, or a range where `start < 1` or
- * `end < start` — never a silent drop.
+ * Parses a single scope-spec entry. `<file>:<start>-<end>` bounds a hunk;
+ * a bare `<file>` covers the whole file, which is the per-file scope form.
+ * Throws on any other shape, or a range where `start < 1` or `end < start`
+ * — never a silent drop.
  *
  * @param {string} entry
  * @returns {ScopeRange}
  */
 function parseScopeEntry(entry) {
   const match = entry.match(SCOPE_ENTRY_PATTERN);
-  const start = match ? Number(match[2]) : NaN;
-  const end = match ? Number(match[3]) : NaN;
-  const valid = match !== null && start >= 1 && end >= start;
-  if (!valid) {
+  if (match === null) {
+    if (WHOLE_FILE_ENTRY_PATTERN.test(entry)) {
+      return { file: entry, start: 1, end: Number.MAX_SAFE_INTEGER };
+    }
+    throw new Error(`malformed scope entry: "${entry}"`);
+  }
+  const start = Number(match[2]);
+  const end = Number(match[3]);
+  if (!(start >= 1 && end >= start)) {
     throw new Error(`malformed scope entry: "${entry}"`);
   }
   return { file: match[1], start, end };

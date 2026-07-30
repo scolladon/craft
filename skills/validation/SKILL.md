@@ -133,15 +133,39 @@ sub-concern also no-op'd.
      **outside the worktree** (an in-tree `.craft-*` sibling can be swept into a commit
      by one of the agents running in parallel during `documentation`; an out-of-tree
      temp needs no ignore rule and no cleanup contract — `contracts/producer.md:5`
-     throwaway discipline). Build `<spec>`, the comma-joined `<file>:<start>-<end>`
-     list, from the **same** `git diff -U0` walk the Scope bullet above already runs.
-     Digest at the boundary with exactly this two-invocation pipe:
-     ```bash
-     node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" \
-       | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/filter-findings.js" --scope "<spec>"
-     ```
-     Read **only** that stdout into context — never the raw run output — then spawn
-     **craft:harness-triager** with: that filtered findings output; **reviewer-predicted
+     throwaway discipline). Build the comma-joined scope spec from the **same**
+     `git diff -U0` walk the Scope bullet above already runs, and **write it to a file,
+     then read it into a shell variable** — never interpolate repo-derived paths into
+     command text, since a filename may legitimately contain quotes or `$(…)`. Under
+     `per-hunk` each entry is `<file>:<start>-<end>`; under `per-file` each entry is
+     `<file>` alone, which the filter reads as the whole file.
+
+     **Digest at the boundary.** The invariant is that raw run output never enters
+     orchestrator context. The pipe below is the mechanism for that only when the
+     technique's output is already canonical — decide per technique:
+     - **Canonical output** (a `Finding[]` JSON array, or the per-line
+       `<severity> <file>:<line> — <finding>` shape): digest with this two-invocation
+       pipe and read only its stdout.
+       ```bash
+       spec="$(cat "$specfile")"
+       node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" \
+         | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/filter-findings.js" \
+             --scope "$spec" --repo-root "$PWD"
+       ```
+       `--repo-root` lets the filter match a technique that emits absolute paths. If the
+       filter reports that every finding fell outside the scope, that is a **signal to
+       investigate the path convention**, never a clean run.
+     - **Non-canonical output** (a human-readable report, which is the common case for a
+       declared technique): do NOT pipe it. `normalize-findings` fails loud by
+       design, and forcing it would hard-fail the phase. Pass the **path** of the
+       out-of-tree output file to the triager along with the scope spec, and let the
+       technique's `triage-procedure` own the shaping. The orchestrator still never reads
+       the raw output — the invariant holds by delegation instead of by filtering.
+
+     Read **only** the digested stdout — or, in the non-canonical case, nothing but the
+     file path — into context, never the raw run output. Then spawn
+     **craft:harness-triager** with: that filtered findings output (or the output path
+     plus scope spec); **reviewer-predicted
      suspected-benign harness findings verbatim** (from the review phase's advisory
      notes — already bounded, structured, and normalized upstream, so it passes through
      untouched); the gates; the commit message `<commit-prefix>(validation):

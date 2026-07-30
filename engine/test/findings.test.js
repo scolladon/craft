@@ -626,3 +626,29 @@ test('Given an absolute finding path outside the repo root, when filtered, then 
 
   assert.deepEqual(result, []);
 });
+
+test('Given a range-less entry, when the spec is parsed, then it covers the whole file', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('engine/src/glob.js');
+
+  assert.deepEqual(result, [{ file: 'engine/src/glob.js', start: 1, end: Number.MAX_SAFE_INTEGER }]);
+});
+
+test('Given a range-less entry, when findings on any line are filtered, then all are kept', () => {
+  const sut = filterFindings;
+  const findings = [
+    { file: 'a.js', line: 1, severity: 'HIGH', finding: 'first' },
+    { file: 'a.js', line: 99999, severity: 'LOW', finding: 'far down' },
+  ];
+
+  const result = sut(findings, parseScopeSpec('a.js'));
+
+  assert.deepEqual(result, findings);
+});
+
+test('Given an entry with a malformed range, when the spec is parsed, then it is still rejected', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(() => sut('a.js:9-1'), /malformed scope entry/u);
+});
