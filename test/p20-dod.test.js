@@ -51,3 +51,37 @@ test(
     }
   },
 );
+
+test(
+  'Given the rule-vs-fact criterion is asserted, when DOD.md is read, then the id appears in the frontmatter and on a checklist line',
+  () => {
+    const content = fs.readFileSync(path.join(ROOT, 'docs/contributing/DOD.md'), 'utf8');
+
+    assert.ok(content.includes('- id: rule-vs-fact-stated'), 'Expected "- id: rule-vs-fact-stated" in the DOD.md frontmatter');
+    // Checklist bullets wrap across lines in this file (see architecture-gap-honest); the
+    // criterion id closes the bullet's last physical line, so match the whole wrapped bullet.
+    assert.ok(
+      /^- \[ \] [^\n]*(?:\n(?!- \[)[^\n]*)*`rule-vs-fact-stated`$/m.test(content),
+      'Expected a checklist bullet ending in `rule-vs-fact-stated` in DOD.md',
+    );
+  },
+);
+
+test(
+  'Given the amended criteria list, when dod-assert runs over the real DOD.md, then it exits 0 and reports the new criterion as judgment',
+  () => {
+    const stdout = execFileSync('node', [
+      path.join(ROOT, 'engine/bin/dod-assert.js'),
+      path.join(ROOT, 'docs/contributing/DOD.md'),
+      ROOT,
+      '',
+    ]).toString('utf8');
+
+    const { outcomes } = JSON.parse(stdout);
+
+    assert.deepStrictEqual(
+      outcomes.find((outcome) => outcome.id === 'rule-vs-fact-stated'),
+      { id: 'rule-vs-fact-stated', kind: 'judgment', outcome: 'judgment' },
+    );
+  },
+);

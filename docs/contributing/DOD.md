@@ -26,6 +26,8 @@ criteria:
     kind: judgment
   - id: architecture-gap-honest
     kind: judgment
+  - id: rule-vs-fact-stated
+    kind: judgment
 ---
 
 # Definition of Done — craft
@@ -47,6 +49,9 @@ checklist's stated terms. Each checklist line names its criterion id.
 - [ ] Conventional commit: one-line `<type>(scope): description`, no co-author trailer. `conventional-commits`
 - [ ] No dead code, no primitive obsession, no nesting > 2, no magic values. `code-quality`
 - [ ] All errors handled or re-thrown with context; none swallowed silently. `error-handling`
+- [ ] Any new standing rule (a contract or skill line) that encodes a decision procedure
+  states why stating one missing fact would not have sufficed; N/A when the change
+  proposes no standing rule. `rule-vs-fact-stated`
 
 ---
 
