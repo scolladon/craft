@@ -22,10 +22,17 @@ const BUFFERED_FLUSH_SENTENCE =
 function sliceRegion(content, startPattern, endPattern) {
   const lines = content.split('\n');
   const startIdx = startPattern ? lines.findIndex((line) => startPattern.test(line)) : 0;
+  // A missing boundary must fail loudly. Degrading to the whole file would turn
+  // every region-scoped assertion below into a whole-file grep — passing for the
+  // wrong reason the moment a heading is renamed.
+  assert.notEqual(startIdx, -1, `region start ${startPattern} not found — heading renamed?`);
   const searchFrom = startPattern ? startIdx + 1 : 0;
   const relativeEnd = endPattern ? lines.slice(searchFrom).findIndex((line) => endPattern.test(line)) : -1;
-  const endIdx = endPattern && relativeEnd !== -1 ? searchFrom + relativeEnd : lines.length;
-  return lines.slice(startIdx === -1 ? 0 : startIdx, endIdx).join(' ');
+  if (endPattern) {
+    assert.notEqual(relativeEnd, -1, `region end ${endPattern} not found — heading renamed?`);
+  }
+  const endIdx = endPattern ? searchFrom + relativeEnd : lines.length;
+  return lines.slice(startIdx, endIdx).join(' ');
 }
 
 const runSkill = fs.readFileSync(RUN_SKILL_PATH, 'utf8');
@@ -88,12 +95,21 @@ test('Given the run-local ruling adds no ledger-preservation step, when scripts/
   assert.ok(!result.includes('ledger'));
 });
 
-test('Given skills/integrate/SKILL.md step 3, when read, then it states the memory delta must already be derived before the teardown script runs', () => {
-  const result = fs.readFileSync(INTEGRATE_SKILL_PATH, 'utf8');
+test('Given skills/integrate/SKILL.md step 3, when the step region is read, then it assigns the delta derivation as an action ahead of teardown', () => {
+  const integrateSkill = fs.readFileSync(INTEGRATE_SKILL_PATH, 'utf8');
 
-  assert.ok(/derived/i.test(result));
-  assert.ok(result.includes('run-record.md') || result.includes(LEDGER_PATH));
-  assert.ok(/before/i.test(result));
+  const result = sliceRegion(integrateSkill, /^3\. \*\*Derive the /u, /^4\. /u);
+
+  // Imperative, not a stated precondition: an orchestrator reading only this step
+  // must know to perform the read, not merely that it should already have happened.
+  assert.match(result, /read this\s+run's run-id lines from the on-disk ledger/u);
+  assert.match(result, /into the in-session `delta` and hold it/u);
+  assert.ok(result.includes('run-record.md'), 'step 3 must cite the ledger spec');
+  // The derivation must precede the teardown invocation within this same region.
+  assert.ok(
+    result.indexOf('delta') < result.indexOf('worktree-teardown.sh'),
+    'the derivation must be stated before the teardown invocation',
+  );
 });
 
 test('Given docs/contributing/specs/run-record.md, when read, then it exists and is non-empty', () => {

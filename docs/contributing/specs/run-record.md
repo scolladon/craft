@@ -2,10 +2,19 @@
 
 ## File shape and header
 
-One append-only markdown file at `.claude/craft-run-record.md`, rooted at the repo ROOT
-(the worktree/checkout root — never `${CLAUDE_PLUGIN_ROOT}`; the same rooting rule
-`skills/run/SKILL.md` §1c-mem states for `memory.ref`). A header line opens the file when
-it is absent:
+One append-only markdown file at `.claude/craft-run-record.md`, rooted at the root of the
+tree the run is working in — never `${CLAUDE_PLUGIN_ROOT}`.
+
+That tree changes exactly once per run, so the root is stated per write point rather than
+once for the file. `workspace` creates the worktree; lines produced **before** it are
+buffered in-session and flushed into the **worktree** ledger at `workspace`, and every
+later write goes to the worktree root. Nothing is ever written to the pre-worktree
+checkout: an untracked ledger left there would outlive the run, accumulate across runs,
+and split one run's record across two files. Under `workspace: { strategy: in-place }`
+there is no second tree, so the checkout root is the only root and the file opens at
+resolve time. `skills/run/SKILL.md` §0 step 4 is the binding statement of this rule.
+
+A header line opens the file when it is absent:
 
 ```
 # craft run record (append-only)
@@ -31,6 +40,14 @@ brief with no extra state. Field 2 is the emitting phase: some tokens carry thei
 phase (`GATE(<phase>)`, `NO-OP(<phase>)`) and some do not (`auto-skip:`, `WAIVER:`,
 `INTENTION-DRIFT(<page>)`), so this column is what makes every line uniformly
 attributable regardless of which token family produced it.
+
+**Path and secret discipline.** The ledger is run-local, but it is the derivation source
+for the memory delta, and the memory store IS committed. A line that would become a store
+entry carries the store's guardrails already: paths recorded repo-RELATIVE, never
+absolute (an absolute path leaks `$HOME` and the username into a committed file), and any
+command recorded BARE, with a leading env or secret assignment prefix stripped. See
+`docs/contributing/specs/memory.md`; the scrub is the producer's obligation at both hops,
+since `save` performs no validation on the write path.
 
 ## The absent-file case
 

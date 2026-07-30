@@ -25,11 +25,13 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    Then invoke the VCS port `integrate(prUrl)` (see `docs/contributing/specs/vcs.md`); the adapter
    owns the host CLI. `--squash` / `--delete-branch` / `merge-flags` semantics live in
    the adapter binding. Always delete-branch: no merged branch lingers on the remote.
-3. **Consult `teardown` action** separately before worktree teardown (per-verb
-   granularity, ADR-126; see `docs/contributing/specs/policy.md`). **Before this step
-   runs:** the `Done`-bound memory delta must already have been derived from the
-   on-disk ledger's run-id lines (`docs/contributing/specs/run-record.md`) — this step's
-   teardown removes the worktree, and the ledger lives inside it. Then:
+3. **Derive the `Done`-bound memory delta, then consult `teardown`.** First, read this
+   run's run-id lines from the on-disk ledger
+   (`docs/contributing/specs/run-record.md`) into the in-session `delta` and hold it —
+   the teardown below removes the worktree and the ledger inside it, so this is the last
+   point at which it can be read. `save` itself still runs once, atomically, at `Done`.
+   Then **consult the `teardown` action** separately before worktree teardown (per-verb
+   granularity, ADR-126; see `docs/contributing/specs/policy.md`) and:
    ```bash
    "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \
      [--pre-teardown <manifest scripts.pre-teardown>]

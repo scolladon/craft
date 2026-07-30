@@ -130,15 +130,29 @@ Input: `$ARGUMENTS`
 3. Derive a kebab-case topic slug (≤6 words). Print:
    `Resolved → topic: <slug>, brief: <one line>` for user confirmation.
 4. Open the **run record** — an append-only on-disk ledger at
-   `.claude/craft-run-record.md` (repo ROOT, never `${CLAUDE_PLUGIN_ROOT}`; run-local,
+   `.claude/craft-run-record.md` (never under `${CLAUDE_PLUGIN_ROOT}`; run-local,
    gitignored by the existing `.claude/*` rule — see `docs/contributing/specs/run-record.md`).
-   If the file is absent, append the header line `# craft run record (append-only)`
-   first; then flush every seeded `Resolution.record[]` line (step 1c) as one
-   run-id-prefixed record per line. Every subsequent phase outcome, skip reason, no-op
-   justification, probe result, and forced action is appended the same way. **Only the
-   orchestrator ever appends to this file** — no role agent writes it, in any phase,
-   including phases that run in parallel. The final summary and the PR body take only
-   the lines whose run-id prefix is this run's.
+
+   **Which root, and when.** The ledger lives at the root of the tree the run works in,
+   and that tree changes once: `workspace` (walk step 1) creates the worktree, after
+   which all work happens there. Every write point must therefore name its root:
+   - **Before `workspace`** (this step, and the step-1c seeded lines): buffer the lines
+     in-session. Do NOT write them to the current checkout — that file would outlive
+     the run, uncommitted and never swept, and would split the run across two ledgers.
+   - **From `workspace` onward** (every phase-boundary flush at walk step 7, and the
+     `Done` residual flush): the **worktree** root. At `workspace`, open the ledger
+     there, write the header line `# craft run record (append-only)` if absent, then
+     flush the buffered pre-worktree lines first, so the worktree ledger holds the
+     whole run in order.
+
+   Under `workspace: { strategy: in-place }` there is no second tree and no split — the
+   checkout root is the only root, and the ledger opens at this step directly.
+
+   Each line is one run-id-prefixed record. Every subsequent phase outcome, skip reason,
+   no-op justification, probe result, and forced action is appended the same way.
+   **Only the orchestrator ever appends to this file** — no role agent writes it, in any
+   phase, including phases that run in parallel. The final summary and the PR body take
+   only the lines whose run-id prefix is this run's.
 
 ## Phase walk (driven by Resolution.effective[])
 
@@ -489,11 +503,14 @@ outcome line plus anything `Done` appends exist in-session only, where they alre
 ship: in the final summary and the PR body.
 
 **Memory save (once per run).** `delta` is derived from the ledger's lines carrying this
-run's run-id — but that derivation (a read) must already have happened no later than
-`skills/integrate/SKILL.md` step 3, **before** it invokes `worktree-teardown.sh`, because
-teardown removes the worktree and the ledger inside it
-(`docs/contributing/specs/run-record.md`). Hold the derived `delta` in-session across the
-rest of the walk. Resolve the store path from `memory.ref` (default
+run's run-id, **as concern-keyed facts** — the store's per-concern schema and its
+leak guardrails still bind (`docs/contributing/specs/memory.md`): paths repo-RELATIVE
+never absolute, gate commands stored BARE with any env/secret assignment prefix
+stripped. The ledger is run-local, but the store it feeds is committed, so the scrub
+happens here on the way in. `skills/integrate/SKILL.md` step 3 performs the derivation
+itself, before it invokes `worktree-teardown.sh` — teardown removes the worktree and the
+ledger inside it (`docs/contributing/specs/run-record.md`). Hold the derived `delta`
+in-session across the rest of the walk. Resolve the store path from `memory.ref` (default
 `.claude/craft-memory.md`) rooted at the repo ROOT, same as `load` (the engine joins
 `ref` under the repo root and refuses a path that escapes it). Call
 `save(repoRoot, view, delta, deps)` **once**, atomically — `view` is the run-start
