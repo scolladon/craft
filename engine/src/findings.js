@@ -3,6 +3,10 @@
  */
 
 /**
+ * @typedef {{ file: string, start: number, end: number }} ScopeRange
+ */
+
+/**
  * Per-line shape: <severity> <file>:<line> — <finding> [ | <fix> ]
  * The em-dash separator (—) may be surrounded by any whitespace; the ` | ` fix part
  * is optional. We split on the pipe delimiter FIRST, then match the head with a single
@@ -21,6 +25,13 @@ const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
  * no new backtracking shape to the line-head match.
  */
 const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
+
+/**
+ * One scope-spec entry: `<file>:<start>-<end>`. The head is greedy so the
+ * LAST colon (not the first) separates the file path from the range —
+ * tolerating colons inside the path itself.
+ */
+const SCOPE_ENTRY_PATTERN = /^(.+):(\d+)-(\d+)$/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
@@ -178,4 +189,53 @@ export function normalizeFindings(raw) {
   }
 
   return parseLineShape(trimmed);
+}
+
+/**
+ * Parses a single `<file>:<start>-<end>` scope-spec entry.
+ * Throws on any shape that doesn't match, or a range where `start < 1` or
+ * `end < start` — never a silent drop.
+ *
+ * @param {string} entry
+ * @returns {ScopeRange}
+ */
+function parseScopeEntry(entry) {
+  const match = entry.match(SCOPE_ENTRY_PATTERN);
+  const start = match ? Number(match[2]) : NaN;
+  const end = match ? Number(match[3]) : NaN;
+  const valid = match !== null && start >= 1 && end >= start;
+  if (!valid) {
+    throw new Error(`malformed scope entry: "${entry}"`);
+  }
+  return { file: match[1], start, end };
+}
+
+/**
+ * Parses a single comma-joined scope spec into `ScopeRange[]`.
+ * An empty spec is the honest "nothing changed" — it returns [].
+ *
+ * @param {string} spec
+ * @returns {ScopeRange[]}
+ */
+export function parseScopeSpec(spec) {
+  if (spec === '') {
+    return [];
+  }
+  return spec.split(',').map(parseScopeEntry);
+}
+
+/**
+ * Keeps a finding when some range covers its file and line (inclusive on
+ * both ends). Order-preserving; a finding matching no range is dropped.
+ *
+ * @param {Finding[]} findings
+ * @param {ScopeRange[]} ranges
+ * @returns {Finding[]}
+ */
+export function filterFindings(findings, ranges) {
+  return findings.filter(finding =>
+    ranges.some(range =>
+      range.file === finding.file && range.start <= finding.line && finding.line <= range.end,
+    ),
+  );
 }

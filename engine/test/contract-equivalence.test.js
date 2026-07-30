@@ -34,7 +34,7 @@ const PHASE_EXPECTATIONS = {
   producer:       ['template', 'Decision-candidates', 'convergence', 'mktemp'],
   construction:   ['RED→GREEN→REFACTOR', 'atomic commit', 'sut'],
   'harness-read': ['Read-only', 'findings', 'Zero findings'],
-  'harness-exec': ['triages', 'Never weaken'],
+  'harness-exec': ['triages', 'Never weaken', 'change-scoped'],
   delivery:       ['traceable', 'listed targets', 'synthesis records'],
   refinement:     ['Behavior-preserving', 'mechanically', 'refactor('],
 };

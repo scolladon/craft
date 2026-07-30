@@ -129,14 +129,26 @@ sub-concern also no-op'd.
      grinds.
    - **`mode: gate`** — run the technique's `run` command; the exit code decides
      pass/fail. Green → record pass; red → escalate as a blocker.
-   - **`mode: triage`** — when the run lands, filter findings to the change's lines only
-     (pre-existing-line findings are out of scope), then spawn **craft:harness-triager**
-     with: the filtered findings; **reviewer-predicted suspected-benign harness findings
-     verbatim** (from the review phase's advisory notes); the gates; the commit message
-     `<commit-prefix>(validation): <technique-id> <scope>`; global + validation-phase
-     `context:` files verbatim; the technique's `triage-procedure` ref (if declared).
-     Remove the fix vocabulary specific to any one technique — the triager decides
-     whether to kill with a test or document a provable benign result.
+   - **`mode: triage`** — redirect the technique's `run` output to a `mktemp` file
+     **outside the worktree** (an in-tree `.craft-*` sibling can be swept into a commit
+     by one of the agents running in parallel during `documentation`; an out-of-tree
+     temp needs no ignore rule and no cleanup contract — `contracts/producer.md:5`
+     throwaway discipline). Build `<spec>`, the comma-joined `<file>:<start>-<end>`
+     list, from the **same** `git diff -U0` walk the Scope bullet above already runs.
+     Digest at the boundary with exactly this two-invocation pipe:
+     ```bash
+     node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js" "$out" \
+       | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/filter-findings.js" --scope "<spec>"
+     ```
+     Read **only** that stdout into context — never the raw run output — then spawn
+     **craft:harness-triager** with: that filtered findings output; **reviewer-predicted
+     suspected-benign harness findings verbatim** (from the review phase's advisory
+     notes — already bounded, structured, and normalized upstream, so it passes through
+     untouched); the gates; the commit message `<commit-prefix>(validation):
+     <technique-id> <scope>`; global + validation-phase `context:` files verbatim; the
+     technique's `triage-procedure` ref (if declared). Remove the fix vocabulary
+     specific to any one technique — the triager decides whether to kill with a test or
+     document a provable benign result.
 2. **The PR waits for triage** (orchestrator invariant): when each triage-mode run
    lands and its triager commits, verify the triager's commit; run `gates.phase`; record
    per-finding outcomes in the run record.
