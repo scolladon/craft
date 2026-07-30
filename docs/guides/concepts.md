@@ -1,13 +1,13 @@
-# craft concepts — four frames on why it's shaped this way
+# craft concepts — five frames on why it's shaped this way
 
-An orientation layer, not a reference: four external ways of talking about agentic delivery,
+An orientation layer, not a reference: five external ways of talking about agentic delivery,
 each mapped onto the real craft mechanism it describes. Start here to recognize *why* the
 pipeline, the harnesses, the manifest, and the human checkpoints look the way they do; go to
 [customizing.md](customizing.md) for *how* to configure any of them.
 
 craft's own vocabulary is what actually runs the system — review, validation, architecture,
 policy, manifest, declination, verdict — and stays primary everywhere else in the docs. The
-four external frames below are lenses *onto* that vocabulary, borrowed because each already
+five external frames below are lenses *onto* that vocabulary, borrowed because each already
 has a name for something craft does; none of them renames a phase, a port, a manifest key, or
 an agent. Where an external term and a craft term collide, the craft term is the one you
 configure, run, and grep for.
@@ -18,7 +18,7 @@ Each frame below borrows one external way of talking about agentic delivery — 
 people have already named — and maps it onto the craft mechanism that actually implements it.
 The mapping table in each frame is the load-bearing part: every row names a real, current
 mechanism and the doc that owns it, never an aspiration. The prose around each table is only
-the framing; if a row and its owning doc ever disagree, the owning doc wins. Read the four
+the framing; if a row and its owning doc ever disagree, the owning doc wins. Read the five
 frames in order the first time — each adds a lens the next one assumes — then use the Rosetta
 stone at the end as a lookup once the mapping has sunk in.
 
@@ -183,9 +183,42 @@ which is also why the three engine floors stay outside the Policy port's vocabul
 verdict you can name is a verdict you could eventually set to `always`, and some things are not
 supposed to be nameable that way.
 
+## Frame 5 — Fowler: the orchestrator's tax
+
+The core claims: subagents exist to protect the orchestrator's own working memory; context
+pollution taxes every later turn even when the window still has room to spare; and stating
+one missing fact usually beats encoding a decision procedure for finding it. craft already
+lived inside part of this frame before the change that added this section: every phase runs a
+fresh-context role agent (Frame 1's *Roles separated* row), the artifact is the handoff
+(`contracts/core.md:2`), the pre-chew mandate keeps a callee from re-exploring what the caller
+already resolved (`contracts/producer.md:3`), and a review round already threads bounded
+`Finding[]` state instead of a transcript, measured at ~31% fewer output tokens (Frame 1's
+*bounded state* row, `contracts/harness-read.md`). What did not exist before is protection for
+the *orchestrator's own* memory across phase boundaries and harness runs, rather than a role
+agent's memory within one turn: an on-disk ledger that survives a session reset instead of
+living only in scrollback, a digest that keeps a full harness run's raw output out of the
+triager's context, and an advisory that catches the same fact declared twice before a human
+reads it twice. Frame 1's closing paragraph already sets this guide's bar for a new section —
+*"it has to change what you'd build next, not only what you'd call what already exists"* — and
+these three mechanisms clear it: none of them existed before this change produced them.
+Concretely: running `plan-lint` over this very plan warns that `contracts/core.md` is declared
+in Part 1 and Part 2 — advisory only, exit code unchanged — instead of a human noticing the
+duplication by reading both parts side by side.
+
+| External concept | craft mechanism (real) | Owning doc / key |
+|---|---|---|
+| Protect the orchestrator's own memory across a reset | the run record's on-disk ledger — an append-only `.claude/craft-run-record.md`, orchestrator-only writer, one append per phase boundary, run-local and never committed | [../contributing/specs/run-record.md](../contributing/specs/run-record.md); [../../skills/run](../../skills/run) |
+| Pollution taxes every later turn, even with room to spare | the digest at the validation boundary — `engine/bin/filter-findings.js` (`parseScopeSpec` / `filterFindings` in `engine/src/findings.js`), piped from the normalizer so only the change-scoped, structured slice ever reaches the triager's context | [../../contracts/harness-exec.md](../../contracts/harness-exec.md); [../../skills/validation](../../skills/validation) |
+| State the one missing fact, don't make the reader re-derive it | the plan-lint cognitive-locality advisory — one warning line when the same backticked path is declared across two parts, so the duplication is named instead of left for a human to notice | [../../engine/bin/plan-lint.js](../../engine/bin/plan-lint.js); [customizing.md](customizing.md) |
+
+Read the three rows as the tax paid at three different seams: a session reset, a harness run,
+and a plan review. Each mechanism is cheap in isolation — a ledger append, a stdout filter, a
+set intersection — and each exists because paying that cost once, mechanically, beats an
+orchestrator re-deriving the same fact from a bigger blob of context on every later turn.
+
 ## Rosetta stone
 
-A closing cross-reference for readers who arrive already fluent in one of the four frames —
+A closing cross-reference for readers who arrive already fluent in one of the five frames —
 skim it first, then open the frame section above for the full mapping and its owning doc:
 
 | External term | craft mechanism | Where configured |
@@ -200,10 +233,11 @@ skim it first, then open the frame section above for the full mapping and its ow
 | The floor | the invariant core | [customizing.md](customizing.md) §2 |
 | Inner loop / outer loop | phase work vs. manifest/gates/policy | [../contributing/specs/policy.md](../contributing/specs/policy.md) |
 | The Verdict | Policy `always` / `ask` / `never` | [../contributing/specs/policy.md](../contributing/specs/policy.md) |
+| The orchestrator's tax | on-disk run-record ledger + validation boundary digest + plan-lint locality advisory | `.claude/craft-run-record.md`; [../../skills/validation](../../skills/validation); `engine/bin/plan-lint.js` |
 
 ## Sources
 
-The four frames above are grounded in these six URLs, cited verbatim rather than paraphrased:
+The five frames above are grounded in these seven URLs, cited verbatim rather than paraphrased:
 
 - <https://gist.github.com/sanchez314c/a767997b030d2904c0d0f08fabae2d42> — Karpathy-Michaels CLAUDE.md + LOOPS.md
 - <https://x.com/Vtrivedy10/status/2031408954517971368>
@@ -211,3 +245,4 @@ The four frames above are grounded in these six URLs, cited verbatim rather than
 - <https://thoughtworks.com/en-de/radar/techniques/architectural-fitness-function>
 - <https://lexler.github.io/augmented-coding-patterns/patterns/approved-scenarios/>
 - <https://addyosmani.com/blog/own-the-outer-loop/> — Osmani
+- <https://martinfowler.com/articles/orchestrator-tax.html> — Fowler, the orchestrator's tax
