@@ -31,8 +31,10 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    read-only craft:reviewer per dimension in parallel (one message,
    `dimensions.length × reviewPlan.passes` spawns)**. This count is engine-emitted and
    binding — the walk MUST spawn exactly that many reviewers per dimension, no more, no
-   fewer. Each carries: its dimension + definition; the working directory; the diff scope;
-   the design doc path (if any); global + review-phase `context:` files verbatim. Perf
+   fewer. A resolved product above eight also lands an advisory record in the run
+   record — it never changes this count. Each carries: its dimension + definition;
+   the working directory; the diff scope; the design doc path (if any); global +
+   review-phase `context:` files verbatim. Perf
    calibrates to the diff — zero findings legitimate. Tests dimension: do NOT run the executing-harness techniques (a dedicated phase owns
    it) — but suspected-benign harness findings MAY be flagged as advisory notes (keep
    them for the validation phase).

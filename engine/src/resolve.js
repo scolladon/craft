@@ -135,6 +135,30 @@ function deriveReviewPlan(harness) {
   return { passes, stop_rule: 'low-only' };
 }
 
+/** Advisory ceiling on the resolved reviewer fan-out; above it, resolution records one line. */
+const FAN_OUT_ADVISORY_THRESHOLD = 8;
+
+/**
+ * Zero or one advisory line about the resolved reviewer fan-out. Never changes a value.
+ *
+ * @param {object[]} effective
+ * @returns {string[]}
+ */
+function buildFanOutRecords(effective) {
+  const review = effective.find(d => d.id === REVIEW_PHASE_ID);
+  const dimensions = review?.harness?.dimensions;
+  const passes = review?.harness?.reviewPlan?.passes;
+  if (!Array.isArray(dimensions) || !Number.isInteger(passes)) return [];
+
+  const total = dimensions.length * passes;
+  if (total <= FAN_OUT_ADVISORY_THRESHOLD) return [];
+
+  return [
+    `fan-out: review resolves to ${total} reviewers (${dimensions.length} dimensions × ${passes} passes) — ` +
+    `advisory only; nothing is capped. Cost basis: docs/guides/customizing.md.`,
+  ];
+}
+
 /**
  * Derive engine-owned technique plan for an executing-harness phase.
  * Pure projection — no validation, no error path. Input already typed-valid.
@@ -351,6 +375,7 @@ export function resolvePipeline(defaults, manifest, opts) {
     ...d,
     autoSkipEligible: computeAutoSkipEligibility(d, resolved, baseEffective, defaults),
   }));
+  const fanOutRecords = buildFanOutRecords(effective);
 
   const roleErrors = effective
     .filter(d => d.role && !roleExists(d.role))
@@ -368,14 +393,14 @@ export function resolvePipeline(defaults, manifest, opts) {
   );
 
   if (floorErrors.length > 0) {
-    return { ok: false, errors: floorErrors, effective: [], record: [...record, ...gateRecords], gateDecisions: [], waivers: [] };
+    return { ok: false, errors: floorErrors, effective: [], record: [...record, ...gateRecords, ...fanOutRecords], gateDecisions: [], waivers: [] };
   }
 
   return {
     ok: true,
     errors: [],
     effective,
-    record: [...record, ...gateRecords],
+    record: [...record, ...gateRecords, ...fanOutRecords],
     gateDecisions,
     waivers,
   };

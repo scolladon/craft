@@ -479,6 +479,99 @@ test('Given no manifest, when resolvePipeline is called, then record notes defau
   );
 });
 
+// ─── fan-out advisory (ADR-312, ADR-313) ─────────────────────────────────────
+
+test('Given the shipped default (4 dimensions × 1 pass), when resolvePipeline runs, then record has no fan-out line', () => {
+  const sut = loadDefault();
+  const result = resolvePipeline(sut, null);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /^fan-out:/.test(r)),
+    `Expected no fan-out line, got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given passes:3 over the default four dimensions (product 12), when resolvePipeline runs, then record has exactly one fan-out line naming 12 reviewers', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 3 } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const fanOutLines = result.record.filter(r => /^fan-out:/.test(r));
+  assert.equal(fanOutLines.length, 1, `Expected exactly one fan-out line, got: ${JSON.stringify(result.record)}`);
+  assert.ok(fanOutLines[0].includes('12 reviewers'), `Expected the line to name "12 reviewers", got: ${fanOutLines[0]}`);
+});
+
+test('Given passes:3 restricted to one dimension (product 3), when resolvePipeline runs, then record has no fan-out line', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 3, dimensions: ['code'] } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /^fan-out:/.test(r)),
+    `Expected no fan-out line, got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given passes:2 over the default four dimensions (product 8, the threshold), when resolvePipeline runs, then record has no fan-out line', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 2 } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.ok(
+    !result.record.some(r => /^fan-out:/.test(r)),
+    `Expected no fan-out line at product 8 (the threshold, not above it), got: ${JSON.stringify(result.record)}`,
+  );
+});
+
+test('Given passes:3 over three dimensions (product 9, one above the threshold), when resolvePipeline runs, then record has exactly one fan-out line', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 3, dimensions: ['code', 'security', 'tests'] } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  const fanOutLines = result.record.filter(r => /^fan-out:/.test(r));
+  assert.equal(fanOutLines.length, 1, `Expected exactly one fan-out line at product 9, got: ${JSON.stringify(result.record)}`);
+});
+
+test('Given the product-12 manifest, when resolvePipeline runs, then the advisory changes no resolved value', () => {
+  const sut = loadDefault();
+  const manifest = { phases: { review: { harness: { passes: 3 } } } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.effective.map(d => d.id), SC1_IDS, 'the fan-out advisory must not change the resolved phase list');
+
+  const reviewDescriptor = result.effective.find(d => d.id === 'review');
+  assert.deepEqual(
+    reviewDescriptor.harness.reviewPlan,
+    { passes: 3, stop_rule: 'low-only' },
+    'deriveReviewPlan\'s projection must be unchanged by the advisory',
+  );
+
+  const reviewGateDecision = result.gateDecisions.find(g => g.phaseId === 'review');
+  assert.equal(reviewGateDecision.gate, '<gates.phase>', 'the review gate decision must be unchanged by the advisory');
+
+  const inertFields = JSON.stringify({
+    effective: result.effective,
+    gateDecisions: result.gateDecisions,
+    waivers: result.waivers,
+    errors: result.errors,
+  });
+  assert.ok(
+    !inertFields.includes('fan-out:'),
+    `Expected "fan-out:" to appear only in record, got it in: ${inertFields}`,
+  );
+});
+
 // ─── backlog record line names the active source ───────────────────────────────
 
 test('Given backlog { source: custom, ref: ./x.sh }, when resolvePipeline runs, then record has a line naming "custom" and the ref', () => {
