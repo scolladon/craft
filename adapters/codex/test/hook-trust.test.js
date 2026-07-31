@@ -32,6 +32,21 @@ const CONFIG_TEMPLATE = readFileSync(join(ADAPTER_DIR, 'config.template.toml'), 
 const TEMPLATE_COMMAND_PATTERN = /^\s*command\s*=\s*"(.*)"\s*$/gm;
 const TEMPLATE_COMMANDS = [...CONFIG_TEMPLATE.matchAll(TEMPLATE_COMMAND_PATTERN)].map(([, value]) => value);
 
+// A bare `command = "…"` line registers nothing on its own: what makes codex run
+// it is the table it sits in. So the lines that build that table are read as
+// lines, not as a parse — the template is a fixture here, not input.
+const TEMPLATE_LINES = CONFIG_TEMPLATE.split('\n').map((line) => line.trim());
+const HOOK_ENTRY_HEADER = '[[hooks.PreToolUse.hooks]]';
+const HANDLER_TYPE_LINE = 'type = "command"';
+const REGISTRATION_LINES = ['[[hooks.PreToolUse]]', 'matcher = "*"', HOOK_ENTRY_HEADER, HANDLER_TYPE_LINE];
+const COMMAND_ASSIGNMENT_PATTERN = /^command\s*=/;
+
+// Blank lines and comments say nothing to codex, so they may sit anywhere in the
+// block without changing which table the command belongs to.
+function isSignificant(line) {
+  return line.length > 0 && !line.startsWith('#');
+}
+
 const CWD = '/fixture/repo';
 const CODEX_HOME_KEY = '/fixture/codex-home/config.toml:pre_tool_use:0:0';
 const CURRENT_HASH = 'sha256:031fe4e9d67c31089132dd774df39307c554f5cf27089031a68c75233ef2ecf4';
@@ -404,6 +419,29 @@ describe('the registered command and the matched path are the same path', () => 
     const result = sut([hook]);
 
     assert.equal(result, hook);
+  });
+
+  // Without these lines the command is an assignment in whatever table precedes
+  // it, and codex registers no hook at all — installed, silent, enforcing
+  // nothing, which is the state the trust helper exists to make impossible.
+  for (const line of REGISTRATION_LINES) {
+    it(`Given config.template.toml, when it is read line by line, then it carries \`${line}\``, () => {
+      const sut = TEMPLATE_LINES;
+
+      assert.ok(sut.includes(line), `config.template.toml carries no ${line} line`);
+    });
+  }
+
+  it('Given config.template.toml, when the lines between the hook entry header and the command are read, then the command sits inside that entry under a command handler type', () => {
+    const sut = TEMPLATE_LINES;
+    const headerIndex = sut.indexOf(HOOK_ENTRY_HEADER);
+    const commandIndex = sut.findIndex((line) => COMMAND_ASSIGNMENT_PATTERN.test(line));
+
+    const between = sut.slice(headerIndex + 1, commandIndex).filter(isSignificant);
+
+    assert.ok(headerIndex !== -1, `config.template.toml carries no ${HOOK_ENTRY_HEADER} line`);
+    assert.ok(commandIndex > headerIndex, `the command assignment does not follow ${HOOK_ENTRY_HEADER}`);
+    assert.deepEqual(between, [HANDLER_TYPE_LINE]);
   });
 });
 
