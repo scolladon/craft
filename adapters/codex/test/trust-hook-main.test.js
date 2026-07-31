@@ -9,6 +9,7 @@ import { toQuotedTomlKey } from '../src/config-toml-trust.js';
 const ADAPTER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const REPO_ROOT_STUB = '/fixture/repo';
 const CODEX_HOME_STUB = '/fixture/codex-home';
+const HOME_STUB = '/fixture/home';
 const GUARD_SCRIPT_PATH = join(REPO_ROOT_STUB, 'adapters', 'codex', 'hooks', 'craft-guard.js');
 const CURRENT_HASH = 'sha256:031fe4e9d67c31089132dd774df39307c554f5cf27089031a68c75233ef2ecf4';
 const OLD_HASH = 'sha256:oldoldoldoldoldoldoldoldoldoldoldoldoldoldoldoldoldoldoldoldold';
@@ -74,9 +75,23 @@ function createDeps({
     guardScriptExistsCalls.push(path);
     return guardScriptExists ? guardScriptExists(path) : true;
   };
+  // Answers the id main actually asked about, and checks it was asked the
+  // right question. Ignoring params.requests would leave nothing pinning that
+  // the initialize/hooks-list pair is sent, that the listing is scoped to the
+  // resolved craft root, or that the id this flow awaits is still the id the
+  // request framing emits — two constants in two modules whose agreement is
+  // what makes the response findable at all.
   const defaultRunAppServer = async (params) => {
     runAppServerCalls.push(params);
-    return hooksListEnvelope({ hooks, warnings, errors });
+    const sent = params.requests.map((line) => JSON.parse(line));
+
+    assert.equal(sent.length, 2);
+    assert.equal(sent[0].method, 'initialize');
+    assert.equal(sent[1].method, 'hooks/list');
+    assert.deepEqual(sent[1].params.cwds, [REPO_ROOT_STUB]);
+    assert.equal(sent[1].id, params.responseId);
+
+    return hooksListEnvelope({ hooks, warnings, errors, requestId: params.responseId });
   };
 
   const deps = {
@@ -399,6 +414,107 @@ describe('main() — the app-server call carries the injected environment', () =
     assert.equal(runAppServerCalls.length, 1);
     assert.equal(runAppServerCalls[0].env, DEFAULT_ENV);
   });
+
+  it('Given a resolved craft root, when main runs, then the app-server is asked about that root', async () => {
+    const { deps, runAppServerCalls } = createDeps();
+    const sut = main;
+
+    await sut([], deps);
+
+    assert.equal(runAppServerCalls[0].cwd, REPO_ROOT_STUB);
+  });
+});
+
+describe('main() — the config path the write lands on', () => {
+  const RESOLUTIONS = [
+    ['CODEX_HOME alone', { CODEX_HOME: CODEX_HOME_STUB }, join(CODEX_HOME_STUB, 'config.toml')],
+    ['HOME alone', { HOME: HOME_STUB }, join(HOME_STUB, '.codex', 'config.toml')],
+    ['both, with CODEX_HOME taking precedence', { CODEX_HOME: CODEX_HOME_STUB, HOME: HOME_STUB }, join(CODEX_HOME_STUB, 'config.toml')],
+  ];
+
+  for (const [label, env, expectedPath] of RESOLUTIONS) {
+    it(`Given ${label}, when main writes, then it writes to the config path that environment resolves to`, async () => {
+      const { deps, writeCalls } = createDeps({ hooks: [craftHook({ trustStatus: 'untrusted' })], env });
+      const sut = main;
+
+      const result = await sut([], deps);
+
+      assert.equal(result, EXIT_OK);
+      assert.equal(writeCalls.length, 1);
+      assert.equal(writeCalls[0].path, expectedPath);
+    });
+
+    it(`Given ${label}, when main reads the config, then it reads the same path it would write`, async () => {
+      const readPaths = [];
+      const { deps } = createDeps({
+        hooks: [craftHook({ trustStatus: 'untrusted' })],
+        env,
+        readConfig: (path) => {
+          readPaths.push(path);
+          return '';
+        },
+      });
+      const sut = main;
+
+      await sut([], deps);
+
+      assert.deepEqual(readPaths, [expectedPath]);
+    });
+  }
+});
+
+describe('main() — --check reports the decision it did not act on', () => {
+  it('Given an untrusted hook, when main runs with --check, then it prints one check line carrying the key, the observed status and the action', async () => {
+    const { deps, stdout } = createDeps({ hooks: [craftHook({ trustStatus: 'untrusted' })] });
+    const sut = main;
+
+    await sut(['--check'], deps);
+
+    const checkLine = stdout.text().split('\n').find((line) => line.includes('check:'));
+    assert.equal(checkLine, `trust-hook: check: key=${HOOK_KEY} from=untrusted action=write`);
+  });
+
+  it('Given a trusted hook, when main runs with --check, then the reported action is the noop it resolved to', async () => {
+    const { deps, stdout } = createDeps({ hooks: [craftHook({ trustStatus: 'trusted' })] });
+    const sut = main;
+
+    await sut(['--check'], deps);
+
+    assert.ok(stdout.text().includes(`trust-hook: check: key=${HOOK_KEY} from=trusted action=noop`));
+  });
+});
+
+describe('main() — a refusal never writes', () => {
+  // Each of these refuses from a different layer — the trust map, then the TOML
+  // writer — and the property that matters is the same at both: nothing reaches
+  // the config file.
+  const REFUSALS = [
+    [
+      'a trustStatus outside the known set',
+      { hooks: [craftHook({ trustStatus: 'quarantined' })], readConfig: () => '' },
+      /quarantined/,
+    ],
+    [
+      'a config whose table already carries two trusted_hash assignments',
+      {
+        hooks: [craftHook({ trustStatus: 'untrusted' })],
+        readConfig: () => `[hooks.state.${toQuotedTomlKey(HOOK_KEY)}]\ntrusted_hash = "a"\ntrusted_hash = "b"\n`,
+      },
+      /refusing to guess/,
+    ],
+  ];
+
+  for (const [label, options, expected] of REFUSALS) {
+    it(`Given ${label}, when main runs, then it refuses and writeConfig is never called`, async () => {
+      const { deps, writeCalls, stderr } = createDeps(options);
+      const sut = main;
+
+      const result = await sut([], deps);
+
+      const line = assertRefused({ result, writeCalls, stderr });
+      assert.match(line, expected);
+    });
+  }
 });
 
 describe('main() — --check mode', () => {
@@ -440,6 +556,12 @@ describe('main() — negative pin: no bypass emitted anywhere', () => {
       { argv: [], hooks: [craftHook({ enabled: false })] },
       { argv: [], hooks: [], errors: [{ message: 'boom', path: '/x' }] },
       { argv: ['--not-a-flag'], hooks: [craftHook()] },
+      // A registration tampered with to carry the flag. Without it the scan
+      // below cannot fail — no branch emits the flag and no fixture supplies
+      // one — so this is what makes the pin capable of failing: the tampered
+      // command must be neither matched nor echoed back.
+      { argv: [], hooks: [craftHook({ command: `${GUARD_COMMAND} ${FORBIDDEN_FLAG}` })] },
+      { argv: ['--check'], hooks: [craftHook({ command: `${GUARD_COMMAND} ${FORBIDDEN_FLAG}` })] },
     ];
     const collected = [];
 
@@ -456,13 +578,15 @@ describe('main() — negative pin: no bypass emitted anywhere', () => {
   });
 });
 
-describe('main() — negative pin: source scan over the five authored files', () => {
-  it('Given the five files this change authors, when read as text, then neither the bypass flag nor the bypass key appears in any of them', () => {
+describe('main() — negative pin: source scan over every authored file', () => {
+  it('Given every file this change authors, when read as text, then neither the bypass flag nor the bypass key appears in any of them', () => {
     const paths = [
       join(ADAPTER_DIR, 'src', 'hook-trust.js'),
       join(ADAPTER_DIR, 'src', 'config-toml-trust.js'),
       join(ADAPTER_DIR, 'src', 'app-server-client.js'),
       join(ADAPTER_DIR, 'src', 'trust-hook-main.js'),
+      join(ADAPTER_DIR, 'src', 'safe-text.js'),
+      join(ADAPTER_DIR, 'src', 'atomic-write.js'),
       join(ADAPTER_DIR, 'bin', 'trust-hook.js'),
     ];
 

@@ -31,11 +31,15 @@ function createFakeStream() {
   };
 }
 
-// Models the one behaviour that matters and that a naive double gets wrong:
-// the real server treats stdin EOF as a shutdown signal, so a double whose
-// end() is inert would let a premature close look harmless. Here, end() marks
-// the child dead and any later write is recorded as unreachable — so a runner
-// that closes stdin before its answer arrives fails the assertions below.
+// Models the two child behaviours a naive double gets wrong, both of which
+// already cost a live failure once:
+//   - the real server treats stdin EOF as a shutdown signal, so end() here
+//     makes the child leave with status 0 exactly as the real one does. A
+//     double whose end() merely set a flag would let a premature close look
+//     harmless to every assertion below.
+//   - a killed child really does report an exit, with a null code and the
+//     signal that felled it — so kill() emits one too, which pins that an exit
+//     arriving after the promise settled cannot settle it a second time.
 function createFakeChildProcess() {
   const state = { writes: [], stdinEnded: false, killCount: 0, writesAfterEnd: 0 };
   const events = createFakeStream();
@@ -45,6 +49,7 @@ function createFakeChildProcess() {
     emit: events.emit,
     kill() {
       state.killCount += 1;
+      events.emit('exit', null, 'SIGTERM');
     },
     stdin: {
       on: stdinEvents.on,
@@ -58,6 +63,7 @@ function createFakeChildProcess() {
       },
       end() {
         state.stdinEnded = true;
+        events.emit('exit', 0);
       },
     },
     stdout: createFakeStream(),
@@ -146,10 +152,30 @@ describe('createAppServerRunner() — timeout', () => {
     const sut = createAppServerRunner({ spawn });
 
     await assert.rejects(
-      sut({ requests: [], cwd: CWD, responseId: RESPONSE_ID, timeoutMs: 5 }),
-      /timed out/i
+      sut({ requests: [], cwd: CWD, env: ENV, responseId: RESPONSE_ID, timeoutMs: 5 }),
+      (error) => {
+        assert.match(error.message, /timed out/i);
+        // The kill this timeout performs makes the child report its own exit;
+        // the diagnostic the caller sees must stay the timeout, not that exit.
+        assert.doesNotMatch(error.message, /exited/i);
+        return true;
+      }
     );
     assert.equal(state.killCount, 1);
+  });
+});
+
+describe('createAppServerRunner() — stdin is the shutdown signal', () => {
+  it('Given a run whose stdin is closed before the answer arrives, when the child reacts as the real server does, then the run fails instead of quietly waiting', async () => {
+    const { child, state } = createFakeChildProcess();
+    const { spawn } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+
+    const runPromise = sut({ requests: [], cwd: CWD, env: ENV, responseId: RESPONSE_ID });
+    child.stdin.end();
+
+    await assert.rejects(runPromise, /exited/i);
+    assert.equal(state.stdinEnded, true);
   });
 });
 

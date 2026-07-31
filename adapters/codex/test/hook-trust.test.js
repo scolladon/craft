@@ -1,12 +1,32 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRequests, parseHooksList, selectCraftHook, planTrust, describeListingEntry } from '../src/hook-trust.js';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+import {
+  buildRequests,
+  parseHooksList,
+  selectCraftHook,
+  planTrust,
+  describeListingEntry,
+  GUARD_SCRIPT_SEGMENTS,
+} from '../src/hook-trust.js';
+
+const ADAPTER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
+
+// hooks.json is what codex reads to register the guard, so it is also what
+// `hooks/list` echoes back. Taking the raw fixture from it rather than
+// retyping the command means a rename of the guard cannot leave the matcher
+// green against a path nothing registers.
+const HOOKS_MANIFEST = JSON.parse(readFileSync(join(ADAPTER_DIR, 'hooks.json'), 'utf8'));
+const REGISTERED_COMMAND = HOOKS_MANIFEST.hooks.PreToolUse[0].hooks[0].command;
+const GUARD_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 
 const CWD = '/fixture/repo';
 const CODEX_HOME_KEY = '/fixture/codex-home/config.toml:pre_tool_use:0:0';
 const CURRENT_HASH = 'sha256:031fe4e9d67c31089132dd774df39307c554f5cf27089031a68c75233ef2ecf4';
-const RAW_COMMAND = 'node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js';
-const EXPANDED_COMMAND = 'node /fixture/repo/adapters/codex/hooks/craft-guard.js';
+const RAW_COMMAND = REGISTERED_COMMAND;
+const EXPANDED_COMMAND = `node /fixture/repo${GUARD_TAIL}`;
 const FOREIGN_COMMAND = 'node /fixture/repo/other/hooks/something.js';
 
 function craftHook(overrides = {}) {
@@ -176,6 +196,41 @@ describe('parseHooksList()', () => {
     assert.deepEqual(result.hooks, hooks);
   });
 
+  const NON_OBJECT_RESULTS = [
+    ['an array', []],
+    ['a string', 'ok'],
+    ['a number', 7],
+    ['null', null],
+  ];
+
+  for (const [label, result] of NON_OBJECT_RESULTS) {
+    it(`Given a matched response whose result is ${label} rather than an object, when parseHooksList runs, then it throws`, () => {
+      const sut = parseHooksList;
+      const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, result });
+
+      assert.throws(() => sut(stream, { requestId: 2 }), /response\.result is not an object/);
+    });
+  }
+
+  const NON_ARRAY_ENTRY_FIELDS = ['hooks', 'warnings', 'errors'];
+
+  for (const field of NON_ARRAY_ENTRY_FIELDS) {
+    it(`Given a matched response whose data[0].${field} is present but not an array, when parseHooksList runs, then it throws naming that field`, () => {
+      const sut = parseHooksList;
+      const entry = { cwd: CWD, hooks: [], warnings: [], errors: [], [field]: 'not-an-array' };
+      const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, result: { data: [entry] } });
+
+      assert.throws(() => sut(stream, { requestId: 2 }), new RegExp(`${field} is not an array`));
+    });
+  }
+
+  it('Given a matched response whose data[0] is not an object, when parseHooksList runs, then it throws', () => {
+    const sut = parseHooksList;
+    const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, result: { data: ['not-an-entry'] } });
+
+    assert.throws(() => sut(stream, { requestId: 2 }), /result\.data\[0\] is not an object/);
+  });
+
   it('Given a matched response whose error member is a bare string, when parseHooksList runs, then it throws rendering that string rather than an absent message field', () => {
     const sut = parseHooksList;
     const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, error: 'boom-as-a-string' });
@@ -184,7 +239,22 @@ describe('parseHooksList()', () => {
   });
 });
 
-const GUARD_TAIL = '/adapters/codex/hooks/craft-guard.js';
+describe('the registered command and the matched path are the same path', () => {
+  it('Given the command hooks.json registers, when the guard segments are joined, then they are a suffix of it', () => {
+    const sut = REGISTERED_COMMAND;
+
+    assert.ok(sut.endsWith(GUARD_TAIL), `hooks.json registers ${sut}, which does not end with ${GUARD_TAIL}`);
+  });
+
+  it('Given the command hooks.json registers, when selectCraftHook is asked about it, then it is the craft guard', () => {
+    const sut = selectCraftHook;
+    const hook = craftHook({ command: REGISTERED_COMMAND });
+
+    const result = sut([hook]);
+
+    assert.equal(result, hook);
+  });
+});
 
 describe('selectCraftHook() — decoy commands must not match', () => {
   // Each decoy carries the guard path tail somewhere in the command string while
