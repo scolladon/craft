@@ -105,10 +105,15 @@ function assertEnabled(plan) {
   throw new Error(`matched hook ${reason} (key=${toDisplayText(plan.key)})`);
 }
 
+// Applies to reporting trust as much as to writing it: an unloadable hook
+// config means the registration actually guarding the session may be one this
+// listing never carried, so "already trusted" is as unsupported an answer as a
+// write would be. Both modes refuse, or a pipeline reading only --check's exit
+// code passes on the state the write path calls unsafe.
 function assertListingComplete(errors) {
   if (errors.length > 0) {
     throw new Error(
-      `codex reported ${errors.length} hook-config error(s), so the listing is incomplete — refusing to write trust from a partial listing`
+      `codex reported ${errors.length} hook-config error(s), so the listing is incomplete — refusing to answer from a partial listing`
     );
   }
 }
@@ -119,14 +124,13 @@ function reportCheckOutcome(plan, stdout) {
   return plan.action === ACTION_NOOP ? EXIT_OK : EXIT_UNTRUSTED;
 }
 
-function applyWriteOutcome(plan, { configPath, readConfig, writeConfig, stdout, errors }) {
+function applyWriteOutcome(plan, { configPath, readConfig, writeConfig, stdout }) {
   const key = toDisplayText(plan.key);
   if (plan.action === ACTION_NOOP) {
     stdout.write(`${OUTPUT_PREFIX}already trusted: key=${key} from=${plan.from}\n`);
     return EXIT_OK;
   }
 
-  assertListingComplete(errors);
   const nextConfig = upsertTrustedHash(readConfig(configPath), { key: plan.key, hash: plan.hash });
   writeConfig(configPath, nextConfig);
   stdout.write(`${OUTPUT_PREFIX}trusted key=${key} from=${plan.from} hash=${toDisplayText(plan.hash)}\n`);
@@ -146,10 +150,11 @@ async function run(argv, deps) {
   const hook = selectAndAnnounceHook(hooks, errors, stdout);
   const plan = planTrust(hook);
   assertEnabled(plan);
+  assertListingComplete(errors);
 
   return checkMode
     ? reportCheckOutcome(plan, stdout)
-    : applyWriteOutcome(plan, { configPath, readConfig, writeConfig, stdout, errors });
+    : applyWriteOutcome(plan, { configPath, readConfig, writeConfig, stdout });
 }
 
 /**

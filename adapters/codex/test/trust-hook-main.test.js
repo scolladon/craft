@@ -348,6 +348,29 @@ describe('main() — listing diagnostics', () => {
     const text = assertRefusedWithDiagnostics({ result, writeCalls, stderr });
     assert.match(text, /incomplete/i);
   });
+
+  // A partial listing says a hook config codex could not load exists, so the
+  // registration that actually guards the session may be one this run never saw
+  // — which unsettles an "already trusted" answer exactly as much as it
+  // unsettles a write. The two modes must refuse the same states, or a pipeline
+  // reading only the exit code passes on a listing the write path calls unsafe.
+  const PARTIAL_LISTING_MODES = [
+    ['write mode', []],
+    ['--check', ['--check']],
+  ];
+
+  for (const [label, argv] of PARTIAL_LISTING_MODES) {
+    it(`Given a trusted matched hook and a non-empty errors list, when main runs in ${label}, then it refuses rather than reporting trust from a partial listing`, async () => {
+      const errors = [{ message: 'failed to load hook config', path: '/fixture/other/config.toml' }];
+      const { deps, writeCalls, stderr } = createDeps({ hooks: [craftHook({ trustStatus: 'trusted' })], errors });
+      const sut = main;
+
+      const result = await sut(argv, deps);
+
+      const text = assertRefusedWithDiagnostics({ result, writeCalls, stderr });
+      assert.match(text, /incomplete/i);
+    });
+  }
 });
 
 describe('main() — server-supplied text never forges a line', () => {

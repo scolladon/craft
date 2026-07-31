@@ -117,9 +117,12 @@ So, before any headless or automated run:
 4. **Launch-time trust verification is available on demand, not automatic.**
    `node adapters/codex/bin/trust-hook.js --check` is a read-only check: it never
    writes, exits `0` when the hook is already trusted, and exits `1` when it is
-   untrusted or modified — a refusal (for example, a missing guard script) exits `2`.
-   It is not wired into every launch; an operator must invoke it, or wire it into their
-   own pipeline, to catch a silent no-op before it happens.
+   untrusted or modified — a refusal (for example, a missing guard script, or a hook
+   config codex could not load) exits `2`. It refuses on exactly the states the write
+   path refuses, so a pipeline reading only the exit code can never take a `0` from a
+   listing the write path considers unsafe. It is not wired into every launch; an
+   operator must invoke it, or wire it into their own pipeline, to catch a silent
+   no-op before it happens.
 
 ## Guard — honest enforcement profile
 
