@@ -12,6 +12,10 @@ const SCRIPT = path.join(ROOT, 'scripts', 'sync-adapter-agents.sh');
 const SHARED_ALPHA_BODY = 'Alpha body line one.\nAlpha body line two.\n';
 const SHARED_BETA_BODY = 'Beta body line one.\n';
 
+// buildCleanFixtureTree wires 2 roles (alpha, beta) across 2 mirroring
+// adapters (adapter-mixed-sep, adapter-body-only) — 4 mirrors total.
+const CLEAN_FIXTURE_SUMMARY = 'sync-adapter-agents: 4 mirrors in sync across 2 adapters.\n';
+
 function mirrorPath(root, adapter, role) {
   return path.join(root, 'adapters', adapter, 'agents', `craft-${role}.md`);
 }
@@ -72,19 +76,19 @@ function runSync(args) {
   }
 }
 
-test('Given a fully in-sync fixture tree, when --check runs, then it exits 0 and prints nothing', () => {
+test('Given a fully in-sync fixture tree, when --check runs, then it exits 0 and prints a positive count of checked mirrors', () => {
   withFixture(buildCleanFixtureTree, (root) => {
     // Act
     const result = runSync(['--check', '--root', root]);
 
     // Assert
     assert.strictEqual(result.status, 0);
-    assert.strictEqual(result.stdout, '');
+    assert.strictEqual(result.stdout, CLEAN_FIXTURE_SUMMARY);
     assert.strictEqual(result.stderr, '');
   });
 });
 
-test('Given no mode flag at all, when the tool runs against a synced tree, then it defaults to --check (read-only, exit 0, silent)', () => {
+test('Given no mode flag at all, when the tool runs against a synced tree, then it defaults to --check (read-only, exit 0)', () => {
   withFixture(buildCleanFixtureTree, (root) => {
     // Arrange
     const before = fs.readFileSync(mirrorPath(root, 'adapter-mixed-sep', 'alpha'), 'utf8');
@@ -94,7 +98,7 @@ test('Given no mode flag at all, when the tool runs against a synced tree, then 
 
     // Assert
     assert.strictEqual(result.status, 0);
-    assert.strictEqual(result.stdout, '');
+    assert.strictEqual(result.stdout, CLEAN_FIXTURE_SUMMARY);
     const after = fs.readFileSync(mirrorPath(root, 'adapter-mixed-sep', 'alpha'), 'utf8');
     assert.strictEqual(after, before, 'expected the default mode to write nothing');
   });
@@ -111,6 +115,27 @@ test('Given a mirror whose body has drifted, when --check runs, then it exits no
     // Assert
     assert.notStrictEqual(result.status, 0);
     assert.strictEqual(result.stderr.trim(), 'sync-adapter-agents: adapter-mixed-sep/alpha: drifted');
+  });
+});
+
+test('Given a tampered mirror, when the tool runs with no flag and then with --check, then the tampered bytes are left unchanged and both runs exit non-zero', () => {
+  withFixture(buildCleanFixtureTree, (root) => {
+    // Arrange
+    const target = mirrorPath(root, 'adapter-mixed-sep', 'alpha');
+    const tampered = '---\nname: craft-alpha\n---\nTampered body.\n';
+    fs.writeFileSync(target, tampered);
+
+    // Act
+    const noFlagResult = runSync(['--root', root]);
+    const afterNoFlag = fs.readFileSync(target, 'utf8');
+    const checkResult = runSync(['--check', '--root', root]);
+    const afterCheck = fs.readFileSync(target, 'utf8');
+
+    // Assert
+    assert.notStrictEqual(noFlagResult.status, 0);
+    assert.strictEqual(afterNoFlag, tampered, 'expected the default (no-flag) mode to leave tampered bytes untouched');
+    assert.notStrictEqual(checkResult.status, 0);
+    assert.strictEqual(afterCheck, tampered, 'expected --check to leave tampered bytes untouched');
   });
 });
 
@@ -145,6 +170,22 @@ test('Given a mirror using a one-blank-line separator, when its body drifts and 
     const result = fs.readFileSync(target, 'utf8');
     assert.strictEqual(result, pristine);
     assert.match(result, /^---\n[^\n]*\n---\n\n/, 'expected the one-blank-line separator to survive the write');
+  });
+});
+
+test('Given a drifted mirror with nothing else wrong, when --write runs, then it exits 0 and reports the mirror as rewritten (not drifted)', () => {
+  withFixture(buildCleanFixtureTree, (root) => {
+    // Arrange
+    const target = mirrorPath(root, 'adapter-mixed-sep', 'beta');
+    fs.writeFileSync(target, '---\nname: craft-beta\n---\n\nTampered body.\n');
+
+    // Act
+    const result = runSync(['--write', '--root', root]);
+
+    // Assert
+    assert.strictEqual(result.status, 0, 'expected a fully successful --write to exit 0, not fail because it changed something');
+    assert.match(result.stdout, /sync-adapter-agents: adapter-mixed-sep\/beta: rewritten/);
+    assert.doesNotMatch(result.stdout, /drifted/);
   });
 });
 
@@ -217,6 +258,20 @@ test('Given an adapter directory with no agents/ subdirectory, when --check runs
   });
 });
 
+test('Given a non-role file alongside the shared agent bodies, when --check runs, then it is not synthesized into a role and does not turn a clean tree red', () => {
+  withFixture(buildCleanFixtureTree, (root) => {
+    // Arrange
+    fs.writeFileSync(path.join(root, 'agents', 'README.md'), '# Not a role\n');
+
+    // Act
+    const result = runSync(['--check', '--root', root]);
+
+    // Assert
+    assert.strictEqual(result.status, 0);
+    assert.doesNotMatch(result.stderr, /README/);
+  });
+});
+
 test('Given an unrecognized flag, when the tool runs, then it exits 2 with a usage error on stderr', () => {
   withFixture(buildCleanFixtureTree, (root) => {
     // Act
@@ -225,6 +280,111 @@ test('Given an unrecognized flag, when the tool runs, then it exits 2 with a usa
     // Assert
     assert.strictEqual(result.status, 2);
     assert.match(result.stderr, /unknown flag/);
+  });
+});
+
+test('Given a shared agent file whose frontmatter fence never closes, when the tool runs, then it fails loudly instead of silently treating the body as empty', () => {
+  withFixture(buildCleanFixtureTree, (root) => {
+    // Arrange
+    fs.writeFileSync(path.join(root, 'agents', 'alpha.md'), '---\nname: alpha\nUnclosed frontmatter, no second marker.\n');
+
+    // Act
+    const result = runSync(['--check', '--root', root]);
+
+    // Assert
+    assert.notStrictEqual(result.status, 0);
+    assert.match(result.stderr, /missing closing frontmatter fence/);
+  });
+});
+
+test('Given a mirror file whose frontmatter fence never closes, when --write runs, then it refuses rather than appending the shared body onto the unclosed file', () => {
+  withFixture(buildCleanFixtureTree, (root) => {
+    // Arrange
+    const target = mirrorPath(root, 'adapter-mixed-sep', 'alpha');
+    const unclosed = '---\nname: craft-alpha\nUnclosed frontmatter, no second marker.\n';
+    fs.writeFileSync(target, unclosed);
+
+    // Act
+    const result = runSync(['--write', '--root', root]);
+    const after = fs.readFileSync(target, 'utf8');
+
+    // Assert
+    assert.notStrictEqual(result.status, 0);
+    assert.match(result.stderr, /missing closing frontmatter fence/);
+    assert.strictEqual(after, unclosed, 'expected the malformed mirror to be left untouched rather than appended to');
+  });
+});
+
+test('Given an agents/ directory with no role files, when the tool runs, then it exits non-zero instead of silently reporting a clean pass', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-adapter-agents-'));
+  try {
+    fs.mkdirSync(path.join(root, 'agents'), { recursive: true });
+    fs.mkdirSync(path.join(root, 'adapters', 'some-adapter', 'agents'), { recursive: true });
+
+    // Act
+    const result = runSync(['--check', '--root', root]);
+
+    // Assert
+    assert.notStrictEqual(result.status, 0);
+    assert.match(result.stderr, /no roles found/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Given an adapters/ directory with no mirroring adapter, when the tool runs, then it exits non-zero instead of silently reporting a clean pass', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-adapter-agents-'));
+  try {
+    fs.mkdirSync(path.join(root, 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'agents', 'alpha.md'), '---\nname: alpha\n---\n\nAlpha body.\n');
+    fs.mkdirSync(path.join(root, 'adapters', 'no-agents-dir'), { recursive: true });
+
+    // Act
+    const result = runSync(['--check', '--root', root]);
+
+    // Assert
+    assert.notStrictEqual(result.status, 0);
+    assert.match(result.stderr, /no mirroring adapters found/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Given an adapter whose agents/ entry is a symlink, when the tool runs, then it refuses loudly instead of silently skipping it', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'sync-adapter-agents-'));
+  try {
+    fs.mkdirSync(path.join(root, 'agents'), { recursive: true });
+    fs.writeFileSync(path.join(root, 'agents', 'alpha.md'), '---\nname: alpha\n---\n\nAlpha body.\n');
+    const realDir = path.join(root, 'elsewhere-agents');
+    fs.mkdirSync(realDir, { recursive: true });
+    fs.writeFileSync(path.join(realDir, 'craft-alpha.md'), '---\nname: craft-alpha\n---\n\nAlpha body.\n');
+    fs.mkdirSync(path.join(root, 'adapters', 'symlinked'), { recursive: true });
+    fs.symlinkSync(realDir, path.join(root, 'adapters', 'symlinked', 'agents'), 'dir');
+
+    // Act
+    const result = runSync(['--check', '--root', root]);
+
+    // Assert
+    assert.notStrictEqual(result.status, 0);
+    assert.match(result.stderr, /refusing a symlinked agents\/ directory/);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('Given a mirror with a distinctive file mode, when --write repairs its drifted body, then the original file mode is preserved', () => {
+  withFixture(buildCleanFixtureTree, (root) => {
+    // Arrange
+    const target = mirrorPath(root, 'adapter-mixed-sep', 'alpha');
+    fs.writeFileSync(target, '---\nname: craft-alpha\n---\nTampered body.\n');
+    fs.chmodSync(target, 0o640);
+
+    // Act
+    runSync(['--write', '--root', root]);
+
+    // Assert
+    const mode = fs.statSync(target).mode & 0o777;
+    assert.strictEqual(mode, 0o640, "expected --write to preserve the mirror's original file mode");
   });
 });
 
