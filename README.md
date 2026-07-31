@@ -116,8 +116,8 @@ Phases also run standalone, on any branch:
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
-receipts: [18 design docs](docs/contributing/design/), [17 parted plans](docs/contributing/plan/),
-[270 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/contributing/metrics-baseline.report.json)
+receipts: [25 design docs](docs/contributing/design/), [24 parted plans](docs/contributing/plan/),
+[320 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
