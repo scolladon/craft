@@ -24,6 +24,17 @@ describe('escapeControlChars()', () => {
     ['a right-to-left override (U+202E)', 'a\u202Eb', 'a\\u202Eb'],
     ['a left-to-right isolate (U+2066)', 'a\u2066b', 'a\\u2066b'],
     ['a pop directional isolate (U+2069)', 'a\u2069b', 'a\\u2069b'],
+    // The bidi control that sits nowhere near the others: leaving it out escapes
+    // eight of the nine and calls the class covered.
+    ['an Arabic letter mark (U+061C)', 'a\u061Cb', 'a\\u061Cb'],
+    // Invisible without being bidi, and each one legal in a TOML basic string, so
+    // an unescaped one reaches both sinks and renders as nothing in each.
+    ['a soft hyphen (U+00AD)', 'a\u00ADb', 'a\\u00ADb'],
+    ['a word joiner (U+2060)', 'a\u2060b', 'a\\u2060b'],
+    ['an invisible plus (U+2064)', 'a\u2064b', 'a\\u2064b'],
+    ['an inhibit symmetric swapping mark (U+206A)', 'a\u206Ab', 'a\\u206Ab'],
+    ['a nominal digit shapes mark (U+206F)', 'a\u206Fb', 'a\\u206Fb'],
+    ['a zero-width no-break space (U+FEFF)', 'a\uFEFFb', 'a\\uFEFFb'],
   ];
 
   for (const [label, input, expected] of ESCAPES) {
@@ -40,10 +51,14 @@ describe('escapeControlChars()', () => {
   // could be widened to swallow ordinary text, and a value rendered as escapes is
   // one the operator can no longer recognise.
   const UNTOUCHED = [
+    ['an Arabic semicolon (U+061B)', 'a\u061Bb'],
+    ['a not sign (U+00AC)', 'a\u00ACb'],
+    ['a registered sign (U+00AE)', 'a\u00AEb'],
     ['a hair space (U+200A)', 'a\u200Ab'],
     ['a line separator (U+2028)', 'a\u2028b'],
-    ['a word joiner (U+2060)', 'a\u2060b'],
-    ['an inhibit symmetric swapping mark (U+206A)', 'a\u206Ab'],
+    ['a medium mathematical space (U+205F)', 'a\u205Fb'],
+    ['a superscript zero (U+2070)', 'a\u2070b'],
+    ['a fullwidth exclamation mark (U+FF01)', 'a\uFF01b'],
   ];
 
   for (const [label, input] of UNTOUCHED) {
