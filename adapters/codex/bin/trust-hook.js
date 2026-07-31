@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { main, EXIT_REFUSED } from '../src/trust-hook-main.js';
 import { createAppServerRunner } from '../src/app-server-client.js';
+import { createAtomicWriter } from '../src/atomic-write.js';
 import { resolveCraftRoot } from '../src/craft-root.js';
 
 const MISSING_FILE_ERROR_CODE = 'ENOENT';
@@ -25,7 +26,12 @@ function buildDependencies() {
   return {
     runAppServer: createAppServerRunner({ spawn }),
     readConfig,
-    writeConfig: (path, text) => writeFileSync(path, text),
+    writeConfig: createAtomicWriter({
+      writeFile: writeFileSync,
+      rename: renameSync,
+      chmod: chmodSync,
+      stat: statSync,
+    }),
     guardScriptExists: existsSync,
     resolveRoot: () => resolveCraftRoot(import.meta.url),
     env: process.env,

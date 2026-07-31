@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildRequests, parseHooksList, selectCraftHook, planTrust } from '../src/hook-trust.js';
+import { buildRequests, parseHooksList, selectCraftHook, planTrust, describeListingEntry } from '../src/hook-trust.js';
 
 const CWD = '/fixture/repo';
 const CODEX_HOME_KEY = '/fixture/codex-home/config.toml:pre_tool_use:0:0';
@@ -48,6 +48,13 @@ function initializeResponseLine() {
 
 function notificationLine() {
   return JSON.stringify({ jsonrpc: '2.0', method: 'codex/event', params: {} });
+}
+
+// A server-initiated request carries an id of its own, drawn from the server's
+// counter — so it can collide with a client request id while being no answer
+// to it at all.
+function serverRequestLine(id) {
+  return JSON.stringify({ jsonrpc: '2.0', id, method: 'codex/applyPatchApproval', params: {} });
 }
 
 describe('buildRequests()', () => {
@@ -148,6 +155,33 @@ describe('parseHooksList()', () => {
 
     assert.throws(() => sut(stream, { requestId: 2 }));
   });
+
+  it('Given a server-initiated request carrying the awaited id ahead of the real response, when parseHooksList runs, then the request is skipped and the response is returned', () => {
+    const sut = parseHooksList;
+    const hooks = [craftHook()];
+    const stream = [serverRequestLine(2), envelopeLine({ hooks })].join('\n');
+
+    const result = sut(stream, { requestId: 2 });
+
+    assert.deepEqual(result.hooks, hooks);
+  });
+
+  it('Given a notification carrying the awaited id ahead of the real response, when parseHooksList runs, then the notification is skipped and the response is returned', () => {
+    const sut = parseHooksList;
+    const hooks = [craftHook()];
+    const stream = [JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'codex/event' }), envelopeLine({ hooks })].join('\n');
+
+    const result = sut(stream, { requestId: 2 });
+
+    assert.deepEqual(result.hooks, hooks);
+  });
+
+  it('Given a matched response whose error member is a bare string, when parseHooksList runs, then it throws rendering that string rather than an absent message field', () => {
+    const sut = parseHooksList;
+    const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, error: 'boom-as-a-string' });
+
+    assert.throws(() => sut(stream, { requestId: 2 }), /boom-as-a-string/);
+  });
 });
 
 const GUARD_TAIL = '/adapters/codex/hooks/craft-guard.js';
@@ -218,6 +252,15 @@ describe('selectCraftHook()', () => {
     assert.throws(() => sut(hooks, { errors }), /\/fixture\/codex-home\/config\.toml/);
   });
 
+  it('Given a listing carrying a null entry alongside the craft hook, when selectCraftHook runs, then it returns the craft hook rather than failing on the null', () => {
+    const sut = selectCraftHook;
+    const hook = craftHook();
+
+    const result = sut([null, hook]);
+
+    assert.equal(result, hook);
+  });
+
   it('Given two matching hooks, when selectCraftHook runs, then it throws naming both sourcePaths', () => {
     const sut = selectCraftHook;
     const first = craftHook({ command: RAW_COMMAND, sourcePath: '/fixture/codex-home/config.toml' });
@@ -256,5 +299,62 @@ describe('planTrust()', () => {
     const hook = craftHook({ trustStatus: 'quarantined' });
 
     assert.throws(() => sut(hook));
+  });
+});
+
+describe('planTrust() — a write intent must carry what it writes', () => {
+  // key and currentHash are the two values a write persists verbatim. An empty
+  // one records `trusted_hash = ""` and reports success; an absent one reaches
+  // the quoting helper and surfaces as a bare TypeError rather than a refusal.
+  const UNWRITABLE = [
+    ['an empty currentHash', { currentHash: '' }, /currentHash/],
+    ['an absent currentHash', { currentHash: undefined }, /currentHash/],
+    ['an empty key', { key: '' }, /key/],
+    ['an absent key', { key: undefined }, /key/],
+  ];
+
+  for (const [label, overrides, expected] of UNWRITABLE) {
+    it(`Given an untrusted hook with ${label}, when planTrust runs, then it throws naming the offending field`, () => {
+      const sut = planTrust;
+      const hook = craftHook({ trustStatus: 'untrusted', ...overrides });
+
+      assert.throws(() => sut(hook), expected);
+    });
+  }
+
+  it('Given a trusted hook with an absent currentHash, when planTrust runs, then it still plans a noop because nothing is written', () => {
+    const sut = planTrust;
+    const hook = craftHook({ trustStatus: 'trusted', currentHash: undefined });
+
+    const result = sut(hook);
+
+    assert.equal(result.action, 'noop');
+  });
+});
+
+describe('describeListingEntry()', () => {
+  const RENDERINGS = [
+    ['a plain string', 'codex said something', 'codex said something'],
+    ['an error-shaped object', { message: 'bad config', path: '/x/config.toml' }, 'bad config (/x/config.toml)'],
+    ['an object carrying only a message', { message: 'bad config' }, 'bad config'],
+    ['an object of an unforeseen shape', { code: 7 }, '{"code":7}'],
+  ];
+
+  for (const [label, entry, expected] of RENDERINGS) {
+    it(`Given ${label}, when describeListingEntry runs, then it renders the diagnostic rather than a coerced object`, () => {
+      const sut = describeListingEntry;
+
+      const result = sut(entry);
+
+      assert.equal(result, expected);
+    });
+  }
+
+  it('Given an entry that JSON cannot represent, when describeListingEntry runs, then it still renders a string', () => {
+    const sut = describeListingEntry;
+
+    const result = sut(undefined);
+
+    assert.equal(result, 'undefined');
   });
 });

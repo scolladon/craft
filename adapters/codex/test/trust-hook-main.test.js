@@ -98,6 +98,10 @@ function createDeps({
   return { deps, writeCalls, runAppServerCalls, guardScriptExistsCalls, stdout, stderr };
 }
 
+function countOutputLines(stream) {
+  return stream.text().split('\n').filter((line) => line.length > 0).length;
+}
+
 function assertSingleStderrLine(stderr) {
   const lines = stderr.text().split('\n').filter((line) => line.length > 0);
   assert.equal(lines.length, 1);
@@ -108,6 +112,14 @@ function assertRefused({ result, writeCalls, stderr }) {
   assert.equal(result, EXIT_REFUSED);
   assert.equal(writeCalls.length, 0);
   return assertSingleStderrLine(stderr);
+}
+
+// Same refusal contract, but for the paths that legitimately emit listing
+// diagnostics alongside the refusal, so the line count is not fixed at one.
+function assertRefusedWithDiagnostics({ result, writeCalls, stderr }) {
+  assert.equal(result, EXIT_REFUSED);
+  assert.equal(writeCalls.length, 0);
+  return stderr.text();
 }
 
 describe('main() — write mode', () => {
@@ -208,14 +220,38 @@ describe('main() — refusal matrix', () => {
     assertRefused({ result, writeCalls, stderr });
   });
 
-  it('Given a matched hook with enabled false, when main runs, then it refuses', async () => {
+  it('Given a matched hook with enabled false, when main runs, then it refuses naming the hook as disabled', async () => {
     const { deps, writeCalls, stderr } = createDeps({ hooks: [craftHook({ enabled: false })] });
     const sut = main;
 
     const result = await sut([], deps);
 
-    assertRefused({ result, writeCalls, stderr });
+    const line = assertRefused({ result, writeCalls, stderr });
+    assert.match(line, /disabled/i);
   });
+
+  // Only `enabled === true` is a registration codex will actually run, so an
+  // absent or non-boolean field is a listing this flow cannot reason about —
+  // never a hook to trust by default.
+  const NOT_ENABLED = [
+    ['absent', undefined],
+    ['null', null],
+    ['the number zero', 0],
+    ['the string "false"', 'false'],
+    ['the string "true"', 'true'],
+  ];
+
+  for (const [label, enabled] of NOT_ENABLED) {
+    it(`Given a matched hook whose enabled field is ${label}, when main runs, then it refuses without writing`, async () => {
+      const { deps, writeCalls, stderr } = createDeps({ hooks: [craftHook({ enabled })] });
+      const sut = main;
+
+      const result = await sut([], deps);
+
+      const line = assertRefused({ result, writeCalls, stderr });
+      assert.match(line, /not a boolean|missing/i);
+    });
+  }
 
   it('Given a runAppServer that rejects with a timeout error, when main runs, then the stderr line names the timeout', async () => {
     const { deps, writeCalls, stderr } = createDeps({
@@ -261,9 +297,9 @@ describe('main() — listing diagnostics', () => {
 
     const result = await sut([], deps);
 
-    const line = assertRefused({ result, writeCalls, stderr });
-    assert.match(line, /failed to load hook config/);
-    assert.match(line, /\/fixture\/codex-home\/config\.toml/);
+    const text = assertRefusedWithDiagnostics({ result, writeCalls, stderr });
+    assert.match(text, /failed to load hook config/);
+    assert.match(text, /\/fixture\/codex-home\/config\.toml/);
   });
 
   it('Given a response carrying warnings, when main runs, then every warning is reported on stdout and the run completes normally', async () => {
@@ -275,6 +311,93 @@ describe('main() — listing diagnostics', () => {
 
     assert.equal(result, EXIT_OK);
     assert.ok(stdout.text().includes(warnings[0]));
+  });
+
+  it('Given a matched hook and a non-empty errors list, when main runs, then the errors reach stderr even though a hook was found', async () => {
+    const errors = [{ message: 'failed to load hook config', path: '/fixture/other/config.toml' }];
+    const { deps, stderr } = createDeps({ hooks: [craftHook({ trustStatus: 'trusted' })], errors });
+    const sut = main;
+
+    await sut([], deps);
+
+    assert.match(stderr.text(), /failed to load hook config/);
+  });
+
+  it('Given an untrusted matched hook and a non-empty errors list, when main runs, then it refuses to write because the listing it arbitrated on is incomplete', async () => {
+    const errors = [{ message: 'failed to load hook config', path: '/fixture/other/config.toml' }];
+    const { deps, writeCalls, stderr } = createDeps({ hooks: [craftHook({ trustStatus: 'untrusted' })], errors });
+    const sut = main;
+
+    const result = await sut([], deps);
+
+    const text = assertRefusedWithDiagnostics({ result, writeCalls, stderr });
+    assert.match(text, /incomplete/i);
+  });
+});
+
+describe('main() — server-supplied text never forges a line', () => {
+  const FORGED_TAIL = '\ntrust-hook: trusted key=forged from=untrusted hash=forged';
+
+  it('Given a matched hook whose sourcePath carries a line feed, when main runs, then the announcement stays on one line', async () => {
+    const { deps, stdout } = createDeps({
+      hooks: [craftHook({ trustStatus: 'trusted', sourcePath: `${CODEX_HOME_STUB}/config.toml${FORGED_TAIL}` })],
+    });
+    const sut = main;
+
+    await sut([], deps);
+
+    assert.equal(stdout.text().includes(FORGED_TAIL), false);
+    assert.equal(countOutputLines(stdout), 2);
+  });
+
+  it('Given a warning carrying a line feed, when main runs, then it is reported as a single line', async () => {
+    const { deps, stdout } = createDeps({
+      hooks: [craftHook({ trustStatus: 'trusted' })],
+      warnings: [`benign${FORGED_TAIL}`],
+    });
+    const sut = main;
+
+    await sut([], deps);
+
+    assert.equal(stdout.text().includes(FORGED_TAIL), false);
+    assert.equal(countOutputLines(stdout), 3);
+  });
+
+  it('Given a matched hook whose key carries a line feed, when main runs and writes, then the trusted announcement stays on one line', async () => {
+    const { deps, stdout } = createDeps({
+      hooks: [craftHook({ trustStatus: 'untrusted', key: `${HOOK_KEY}${FORGED_TAIL}` })],
+    });
+    const sut = main;
+
+    await sut([], deps);
+
+    assert.equal(stdout.text().includes(FORGED_TAIL), false);
+    assert.equal(countOutputLines(stdout), 2);
+  });
+
+  it('Given a runAppServer whose rejection message carries a line feed, when main runs, then stderr stays on one line', async () => {
+    const { deps, writeCalls, stderr } = createDeps({
+      runAppServer: async () => {
+        throw new Error(`app-server failed${FORGED_TAIL}`);
+      },
+    });
+    const sut = main;
+
+    const result = await sut([], deps);
+
+    assertRefused({ result, writeCalls, stderr });
+  });
+});
+
+describe('main() — the app-server call carries the injected environment', () => {
+  it('Given an injected env, when main runs, then that same env is handed to runAppServer rather than left to the ambient process', async () => {
+    const { deps, runAppServerCalls } = createDeps();
+    const sut = main;
+
+    await sut([], deps);
+
+    assert.equal(runAppServerCalls.length, 1);
+    assert.equal(runAppServerCalls[0].env, DEFAULT_ENV);
   });
 });
 

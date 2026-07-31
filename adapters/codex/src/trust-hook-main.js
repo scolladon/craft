@@ -10,8 +10,16 @@
  */
 
 import { join } from 'node:path';
-import { buildRequests, parseHooksList, selectCraftHook, planTrust } from './hook-trust.js';
+import {
+  buildRequests,
+  parseHooksList,
+  selectCraftHook,
+  planTrust,
+  describeListingEntry,
+  GUARD_SCRIPT_SEGMENTS,
+} from './hook-trust.js';
 import { upsertTrustedHash } from './config-toml-trust.js';
+import { toDisplayText } from './safe-text.js';
 
 export const EXIT_OK = 0;
 export const EXIT_UNTRUSTED = 1;
@@ -19,9 +27,9 @@ export const EXIT_REFUSED = 2;
 
 const OUTPUT_PREFIX = 'trust-hook: ';
 const ARG_CHECK = '--check';
+const ACTION_NOOP = 'noop';
 const CONFIG_FILE_NAME = 'config.toml';
 const CODEX_HOME_DIR_NAME = '.codex';
-const GUARD_SCRIPT_SEGMENTS = ['adapters', 'codex', 'hooks', 'craft-guard.js'];
 
 // Named here, not in hook-trust.js: the app-server runner takes the awaited
 // response id as a caller-supplied parameter rather than owning a fixed one,
@@ -59,62 +67,89 @@ function assertGuardScriptPresent(root, guardScriptExists) {
   }
 }
 
-async function fetchHooksListing({ runAppServer, cwd }) {
+async function fetchHooksListing({ runAppServer, cwd, env }) {
   const requests = buildRequests({ cwd });
-  const stdoutText = await runAppServer({ requests, cwd, responseId: HOOKS_LIST_RESPONSE_ID });
+  const stdoutText = await runAppServer({ requests, cwd, env, responseId: HOOKS_LIST_RESPONSE_ID });
   return parseHooksList(stdoutText, { requestId: HOOKS_LIST_RESPONSE_ID });
 }
 
 function reportWarnings(warnings, stdout) {
   for (const warning of warnings) {
-    stdout.write(`${OUTPUT_PREFIX}warning: ${warning}\n`);
+    stdout.write(`${OUTPUT_PREFIX}warning: ${toDisplayText(describeListingEntry(warning))}\n`);
+  }
+}
+
+// Reported whatever the outcome: an error means the listing this decision was
+// arbitrated on was partial, which matters just as much when a hook DID match
+// as when none did — a second, unreported registration could be the one
+// actually guarding the session.
+function reportErrors(errors, stderr) {
+  for (const error of errors) {
+    stderr.write(`${OUTPUT_PREFIX}listing error: ${toDisplayText(describeListingEntry(error))}\n`);
   }
 }
 
 function selectAndAnnounceHook(hooks, errors, stdout) {
   const hook = selectCraftHook(hooks, { errors });
-  stdout.write(`${OUTPUT_PREFIX}matched hook sourcePath=${hook.sourcePath} command=${hook.command}\n`);
+  const sourcePath = toDisplayText(hook.sourcePath);
+  const command = toDisplayText(hook.command);
+  stdout.write(`${OUTPUT_PREFIX}matched hook sourcePath=${sourcePath} command=${command}\n`);
   return hook;
 }
 
 function assertEnabled(plan) {
-  if (plan.enabled === false) {
-    throw new Error(`matched hook is disabled (key=${plan.key})`);
+  if (plan.enabled === true) {
+    return;
+  }
+  const reason = plan.enabled === false ? 'is disabled' : 'has an enabled field that is missing or not a boolean';
+  throw new Error(`matched hook ${reason} (key=${toDisplayText(plan.key)})`);
+}
+
+function assertListingComplete(errors) {
+  if (errors.length > 0) {
+    throw new Error(
+      `codex reported ${errors.length} hook-config error(s), so the listing is incomplete — refusing to write trust from a partial listing`
+    );
   }
 }
 
 function reportCheckOutcome(plan, stdout) {
-  stdout.write(`${OUTPUT_PREFIX}check: key=${plan.key} from=${plan.from} action=${plan.action}\n`);
-  return plan.action === 'noop' ? EXIT_OK : EXIT_UNTRUSTED;
+  const key = toDisplayText(plan.key);
+  stdout.write(`${OUTPUT_PREFIX}check: key=${key} from=${plan.from} action=${plan.action}\n`);
+  return plan.action === ACTION_NOOP ? EXIT_OK : EXIT_UNTRUSTED;
 }
 
-function applyWriteOutcome(plan, { configPath, readConfig, writeConfig, stdout }) {
-  if (plan.action === 'noop') {
-    stdout.write(`${OUTPUT_PREFIX}already trusted: key=${plan.key} from=${plan.from}\n`);
+function applyWriteOutcome(plan, { configPath, readConfig, writeConfig, stdout, errors }) {
+  const key = toDisplayText(plan.key);
+  if (plan.action === ACTION_NOOP) {
+    stdout.write(`${OUTPUT_PREFIX}already trusted: key=${key} from=${plan.from}\n`);
     return EXIT_OK;
   }
+
+  assertListingComplete(errors);
   const nextConfig = upsertTrustedHash(readConfig(configPath), { key: plan.key, hash: plan.hash });
   writeConfig(configPath, nextConfig);
-  stdout.write(`${OUTPUT_PREFIX}trusted key=${plan.key} from=${plan.from} hash=${plan.hash}\n`);
+  stdout.write(`${OUTPUT_PREFIX}trusted key=${key} from=${plan.from} hash=${toDisplayText(plan.hash)}\n`);
   return EXIT_OK;
 }
 
 async function run(argv, deps) {
-  const { runAppServer, readConfig, writeConfig, guardScriptExists, resolveRoot, env, stdout } = deps;
+  const { runAppServer, readConfig, writeConfig, guardScriptExists, resolveRoot, env, stdout, stderr } = deps;
   const checkMode = parseCheckMode(argv);
   const configPath = resolveConfigPath(env);
   const root = resolveRoot();
   assertGuardScriptPresent(root, guardScriptExists);
 
-  const { hooks, warnings, errors } = await fetchHooksListing({ runAppServer, cwd: root });
+  const { hooks, warnings, errors } = await fetchHooksListing({ runAppServer, cwd: root, env });
   reportWarnings(warnings, stdout);
+  reportErrors(errors, stderr);
   const hook = selectAndAnnounceHook(hooks, errors, stdout);
   const plan = planTrust(hook);
   assertEnabled(plan);
 
   return checkMode
     ? reportCheckOutcome(plan, stdout)
-    : applyWriteOutcome(plan, { configPath, readConfig, writeConfig, stdout });
+    : applyWriteOutcome(plan, { configPath, readConfig, writeConfig, stdout, errors });
 }
 
 /**
@@ -128,7 +163,7 @@ export async function main(argv, deps) {
   try {
     return await run(argv, deps);
   } catch (error) {
-    deps.stderr.write(`${OUTPUT_PREFIX}${error.message}\n`);
+    deps.stderr.write(`${OUTPUT_PREFIX}${toDisplayText(error.message)}\n`);
     return EXIT_REFUSED;
   }
 }

@@ -4,6 +4,7 @@ import { createAppServerRunner } from '../src/app-server-client.js';
 
 const CWD = '/repo';
 const RESPONSE_ID = 2;
+const ENV = { CODEX_HOME: '/fixture/codex-home' };
 
 function responseLine(id) {
   return `${JSON.stringify({ jsonrpc: '2.0', id, result: { ok: true } })}\n`;
@@ -38,6 +39,7 @@ function createFakeStream() {
 function createFakeChildProcess() {
   const state = { writes: [], stdinEnded: false, killCount: 0, writesAfterEnd: 0 };
   const events = createFakeStream();
+  const stdinEvents = createFakeStream();
   const child = {
     on: events.on,
     emit: events.emit,
@@ -45,6 +47,8 @@ function createFakeChildProcess() {
       state.killCount += 1;
     },
     stdin: {
+      on: stdinEvents.on,
+      emit: stdinEvents.emit,
       write(chunk) {
         if (state.stdinEnded) {
           state.writesAfterEnd += 1;
@@ -79,14 +83,26 @@ describe('createAppServerRunner() — normal response', () => {
     const requests = ['{"id":1}\n', '{"id":2}\n'];
     const responseText = responseLine(RESPONSE_ID);
 
-    const runPromise = sut({ requests, cwd: CWD, responseId: RESPONSE_ID });
+    const runPromise = sut({ requests, cwd: CWD, env: ENV, responseId: RESPONSE_ID });
     child.stdout.emit('data', responseText);
     const result = await runPromise;
 
     assert.equal(result, responseText);
-    assert.deepEqual(calls, [{ command: 'codex', args: ['app-server'], options: { cwd: CWD } }]);
+    assert.deepEqual(calls, [{ command: 'codex', args: ['app-server'], options: { cwd: CWD, env: ENV } }]);
     assert.deepEqual(state.writes, requests);
     assert.equal(state.killCount, 1);
+  });
+
+  it('Given an injected env, when the runner spawns the child, then that env is handed to spawn rather than left to the ambient process', async () => {
+    const { child } = createFakeChildProcess();
+    const { spawn, calls } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+
+    const runPromise = sut({ requests: [], cwd: CWD, env: ENV, responseId: RESPONSE_ID });
+    child.stdout.emit('data', responseLine(RESPONSE_ID));
+    await runPromise;
+
+    assert.equal(calls[0].options.env, ENV);
   });
 
   it('Given the awaited response has not arrived yet, when the runner has written its requests, then stdin is still open so the server is not shut down before it answers', async () => {
@@ -152,6 +168,47 @@ describe('createAppServerRunner() — early non-zero exit', () => {
       assert.match(error.message, /boom: config not found/);
       return true;
     });
+    assert.equal(state.killCount, 1);
+  });
+});
+
+describe('createAppServerRunner() — clean early exit', () => {
+  // What an unauthenticated CODEX_HOME actually does: the server answers
+  // initialize, then leaves with status 0 and nothing on stderr. Both fields
+  // the diagnostic used to quote are empty here, so the accumulated stdout is
+  // the only evidence of how far the exchange got.
+  it('Given a child that answers initialize then exits 0 with empty stderr, when the runner runs, then it rejects quoting the stdout it did receive', async () => {
+    const { child, state } = createFakeChildProcess();
+    const { spawn } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+    const initializeLine = responseLine(1);
+
+    const runPromise = sut({ requests: [], cwd: CWD, env: ENV, responseId: RESPONSE_ID });
+    child.stdout.emit('data', initializeLine);
+    child.emit('exit', 0);
+
+    await assert.rejects(runPromise, (error) => {
+      assert.match(error.message, /exited/i);
+      assert.ok(error.message.includes(initializeLine.trim()));
+      return true;
+    });
+    assert.equal(state.killCount, 1);
+  });
+});
+
+describe('createAppServerRunner() — stdin error', () => {
+  // Without a listener here the stream error escapes both this promise and the
+  // caller's catch, and node exits 1 — the very code --check reserves for "the
+  // hook is untrusted", so a plumbing failure would read as a trust verdict.
+  it('Given a stdin that emits an error event, when the runner runs, then it rejects naming the error and kills the child once', async () => {
+    const { child, state } = createFakeChildProcess();
+    const { spawn } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+
+    const runPromise = sut({ requests: [], cwd: CWD, env: ENV, responseId: RESPONSE_ID });
+    child.stdin.emit('error', new Error('write EPIPE'));
+
+    await assert.rejects(runPromise, /EPIPE/);
     assert.equal(state.killCount, 1);
   });
 });

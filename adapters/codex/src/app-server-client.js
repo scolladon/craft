@@ -13,6 +13,7 @@
 const APP_SERVER_COMMAND = 'codex';
 const APP_SERVER_ARGS = ['app-server'];
 const DEFAULT_TIMEOUT_MS = 10_000;
+const EMPTY_STREAM_PLACEHOLDER = '<empty>';
 
 function splitCompleteLines(buffer) {
   const lines = buffer.split('\n');
@@ -64,12 +65,15 @@ function writeRequests(child, requests) {
 
 /**
  * @param {{ spawn: Function }} deps
- * @returns {(params: { requests: string[], cwd: string, timeoutMs?: number, responseId: number }) => Promise<string>}
+ * @returns {(params: { requests: string[], cwd: string, env: object, timeoutMs?: number, responseId: number }) => Promise<string>}
  */
 export function createAppServerRunner({ spawn }) {
-  return function runAppServer({ requests, cwd, timeoutMs = DEFAULT_TIMEOUT_MS, responseId }) {
+  return function runAppServer({ requests, cwd, env, timeoutMs = DEFAULT_TIMEOUT_MS, responseId }) {
     return new Promise((resolve, reject) => {
-      const child = spawn(APP_SERVER_COMMAND, APP_SERVER_ARGS, { cwd });
+      // `env` is passed, never inherited: the caller resolves the config path
+      // from an injected environment, so the child must read CODEX_HOME from
+      // that same one or the two disagree about which install is being trusted.
+      const child = spawn(APP_SERVER_COMMAND, APP_SERVER_ARGS, { cwd, env });
       const accumulator = createLineAccumulator();
       let stderrText = '';
       let settled = false;
@@ -95,8 +99,23 @@ export function createAppServerRunner({ spawn }) {
         finish(() => reject(new Error(`app-server process error: ${error.message}`)));
       });
 
-      child.on('exit', (code) => {
-        finish(() => reject(new Error(`app-server exited with code ${code} before responding: ${stderrText}`)));
+      // An authenticated-but-idle server leaves with code 0 and nothing on
+      // stderr, so quoting stderr alone yields an empty diagnostic; the stdout
+      // accumulated so far is what shows how far the exchange actually got.
+      child.on('exit', (code, signal) => {
+        finish(() =>
+          reject(
+            new Error(
+              `app-server exited (code ${code}, signal ${signal}) before responding to id ${responseId}` +
+                ` — stderr: ${stderrText || EMPTY_STREAM_PLACEHOLDER}` +
+                ` — stdout: ${accumulator.text || EMPTY_STREAM_PLACEHOLDER}`
+            )
+          )
+        );
+      });
+
+      child.stdin.on('error', (error) => {
+        finish(() => reject(new Error(`app-server stdin error: ${error.message}`)));
       });
 
       child.stderr.setEncoding('utf8');

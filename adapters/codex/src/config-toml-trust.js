@@ -7,33 +7,13 @@
  * the file untouched.
  */
 
+import { escapeControlChars } from './safe-text.js';
+
 const TABLE_HEADER_PREFIX = '[hooks.state.';
 const TABLE_HEADER_SUFFIX = ']';
 const TABLE_BOUNDARY_CHAR = '[';
 const TRUSTED_HASH_KEY = 'trusted_hash';
 const TRUSTED_HASH_ASSIGNMENT_PATTERN = /^\s*trusted_hash\s*=/;
-
-// Control characters (U+0000-U+001F) plus DEL (U+007F): the two ranges TOML
-// forbids unescaped inside a basic string.
-const CONTROL_CHAR_UPPER_BOUND = 0x1f;
-const DELETE_CHAR_CODE_POINT = 0x7f;
-
-function isControlCodePoint(codePoint) {
-  return codePoint <= CONTROL_CHAR_UPPER_BOUND || codePoint === DELETE_CHAR_CODE_POINT;
-}
-
-function toControlEscape(codePoint) {
-  return `\\u${codePoint.toString(16).toUpperCase().padStart(4, '0')}`;
-}
-
-function escapeControlChars(text) {
-  return Array.from(text)
-    .map((char) => {
-      const codePoint = char.codePointAt(0);
-      return isControlCodePoint(codePoint) ? toControlEscape(codePoint) : char;
-    })
-    .join('');
-}
 
 /**
  * Quote and escape a string as a TOML basic string: usable both as a quoted

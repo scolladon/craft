@@ -16,11 +16,16 @@ const METHOD_HOOKS_LIST = 'hooks/list';
 const CLIENT_NAME = 'craft-hook-trust';
 const CLIENT_VERSION = '0.1.0';
 
+// The guard's location below the craft root, named once. The command match
+// here and the on-disk existence check in the flow that consumes it are both
+// derived from this, so a rename cannot leave one of them matching nothing.
+export const GUARD_SCRIPT_SEGMENTS = Object.freeze(['adapters', 'codex', 'hooks', 'craft-guard.js']);
+
 // codex runs a registered hook command through a shell, so `hooks/list` may
 // echo it raw (carrying `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}`) or expanded
 // to an absolute path. The path tail is invariant under both, so matching on
 // it (not a realpath) is the only comparison that survives either shape.
-const GUARD_COMMAND_TAIL = '/adapters/codex/hooks/craft-guard.js';
+const GUARD_COMMAND_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 
 // The tail must be the OPERAND the interpreter executes, never merely a
 // substring of the command: a shell string can carry it in a comment, a
@@ -43,12 +48,29 @@ const ENTRY_ARRAY_KEYS = ['hooks', 'warnings', 'errors'];
 
 // The action a hook's trustStatus resolves to. A status outside this map is
 // not a benign default — planTrust throws rather than guessing an action.
+const ACTION_WRITE = 'write';
+const ACTION_NOOP = 'noop';
 const TRUST_STATUS_ACTIONS = Object.freeze({
-  trusted: 'noop',
-  untrusted: 'write',
-  modified: 'write',
-  managed: 'noop',
+  trusted: ACTION_NOOP,
+  untrusted: ACTION_WRITE,
+  modified: ACTION_WRITE,
+  managed: ACTION_NOOP,
 });
+
+// The two fields a write persists verbatim. Only the write route needs them:
+// an empty one would record an empty trusted_hash and still report success,
+// and an absent one would surface as a bare TypeError from the TOML quoter
+// rather than as a refusal.
+const WRITE_REQUIRED_FIELDS = ['key', 'currentHash'];
+
+function assertWritableFields(hook) {
+  for (const field of WRITE_REQUIRED_FIELDS) {
+    const value = hook[field];
+    if (typeof value !== 'string' || value.length === 0) {
+      throw new Error(`planTrust: ${field} must be a non-empty string to write trust, got ${JSON.stringify(value)}`);
+    }
+  }
+}
 
 function assertValidCwd(cwd) {
   if (typeof cwd !== 'string' || cwd.length === 0) {
@@ -92,16 +114,47 @@ function parseLine(line) {
   }
 }
 
+function isPlainObject(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+// An id alone does not make a message an answer: the server issues requests of
+// its own, numbered from its own counter, so an id collision is expected. Only
+// a message carrying a result or an error and no method is a response.
+function isResponse(message) {
+  return isPlainObject(message) && !('method' in message) && ('result' in message || 'error' in message);
+}
+
 function findResponseById(messages, requestId) {
-  const response = messages.find((message) => message && typeof message === 'object' && message.id === requestId);
+  const response = messages.find((message) => isResponse(message) && message.id === requestId);
   if (!response) {
     throw new Error(`parseHooksList: no response found for request id ${requestId}`);
   }
   return response;
 }
 
+/**
+ * Render one `hooks/list` diagnostic — an error or a warning — as a line of
+ * human-readable text. The protocol types them differently (errors are
+ * `{message, path}` objects, warnings are strings), and neither is validated
+ * before it is shown, so an unforeseen shape must still read as a diagnostic
+ * rather than collapse to `[object Object]`.
+ *
+ * @param {unknown} entry
+ * @returns {string}
+ */
+export function describeListingEntry(entry) {
+  if (typeof entry === 'string') {
+    return entry;
+  }
+  if (isPlainObject(entry) && typeof entry.message === 'string') {
+    return typeof entry.path === 'string' ? `${entry.message} (${entry.path})` : entry.message;
+  }
+  return JSON.stringify(entry) ?? String(entry);
+}
+
 function assertPlainObject(value, label) {
-  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+  if (!isPlainObject(value)) {
     throw new Error(`${label} is not an object`);
   }
 }
@@ -138,7 +191,7 @@ export function parseHooksList(stdoutText, { requestId }) {
   const response = findResponseById(messages, requestId);
 
   if (response.error) {
-    throw new Error(`parseHooksList: server returned an error: ${response.error.message}`);
+    throw new Error(`parseHooksList: server returned an error: ${describeListingEntry(response.error)}`);
   }
 
   assertPlainObject(response.result, 'parseHooksList: response.result');
@@ -157,7 +210,7 @@ export function parseHooksList(stdoutText, { requestId }) {
 }
 
 function describeErrors(errors) {
-  return errors.map(({ message, path }) => `${message} (${path})`).join('; ');
+  return errors.map(describeListingEntry).join('; ');
 }
 
 function assertSingleMatch(matches, errors) {
@@ -174,7 +227,8 @@ function toBasename(token) {
   return token.slice(token.lastIndexOf(PATH_SEPARATOR) + 1);
 }
 
-function isGuardCommand(command) {
+function isGuardHook(hook) {
+  const command = isPlainObject(hook) ? hook.command : undefined;
   if (typeof command !== 'string') {
     return false;
   }
@@ -204,7 +258,7 @@ function assertNotRepositorySourced(hook) {
  * @returns {object}
  */
 export function selectCraftHook(hooks, { errors = [] } = {}) {
-  const matches = hooks.filter((hook) => isGuardCommand(hook.command));
+  const matches = hooks.filter(isGuardHook);
 
   assertSingleMatch(matches, errors);
   if (matches.length > 1) {
@@ -229,8 +283,13 @@ export function planTrust(hook) {
     throw new Error(`planTrust: unknown trustStatus "${hook.trustStatus}"`);
   }
 
+  const action = TRUST_STATUS_ACTIONS[hook.trustStatus];
+  if (action === ACTION_WRITE) {
+    assertWritableFields(hook);
+  }
+
   return {
-    action: TRUST_STATUS_ACTIONS[hook.trustStatus],
+    action,
     key: hook.key,
     hash: hook.currentHash,
     from: hook.trustStatus,
