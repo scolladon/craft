@@ -23,15 +23,23 @@ if [ "${1:-}" = "--audience" ]; then
 
   # Prefix-strip via literal parameter expansion (never a sed program built from
   # the caller-controlled path) and dedupe in-shell; guarded expansions keep
-  # bash 3.2 `set -u` happy when the directory has zero tracked entries.
+  # bash 3.2 `set -u` happy when the directory has zero tracked entries. The
+  # dedupe compares elements one at a time (never joins them into one string)
+  # so an entry name that itself contains a space cannot mask another entry.
   top_level=()
   while IFS= read -r path; do
     path="${path#"$rel"/}"
     entry="${path%%/*}"
-    case " ${top_level[*]:-} " in
-      *" $entry "*) : ;;
-      *) top_level+=("$entry") ;;
-    esac
+    is_known=0
+    for known in ${top_level[@]+"${top_level[@]}"}; do
+      if [ "$known" = "$entry" ]; then
+        is_known=1
+        break
+      fi
+    done
+    if [ "$is_known" -eq 0 ]; then
+      top_level+=("$entry")
+    fi
   done < <(git -C "$root" ls-files -- "$rel")
 
   offenders=()
