@@ -2,12 +2,15 @@
  * Rendering of untrusted text for a line-oriented sink — a TOML basic string
  * or a terminal stream.
  *
- * Both sinks share one hazard: a control character in a value decides how the
- * bytes around it are read. In TOML an unescaped one is simply illegal; on a
- * stream a `\r` hides everything written before it and a `\n` forges a whole
- * extra line under this tool's own prefix. Since the echoed values are the
- * human-visible safeguard — what is being trusted is shown, not inferred —
- * neither sink may receive a control character verbatim.
+ * Both sinks share one hazard: a character that renders as nothing, or that
+ * rearranges what renders around it, decides how the rest of the value is read.
+ * In TOML an unescaped control character is simply illegal; on a stream a `\r`
+ * hides everything written before it, a `\n` forges a whole extra line under
+ * this tool's own prefix, a zero-width character hides a difference between two
+ * values that look identical, and a bidi override reverses the visible order of
+ * the text around it. Since the echoed values are the human-visible safeguard —
+ * what is being trusted is shown, not inferred — a value that can misrepresent
+ * itself on the way to either sink reaches neither verbatim.
  */
 
 // Control characters (U+0000-U+001F) plus DEL (U+007F): the two ranges TOML
@@ -16,8 +19,26 @@ const CONTROL_CHAR_UPPER_BOUND = 0x1f;
 const DELETE_CHAR_CODE_POINT = 0x7f;
 const ESCAPE_HEX_DIGITS = 4;
 
+// Legal in a TOML basic string and harmless to a terminal's cursor, but not to
+// a reader: zero-width and bidi-formatting characters change what the rendered
+// text says without changing what it is. Ranges, not a set, because each is
+// contiguous in Unicode and spelling out the members would invite gaps.
+const INVISIBLE_CODE_POINT_RANGES = Object.freeze([
+  Object.freeze([0x200b, 0x200f]),
+  Object.freeze([0x202a, 0x202e]),
+  Object.freeze([0x2066, 0x2069]),
+]);
+
+function isInvisibleCodePoint(codePoint) {
+  return INVISIBLE_CODE_POINT_RANGES.some(([first, last]) => codePoint >= first && codePoint <= last);
+}
+
 function isControlCodePoint(codePoint) {
-  return codePoint <= CONTROL_CHAR_UPPER_BOUND || codePoint === DELETE_CHAR_CODE_POINT;
+  return (
+    codePoint <= CONTROL_CHAR_UPPER_BOUND ||
+    codePoint === DELETE_CHAR_CODE_POINT ||
+    isInvisibleCodePoint(codePoint)
+  );
 }
 
 function toControlEscape(codePoint) {
@@ -25,8 +46,9 @@ function toControlEscape(codePoint) {
 }
 
 /**
- * Replace every control character with its `\uXXXX` escape, leaving every
- * other character as it stands.
+ * Replace every character that renders as nothing, or that rearranges what
+ * renders around it, with its `\uXXXX` escape — leaving every character that
+ * shows itself honestly as it stands.
  *
  * @param {string} text
  * @returns {string}
