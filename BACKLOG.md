@@ -354,8 +354,12 @@ Copilot ships a richer matcher, or via a wrapper that normalises argv before the
 
 ### Open (scoped 2026-07-20 — follow-ups surfaced by the codex binding, not yet scheduled)
 
-**Hook-trust for the codex binding — fully delivered; scriptable trust landed 2026-07-31 on
-codex 0.145.0.** Two findings on the original live probe (throwaway CODEX_HOME), both now closed:
+**Hook-trust for the codex binding — one finding closed, one mitigated; scriptable trust landed
+2026-07-31 on codex 0.145.0.** Two findings on the original live probe (throwaway CODEX_HOME). The
+over-blocking guard is closed. The untrusted-hook **fail-open is not**: it was reproduced on
+0.145.0 and remains unchanged codex behaviour that craft cannot fix from the outside. What closed
+is the blocker underneath it — trust had no scriptable write path, so the one-time mitigation could
+not be automated. It now can. Both findings, in order:
 - **DELIVERED — the guard over-blocked EVERY command (fixed, `fb4b922`).** The real codex
   `PreToolUse` payload is Claude-shaped (`tool_name:"Bash"`, `tool_input:{command}`, `cwd`;
   patches: `tool_name:"apply_patch"`, `tool_input:{command:"<patch>"}`), but the adapter expected
@@ -364,10 +368,11 @@ codex 0.145.0.** Two findings on the original live probe (throwaway CODEX_HOME),
   live-broken" gap: all `adapters/codex/` unit tests passed against a fictional payload shape. Fix:
   read `tool_input.command`. Live-verified: benign `echo` ALLOWED, `git diff` BLOCKED with the
   ext-diff reason.
-- **DELIVERED 2026-07-31 on codex 0.145.0 — scriptable hook-trust now exists.** Re-probed in a
-  throwaway `CODEX_HOME` (isolation proven by mtime-find over the real one: zero entries newer than
-  the reference marker). Fail-open was reproduced first on 0.145.0 — an untrusted hook still silently
-  no-ops, ground-truthed: the command ran and the hook never fired. What changed is the write path.
+- **MITIGATED, not closed, 2026-07-31 on codex 0.145.0 — the fail-open stands; scriptable
+  hook-trust now exists to work around it.** Re-probed in a throwaway `CODEX_HOME` (isolation proven
+  by mtime-find over the real one: zero entries newer than the reference marker). Fail-open was
+  reproduced first on 0.145.0 — an untrusted hook still silently no-ops, ground-truthed: the command
+  ran and the hook never fired. That behaviour is unchanged. What changed is the write path.
   Trust is **not** a state file and **not** a DB row — it is a `config.toml` key. `hooks/list` over
   `codex app-server` (newline-delimited JSON-RPC on stdio) returns each hook's `key`, `currentHash`
   and `trustStatus`; writing `[hooks.state."<key>"] trusted_hash = "<currentHash>"` flips it to
@@ -413,16 +418,23 @@ over the tool's real home directory, and that check is sound for filesystem writ
 zero for every probe in that run. But probes that copy an `auth.json` into a throwaway home share a
 **refresh token that rotates server-side on use**, silently invalidating the copy the operator's real
 home still holds; the next real use fails and needs a re-login. No filesystem check can see this.
-The codex record now carries the caveat. The other binding records (`opencode`, `copilot`, `pi`,
-`cursor`, `aider`, `antigravity`) make the same unqualified isolation claim and should each gain it,
-along with the practical mitigations: keep probe windows inside the access token's lifetime, treat
-copied credentials as consumed, and expect a re-login afterwards.
+The codex record now carries the caveat. Scope, checked record by record rather than assumed: the
+codex record is the only one that copies a rotating credential into a throwaway home. `copilot` ran
+with zero credentials; `aider` seeds an env-var/file API key with no rotating refresh token;
+`opencode`, `pi` and `antigravity` use `mktemp`/`env -i` throwaways with no credential seeding at
+all; `cursor` symlinks the login keychain and already documents that a token refresh writes the
+operator's own token back. So the item is not "add this to six records". It is: give `cursor` the
+full caveat (it carries a partial one), and make the caveat a standing rule for any future probe
+that seeds a rotating credential, with the practical mitigations — keep probe windows inside the
+access token's lifetime, treat copied credentials as consumed, expect a re-login afterwards.
 
 **Local marketplace source form in the codex README — delivered 2026-07-31.** Surfaced by the
 0.145.0 re-probe. `codex plugin marketplace add` accepts "a local path, owner/repo[@ref], an HTTPS
 Git URL, or an SSH Git URL", and a bare `adapters/codex` matches the **owner/repo shorthand** — so
-0.145.0 resolved it to a remote clone of a non-existent repository instead of the local directory,
-stalling on interactive credential prompting before failing. The README documented that bare form.
+0.145.0 resolved it to a remote clone of a non-existent repository instead of the local directory.
+What was captured is the clone's own failure — `exit status: 128`, repository not found; the stall
+beforehand is **inferred** to be interactive credential prompting (it fails fast with prompting
+disabled), never observed directly. The README documented that bare form.
 Fixed to `./adapters/codex` (an absolute path also works, but cannot be written literally in docs),
 pinned in `adapters/codex/test/native-surface.test.js` on the `./` prefix itself — a pin requiring
 only the substring `adapters/codex` would pass against the broken form. Recorded as observed 0.145.0

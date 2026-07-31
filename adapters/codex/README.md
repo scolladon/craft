@@ -1,8 +1,9 @@
 # @craft/adapter-codex
 
-Native OpenAI Codex CLI plugin binding for the craft workflow. Codex discovers this
-binding's guard hook, agents, and `craft-run` entrypoint from `adapters/codex/` via
-the `craft-codex` marketplace entry.
+Native OpenAI Codex CLI plugin binding for the craft workflow. Everything this binding
+supplies lives under `adapters/codex/`: the guard hook, the nine role agents, and the
+`craft-run` entrypoint skill. How each one reaches Codex differs, and only one of the
+three arrives through the marketplace entry — read *Load* before assuming otherwise.
 
 ## Load
 
@@ -21,11 +22,28 @@ The leading `./` is required: a bare `adapters/codex` matches codex's `owner/rep
 shorthand and resolves against a remote host instead of the local directory. An
 absolute path also works but is not shown here, because it differs per checkout.
 
-`marketplace.json` declares two entries: `craft-codex` — this binding's own
-`hooks.json`, the nine `agents/craft-*.md` files, and the delegating `craft-run`
-entrypoint skill, all local to the plugin and copied into Codex's plugin cache on
-install — and `craft`, whose `skills` field points at the repository-root `skills/`
-tree.
+`marketplace.json` declares two entries. `craft-codex` is this binding's own plugin
+directory, and it holds exactly one thing: the delegating `craft-run` entrypoint skill
+under `plugins/craft-codex/skills/`. Its manifest also declares
+`hooks: "../../hooks.json"` — a path pointing OUT of the plugin directory. `craft` is
+the second entry, whose `skills` field points at the repository-root `skills/` tree.
+
+`codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and rewrites its
+manifest, and the cached `.codex-plugin/plugin.json` observed on 0.145.0 is just
+`{description, name}` — **both** `hooks` and `skills` are gone. So of the three surfaces
+named above, exactly one arrives this way:
+
+- **`craft-run` — yes.** Not via the dropped `skills` field: its files sit inside the
+  plugin directory, so they are copied along with it, and it appears as
+  `craft-codex:craft-run` in the app-server's own skills listing.
+- **The guard hook — no.** `hooks` is absent from the cached manifest, so a marketplace
+  install registers no hook whatsoever. It must be wired by hand (below); the trust key
+  observed live on 0.145.0 shows where the working hook actually comes from —
+  `<CODEX_HOME>/config.toml:pre_tool_use:0:0`.
+- **The nine agents — no.** The pinned plugin-manifest shape carries no `agents` field at
+  all, and `agents/craft-*.md` sits outside the plugin directory. How Codex picks the
+  agent files up was never probed; what is pinned is only that a marketplace install does
+  not carry them.
 
 **The 19 shared skills do NOT load by reference on Codex 0.145.0 (pinned live).**
 `codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and, in doing
@@ -40,10 +58,11 @@ a contingency to fall back on:
 ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>   # once per shared skill
 ```
 
-The `craft-codex` entry's own local surface (hook, agents, `craft-run`) DOES install
-via the marketplace. To bypass the marketplace entirely, add the `[hooks]` entry from
-`config.template.toml` (below) to `$CODEX_HOME/config.toml` by hand alongside the
-symlinks above.
+**Wiring the guard hook by hand is required, not a way around the marketplace.** Add the
+`[hooks]` entry from `config.template.toml` (below) to `$CODEX_HOME/config.toml`,
+alongside the symlinks above. Skip it and the binding has no PreToolUse hook registered
+at all — a state that, at runtime, looks exactly like the untrusted-hook no-op described
+below: installed, silent, enforcing nothing.
 
 ## Configure
 
@@ -64,8 +83,12 @@ installed and enforces *nothing*, with no signal that anything is wrong.
 
 So, before any headless or automated run:
 
-1. After `codex login` (whether `hooks/list` requires an authenticated `CODEX_HOME` is
-   unpinned, so this order sidesteps the question), **trust the craft guard hook**:
+1. After `codex login` — that order is a requirement, not a precaution. `hooks/list`
+   **needs an authenticated `CODEX_HOME`** (pinned live: with no `auth.json`, and again
+   with a stale refresh token, `codex app-server` answers `initialize` and then exits
+   without ever answering `hooks/list`). So `trust-hook.js` cannot run before login, and
+   cannot run in a CI job unless that job seeds a valid, authenticated `CODEX_HOME`.
+   Then **trust the craft guard hook**:
 
    ```
    node adapters/codex/bin/trust-hook.js

@@ -27,8 +27,9 @@ load-bearing for every choice in *Design*.
 ### Pinned matrix — codex-cli 0.145.0 (re-probe evidence)
 
 **Identity.** Binary `codex-cli 0.145.0`; npm `@openai/codex@0.145.0`. The vendored native binary
-moved under `…/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex`
-— the record's install-path row is stale.
+sits at `…/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex`
+— a fresh observation, not a move: the record's install-path row named no vendor path at all, so
+there is no recorded 0.144.6 layout to compare against.
 
 **(1) Scriptable hook-trust — LIFTED.** Trust is neither a state file nor a DB row (the state
 sqlite carries no trust table); it is a **`config.toml` key**. The headless read path is
@@ -56,9 +57,11 @@ trusted_hash = "<currentHash from hooks/list>"
 ```
 
 Re-running `hooks/list` then reports `trustStatus: "trusted"`. **Observed live.** The hash covers
-the hook **definition**, not the script file's contents: changing the hook `command` moved
-`currentHash` from `sha256:cf8ef5ea…` to `sha256:031fe4e9…`. `modified` is therefore the
-definition-tamper signal.
+the hook **definition**, not the script file's contents — probed from both sides: changing the hook
+`command` moved `currentHash` from `sha256:cf8ef5ea…` to `sha256:031fe4e9…`, while changing the
+guard script's contents with the `command` left byte-identical left `currentHash` at
+`sha256:8ef60908…` before and after. `modified` is a definition-tamper signal only; a rewritten
+`craft-guard.js` moves no hash and raises no signal.
 
 **(1c) Fail-closed proven in BOTH directions**, ground-truthed by side-effect, with the real
 `adapters/codex/hooks/craft-guard.js` wired and trusted by the path above:
@@ -214,25 +217,37 @@ updates. Each part is one atomic commit.
   `error` member throws with the server's own message. No matching response throws. A malformed
   line throws rather than being skipped — a silently-dropped line is how a "0 hooks found" false
   negative would look.
-- `selectCraftHook(hooks) → HookMetadata` — matches on `command` containing the path **tail**
-  `/adapters/codex/hooks/craft-guard.js`. Exactly one match returns; **zero throws, more than one
-  throws**, each naming what it saw, including every candidate's `sourcePath`.
+- `selectCraftHook(hooks) → HookMetadata` — matches a `command` that is exactly two
+  whitespace-separated tokens, whose first token's basename is `node` and whose second token ends in
+  the path **tail** `/adapters/codex/hooks/craft-guard.js`; a `project`-sourced hook is refused
+  outright. Exactly one match returns; **zero throws, more than one throws**, each naming what it
+  saw, including every candidate's `sourcePath`.
 
   **Matching on the tail, not on the absolute path, is deliberate and load-bearing.** The registered
   command is `node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js`
   (`adapters/codex/hooks.json`), and codex runs hook commands through a shell that expands both the
-  variable and the POSIX `:-` default. Whether `hooks/list` reports that command **raw** or
-  **shell-expanded** was not pinned by the re-probe. A matcher keyed on the realpath'd absolute
+  variable and the POSIX `:-` default. The re-probe observed the command reported **shell-expanded**
+  — once. The **raw** variant was never observed either way, and one observation does not establish
+  which form codex always reports. A matcher keyed on the realpath'd absolute
   guard path would therefore match nothing on the raw variant — a tool that fails loud on every
   single run, which is the same "unit-green, live-broken" class as the payload-shape regression this
   binding already ate once. The tail is identical under both variants, so the matcher works either
   way. `resolveCraftRoot` is still used, for the step-2 existence check that the guard script is
   really there — the two concerns stay separate.
 
-  The residual this buys is small and stated rather than hidden: the tail also matches a *different*
-  craft checkout's guard. That checkout's guard is still fail-closed craft code, so the exposure is
-  over-restriction, never a bypass — and if both are registered, it presents as a multi-match and is
-  refused.
+  **A tail alone is not a match, though.** A containment test over the command string passes on a
+  command that merely mentions the guard while executing something else — the tail in a trailing
+  comment, in a quoted argument, as a flag value, on a `.bak` lookalike, or behind a traversal path.
+  The tail is therefore required to be the operand the interpreter runs: two tokens, `node` plus
+  that operand, nothing chained, wrapped or flagged, and never a `project`-sourced hook. All five
+  decoys above are refused; both live forms — raw and shell-expanded — still match.
+
+  The residuals are stated rather than hidden, in both directions. **Over-restriction:** the
+  anchored form also matches a *different* craft checkout's guard, and if both are registered it
+  presents as a multi-match and is refused. **Under-restriction:** nothing here can establish that
+  the script at that path is craft's — the guard script's contents are outside `currentHash`
+  (pinned above), so a path resolving to a rewritten `craft-guard.js` presents identically to the
+  original. This check anchors the hook definition; it does not attest the guard's behaviour.
 
   The multi-match case is real, not theoretical: codex layers user (`$CODEX_HOME/config.toml`) over
   project (`.codex/`), so craft's guard can end up registered twice. Refusing is the right verdict —
