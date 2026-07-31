@@ -319,3 +319,39 @@ test('Given all four regions surrounded by unrelated prose and blank lines, when
   assert.deepEqual(result.timelinePhases, ENABLED_PHASE_IDS);
   assert.deepEqual(result.costClaims, EXPECTED_COST_CLAIMS);
 });
+
+// The receipts sentence links each committed corpus by directory with its size.
+// Those numbers are hand-maintained and drifted for months, so they are extracted
+// here to be checked against the tree rather than trusted.
+const RECEIPTS_LINE = [
+  'receipts: [25 design docs](docs/contributing/design/), [24 parted plans](docs/contributing/plan/),',
+  '[320 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/contributing/report.json)',
+].join('\n');
+
+test('Given a readme whose receipts sentence links sized corpora, when extractReadmeRegions runs, then each directory link yields its claimed count', () => {
+  const sut = extractReadmeRegions;
+
+  const result = sut(RECEIPTS_LINE);
+
+  assert.deepEqual(result.corpusClaims, [
+    { dir: 'docs/contributing/design/', claimed: 25 },
+    { dir: 'docs/contributing/plan/', claimed: 24 },
+    { dir: 'docs/contributing/adr/', claimed: 320 },
+  ]);
+});
+
+test('Given a link whose label does not open with a count, when extractReadmeRegions runs, then it is not read as a corpus claim', () => {
+  const sut = extractReadmeRegions;
+
+  const result = sut('see [raw telemetry for 27 runs](docs/contributing/metrics/)');
+
+  assert.deepEqual(result.corpusClaims, []);
+});
+
+test('Given a counted link that targets a file rather than a directory, when extractReadmeRegions runs, then it is not read as a corpus claim', () => {
+  const sut = extractReadmeRegions;
+
+  const result = sut('see [27 runs](docs/contributing/metrics-baseline.report.json)');
+
+  assert.deepEqual(result.corpusClaims, []);
+});

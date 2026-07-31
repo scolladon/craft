@@ -1,11 +1,11 @@
 /**
  * README drift-guard orchestrator — reads README.md, pipeline/default.yml and the
- * telemetry report under a resolved root, runs all three sub-guards (manifest snippet,
- * phase names, telemetry claims), and prints every finding it collects. Run-all, not
- * fail-fast: one invocation surfaces every drift at once.
+ * telemetry report under a resolved root, runs all four sub-guards (manifest snippet,
+ * phase names, telemetry claims, corpus counts), and prints every finding it collects.
+ * Run-all, not fail-fast: one invocation surfaces every drift at once.
  */
 
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { resolve, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { load } from 'js-yaml';
@@ -20,6 +20,7 @@ const EXIT_CLEAN = 0;
 const EXIT_DRIFT = 1;
 
 const NO_MANIFEST_SNIPPET = 'manifest-snippet: README carries no yaml fenced block to validate';
+const CORPUS_FILE_SUFFIX = '.md';
 
 /**
  * Validate a single README `yaml` snippet body via the exact path manifest-lint uses:
@@ -107,6 +108,25 @@ function telemetryFindings(root, costClaims) {
 }
 
 /**
+ * Sub-guard 4: every corpus size the README advertises must match the number of
+ * markdown files in the directory it links. These counts are hand-written prose,
+ * so nothing but a recount can keep them honest — they drifted by 50 ADRs before
+ * this guard existed.
+ * @param {string} root
+ * @param {Array<{dir: string, claimed: number}>} corpusClaims
+ * @returns {string[]} findings
+ */
+function corpusCountFindings(root, corpusClaims) {
+  return corpusClaims.flatMap(({ dir, claimed }) => {
+    const actual = readdirSync(join(root, dir)).filter((name) =>
+      name.endsWith(CORPUS_FILE_SUFFIX)
+    ).length;
+    if (actual === claimed) return [];
+    return [`corpus-counts: ${dir} claims ${claimed}, tree holds ${actual}`];
+  });
+}
+
+/**
  * @param {string[]} findings
  * @param {{ stdout: { write(s: string): void } }} io
  */
@@ -155,6 +175,7 @@ export function main(argv, io) {
     ...guarded('manifest-snippet', () => manifestSnippetFindings(regions.yamlBlocks)),
     ...guarded('phase-names', () => phaseNameFindings(root, regions)),
     ...guarded('telemetry', () => telemetryFindings(root, regions.costClaims)),
+    ...guarded('corpus-counts', () => corpusCountFindings(root, regions.corpusClaims)),
   ];
 
   printFindings(findings, io);

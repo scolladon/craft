@@ -213,10 +213,16 @@ itself — so every ci run prints advisory `SLOP-FOUND` noise for them. Harmless
 `advisory` default, a hard red the day `hygiene.gate` flips to `blocking`. One glob clause +
 the `test/hygiene-gates-ci.test.js` case-arm regex extension (the pinned pair moves together).
 
-**README corpus-count freshness.** `README.md` says "270 ADRs" and "18 design docs" while
-the tree holds 289 and 21 — the counts drift on every run because nothing recomputes them.
-Either fold live counts into the readme-drift recompute (it already pins the telemetry
-claims) or drop the numbers for count-free phrasing.
+**README corpus-count freshness — delivered 2026-07-31.** The receipts sentence claimed "270
+ADRs" and "18 design docs" against a tree holding 320 and 25; the counts drifted on every run
+because nothing recomputed them. Both halves are now closed: the stale figures were corrected,
+and `readme-drift` gained a fourth sub-guard that recounts the tree. The README drives the
+check — a claim is any markdown link whose label opens with a count and whose target is a
+directory (`[25 design docs](docs/contributing/design/)`), so adding a counted directory link
+puts it under guard with no code change, while prose links carrying an incidental number ("raw
+telemetry for 27 runs") and links to a single file are excluded by that same shape. The
+telemetry run count keeps its existing sub-guard: it is derived from the committed report, not
+from the tree.
 
 **docs-lint small hardenings.** Two benign residuals from the audience-split review: the
 `--audience` dedupe under-lists co-offenders when a top-level entry name contains a space

@@ -355,3 +355,69 @@ test('Given a tree with a renamed phase, an unknown snippet key, and a telemetry
   assert.match(cap.stdout(), /manifest-snippet/);
   assert.match(cap.stdout(), /telemetry/);
 });
+
+// ─── corpus counts ───────────────────────────────────────────────────────────
+
+// The receipts sentence advertises each committed corpus by size. Those numbers
+// are hand-maintained and drift on every run that adds a doc, so this sub-guard
+// counts the tree instead of trusting the sentence.
+function readmeClaiming(count) {
+  return [CLEAN_README, '', `receipts: [${count} ADRs](docs/contributing/adr/)`, ''].join('\n');
+}
+
+function withAdrFixture(overrides, run) {
+  return withFixtureRoot(overrides, (root) => {
+    const dir = join(root, 'docs', 'contributing', 'adr');
+    mkdirSync(dir, { recursive: true });
+    for (const name of overrides.adrFiles ?? []) writeFileSync(join(dir, name), 'x');
+    return run(root);
+  });
+}
+
+test('Given a claimed corpus count that matches the files on disk, when main runs, then it returns 0 and writes no finding', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+
+  const result = withAdrFixture(
+    { readme: readmeClaiming(2), adrFiles: ['001-a.md', '002-b.md'] },
+    (root) => sut([root], io)
+  );
+
+  assert.equal(result, 0);
+  assert.equal(stdout(), '');
+});
+
+test('Given a claimed corpus count that has drifted from the tree, when main runs, then it returns 1 and names the directory with both counts', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+
+  const result = withAdrFixture(
+    { readme: readmeClaiming(270), adrFiles: ['001-a.md', '002-b.md'] },
+    (root) => sut([root], io)
+  );
+
+  assert.equal(result, 1);
+  assert.match(stdout(), /corpus-counts: docs\/contributing\/adr\/ claims 270, tree holds 2/);
+});
+
+test('Given only non-markdown files beside the markdown ones, when main runs, then they are not counted toward the claim', () => {
+  const sut = main;
+  const { io } = captureIo();
+
+  const result = withAdrFixture(
+    { readme: readmeClaiming(1), adrFiles: ['001-a.md', 'notes.txt', '.keep'] },
+    (root) => sut([root], io)
+  );
+
+  assert.equal(result, 0);
+});
+
+test('Given a claimed directory that does not exist in the tree, when main runs, then it returns 1 and reports the surface as unusable rather than throwing', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+
+  const result = withFixtureRoot({ readme: readmeClaiming(3) }, (root) => sut([root], io));
+
+  assert.equal(result, 1);
+  assert.match(stdout(), /corpus-counts: unusable input/);
+});

@@ -21,8 +21,17 @@ const MEDIAN_PATTERN = /≈([\d.]+) hours/;
 const MAX_PATTERN = /to ≈(\d+) hours/;
 const MIN_PHRASE = 'half an hour';
 
+// A corpus claim is a markdown link whose label OPENS with a count and whose
+// target is a directory: `[25 design docs](docs/contributing/design/)`. Both
+// halves of that shape carry weight. Requiring the count to open the label
+// excludes prose links that merely contain a number ("raw telemetry for 27
+// runs"), and requiring a trailing `/` excludes links to a single file, whose
+// size is not a count of anything. The README therefore decides which corpora
+// are checked — adding a counted directory link is enough to put it under guard.
+const CORPUS_CLAIM = /\[(\d+)\s[^\]]*\]\((docs\/[^)]*\/)\)/g;
+
 /**
- * Extract the four README drift-guard regions from a README string (or any
+ * Extract the five README drift-guard regions from a README string (or any
  * fragment containing them).
  *
  * @param {string} readme
@@ -31,6 +40,7 @@ const MIN_PHRASE = 'half an hour';
  *   mermaidPhases: string[],
  *   timelinePhases: string[],
  *   costClaims: {runCount: string|null, median: string|null, min: string|null, max: string|null},
+ *   corpusClaims: Array<{dir: string, claimed: number}>,
  * }}
  */
 export function extractReadmeRegions(readme) {
@@ -39,7 +49,20 @@ export function extractReadmeRegions(readme) {
     mermaidPhases: extractMermaidPhases(extractFencedBlocks(readme, MERMAID_INFO_STRING)[0]),
     timelinePhases: extractTimelinePhases(extractFencedBlocks(readme, TIMELINE_INFO_STRING)[0]),
     costClaims: extractCostClaims(readme),
+    corpusClaims: extractCorpusClaims(readme),
   };
+}
+
+/**
+ * Every counted directory link in the README, in document order.
+ * @param {string} readme
+ * @returns {Array<{dir: string, claimed: number}>}
+ */
+function extractCorpusClaims(readme) {
+  return [...readme.matchAll(CORPUS_CLAIM)].map((match) => ({
+    dir: match[2],
+    claimed: Number(match[1]),
+  }));
 }
 
 /**
