@@ -108,6 +108,34 @@ test('Given a mixed-whitespace per-line fixture, when normalizeFindings runs, th
   assert.deepEqual(result, EXPECTED_FINDINGS);
 });
 
+// ─── interior blank lines are skipped, not just leading/trailing ones ────────
+// Kills the blank-filter mutants at findings.js:166 (the `.filter()` call
+// dropped, the predicate forced `true`, `.trim()` dropped from the predicate,
+// and the empty-string sentinel swapped): each variant would either crash on
+// the blank line or misreport how many findings survive it.
+
+test('Given a per-line input with an interior empty line, when normalizeFindings runs, then it is skipped and both real findings survive', () => {
+  const raw = 'HIGH a.js:1 — first\n\nHIGH b.js:2 — second';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result.length, 2);
+  assert.equal(result[0].finding, 'first');
+  assert.equal(result[1].finding, 'second');
+});
+
+test('Given a per-line input with an interior whitespace-only line, when normalizeFindings runs, then it is skipped and both real findings survive', () => {
+  const raw = 'HIGH a.js:1 — first\n   \nHIGH b.js:2 — second';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result.length, 2);
+  assert.equal(result[0].finding, 'first');
+  assert.equal(result[1].finding, 'second');
+});
+
 // ─── empty input → [] ─────────────────────────────────────────────────────────
 
 test('Given an empty string, when normalizeFindings runs, then it returns []', () => {
@@ -185,6 +213,17 @@ test('Given a JSON fix value padded with whitespace, when normalizeFindings runs
   const result = sut(raw);
 
   assert.equal(result[0].fix, 'y');
+});
+
+test('Given a JSON finding value padded with whitespace, when normalizeFindings runs, then finding is trimmed', () => {
+  const raw = JSON.stringify([
+    { file: 'src/x.js', line: 1, severity: 'info', finding: '  padded finding  ' },
+  ]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].finding, 'padded finding');
 });
 
 // ─── status field (optional) ─────────────────────────────────────────────────
@@ -352,6 +391,25 @@ test('Given a status prefix followed by multiple spaces, when normalizeFindings 
   assert.equal(result[0].finding, 'something odd');
 });
 
+// Kills the MethodExpression mutant at findings.js:134 (`line.trim()` dropped
+// in parseLine): only a non-first line carries whitespace `parseLineShape`
+// never strips (the blank-line filter only excludes lines that are
+// ENTIRELY whitespace). Without the per-line trim, the status-prefix pattern's
+// leading `^` anchor cannot see past the indentation, so the status is missed
+// and the line-head match fails on the now-unstripped text.
+test('Given a non-first line indented before its status prefix, when normalizeFindings runs, then the status is still peeled correctly', () => {
+  const raw = 'HIGH a.js:1 — first\n  VERIFIED: HIGH b.js:2 — second';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result.length, 2);
+  assert.equal(result[1].status, 'VERIFIED');
+  assert.equal(result[1].severity, 'HIGH');
+  assert.equal(result[1].file, 'b.js');
+  assert.equal(result[1].finding, 'second');
+});
+
 // ─── ReDoS resistance still holds with a status prefix ───────────────────────
 
 test('Given a status-prefixed pathological line at exactly the cap, when normalizeFindings runs, then it rejects promptly as malformed rather than tripping the cap', () => {
@@ -377,6 +435,19 @@ test('Given a malformed fixture, when normalizeFindings runs, then it throws on 
   );
 });
 
+// Kills the Regex mutant at findings.js:22 (LINE_HEAD_PATTERN's leading `^`
+// anchor removed): with no anchor, the pattern could match starting anywhere
+// in the line, letting leading noise before a well-formed record through.
+test('Given a line with leading token noise before an otherwise well-formed record, when normalizeFindings runs, then it throws rather than matching mid-line', () => {
+  const raw = 'a b HIGH x.js:1 — f';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    /Cannot parse findings/,
+  );
+});
+
 test('Given JSON-ish input that is invalid JSON, when normalizeFindings runs, then it throws the uniform parse error', () => {
   const raw = '[{"file": "a.js", ';
   const sut = normalizeFindings;
@@ -385,6 +456,55 @@ test('Given JSON-ish input that is invalid JSON, when normalizeFindings runs, th
     () => sut(raw),
     /Cannot parse findings/,
   );
+});
+
+test('Given JSON-ish input that is invalid JSON, when normalizeFindings runs, then the thrown message names the invalid JSON specifically', () => {
+  const raw = '[{"file": "a.js", ';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    /invalid JSON/,
+  );
+});
+
+test('Given JSON-ish input that is invalid JSON, when normalizeFindings runs, then the thrown error carries the original parse error as its cause', () => {
+  const raw = '[{"file": "a.js", ';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.cause instanceof Error && err.cause.message.length > 0,
+  );
+});
+
+test('Given a JSON array item that is null, when normalizeFindings runs, then it throws naming the index and shape', () => {
+  const raw = '[null]';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === 'Finding at index 0 is not an object',
+  );
+});
+
+test('Given a JSON array item that is a primitive number, when normalizeFindings runs, then it throws naming the index and shape', () => {
+  const raw = '[1]';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === 'Finding at index 0 is not an object',
+  );
+});
+
+test('Given a JSON array with leading whitespace, when normalizeFindings runs, then it still parses as the JSON shape', () => {
+  const raw = `  ${JSON.stringify([{ file: 'src/x.js', line: 1, severity: 'info', finding: 'note' }])}`;
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.deepEqual(result, [{ file: 'src/x.js', line: 1, severity: 'info', finding: 'note' }]);
 });
 
 test('Given a JSON array with a missing required field (file), when normalizeFindings runs, then it throws', () => {
@@ -434,6 +554,32 @@ test('Given a long unparseable line, when normalizeFindings runs, then the throw
   assert.throws(
     () => sut(longGarbage),
     (err) => err.message.includes('…') && !err.message.includes('y'.repeat(200)),
+  );
+});
+
+// Kills the ConditionalExpression mutant at findings.js:174 (the truncation
+// check forced permanently true): a short line must echo in full, with no
+// ellipsis appended.
+test('Given a short unparseable line, when normalizeFindings runs, then the thrown message echoes it in full with no ellipsis', () => {
+  const raw = 'not a valid record';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message.includes(raw) && !err.message.includes('…'),
+  );
+});
+
+// Kills the EqualityOperator mutant at findings.js:174 (`>` widened to `>=`):
+// a line of exactly 120 characters sits on the boundary and must still echo
+// in full, with no ellipsis appended.
+test('Given an unparseable line of exactly 120 characters, when normalizeFindings runs, then the thrown message echoes it in full with no ellipsis', () => {
+  const raw = 'x'.repeat(120);
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message.includes(raw) && !err.message.includes('…'),
   );
 });
 
@@ -598,17 +744,28 @@ test('Given a scope spec spanning multiple files, when parseScopeSpec runs, then
 });
 
 // A path may legally contain a comma but can never contain a newline. The
-// comma-joined form the module used to accept is now a single entry: the
-// greedy SCOPE_ENTRY_PATTERN (findings.js:43) still finds a valid-looking
-// range at the tail, so it absorbs everything before it — including the
-// other "entries" and their own commas — into one garbage file name rather
-// than throwing. Pinned here so the actual (surprising) shape is on record.
-test('Given the retired comma-joined form as a single-argument spec, when parseScopeSpec runs, then it collapses to one entry via the last colon rather than throwing', () => {
+// retired comma-joined form now arrives as a single entry: the greedy
+// SCOPE_ENTRY_PATTERN (findings.js:43) still finds a valid-looking range at
+// the tail, so without a guard it would absorb everything before it —
+// including the other "entries" and their own commas — into one garbage file
+// name that matches nothing, dropping every finding for it in silence. The
+// swallowed-entry guard rejects that shape instead.
+test('Given the retired comma-joined range form as a single-argument spec, when parseScopeSpec runs, then it throws naming the whole entry', () => {
   const sut = parseScopeSpec;
 
-  const result = sut('a.js:1-9, b.js:1-9');
+  assert.throws(
+    () => sut('a.js:1-9, b.js:1-9'),
+    (err) => err.message === 'malformed scope entry: "a.js:1-9, b.js:1-9"',
+  );
+});
 
-  assert.deepEqual(result, [{ file: 'a.js:1-9, b.js', start: 1, end: 9 }]);
+test('Given the retired comma-joined whole-file form as a single-argument spec, when parseScopeSpec runs, then it throws naming the whole entry', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(
+    () => sut('a.js:*, b.js:*'),
+    (err) => err.message === 'malformed scope entry: "a.js:*, b.js:*"',
+  );
 });
 
 test('Given a comma-bearing path as a single-entry spec, when parseScopeSpec runs, then it returns one range for that path', () => {
@@ -617,6 +774,59 @@ test('Given a comma-bearing path as a single-entry spec, when parseScopeSpec run
   const result = sut('a,b.js:1-9');
 
   assert.deepEqual(result, [{ file: 'a,b.js', start: 1, end: 9 }]);
+});
+
+// The swallowed-entry guard must not fire on the two forms this run
+// deliberately preserves: a colon-bearing path with no range, and a range
+// with no trailing comma.
+test('Given a colon-bearing whole-file path with no range, when parseScopeSpec runs, then it still parses as a whole-file grant', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('C:\\repo\\a.js:*');
+
+  assert.deepEqual(result, [{ file: 'C:\\repo\\a.js', start: 0, end: Number.MAX_SAFE_INTEGER }]);
+});
+
+test('Given a colon-bearing path with a range, when parseScopeSpec runs, then it still parses to that range', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('C:\\repo\\a.js:1-9');
+
+  assert.deepEqual(result, [{ file: 'C:\\repo\\a.js', start: 1, end: 9 }]);
+});
+
+test('Given a path containing a range-shaped substring with no trailing comma, when parseScopeSpec runs, then it still parses as a whole-file grant', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('notes:1-9.txt:*');
+
+  assert.deepEqual(result, [{ file: 'notes:1-9.txt', start: 0, end: Number.MAX_SAFE_INTEGER }]);
+});
+
+// Kills the Regex mutants at findings.js:54 narrowing SWALLOWED_ENTRY_PATTERN's
+// digit runs to a single digit (`\d+` → `\d`, either side of the hyphen): a
+// swallowed entry whose range uses multi-digit numbers on both sides would
+// slip past a guard that only recognises a single leading or trailing digit.
+test('Given the retired comma-joined form with multi-digit range numbers, when parseScopeSpec runs, then it still throws naming the whole entry', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(
+    () => sut('a.js:10-99, b.js:1-9'),
+    (err) => err.message === 'malformed scope entry: "a.js:10-99, b.js:1-9"',
+  );
+});
+
+// Kills the Regex mutant at findings.js:54 widening the pre-comma whitespace
+// class to `\S*` (non-whitespace): a swallowed entry with a space before the
+// comma would slip past a guard that requires the comma to sit directly
+// against the range-or-star tail.
+test('Given the retired comma-joined form with a space before the comma, when parseScopeSpec runs, then it still throws naming the whole entry', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(
+    () => sut('a.js:1-9 , b.js:1-9'),
+    (err) => err.message === 'malformed scope entry: "a.js:1-9 , b.js:1-9"',
+  );
 });
 
 for (const entry of ['a.js:3', 'a.js:x-9', 'a.js:9-3', 'a.js:0-3']) {

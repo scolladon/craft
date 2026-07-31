@@ -19,6 +19,13 @@
  * keeps it — `parseLine` trims both parts to restore the original delimiter's shape.
  */
 const PIPE_DELIMITER = /(?<=\s)\|(?=\s)/u;
+// equivalent mutant (Regex trailing `$` anchor dropped): `.*` is greedy and a single
+// line never contains `\n`, so it already extends to the string's end on its own — an
+// explicit end anchor changes nothing a caller can observe.
+// equivalent mutant (Regex `\s+` narrowed to `\s` before the final capture): any extra
+// whitespace the narrowed quantifier leaves uncaptured is absorbed into the greedy
+// `(.*\S)` group as part of `finding`, which `toFinding` then trims — the parsed
+// result is identical either way.
 const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
 
 // Bounds how much of a per-line record the split path ever has to look at, even
@@ -33,6 +40,10 @@ const MAX_LINE_CHARS = 16384;
  * A separate anchored pattern — not folded into LINE_HEAD_PATTERN — so it adds
  * no new backtracking shape to the line-head match.
  */
+// equivalent mutant (Regex `\s+` narrowed to `\s`): any leftover leading whitespace the
+// narrowed quantifier fails to consume sits at the front of `remainder`, which
+// `parseLine`'s per-part `.trim()` strips unconditionally before matching — no caller
+// can observe the difference.
 const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
 
 /**
@@ -40,11 +51,25 @@ const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
  * LAST colon (not the first) separates the file path from the range —
  * tolerating colons inside the path itself.
  */
+// equivalent mutant (Regex leading `^` anchor dropped): `parseScopeSpec` splits every
+// spec on `\n` before an entry ever reaches this pattern, so no entry it sees can
+// contain a newline for an unanchored `.+` to hide a prefix behind — the anchor is
+// unreachable through this module's only caller.
 const SCOPE_ENTRY_PATTERN = /^(.+):(\d+)-(\d+)$/u;
 // The per-file scope form. The `:*` marker is REQUIRED: inferring a whole-file
 // grant from a colon-free string turned a mistyped range into a silent widen,
 // which is the mirror of the silent drop this module exists to prevent.
+// equivalent mutant (Regex leading `^` anchor dropped): same reasoning as
+// SCOPE_ENTRY_PATTERN above — no entry `parseScopeSpec` hands this pattern can ever
+// contain a newline, so the anchor is unreachable through this module's only caller.
 const WHOLE_FILE_ENTRY_PATTERN = /^(.+):\*$/u;
+
+// Marks a file part that still carries another entry's range-or-star tail
+// followed by a comma — exactly what the retired comma-joined form leaves
+// behind once SCOPE_ENTRY_PATTERN's greedy head swallows it into one entry.
+// A genuine path never legally contains this shape, so it is rejected rather
+// than scoped to a file name nothing will ever match.
+const SWALLOWED_ENTRY_PATTERN = /:(?:\d+-\d+|\*)\s*,/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
@@ -110,9 +135,6 @@ function parseJsonShape(raw) {
   } catch (err) {
     throw new Error(`Cannot parse findings: invalid JSON — ${err.message}`, { cause: err });
   }
-  if (!Array.isArray(parsed)) {
-    throw new Error('Cannot parse findings: JSON input must be an array');
-  }
   return parsed.map(mapJsonItem);
 }
 
@@ -139,6 +161,10 @@ function parseLine(line) {
     return null;
   }
   const [, severity, file, rawLine, finding] = match;
+  // equivalent mutant (Conditional `parts.length === 2` forced true): the
+  // `parts.length > 2` guard above caps `parts.length` at 1 or 2, and `parts[1]` is
+  // `undefined` for a length of 1 regardless of which branch of the ternary runs —
+  // forcing the condition true yields the identical value.
   const fix = parts.length === 2 ? parts[1] : undefined;
   // A bare pipe in finding or fix is rejected (the original `[^|]` groups did the same).
   if (finding.includes('|') || (fix !== undefined && fix.includes('|'))) {
@@ -157,9 +183,6 @@ function parseLine(line) {
  */
 function parseLineShape(raw) {
   const nonBlank = raw.split('\n').filter(l => l.trim() !== '');
-  if (nonBlank.length === 0) {
-    return [];
-  }
 
   const results = [];
   for (const line of nonBlank) {
@@ -199,9 +222,6 @@ function parseLineShape(raw) {
  */
 export function normalizeFindings(raw) {
   const trimmed = raw.trim();
-  if (trimmed === '') {
-    return [];
-  }
 
   if (looksLikeJsonArray(trimmed)) {
     return parseJsonShape(trimmed);
@@ -224,10 +244,16 @@ function parseScopeEntry(entry) {
   if (match === null) {
     const wholeFile = entry.match(WHOLE_FILE_ENTRY_PATTERN);
     if (wholeFile !== null) {
+      if (SWALLOWED_ENTRY_PATTERN.test(wholeFile[1])) {
+        throw new Error(`malformed scope entry: "${entry}"`);
+      }
       // start 0, not 1: file-scoped findings are commonly reported at line 0,
       // and a whole-file grant that misses them is a silent drop.
       return { file: wholeFile[1].trim(), start: 0, end: Number.MAX_SAFE_INTEGER };
     }
+    throw new Error(`malformed scope entry: "${entry}"`);
+  }
+  if (SWALLOWED_ENTRY_PATTERN.test(match[1])) {
     throw new Error(`malformed scope entry: "${entry}"`);
   }
   const start = Number(match[2]);
