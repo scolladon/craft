@@ -58,11 +58,18 @@ a contingency to fall back on:
 ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>   # once per shared skill
 ```
 
-**Wiring the guard hook by hand is required, not a way around the marketplace.** Add the
-`[hooks]` entry from `config.template.toml` (below) to `$CODEX_HOME/config.toml`,
-alongside the symlinks above. Skip it and the binding has no PreToolUse hook registered
-at all — a state that, at runtime, looks exactly like the untrusted-hook no-op described
-below: installed, silent, enforcing nothing.
+**Wiring the guard hook by hand is required, not a way around the marketplace.** Copy the
+`[[hooks.PreToolUse]]` and `[[hooks.PreToolUse.hooks]]` blocks from
+`config.template.toml` (below) into `$CODEX_HOME/config.toml`, alongside the symlinks
+above. Skip it and the binding has no PreToolUse hook registered at all — a state that, at
+runtime, looks exactly like the untrusted-hook no-op described below: installed, silent,
+enforcing nothing.
+
+The registered `command` must stay exactly two whitespace-separated tokens — interpreter
+then guard script. `bin/trust-hook.js` refuses anything else, so a quoted operand, an
+added flag or a shell wrapper leaves the hook untrusted and therefore silent. A
+hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so export `CRAFT_ROOT=<repo checkout>` or
+substitute that absolute path into the command unquoted.
 
 ## Configure
 

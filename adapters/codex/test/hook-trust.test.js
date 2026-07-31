@@ -22,6 +22,16 @@ const HOOKS_MANIFEST = JSON.parse(readFileSync(join(ADAPTER_DIR, 'hooks.json'), 
 const REGISTERED_COMMAND = HOOKS_MANIFEST.hooks.PreToolUse[0].hooks[0].command;
 const GUARD_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 
+// The marketplace install drops the plugin manifest's hooks field, so the template
+// merged into config.toml is the registration an operator actually ends up running.
+// Reading its command out of the file rather than retyping it means a template that
+// registers nothing, or registers a command this matcher refuses, fails here instead
+// of at install time — where an unregistered hook is indistinguishable from the
+// untrusted-hook silent no-op.
+const CONFIG_TEMPLATE = readFileSync(join(ADAPTER_DIR, 'config.template.toml'), 'utf8');
+const TEMPLATE_COMMAND_PATTERN = /^\s*command\s*=\s*"(.*)"\s*$/gm;
+const TEMPLATE_COMMANDS = [...CONFIG_TEMPLATE.matchAll(TEMPLATE_COMMAND_PATTERN)].map(([, value]) => value);
+
 const CWD = '/fixture/repo';
 const CODEX_HOME_KEY = '/fixture/codex-home/config.toml:pre_tool_use:0:0';
 const CURRENT_HASH = 'sha256:031fe4e9d67c31089132dd774df39307c554f5cf27089031a68c75233ef2ecf4';
@@ -249,6 +259,21 @@ describe('the registered command and the matched path are the same path', () => 
   it('Given the command hooks.json registers, when selectCraftHook is asked about it, then it is the craft guard', () => {
     const sut = selectCraftHook;
     const hook = craftHook({ command: REGISTERED_COMMAND });
+
+    const result = sut([hook]);
+
+    assert.equal(result, hook);
+  });
+
+  it('Given config.template.toml, when its command assignments are read, then it registers exactly one hook command and it is the one hooks.json registers', () => {
+    const sut = TEMPLATE_COMMANDS;
+
+    assert.deepEqual(sut, [REGISTERED_COMMAND]);
+  });
+
+  it('Given the command config.template.toml registers, when selectCraftHook is asked about it, then it is the craft guard', () => {
+    const sut = selectCraftHook;
+    const hook = craftHook({ command: TEMPLATE_COMMANDS[0] });
 
     const result = sut([hook]);
 
