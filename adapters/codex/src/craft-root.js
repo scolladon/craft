@@ -10,9 +10,10 @@ import { existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
-// Both callers of this resolver — adapters/codex/src/*.js and
-// adapters/codex/hooks/*.js — sit exactly three directories below the repo
-// root, so a single shared up-walk depth covers both.
+// The callers of this resolver — adapters/codex/src/*.js,
+// adapters/codex/hooks/*.js and adapters/codex/bin/*.js — sit exactly three
+// directories below the repo root, so a single shared up-walk depth covers
+// all three.
 const UP_LEVELS_TO_REPO_ROOT = ['..', '..', '..'];
 
 /**

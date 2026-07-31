@@ -347,4 +347,39 @@ describe('README.md — honesty pins', () => {
 
     assert.match(sut, /--ephemeral/);
   });
+
+  it('Given README.md, when scanned, then it shows the ./-prefixed local marketplace source form', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    assert.match(sut, /codex plugin marketplace add \.\/adapters\/codex/);
+  });
+
+  it('Given README.md, when scanned, then it says why the leading ./ is required rather than merely naming the shorthand', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    assert.match(sut, /a bare `adapters\/codex` matches codex's `owner\/repo`\s+shorthand/);
+    assert.match(sut, /resolves against a remote host instead of the local directory/);
+  });
+
+  // The positive assertion above passes as soon as one correct snippet exists,
+  // so a second snippet reintroducing the bare form would sit beside it
+  // undetected. Every argument the README hands to `marketplace add` is
+  // checked, not just the first.
+  it('Given every marketplace add invocation README.md shows, when its argument is inspected, then none is a bare owner/repo shorthand', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    const sources = [...sut.matchAll(/marketplace add (\S+)/g)].map((match) => match[1]);
+
+    assert.ok(sources.length > 0, 'README.md shows no marketplace add invocation to check');
+    for (const source of sources) {
+      assert.doesNotMatch(source, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, `${source} resolves against a remote host`);
+    }
+  });
+
+  it('Given README.md, when scanned, then it documents the scriptable trust path and its read-only check', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    assert.match(sut, /bin\/trust-hook\.js/);
+    assert.match(sut, /--check/);
+  });
 });

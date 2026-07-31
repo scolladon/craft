@@ -457,7 +457,7 @@ part-sizing:
 - phase: `bash scripts/ci.sh` — confidence 1 | 3078c6e / 2026-06-26
 
 ## validation-tool
-- stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | cb873b3 / 2026-07-30 (RUN this batch — 413 mutants per-hunk over 4 engine sources, 84.02%→95.84%, 49 killed / 17 documented equivalent; ONE combined --mutate flag, repeated flags drop all but the last)
+- stryker (config fingerprint a9b6ac12ad7061bf) — confidence 1 | 9b618d2 / 2026-07-31 (RUN this batch — 575 mutants per-hunk over 6 codex adapter sources, 89.39%→99.48%, 57 killed / 3 documented equivalent; ONE combined --mutate flag, repeated flags drop all but the last. Adding comment lines to a mutated file pushes its tail past the recorded hunk range — re-derive ranges before a re-run or the instrumented count silently shrinks and reads as a clean score)
 
 ## findings
 - skills/init/SKILL.md — confidence 0.5 | f4785cd (not re-observed since P25 — decayed)
@@ -483,6 +483,13 @@ part-sizing:
 - engine/src/plan-lint-main.js — confidence 0.75 | cb873b3 (a cwd-relative argv path must be resolve()d before containment or self-exclusion silently stops applying; suppressing wide overlaps to improve a warning-rate statistic discards the worst violations — vary the remedy wording instead)
 - skills/validation/SKILL.md — confidence 0.8 | cb873b3 (an empty technique output parses as canonical and reads as a clean run — assert `[ -s "$out" ]` before branching; classify by normalize-findings EXIT CODE, never by reading the output, and give the branch an explicit else or the routing is unreachable)
 - docs/contributing/design — confidence 0.7 | cb873b3 (calibration tables get flattering: state before AND after side by side, or a narrowing that moved nothing reads as an improvement)
+
+- adapters/codex/src/hook-trust.js — confidence 0.9 | 9b618d2 (a guard-identity check must be anchored to the executed operand, never `includes` on a path tail: a trailing comment, a quoted argument, a flag value and a `.bak` lookalike all carry the tail while executing something else. Anchor on exactly-two-tokens + interpreter basename + operand suffix, and refuse `source: project` outright — a repo-supplied hook is what the trust gate exists to stop)
+- adapters/codex/src/config-toml-trust.js — confidence 0.9 | 9b618d2 (a line-shaped TOML table-boundary rule must trim like its header match AND consume quoted segments, or a `]` inside a quoted key stops being a boundary and the edit lands in the NEXT table while reporting success. `["a"]` and a header-shaped line inside a multi-line string are irreducibly ambiguous — document the cost, don't pretend a post-condition catches it: a post-condition reusing the same extent helper passes on every input the helper gets wrong)
+- adapters/codex/src/app-server-client.js — confidence 1 | 9b618d2 (codex app-server treats stdin EOF as SHUTDOWN: write the requests and leave stdin OPEN, bound the call with a timeout+kill instead. Closing it yields only the initialize response then exit 0. A fake child whose end() is inert makes every test green over this — model EOF-as-shutdown in the double or the regression is invisible)
+- adapters/codex/src/atomic-write.js — confidence 0.8 | 9b618d2 (config rewrite = realpath first (a symlinked dotfile must not be replaced), random temp suffix + flag 'wx', chmod before rename, unlink on failure — but key the cleanup carve-out on WHICH call failed, not on the error code: an EEXIST from rename still owns a temp file this run created)
+- adapters/codex/src/safe-text.js — confidence 0.8 | 9b618d2 (escaping for a human-visible safeguard must cover invisibles, not just C0+DEL — bidi overrides, zero-width, BOM, soft hyphen. Stay BMP-only: the emitted escape is 4 hex digits, so an astral escape parses as U+E000 + digits and silently writes a key that does not match)
+- .claude/craft-memory.md (isolation method) — confidence 0.9 | 9b618d2 (mtime-find over a tool's real home proves FILESYSTEM isolation only. A copied auth.json shares a refresh token that rotates server-side, invalidating the operator's real credential with zero filesystem change — keep probe windows inside the access token's lifetime and expect a re-login)
 
 ## part-sizing
 - pure-module: pass — confidence 1 | a4849a1

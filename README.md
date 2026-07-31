@@ -165,7 +165,7 @@ proof the seams are real:
 | [pi](adapters/pi/) | headless subprocess — full 11-phase walk (original portability proof) |
 | [opencode](adapters/opencode/) | native commands + subagents + enforcing plugin |
 | [copilot](adapters/copilot/) | native plugin, shares craft skills by reference |
-| [codex](adapters/codex/) | local marketplace + blocking PreToolUse guard |
+| [codex](adapters/codex/) | local marketplace + blocking PreToolUse guard, armed by a scriptable trust step |
 | [cursor](adapters/cursor/) | headless one-turn agent, live-proven end to end |
 | [aider](adapters/aider/) | edit-loop binding; guard declined honestly (no deny surface) |
 | [antigravity](adapters/antigravity/) | GUI-driven customization, not a runnable port |

@@ -12,6 +12,27 @@
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 
+# The guard registration. `codex plugin add` drops a plugin manifest's `hooks` field, so
+# this block — not the marketplace install — is what wires the PreToolUse guard. Omit it
+# and codex registers no hook at all, a state indistinguishable at runtime from the
+# untrusted-hook silent no-op: installed, silent, enforcing nothing.
+#
+# The command is exactly two whitespace-separated tokens, interpreter then guard, because
+# that is the only form `bin/trust-hook.js` will trust. Quoting the operand, adding a
+# flag, chaining a second command, or wrapping it in a shell all make the trust helper
+# refuse the registration rather than trust it.
+#
+# `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}` is expanded by the shell codex runs hook commands
+# through. A hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so either export
+# `CRAFT_ROOT=<repo checkout>` or substitute that absolute path here — unquoted, so the
+# two-token form survives.
+[[hooks.PreToolUse]]
+matcher = "*"
+
+[[hooks.PreToolUse.hooks]]
+type = "command"
+command = "node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js"
+
 [agents.craft-designer]
 model = "gpt-5.6-sol"
 model_reasoning_effort = "high"

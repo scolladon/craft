@@ -14,11 +14,11 @@
 | Question | Answer | Status |
 |---|---|---|
 | Which product is `codex`? | `@openai/codex` — OpenAI Codex CLI | CONFIRMED |
-| Binary self-report | `codex-cli 0.144.6` | CONFIRMED |
-| npm package version | `@openai/codex@0.144.6` | CONFIRMED |
+| Binary self-report | `codex-cli 0.145.0` | CONFIRMED (0.145.0) |
+| npm package version | `@openai/codex@0.145.0` | CONFIRMED (0.145.0) |
 | Do they agree? | **Yes** — unlike the copilot binding, where the cask said 1.0.17 and the binary said 1.0.63. Re-check both on refresh; agreement today is not a guarantee. | CONFIRMED |
 | Competing/legacy CLI shadowing the name? | **No.** No Homebrew formula or cask named `codex`; no `openai` CLI installed. (`aider` is an unrelated third-party tool.) Contrast the copilot run, where the Homebrew `copilot` formula was actually AWS ECS's tool. | CONFIRMED |
-| Install path | `/Users/scolladon/.n/bin/codex` → Node shim → vendored native binary (`codex-darwin-arm64`, 248 MB) | CONFIRMED |
+| Install path | `/Users/scolladon/.n/bin/codex` → Node shim → vendored native binary at `…/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex`. Observed on 0.145.0. No 0.144.6 vendor path was ever recorded here, so this is a fresh observation and **not** a delta against a prior layout. | CONFIRMED (0.145.0) |
 
 ## Probe method
 
@@ -45,6 +45,17 @@ files were created; nothing was deleted. The writes are append-only runtime logs
 config, or user data.
 
 **Rule for any refresh of this record: isolate every `codex` invocation, including `--help`.**
+
+### 0.145.0 re-probe method
+
+**Scope — this record carries two version pins at once.** Only rows explicitly marked `(0.145.0)`
+and the `Re-probe — codex-cli 0.145.0` section below were observed on 0.145.0. Every other row
+remains a 0.144.6 observation and was not re-probed.
+
+Two throwaway `CODEX_HOME`s (auth copied in, never the real home) backed the 0.145.0 re-probe.
+Isolation was proven by `find ~/.codex -newer <ref marker>` returning **0 entries**, while 111 and
+139 entries newer than the marker landed inside the two throwaway homes.
+`--dangerously-bypass-hook-trust` was never used across the re-probe.
 
 ## Execution port
 
@@ -100,9 +111,9 @@ config, or user data.
 | Profiles | `-p <name>` layers `$CODEX_HOME/<name>.config.toml` over the base user config | CONFIRMED |
 | Instruction file auto-read | **`AGENTS.md` — CONFIRMED live.** A marker string in a project `AGENTS.md` was observed in `codex debug prompt-input` output as a `user` message. | CONFIRMED |
 | Skills | `$CODEX_HOME/skills/<name>/SKILL.md`; a plugin manifest may declare `"skills": "./skills/"` | CONFIRMED (mechanism) |
-| **Skills by reference?** | A plugin manifest's `skills` field is a **path**, and marketplaces support `"source": "local"` with a local path — so referencing craft's own top-level `skills/` is structurally available, matching ADR-251. **Not yet end-to-end proven** that craft's 19 skills load this way. | DEFERRED — highest-value row to close next |
+| **Skills by reference?** | **DISPROVEN on 0.145.0.** `plugin add` copies into `$CODEX_HOME/plugins/cache/…`, and the cached `.codex-plugin/plugin.json` drops the out-of-tree `skills` (and `hooks`) field. Ground-truthed via the app-server `skills/list` method: **0 of 19** shared craft skills load without the symlink fallback; **19 of 19** load with it (`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`, registered as `craft:<name>`). | **DISPROVEN (0.145.0)** |
 | Plugin manifest | `{name, version, description, author, skills, hooks, mcpServers, apps, interface{…}}` — `skills`/`hooks`/`mcpServers`/`apps` are all path-valued | CONFIRMED |
-| Plugin install | `codex plugin add` from a configured marketplace snapshot; `codex plugin marketplace add` supports local file-backed marketplaces | CONFIRMED (surface) / DEFERRED (install not run) |
+| Plugin install | `codex plugin add` from a configured marketplace snapshot; `codex plugin marketplace add` supports local file-backed marketplaces | **CONFIRMED (0.145.0 — install exercised live):** marketplace registration plus `plugin add` for both entries; see the re-probe section for the source-form matrix and the cached-manifest outcome |
 | MCP | `codex mcp` subcommand; `mcp_servers` config; Codex can also *be* an MCP server (`codex mcp-server`) | CONFIRMED (surface) |
 | **CRAFT_ROOT export** | Codex honours **`CLAUDE_PLUGIN_ROOT`**, `PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `PLUGIN_DATA` in hook command templates — a ready-made root-export lever | CONFIRMED (strings) / DEFERRED (not exercised live) |
 | Claude-config migration | Codex has a first-class importer for `CLAUDE.md`, `settings.json`, `hooks.json`, `agents`, MCP servers | CONFIRMED (surface) |
@@ -125,8 +136,8 @@ This is the highest-risk area, and it is where Codex differs most from Copilot.
 | `hooks.json` schema | `{"description": …, "hooks": {"<EventName>": [{"matcher": …, "hooks": [{"type":"command","command":"…"}]}]}}`. **Note the top-level `{description, hooks}` wrapper** — a flat Claude-style `{"PreToolUse": […]}` is rejected with `unknown field 'PreToolUse', expected 'description' or 'hooks'`. | CONFIRMED |
 | Handler types | `command`, `prompt`, `agent`; fields `timeoutSec`, `async`, `statusMessage`, `commandWindows` | CONFIRMED (schema) |
 | Hook trust | Hooks carry a trust model (`trusted`/`untrusted`/`modified`/`managed`). An `allow_managed_hooks_only` requirement exists. | CONFIRMED |
-| **What happens to an UNTRUSTED hook in headless mode?** | **It silently no-ops.** Proven live: the identical run *without* `--dangerously-bypass-hook-trust` produced no denial, no warning, and `command_execution` items — **the command executed**. There is no error and no signal. | **CONFIRMED — and this is the most dangerous behaviour found in this probe** |
-| Can trust be persisted? | Yes — `hooks.state` carries a `trusted_hash`; the TUI writes it via `config/batchWrite` when a user trusts a hook. `bypass_hook_trust` also exists as a **config key**, not only a CLI flag. | CONFIRMED (surface) / DEFERRED (write path not exercised) |
+| **What happens to an UNTRUSTED hook in headless mode?** | **It silently no-ops.** Proven live: the identical run *without* `--dangerously-bypass-hook-trust` produced no denial, no warning, and `command_execution` items — **the command executed**. There is no error and no signal. Re-confirmed on 0.145.0 with the real craft guard hook left untrusted. | **CONFIRMED (0.144.6; re-confirmed 0.145.0) — and this is the most dangerous behaviour found in this probe** |
+| Can trust be persisted? | **Yes — write path exercised headless on 0.145.0.** `hooks.state` is a `config.toml` key, not a state file or DB row. `codex app-server`'s `hooks/list` method returns each hook's `key` and `currentHash`; appending `[hooks.state."<key>"] trusted_hash = "<currentHash>"` to `$CODEX_HOME/config.toml` flips `trustStatus` to `trusted` on the next `hooks/list` call. The TUI's own `config/batchWrite` writes the same key. See the Re-probe section below for the full sequence. | CONFIRMED (0.145.0; write path exercised) |
 
 ### Consequence for the binding — do not skip this
 
@@ -137,7 +148,10 @@ The two obvious postures are both wrong:
 
 The correct posture is therefore: **trust the craft guard hook once at install time** (persisted via `hooks.state`/`trusted_hash`), run headless with **no bypass flag**, and **verify trust state at launch, failing loudly when the hook is not trusted** — never inferring enforcement from the hook file merely being present.
 
-`buildLaunchArgs` ships with `bypassHookTrust` defaulting to **false** and opt-in only. The launch-time trust verification is **not yet implemented** and is recorded as an open row below.
+`buildLaunchArgs` ships with `bypassHookTrust` defaulting to **false** and opt-in only. On
+0.145.0 the scriptable path exists: `codex app-server`'s `hooks/list` method is a read-only trust
+check, and the `config.toml` write above is the scriptable trust step. Launch-time verification is
+now a delivery choice, not a codex capability gap — the open row below is updated accordingly.
 
 ### Execpolicy `.rules` — argv-aware, but with a real gap
 
@@ -282,28 +296,213 @@ seams unit-test through injected dependencies.
 | Artifact produced | `gol.js` — a correct Conway `step(grid)`: B3/S23, out-of-range neighbours read as dead (bounds-checked), returns a new grid (input not mutated) | CONFIRMED |
 | Test produced | `gol.test.js` — a `node:test` asserting a blinker's period-2 oscillation both ways (`step(vertical)` deep-equals horizontal, `step(horizontal)` deep-equals vertical) | CONFIRMED |
 | Independent re-run | `node --test` re-run by the operator — not codex's self-report — passed: 1 test, 0 fail | CONFIRMED |
-| Isolation held | zero writes to the real `~/.codex` (3- and 15-minute mtime windows both empty); the whole session — rollout `.jsonl`, sqlite state, skills/plugins cache — landed in the throwaway `CODEX_HOME` | CONFIRMED |
+| Filesystem isolation held | zero writes to the real `~/.codex` (3- and 15-minute mtime windows both empty); the whole session — rollout `.jsonl`, sqlite state, skills/plugins cache — landed in the throwaway `CODEX_HOME` | CONFIRMED |
 
 The throwaway `CODEX_HOME` was seeded by copying `auth.json` + `config.toml` into it —
 never touching the real home — so a real-model turn authenticated against operator
-credentials without mutating operator state. The `ls -la ~/.codex` listing did shift
-during the run; that is ambient SQLite `-wal`/`-shm` churn, not a smoke write — the
-mtime windows are the authoritative check and both were empty.
+credentials without mutating operator state on disk. The `ls -la ~/.codex` listing did
+shift during the run; that is ambient SQLite `-wal`/`-shm` churn, not a smoke write — the
+mtime windows are the authoritative check **for filesystem writes**, and both were empty.
+They are not a whole-isolation proof, and this run is exactly the case that shows why: it
+copied `auth.json`, and a copied rotating credential is invisible to any mtime check. See
+*Isolation-method caveat* at the end of this record.
 
-## Open rows — closed / updated (2026-07-21, harden-prove-codex-binding)
+## Open rows — closed / updated (rows 2–5: 2026-07-21 on 0.144.6; rows 0–1: revisited 2026-07-31 on 0.145.0)
 
-All six probed live against `codex-cli 0.144.6` in a throwaway `CODEX_HOME` (auth copied,
+Rows 2–5 were probed live against `codex-cli 0.144.6` in a throwaway `CODEX_HOME` (auth copied,
 never read; watchdog = background kill; isolation = `find ~/.codex -newer <marker>` empty per
-probe; trusted by independent re-run). Method note: wrap EVERY `codex` invocation — including
+probe; trusted by independent re-run). Rows 0 and 1 carry verdicts revisited on `codex-cli 0.145.0`
+under the same protocol — see the re-probe section below for their evidence. Method note: wrap
+EVERY `codex` invocation — including
 bare `--version`/`--help` — in the throwaway env, or set the isolation marker AFTER them; a bare
 diagnostic touches the real `~/.codex` (version/cache/installation init) and false-alarms a
 15-minute window.
 
 | # | Row | Status | Evidence |
 |---|-----|--------|----------|
-| 0 | Launch-time hook-trust verification | **PARTIAL** | The guard **over-blocked every command** (real payload is Claude-shaped `tool_input.command`, not `exec_command`/`cmd`) — fixed `fb4b922`, live-verified (benign `echo` ALLOWED, `git diff` DENIED with ext-diff reason). The untrusted-hook silent no-op is CONFIRMED, but codex 0.144.6 exposes **no scriptable hook-trust write path** (no `hooks.state`, no trust DB row, no trust command; interactive-only) — the scriptable-install goal stays OPEN as a codex limitation. |
-| 1 | Shared skills load by reference | **DISPROVEN** | Manifest-location bug fixed (`b204182`: codex reads `.claude-plugin/marketplace.json`, not root). But `codex plugin add` copies the plugin and DROPS the out-of-tree `../../../../skills` ref — the 19 shared skills do NOT load by reference; the symlink fallback loads all 19. codex limitation; stays OPEN. |
+| 0 | Launch-time hook-trust verification | **OPEN — the codex limitation is lifted, the verification is not wired** | The guard **over-blocked every command** (real payload is Claude-shaped `tool_input.command`, not `exec_command`/`cmd`) — fixed `fb4b922`, live-verified (benign `echo` ALLOWED, `git diff` DENIED with ext-diff reason). The untrusted-hook silent no-op is CONFIRMED (0.144.6, re-confirmed 0.145.0). codex 0.144.6 exposed no scriptable hook-trust write path; **0.145.0 lifts that limitation** — `codex app-server`'s `hooks/list` plus a `config.toml` write is a scriptable read/write trust path (see the Re-probe section). What is shipped is `bin/trust-hook.js --check`, an **on-demand** read-only check. Nothing verifies trust **at launch**: no launch path calls it, so an operator who never invokes it still gets the silent no-op. The row stays open until verification is wired into a launch. |
+| 1 | Shared skills load by reference | **DISPROVEN (re-pinned 0.144.6 → 0.145.0)** | Manifest-location bug fixed (`b204182`: codex reads `.claude-plugin/marketplace.json`, not root). But `codex plugin add` copies the plugin and DROPS the out-of-tree `../../../../skills` ref — the 19 shared skills do NOT load by reference; the symlink fallback loads all 19. Re-probed on 0.145.0 via the app-server `skills/list` method: same result, 0/19 versus 19/19. Still a codex limitation; stays OPEN. |
 | 2 | Sandbox modes, per mode | **CONFIRMED (DELIVERED)** | Ground-truth 3×matrix: read-only blocks all writes+network; workspace-write allows cwd + `$TMPDIR`, BLOCKS genuinely-outside write + network; danger-full-access allows all. No fail-open. |
 | 3 | Malformed `.rules` fails open at runtime | **CONFIRMED fail-open (mitigated)** | Runtime loads `$CODEX_HOME/rules/`; binary carries `Error parsing rules; custom rules not applied.` → rules not applied on parse error. Mitigation `115bcce`: `assertRulesIntegrity` byte-compares deployed rules to the generator, refuses on drift. |
 | 4 | `CLAUDE_PLUGIN_ROOT` substitution | **CONFIRMED (DELIVERED)** | With `CRAFT_ROOT` unset + `CLAUDE_PLUGIN_ROOT` set, the hook command `node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/…/craft-guard.js` resolved — guard fired + denied `git diff`. codex expands `${CLAUDE_PLUGIN_ROOT}` AND the POSIX `:-` default, and runs hook commands through a shell. |
 | 5 | Rollout fixture + telemetry pin | **CONFIRMED gap (fixed)** | The persisted rollout does NOT carry the live `turn.completed` envelope — token record is `event_msg`/`token_count`/`info.last_token_usage`, session id on `session_meta`. The binding parsed only `turn.completed` → mined ZERO from real rollouts. Fixed `9accb03` (parse both envelopes, `last_token_usage` per-turn not cumulative), pinned by real fixture `engine/test/fixtures/codex/real-rollout.jsonl`. |
+
+## Re-probe — codex-cli 0.145.0
+
+Probe environment: two throwaway `CODEX_HOME`s, auth copied in, never the real home. Isolation
+proven by `find ~/.codex -newer <ref marker>` → **0 entries**; 111 and 139 entries newer than the
+marker landed in the throwaway homes. `--dangerously-bypass-hook-trust` was never used.
+
+### Hook trust — scriptable read and write path (lifts open row 0 above)
+
+Headless read: `codex app-server` speaks newline-delimited JSON-RPC on stdio.
+
+```json
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"clientInfo":{"name":"…","version":"…"}}}
+{"jsonrpc":"2.0","id":2,"method":"hooks/list","params":{"cwds":["<repo>"]}}
+```
+
+The id-2 response envelope — pinned against both the live response and the generated protocol
+schema (`HooksListResponse.json`) — is `result.data[]`, one entry per requested cwd, each entry
+`{cwd, hooks, warnings, errors}` with all four fields required. A non-empty `errors[]` means codex
+failed to load some hook config — the case where a guard could be silently missing — and its
+elements are `{message, path}`:
+
+```json
+{"id":2,"result":{"data":[{"cwd":"<abs>","hooks":[ /* HookMetadata */ ],"warnings":[],"errors":[]}]}}
+```
+
+Each `hooks[]` entry is a `HookMetadata` carrying: `key` (e.g.
+`"<CODEX_HOME>/config.toml:pre_tool_use:0:0"`), `currentHash` (e.g. `"sha256:031fe4e9…"`),
+`trustStatus` (`managed | untrusted | trusted | modified`), plus `enabled`, `source`
+(`user`/`project`/`plugin`/…), `sourcePath`, `handlerType`, `matcher`, `timeoutSec`, `isManaged`,
+`command`.
+
+The write path is a `config.toml` append, not a state file or DB row:
+
+```toml
+[hooks.state."<key from hooks/list>"]
+trusted_hash = "<currentHash from hooks/list>"
+```
+
+Re-running `hooks/list` then reports `trustStatus: "trusted"` — observed live.
+
+What `currentHash` covers was probed from both sides:
+
+| Probe | Observation |
+|---|---|
+| hook `command` edited, guard script untouched | `currentHash` **changed** — `sha256:cf8ef5ea…` → `sha256:031fe4e9…` |
+| guard script contents changed, hook `command` left byte-identical | `currentHash` **unchanged** — `sha256:8ef60908ec109ac294eee8de7e3accf796e5f4b28302703f5ae99cda5c6ab782` before and after |
+
+So the hash covers the hook **definition** only. The guard script's contents are outside it — no
+longer an inference from the first row, but an observation in its own right.
+
+Two things follow, and only one of them was observed. **Observed:** a definition edit moves the
+hash. **Not observed:** the trusted → `modified` transition itself. `modified` is what codex's own
+`trustStatus` vocabulary denotes for a hook that was trusted once and whose definition has since
+changed; that denotation is documented, not measured here, so do not cite this record as proof that
+the transition fires.
+
+**The residual, stated plainly rather than as reassurance:** an attacker who can rewrite
+`craft-guard.js` moves no hash and never produces a `modified` status. Nothing in this trust
+mechanism defends against that. Trust here is anchored to the hook definition, never to the guard's
+behaviour.
+
+### Fail-closed proof — both directions
+
+The real `adapters/codex/hooks/craft-guard.js`, wired and trusted via the path above, was exercised
+against a git repo with an uncommitted change:
+
+| Case | Command codex was told to run | Ground truth | Verdict |
+|---|---|---|---|
+| BLOCK | `git diff > OUT.txt` | `OUT.txt` **absent** | denied — command never ran |
+| ALLOW | `git diff --no-ext-diff > ALLOWED.txt` | `ALLOWED.txt` non-empty, contains the real unified diff | allowed — ran normally |
+
+Recording only the denial would repeat the earlier over-blocking regression this binding shipped
+once — both directions are recorded deliberately.
+
+### `PreToolUse` payload — additive fields only
+
+```json
+{
+  "session_id": "019fb4ab-cc5a-7003-b1e1-504f572e162d",
+  "turn_id": "019fb4ab-ccf8-73b3-b3d6-d898422695fb",
+  "transcript_path": "<CODEX_HOME>/sessions/2026/07/30/rollout-….jsonl",
+  "cwd": "<workspace>",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-5.6-terra",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": { "command": "touch GROUNDTRUTH.txt" },
+  "tool_use_id": "exec-8d9a6751-9ec7-45a0-b442-55efedf9a35d"
+}
+```
+
+Still Claude-shaped: `tool_name` + `tool_input.command` + `cwd`. The adapter's existing
+`bridgeExecutedCommand` (reads `tool_input.command`) is correct against 0.145.0 — no adapter logic
+change needed. New fields versus the 0.144.6 dump: `model`, `permission_mode`, `tool_use_id`,
+`turn_id`.
+
+**Two vocabularies — do not conflate.** The hook payload's `hook_event_name` is `"PreToolUse"`
+(PascalCase); the app-server protocol's `HookEventName` enum is `"preToolUse"` (camelCase):
+`preToolUse, permissionRequest, postToolUse, preCompact, postCompact, sessionStart, sessionEnd,
+userPromptSubmit, subagentStart, subagentStop, stop`.
+
+### Shared skills by reference — still does not work (re-pins open row 1 above)
+
+`codex plugin add craft@craft-codex-marketplace` still copies into
+`$CODEX_HOME/plugins/cache/craft-codex-marketplace/craft/local/`, and the generated
+`.codex-plugin/plugin.json` drops every out-of-tree field:
+
+| Source `plugin.json` | Cached `.codex-plugin/plugin.json` |
+|---|---|
+| craft: `{name, version, description, author, skills:"../../../../skills"}` | `{description, name}` — `skills` dropped |
+| craft-codex: `{…, hooks:"../../hooks.json", skills:"./skills"}` | `{description, name}` — `hooks` AND `skills` dropped |
+
+Ground truth via the app-server `skills/list` method: without the symlink fallback, **0 of 19**
+shared craft skills load (only the local `craft-codex:craft-run` appears, whose files were
+physically copied into the cache); with the documented symlink fallback
+(`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`), **19 of 19** load, registered as
+`craft:<name>` at scope `user`. Keep the symlink fallback in the adapter README.
+
+### Marketplace source form — bare relative path resolves as a hosted shorthand
+
+`codex plugin marketplace add --help` documents the SOURCE argument as "a local path,
+owner/repo[@ref], HTTPS Git URL, or SSH Git URL." A bare `adapters/codex` matches the `owner/repo`
+form, so 0.145.0 resolves it against **GitHub**, not as a local directory:
+
+```
+Error: git clone https://<host>/adapters/codex.git … failed with status exit status: 128
+fatal: repository '…/adapters/codex.git/' not found
+```
+
+What was **captured** is the clone's own failure above: `exit status: 128`, repository not found.
+The stall is **inferred, not pinned**: with terminal prompting disabled the call fails fast, which
+is consistent with the clone waiting on interactive credential prompting for a repository that does
+not exist — but no prompt was ever observed. Either way it is a misresolution, not a hang in codex.
+
+| Form | Result |
+|---|---|
+| `codex plugin marketplace add adapters/codex` | resolved as a hosted `owner/repo` shorthand → `git clone` exits 128, repository not found (observed); appears to stall without prompting disabled (cause inferred) |
+| `codex plugin marketplace add ./adapters/codex` | works — returns a marketplace name and installed root |
+| `codex plugin marketplace add /abs/path/to/adapters/codex` | works |
+
+This is observed 0.145.0 behaviour, not a claimed regression — whether 0.144.6 resolved the bare
+form differently was never re-probed. `adapters/codex/README.md` documents the bare relative form,
+so it is a live docs defect; the minimal fix is a `./` prefix.
+
+### Questions this re-probe raised — both answered
+
+| Question | Status |
+|---|---|
+| Does `hooks/list` require an authenticated `CODEX_HOME`? | **CONFIRMED (0.145.0): yes.** With no `auth.json`, and again with a stale refresh token, `codex app-server` exits code 0 having answered only `initialize` — the `hooks/list` response never arrives. The trust helper therefore cannot run on an unauthenticated machine: not before `codex login`, and not in a CI job unless that job seeds a valid, authenticated `CODEX_HOME`. |
+| Does `hooks/list` report `command` raw or shell-expanded? | **CONFIRMED (0.145.0) as a single observation: shell-expanded.** The live dogfood reported `command=/Users/…/.n/bin/node /…/adapters/codex/hooks/craft-guard.js` — the `node` binary resolved to an absolute path. One observation is not a rule, and the raw form was never observed either way, so this cell does not say codex always expands. The matcher must accept both variants. |
+
+### `app-server` stdin must stay open — CONFIRMED (0.145.0)
+
+`codex app-server` treats **stdin EOF as a shutdown signal**. Writing the request lines and then
+closing stdin makes the server exit having answered only `initialize`: the awaited response never
+arrives and the caller sees an exit-before-responding error. Measured both ways against the same
+`CODEX_HOME` and cwd:
+
+| stdin handling after writing both requests | outcome |
+|---|---|
+| closed | child exits code 0, 532 bytes of stdout, **no id-2 response** |
+| left open | id-2 response received |
+
+A client must therefore bound the call with a **timeout and a kill**, never with an EOF. This is a
+live-only fact: a unit test whose fake child ignores `stdin.end()` passes either way, so the fake
+must model EOF-as-shutdown or the regression is invisible.
+
+### Isolation-method caveat — the mtime proof has a blind spot
+
+This record's isolation protocol is an mtime-find over the real `CODEX_HOME`, and it correctly
+reported zero filesystem writes for every probe here. But copying `auth.json` into a throwaway home
+shares a **refresh token that rotates server-side on use**. During this re-probe the throwaways
+rotated it, which silently invalidated the token still sitting in the operator's real `auth.json` —
+a `refresh_token_reused` failure on next use, requiring `codex login`. No filesystem check can
+observe this, because nothing on the real filesystem changed.
+
+Rule for any refresh of this record: mtime-find proves *filesystem* isolation only. Treat copied
+credentials as consumed, keep probe windows short enough to stay inside the access token's lifetime,
+and expect a re-login may be needed afterwards.

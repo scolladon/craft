@@ -1,8 +1,9 @@
 # @craft/adapter-codex
 
-Native OpenAI Codex CLI plugin binding for the craft workflow. Codex discovers this
-binding's guard hook, agents, and `craft-run` entrypoint from `adapters/codex/` via
-the `craft-codex` marketplace entry.
+Native OpenAI Codex CLI plugin binding for the craft workflow. Everything this binding
+supplies lives under `adapters/codex/`: the guard hook, the nine role agents, and the
+`craft-run` entrypoint skill. How each one reaches Codex differs, and only one of the
+three arrives through the marketplace entry — read *Load* before assuming otherwise.
 
 ## Load
 
@@ -12,32 +13,63 @@ recognises; pass the marketplace ROOT directory, not the manifest file), then in
 both entries with the `<plugin>@<marketplace>` selector:
 
 ```
-codex plugin marketplace add adapters/codex
+codex plugin marketplace add ./adapters/codex
 codex plugin add craft-codex@craft-codex-marketplace
 codex plugin add craft@craft-codex-marketplace
 ```
 
-`marketplace.json` declares two entries: `craft-codex` — this binding's own
-`hooks.json`, the nine `agents/craft-*.md` files, and the delegating `craft-run`
-entrypoint skill, all local to the plugin and copied into Codex's plugin cache on
-install — and `craft`, whose `skills` field points at the repository-root `skills/`
-tree.
+The leading `./` is required: a bare `adapters/codex` matches codex's `owner/repo`
+shorthand and resolves against a remote host instead of the local directory. An
+absolute path also works but is not shown here, because it differs per checkout.
 
-**The 19 shared skills do NOT load by reference on Codex 0.144.6 (pinned live).**
+`marketplace.json` declares two entries. `craft-codex` is this binding's own plugin
+directory, and it holds exactly one thing: the delegating `craft-run` entrypoint skill
+under `plugins/craft-codex/skills/`. Its manifest also declares
+`hooks: "../../hooks.json"` — a path pointing OUT of the plugin directory. `craft` is
+the second entry, whose `skills` field points at the repository-root `skills/` tree.
+
+`codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and rewrites its
+manifest, and the cached `.codex-plugin/plugin.json` observed on 0.145.0 is just
+`{description, name}` — **both** `hooks` and `skills` are gone. So of the three surfaces
+named above, exactly one arrives this way:
+
+- **`craft-run` — yes.** Not via the dropped `skills` field: its files sit inside the
+  plugin directory, so they are copied along with it, and it appears as
+  `craft-codex:craft-run` in the app-server's own skills listing.
+- **The guard hook — no.** `hooks` is absent from the cached manifest, so a marketplace
+  install registers no hook whatsoever. It must be wired by hand (below); the trust key
+  observed live on 0.145.0 shows where the working hook actually comes from —
+  `<CODEX_HOME>/config.toml:pre_tool_use:0:0`.
+- **The nine agents — no.** The pinned plugin-manifest shape carries no `agents` field at
+  all, and `agents/craft-*.md` sits outside the plugin directory. How Codex picks the
+  agent files up was never probed; what is pinned is only that a marketplace install does
+  not carry them.
+
+**The 19 shared skills do NOT load by reference on Codex 0.145.0 (pinned live).**
 `codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and, in doing
 so, drops the `craft` entry's out-of-tree `../../../../skills` reference — the cached
 plugin manifest carries no `skills` field, so `run`/`review`/`validation`/`init`/… are
-absent. Load them with the symlink route instead — this is the working path for the
-shared skills, not a contingency:
+absent. Measured through the app-server's own skills-listing method: **0 of 19** load
+without the symlinks below, **19 of 19** load with them. Load them with the symlink
+route — this IS the working path for the shared skills, required on every install, not
+a contingency to fall back on:
 
 ```
 ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>   # once per shared skill
 ```
 
-The `craft-codex` entry's own local surface (hook, agents, `craft-run`) DOES install
-via the marketplace. To bypass the marketplace entirely, add the `[hooks]` entry from
-`config.template.toml` (below) to `$CODEX_HOME/config.toml` by hand alongside the
-symlinks above.
+**Wiring the guard hook by hand is required, not a way around the marketplace.** Copy the
+`[[hooks.PreToolUse]]` and `[[hooks.PreToolUse.hooks]]` blocks from
+`config.template.toml` (below) into `$CODEX_HOME/config.toml`, alongside the symlinks
+above. Skip it and the binding has no PreToolUse hook registered at all — a state that, at
+runtime, looks exactly like the untrusted-hook no-op described below: installed, silent,
+enforcing nothing.
+
+The registered `command` must stay exactly two whitespace-separated tokens — interpreter
+then guard script. `bin/trust-hook.js` refuses anything else, so a quoted operand, an
+added flag or a shell wrapper leaves the hook untrusted and therefore silent. A
+hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so export `CRAFT_ROOT=<repo checkout>` or
+substitute that absolute path into the command unquoted.
 
 ## Configure
 
@@ -58,9 +90,22 @@ installed and enforces *nothing*, with no signal that anything is wrong.
 
 So, before any headless or automated run:
 
-1. Load the plugin once interactively and **trust the craft guard hook** when Codex
-   prompts for it. Trust persists across runs via `hooks.state` / `trusted_hash` — this
-   is a one-time step per installation, not a per-run step.
+1. After `codex login` — that order is a requirement, not a precaution. `hooks/list`
+   **needs an authenticated `CODEX_HOME`** (pinned live: with no `auth.json`, and again
+   with a stale refresh token, `codex app-server` answers `initialize` and then exits
+   without ever answering `hooks/list`). So `trust-hook.js` cannot run before login, and
+   cannot run in a CI job unless that job seeds a valid, authenticated `CODEX_HOME`.
+   Then **trust the craft guard hook**:
+
+   ```
+   node adapters/codex/bin/trust-hook.js
+   ```
+
+   This resolves the guard hook through codex's own `hooks/list` and upserts
+   `trusted_hash` into `config.toml` — no interactive prompt. The interactive route —
+   load the plugin and trust the hook when Codex prompts for it — still works as an
+   alternative. Either way, trust persists across runs via `hooks.state` /
+   `trusted_hash`: a one-time step per installation, not a per-run step.
 2. After that one-time trust step, headless runs need **no** bypass flag.
    `buildLaunchArgs` (`src/launch-args.js`) defaults `bypassHookTrust` to **false**
    deliberately, precisely so automation is never one accidental flag away from
@@ -69,10 +114,15 @@ So, before any headless or automated run:
    disables the trust gate for **every** hook configured in the invoking environment,
    not just this one. Treat it as opt-in and discouraged, never as the default launch
    posture; it also emits a visible warning item on every run it is used.
-4. **Launch-time trust *verification* is not implemented in this binding.** Nothing
-   here checks, before launch, whether the hook is actually trusted — so an untrusted
-   hook remains a silent-no-op risk that the operator must avoid by following step 1,
-   not something this binding currently detects or fails loud on.
+4. **Launch-time trust verification is available on demand, not automatic.**
+   `node adapters/codex/bin/trust-hook.js --check` is a read-only check: it never
+   writes, exits `0` when the hook is already trusted, and exits `1` when it is
+   untrusted or modified — a refusal (for example, a missing guard script, or a hook
+   config codex could not load) exits `2`. It refuses on exactly the states the write
+   path refuses, so a pipeline reading only the exit code can never take a `0` from a
+   listing the write path considers unsafe. It is not wired into every launch; an
+   operator must invoke it, or wire it into their own pipeline, to catch a silent
+   no-op before it happens.
 
 ## Guard — honest enforcement profile
 
@@ -98,8 +148,9 @@ written down now:
   contained by the sandbox itself — the PreToolUse hook is the layer this binding
   actually relies on for that.
 - Hook enforcement is bought at the cost documented above: it depends on the one-time
-  install-time trust step, and the bypass flag that substitutes for it is
-  environment-wide, not scoped to this hook, and emits a visible warning every run.
+  install-time trust step — now scriptable via `bin/trust-hook.js`, not automatic — and
+  the bypass flag that substitutes for it is environment-wide, not scoped to this hook,
+  and emits a visible warning every run.
 
 `--ephemeral` is **never** passed by `buildLaunchArgs`. It suppresses Codex's own
 session-file persistence, and `$CODEX_HOME/sessions/` is exactly what this binding's

@@ -63,13 +63,12 @@ export function buildLaunchArgs({ workingDir, bypassHookTrust = false }) {
   // control, which no amount of guard strength justifies.
   //
   // The intended path is instead a one-time trust of the craft guard hook at
-  // install time; see the binding README.
+  // install time, now scriptable rather than manual; see the binding README.
   //
-  // Open question, deliberately not assumed either way: whether an *untrusted*
-  // hook in headless mode fails loudly or silently no-ops. If it silently
-  // no-ops, the guard is absent while appearing installed — the worst outcome.
-  // Until that is pinned live, callers that need the bypass must ask for it
-  // explicitly and knowingly.
+  // An *untrusted* hook in headless mode silently no-ops rather than failing
+  // loudly, confirmed on both 0.144.6 and 0.145.0: the guard is absent while
+  // appearing installed — the worst outcome, and why the trust step is not
+  // optional.
   if (bypassHookTrust) {
     args.push(FLAG_BYPASS_HOOK_TRUST);
   }

@@ -54,14 +54,17 @@ function requireWorkingDir(cwd) {
   return cwd;
 }
 
-// The real codex 0.144.6 PreToolUse payload is Claude-shaped: a Bash call carries
+// The real codex 0.145.0 PreToolUse payload is Claude-shaped: a Bash call carries
 // its command in `tool_input.command` (pinned by dumping the live hook stdin), the
 // exact field toolCallGuard reads. `cmd` is retained only as a defensive fallback
 // for any variant that might carry the executed string there instead; `command`
 // wins because that is the field the live tool actually executes from. A missing or
 // non-string command in BOTH fields is a malformed payload, not an alternate
 // encoding, so it throws and decideGuard's catch converts that into the documented
-// fail-closed verdict.
+// fail-closed verdict. The 0.145.0 payload additionally carries `model`,
+// `permission_mode`, `tool_use_id` and `turn_id`; they are additive and ignored —
+// adaptCodexEvent destructures only { tool_name, tool_input, cwd }, so a later
+// reader should not "add support" for fields nothing here consumes.
 function bridgeExecutedCommand(toolInput) {
   // equivalent mutant (OptionalChaining): a nullish toolInput throws TypeError
   // without the `?.` instead of the Error below — both reach the same bare
