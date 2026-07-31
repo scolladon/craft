@@ -37,6 +37,10 @@ const CODEX_HOME_KEY = '/fixture/codex-home/config.toml:pre_tool_use:0:0';
 const CURRENT_HASH = 'sha256:031fe4e9d67c31089132dd774df39307c554f5cf27089031a68c75233ef2ecf4';
 const RAW_COMMAND = REGISTERED_COMMAND;
 const EXPANDED_COMMAND = `node /fixture/repo${GUARD_TAIL}`;
+// The one command shape ever observed live: codex reported the interpreter itself
+// resolved to an absolute path, not the bare `node` every other fixture here uses.
+const EXPANDED_INTERPRETER_COMMAND = `/fixture/home/.n/bin/node /fixture/repo${GUARD_TAIL}`;
+const FOREIGN_INTERPRETER_COMMAND = `python /fixture/repo${GUARD_TAIL}`;
 const FOREIGN_COMMAND = 'node /fixture/repo/other/hooks/something.js';
 
 function craftHook(overrides = {}) {
@@ -326,6 +330,24 @@ describe('selectCraftHook()', () => {
     const result = sut([hook]);
 
     assert.equal(result, hook);
+  });
+
+  it('Given a single hook whose interpreter token is itself an absolute path, when selectCraftHook runs, then it returns that hook', () => {
+    const sut = selectCraftHook;
+    const hook = craftHook({ command: EXPANDED_INTERPRETER_COMMAND });
+
+    const result = sut([hook]);
+
+    assert.equal(result, hook);
+  });
+
+  // Every other refusal here is already settled by the token count or by the
+  // operand's tail, so without this case the interpreter rule never decides an
+  // outcome on its own and could be dropped unnoticed.
+  it('Given a hook whose operand is the guard but whose interpreter is not node, when selectCraftHook runs, then it does not match and it throws', () => {
+    const sut = selectCraftHook;
+
+    assert.throws(() => sut([craftHook({ command: FOREIGN_INTERPRETER_COMMAND })]), /no craft hook/i);
   });
 
   it('Given zero matches and an empty errors list, when selectCraftHook runs, then it throws the plain no-match message', () => {
