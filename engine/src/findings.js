@@ -11,11 +11,20 @@
  * The em-dash separator (—) may be surrounded by any whitespace; the ` | ` fix part
  * is optional. We split on the pipe delimiter FIRST, then match the head with a single
  * backtracking-free pattern — preserving the original `[^|]` semantics (finding and fix
- * may not contain a pipe) without the catastrophic backtracking the prior combined
- * lazy-quantifier + optional-group pattern exhibited on `<finding><spaces>|` input.
+ * may not contain a pipe). The delimiter itself is a single-character lookaround:
+ * it matches the pipe alone, so it never retries a whitespace run from every position
+ * inside it — the prior combined lazy-quantifier + optional-group pattern did, and
+ * that is what produced its catastrophic backtracking on `<finding><spaces>|` input.
+ * Because the lookaround doesn't consume the flanking whitespace, each split part
+ * keeps it — `parseLine` trims both parts to restore the original delimiter's shape.
  */
-const PIPE_DELIMITER = /\s+\|\s+/u;
+const PIPE_DELIMITER = /(?<=\s)\|(?=\s)/u;
 const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
+
+// Bounds how much of a per-line record the split path ever has to look at, even
+// if the delimiter above ever regresses. Far above the largest record this
+// module has ever seen in practice.
+const MAX_LINE_CHARS = 16384;
 
 /**
  * Optional leading status token on a per-line record, e.g. `VERIFIED: ...`.
@@ -120,7 +129,7 @@ function parseLine(line) {
   const status = statusMatch ? statusMatch[1] : undefined;
   const remainder = statusMatch ? trimmed.slice(statusMatch[0].length) : trimmed;
 
-  const parts = remainder.split(PIPE_DELIMITER);
+  const parts = remainder.split(PIPE_DELIMITER).map(p => p.trim());
   // finding and fix can't span a second delimiter — more than one is unparseable.
   if (parts.length > 2) {
     return null;
@@ -154,10 +163,16 @@ function parseLineShape(raw) {
 
   const results = [];
   for (const line of nonBlank) {
+    // Truncate the echoed content — input may be long or carry sensitive text.
+    const shown = line.length > 120 ? `${line.slice(0, 120)}…` : line;
+    if (line.length > MAX_LINE_CHARS) {
+      throw new Error(
+        `Cannot parse findings: line exceeds the ${MAX_LINE_CHARS}-character cap`
+        + ` (${line.length} characters): ${JSON.stringify(shown)}`,
+      );
+    }
     const finding = parseLine(line);
     if (finding === null) {
-      // Truncate the echoed content — input may be long or carry sensitive text.
-      const shown = line.length > 120 ? `${line.slice(0, 120)}…` : line;
       throw new Error(
         `Cannot parse findings: line does not match the per-line format: ${JSON.stringify(shown)}`,
       );

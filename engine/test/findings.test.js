@@ -12,6 +12,11 @@ function readFixture(name) {
   return readFileSync(join(fixturesDir, name), 'utf8');
 }
 
+// Mirrors the module-private cap in ../src/findings.js. Declared independently
+// (not imported) so a drift between the two fails loudly on a message assertion
+// rather than silently.
+const MAX_LINE_CHARS = 16384;
+
 // ─── canonical Finding shape expected from both layouts ──────────────────────
 
 const EXPECTED_FINDINGS = [
@@ -349,13 +354,14 @@ test('Given a status prefix followed by multiple spaces, when normalizeFindings 
 
 // ─── ReDoS resistance still holds with a status prefix ───────────────────────
 
-test('Given a status-prefixed pathological line, when normalizeFindings runs, then it rejects promptly without catastrophic backtracking', () => {
-  const raw = `VERIFIED: error a.js:1 — ${' '.repeat(5000)}|`;
+test('Given a status-prefixed pathological line at exactly the cap, when normalizeFindings runs, then it rejects promptly as malformed rather than tripping the cap', () => {
+  const prefix = 'VERIFIED: error a.js:1 — ';
+  const raw = `${prefix}${' '.repeat(MAX_LINE_CHARS - prefix.length - 1)}|`;
   const sut = normalizeFindings;
 
   assert.throws(
     () => sut(raw),
-    /Cannot parse findings/,
+    /line does not match the per-line format/,
   );
 });
 
@@ -393,16 +399,17 @@ test('Given a JSON array with a missing required field (file), when normalizeFin
 
 // ─── ReDoS resistance: pathological trailing-space-then-pipe input ────────────
 
-test('Given a per-line input with thousands of spaces before a lone pipe, when normalizeFindings runs, then it rejects promptly without catastrophic backtracking', () => {
+test('Given a per-line input at exactly the cap with a lone trailing pipe, when normalizeFindings runs, then it rejects promptly as malformed rather than tripping the cap', () => {
   // A regression guard: the prior combined lazy-quantifier + optional-group pattern
-  // backtracked super-linearly on this shape (700 chars ≈ 2s). If it regresses, this
-  // test hangs the runner rather than completing.
-  const raw = `error a.js:1 — ${' '.repeat(5000)}|`;
+  // backtracked super-linearly on this shape. Sized to the cap itself (not beyond it)
+  // so this still exercises the split path — the cap must not intercept it first.
+  const prefix = 'error a.js:1 — ';
+  const raw = `${prefix}${' '.repeat(MAX_LINE_CHARS - prefix.length - 1)}|`;
   const sut = normalizeFindings;
 
   assert.throws(
     () => sut(raw),
-    /Cannot parse findings/,
+    /line does not match the per-line format/,
   );
 });
 
@@ -428,6 +435,126 @@ test('Given a long unparseable line, when normalizeFindings runs, then the throw
     () => sut(longGarbage),
     (err) => err.message.includes('…') && !err.message.includes('y'.repeat(200)),
   );
+});
+
+// ─── directed delimiter table: pins today's pipe-delimiter behaviour case by
+// case, so a later delimiter rewrite can be checked against it unchanged ─────
+
+const DELIMITER_CASES = [
+  {
+    name: 'no fix',
+    raw: 'HIGH a.js:1 — some finding',
+    expected: { file: 'a.js', line: 1, severity: 'HIGH', finding: 'some finding' },
+  },
+  {
+    name: 'one fix',
+    raw: 'HIGH a.js:1 — some finding | do the fix',
+    expected: { file: 'a.js', line: 1, severity: 'HIGH', finding: 'some finding', fix: 'do the fix' },
+  },
+  {
+    name: 'multiple spaces around the pipe',
+    raw: 'HIGH a.js:1 — some finding    |    do the fix',
+    expected: { file: 'a.js', line: 1, severity: 'HIGH', finding: 'some finding', fix: 'do the fix' },
+  },
+  {
+    name: 'a tab-delimited pipe',
+    raw: 'HIGH a.js:1 — some finding\t|\tdo the fix',
+    expected: { file: 'a.js', line: 1, severity: 'HIGH', finding: 'some finding', fix: 'do the fix' },
+  },
+  {
+    name: 'a status prefix plus a fix',
+    raw: 'VERIFIED: HIGH a.js:1 — some finding | do the fix',
+    expected: {
+      file: 'a.js', line: 1, severity: 'HIGH', finding: 'some finding', fix: 'do the fix', status: 'VERIFIED',
+    },
+  },
+  {
+    name: 'two delimiters',
+    raw: 'HIGH a.js:1 — some finding | fix one | fix two',
+    throws: true,
+  },
+  {
+    name: 'a pipe inside the finding',
+    raw: 'HIGH a.js:1 — some|finding',
+    throws: true,
+  },
+  {
+    name: 'a pipe inside the fix',
+    raw: 'HIGH a.js:1 — some finding | do this|that',
+    throws: true,
+  },
+  {
+    name: 'a pipe with no leading space',
+    raw: 'HIGH a.js:1 — some finding| do the fix',
+    throws: true,
+  },
+  {
+    name: 'a pipe with no trailing space',
+    raw: 'HIGH a.js:1 — some finding |do the fix',
+    throws: true,
+  },
+  {
+    name: 'adjacent delimited pipes',
+    raw: 'HIGH a.js:1 — a | | b',
+    throws: true,
+  },
+  {
+    name: 'trailing whitespace in the fix',
+    raw: 'HIGH a.js:1 — some finding | do the fix   ',
+    expected: { file: 'a.js', line: 1, severity: 'HIGH', finding: 'some finding', fix: 'do the fix' },
+  },
+  {
+    name: 'an en-dash separator',
+    raw: 'HIGH a.js:1 – some finding | do the fix',
+    expected: { file: 'a.js', line: 1, severity: 'HIGH', finding: 'some finding', fix: 'do the fix' },
+  },
+  {
+    name: 'multiple spaces around the separator',
+    raw: 'HIGH  a.js:1   —   some finding | do the fix',
+    expected: { file: 'a.js', line: 1, severity: 'HIGH', finding: 'some finding', fix: 'do the fix' },
+  },
+];
+
+for (const { name, raw, expected, throws } of DELIMITER_CASES) {
+  const behaviour = throws ? 'throws' : 'parses to the pinned shape';
+  test(`Given a per-line record with ${name}, when normalizeFindings runs, then it ${behaviour}`, () => {
+    const sut = normalizeFindings;
+
+    if (throws) {
+      assert.throws(() => sut(raw), /Cannot parse findings/);
+    } else {
+      const result = sut(raw);
+      assert.deepEqual(result, [expected]);
+    }
+  });
+}
+
+// ─── per-line cap: a line longer than MAX_LINE_CHARS is rejected as oversized,
+// never as malformed ───────────────────────────────────────────────────────────
+
+test('Given a per-line record one character over the cap, when normalizeFindings runs, then it throws naming the cap and the actual length', () => {
+  const prefix = 'error a.js:1 — ';
+  const filler = ' '.repeat(MAX_LINE_CHARS + 1 - prefix.length - 1);
+  const raw = `${prefix}${filler}|`;
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => new RegExp(`line exceeds the ${MAX_LINE_CHARS}-character cap`).test(err.message)
+      && err.message.includes(`(${raw.length} characters)`),
+  );
+});
+
+test('Given a well-formed per-line record of exactly MAX_LINE_CHARS characters, when normalizeFindings runs, then it parses successfully', () => {
+  const prefix = 'error a.js:1 — ';
+  const finding = 'x'.repeat(MAX_LINE_CHARS - prefix.length);
+  const raw = `${prefix}${finding}`;
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result.length, 1);
+  assert.equal(result[0].finding, finding);
 });
 
 // ─── parseScopeSpec ───────────────────────────────────────────────────────────
