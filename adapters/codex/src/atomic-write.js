@@ -37,19 +37,38 @@ function resolveFileMode(stat, path) {
   }
 }
 
+// A config.toml managed by a dotfiles tool is a symlink, and renaming over the
+// link replaces it with a regular file while leaving the operator's real file
+// untouched — the write reports success and changes nothing they will ever read.
+// stat follows the link, so resolving here is also what keeps the mode this
+// writes under and the file it writes to talking about the same inode. An absent
+// target has nothing to resolve and is created at the path as given.
+function resolveTargetPath(realpath, path) {
+  try {
+    return realpath(path);
+  } catch (error) {
+    if (error.code === MISSING_FILE_ERROR_CODE) {
+      return path;
+    }
+    throw error;
+  }
+}
+
 /**
- * @param {{ writeFile: Function, rename: Function, chmod: Function, stat: Function }} deps
+ * @param {{ writeFile: Function, rename: Function, chmod: Function, stat: Function,
+ *   realpath: Function }} deps
  * @returns {(path: string, text: string) => void}
  */
-export function createAtomicWriter({ writeFile, rename, chmod, stat }) {
+export function createAtomicWriter({ writeFile, rename, chmod, stat, realpath }) {
   return function writeFileAtomically(path, text) {
-    const mode = resolveFileMode(stat, path);
-    const temporaryPath = `${path}${TEMP_FILE_SUFFIX}`;
+    const targetPath = resolveTargetPath(realpath, path);
+    const mode = resolveFileMode(stat, targetPath);
+    const temporaryPath = `${targetPath}${TEMP_FILE_SUFFIX}`;
 
     writeFile(temporaryPath, text, { mode });
     // `mode` on the write only applies when it creates the file, so a leftover
     // temporary file from an interrupted run would keep its old permissions.
     chmod(temporaryPath, mode);
-    rename(temporaryPath, path);
+    rename(temporaryPath, targetPath);
   };
 }
