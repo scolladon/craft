@@ -140,6 +140,41 @@ describe('upsertTrustedHash()', () => {
   });
 });
 
+describe('upsertTrustedHash() — a following table is a boundary', () => {
+  const OTHER_HASH = 'sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
+  // An indented table header is legal TOML, so a boundary rule that inspects the
+  // raw line misses it and lets the target table's extent run into the NEXT
+  // table — overwriting that table's trusted_hash and leaving the target table
+  // with none, which is the guard-absent state behind a success message.
+  const INDENTS = [
+    ['flush-left', ''],
+    ['indented', '  '],
+  ];
+
+  for (const [label, indent] of INDENTS) {
+    const followingTable = `${indent}[other.table]\n${indent}trusted_hash = "${OTHER_HASH}"\n`;
+    const input = `${tableHeader()}\nenabled = true\n\n${followingTable}`;
+
+    it(`Given a target table followed by a ${label} table carrying its own trusted_hash, when upsertTrustedHash runs, then the assignment lands in the target table`, () => {
+      const sut = upsertTrustedHash;
+
+      const result = sut(input, { key: CODEX_HOME_KEY, hash: HASH });
+
+      assert.ok(result.includes(`${tableHeader()}\n${assignmentLine()}\n`));
+    });
+
+    it(`Given a target table followed by a ${label} table carrying its own trusted_hash, when upsertTrustedHash runs, then that following table survives byte-identical`, () => {
+      const sut = upsertTrustedHash;
+
+      const result = sut(input, { key: CODEX_HOME_KEY, hash: HASH });
+
+      assert.ok(result.includes(followingTable));
+      assert.equal(result.split('trusted_hash').length - 1, 2);
+    });
+  }
+});
+
 describe('upsertTrustedHash() — idempotence', () => {
   const cases = [
     ['an empty input', () => ''],

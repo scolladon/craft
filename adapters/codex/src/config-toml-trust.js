@@ -64,14 +64,17 @@ function buildAssignmentLine(hash) {
 }
 
 /**
- * A table's extent runs from the line after its header to the next
- * line-initial `[`, or end of text. Shared by both the replace and the
+ * A table's extent runs from the line after its header to the next table
+ * header, or end of text. The boundary test trims before inspecting the `[`,
+ * symmetric with the header lookup below: an indented table header is legal
+ * TOML, and a boundary rule that missed one would let this table's extent run
+ * into the NEXT table and edit its keys. Shared by both the replace and the
  * insert routes so the boundary rule exists in exactly one place.
  */
 function findTableExtent(lines, headerIndex) {
   const start = headerIndex + 1;
   for (let index = start; index < lines.length; index += 1) {
-    if (lines[index].startsWith(TABLE_BOUNDARY_CHAR)) {
+    if (lines[index].trim().startsWith(TABLE_BOUNDARY_CHAR)) {
       return { start, end: index };
     }
   }
@@ -88,7 +91,11 @@ function findTrustedHashIndices(lines, { start, end }) {
   return indices;
 }
 
-function replaceOrInsertAssignment(lines, headerIndex, hash) {
+function findHeaderIndex(lines, headerLine) {
+  return lines.findIndex((line) => line.trim() === headerLine);
+}
+
+function replaceOrInsertAssignment(lines, headerIndex, assignmentLine) {
   const extent = findTableExtent(lines, headerIndex);
   const indices = findTrustedHashIndices(lines, extent);
 
@@ -100,7 +107,6 @@ function replaceOrInsertAssignment(lines, headerIndex, hash) {
     );
   }
 
-  const assignmentLine = buildAssignmentLine(hash);
   const nextLines = [...lines];
   if (indices.length === 1) {
     nextLines[indices[0]] = assignmentLine;
@@ -110,13 +116,32 @@ function replaceOrInsertAssignment(lines, headerIndex, hash) {
   return nextLines.join('\n');
 }
 
-function appendTable(tomlText, headerLine, hash) {
-  const block = `${headerLine}\n${buildAssignmentLine(hash)}\n`;
+function appendTable(tomlText, headerLine, assignmentLine) {
+  const block = `${headerLine}\n${assignmentLine}\n`;
   if (tomlText.trim().length === 0) {
     return block;
   }
   const terminated = tomlText.endsWith('\n') ? tomlText : `${tomlText}\n`;
   return `${terminated}\n${block}`;
+}
+
+// The write is what makes the guard enforceable, so the produced text is
+// re-read before it is handed back. Unless the target table ends up carrying
+// exactly the assignment just written, this refuses rather than returning a
+// config whose success message would claim a trust the file does not record.
+function assertTargetTableCarriesAssignment(tomlText, headerLine, assignmentLine) {
+  const lines = tomlText.split('\n');
+  const headerIndex = findHeaderIndex(lines, headerLine);
+  if (headerIndex === -1) {
+    throw new Error(`upsertTrustedHash: produced text carries no ${headerLine} table`);
+  }
+
+  const indices = findTrustedHashIndices(lines, findTableExtent(lines, headerIndex));
+  if (indices.length !== 1 || lines[indices[0]] !== assignmentLine) {
+    throw new Error(
+      `upsertTrustedHash: produced text carries ${indices.length} trusted_hash assignment(s) in ${headerLine}, expected exactly the one written`
+    );
+  }
 }
 
 /**
@@ -131,11 +156,15 @@ function appendTable(tomlText, headerLine, hash) {
  */
 export function upsertTrustedHash(tomlText, { key, hash }) {
   const headerLine = buildHeaderLine(key);
+  const assignmentLine = buildAssignmentLine(hash);
   const lines = tomlText.split('\n');
-  const headerIndex = lines.findIndex((line) => line.trim() === headerLine);
+  const headerIndex = findHeaderIndex(lines, headerLine);
 
-  if (headerIndex === -1) {
-    return appendTable(tomlText, headerLine, hash);
-  }
-  return replaceOrInsertAssignment(lines, headerIndex, hash);
+  const nextText =
+    headerIndex === -1
+      ? appendTable(tomlText, headerLine, assignmentLine)
+      : replaceOrInsertAssignment(lines, headerIndex, assignmentLine);
+
+  assertTargetTableCarriesAssignment(nextText, headerLine, assignmentLine);
+  return nextText;
 }

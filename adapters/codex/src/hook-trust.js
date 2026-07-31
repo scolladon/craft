@@ -18,10 +18,25 @@ const CLIENT_VERSION = '0.1.0';
 
 // codex runs a registered hook command through a shell, so `hooks/list` may
 // echo it raw (carrying `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}`) or expanded
-// to an absolute path — which variant it emits has never been pinned against
-// a live binary. The path tail is invariant under both, so matching on it
-// (not a realpath) is the only comparison that survives either shape.
+// to an absolute path. The path tail is invariant under both, so matching on
+// it (not a realpath) is the only comparison that survives either shape.
 const GUARD_COMMAND_TAIL = '/adapters/codex/hooks/craft-guard.js';
+
+// The tail must be the OPERAND the interpreter executes, never merely a
+// substring of the command: a shell string can carry it in a comment, a
+// quoted argument or a flag value while executing something else entirely,
+// and every one of those passes a containment test. The command is therefore
+// required to be exactly an interpreter plus the guard operand — anything
+// chained, wrapped or flagged is refused rather than trusted.
+const GUARD_INTERPRETER = 'node';
+const GUARD_COMMAND_TOKEN_COUNT = 2;
+const PATH_SEPARATOR = '/';
+const WHITESPACE_PATTERN = /\s+/;
+
+// codex's own trust gate exists to stop a repository-supplied hook from
+// executing, and `hooks/list` is asked about the craft checkout — so a hook
+// this repository could have authored is never craft's own guard.
+const REPOSITORY_HOOK_SOURCE = 'project';
 
 const ENTRY_REQUIRED_KEYS = ['cwd', 'hooks', 'warnings', 'errors'];
 const ENTRY_ARRAY_KEYS = ['hooks', 'warnings', 'errors'];
@@ -152,7 +167,31 @@ function assertSingleMatch(matches, errors) {
   if (errors.length > 0) {
     throw new Error(`selectCraftHook: no craft hook found and codex reported config errors: ${describeErrors(errors)}`);
   }
-  throw new Error('selectCraftHook: no hook command matching the craft guard path was found');
+  throw new Error('selectCraftHook: no craft hook found — no registered command runs the craft guard as its operand');
+}
+
+function toBasename(token) {
+  return token.slice(token.lastIndexOf(PATH_SEPARATOR) + 1);
+}
+
+function isGuardCommand(command) {
+  if (typeof command !== 'string') {
+    return false;
+  }
+  const tokens = command.trim().split(WHITESPACE_PATTERN);
+  if (tokens.length !== GUARD_COMMAND_TOKEN_COUNT) {
+    return false;
+  }
+  const [interpreter, operand] = tokens;
+  return toBasename(interpreter) === GUARD_INTERPRETER && operand.endsWith(GUARD_COMMAND_TAIL);
+}
+
+function assertNotRepositorySourced(hook) {
+  if (hook.source === REPOSITORY_HOOK_SOURCE) {
+    throw new Error(
+      `selectCraftHook: the matched hook is ${REPOSITORY_HOOK_SOURCE}-sourced (${hook.sourcePath}), and a repository-supplied hook is never trusted`
+    );
+  }
 }
 
 /**
@@ -160,12 +199,12 @@ function assertSingleMatch(matches, errors) {
  * matched on the path tail rather than a realpath because `hooks/list` may
  * echo the command raw or shell-expanded.
  *
- * @param {Array<{ command: string, sourcePath: string }>} hooks
+ * @param {Array<{ command: string, sourcePath: string, source: string }>} hooks
  * @param {{ errors?: Array<{ message: string, path: string }> }} [params]
  * @returns {object}
  */
 export function selectCraftHook(hooks, { errors = [] } = {}) {
-  const matches = hooks.filter((hook) => typeof hook.command === 'string' && hook.command.includes(GUARD_COMMAND_TAIL));
+  const matches = hooks.filter((hook) => isGuardCommand(hook.command));
 
   assertSingleMatch(matches, errors);
   if (matches.length > 1) {
@@ -173,6 +212,7 @@ export function selectCraftHook(hooks, { errors = [] } = {}) {
     throw new Error(`selectCraftHook: multiple craft hooks matched (${matches.length}): ${sourcePaths}`);
   }
 
+  assertNotRepositorySourced(matches[0]);
   return matches[0];
 }
 
