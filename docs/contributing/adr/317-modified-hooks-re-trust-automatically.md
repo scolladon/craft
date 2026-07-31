@@ -42,11 +42,16 @@ directions, stated here rather than assumed away.
 
 **What it establishes.** The hook's `command` is exactly two whitespace-separated tokens, the
 first's basename is `node`, and the second — the operand the interpreter actually runs — ends in
-`/adapters/codex/hooks/craft-guard.js`; a `project`-sourced hook is refused outright, since a
-repository-supplied hook is the thing codex's trust gate exists to stop. Five decoy commands
-carrying that same tail were checked and all refused: the tail in a trailing comment, in a quoted
-argument, as a flag value, on a `.bak` lookalike, and behind a traversal path. A containment test
-would have trusted every one of them.
+`/adapters/codex/hooks/craft-guard.js`. Four decoy commands carrying that same tail are pinned as
+refused: the tail in a trailing comment, in a quoted argument, as a flag value, and as the prefix
+of a longer `.bak` name. A containment test would have trusted every one of them. Two further
+refusals are pinned separately, and neither is a decoy command: a hook whose `source` is `project`,
+since a repository-supplied hook is the thing codex's trust gate exists to stop, and a command
+whose operand is the guard but whose interpreter is not `node`.
+
+A traversal path is **not** refused, and saying so plainly costs less than discovering it later:
+`node /tmp/evil/../../<checkout>/adapters/codex/hooks/craft-guard.js` matches, because it resolves
+to a real guard path. The check anchors the operand's tail, never a canonical path.
 
 **What it cannot establish.** That the script sitting at that path is craft's. The guard script's
 contents are outside `currentHash` (above), so a rewritten `craft-guard.js` presents identically to
