@@ -94,7 +94,7 @@ export function main(argv, io) {
 propose integrate`. The two `enabled: false` descriptors excluded: `requirements`, `architecture`.
 
 **README mermaid block (Part 1), verbatim (`README.md` lines 13–27):**
-```
+````
 ```mermaid
 flowchart LR
   W[workspace] --> spec
@@ -110,7 +110,7 @@ flowchart LR
     DO[documentation] --> PR[propose] --> IN{{"integrate 🧑"}}
   end
 ```
-```
+````
 Node labels come from `[...]` (rectangles) and `{{"..."}}` (hexagons). Strip a trailing `🧑`
 + whitespace (`decisions 🧑`→`decisions`, `integrate 🧑`→`integrate`). EXCLUDE `[...]` on a line
 whose first non-space token is `subgraph` — those are group labels `specify`/`verify`/`ship`,
@@ -131,7 +131,7 @@ Extract the block body between the ```` ```yaml ```` and closing ```` ``` ```` f
 comments included — valid YAML). Zero `yaml` blocks found ⇒ report as drift, never a silent pass.
 
 **README FAQ cost sentence (Part 1 & 4), verbatim (`README.md` lines 172–174):**
-> **What does a run cost?** Across the [27 telemetered runs](docs/metrics-baseline.report.json)
+> **What does a run cost?** Across the `[27 telemetered runs](docs/metrics-baseline.report.json)`
 > that built this repo: the median run logs ≈1.3 hours of role-agent activity, from
 > half an hour for a small change to ≈5 hours for the largest feature …
 
