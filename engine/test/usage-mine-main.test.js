@@ -20,7 +20,7 @@ import { createInterface } from 'node:readline';
 import { join, dirname } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { main, resolveDefaultReadRoot, resolveFileMatcher, resolveFileLabel } from '../src/observability/usage-mine-main.js';
+import { main, resolveDefaultReadRoot, resolveSourceFilter, resolveFileMatcher, resolveFileLabel } from '../src/observability/usage-mine-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
 import { serializeReport } from '../src/observability/usage-aggregate.js';
@@ -486,7 +486,7 @@ test('Given an absent transcript dir, when main runs, then the report note is th
   assert.equal(report.note, 'transcript dir absent', 'note must be the exact absent-dir string');
 });
 
-// ─── P29-2. no-files dir note is exactly NO_FILES_NOTE ───────────────────────
+// ─── P29-2. no-files dir note names the per-source filename ──────────────────
 
 test('Given an empty transcript dir (no .jsonl files), when main runs, then the report note is the exact no-files string', async () => {
   const sut = main;
@@ -1300,6 +1300,36 @@ test('Given an unknown --source value, when main runs, then the expected-source 
     io.stderr.joined().includes('aider'),
     `stderr must name aider among the expected sources; got: ${io.stderr.joined()}`,
   );
+});
+
+// ─── resolveSourceFilter — per-source { match, label } pair ──────────────────
+
+test('Given source aider, when resolveSourceFilter runs, then it returns the aider matcher paired with the aider label', () => {
+  const sut = resolveSourceFilter;
+
+  const { match, label } = sut('aider');
+
+  assert.equal(match('.aider.chat.history.md'), true);
+  assert.equal(label, '.aider.chat.history.md');
+});
+
+test('Given source claude, when resolveSourceFilter runs, then it returns the default matcher paired with the default label', () => {
+  const sut = resolveSourceFilter;
+
+  const { match, label } = sut('claude');
+
+  assert.equal(match('x.jsonl'), true);
+  assert.equal(label, '.jsonl');
+});
+
+test('Given the inherited-member source "constructor", when resolveSourceFilter runs, then it falls back to the default pair rather than resolving an inherited member', () => {
+  const sut = resolveSourceFilter;
+
+  const { match, label } = sut('constructor');
+
+  assert.equal(match('x.jsonl'), true);
+  assert.equal(match('.aider.chat.history.md'), false);
+  assert.equal(label, '.jsonl');
 });
 
 // ─── resolveFileMatcher — per-source discovery filter ────────────────────────

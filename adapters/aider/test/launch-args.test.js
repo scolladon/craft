@@ -147,31 +147,45 @@ describe('buildLaunchArgs — the non-interactive aider posture', () => {
     );
   });
 
-  it('Given a readFiles entry that is an empty string, when built, then it throws', () => {
+  it('Given a readFiles entry that is an empty string, when built, then it throws naming each readFiles entry', () => {
     assert.throws(
       () => buildLaunchArgs({ model: MODEL, readFiles: [''], message: MESSAGE }),
-      /non-empty string/,
+      /each readFiles entry/,
     );
   });
 
-  it('Given a readFiles entry that is not a string, when built, then it throws', () => {
+  it('Given a readFiles entry that is not a string, when built, then it throws naming each readFiles entry', () => {
     assert.throws(
       () => buildLaunchArgs({ model: MODEL, readFiles: [123], message: MESSAGE }),
-      /non-empty string/,
+      /each readFiles entry/,
     );
   });
 
-  it('Given an editFiles entry that is an empty string, when built, then it throws', () => {
+  it('Given an editFiles entry that is an empty string, when built, then it throws naming each editFiles entry', () => {
     assert.throws(
       () => buildLaunchArgs({ model: MODEL, editFiles: [''], message: MESSAGE }),
-      /non-empty string/,
+      /each editFiles entry/,
     );
   });
 
-  it('Given an editFiles entry that is not a string, when built, then it throws', () => {
+  it('Given an editFiles entry that is not a string, when built, then it throws naming each editFiles entry', () => {
     assert.throws(
       () => buildLaunchArgs({ model: MODEL, editFiles: [123], message: MESSAGE }),
-      /non-empty string/,
+      /each editFiles entry/,
+    );
+  });
+
+  it('Given an editFiles entry beginning with a hyphen, when built, then it throws', () => {
+    assert.throws(
+      () => buildLaunchArgs({ model: MODEL, editFiles: ['--yes-always'], message: MESSAGE }),
+      /each editFiles entry/,
+    );
+  });
+
+  it('Given a readFiles entry beginning with a hyphen, when built, then it throws', () => {
+    assert.throws(
+      () => buildLaunchArgs({ model: MODEL, readFiles: ['-c'], message: MESSAGE }),
+      /each readFiles entry/,
     );
   });
 });

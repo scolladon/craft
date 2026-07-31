@@ -90,24 +90,26 @@ const SOURCE_FILE_MATCHERS = Object.freeze({
 const DEFAULT_FILE_MATCHER = (f) => f.endsWith('.jsonl');
 const DEFAULT_FILE_LABEL = '.jsonl';
 
-// Exported as a direct unit-test seam, mirroring resolveDefaultReadRoot.
-// Own-property check: a bare `SOURCE_FILE_MATCHERS[source]` would resolve
-// inherited members (__proto__, constructor, …) to a truthy function and
-// slip past the intended default-matcher fallback.
-export function resolveFileMatcher(source) {
+// Exported as a direct unit-test seam, mirroring resolveDefaultReadRoot. The
+// match/label pair is resolved together — they always describe the same
+// source, so there is exactly one lookup rather than two independently
+// drifting ones. Own-property check: a bare `SOURCE_FILE_MATCHERS[source]`
+// would resolve inherited members (__proto__, constructor, …) to a truthy
+// entry and slip past the intended default-pair fallback.
+export function resolveSourceFilter(source) {
   return Object.hasOwn(SOURCE_FILE_MATCHERS, source)
-    ? SOURCE_FILE_MATCHERS[source].match
-    : DEFAULT_FILE_MATCHER;
+    ? SOURCE_FILE_MATCHERS[source]
+    : { match: DEFAULT_FILE_MATCHER, label: DEFAULT_FILE_LABEL };
 }
 
-// Exported as a direct unit-test seam, mirroring resolveFileMatcher. Own-property
-// check for the same reason: a bare `SOURCE_FILE_MATCHERS[source]` would resolve
-// inherited members (__proto__, constructor, …) to a truthy entry and slip past
-// the intended default-label fallback.
+// Thin unit-test seams over resolveSourceFilter, kept for call sites and
+// tests that only need one half of the pair.
+export function resolveFileMatcher(source) {
+  return resolveSourceFilter(source).match;
+}
+
 export function resolveFileLabel(source) {
-  return Object.hasOwn(SOURCE_FILE_MATCHERS, source)
-    ? SOURCE_FILE_MATCHERS[source].label
-    : DEFAULT_FILE_LABEL;
+  return resolveSourceFilter(source).label;
 }
 
 // Exported as a direct unit-test seam: resolving the default read root is a
@@ -128,16 +130,19 @@ const INLINE_GAP_NOTE =
 // C7: named constants for the remaining no-op notes.
 const UNCONTAINED_NOTE = 'transcript dir not contained within projects root';
 const ABSENT_NOTE = 'transcript dir absent';
-// Couples the zero-file note to the same per-source label resolveFileMatcher
-// discovers with, so the message always names the filename the matcher for
-// that source actually looks for.
-const noFilesNote = (source) => `no ${resolveFileLabel(source)} transcript files found`;
 const NO_EVENTS_NOTE = 'no events provided';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function noOpReport(note) {
   return { schemaVersion: 1, runs: [], note };
+}
+
+// Couples the zero-file note to the same per-source label resolveSourceFilter
+// discovers with, so the message always names the filename the matcher for
+// that source actually looks for.
+function noFilesNote(source) {
+  return `no ${resolveFileLabel(source)} transcript files found`;
 }
 
 function parseArgs(argv) {

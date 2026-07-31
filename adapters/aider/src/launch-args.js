@@ -37,6 +37,20 @@ function assertModel(model) {
 }
 
 /**
+ * A readFiles/editFiles entry beginning with `-` would be consumed by aider's
+ * argparse-family parser as a flag rather than a path, silently altering the
+ * launch posture (mirrors assertModel's guard against a silent posture change).
+ * @param {string} value
+ * @param {string} label
+ */
+function assertSafeFileEntry(value, label) {
+  assertNonEmptyString(value, label);
+  if (value.startsWith('-')) {
+    throw new Error(`buildLaunchArgs: ${label} must not begin with '-' (would be parsed as a flag)`);
+  }
+}
+
+/**
  * @param {string} flag
  * @param {unknown[]} files
  * @param {string} label
@@ -44,7 +58,7 @@ function assertModel(model) {
  */
 function buildFlagPairs(flag, files, label) {
   return files.flatMap((file) => {
-    assertNonEmptyString(file, label);
+    assertSafeFileEntry(file, label);
     return [flag, file];
   });
 }

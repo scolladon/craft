@@ -10,8 +10,14 @@ const PLAN_DIR = path.join(__dirname, '..', 'docs', 'contributing', 'plan');
 // an opener is a column-0..3 run of 3+ backticks or tildes; a closer is a run of
 // the SAME character, AT LEAST as long, with nothing but whitespace after it.
 // A line with an info string (e.g. "```mermaid") can open a fence but can never
-// close one, mirroring the CommonMark spec.
+// close one, mirroring the CommonMark spec. A backtick-fence info string may
+// never itself contain a backtick (CommonMark 4.5) — such a line is not an
+// opener at all (tilde fences carry no such restriction).
 const FENCE_LINE_PATTERN = /^ {0,3}(`{3,}|~{3,})(.*)$/;
+
+function isFenceOpener(fenceChar, infoString) {
+  return fenceChar !== '`' || !infoString.includes('`');
+}
 
 function findUnclosedFenceOpenLine(markdown) {
   const lines = markdown.split('\n');
@@ -24,7 +30,7 @@ function findUnclosedFenceOpenLine(markdown) {
     const match = FENCE_LINE_PATTERN.exec(line);
 
     if (openFenceChar === null) {
-      if (match) {
+      if (match && isFenceOpener(match[1][0], match[2])) {
         openFenceChar = match[1][0];
         openFenceLength = match[1].length;
         openFenceLine = lineNumber;
@@ -73,7 +79,9 @@ test('Given every plan doc under docs/contributing/plan, when scanned for Common
 
 test('Given docs-audience-split.md, whose raw column-zero fence-line count is odd, when scanned under the CommonMark-faithful reading, then it still reports balanced', () => {
   const sut = fs.readFileSync(path.join(PLAN_DIR, 'docs-audience-split.md'), 'utf8');
+  const rawFenceLineCount = sut.split('\n').filter((line) => FENCE_LINE_PATTERN.test(line)).length;
 
+  assert.strictEqual(rawFenceLineCount % 2, 1, 'raw column-zero fence-line count must be odd');
   assert.strictEqual(findUnclosedFenceOpenLine(sut), null);
 });
 
@@ -81,6 +89,12 @@ test('Given a fence opener followed by a same-length same-character line carryin
   const sut = ['```', '```mermaid', 'body', '```'].join('\n');
 
   assert.strictEqual(findUnclosedFenceOpenLine(sut), null);
+});
+
+test('Given a backtick run whose info string itself contains a backtick, when scanned, then it is not treated as a fence opener, so a genuine unclosed fence right after it is still reported', () => {
+  const sut = ['``` `inline code` ``` prose noise', '```', 'body', 'still open'].join('\n');
+
+  assert.strictEqual(findUnclosedFenceOpenLine(sut), 2);
 });
 
 test('Given markdown whose last fence is never closed, when scanned, then the opening line number of that fence is reported', () => {
