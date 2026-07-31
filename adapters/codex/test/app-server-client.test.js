@@ -5,6 +5,10 @@ import { createAppServerRunner } from '../src/app-server-client.js';
 const CWD = '/repo';
 const RESPONSE_ID = 2;
 const ENV = { CODEX_HOME: '/fixture/codex-home' };
+// Spelled out rather than imported: importing the runner's own placeholder would
+// assert only that it used itself, and would still hold if the placeholder were
+// emptied — which is the one change that makes the diagnostic unreadable.
+const EMPTY_STREAM_PLACEHOLDER = '<empty>';
 
 function responseLine(id) {
   return `${JSON.stringify({ jsonrpc: '2.0', id, result: { ok: true } })}\n`;
@@ -41,7 +45,7 @@ function createFakeStream() {
 //     signal that felled it — so kill() emits one too, which pins that an exit
 //     arriving after the promise settled cannot settle it a second time.
 function createFakeChildProcess() {
-  const state = { writes: [], stdinEnded: false, killCount: 0, writesAfterEnd: 0 };
+  const state = { writes: [], stdinEnded: false, killCount: 0 };
   const events = createFakeStream();
   const stdinEvents = createFakeStream();
   const child = {
@@ -55,10 +59,6 @@ function createFakeChildProcess() {
       on: stdinEvents.on,
       emit: stdinEvents.emit,
       write(chunk) {
-        if (state.stdinEnded) {
-          state.writesAfterEnd += 1;
-          return;
-        }
         state.writes.push(chunk);
       },
       end() {
@@ -111,6 +111,13 @@ describe('createAppServerRunner() — normal response', () => {
     assert.equal(calls[0].options.env, ENV);
   });
 
+});
+
+// The shipped regression: the runner used to close stdin after writing, which
+// the real server reads as a shutdown. Nothing in this block closes stdin —
+// that is the point. A runner that closed it would leave stdinEnded true, and
+// the exit its own end() triggers would reject the promise this awaits.
+describe('createAppServerRunner() — the runner never closes stdin itself', () => {
   it('Given the awaited response has not arrived yet, when the runner has written its requests, then stdin is still open so the server is not shut down before it answers', async () => {
     const { child, state } = createFakeChildProcess();
     const { spawn } = createFakeSpawn(child);
@@ -120,11 +127,22 @@ describe('createAppServerRunner() — normal response', () => {
     const runPromise = sut({ requests, cwd: CWD, responseId: RESPONSE_ID });
 
     assert.equal(state.stdinEnded, false);
-    assert.equal(state.writesAfterEnd, 0);
     assert.deepEqual(state.writes, requests);
 
     child.stdout.emit('data', responseLine(RESPONSE_ID));
     await runPromise;
+  });
+
+  it('Given a response that has already resolved the run, when the runner finishes, then it still never closed stdin', async () => {
+    const { child, state } = createFakeChildProcess();
+    const { spawn } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+
+    const runPromise = sut({ requests: ['{"id":2}\n'], cwd: CWD, responseId: RESPONSE_ID });
+    child.stdout.emit('data', responseLine(RESPONSE_ID));
+    await runPromise;
+
+    assert.equal(state.stdinEnded, false);
   });
 });
 
@@ -165,7 +183,7 @@ describe('createAppServerRunner() — timeout', () => {
   });
 });
 
-describe('createAppServerRunner() — stdin is the shutdown signal', () => {
+describe('createAppServerRunner() — a closed stdin is what the server shuts down on', () => {
   it('Given a run whose stdin is closed before the answer arrives, when the child reacts as the real server does, then the run fails instead of quietly waiting', async () => {
     const { child, state } = createFakeChildProcess();
     const { spawn } = createFakeSpawn(child);
@@ -196,6 +214,24 @@ describe('createAppServerRunner() — early non-zero exit', () => {
     });
     assert.equal(state.killCount, 1);
   });
+
+  // A killed child reports no exit code at all, only the signal that felled it,
+  // so a diagnostic that quotes the code alone says "code null" and names
+  // nothing an operator can act on.
+  it('Given a child felled by a signal before responding, when the runner runs, then the diagnostic names the signal, not only the absent code', async () => {
+    const { child } = createFakeChildProcess();
+    const { spawn } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+
+    const runPromise = sut({ requests: [], cwd: CWD, responseId: RESPONSE_ID });
+    child.emit('exit', null, 'SIGKILL');
+
+    await assert.rejects(runPromise, (error) => {
+      assert.match(error.message, /SIGKILL/);
+      assert.match(error.message, /null/);
+      return true;
+    });
+  });
 });
 
 describe('createAppServerRunner() — clean early exit', () => {
@@ -216,6 +252,9 @@ describe('createAppServerRunner() — clean early exit', () => {
     await assert.rejects(runPromise, (error) => {
       assert.match(error.message, /exited/i);
       assert.ok(error.message.includes(initializeLine.trim()));
+      // An empty stream must read as an emptiness that was looked at, not as a
+      // field the diagnostic forgot to fill in.
+      assert.ok(error.message.includes(`stderr: ${EMPTY_STREAM_PLACEHOLDER}`));
       return true;
     });
     assert.equal(state.killCount, 1);
