@@ -446,5 +446,34 @@ so it is a live docs defect; the minimal fix is a `./` prefix.
 
 | Question | Status |
 |---|---|
-| Does `hooks/list` require an authenticated `CODEX_HOME`? | DEFERRED — the re-probe ran with auth copied in and never exercised the unauthenticated case |
-| Does `hooks/list` report `command` raw or shell-expanded? | DEFERRED — not exercised |
+| Does `hooks/list` require an authenticated `CODEX_HOME`? | **CONFIRMED (0.145.0): yes.** With no `auth.json`, and again with a stale refresh token, `codex app-server` exits code 0 having answered only `initialize` — the `hooks/list` response never arrives. The trust helper therefore cannot run on an unauthenticated machine, which rules out CI. |
+| Does `hooks/list` report `command` raw or shell-expanded? | **CONFIRMED (0.145.0): shell-expanded.** The live dogfood reported `command=/Users/…/.n/bin/node /…/adapters/codex/hooks/craft-guard.js` — the `node` binary resolved to an absolute path. Matching on the `/adapters/codex/hooks/craft-guard.js` path tail covers this and the raw form both; do not narrow it to one variant on the strength of this single observation. |
+
+### `app-server` stdin must stay open — CONFIRMED (0.145.0)
+
+`codex app-server` treats **stdin EOF as a shutdown signal**. Writing the request lines and then
+closing stdin makes the server exit having answered only `initialize`: the awaited response never
+arrives and the caller sees an exit-before-responding error. Measured both ways against the same
+`CODEX_HOME` and cwd:
+
+| stdin handling after writing both requests | outcome |
+|---|---|
+| closed | child exits code 0, 532 bytes of stdout, **no id-2 response** |
+| left open | id-2 response received |
+
+A client must therefore bound the call with a **timeout and a kill**, never with an EOF. This is a
+live-only fact: a unit test whose fake child ignores `stdin.end()` passes either way, so the fake
+must model EOF-as-shutdown or the regression is invisible.
+
+### Isolation-method caveat — the mtime proof has a blind spot
+
+This record's isolation protocol is an mtime-find over the real `CODEX_HOME`, and it correctly
+reported zero filesystem writes for every probe here. But copying `auth.json` into a throwaway home
+shares a **refresh token that rotates server-side on use**. During this re-probe the throwaways
+rotated it, which silently invalidated the token still sitting in the operator's real `auth.json` —
+a `refresh_token_reused` failure on next use, requiring `codex login`. No filesystem check can
+observe this, because nothing on the real filesystem changed.
+
+Rule for any refresh of this record: mtime-find proves *filesystem* isolation only. Treat copied
+credentials as consumed, keep probe windows short enough to stay inside the access token's lifetime,
+and expect a re-login may be needed afterwards.

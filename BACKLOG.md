@@ -378,6 +378,14 @@ codex 0.145.0.** Two findings on the original live probe (throwaway CODEX_HOME),
   while unit-green. `--dangerously-bypass-hook-trust` was never used. The earlier finding that
   `codex plugin add` drops the plugin's out-of-plugin `../../hooks.json` ref still holds on 0.145.0,
   so the guard must still be wired via `config.toml [hooks]`.
+  **The shipped binary was then dogfooded end to end**, not just unit-tested: `--check` reported
+  untrusted (exit 1) → trust wrote the table (exit 0) → `--check` reported trusted (exit 0) → a
+  re-run was byte-identical → `git diff` was blocked with the guard's own reason and `git diff
+  --no-ext-diff` ran. That dogfood **caught a real defect the unit suite could not**: the client
+  closed the child's stdin after writing, and `codex app-server` treats stdin EOF as shutdown, so it
+  exited having answered only `initialize`. Fixed by keeping stdin open and bounding the call with
+  the timeout and kill instead; the fake child in the unit suite now models EOF-as-shutdown so the
+  regression cannot return.
 
 **Prove craft's shared skills load by reference on codex — re-probed 2026-07-31; STILL DISPROVEN,
 stays OPEN (codex-0.145.0 limitation).** Two findings: (1) **manifest location bug, FIXED
@@ -398,6 +406,17 @@ shared skills load by reference, **19 of 19** load via the symlink fallback (reg
 `craft:<name>`). The cached `.codex-plugin/plugin.json` drops **both** `skills` and `hooks`. The
 symlink fallback therefore stays documented as required, not optional. "Load by reference" is not
 achievable on codex 0.145.0; re-check on the next minor version.
+
+**Carry the credential-rotation caveat into every binding's probe record — scoped 2026-07-31, OPEN.**
+Surfaced by the codex 0.145.0 re-probe. Every binding record documents isolation as an mtime-find
+over the tool's real home directory, and that check is sound for filesystem writes — it reported
+zero for every probe in that run. But probes that copy an `auth.json` into a throwaway home share a
+**refresh token that rotates server-side on use**, silently invalidating the copy the operator's real
+home still holds; the next real use fails and needs a re-login. No filesystem check can see this.
+The codex record now carries the caveat. The other binding records (`opencode`, `copilot`, `pi`,
+`cursor`, `aider`, `antigravity`) make the same unqualified isolation claim and should each gain it,
+along with the practical mitigations: keep probe windows inside the access token's lifetime, treat
+copied credentials as consumed, and expect a re-login afterwards.
 
 **Local marketplace source form in the codex README — delivered 2026-07-31.** Surfaced by the
 0.145.0 re-probe. `codex plugin marketplace add` accepts "a local path, owner/repo[@ref], an HTTPS
