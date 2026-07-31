@@ -19,13 +19,6 @@
  * keeps it — `parseLine` trims both parts to restore the original delimiter's shape.
  */
 const PIPE_DELIMITER = /(?<=\s)\|(?=\s)/u;
-// equivalent mutant (Regex trailing `$` anchor dropped): `.*` is greedy and a single
-// line never contains `\n`, so it already extends to the string's end on its own — an
-// explicit end anchor changes nothing a caller can observe.
-// equivalent mutant (Regex `\s+` narrowed to `\s` before the final capture): any extra
-// whitespace the narrowed quantifier leaves uncaptured is absorbed into the greedy
-// `(.*\S)` group as part of `finding`, which `toFinding` then trims — the parsed
-// result is identical either way.
 const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
 
 // Bounds how much of a per-line record the split path ever has to look at, even
@@ -51,17 +44,10 @@ const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
  * LAST colon (not the first) separates the file path from the range —
  * tolerating colons inside the path itself.
  */
-// equivalent mutant (Regex leading `^` anchor dropped): `parseScopeSpec` splits every
-// spec on `\n` before an entry ever reaches this pattern, so no entry it sees can
-// contain a newline for an unanchored `.+` to hide a prefix behind — the anchor is
-// unreachable through this module's only caller.
 const SCOPE_ENTRY_PATTERN = /^(.+):(\d+)-(\d+)$/u;
 // The per-file scope form. The `:*` marker is REQUIRED: inferring a whole-file
 // grant from a colon-free string turned a mistyped range into a silent widen,
 // which is the mirror of the silent drop this module exists to prevent.
-// equivalent mutant (Regex leading `^` anchor dropped): same reasoning as
-// SCOPE_ENTRY_PATTERN above — no entry `parseScopeSpec` hands this pattern can ever
-// contain a newline, so the anchor is unreachable through this module's only caller.
 const WHOLE_FILE_ENTRY_PATTERN = /^(.+):\*$/u;
 
 // Marks a file part that still carries another entry's range-or-star tail
@@ -231,6 +217,34 @@ export function normalizeFindings(raw) {
 }
 
 /**
+ * Throws the uniform malformed-scope-entry error. Named rather than inlined
+ * because `parseScopeEntry` has three call sites that all need the identical
+ * message shape — one throw site, not three copies to keep in sync.
+ *
+ * @param {string} entry
+ * @returns {never}
+ */
+function malformedScopeEntry(entry) {
+  throw new Error(`malformed scope entry: "${entry}"`);
+}
+
+/**
+ * Rejects `entry` when its file part still carries another entry's
+ * range-or-star tail followed by a comma (see SWALLOWED_ENTRY_PATTERN above).
+ * Shared by both the ranged and whole-file branches of `parseScopeEntry`,
+ * which check the guard against different capture groups.
+ *
+ * @param {string} entry
+ * @param {string} filePart
+ * @returns {void}
+ */
+function rejectIfSwallowed(entry, filePart) {
+  if (SWALLOWED_ENTRY_PATTERN.test(filePart)) {
+    malformedScopeEntry(entry);
+  }
+}
+
+/**
  * Parses a single scope-spec entry. `<file>:<start>-<end>` bounds a hunk;
  * `<file>:*` covers the whole file, which is the per-file scope form. Throws on
  * any other shape, or a range where `start < 1` or `end < start` — never a
@@ -243,43 +257,46 @@ function parseScopeEntry(entry) {
   const match = entry.match(SCOPE_ENTRY_PATTERN);
   if (match === null) {
     const wholeFile = entry.match(WHOLE_FILE_ENTRY_PATTERN);
-    if (wholeFile !== null) {
-      if (SWALLOWED_ENTRY_PATTERN.test(wholeFile[1])) {
-        throw new Error(`malformed scope entry: "${entry}"`);
-      }
-      // start 0, not 1: file-scoped findings are commonly reported at line 0,
-      // and a whole-file grant that misses them is a silent drop.
-      return { file: wholeFile[1].trim(), start: 0, end: Number.MAX_SAFE_INTEGER };
+    if (wholeFile === null) {
+      malformedScopeEntry(entry);
     }
-    throw new Error(`malformed scope entry: "${entry}"`);
+    rejectIfSwallowed(entry, wholeFile[1]);
+    // start 0, not 1: file-scoped findings are commonly reported at line 0,
+    // and a whole-file grant that misses them is a silent drop.
+    return { file: wholeFile[1].trim(), start: 0, end: Number.MAX_SAFE_INTEGER };
   }
-  if (SWALLOWED_ENTRY_PATTERN.test(match[1])) {
-    throw new Error(`malformed scope entry: "${entry}"`);
-  }
+  rejectIfSwallowed(entry, match[1]);
   const start = Number(match[2]);
   const end = Number(match[3]);
   if (!(start >= 1 && end >= start)) {
-    throw new Error(`malformed scope entry: "${entry}"`);
+    malformedScopeEntry(entry);
   }
   return { file: match[1].trim(), start, end };
 }
 
 /**
  * Parses a single newline-joined scope spec into `ScopeRange[]`.
- * An empty spec is the honest "nothing changed" — it returns [].
+ * An empty (or whitespace-only) spec is the honest "nothing changed" — it
+ * returns [].
  *
  * @param {string} spec
  * @returns {ScopeRange[]}
  */
 export function parseScopeSpec(spec) {
-  if (spec === '') {
+  if (spec.trim() === '') {
     return [];
   }
   // A path may legally contain a comma but can never contain a newline, so
   // splitting on the newline removes the ambiguity at its root instead of
   // working around it. Each entry is still trimmed: a newline-joined spec
   // carries leading/trailing whitespace just as easily as a comma-joined one did.
-  return spec.split('\n').map(entry => parseScopeEntry(entry.trim()));
+  // A structurally empty entry — from a trailing newline or a blank line
+  // between two real ones — is skipped rather than parsed: it is the split's
+  // own artifact, not a malformed entry a caller wrote.
+  return spec
+    .split('\n')
+    .filter(entry => entry !== '')
+    .map(entry => parseScopeEntry(entry.trim()));
 }
 
 /**

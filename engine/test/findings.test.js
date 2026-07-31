@@ -109,7 +109,7 @@ test('Given a mixed-whitespace per-line fixture, when normalizeFindings runs, th
 });
 
 // ─── interior blank lines are skipped, not just leading/trailing ones ────────
-// Kills the blank-filter mutants at findings.js:166 (the `.filter()` call
+// Kills the blank-filter mutants in parseLineShape (the `.filter()` call
 // dropped, the predicate forced `true`, `.trim()` dropped from the predicate,
 // and the empty-string sentinel swapped): each variant would either crash on
 // the blank line or misreport how many findings survive it.
@@ -391,12 +391,12 @@ test('Given a status prefix followed by multiple spaces, when normalizeFindings 
   assert.equal(result[0].finding, 'something odd');
 });
 
-// Kills the MethodExpression mutant at findings.js:134 (`line.trim()` dropped
-// in parseLine): only a non-first line carries whitespace `parseLineShape`
-// never strips (the blank-line filter only excludes lines that are
-// ENTIRELY whitespace). Without the per-line trim, the status-prefix pattern's
-// leading `^` anchor cannot see past the indentation, so the status is missed
-// and the line-head match fails on the now-unstripped text.
+// Kills the MethodExpression mutant (`line.trim()` dropped in parseLine): only
+// a non-first line carries whitespace `parseLineShape` never strips (the
+// blank-line filter only excludes lines that are ENTIRELY whitespace). Without
+// the per-line trim, the status-prefix pattern's leading `^` anchor cannot see
+// past the indentation, so the status is missed and the line-head match fails
+// on the now-unstripped text.
 test('Given a non-first line indented before its status prefix, when normalizeFindings runs, then the status is still peeled correctly', () => {
   const raw = 'HIGH a.js:1 — first\n  VERIFIED: HIGH b.js:2 — second';
   const sut = normalizeFindings;
@@ -435,9 +435,9 @@ test('Given a malformed fixture, when normalizeFindings runs, then it throws on 
   );
 });
 
-// Kills the Regex mutant at findings.js:22 (LINE_HEAD_PATTERN's leading `^`
-// anchor removed): with no anchor, the pattern could match starting anywhere
-// in the line, letting leading noise before a well-formed record through.
+// Kills the Regex mutant (LINE_HEAD_PATTERN's leading `^` anchor removed):
+// with no anchor, the pattern could match starting anywhere in the line,
+// letting leading noise before a well-formed record through.
 test('Given a line with leading token noise before an otherwise well-formed record, when normalizeFindings runs, then it throws rather than matching mid-line', () => {
   const raw = 'a b HIGH x.js:1 — f';
   const sut = normalizeFindings;
@@ -446,6 +446,35 @@ test('Given a line with leading token noise before an otherwise well-formed reco
     () => sut(raw),
     /Cannot parse findings/,
   );
+});
+
+// Kills the Regex mutant dropping LINE_HEAD_PATTERN's trailing `$` anchor: `.`
+// excludes line terminators (CR, LF, and the Unicode line/paragraph separators),
+// and parseLineShape only splits records on LF — so an interior CR survives
+// into this pattern. Without the anchor, the greedy `(.*\S)` group would stop
+// at the CR and silently truncate the finding instead of the whole record
+// failing to parse.
+test('Given a per-line finding with an interior carriage return, when normalizeFindings runs, then it throws rather than truncating the finding at the CR', () => {
+  const raw = 'HIGH a.js:1 — some\rmore';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    /Cannot parse findings/,
+  );
+});
+
+// Kills the Regex mutant narrowing LINE_HEAD_PATTERN's final `\s+` to `\s`:
+// a whitespace run after the separator, containing more than one character
+// including a `\r`, needs the `+` to consume it all — a single-character `\s`
+// only consumes the first one and fails to match the rest.
+test('Given a per-line finding with a mixed-whitespace run containing a carriage return after the separator, when normalizeFindings runs, then it still parses', () => {
+  const raw = 'HIGH a.js:1 — \rfinding';
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.equal(result[0].finding, 'finding');
 });
 
 test('Given JSON-ish input that is invalid JSON, when normalizeFindings runs, then it throws the uniform parse error', () => {
@@ -533,6 +562,39 @@ test('Given a per-line input at exactly the cap with a lone trailing pipe, when 
   );
 });
 
+// Guards PIPE_DELIMITER's linear-scan contract directly: the two tests above only
+// assert the pathological line still gets rejected as malformed — a delimiter that
+// scans quadratically produces that identical rejection, just slower, so they would
+// stay green through a regression. This asserts scaling instead of an outcome:
+// machine-independent (a ratio, not a wall-clock threshold), it compares parse time
+// at MAX_LINE_CHARS against parse time at an 8x-smaller input. A linear delimiter's
+// cost tracks input length; a quadratic one costs roughly 8x squared as much.
+test('Given the same pathological trailing-pipe shape at two input sizes, when normalizeFindings runs on each, then parse time scales sub-quadratically with input length', () => {
+  const sut = normalizeFindings;
+  const makeRaw = (size) => {
+    const prefix = 'error a.js:1 — ';
+    return `${prefix}${' '.repeat(size - prefix.length - 1)}|`;
+  };
+  const timeRun = (size) => {
+    const raw = makeRaw(size);
+    const start = process.hrtime.bigint();
+    assert.throws(() => sut(raw), /line does not match the per-line format/);
+    return Number(process.hrtime.bigint() - start) / 1e6;
+  };
+  const smallSize = Math.floor(MAX_LINE_CHARS / 8);
+
+  timeRun(smallSize); // warm up the engine before measuring
+  timeRun(MAX_LINE_CHARS);
+  const small = Math.min(timeRun(smallSize), timeRun(smallSize));
+  const full = Math.min(timeRun(MAX_LINE_CHARS), timeRun(MAX_LINE_CHARS));
+
+  assert.ok(
+    full / small < 20,
+    `expected sub-quadratic scaling (ratio < 20 for an 8x input), got ${full / small} `
+    + `(small=${small}ms, full=${full}ms)`,
+  );
+});
+
 // ─── bare pipe in finding/fix is rejected (preserves [^|] semantics) ──────────
 
 test('Given a per-line finding containing a bare pipe, when normalizeFindings runs, then it throws (finding may not contain a pipe)', () => {
@@ -557,9 +619,9 @@ test('Given a long unparseable line, when normalizeFindings runs, then the throw
   );
 });
 
-// Kills the ConditionalExpression mutant at findings.js:174 (the truncation
-// check forced permanently true): a short line must echo in full, with no
-// ellipsis appended.
+// Kills the ConditionalExpression mutant (the truncation check in
+// parseLineShape forced permanently true): a short line must echo in full,
+// with no ellipsis appended.
 test('Given a short unparseable line, when normalizeFindings runs, then the thrown message echoes it in full with no ellipsis', () => {
   const raw = 'not a valid record';
   const sut = normalizeFindings;
@@ -570,9 +632,9 @@ test('Given a short unparseable line, when normalizeFindings runs, then the thro
   );
 });
 
-// Kills the EqualityOperator mutant at findings.js:174 (`>` widened to `>=`):
-// a line of exactly 120 characters sits on the boundary and must still echo
-// in full, with no ellipsis appended.
+// Kills the EqualityOperator mutant (parseLineShape's truncation check `>`
+// widened to `>=`): a line of exactly 120 characters sits on the boundary and
+// must still echo in full, with no ellipsis appended.
 test('Given an unparseable line of exactly 120 characters, when normalizeFindings runs, then the thrown message echoes it in full with no ellipsis', () => {
   const raw = 'x'.repeat(120);
   const sut = normalizeFindings;
@@ -713,6 +775,45 @@ test('Given an empty scope spec, when parseScopeSpec runs, then it returns []', 
   assert.deepEqual(result, []);
 });
 
+// A spec built from `readFileSync(specfile, 'utf8')` — unlike the documented
+// `$(cat "$specfile")` shell call site — keeps a trailing newline, so the
+// split produces a genuinely empty final entry. That entry is a structural
+// split artifact, not a malformed one, and must not throw.
+test('Given a scope spec with a trailing newline, when parseScopeSpec runs, then the trailing blank entry is skipped and the real entry parses', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('a.js:1-9\n');
+
+  assert.deepEqual(result, [{ file: 'a.js', start: 1, end: 9 }]);
+});
+
+test('Given a scope spec that is only a newline, when parseScopeSpec runs, then it returns []', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('\n');
+
+  assert.deepEqual(result, []);
+});
+
+test('Given a scope spec that is only whitespace, when parseScopeSpec runs, then it returns []', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('  ');
+
+  assert.deepEqual(result, []);
+});
+
+test('Given a scope spec with an interior blank line between two entries, when parseScopeSpec runs, then both entries parse and the blank line is skipped', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('a.js:1-9\n\nb.js:1-9');
+
+  assert.deepEqual(result, [
+    { file: 'a.js', start: 1, end: 9 },
+    { file: 'b.js', start: 1, end: 9 },
+  ]);
+});
+
 test('Given a single-range scope spec, when parseScopeSpec runs, then it returns one ScopeRange', () => {
   const sut = parseScopeSpec;
 
@@ -745,11 +846,11 @@ test('Given a scope spec spanning multiple files, when parseScopeSpec runs, then
 
 // A path may legally contain a comma but can never contain a newline. The
 // retired comma-joined form now arrives as a single entry: the greedy
-// SCOPE_ENTRY_PATTERN (findings.js:43) still finds a valid-looking range at
-// the tail, so without a guard it would absorb everything before it —
-// including the other "entries" and their own commas — into one garbage file
-// name that matches nothing, dropping every finding for it in silence. The
-// swallowed-entry guard rejects that shape instead.
+// SCOPE_ENTRY_PATTERN still finds a valid-looking range at the tail, so
+// without a guard it would absorb everything before it — including the other
+// "entries" and their own commas — into one garbage file name that matches
+// nothing, dropping every finding for it in silence. The swallowed-entry guard
+// rejects that shape instead.
 test('Given the retired comma-joined range form as a single-argument spec, when parseScopeSpec runs, then it throws naming the whole entry', () => {
   const sut = parseScopeSpec;
 
@@ -774,6 +875,27 @@ test('Given a comma-bearing path as a single-entry spec, when parseScopeSpec run
   const result = sut('a,b.js:1-9');
 
   assert.deepEqual(result, [{ file: 'a,b.js', start: 1, end: 9 }]);
+});
+
+// The zero-space form is the literal output of the retired `entries.join(',')`
+// (no space after the separator) — the most likely real arrival, though every
+// other swallowed-entry test above puts a space after the comma.
+test('Given the zero-space comma-joined range form as a single-argument spec, when parseScopeSpec runs, then it throws naming the whole entry', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(
+    () => sut('a.js:1-9,b.js:1-9'),
+    (err) => err.message === 'malformed scope entry: "a.js:1-9,b.js:1-9"',
+  );
+});
+
+test('Given the zero-space comma-joined whole-file form as a single-argument spec, when parseScopeSpec runs, then it throws naming the whole entry', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(
+    () => sut('a.js:1-9,b.js:*'),
+    (err) => err.message === 'malformed scope entry: "a.js:1-9,b.js:*"',
+  );
 });
 
 // The swallowed-entry guard must not fire on the two forms this run
@@ -803,7 +925,7 @@ test('Given a path containing a range-shaped substring with no trailing comma, w
   assert.deepEqual(result, [{ file: 'notes:1-9.txt', start: 0, end: Number.MAX_SAFE_INTEGER }]);
 });
 
-// Kills the Regex mutants at findings.js:54 narrowing SWALLOWED_ENTRY_PATTERN's
+// Kills the Regex mutants narrowing SWALLOWED_ENTRY_PATTERN's
 // digit runs to a single digit (`\d+` → `\d`, either side of the hyphen): a
 // swallowed entry whose range uses multi-digit numbers on both sides would
 // slip past a guard that only recognises a single leading or trailing digit.
@@ -816,10 +938,10 @@ test('Given the retired comma-joined form with multi-digit range numbers, when p
   );
 });
 
-// Kills the Regex mutant at findings.js:54 widening the pre-comma whitespace
-// class to `\S*` (non-whitespace): a swallowed entry with a space before the
-// comma would slip past a guard that requires the comma to sit directly
-// against the range-or-star tail.
+// Kills the Regex mutant widening SWALLOWED_ENTRY_PATTERN's pre-comma
+// whitespace class to `\S*` (non-whitespace): a swallowed entry with a space
+// before the comma would slip past a guard that requires the comma to sit
+// directly against the range-or-star tail.
 test('Given the retired comma-joined form with a space before the comma, when parseScopeSpec runs, then it still throws naming the whole entry', () => {
   const sut = parseScopeSpec;
 
@@ -840,29 +962,42 @@ for (const entry of ['a.js:3', 'a.js:x-9', 'a.js:9-3', 'a.js:0-3']) {
   });
 }
 
-// parseScopeSpec now splits the whole spec on `\n` before matching any entry,
-// so no single entry can ever contain a newline — the `^` anchor on
-// SCOPE_ENTRY_PATTERN (findings.js:43) is no longer reachable through this
-// input. What this pins instead is the split point itself: `junk` is a whole
-// entry in its own right, and it is rejected on its own merits, independent
-// of the well-formed entry that follows the newline.
+// parseScopeSpec splits the whole spec on plain `\n` before matching any
+// entry, so a `\n`-separated entry can never reach SCOPE_ENTRY_PATTERN. What
+// this pins is the split point itself: `junk` is a whole entry in its own
+// right, and it is rejected on its own merits, independent of the well-formed
+// entry that follows the newline.
 test('Given a scope spec with a newline separating a malformed entry from a well-formed one, when parseScopeSpec runs, then it throws naming the malformed entry', () => {
   const sut = parseScopeSpec;
 
   assert.throws(() => sut('junk\na.js:1-9'), (err) => err.message === 'malformed scope entry: "junk"');
 });
 
-// Kills the Regex mutant at findings.js:43 (SCOPE_ENTRY_PATTERN's `$` anchor
-// removed): with no anchor, `.+` could match a truncated prefix and let
-// trailing garbage after a valid-looking range through silently.
+// Kills the Regex mutant removing SCOPE_ENTRY_PATTERN's trailing `$` anchor:
+// with no anchor, `.+` could match a truncated prefix and let trailing garbage
+// after a valid-looking range through silently.
 test('Given a scope entry with garbage trailing a valid-looking range, when parseScopeSpec runs, then it is rejected rather than accepted as a truncated prefix', () => {
   const sut = parseScopeSpec;
 
   assert.throws(() => sut('a.js:1-9extra'), /malformed scope entry/u);
 });
 
+// Kills the Regex mutant removing SCOPE_ENTRY_PATTERN's leading `^` anchor.
+// `.` excludes line terminators (CR, LF, and the Unicode line/paragraph
+// separators), while parseScopeSpec only splits entries on plain LF — so an
+// interior CR reaches this pattern still attached to the junk before it. The
+// anchor is what stops an unanchored `.+` hiding that prefix.
+test('Given a scope entry with junk before an interior carriage return, when parseScopeSpec runs, then it throws rather than silently discarding the junk prefix', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(
+    () => sut('junk\ra.js:1-9'),
+    (err) => err.message === 'malformed scope entry: "junk\ra.js:1-9"',
+  );
+});
+
 // Same split-point reasoning as SCOPE_ENTRY_PATTERN above: parseScopeSpec
-// never hands WHOLE_FILE_ENTRY_PATTERN (findings.js:47) an entry containing a
+// never hands WHOLE_FILE_ENTRY_PATTERN an entry containing a plain-LF
 // newline, so this pins that `junk` is rejected as its own entry rather than
 // proving the `^` anchor stops a later match.
 test('Given a scope spec with a newline separating a malformed entry from a whole-file entry, when parseScopeSpec runs, then it throws naming the malformed entry', () => {
@@ -871,13 +1006,25 @@ test('Given a scope spec with a newline separating a malformed entry from a whol
   assert.throws(() => sut('junk\na.js:*'), (err) => err.message === 'malformed scope entry: "junk"');
 });
 
-// Kills the Regex mutant at findings.js:47 (WHOLE_FILE_ENTRY_PATTERN's `$`
-// anchor removed): with no anchor, `.+` could match a truncated prefix and let
-// garbage after the `*` marker through silently.
+// Kills the Regex mutant removing WHOLE_FILE_ENTRY_PATTERN's trailing `$`
+// anchor: with no anchor, `.+` could match a truncated prefix and let garbage
+// after the `*` marker through silently.
 test('Given a whole-file entry with garbage trailing the "*" marker, when parseScopeSpec runs, then it is rejected rather than accepted as a truncated prefix', () => {
   const sut = parseScopeSpec;
 
   assert.throws(() => sut('a.js:*extra'), /malformed scope entry/u);
+});
+
+// Kills the Regex mutant removing WHOLE_FILE_ENTRY_PATTERN's leading `^`
+// anchor: same CR-survives-`.` reasoning as SCOPE_ENTRY_PATTERN above, with a
+// worse blast radius — an unanchored match would grant the whole file from junk.
+test('Given a whole-file entry with junk before an interior carriage return, when parseScopeSpec runs, then it throws rather than granting the whole file from garbage', () => {
+  const sut = parseScopeSpec;
+
+  assert.throws(
+    () => sut('junk\ra.js:*'),
+    (err) => err.message === 'malformed scope entry: "junk\ra.js:*"',
+  );
 });
 
 // ─── filterFindings ───────────────────────────────────────────────────────────
@@ -1017,11 +1164,11 @@ test('Given findings emitted with absolute paths, when filtered against a repo r
   assert.deepEqual(result, findings);
 });
 
-// Kills the ConditionalExpression + StringLiteral mutants at findings.js:258
-// (`repoRoot !== ''` forced true / compared against a sentinel instead of '').
-// With no repoRoot supplied (the '' default), an absolute finding path must be
-// left exactly as-is — never have its leading slash silently stripped as if a
-// repo root were in effect.
+// Kills the ConditionalExpression + StringLiteral mutants in filterFindings's
+// repoRoot default (`repoRoot !== ''` forced true / compared against a
+// sentinel instead of ''). With no repoRoot supplied (the '' default), an
+// absolute finding path must be left exactly as-is — never have its leading
+// slash silently stripped as if a repo root were in effect.
 test('Given an absolute finding path with no repo root supplied, when filtered against a bare-path range, then it is not matched (no silent relativization)', () => {
   const sut = filterFindings;
   const findings = [{ file: '/engine/src/glob.js', line: 13, severity: 'HIGH', finding: 'x' }];
