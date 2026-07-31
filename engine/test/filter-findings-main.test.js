@@ -54,6 +54,22 @@ test('Given a JSON findings file and a matching --scope, when main runs, then it
   assert.equal(io.stdout.joined(), EXPECTED);
 });
 
+// ─── newline-joined scope value survives the argv round trip ────────────────
+
+test('Given a newline-joined two-entry --scope value, when main runs, then both files\' findings survive the argv round trip', () => {
+  const sut = main;
+  const io = makeIo();
+  const path = writeTmp('two-files.json', JSON.stringify([
+    { file: 'a.js', line: 3, severity: 'HIGH', finding: 'x' },
+    { file: 'b.js', line: 4, severity: 'LOW', finding: 'y' },
+  ]));
+
+  const result = sut([path, '--scope', 'a.js:1-9\nb.js:1-9'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.equal(JSON.parse(io.stdout.joined()).length, 2);
+});
+
 // ─── empty findings input → [] and exit 0 ────────────────────────────────────
 
 test('Given an empty findings array file, when main runs, then it returns 0 and stdout is []', () => {

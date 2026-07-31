@@ -20,7 +20,7 @@ import { createInterface } from 'node:readline';
 import { join, dirname } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { main, resolveDefaultReadRoot, resolveFileMatcher } from '../src/observability/usage-mine-main.js';
+import { main, resolveDefaultReadRoot, resolveSourceFilter, resolveFileMatcher, resolveFileLabel } from '../src/observability/usage-mine-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
 import { serializeReport } from '../src/observability/usage-aggregate.js';
@@ -486,7 +486,7 @@ test('Given an absent transcript dir, when main runs, then the report note is th
   assert.equal(report.note, 'transcript dir absent', 'note must be the exact absent-dir string');
 });
 
-// ─── P29-2. no-files dir note is exactly NO_FILES_NOTE ───────────────────────
+// ─── P29-2. no-files dir note names the per-source filename ──────────────────
 
 test('Given an empty transcript dir (no .jsonl files), when main runs, then the report note is the exact no-files string', async () => {
   const sut = main;
@@ -500,6 +500,42 @@ test('Given an empty transcript dir (no .jsonl files), when main runs, then the 
 
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   assert.equal(report.note, 'no .jsonl transcript files found', 'note must be the exact no-files string');
+});
+
+test('Given an empty transcript dir, when main runs with --source aider, then the report note names the aider history filename', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('projects-');
+  const emptyDir = join(projectsRoot, 'empty-project');
+  mkdirSync(emptyDir);
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--source', 'aider', '--dir', emptyDir], io);
+
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.equal(
+    report.note,
+    'no .aider.chat.history.md transcript files found',
+    'note must name the aider history filename, not the default .jsonl wording',
+  );
+});
+
+test('Given an empty transcript dir, when main runs with --source codex, then the report note keeps the .jsonl wording', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('projects-');
+  const emptyDir = join(projectsRoot, 'empty-project');
+  mkdirSync(emptyDir);
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--source', 'codex', '--dir', emptyDir], io);
+
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.equal(
+    report.note,
+    'no .jsonl transcript files found',
+    'codex has no dedicated matcher entry, so the note must keep the default .jsonl wording',
+  );
 });
 
 // ─── P29-3. --since filters events by timestamp ──────────────────────────────
@@ -1266,6 +1302,36 @@ test('Given an unknown --source value, when main runs, then the expected-source 
   );
 });
 
+// ─── resolveSourceFilter — per-source { match, label } pair ──────────────────
+
+test('Given source aider, when resolveSourceFilter runs, then it returns the aider matcher paired with the aider label', () => {
+  const sut = resolveSourceFilter;
+
+  const { match, label } = sut('aider');
+
+  assert.equal(match('.aider.chat.history.md'), true);
+  assert.equal(label, '.aider.chat.history.md');
+});
+
+test('Given source claude, when resolveSourceFilter runs, then it returns the default matcher paired with the default label', () => {
+  const sut = resolveSourceFilter;
+
+  const { match, label } = sut('claude');
+
+  assert.equal(match('x.jsonl'), true);
+  assert.equal(label, '.jsonl');
+});
+
+test('Given the inherited-member source "constructor", when resolveSourceFilter runs, then it falls back to the default pair rather than resolving an inherited member', () => {
+  const sut = resolveSourceFilter;
+
+  const { match, label } = sut('constructor');
+
+  assert.equal(match('x.jsonl'), true);
+  assert.equal(match('.aider.chat.history.md'), false);
+  assert.equal(label, '.jsonl');
+});
+
 // ─── resolveFileMatcher — per-source discovery filter ────────────────────────
 
 test('Given source aider, when resolveFileMatcher runs, then the matcher accepts the exact aider history filename', () => {
@@ -1299,6 +1365,32 @@ test('Given the inherited-member source "constructor", when resolveFileMatcher r
 
   assert.equal(matcher('x.jsonl'), true);
   assert.equal(matcher('.aider.chat.history.md'), false);
+});
+
+// ─── resolveFileLabel — per-source discovery-filter label ────────────────────
+
+test('Given source aider, when resolveFileLabel runs, then it returns the aider history filename', () => {
+  const sut = resolveFileLabel;
+
+  const label = sut('aider');
+
+  assert.equal(label, '.aider.chat.history.md');
+});
+
+test('Given source claude, when resolveFileLabel runs, then it returns the default .jsonl label', () => {
+  const sut = resolveFileLabel;
+
+  const label = sut('claude');
+
+  assert.equal(label, '.jsonl');
+});
+
+test('Given the inherited-member source "constructor", when resolveFileLabel runs, then it falls back to the default .jsonl label rather than resolving an inherited member', () => {
+  const sut = resolveFileLabel;
+
+  const label = sut('constructor');
+
+  assert.equal(label, '.jsonl');
 });
 
 test('Given a mixed transcript dir with both the aider history file and a stray .jsonl file, when main runs with --source aider, then only the aider history file is discovered', async () => {

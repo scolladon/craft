@@ -353,11 +353,17 @@ BACKLOG.md`. Known hits:
   here; `prd/` + `specs/` additions are owned by Parts 7 & 1.
 
 **LEAVE (Category-1):** `skills/planning/SKILL.md:11` (`paths.plan` else `docs/plan/`).
-**LEAVE (Category-3, lychee-invisible):** the `[27 telemetered runs](docs/metrics-baseline.report.json)`
-quote inside `docs/plan/readme-drift-guards.md` sits inside a fenced/code block quoting the README
-verbatim — lychee extracts ZERO links from that file (confirmed), so it is NOT a dangler and needs
-no rewrite. `git mv` relocates it verbatim (ADR-288). (The design doc's copy is inside backticks —
-same story.)
+**LEAVE (Category-3, fence-inversion bug — paid down):** the
+`[27 telemetered runs](docs/metrics-baseline.report.json)` quote inside
+`docs/plan/readme-drift-guards.md` was not invisible to lychee because it sat inside a deliberate
+fenced/code block quoting the README verbatim — it was invisible because a bare fence closed the
+mermaid block one line early, flipping the next bare fence from closer to opener, which swallowed
+the quote through the file's next real closer. Rebalancing that fence exposes the link, and exposed
+it IS a dangler: `docs/metrics-baseline.report.json` resolves file-relative and does not exist from
+this file's directory. `git mv` still relocates the file verbatim during this sweep (ADR-288); the
+fence and the link are fixed separately, by wrapping the quoted link in a code span rather than
+retargeting a quotation — that debt has since been paid. (The design doc's copy is inside backticks
+— same story.)
 
 ### TDD steps
 - RED: closure grep shows the old README plan link. `node --test` is green pre-edit (no root

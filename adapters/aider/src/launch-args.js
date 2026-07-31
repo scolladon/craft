@@ -16,6 +16,7 @@ const FLAG_NO_SHOW_RELEASE_NOTES = '--no-show-release-notes';
 const FLAG_NO_ANALYTICS = '--no-analytics';
 const FLAG_MODEL = '--model';
 const FLAG_READ = '--read';
+const FLAG_FILE = '--file';
 const FLAG_MESSAGE = '--message';
 
 function assertNonEmptyString(value, label) {
@@ -36,23 +37,39 @@ function assertModel(model) {
 }
 
 /**
- * @param {unknown[]} readFiles
- * @returns {string[]} discrete `--read`,`<file>` pairs, one per entry, never interpolated
+ * A readFiles/editFiles entry beginning with `-` would be consumed by aider's
+ * argparse-family parser as a flag rather than a path, silently altering the
+ * launch posture (mirrors assertModel's guard against a silent posture change).
+ * @param {string} value
+ * @param {string} label
  */
-function buildReadPairs(readFiles) {
-  return readFiles.flatMap((file) => {
-    assertNonEmptyString(file, 'each readFiles entry');
-    return [FLAG_READ, file];
+function assertSafeFileEntry(value, label) {
+  assertNonEmptyString(value, label);
+  if (value.startsWith('-')) {
+    throw new Error(`buildLaunchArgs: ${label} must not begin with '-' (would be parsed as a flag)`);
+  }
+}
+
+/**
+ * @param {string} flag
+ * @param {unknown[]} files
+ * @param {string} label
+ * @returns {string[]} discrete `<flag>`,`<file>` pairs, one per entry, never interpolated
+ */
+function buildFlagPairs(flag, files, label) {
+  return files.flatMap((file) => {
+    assertSafeFileEntry(file, label);
+    return [flag, file];
   });
 }
 
 /**
  * Build the argv array for an `aider` subprocess invocation.
  *
- * @param {{ model: string, readFiles?: string[], message: string }} opts
+ * @param {{ model: string, readFiles?: string[], editFiles?: string[], message: string }} opts
  * @returns {string[]} argv suitable for execFile('aider', [...args])
  */
-export function buildLaunchArgs({ model, readFiles = [], message }) {
+export function buildLaunchArgs({ model, readFiles = [], editFiles = [], message }) {
   assertModel(model);
   assertNonEmptyString(message, 'message');
 
@@ -64,7 +81,8 @@ export function buildLaunchArgs({ model, readFiles = [], message }) {
     FLAG_NO_ANALYTICS,
     FLAG_MODEL,
     model,
-    ...buildReadPairs(readFiles),
+    ...buildFlagPairs(FLAG_READ, readFiles, 'each readFiles entry'),
+    ...buildFlagPairs(FLAG_FILE, editFiles, 'each editFiles entry'),
     FLAG_MESSAGE,
     message,
   ];

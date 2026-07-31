@@ -11,11 +11,20 @@
  * The em-dash separator (—) may be surrounded by any whitespace; the ` | ` fix part
  * is optional. We split on the pipe delimiter FIRST, then match the head with a single
  * backtracking-free pattern — preserving the original `[^|]` semantics (finding and fix
- * may not contain a pipe) without the catastrophic backtracking the prior combined
- * lazy-quantifier + optional-group pattern exhibited on `<finding><spaces>|` input.
+ * may not contain a pipe). The delimiter itself is a single-character lookaround:
+ * it matches the pipe alone, so it never retries a whitespace run from every position
+ * inside it — the prior combined lazy-quantifier + optional-group pattern did, and
+ * that is what produced its catastrophic backtracking on `<finding><spaces>|` input.
+ * Because the lookaround doesn't consume the flanking whitespace, each split part
+ * keeps it — `parseLine` trims both parts to restore the original delimiter's shape.
  */
-const PIPE_DELIMITER = /\s+\|\s+/u;
+const PIPE_DELIMITER = /(?<=\s)\|(?=\s)/u;
 const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
+
+// Bounds how much of a per-line record the split path ever has to look at, even
+// if the delimiter above ever regresses. Far above the largest record this
+// module has ever seen in practice.
+const MAX_LINE_CHARS = 16384;
 
 /**
  * Optional leading status token on a per-line record, e.g. `VERIFIED: ...`.
@@ -24,6 +33,10 @@ const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
  * A separate anchored pattern — not folded into LINE_HEAD_PATTERN — so it adds
  * no new backtracking shape to the line-head match.
  */
+// equivalent mutant (Regex `\s+` narrowed to `\s`): any leftover leading whitespace the
+// narrowed quantifier fails to consume sits at the front of `remainder`, which
+// `parseLine`'s per-part `.trim()` strips unconditionally before matching — no caller
+// can observe the difference.
 const STATUS_PREFIX_PATTERN = /^(VERIFIED|SUSPECT|RULED-OUT|PROBE):\s+/u;
 
 /**
@@ -36,6 +49,13 @@ const SCOPE_ENTRY_PATTERN = /^(.+):(\d+)-(\d+)$/u;
 // grant from a colon-free string turned a mistyped range into a silent widen,
 // which is the mirror of the silent drop this module exists to prevent.
 const WHOLE_FILE_ENTRY_PATTERN = /^(.+):\*$/u;
+
+// Marks a file part that still carries another entry's range-or-star tail
+// followed by a comma — exactly what the retired comma-joined form leaves
+// behind once SCOPE_ENTRY_PATTERN's greedy head swallows it into one entry.
+// A genuine path never legally contains this shape, so it is rejected rather
+// than scoped to a file name nothing will ever match.
+const SWALLOWED_ENTRY_PATTERN = /:(?:\d+-\d+|\*)\s*,/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
@@ -101,9 +121,6 @@ function parseJsonShape(raw) {
   } catch (err) {
     throw new Error(`Cannot parse findings: invalid JSON — ${err.message}`, { cause: err });
   }
-  if (!Array.isArray(parsed)) {
-    throw new Error('Cannot parse findings: JSON input must be an array');
-  }
   return parsed.map(mapJsonItem);
 }
 
@@ -120,7 +137,7 @@ function parseLine(line) {
   const status = statusMatch ? statusMatch[1] : undefined;
   const remainder = statusMatch ? trimmed.slice(statusMatch[0].length) : trimmed;
 
-  const parts = remainder.split(PIPE_DELIMITER);
+  const parts = remainder.split(PIPE_DELIMITER).map(p => p.trim());
   // finding and fix can't span a second delimiter — more than one is unparseable.
   if (parts.length > 2) {
     return null;
@@ -130,6 +147,10 @@ function parseLine(line) {
     return null;
   }
   const [, severity, file, rawLine, finding] = match;
+  // equivalent mutant (Conditional `parts.length === 2` forced true): the
+  // `parts.length > 2` guard above caps `parts.length` at 1 or 2, and `parts[1]` is
+  // `undefined` for a length of 1 regardless of which branch of the ternary runs —
+  // forcing the condition true yields the identical value.
   const fix = parts.length === 2 ? parts[1] : undefined;
   // A bare pipe in finding or fix is rejected (the original `[^|]` groups did the same).
   if (finding.includes('|') || (fix !== undefined && fix.includes('|'))) {
@@ -148,16 +169,19 @@ function parseLine(line) {
  */
 function parseLineShape(raw) {
   const nonBlank = raw.split('\n').filter(l => l.trim() !== '');
-  if (nonBlank.length === 0) {
-    return [];
-  }
 
   const results = [];
   for (const line of nonBlank) {
+    // Truncate the echoed content — input may be long or carry sensitive text.
+    const shown = line.length > 120 ? `${line.slice(0, 120)}…` : line;
+    if (line.length > MAX_LINE_CHARS) {
+      throw new Error(
+        `Cannot parse findings: line exceeds the ${MAX_LINE_CHARS}-character cap`
+        + ` (${line.length} characters): ${JSON.stringify(shown)}`,
+      );
+    }
     const finding = parseLine(line);
     if (finding === null) {
-      // Truncate the echoed content — input may be long or carry sensitive text.
-      const shown = line.length > 120 ? `${line.slice(0, 120)}…` : line;
       throw new Error(
         `Cannot parse findings: line does not match the per-line format: ${JSON.stringify(shown)}`,
       );
@@ -184,15 +208,40 @@ function parseLineShape(raw) {
  */
 export function normalizeFindings(raw) {
   const trimmed = raw.trim();
-  if (trimmed === '') {
-    return [];
-  }
 
   if (looksLikeJsonArray(trimmed)) {
     return parseJsonShape(trimmed);
   }
 
   return parseLineShape(trimmed);
+}
+
+/**
+ * Throws the uniform malformed-scope-entry error. Named rather than inlined
+ * because `parseScopeEntry` has three call sites that all need the identical
+ * message shape — one throw site, not three copies to keep in sync.
+ *
+ * @param {string} entry
+ * @returns {never}
+ */
+function malformedScopeEntry(entry) {
+  throw new Error(`malformed scope entry: "${entry}"`);
+}
+
+/**
+ * Rejects `entry` when its file part still carries another entry's
+ * range-or-star tail followed by a comma (see SWALLOWED_ENTRY_PATTERN above).
+ * Shared by both the ranged and whole-file branches of `parseScopeEntry`,
+ * which check the guard against different capture groups.
+ *
+ * @param {string} entry
+ * @param {string} filePart
+ * @returns {void}
+ */
+function rejectIfSwallowed(entry, filePart) {
+  if (SWALLOWED_ENTRY_PATTERN.test(filePart)) {
+    malformedScopeEntry(entry);
+  }
 }
 
 /**
@@ -208,36 +257,46 @@ function parseScopeEntry(entry) {
   const match = entry.match(SCOPE_ENTRY_PATTERN);
   if (match === null) {
     const wholeFile = entry.match(WHOLE_FILE_ENTRY_PATTERN);
-    if (wholeFile !== null) {
-      // start 0, not 1: file-scoped findings are commonly reported at line 0,
-      // and a whole-file grant that misses them is a silent drop.
-      return { file: wholeFile[1].trim(), start: 0, end: Number.MAX_SAFE_INTEGER };
+    if (wholeFile === null) {
+      malformedScopeEntry(entry);
     }
-    throw new Error(`malformed scope entry: "${entry}"`);
+    rejectIfSwallowed(entry, wholeFile[1]);
+    // start 0, not 1: file-scoped findings are commonly reported at line 0,
+    // and a whole-file grant that misses them is a silent drop.
+    return { file: wholeFile[1].trim(), start: 0, end: Number.MAX_SAFE_INTEGER };
   }
+  rejectIfSwallowed(entry, match[1]);
   const start = Number(match[2]);
   const end = Number(match[3]);
   if (!(start >= 1 && end >= start)) {
-    throw new Error(`malformed scope entry: "${entry}"`);
+    malformedScopeEntry(entry);
   }
   return { file: match[1].trim(), start, end };
 }
 
 /**
- * Parses a single comma-joined scope spec into `ScopeRange[]`.
- * An empty spec is the honest "nothing changed" — it returns [].
+ * Parses a single newline-joined scope spec into `ScopeRange[]`.
+ * An empty (or whitespace-only) spec is the honest "nothing changed" — it
+ * returns [].
  *
  * @param {string} spec
  * @returns {ScopeRange[]}
  */
 export function parseScopeSpec(spec) {
-  if (spec === '') {
+  if (spec.trim() === '') {
     return [];
   }
-  // A spec is hand-authored as often as generated, so "a.js:1-9, b.js:1-9" is a
-  // likely form. Untrimmed, the space joins the filename and every finding for
-  // that file drops silently.
-  return spec.split(',').map(entry => parseScopeEntry(entry.trim()));
+  // A path may legally contain a comma but can never contain a newline, so
+  // splitting on the newline removes the ambiguity at its root instead of
+  // working around it. Each entry is still trimmed: a newline-joined spec
+  // carries leading/trailing whitespace just as easily as a comma-joined one did.
+  // A structurally empty entry — from a trailing newline or a blank line
+  // between two real ones — is skipped rather than parsed: it is the split's
+  // own artifact, not a malformed entry a caller wrote.
+  return spec
+    .split('\n')
+    .filter(entry => entry !== '')
+    .map(entry => parseScopeEntry(entry.trim()));
 }
 
 /**

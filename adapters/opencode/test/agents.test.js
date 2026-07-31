@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { resolveOpencodeModel } from '../src/model-tier-map.js';
 
-const AGENTS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'agents');
+const ADAPTER_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
+const AGENTS_DIR = path.join(ADAPTER_DIR, 'agents');
+const REPO_ROOT = path.join(ADAPTER_DIR, '..', '..');
+const SHARED_AGENTS_DIR = path.join(REPO_ROOT, 'agents');
 
 const ROLE_TIERS = {
   designer: 'opus',
@@ -53,6 +56,14 @@ function readAgentDef(role) {
   return parseFrontmatter(content);
 }
 
+function sharedAgentPath(role) {
+  return path.join(SHARED_AGENTS_DIR, `${role}.md`);
+}
+
+function bodyOf(filePath) {
+  return parseFrontmatter(readFileSync(filePath, 'utf8')).body;
+}
+
 /** Parse the nested `permission:` map (2-space-indented `key: allow|ask|deny` lines). */
 function parsePermission(content) {
   const lines = content.split('\n');
@@ -77,6 +88,18 @@ function readPermission(role) {
   const filePath = path.join(AGENTS_DIR, `craft-${role}.md`);
   return parsePermission(readFileSync(filePath, 'utf8'));
 }
+
+describe('craft-<role>.md agent bodies — byte-identical to shared craft sources', () => {
+  for (const role of ROLES) {
+    it(`Given agent craft-${role}.md, when its body is compared to the shared craft source, then the two are byte-identical`, () => {
+      const sut = readAgentDef(role).body;
+
+      const result = bodyOf(sharedAgentPath(role));
+
+      assert.equal(sut, result);
+    });
+  }
+});
 
 describe('craft-<role>.md — file existence', () => {
   for (const role of ROLES) {

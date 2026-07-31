@@ -74,8 +74,17 @@ test('Given scripts/ci.sh, when its content is read, then run_prose_lint exclude
   // the provenance globs must sit in an EMPTY (skip) case arm, not the inclusion arm
   assert.match(
     body,
-    /docs\/contributing\/adr\/\*\|docs\/contributing\/design\/\*\|docs\/contributing\/archive\/\*\|docs\/contributing\/specs\/\*\|docs\/contributing\/prd\/\*\)\s*;;/,
+    /docs\/contributing\/adr\/\*\|docs\/contributing\/design\/\*\|docs\/contributing\/archive\/\*\|docs\/contributing\/specs\/\*\|docs\/contributing\/prd\/\*\|docs\/contributing\/plan\/\*\)\s*;;/,
     `provenance dirs must be a skipped case arm inside run_prose_lint: ${body}`,
+  );
+
+  // a future edit must not turn the skip arm into an inclusion arm
+  const planGlobOccurrences = (body.match(/docs\/contributing\/plan\/\*/g) || []).length;
+  assert.equal(planGlobOccurrences, 1, `docs/contributing/plan/* must occur exactly once in run_prose_lint: ${body}`);
+  assert.match(
+    body,
+    /docs\/contributing\/plan\/\*\)\s*;;/,
+    `docs/contributing/plan/* must sit in an empty (skip) case arm: ${body}`,
   );
 });
 

@@ -323,6 +323,69 @@ findings:
       run: examples-catalog-gap-closure
       commit: 7d72b47
       date: '2026-07-27'
+  - concern: findings
+    file: engine/src/findings.js
+    severity: high
+    pattern: an equivalent-mutant claim resting on "the input cannot contain a newline" is FALSE — JS `.` also excludes CR, U+2028 and U+2029, so an interior CR reaches the pattern and the anchor is load-bearing. Probe with a CR before documenting ANY anchor mutant as equivalent; 4 of 7 claims in one file died to this, and 2 of them silently widened scope
+    confidence: 0.9
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
+  - concern: findings
+    file: scripts/sync-adapter-agents.sh
+    severity: high
+    pattern: a bash gate that fills an array from `find` via process substitution exits 0 having checked NOTHING when enumeration is empty or find fails, and on bash 3.2 an unguarded "${arr[@]}" under set -u aborts yet still exits 0 through the EXIT trap. Guard both arrays for zero-enumeration AND print a positive count line — otherwise a 0-checked run is byte-identical to a full one
+    confidence: 0.9
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
+  - concern: findings
+    file: scripts/sync-adapter-agents.sh
+    severity: medium
+    pattern: a tool that rewrites files from a frontmatter body MUST verify the opened fence actually CLOSES — an awk `infence && !closed` rule silently swallows the rest of the file, extracting an empty body that truncates every mirror (a body-only mirror to 0 bytes); the mirror-side twin instead appends the body unboundedly on every run
+    confidence: 0.85
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
+  - concern: findings
+    file: scripts/sync-adapter-agents.sh
+    severity: medium
+    pattern: `[a-z]*` is NOT ASCII under en_US.UTF-8 — bash bracket-expression collation makes it match README. Set LC_ALL=C for byte-stable case globs and sort in any script whose behaviour depends on them
+    confidence: 0.8
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
+  - concern: findings
+    file: engine/test/findings.test.js
+    severity: high
+    pattern: a perf or ReDoS regression guard that asserts only the error message passes just as happily on the quadratic implementation — measured 930x slower and still reported ok. Assert a SCALING RATIO between two input sizes instead, and prove the assertion fails on a deliberately regressed copy
+    confidence: 0.9
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
+  - concern: findings
+    file: docs/contributing/adr/
+    severity: medium
+    pattern: an ADR consequence that reasons ABOUT a regex instead of RUNNING it can ship a false claim that survives ratification — here "the retired form will now throw" was actually a silent mis-scope. Execute every behavioural claim an ADR makes before ratifying it
+    confidence: 0.85
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
+  - concern: findings
+    file: BACKLOG.md
+    severity: medium
+    pattern: a scoped backlog entry's own description of the tree drifts and can be simply wrong — this run found 5 recorded premises false or mis-framed (a trigger characterisation, a colon-rejection claim, which file held the wrong prose, a dedupe dropping both entries not one, a subtotal read as a total). Re-measure every premise before designing a fix for it, and close by evidence when it no longer holds
+    confidence: 0.9
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
 part-sizing:
   - concern: part-sizing
     size: pure-module
@@ -444,6 +507,30 @@ part-sizing:
       run: native-pi-binding
       commit: bd4d8d8
       date: '2026-07-20'
+  - concern: part-sizing
+    size: bash-sync-tool
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
+  - concern: part-sizing
+    size: mutation-baseline-file
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
+  - concern: part-sizing
+    size: review-fix-batch
+    outcome: pass
+    confidence: 1
+    provenance:
+      run: scheduled-backlog-sweep
+      commit: f6639d2
+      date: '2026-07-31'
 ---
 
 # craft memory store
@@ -491,7 +578,18 @@ part-sizing:
 - adapters/codex/src/safe-text.js — confidence 0.8 | 9b618d2 (escaping for a human-visible safeguard must cover invisibles, not just C0+DEL — bidi overrides, zero-width, BOM, soft hyphen. Stay BMP-only: the emitted escape is 4 hex digits, so an astral escape parses as U+E000 + digits and silently writes a key that does not match)
 - .claude/craft-memory.md (isolation method) — confidence 0.9 | 9b618d2 (mtime-find over a tool's real home proves FILESYSTEM isolation only. A copied auth.json shares a refresh token that rotates server-side, invalidating the operator's real credential with zero filesystem change — keep probe windows inside the access token's lifetime and expect a re-login)
 
+- CR-probe before claiming an anchor mutant equivalent — confidence 0.9 | f6639d2 (JS `.` excludes CR/U+2028/U+2029, not just newline)
+- bash find-into-array gates fail open — confidence 0.9 | f6639d2 (guard zero-enumeration + print a positive count line)
+- verify the frontmatter fence CLOSES before rewriting a body — confidence 0.85 | f6639d2 (unclosed fence truncates every mirror)
+- LC_ALL=C for case globs and sort — confidence 0.8 | f6639d2 (`[a-z]*` matches README under en_US.UTF-8)
+- perf guards need a scaling ratio, not a message assertion — confidence 0.9 | f6639d2 (930x slower still reported ok)
+- run every behavioural claim an ADR makes before ratifying — confidence 0.85 | f6639d2
+- re-measure every backlog premise before fixing it — confidence 0.9 | f6639d2 (5 recorded premises were false this run)
+
 ## part-sizing
+- bash-sync-tool: pass — confidence 1 | 7c8a4d1 (--check default/--write explicit, body-only, per-file separator preserved; guard kept independent of the tool)
+- mutation-baseline-file: pass — confidence 1 | 3b1a6fb (whole-file triage in one part; every survivor killed or documented, 1:1)
+- review-fix-batch: pass — confidence 1 | 06bcbcf (findings grouped by file into 3 disjoint concurrent batches, each one atomic commit)
 - pure-module: pass — confidence 1 | a4849a1
 - validator: pass — confidence 1 | a4849a1
 - docs-prose: pass — confidence 1 | a4849a1

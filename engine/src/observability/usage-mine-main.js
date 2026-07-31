@@ -77,24 +77,39 @@ const DEFAULT_READ_ROOTS = Object.freeze({
   aider: () => process.cwd(),
 });
 
-// C7: source→discovery-filter lookup, mirroring DEFAULT_READ_ROOTS. Sources
-// with no entry fall back to the default .jsonl matcher. Aider's matcher is
-// deliberately an exact-equality check, not a suffix match — the working dir
-// also holds .aider.input.history / .aider.llm.history, which must NOT be
-// picked up as transcripts.
+// C7: source→discovery-filter lookup, mirroring DEFAULT_READ_ROOTS. Each entry
+// pairs the matcher with the label naming what it looks for, so the zero-file
+// note (below) can never drift out of sync with the matcher it describes.
+// Sources with no entry fall back to the default .jsonl matcher/label. Aider's
+// matcher is deliberately an exact-equality check, not a suffix match — the
+// working dir also holds .aider.input.history / .aider.llm.history, which
+// must NOT be picked up as transcripts.
 const SOURCE_FILE_MATCHERS = Object.freeze({
-  aider: (f) => f === '.aider.chat.history.md',
+  aider: { match: (f) => f === '.aider.chat.history.md', label: '.aider.chat.history.md' },
 });
 const DEFAULT_FILE_MATCHER = (f) => f.endsWith('.jsonl');
+const DEFAULT_FILE_LABEL = '.jsonl';
 
-// Exported as a direct unit-test seam, mirroring resolveDefaultReadRoot.
-// Own-property check: a bare `SOURCE_FILE_MATCHERS[source]` would resolve
-// inherited members (__proto__, constructor, …) to a truthy function and
-// slip past the intended default-matcher fallback.
-export function resolveFileMatcher(source) {
+// Exported as a direct unit-test seam, mirroring resolveDefaultReadRoot. The
+// match/label pair is resolved together — they always describe the same
+// source, so there is exactly one lookup rather than two independently
+// drifting ones. Own-property check: a bare `SOURCE_FILE_MATCHERS[source]`
+// would resolve inherited members (__proto__, constructor, …) to a truthy
+// entry and slip past the intended default-pair fallback.
+export function resolveSourceFilter(source) {
   return Object.hasOwn(SOURCE_FILE_MATCHERS, source)
     ? SOURCE_FILE_MATCHERS[source]
-    : DEFAULT_FILE_MATCHER;
+    : { match: DEFAULT_FILE_MATCHER, label: DEFAULT_FILE_LABEL };
+}
+
+// Thin unit-test seams over resolveSourceFilter, kept for call sites and
+// tests that only need one half of the pair.
+export function resolveFileMatcher(source) {
+  return resolveSourceFilter(source).match;
+}
+
+export function resolveFileLabel(source) {
+  return resolveSourceFilter(source).label;
 }
 
 // Exported as a direct unit-test seam: resolving the default read root is a
@@ -115,16 +130,19 @@ const INLINE_GAP_NOTE =
 // C7: named constants for the remaining no-op notes.
 const UNCONTAINED_NOTE = 'transcript dir not contained within projects root';
 const ABSENT_NOTE = 'transcript dir absent';
-// Bounded scope: this note stays the literal .jsonl wording even for sources
-// (e.g. aider) whose matcher looks for a different filename — a per-source
-// zero-file note is a cosmetic-only gap, advisory only, and out of scope here.
-const NO_FILES_NOTE = 'no .jsonl transcript files found';
 const NO_EVENTS_NOTE = 'no events provided';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function noOpReport(note) {
   return { schemaVersion: 1, runs: [], note };
+}
+
+// Couples the zero-file note to the same per-source label resolveSourceFilter
+// discovers with, so the message always names the filename the matcher for
+// that source actually looks for.
+function noFilesNote(source) {
+  return `no ${resolveFileLabel(source)} transcript files found`;
 }
 
 function parseArgs(argv) {
@@ -309,7 +327,7 @@ export async function main(argv, io) {
     return EXIT_OK;
   }
 
-  if (!jsonlFiles.length) { writeNoOp(NO_FILES_NOTE); return EXIT_OK; }
+  if (!jsonlFiles.length) { writeNoOp(noFilesNote(source)); return EXIT_OK; }
 
   // Stream-parse all transcript files (never readFileSync — see module header).
   const { events, skipped, markers } = await streamTranscriptFiles(

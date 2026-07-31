@@ -177,41 +177,66 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-07-30 — follow-ups surfaced by the orchestrator-tax-hardening run, not yet scheduled)
 
-**Newline-delimited scope specs.** `parseScopeSpec` splits on `,`, so a legal path containing a
-comma (`a,b.js:1-9`) splits into fragments. It fails LOUDLY today — the fragment `a` carries no
-range and is rejected — so nothing is silently mis-scoped, but the path form is unsupported. The
-spec is now written to a file before being read into a variable, so switching the delimiter to a
-newline would remove the ambiguity at the root (paths cannot contain newlines). Deferred because
-it deviates from ADR-305's ratified comma-joined form and wants its own decision.
+**Newline-delimited scope specs — delivered 2026-07-31** (scheduled-backlog-sweep, ADR-323).
+`parseScopeSpec` now splits on the newline instead of the comma — a path containing a comma
+parses as one legitimate entry, and the retired comma-joined form is unsupported by design
+rather than by accident. Per-entry trimming survives unchanged. One correction the closing
+run surfaced mid-implementation: ADR-323's own consequence text claimed the retired
+comma-joined form would throw — verified false. A narrow guard (ADR-327) now rejects the
+common swallowed-entry shape (a whole comma-joined spec arriving as a single entry, whose
+file part still carries another entry's range), without disturbing colon-bearing paths or
+comma-bearing paths, which stay supported. One residual hole is deliberate and recorded in
+ADR-327, not fixed: a comma-joined spec whose *first* entry carries no range still collapses
+silently, because every formulation that catches it also rejects a legitimate comma-bearing
+path.
 
-**Locality-advisory specificity.** `plan-lint`'s cognitive-locality warning fires on 14 of 23
-committed plans (49 warnings, 37 of them two-part overlaps). The calibration is recorded in
-`docs/contributing/design/orchestrator-tax-hardening.md` and the composition is honest — the
-overlaps are real — but 61% is above the bar the design itself set. If operators learn to ignore
-the line, revisit the detector's specificity (never its advisory status): candidates are weighting
-by whether the shared path is *edited* vs merely *referenced*, and skipping paths declared only
-inside quoted snippets.
+**Locality-advisory specificity — closed by measurement, detector unchanged, 2026-07-31**
+(scheduled-backlog-sweep, ADR-324). Re-measured over the whole committed corpus: 24 plans, 15
+emitting, 54 warnings, 41 two-part. The originally recorded 49/14-of-23/37 reproduces exactly
+once the plan doc added 2026-07-31 is subtracted, so nothing drifted structurally — one plan
+was added. A trap in the original framing: the recorded `49` was always the *mergeable*
+subtotal (≤3-part overlaps), not the total (54, which also counts 5 shared-infrastructure
+overlaps of >3 parts) — the two coincided by accident. Both named candidates were measured
+over the whole corpus, not estimated, and both were rejected: edited-vs-referenced weighting
+is a near-disable (54→8, only 6 of 41 two-part overlaps survive, `### Commit` resolves zero
+paths in 163/163 parts, and it destroys a genuine edit-edit overlap); the quoted-snippet skip
+removes 0 and its one removal under a literal reading is wrong. The detector stays advisory
+and unchanged. The one direction the data supports — a cue-based filter on prose idioms like
+"precedent"/"template" — removes 4 of 54, all true noise by manual reading, but needs a
+labelled sample before it is a result; that stays a backlog direction, not something this run
+shipped.
 
-**Windows path separators in the boundary filter.** `canonicalPath` compares textually against a
-hardcoded `/`, so `--repo-root` is inert on a Windows root (`C:\repo` yields the prefix `C:\repo/`,
-which never matches) and `parseScopeEntry` rejects any colon-bearing whole-file path. Out of scope
-while the toolchain is POSIX-only; the fix is separator normalization before comparison.
+**Windows path separators in the boundary filter — half closed by evidence, half documented,
+2026-07-31** (scheduled-backlog-sweep, ADR-325). The colon-rejection claim is **false**:
+`C:\repo\a.js:*` and `C:\repo\a.js:1-9` both parse correctly today, because the greedy head
+that lets a colon inside a path survive to the pattern's last colon is deliberate and already
+documented in the module comment — that half of the original entry never held.
+`canonicalPath`'s inertness on a Windows root is real and reproduced (`C:\repo` yields the
+prefix `C:\repo/`, which no incoming path starts with), and it stays deliberately unfixed:
+there is no Windows CI to prove a normalization against, and shipping one into a toolchain
+that is POSIX-only end to end (`scripts/*.sh`, `hooks/*.sh`, bats, shellcheck) would read as
+Windows support the rest of the repo cannot honour. A fix lands only alongside a Windows CI
+job that exercises it.
 
-**Line-length cap reaches a new call-site.** The known O(n²) pipe-split in `parseLine` (tracked
-below) is now reachable from third-party tool output, not just bounded reviewer text: the
-validation digest pipes a technique's own output through it. Measured trigger is ≥10k contiguous
-whitespace on one line (progress bars, column-padded reporters): 10k → 88ms, 40k → 2.5s. A
-`cut`-style cap at the pipe was rejected — it would corrupt canonical JSON payloads, which are
-commonly one long line — so the fix belongs in `parseLine` itself.
+**Line-length cap reaches a new call-site — delivered 2026-07-31** (scheduled-backlog-sweep,
+ADR-321). One defect, closed together with the sibling entry under "sp9-findings-adoption"
+below. `parseLine`'s pipe-split now uses a linear lookaround delimiter (`/(?<=\s)\|(?=\s)/u`)
+plus a 16,384-character cap in `parseLineShape`, raised with a dedicated cap-named error
+before the split ever runs. Measured at 200,000 characters: 20,550 ms → 0.48 ms (independently
+reproduced in review). One correction to the recorded trigger: it was written as "a whitespace
+run before a trailing `|`" — that undersold the exposure. Any interior whitespace run not
+immediately followed by `|`+whitespace was quadratic; a run that completed a successful split
+was always fast. The pipe's presence was never the deciding factor.
 
 ### Open (scoped 2026-07-27 — follow-ups surfaced by the docs-audience-split run, not yet scheduled)
 
-**Prose-lint excuse coverage for `docs/contributing/plan/`.** The `run_prose_lint` excuse
-globs in `scripts/ci.sh` cover `docs/contributing/{adr,design,archive,specs,prd}/*` but not
-`plan/*`, and several plan docs legitimately quote ban-list words while documenting the lint
-itself — so every ci run prints advisory `SLOP-FOUND` noise for them. Harmless under the
-`advisory` default, a hard red the day `hygiene.gate` flips to `blocking`. One glob clause +
-the `test/hygiene-gates-ci.test.js` case-arm regex extension (the pinned pair moves together).
+**Prose-lint excuse coverage for `docs/contributing/plan/` — delivered 2026-07-31**
+(scheduled-backlog-sweep). `scripts/ci.sh`'s `run_prose_lint` excuse arm now lists
+`docs/contributing/plan/*` alongside the other five provenance/design globs, and the
+order-locked, anchorless regex in `test/hygiene-gates-ci.test.js` was extended in the same
+commit — the byte-pinned pair moved together, as recorded. Measured impact: `prose-lint` over
+all 24 plan files went from 32 `SLOP-FOUND` lines across 7 files to zero once they route
+through the skip arm.
 
 **README corpus-count freshness — delivered 2026-07-31.** The receipts sentence claimed "270
 ADRs" and "18 design docs" against a tree holding 320 and 25; the counts drifted on every run
@@ -224,34 +249,56 @@ telemetry for 27 runs") and links to a single file are excluded by that same sha
 telemetry run count keeps its existing sub-guard: it is derived from the committed report, not
 from the tree.
 
-**docs-lint small hardenings.** Two benign residuals from the audience-split review: the
-`--audience` dedupe under-lists co-offenders when a top-level entry name contains a space
-(a false pass stays impossible — allowlisted names are spaceless); and
-`docs/contributing/plan/readme-drift-guards.md`'s metrics link is invisible to lychee via a
-parser quirk in that heavily-backticked file, not the fenced-block rationale its prose
-claims — a fence-rebalancing edit would expose it. Both are one-line fixes when touched.
+**docs-lint small hardenings — delivered 2026-07-31** (scheduled-backlog-sweep). Both fixed,
+with two corrections to the original framing. The `--audience` dedupe in
+`scripts/docs-structure-lint.sh` compared a joined, space-delimited string instead of
+individual elements, so a top-level entry name containing a space could swallow a genuine
+neighbour; measured worse than recorded — the symmetric case drops **both** single-word
+entries at the boundary, not one. It is now an element-exact loop (bash 3.2-compatible); a
+false pass stays impossible by construction. And the wrong prose about the lychee-invisible
+metrics link was **not** in `readme-drift-guards.md` at all — that file contains zero
+occurrences of "lychee". It was in `docs/contributing/plan/docs-audience-split.md:356-360`.
+The real cause was never a fenced-block rationale: a bare closing fence in
+`readme-drift-guards.md` closed a nested mermaid block one line early, flipping the next bare
+fence from closer to opener and swallowing 130+ lines, including the link. Both the fence
+(rebalanced) and the mis-diagnosing prose (corrected in place, at its real home) are fixed; a
+new `test/plan-doc-fences.test.js` guard now catches an unbalanced fence across every plan
+doc.
 
 ### Open (scoped 2026-07-26 — follow-ups surfaced by the sp9-findings-adoption run, not yet scheduled)
 
-**Line-length cap in the findings normalizer.** `parseLine`'s pipe-split
-(`engine/src/findings.js`) is O(n²) on a single pathological line (a long whitespace run
-before a trailing `|`): measured ~1.5s at 40k chars, ~40s at 200k. Pre-existing (the status
-peel added no overhead) and reviewer-deferred: a cap rejects oversized lines up front, which
-is a behavior change needing its own design line — the existing ReDoS tests only exercise
-5k chars, so raise them past where the quadratic bites when the cap lands.
+**Line-length cap in the findings normalizer — delivered 2026-07-31** (scheduled-backlog-sweep,
+ADR-321). The same defect as the "Line-length cap reaches a new call-site" entry above under
+"orchestrator-tax-hardening" — closed together, one fix. `parseLine`'s pipe-split now uses a
+linear lookaround delimiter and a 16,384-character cap in `parseLineShape`, raised past the
+existing 5,000-character ReDoS guards so they still exercise the split rather than the cap,
+now asserting the specific cap/format message rather than a loose `/Cannot parse findings/`
+prefix. Measured at 200,000 characters: 20,550 ms → 0.48 ms. One correction: the trigger was
+never specifically "a whitespace run before a trailing `|`" — any interior whitespace run not
+immediately followed by `|`+whitespace was quadratic, pipe or no pipe.
 
-**Adapter agent-mirror sync tooling.** Six adapters mirror shared `agents/*.md` bodies
-(copilot/codex/cursor/antigravity/opencode keep frontmatter + body, aider is body-only) and
-their drift guards are byte-identity tests — so every shared-agent edit means six manual
-syncs discovered one red suite at a time. A `scripts/sync-adapter-agents.sh` (or generating
-the mirrors at test time) turns the guard's red into one command; the aider body-only +
-leading-newline-strip variant is the trap to encode.
+**Adapter agent-mirror sync tooling — delivered 2026-07-31** (scheduled-backlog-sweep,
+ADR-326). Shipped as `scripts/sync-adapter-agents.sh`: read-only `--check` by default, an
+explicit `--write` required to mutate anything, replacing each mirror's body only while
+preserving its own frontmatter byte-for-byte (aider's body-only, no-fence, leading-newline-
+stripped variant is encoded as its own write shape, not folded into the frontmatter-preserving
+one). `--check` is wired into `scripts/ci.sh`. opencode's missing byte-identity guard — the
+one adapter of the six that lacked one — is added, so all six mirrors are independently
+guarded rather than five; the tool is never the only thing checking itself.
 
-**findings.js mutation-baseline hardening.** The per-hunk validation run killed everything
-in this change's hunks, but a full-file scoped run still shows ~20 pre-existing survivors
-(regex constants, severity/finding trims, JSON-shape guards). One sitting with the repo's
-established triage conventions (kill or document `// equivalent mutant (…)`) closes the
-file's baseline gap.
+**findings.js mutation-baseline hardening — delivered 2026-07-31** (scheduled-backlog-sweep,
+ADR-322). Measured baseline was 34 unkilled of 224 instrumented (27 survived + 7 uncovered),
+not the ~20 originally recorded. Three redundant empty/shape guards were deleted (ADR-322 —
+the array guard in `parseJsonShape`, `parseLineShape`'s empty-`nonBlank` early return, and
+`normalizeFindings`'s empty-string guard, all provably unreachable or redundant, verified by
+differential over the empty/whitespace/JSON probe set and the full existing suite); the
+`Zero findings → []` contract those guards enforced in code now lives in JSDoc, with the two
+empty-input tests as its only executable proof. The remaining survivors were triaged to the
+repo's kill-or-document convention. Review caught that 4 of the resulting "equivalent mutant"
+documentation comments were actually killable — the reasoning had assumed JS `.` only excludes
+`\n`, but it also excludes `\r`, and two of the four were live scope-widening bugs, not just
+missed coverage. All four were converted to real kills; `findings.js` finishes with 3
+in-place equivalent-mutant comments, not 7.
 
 ### Open (scoped 2026-07-25 — follow-ups surfaced by the readme-drift-guards run, not yet scheduled)
 
@@ -272,25 +319,23 @@ stops being the only maturity signal.
 
 ### Open (scoped 2026-07-23 — follow-ups surfaced by the aider binding, not yet scheduled)
 
-**Per-source zero-files note in the usage miner.** `usage-mine-main.js`'s `NO_FILES_NOTE`
-is the hardcoded literal `no .jsonl transcript files found`, emitted verbatim under every
-`--source` — including `--source aider`, whose transcript is `.aider.chat.history.md`, not
-`.jsonl`. An operator debugging an empty aider mine sees a factually wrong filename. Cosmetic
-and advisory-only (a zero-file mine already yields an empty report cleanly), so it was left out
-of the aider binding's scope; the existing exact-string test pins the note for the claude/default
-source. Follow-up: derive the zero-file note wording from the resolved per-source matcher (mirror
-the `resolveFileMatcher`/`DEFAULT_READ_ROOTS` per-source seam) rather than the `.jsonl` literal.
+**Per-source zero-files note in the usage miner — delivered 2026-07-31**
+(scheduled-backlog-sweep). The zero-file note is now derived from the resolved per-source
+matcher instead of the hardcoded `.jsonl` literal, mirroring the `resolveFileMatcher`/
+`DEFAULT_READ_ROOTS` per-source seam. `--source aider` now names its real transcript file,
+`.aider.chat.history.md`; the existing exact-string test pinning the note for the
+claude/default source stays green, byte-unchanged.
 
-**`--file` editable-targets surface in launch-args for edit-phases.** `buildLaunchArgs`
-emits `--read` (read-only role/context) + `--message` but no `--file` (editable target), so an
-incremental EDIT to an existing file relies on Aider auto-adding the target to the chat. A
-full-pipeline dogfood (craft orchestrator driving Aider per-part to build Game of Life) confirmed
-Aider reliably *creates* files but an edit-to-existing-file was unreliable — a weak local model
-no-op'd on the edit even with `--file` spliced in (so a capable model is also required; the
-missing `--file` surface is necessary-not-sufficient). Follow-up: add an optional editable-targets
-parameter to `buildLaunchArgs` that emits one `--file <path>` per touched file for edit-phases,
-keeping `--read` for role/context only. See the full-pipeline row in
-`docs/adapters/aider-poc-record.md`.
+**`--file` editable-targets surface in launch-args for edit-phases — delivered 2026-07-31**
+(scheduled-backlog-sweep). `buildLaunchArgs` now takes an optional editable-targets parameter
+and emits one `--file <path>` per touched file, keeping `--read` for role/context only;
+omitting the parameter emits byte-identical argv to before. The record keeps its
+CONFIRMED/OPEN discipline honestly: `--file` is necessary but not sufficient — the
+full-pipeline dogfood already on record showed a weak local model no-op on an
+edit-to-existing-file even with `--file` spliced into that turn's argv, so a capable model is
+also required. The edit-to-existing path is still not claimed proven; only file creation is
+CONFIRMED live. See `docs/contributing/specs/aider-poc-record.md` (the entry's cited
+`docs/adapters/aider-poc-record.md` does not exist — a stale path, corrected here).
 
 ### Open (scoped 2026-07-20 — follow-ups surfaced by the copilot binding, not yet scheduled)
 
