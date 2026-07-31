@@ -14,8 +14,10 @@ const TABLE_HEADER_SUFFIX = ']';
 // A table header is a whole line: brackets around a key, nothing after it but
 // whitespace or a comment. Testing only for a leading `[` also fires on an array
 // element sitting on its own continuation line, which ends the table early — see
-// findTableExtent for what that costs.
-const TABLE_HEADER_LINE_PATTERN = /^\[\[?[^\]]*\]\]?\s*(#.*)?$/;
+// findTableExtent for what that costs. The key span reads a quoted segment whole,
+// escapes included, because the keys written here embed a filesystem path: a `]`
+// in that path is legal and belongs to the key, and a `"` in it arrives escaped.
+const TABLE_HEADER_LINE_PATTERN = /^\[\[?(?:[^\]"]|"(?:[^"\\]|\\.)*")*\]\]?\s*(#.*)?$/;
 const TRUSTED_HASH_KEY = 'trusted_hash';
 const TRUSTED_HASH_ASSIGNMENT_PATTERN = /^\s*trusted_hash\s*=/;
 

@@ -173,6 +173,38 @@ describe('upsertTrustedHash() — a following table is a boundary', () => {
       assert.equal(result.split('trusted_hash').length - 1, 2);
     });
   }
+
+  // A directory name may legally contain `]`, and the trust key embeds the
+  // config.toml path — so a header whose quoted key carries one is a header this
+  // module writes itself. A boundary rule whose key span stops at the first `]`
+  // stops recognising that header, the target table's extent runs into this one,
+  // and the hash lands on ITS trusted_hash instead.
+  it('Given a target table followed by a table whose quoted key carries a closing bracket, when upsertTrustedHash runs, then that following table survives byte-identical', () => {
+    const sut = upsertTrustedHash;
+    const bracketKey = '/fixture/codex]home/config.toml:pre_tool_use:0:0';
+    const followingTable = `${tableHeader(bracketKey)}\ntrusted_hash = "${OTHER_HASH}"\n`;
+    const input = `${tableHeader()}\nenabled = true\n\n${followingTable}`;
+
+    const result = sut(input, { key: CODEX_HOME_KEY, hash: HASH });
+
+    assert.ok(result.includes(followingTable));
+    assert.equal(result.split('trusted_hash').length - 1, 2);
+  });
+
+  // The same header, one escape further: a `"` in the path is written escaped, so
+  // a key span that ends its quoted segment at the first `"` — escaped or not —
+  // reads the rest of the header as unterminated and stops recognising it.
+  it('Given a target table followed by a table whose quoted key carries an escaped double quote, when upsertTrustedHash runs, then that following table survives byte-identical', () => {
+    const sut = upsertTrustedHash;
+    const quoteKey = '/fixture/codex"home/config.toml:pre_tool_use:0:0';
+    const followingTable = `${tableHeader(quoteKey)}\ntrusted_hash = "${OTHER_HASH}"\n`;
+    const input = `${tableHeader()}\nenabled = true\n\n${followingTable}`;
+
+    const result = sut(input, { key: CODEX_HOME_KEY, hash: HASH });
+
+    assert.ok(result.includes(followingTable));
+    assert.equal(result.split('trusted_hash').length - 1, 2);
+  });
 });
 
 describe('upsertTrustedHash() — only a table header ends a table', () => {
