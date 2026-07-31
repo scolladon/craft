@@ -175,6 +175,53 @@ describe('upsertTrustedHash() — a following table is a boundary', () => {
   }
 });
 
+describe('upsertTrustedHash() — only a table header ends a table', () => {
+  // A boundary rule that fires on any line-initial `[` ends the target table at
+  // an array continuation line, misses the trusted_hash below it, and inserts a
+  // second one — a duplicate key, which is invalid TOML, so codex stops parsing
+  // config.toml and the guard stops being registered while the tool reports
+  // success. Only a header-SHAPED line may end a table.
+  const NON_HEADER_LINES = [
+    ['an array element on its own line', 'matchers = [\n["a"],\n]'],
+    ['a closing bracket on its own line', 'matchers = [\n  "a"\n]'],
+  ];
+
+  for (const [label, value] of NON_HEADER_LINES) {
+    const input = `${tableHeader()}\n${value}\ntrusted_hash = "${HASH}"\n`;
+
+    it(`Given a target table carrying ${label}, when upsertTrustedHash runs, then the existing assignment is replaced rather than duplicated`, () => {
+      const sut = upsertTrustedHash;
+
+      const result = sut(input, { key: CODEX_HOME_KEY, hash: NEW_HASH });
+
+      assert.equal(result.split('trusted_hash').length - 1, 1);
+      assert.ok(result.includes(assignmentLine(NEW_HASH)));
+    });
+  }
+
+  it('Given a following table header carrying a trailing comment, when upsertTrustedHash runs, then it still ends the target table there', () => {
+    const sut = upsertTrustedHash;
+    const following = '[other.table]  # kept by the operator\ntrusted_hash = "keep-me"\n';
+    const input = `${tableHeader()}\nenabled = true\n\n${following}`;
+
+    const result = sut(input, { key: CODEX_HOME_KEY, hash: HASH });
+
+    assert.ok(result.includes(`${tableHeader()}\n${assignmentLine()}\n`));
+    assert.ok(result.includes(following));
+  });
+
+  it('Given a following array-of-tables header, when upsertTrustedHash runs, then it still ends the target table there', () => {
+    const sut = upsertTrustedHash;
+    const following = '[[hooks.PreToolUse]]\ntrusted_hash = "keep-me"\n';
+    const input = `${tableHeader()}\nenabled = true\n\n${following}`;
+
+    const result = sut(input, { key: CODEX_HOME_KEY, hash: HASH });
+
+    assert.ok(result.includes(`${tableHeader()}\n${assignmentLine()}\n`));
+    assert.ok(result.includes(following));
+  });
+});
+
 describe('upsertTrustedHash() — idempotence', () => {
   const cases = [
     ['an empty input', () => ''],

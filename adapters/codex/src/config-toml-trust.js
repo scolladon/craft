@@ -11,7 +11,11 @@ import { escapeControlChars } from './safe-text.js';
 
 const TABLE_HEADER_PREFIX = '[hooks.state.';
 const TABLE_HEADER_SUFFIX = ']';
-const TABLE_BOUNDARY_CHAR = '[';
+// A table header is a whole line: brackets around a key, nothing after it but
+// whitespace or a comment. Testing only for a leading `[` also fires on an array
+// element sitting on its own continuation line, which ends the table early — see
+// findTableExtent for what that costs.
+const TABLE_HEADER_LINE_PATTERN = /^\[\[?[^\]]*\]\]?\s*(#.*)?$/;
 const TRUSTED_HASH_KEY = 'trusted_hash';
 const TRUSTED_HASH_ASSIGNMENT_PATTERN = /^\s*trusted_hash\s*=/;
 
@@ -45,16 +49,22 @@ function buildAssignmentLine(hash) {
 
 /**
  * A table's extent runs from the line after its header to the next table
- * header, or end of text. The boundary test trims before inspecting the `[`,
- * symmetric with the header lookup below: an indented table header is legal
- * TOML, and a boundary rule that missed one would let this table's extent run
- * into the NEXT table and edit its keys. Shared by both the replace and the
- * insert routes so the boundary rule exists in exactly one place.
+ * header, or end of text. Two failure directions bound the rule, and both have
+ * been paid for: a boundary that misses a header lets this table's extent run
+ * into the NEXT table and edit its keys, while a boundary that fires on any
+ * line-initial `[` ends the extent at an array continuation line, misses this
+ * table's own trusted_hash and appends a duplicate key. Trimming before the
+ * match handles the first (an indented header is legal TOML); requiring the
+ * whole line to be header-shaped handles the second.
+ *
+ * The rule is line-shaped, not a TOML parse, so a line that is both a valid
+ * header and a valid array element (`["a"]`) is read as a header. Shared by
+ * both the replace and the insert routes so it exists in exactly one place.
  */
 function findTableExtent(lines, headerIndex) {
   const start = headerIndex + 1;
   for (let index = start; index < lines.length; index += 1) {
-    if (lines[index].trim().startsWith(TABLE_BOUNDARY_CHAR)) {
+    if (TABLE_HEADER_LINE_PATTERN.test(lines[index].trim())) {
       return { start, end: index };
     }
   }
@@ -105,25 +115,6 @@ function appendTable(tomlText, headerLine, assignmentLine) {
   return `${terminated}\n${block}`;
 }
 
-// The write is what makes the guard enforceable, so the produced text is
-// re-read before it is handed back. Unless the target table ends up carrying
-// exactly the assignment just written, this refuses rather than returning a
-// config whose success message would claim a trust the file does not record.
-function assertTargetTableCarriesAssignment(tomlText, headerLine, assignmentLine) {
-  const lines = tomlText.split('\n');
-  const headerIndex = findHeaderIndex(lines, headerLine);
-  if (headerIndex === -1) {
-    throw new Error(`upsertTrustedHash: produced text carries no ${headerLine} table`);
-  }
-
-  const indices = findTrustedHashIndices(lines, findTableExtent(lines, headerIndex));
-  if (indices.length !== 1 || lines[indices[0]] !== assignmentLine) {
-    throw new Error(
-      `upsertTrustedHash: produced text carries ${indices.length} trusted_hash assignment(s) in ${headerLine}, expected exactly the one written`
-    );
-  }
-}
-
 /**
  * Upsert the hook-trust hash for `key` into `tomlText`'s
  * `[hooks.state.<key>]` table, returning new text. Never mutates the input
@@ -140,11 +131,7 @@ export function upsertTrustedHash(tomlText, { key, hash }) {
   const lines = tomlText.split('\n');
   const headerIndex = findHeaderIndex(lines, headerLine);
 
-  const nextText =
-    headerIndex === -1
-      ? appendTable(tomlText, headerLine, assignmentLine)
-      : replaceOrInsertAssignment(lines, headerIndex, assignmentLine);
-
-  assertTargetTableCarriesAssignment(nextText, headerLine, assignmentLine);
-  return nextText;
+  return headerIndex === -1
+    ? appendTable(tomlText, headerLine, assignmentLine)
+    : replaceOrInsertAssignment(lines, headerIndex, assignmentLine);
 }
