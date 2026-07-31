@@ -59,9 +59,17 @@ function buildAssignmentLine(hash) {
  * match handles the first (an indented header is legal TOML); requiring the
  * whole line to be header-shaped handles the second.
  *
- * The rule is line-shaped, not a TOML parse, so a line that is both a valid
- * header and a valid array element (`["a"]`) is read as a header. Shared by
- * both the replace and the insert routes so it exists in exactly one place.
+ * The rule is line-shaped, not a TOML parse, so two shapes remain ambiguous and
+ * neither is reachable by any sharper line rule. A line that is both a valid
+ * header and a valid array element (`["a"]`) is read as a header; and a
+ * header-shaped line inside a multi-line basic string — `[anything]` between
+ * `"""` delimiters — ends the extent there, because knowing it is quoted means
+ * tracking the delimiter across lines, which is the parse this file exists to
+ * avoid. Both end the extent above the table's real trusted_hash, so a second one
+ * is inserted: a duplicate key, which makes config.toml unparseable, so codex
+ * stops loading it and the guard stops being registered — while this reports
+ * success. Shared by both the replace and the insert routes so it exists in
+ * exactly one place.
  */
 function findTableExtent(lines, headerIndex) {
   const start = headerIndex + 1;
