@@ -51,11 +51,15 @@ function isTerminalLine(line, responseId) {
   }
 }
 
-function writeRequestsAndCloseStdin(child, requests) {
+// stdin stays OPEN for the life of the request. The server treats stdin EOF
+// as a shutdown signal: closing it after writing makes the server exit having
+// answered only the first request, so the awaited response never arrives and
+// the run fails with an exit-before-responding error. What bounds this call is
+// the timeout and the kill below, never an EOF — so nothing here may close stdin.
+function writeRequests(child, requests) {
   for (const line of requests) {
     child.stdin.write(line);
   }
-  child.stdin.end();
 }
 
 /**
@@ -109,7 +113,7 @@ export function createAppServerRunner({ spawn }) {
         }
       });
 
-      writeRequestsAndCloseStdin(child, requests);
+      writeRequests(child, requests);
     });
   };
 }

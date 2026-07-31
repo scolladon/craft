@@ -30,8 +30,13 @@ function createFakeStream() {
   };
 }
 
+// Models the one behaviour that matters and that a naive double gets wrong:
+// the real server treats stdin EOF as a shutdown signal, so a double whose
+// end() is inert would let a premature close look harmless. Here, end() marks
+// the child dead and any later write is recorded as unreachable — so a runner
+// that closes stdin before its answer arrives fails the assertions below.
 function createFakeChildProcess() {
-  const state = { writes: [], stdinEnded: false, killCount: 0 };
+  const state = { writes: [], stdinEnded: false, killCount: 0, writesAfterEnd: 0 };
   const events = createFakeStream();
   const child = {
     on: events.on,
@@ -41,6 +46,10 @@ function createFakeChildProcess() {
     },
     stdin: {
       write(chunk) {
+        if (state.stdinEnded) {
+          state.writesAfterEnd += 1;
+          return;
+        }
         state.writes.push(chunk);
       },
       end() {
@@ -63,7 +72,7 @@ function createFakeSpawn(child) {
 }
 
 describe('createAppServerRunner() — normal response', () => {
-  it('Given a scripted stream whose id-2 response arrives normally, when the runner runs, then it resolves with the accumulated stdout, writes both request lines to stdin, ends stdin, and kills the child exactly once', async () => {
+  it('Given a scripted stream whose id-2 response arrives normally, when the runner runs, then it resolves with the accumulated stdout, writes both request lines to stdin, and kills the child exactly once', async () => {
     const { child, state } = createFakeChildProcess();
     const { spawn, calls } = createFakeSpawn(child);
     const sut = createAppServerRunner({ spawn });
@@ -77,8 +86,23 @@ describe('createAppServerRunner() — normal response', () => {
     assert.equal(result, responseText);
     assert.deepEqual(calls, [{ command: 'codex', args: ['app-server'], options: { cwd: CWD } }]);
     assert.deepEqual(state.writes, requests);
-    assert.equal(state.stdinEnded, true);
     assert.equal(state.killCount, 1);
+  });
+
+  it('Given the awaited response has not arrived yet, when the runner has written its requests, then stdin is still open so the server is not shut down before it answers', async () => {
+    const { child, state } = createFakeChildProcess();
+    const { spawn } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+    const requests = ['{"id":1}\n', '{"id":2}\n'];
+
+    const runPromise = sut({ requests, cwd: CWD, responseId: RESPONSE_ID });
+
+    assert.equal(state.stdinEnded, false);
+    assert.equal(state.writesAfterEnd, 0);
+    assert.deepEqual(state.writes, requests);
+
+    child.stdout.emit('data', responseLine(RESPONSE_ID));
+    await runPromise;
   });
 });
 
