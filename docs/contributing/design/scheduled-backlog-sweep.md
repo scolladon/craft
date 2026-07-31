@@ -3,7 +3,9 @@
 > Brief: close the eleven remaining scheduled backlog items in one pass, grouped by the
 > code they touch — the findings normalizer, plan-lint/scope-spec, the hygiene and docs
 > lints, and the adapter tooling.
-> Status: draft → self-reviewed ×3 → accepted
+> Status: draft → self-reviewed ×3 → accepted → **revised against ADRs 321–326**
+> (self-reviewed ×3). All six decision candidates are ratified; DC-2 deviated from this
+> design's recommendation and the deviation is folded through below.
 
 ## Context
 
@@ -108,15 +110,17 @@ hangs for tens of minutes.
 3. `engine/src/findings.js` carries no unkilled mutant that is neither killed by a real
    test nor documented in place as provably unobservable. No survivor is dismissed as not
    worth testing. Every reduction in the instrumented mutant count maps to a line the
-   change deliberately deleted.
-4. The scope-spec delimiter question is settled by decision, and whatever is settled is
-   recorded in an ADR that refines ADR-305.
-5. The cognitive-locality advisory's specificity question is settled by measurement.
-   Whatever the outcome, the check stays advisory (ADR-306) and no overlap is suppressed
-   to improve the statistic.
-6. The Windows path-separator question is settled by decision, with the two halves of the
-   original entry distinguished: the `canonicalPath` prefix defect (real) and the
-   colon-rejection claim (false).
+   change deliberately deleted, measured against a reduction predicted in advance rather
+   than accepted after the fact. Where a deletion removes the executable form of a stated
+   contract, the contract stays stated in JSDoc and a test carries the executable proof.
+4. The scope-spec delimiter question is settled, and the settlement is recorded in an ADR
+   that refines ADR-305 — ADR-323, newline-only.
+5. The cognitive-locality advisory's specificity question is settled by measurement —
+   ADR-324, detector unchanged. The check stays advisory (ADR-306) and no overlap is
+   suppressed to improve the statistic.
+6. The Windows path-separator question is settled — ADR-325, documented not implemented —
+   with the two halves of the original entry distinguished: the `canonicalPath` prefix
+   defect (real) and the colon-rejection claim (false).
 7. `docs/contributing/plan/*` stops producing advisory `SLOP-FOUND` noise, and the
    `scripts/ci.sh` glob clause and the `test/hygiene-gates-ci.test.js` case-arm regex move
    in the same commit.
@@ -138,9 +142,18 @@ hangs for tens of minutes.
     argv. `docs/contributing/specs/aider-poc-record.md` records honestly that `--file` is
     necessary and not sufficient.
 13. No new test spawns a real agent CLI binary.
-14. `bash scripts/readme-drift.sh` exits 0 when the change lands. Adding this design doc
-    already breaks it (`corpus-counts: docs/contributing/design/ claims 25, tree holds
-    26`), and the plan and the ADRs this run ratifies move two more counts.
+14. `bash scripts/readme-drift.sh` exits 0 when the change lands. It is red **right now**,
+    on two counts — re-measured in this tree after ADRs 321–326 were committed:
+
+    ```
+    readme-drift: corpus-counts: docs/contributing/design/ claims 25, tree holds 26
+    readme-drift: corpus-counts: docs/contributing/adr/ claims 320, tree holds 326
+    ```
+
+    The parted-plan count is *not* yet drifted (README claims 24, tree holds 24) and goes
+    red the moment the planning phase commits this run's plan doc. `readme-drift` runs as
+    its own GitHub Actions job and never from `scripts/ci.sh`, so no per-part and no
+    phase-boundary gate catches any of this — see seam L.
 
 ## Design
 
@@ -207,8 +220,9 @@ at the outcome level, not the split level.
 
 **The cap.** Independently of the split, an oversized line is worth rejecting up front: it
 bounds the worst reachable input even if the delimiter ever regresses, and it bounds what
-a hostile or broken technique can push through the boundary. A cap is a behaviour change
-and wants its own ADR.
+a hostile or broken technique can push through the boundary. A cap is a behaviour change,
+and **ADR-321 ratifies both halves** — the lookaround delimiter and the 16,384-character
+cap land together.
 
 Placement: `parseLineShape` (line 149), inside the existing loop, **before** the
 `parseLine(line)` call. `parseLineShape` already owns the "this line is unusable, throw
@@ -231,6 +245,50 @@ if (line.length > MAX_LINE_CHARS) {
 measures the line **as split from `raw`**, before `parseLine`'s `trim()` — that is what
 the module received and what the reported length should mean, and it matches the untrimmed
 `line` the echo already uses.
+
+**ADR-321 and ADR-322 both edit `parseLineShape`; here is the composed result.** ADR-322
+deletes this function's `nonBlank.length === 0` early return (lines 151–153), and ADR-321
+inserts the cap inside the loop. The two edits are disjoint — the deletion is above the
+loop, the insertion is inside it — and they compose without reconciliation. The implementer
+does not have to derive this; it is the exact shape, verified by running the full committed
+`engine/test/findings.test.js` (65 tests, all green) against it:
+
+```js
+function parseLineShape(raw) {
+  const nonBlank = raw.split('\n').filter(l => l.trim() !== '');
+  const results = [];
+  for (const line of nonBlank) {
+    // Truncate the echoed content — input may be long or carry sensitive text.
+    const shown = line.length > 120 ? `${line.slice(0, 120)}…` : line;
+    if (line.length > MAX_LINE_CHARS) {
+      throw new Error(
+        `Cannot parse findings: line exceeds the ${MAX_LINE_CHARS}-character cap`
+        + ` (${line.length} characters): ${JSON.stringify(shown)}`,
+      );
+    }
+    const finding = parseLine(line);
+    if (finding === null) {
+      throw new Error(
+        `Cannot parse findings: line does not match the per-line format: ${JSON.stringify(shown)}`,
+      );
+    }
+    results.push(finding);
+  }
+  return results;
+}
+```
+
+Three properties of that shape are load-bearing and easy to lose. The `results`/loop pair
+is what returns `[]` for an empty `nonBlank` once the early return is gone — the deletion is
+safe *because* the loop body never runs, not because anything replaces it. The cap check
+stays **before** `parseLine(line)`, which is the whole point of the cap: it must bound the
+input reaching the split even if the delimiter ever regresses. And `shown` is computed once
+per line above both throws, so the cap message and the format message echo identically.
+
+**Ordering, since the same function is edited twice.** The cap lands in seam A and the
+early-return deletion lands in seam C, so `parseLineShape` is touched in two different parts
+in that order. Deleting three lines above the loop shifts every line below it, which is
+exactly the hazard the mutation-hunk-range warning below is about.
 
 **Why 16,384, and why the threshold is coupled to the tests.** The longest line in the four
 per-line fixtures under `engine/test/fixtures/findings/` is **78 characters** (48 / 78 / 71
@@ -269,20 +327,20 @@ File         |  total | covered | # killed | # timeout | # survived | # no cov |
 
 | Site | Mutants | Triage |
 |---|---|---|
-| `PIPE_DELIMITER` (17:24) | 1 Regex (`\s+\|\s+` → `\s+\|\s`) | **Vanishes** if the lookaround delimiter ships — the mutated construct no longer exists. |
+| `PIPE_DELIMITER` (17:24) | 1 Regex (`\s+\|\s+` → `\s+\|\s`) | **Vanishes** — ADR-321 replaces the construct, so the mutated form no longer exists. |
 | `LINE_HEAD_PATTERN` (18:27) | 3 Regex: `^` dropped; `$` dropped; `\s+`→`\s` after the dash | `^` dropped is **killable**, verified both directions: `'a b HIGH x.js:1 — f'` throws today, and the unanchored pattern matches it as `HIGH`/`x.js`/`1`/`f`. `$` dropped and `\s`: `(.*\S)` is greedy and `toFinding` trims `finding`, so neither is observable — **document**. |
 | `toFinding` (54:14) | 1 MethodExpression (`.trim()` dropped) | **Killable** via the JSON path: a fixture whose `finding` carries padding. Unreachable via the per-line path, where `\s+(.*\S)$` already trims. |
 | `mapJsonItem` guard (80:7 ×3, 80:23, 80:49, 81:21) | 6 (2 no-coverage) | **All six killed by two tests**: `normalizeFindings('[null]')` and `normalizeFindings('[1]')`, each asserting the exact `Finding at index 0 is not an object` message. |
-| `parseJsonShape` catch (101:17, 102:77) | 2 | **Killable.** 101 needs an assertion on the *invalid JSON* message specifically (the swallowing mutant falls through to the array-guard message, which the current `/Cannot parse findings/` assertion also matches). 102 needs `err.cause` asserted — the no-swallowed-errors guardrail rests on that chain. |
-| `parseJsonShape` array guard (104:7, 104:31, 105:21) | 3 (2 no-coverage) | **Unreachable.** `parseJsonShape` is private and only called after `looksLikeJsonArray`; `JSON.parse` of a `[`-leading string either throws or yields an array. Probed with `'['`, `'[]x'`, `'[[]]'`, `'[1,2]'`, `'[null]'`. See DC-2. |
+| `parseJsonShape` catch (101:17, 102:77) | 2 | **Killable, and ADR-322 changes how.** Today the swallowing mutant falls through to the array-guard message, which the loose `/Cannot parse findings/` assertion also matches — so 101 needed the *invalid JSON* message asserted specifically. Once the array guard is deleted the fallthrough is gone: `parsed` is `undefined` and `parsed.map` raises `TypeError: Cannot read properties of undefined (reading 'map')`, which the loose assertion does **not** match. Probed both ways. Assert the specific `invalid JSON` message anyway — it pins the operator-facing diagnostic on its own merits instead of resting on either fallthrough. 102 needs `err.cause` asserted regardless; the no-swallowed-errors guardrail rests on that chain. |
+| `parseJsonShape` array guard (104:7, 104:31, 105:21) | 3 (2 no-coverage) | **Deleted** (ADR-322). Unreachable: `parseJsonShape` is private and only called after `looksLikeJsonArray`; `JSON.parse` of a `[`-leading string either throws or yields an array. Probed with `'['`, `'[]x'`, `'[[]]'`, `'[1,2]'`, `'[null]'`. |
 | `parseLine` (125:7, 125:25) | 2 (1 no-coverage) | **Killable** — no test today produces three parts. `'HIGH a.js:1 — a \| b \| c'` must throw. |
 | `parseLine` (133:15) | 1 ConditionalExpression | **Equivalent** given the 125 guard: `parts.length ∈ {1,2}` at that point and `parts[1]` is `undefined` when length is 1. **Document.** |
 | `parseLine` (135:33) | 1 ConditionalExpression | **Killable** — `'HIGH a.js:1 — f \| a\|b'` (a pipe in the *fix*; only the *finding* case is covered today). |
 | `parseLineShape` blank filter (150:20, 150:48 ×2, 150:61) | 4 | **All killable** with two inputs: an interior empty line and an interior whitespace-only line, each asserting the surviving finding count. |
-| `parseLineShape` empty guard (151:7, 151:30, 152:12) | 3 (2 no-coverage) | **Unreachable.** `normalizeFindings` returns `[]` before calling it whenever `trimmed === ''`, so a non-empty trimmed input always yields ≥1 non-blank line. See DC-2. |
+| `parseLineShape` empty guard (151:7, 151:30, 152:12) | 3 (2 no-coverage) | **Deleted** (ADR-322). Unreachable *today*: `normalizeFindings` returns `[]` before calling it whenever `trimmed === ''`, so a non-empty trimmed input always yields ≥1 non-blank line. Once `normalizeFindings`'s guard also goes, this function receives `''` directly and the loop-over-nothing returns `[]` — see the composed shape above. |
 | `parseLineShape` echo truncation (160:21 ×2) | 2 | **Killable.** ConditionalExpression: a short unparseable line must echo in full with no `…`. EqualityOperator (`>` → `>=`): an exactly-120-character unparseable line must echo in full — a boundary test. |
 | `normalizeFindings` (186:19) | 1 MethodExpression (`raw.trim()` dropped) | **Killable** — a JSON array with leading whitespace parses today (`normalizeFindings('  [{…}]')` verified) and would be routed to the per-line shape under the mutant. Worth pinning on its own merits: technique stdout routinely carries a leading newline. |
-| `normalizeFindings` empty guard (187:7, 187:19, 187:23) | 3 | **Equivalent**, and equivalent *because* `parseLineShape` returns `[]` for the same input with or without its own guard. Reachable but redundant — see DC-2, which separates that from the two unreachable guards above. |
+| `normalizeFindings` empty guard (187:7, 187:19, 187:23) | 3 | **Deleted** (ADR-322 — *the one ruling that deviates from this design's recommendation*). Reachable but redundant: `parseLineShape` returns `[]` for the same input with or without it. This design recommended keeping it and documenting the 3 as equivalent; the user ruled that reachability is not the line — a guard that only restates what the code below it already does is deleted too, and the contract lives in JSDoc. |
 | `filterFindings` (271:61) | 1 StringLiteral | Already documented. Unchanged. |
 
 **Three empty/shape guards are mutually redundant**, and 9 of the 33 unkilled mutants sit
@@ -290,13 +348,64 @@ on them. `normalizeFindings('')`, `'   '`, `'\n\n'` and `' \t\n '` all return `[
 each of the three guards can be removed individually without changing that, because
 `parseLineShape`'s loop over an empty `nonBlank` already returns `[]`. Two of the three are
 *unreachable* (private helpers, guarded by their only caller); the third is *reachable but
-redundant* at a public entry point. DC-2 is where that distinction is ruled on.
+redundant* at a public entry point. **ADR-322 rules all three deleted** — the reachability
+distinction was measured, and the ruling is deliberately uniform across it.
 
-Net, under the recommended rulings (DC-1 (a), DC-2 (c)), the 33 resolve as: **1** mutant
-disappears with the replaced delimiter, **6** disappear with the two deleted unreachable
-guards, **20** die to new tests, **6** are documented in place
-(`LINE_HEAD_PATTERN`'s `$`-drop and `\s`-narrowing, `parseLine`'s 133:15, and the
-`normalizeFindings` empty-guard trio). 1 + 6 + 20 + 6 = 33.
+**The deletion is behaviour-preserving, and that is verified, not asserted.** With
+`normalizeFindings`'s guard gone, `normalizeFindings('')` runs `raw.trim()` → `''`, then
+`looksLikeJsonArray('')` → `false` (it is a bare `startsWith('[')`), then `parseLineShape('')`
+→ `''.split('\n')` is `['']` → `.filter(l => l.trim() !== '')` is `[]` → the loop body never
+executes → `return results` yields `[]`. Same value, same contract, one indirection deeper.
+Pinned two ways in a `mktemp` copy, never in the worktree:
+
+- A direct differential of the shipped module against the all-three-deleted variant over
+  `''`, `'   '`, `'\n'`, `'\t'`, `'\n\n'`, `' \t\n '`, `'  \n  \t  \n '`, `'\r\n'` and the
+  five JSON probes `'['`, `'[]x'`, `'[[]]'`, `'[1,2]'`, `'[null]'` (plus `'[]'` and two
+  well-formed payloads): **zero mismatches**, values and thrown messages alike.
+- The whole committed `engine/test/findings.test.js` — **65 tests, 65 pass** — run against
+  the variant with all three guards deleted *and* the ADR-321 delimiter, trim and cap
+  applied.
+
+**The JSDoc contract must stay, and the empty-input tests become its only executable proof.**
+`engine/src/findings.js:179` states `Zero findings → [].` inside `normalizeFindings`'s JSDoc.
+After the deletion nothing at that level says it in code, so that line is not decoration —
+it is the contract, and it stays. The executable proof moves entirely into the suite:
+`engine/test/findings.test.js:108` (`normalizeFindings('')` → `[]`) and `:116`
+(`normalizeFindings('   \n\n  ')` → `[]`) already exist and both must survive **byte-unchanged**.
+They stop being incidental coverage and become the only thing standing between the deletion
+and a silent contract regression. Deleting or weakening either is a requirement-3 violation,
+not a test-suite tidy-up.
+
+**Nothing else in the tree references the deleted branches.** Repo-wide grep: the message
+`Cannot parse findings: JSON input must be an array` appears at `engine/src/findings.js:105`
+and nowhere else — no test asserts it, so the array guard's deletion costs no test. `nonBlank`
+appears only inside `parseLineShape`. So the three deletions are pure removals with no caller
+or assertion to update.
+
+**Resulting shape of `parseJsonShape`.** With the array guard gone it is the `try`/`catch`
+around `JSON.parse` followed directly by `return parsed.map(mapJsonItem)`. `parsed.map` is
+safe for exactly the reason the guard was unreachable — `looksLikeJsonArray` has already
+established a `[`-leading string, and `JSON.parse` of one either throws or returns an array.
+No further tidying of that function is in scope.
+
+One consequence a reviewer will notice and should not misread: after the deletion, a
+*swallowed* `JSON.parse` failure would surface as a raw `TypeError` from `parsed.map` rather
+than as a `Cannot parse findings:` error. That path is unreachable in the unmutated module —
+the `catch` always rethrows — so it is not a new failure mode; it is only observable under
+the 101:17 mutant, and it is what makes that mutant easier to kill after the deletion, not
+harder. Probed both ways.
+
+Net, under the ratified rulings (ADR-321, ADR-322 (a)), the 33 resolve three ways:
+
+| Outcome | Count | Sites |
+|---|---|---|
+| **Killed by a new test** | **20** | `LINE_HEAD_PATTERN`'s `^`-drop (1); `toFinding`'s trim (1); the `mapJsonItem` guard (6); the `parseJsonShape` catch (2); `parseLine` 125 (2) and 135:33 (1); the `parseLineShape` blank filter (4); the echo truncation (2); `normalizeFindings` 186:19 (1) |
+| **Documented as an equivalent mutant** | **3** | `LINE_HEAD_PATTERN`'s `$`-drop and `\s`-narrowing (2); `parseLine` 133:15 (1) |
+| **Removed by deliberate deletion** | **10** | the `PIPE_DELIMITER` regex mutant, whose construct ADR-321 replaces (1); the three guards ADR-322 deletes, 3 each (9) |
+
+20 + 3 + 10 = 33. The DC-2 deviation moved exactly 3 mutants from *documented* to *deleted*:
+before the ruling the split was 20 / 6 / 7, after it 20 / 3 / 10. In-place equivalent-mutant
+comments in `findings.js` therefore drop from six to **three**.
 
 **The runner constraint, verified in this tree.** Per-hunk runs need ONE comma-separated
 `--mutate`. Repeated flags silently drop all but the last and report a clean score over a
@@ -308,10 +417,32 @@ fraction of the file:
 | `--mutate "…:117-139,…:149-168"` | 40 | 10 | 3 | **53** |
 
 Two consequences the plan must carry. Inserting equivalent-mutant comment lines shifts
-every subsequent line, so hunk ranges must be re-derived from the post-edit file before
-any re-run. And the instrumented total must be compared before and after: it may only
-shrink by the count attributable to deliberately deleted lines, never by an unexplained
-amount, because an unexplained shrink is the signature of a mis-specified range.
+every subsequent line — and so does deleting the three guard blocks — so hunk ranges must be
+re-derived from the post-edit file before any re-run. And the instrumented total must be
+compared before and after: it may only shrink by the count attributable to deliberately
+deleted lines, never by an unexplained amount, because an unexplained shrink is the
+signature of a mis-specified range.
+
+**The expected shrink is not 9, and the plan must not let anyone assume it is.** Nine is the
+count of *unkilled* mutants on the three guards; the guards also carry mutants that are
+killed today, and those vanish with the lines too. Measured with
+`stryker run … --mutate "engine/src/findings.js[:range]" --dryRunOnly` in a `mktemp` archive
+of `HEAD`, stub PATH prepended:
+
+| Tree state | Instrumented | Δ vs shipped |
+|---|---|---|
+| shipped (`HEAD`) | **224** | — |
+| ADR-322 guard deletions only | **208** | **−16** |
+| ADR-321 delimiter + trim + cap only | 233 | +9 |
+| both | 217 | −7 |
+
+Per deleted guard, instrumented today: `parseJsonShape`'s array guard (104–106) **5**;
+`parseLineShape`'s empty guard (151–153) **5**; `normalizeFindings`'s empty guard (187–189)
+**6**. 5 + 5 + 6 = 16, of which 9 are the unkilled ones tabulated above and **7 are currently
+killed**. So the accounted-for shrink from ADR-322 is 16, and a shrink of 9 would itself be
+the anomaly. The `+9` row is modelled from the delimiter/cap shape sketched earlier and will
+move if the implementation differs; the `−16` row is exact, because ADR-322 specifies the
+deletion byte-for-byte. Seam B adds a further delta of its own in `parseScopeSpec`.
 
 `engine/stryker.conf.json` declares no `thresholds`, so no run breaks on score.
 
@@ -327,15 +458,18 @@ supported-form question, not a defect.
 Newline is available at the root because the spec is no longer interpolated: the
 validation skill writes it to a `mktemp` file outside the worktree, reads it into `$spec`,
 and passes it as one argv value. Paths cannot contain newlines, so a newline delimiter
-removes the ambiguity entirely. It deviates from ADR-305's ratified comma-joined form and
-wants its own ADR. Note that ADR-305's substantive ground — *one* argument, so the
-repeated-flag hazard cannot recur — survives a newline join untouched; only the cosmetic
-symmetry with Stryker's `--mutate` comma form is lost.
+removes the ambiguity entirely. It deviates from ADR-305's ratified comma-joined form, so
+**ADR-323 refines ADR-305: `parseScopeSpec` splits on the newline and comma is no longer a
+delimiter.** ADR-305's substantive ground — *one* argument, so the repeated-flag hazard
+cannot recur — survives a newline join untouched; only the cosmetic symmetry with Stryker's
+`--mutate` comma form is lost.
 
-The cost of switching: the code comment at lines 237–239 protects hand-authored
-`"a.js:1-9, b.js:1-9"`, which would become one malformed entry (loudly). No tracked path
-in this repo contains a comma (`git ls-files | grep ','` is empty). See DC-3; the design
-does not decide it.
+The accepted cost: the code comment at lines 237–239 protects hand-authored
+`"a.js:1-9, b.js:1-9"`, which becomes one malformed entry (loudly). No tracked path
+in this repo contains a comma (`git ls-files | grep ','` is empty). ADR-323 keeps the
+per-entry trimming that comment protected, since a newline-joined spec carries trailing
+spaces just as easily, and flags one follow-through: any ADR-305-era comma example left
+standing in prose becomes wrong rather than merely dated.
 
 #### 2b — locality-advisory specificity
 
@@ -392,7 +526,9 @@ need a properly labelled sample before anyone commits to it.
 The remedy must be specificity; the check must never be downgraded from advisory
 (ADR-306) and the widest overlaps must never be suppressed to improve the statistic —
 that was tried once and reverted. Under the measurement, neither named candidate delivers
-specificity. See DC-4.
+specificity. **ADR-324 refines ADR-306: the detector is unchanged and the measurement above
+is the deliverable.** The cue-based direction goes to the backlog, needing a labelled sample
+before it is a result.
 
 #### 2c — Windows path separators
 
@@ -419,7 +555,10 @@ capped and escaped, with the "check that the technique emits repo-relative paths
 at the string level, because `canonicalPath` is pure over two strings — but the toolchain
 around it is not: `scripts/*.sh` under bash with `shellcheck` and `bats`, `hooks/*.sh`,
 `git rev-parse` path forms. Shipping a correct `canonicalPath` into a tree where nothing
-else runs buys nothing and creates the appearance of support. See DC-5.
+else runs buys nothing and creates the appearance of support. **ADR-325 rules the entry
+closed on evidence: no normalization is written**, and a Windows fix lands only alongside a
+Windows CI job that exercises it. The greedy-head behaviour of the two scope patterns is
+recorded there as load-bearing rather than incidental.
 
 ### Cluster 3 — hygiene and docs lint
 
@@ -598,7 +737,9 @@ Nine roles × six adapters = **54 mirrors, all byte-in-sync right now**.
 Frontmatter is keys-uniform per adapter, values-varying per role. That asymmetry decides
 the tool's shape: a **preserve-frontmatter, replace-body-only** writer needs zero schema
 knowledge; a regenerate-from-a-table writer would have to encode five dialects plus
-opencode's per-role permission matrix. See DC-6.
+opencode's per-role permission matrix. **ADR-326 ratifies the body-only writer**, `--check`
+read-only by default, `--write` explicit, and rules that the tool never generates
+frontmatter.
 
 **One correction to the extraction rule as recorded.** The guards do not string-split on
 `---`; they do a **line-exact fence scan**:
@@ -739,18 +880,18 @@ prose-lint (`scripts/ci.sh:134`).
 
 | Seam | Surfaces | Coupling / order |
 |---|---|---|
-| A — normalizer performance + cap | `engine/src/findings.js` (`PIPE_DELIMITER`, `parseLine`, `parseLineShape`); `engine/test/findings.test.js` | first of the `findings.js` seams; needs its own ADR under DC-1 (a)/(c) |
-| B — scope-spec delimiter | `engine/src/findings.js` (`parseScopeSpec`); `skills/validation/SKILL.md`; `engine/test/findings.test.js`, `engine/test/filter-findings-main.test.js` | conditional on DC-3; same file as A and C — sequential, not parallel |
-| C — mutation-baseline triage | `engine/src/findings.js` (whole file); `engine/test/findings.test.js` | **must land last** among A/B/C: it triages the final shape of the file, and its hunk ranges are only valid post-edit |
-| D — locality advisory | `engine/src/plan-lint-main.js` | expected no-op under DC-4 (a); conditional |
-| E — Windows normalization | none (docs/ADR only) | expected no-op under DC-5 (a); conditional |
+| A — normalizer performance + cap | `engine/src/findings.js` (`PIPE_DELIMITER`, `parseLine`, `parseLineShape`); `engine/test/findings.test.js` | first of the `findings.js` seams; ADR-321 |
+| B — scope-spec delimiter | `engine/src/findings.js` (`parseScopeSpec`); `skills/validation/SKILL.md`; `engine/test/findings.test.js`, `engine/test/filter-findings-main.test.js` | ADR-323 (newline-only); same file as A and C — sequential, not parallel |
+| C — mutation-baseline triage **and the three guard deletions** | `engine/src/findings.js` (whole file: `parseJsonShape` 104–106, `parseLineShape` 151–153, `normalizeFindings` 187–189, plus 3 equivalent-mutant comments); `engine/test/findings.test.js` | **must land last** among A/B/C: it triages the final shape of the file, and its hunk ranges are only valid post-edit. Re-edits `parseLineShape`, which A already touched |
+| D — locality advisory | none (docs/ADR only) | **no-op** — ADR-324 leaves the detector unchanged |
+| E — Windows normalization | none (docs/ADR only) | **no-op** — ADR-325 documents, does not implement |
 | F — prose-lint plan excuse | `scripts/ci.sh:134`; `test/hygiene-gates-ci.test.js:77` | the byte-pinned pair moves together; shares `scripts/ci.sh` with I |
 | G — `--audience` dedupe | `scripts/docs-structure-lint.sh:31-34`; `test/docs-structure-lint.test.js` (+ a throwaway-repo helper) | independent |
 | H — fence rebalance + prose correction | `docs/contributing/plan/readme-drift-guards.md` (97, 113, 134); `docs/contributing/plan/docs-audience-split.md:356-360` | land after F, so the plan-doc edits stop emitting advisory noise |
 | I — adapter mirror sync tool | `scripts/sync-adapter-agents.sh` (new); `scripts/ci.sh` (chain, ~line 85); `adapters/opencode/test/agents.test.js` (byte-identity); `test/` (tool tests) | shares `scripts/ci.sh` with F — a deliberate, declared overlap in different functions |
 | J — usage-miner per-source note | `engine/src/observability/usage-mine-main.js` (57, 85–98, 118–121, 312); `engine/test/usage-mine-main.test.js` | independent |
 | K — `--file` editable targets | `adapters/aider/src/launch-args.js`; `adapters/aider/test/launch-args.test.js`; `docs/contributing/specs/aider-poc-record.md` | independent |
-| L — README receipts counts | `README.md:119-120` | **must land last** — the ADR count is not known until the decisions phase has ratified |
+| L — README receipts counts | `README.md:119-120` | **must land last** — the plan count is not final until the planning phase's own doc is committed |
 
 F and I both edit `scripts/ci.sh` and will produce a cognitive-locality warning. It is
 correct and unavoidable — F edits the `run_prose_lint` case arm, I appends to the lint
@@ -760,26 +901,61 @@ failure modes behind one commit.
 **Seam L is not optional and the local gate will not find it.** `README.md:119-120` carries
 a receipts sentence with four counted markdown links — design docs, parted plans, ADRs, and
 telemetered runs — currently claiming 25, 24, 320 and 27. The fourth sub-guard added by the
-readme-drift run recounts the tree behind any counted *directory* link, so this document
-alone already turns the guard red — verified: `bash scripts/readme-drift.sh` prints
-`readme-drift: corpus-counts: docs/contributing/design/ claims 25, tree holds 26` and
-exits 1. This run moves three of the four: design docs 25 → 26, parted plans 24 → 25, and
-ADRs 320 → 320 + however many the decisions phase ratifies. The telemetry count is derived
-from the committed report, not the tree, and is untouched.
+readme-drift run recounts the tree behind any counted *directory* link.
+
+**Re-measured now, after ADRs 321–326 landed** (`bash scripts/readme-drift.sh`, exit 1):
+
+```
+readme-drift: corpus-counts: docs/contributing/design/ claims 25, tree holds 26
+readme-drift: corpus-counts: docs/contributing/adr/ claims 320, tree holds 326
+```
+
+| Counted link | README claims | Tree today | Seam L must write |
+|---|---|---|---|
+| `docs/contributing/design/` | 25 | **26** | 26 |
+| `docs/contributing/plan/` | 24 | 24 *(not yet drifted)* | **25**, once this run's plan doc is committed |
+| `docs/contributing/adr/` | 320 | **326** | 326, plus any ADR a later phase adds |
+| `docs/contributing/metrics-baseline.report.json` | 27 | n/a | unchanged |
+
+Two things changed since this design was first written. The ADR count is now known — the
+decisions phase ratified **six** (321–326), so 320 → 326 rather than "however many". And the
+plan count is **not** red yet: the planning phase has not committed its doc, so it reads
+24/24 today and flips to 25 the moment it does. Seam L must therefore be re-derived from a
+live `scripts/readme-drift.sh` run at the time it lands, not from these numbers. The
+telemetry count is not recounted at all — that link targets a *file*, and the sub-guard only
+recounts directory links.
 
 `readme-drift` is a **separate GitHub Actions job**, not part of `scripts/ci.sh`
-(grep-confirmed: zero hits in `scripts/`). So every per-part and phase gate stays green
-while the guard is red, and the failure only appears after push. The plan must run
+(grep-confirmed: zero hits in `scripts/`). So every per-part gate and the phase-boundary gate
+stay green while the guard is red, and the failure only appears after push. The plan must run
 `bash scripts/readme-drift.sh` explicitly in the final part's gate rather than relying on
 `scripts/ci.sh`. The same is true of the `links` job that seam H makes newly meaningful:
 neither lychee nor readme-drift runs locally.
 
 ## Decision candidates
 
-Six. Four are the ones the brief names; two more are load-bearing enough that deciding
-them in the design would be deciding them for the user.
+**All six are decided.** They were escalated to the user and ratified on 2026-07-31; each
+carries an ADR. Five ratified this design's recommendation. **DC-2 deviated** — the design
+recommended keeping one of three redundant guards, and the user ruled all three deleted. That
+deviation is folded through the `## Design` and `## Test strategy` sections above and below;
+nothing here is open.
 
-| # | Choice | Alternatives (≤3) | Recommendation | Why |
+| # | Question | Ruling | ADR | Deviation? |
+|---|---|---|---|---|
+| DC-1 | How the `parseLine` quadratic is removed, and what the module does with an oversized line | **Option (a).** Both halves land: the lookaround delimiter `/(?<=\s)\|(?=\s)/u` with a per-part trim, **and** a 16,384-character per-line cap raised in `parseLineShape` with a dedicated cap-named error naming the cap and the measured length. A per-line record over the cap is rejected as oversized, never as malformed; the two failure modes stay separately diagnosable. | [ADR-321](../adr/321-oversized-findings-lines-are-rejected-by-a-cap.md) | no — as recommended |
+| DC-2 | What to do with the three mutually-redundant empty/shape guards carrying 9 of the 33 unkilled mutants | **Option (a) — all three deleted**: `parseJsonShape`'s `!Array.isArray` (104–106), `parseLineShape`'s `nonBlank.length === 0` (151–153) **and** `normalizeFindings`'s `trimmed === ''` (187–189). The rule: in this module a guard whose branch no caller can execute is dead code, and a guard that merely restates what the code below it already does is deleted too — the contract is documented in JSDoc, not duplicated as an executable early return. | [ADR-322](../adr/322-unreachable-and-redundant-guards-are-deleted.md) | **YES — deviates.** The design recommended (c): delete only the two unreachable private guards and keep `normalizeFindings`'s as the executable form of its public contract, documenting its 3 mutants as equivalent. The user rejected the reachability carve-out. Consequence: 9 mutants removed by deletion instead of 6, 0 documented as equivalent for these three sites instead of 3, and `normalizeFindings`'s JSDoc plus the two committed empty-input tests become the sole carriers of the "Zero findings → []" contract. |
+| DC-3 | The scope-spec delimiter (refines ADR-305) | **Option (a) — newline-only.** `parseScopeSpec` splits on `\n`; comma stops being a delimiter. ADR-305's one-argument requirement is unchanged and still binding; only the separator inside that single argument is refined. Per-entry trimming stays. | [ADR-323](../adr/323-scope-specs-are-newline-delimited.md) | no — as recommended |
+| DC-4 | The locality advisory's specificity (refines ADR-306) | **Option (a) — detector unchanged.** The deliverable is the measurement: the re-measured baseline and the negative result for both named candidates. A future specificity change must be measured over the whole committed plan corpus, and a large drop in the warning count is evidence *against* a candidate unless every removal is shown to be noise. | [ADR-324](../adr/324-the-locality-advisory-keeps-its-current-specificity.md) | no — as recommended |
+| DC-5 | Windows path separators | **Option (a) — document, do not implement.** One half of the entry was never true; the other is real but unreachable on any platform this toolchain runs on. Partial platform support is not shipped: a Windows fix to the boundary filter lands only alongside a Windows CI job that exercises it. | [ADR-325](../adr/325-windows-normalization-is-documented-not-implemented.md) | no — as recommended |
+| DC-6 | The shape of the adapter mirror sync tool | **Option (a) — body-only writer.** `scripts/sync-adapter-agents.sh`, read-only `--check` by default, `--write` explicit, replacing the body only and preserving each mirror's frontmatter byte-for-byte. The tool never generates frontmatter. The six per-adapter byte-identity guards stay with independent implementations, and opencode's missing assertion is added in the same part. | [ADR-326](../adr/326-the-mirror-sync-tool-replaces-bodies-only.md) | no — as recommended |
+
+### The reasoning as it stood when the candidates were escalated
+
+Kept verbatim, because the ADRs record the ruling and this records the evidence the ruling
+was made against. Where a recommendation was overturned — DC-2 — the "Recommendation" column
+below is the *superseded* one; ADR-322 governs.
+
+| # | Choice | Alternatives (≤3) | Recommendation (as escalated) | Why |
 |---|---|---|---|---|
 | DC-1 | How the `parseLine` quadratic is removed, and what the module does with an oversized line | (a) linear lookaround delimiter `/(?<=\s)\|(?=\s)/u` **and** a 16,384-character per-line cap raised in `parseLineShape` with a dedicated cap-named error naming the cap and the measured length; (b) linear delimiter only — no cap, no behaviour change, no ADR; (c) cap only, keeping the backtracking delimiter, with the oversized line returning `null` into the existing generic "does not match the per-line format" throw | **(a)** | The delimiter rewrite is behaviour-identical — 2,000,000-case differential at the `parseLine` outcome level, zero mismatches — and removes the pathology at the root: 38,959 ms → 0.62 ms at 200,000 characters. The cap is worth its ADR on its own grounds: it bounds the worst reachable input to 243.6 ms even if the delimiter ever regresses, and it bounds what a broken technique can push through a boundary that exists to bound things. 16,384 is over 200× the longest per-line record in the committed corpus (78 characters) and, critically, sits *above* the quadratic's knee, so the ReDoS guards can be raised past 10,000 and still exercise the split rather than the cap. (c) is the option the entry originally described, and it is the weakest: it leaves the quadratic in place and reports a 200,000-character well-formed line as a *format* error, sending the operator to hunt a syntax bug that is not there. (b) is honest and cheap and would be the right answer if the only goal were performance — it forgoes the input bound and the accurate diagnostic. |
 | DC-2 | What to do with the three mutually-redundant empty/shape guards carrying 9 of the 33 unkilled mutants | (a) delete all three — `parseJsonShape`'s `!Array.isArray` (104–106), `parseLineShape`'s `nonBlank.length === 0` (151–153) and `normalizeFindings`'s `trimmed === ''` (187–189) — removing all 9; (b) keep all three and document 9 equivalent mutants in place; (c) delete only the two *unreachable* private guards (6 mutants removed) and keep `normalizeFindings`'s guard as the executable form of its documented public contract, documenting its 3 as equivalent | **(c)** | The distinction is reachability, and it is verified rather than argued. `parseJsonShape` is private and only called after `looksLikeJsonArray`, and `JSON.parse` of a `[`-leading string either throws or yields an array — probed with `'['`, `'[]x'`, `'[[]]'`, `'[1,2]'`, `'[null]'`; `parseLineShape` is private and only called with a non-empty trimmed string, so it always sees at least one non-blank line. Neither branch can execute: that is the no-dead-code guardrail, and the mutation report is what surfaced it. `normalizeFindings`'s guard is different in kind — it *does* execute, it is the module's public entry, and its JSDoc already states "Zero findings → []"; the guard is that sentence in executable form. Reachable-but-redundant is exactly what the equivalent-mutant comment convention exists for, and three comments at a public contract boundary are cheaper to read than an implicit path through two helpers. (a) is defensible and leaves `normalizeFindings` a clean two-line dispatch, at the cost of making the empty-input contract inferable rather than stated. (b) spends six comments defending code no caller can reach. |
@@ -788,10 +964,10 @@ them in the design would be deciding them for the user.
 | DC-5 | Windows path separators | (a) document and do not implement: record that the colon-rejection half is false, that `canonicalPath` is genuinely inert on a Windows root, and close the entry by evidence; (b) implement separator normalization in `canonicalPath`, proven by string-level unit tests on POSIX; (c) add a `windows-latest` CI job and implement against it | **(a)** | Half the entry is already closed: `C:\repo\a.js:*` and `C:\repo\a.js:1-9` both parse correctly today, because `SCOPE_ENTRY_PATTERN` and `WHOLE_FILE_ENTRY_PATTERN` use a greedy head deliberately. What remains is real but unreachable: `canonicalPath` is inert on a Windows root, on a platform where none of `scripts/*.sh`, `hooks/*.sh`, `bats` or `shellcheck` runs. (b) is *more* verifiable than the entry assumed — `canonicalPath` is pure over two strings, so a POSIX test pins the normalization exactly — but that is the trap, not the escape: it would ship a correct function into a toolchain that cannot run, and a half-Windows-capable filter reads as a claim of Windows support. (c) is the only honest way to implement and is far outside this run's scope. A ruling for (b) is defensible if the intent is to pre-position for a future Windows port; it should then say so explicitly rather than present as a fix. |
 | DC-6 | The shape of the adapter mirror sync tool | (a) `scripts/sync-adapter-agents.sh` with `--check` as the default read-only mode and an explicit `--write`, replacing **body only** and preserving each mirror's existing frontmatter byte-for-byte; (b) check-only — no writer; CI names every drifted mirror at once, humans still edit 54 files; (c) writer that **regenerates** frontmatter from a declared per-adapter table, so a new role needs one table entry rather than six hand-written files | **(a)** | The frontmatter survey decides it: keys are uniform per adapter but values vary per role — codex varies model *and* effort, copilot varies effort, opencode carries a nested 10-key `permission` map with three distinct shapes across the nine roles. (c) must encode five dialects plus that matrix, and a bug there corrupts a mirror in the exact way the tool exists to prevent; the cost it saves (adding a tenth role) is paid roughly never. (a) needs zero schema knowledge — split at the line-exact `---` fences, take the body, `replace(/^\n+/, '')`, and for aider write the body alone with no fence. (b) removes the discovery tax but not the edit tax, which is the larger half. Under all three, the six per-adapter byte-identity guards stay with their own independent implementations: the tool must never be the only thing checking itself, and opencode's missing assertion is added in the same part. |
 
-DC-1 and DC-3 each want their own ADR — the first because a cap rejects input that is
-accepted today, the second because it refines the ratified ADR-305 form. DC-2, DC-4, DC-5
-and DC-6 want ADRs as records of the reasoning even where the ruling is "no code change",
-because in three of those four cases the valuable output *is* the measurement.
+All six got an ADR, as anticipated: DC-1 because a cap rejects input that is accepted today,
+DC-3 because it refines the ratified ADR-305 form, and DC-2, DC-4, DC-5 and DC-6 as records
+of the reasoning even where the ruling is "no code change" — in three of those four the
+valuable output *is* the measurement.
 
 ## Test strategy
 
@@ -825,19 +1001,43 @@ the largest reachable input to a measured 243.6 ms even under the old delimiter.
 
 **Mutation triage (C).** Run `npm --prefix engine run mutation -- --mutate
 "engine/src/findings.js"` full-file after A and B have landed, under the stub PATH, in a
-`mktemp` copy of the worktree. Record the before/after instrumented total; any shrink must
-map line-for-line to deliberately deleted code. For per-hunk re-runs: one comma-separated
-`--mutate`, ranges re-derived from the post-edit file after every comment insertion. The
-triage outcome per site is tabulated in the Design section above; the plan carries it as
-the work list. Documented survivors use the in-place form already present at
+`mktemp` copy of the worktree. Three measurement points, not two, because the guard
+deletions ADR-322 rules happen *inside* this seam: the instrumented total entering C (post-A,
+post-B), the total after the three deletions, and the total after the equivalent-mutant
+comments go in. The middle step must drop by exactly **16** — 9 unkilled plus 7 currently
+killed, per the trajectory table in the Design section; the third step must not change the
+total at all, since comments are not instrumented. Any other shrink is a mis-specified range,
+not a result. For per-hunk re-runs: one comma-separated `--mutate`, ranges re-derived from the
+post-edit file after every deletion *and* every comment insertion. The triage outcome per
+site is tabulated in the Design section above; the plan carries it as the work list.
+Documented survivors use the in-place form already present at
 `engine/src/findings.js:271` and throughout `engine/src/plan-lint-main.js`.
 
 **The triage covers the post-change mutant set, not the pre-change one.** The 33 tabulated
 above are today's. Seam A removes one construct and adds several — the lookaround
 delimiter, `MAX_LINE_CHARS`, the `>` comparison, the cap message, the `.map(p => p.trim())`
-— and seam B, if DC-3 rules for a change, adds another. Every mutant Stryker instruments on
-those new lines is subject to the same rule: killed by a real test, or documented in place.
-Baselining against the 33 and stopping there would leave the change's own code unmeasured.
+— measured at **+9 instrumented mutants**; seam B adds more in `parseScopeSpec` under
+ADR-323. Every mutant Stryker instruments on those new lines is subject to the same rule:
+killed by a real test, or documented in place. Baselining against the 33 and stopping there
+would leave the change's own code unmeasured.
+
+**Guard deletion is a test-suite event, not only a source edit (ADR-322).** Three
+consequences the plan must carry:
+
+- The two committed empty-input tests — `engine/test/findings.test.js:108`
+  (`normalizeFindings('')` → `[]`) and `:116` (`normalizeFindings('   \n\n  ')` → `[]`) —
+  stay **byte-unchanged** and become load-bearing. After the deletion nothing in
+  `normalizeFindings` says "empty in, `[]` out" in code; the JSDoc at
+  `engine/src/findings.js:179` states it and these two tests are the only executable proof.
+  An empty-input case is therefore not optional and never was a candidate for consolidation.
+- No test is deleted. The array guard's message
+  (`Cannot parse findings: JSON input must be an array`) is asserted nowhere in the repo —
+  grep-confirmed, one occurrence, in the source line being removed. So the three deletions
+  are pure removals with no assertion to update.
+- The **three** in-place equivalent-mutant comments this change adds are
+  `LINE_HEAD_PATTERN`'s `$`-drop and `\s`-narrowing, and `parseLine`'s 133:15. Not six: the
+  `normalizeFindings` empty-guard trio was going to carry three of them under this design's
+  recommendation and no longer exists to carry anything.
 
 New tests the triage requires, beyond the delimiter and cap tables:
 `[null]` and `[1]` (exact `is not an object` message); a JSON fixture with a padded
@@ -848,20 +1048,27 @@ in full with no ellipsis; an exactly-120-character unparseable line echoed in fu
 array with leading whitespace; a leading-token-noise line (`'a b HIGH x.js:1 — f'`) that
 must throw.
 
+**Regression floor for the deletion.** Before the guards come out, the whole of
+`engine/test/findings.test.js` must be green; after, all the same tests must still be green
+with none rewritten. That was verified while designing — 65 tests, 65 pass, against a variant
+carrying the ADR-321 delimiter/trim/cap *and* all three ADR-322 deletions — so a red test in
+that part means the implementation diverged from the ruling, not that the ruling was wrong.
+
 ### Cluster 2
 
-**Scope-spec (B).** Under DC-3 (a): a newline-joined two-entry spec parses; a path
+**Scope-spec (B).** Per ADR-323: a newline-joined two-entry spec parses; a path
 containing a comma parses as one entry; a comma-joined spec now throws
 `malformed scope entry` (the deliberate loss, pinned so it is never a surprise); an empty
-spec still returns `[]`; the whole-file `:*` form still requires the marker. Plus a
-`filter-findings-main` test proving the newline spec survives the argv round trip.
+spec still returns `[]`; the whole-file `:*` form still requires the marker; per-entry
+trimming still strips a trailing space. Plus a `filter-findings-main` test proving the
+newline spec survives the argv round trip.
 
-**Locality (D).** Under DC-4 (a) there is no code change and therefore no new test. The
+**Locality (D).** Per ADR-324 there is no code change and therefore no new test. The
 measurement is the artifact and lives in this document and the ADR.
 
-**Windows (E).** Under DC-5 (a), no test. Under (b), string-level unit tests on
-`canonicalPath` with Windows-shaped literals — and an explicit note in the test file that
-they prove the function, not the platform.
+**Windows (E).** Per ADR-325, no test and no code. The evidence — the four-row
+`canonicalPath` probe table and the two greedy-head scope-pattern probes — lives in this
+document and the ADR.
 
 ### Cluster 3
 
@@ -931,19 +1138,25 @@ a `mktemp` copy of the worktree, never in the worktree itself.
   Not re-delivered here.
 - **Stronger destructive-git denial for the Copilot binding** (`BACKLOG.md:353`). Open,
   but not among this run's eleven.
-- **A Windows CI matrix.** Named as DC-5 option (c) and rejected as far larger than this
-  change; a POSIX-only toolchain needs bats, shellcheck and the hook scripts ported before
-  a `windows-latest` job means anything.
+- **A Windows CI matrix.** Considered as DC-5 option (c) and rejected by ADR-325 as far
+  larger than this change; a POSIX-only toolchain needs bats, shellcheck and the hook
+  scripts ported before a `windows-latest` job means anything.
 - **Refactoring the six adapters' duplicated `bodyOf`/`parseFrontmatter` helpers into a
   shared module.** Deliberately not done: that duplication is what makes the guards an
   independent oracle for the sync tool. Consolidating it would let one extraction bug pass
   both the writer and its checker.
-- **A cue-based locality filter.** Named as DC-4 option (c) with its measurement (4 of 54
-  removed, all true noise); it needs a labelled sample before it is a result, so it belongs
-  in the backlog rather than in this change.
-- **`normalize-findings` total-input bounds.** The cap in DC-1 bounds a single *line*. A
-  payload of many lines is unbounded, as it is today; the file-size question belongs to the
-  callers that read the file.
+- **A cue-based locality filter.** Considered as DC-4 option (c) with its measurement (4 of
+  54 removed, all true noise); ADR-324 sends it to the backlog, because it needs a labelled
+  sample before it is a result.
+- **`normalize-findings` total-input bounds.** The cap ADR-321 ratifies bounds a single
+  *line*. A payload of many lines is unbounded, as it is today; the file-size question
+  belongs to the callers that read the file.
+- **Extending ADR-322's deletion rule beyond `engine/src/findings.js`.** The ruling is
+  scoped to this module, where all three branches' reachability was verified by probe. A
+  repo-wide sweep for redundant guards is a different change with a different evidence bar.
+- **Tidying `parseJsonShape` beyond the guard removal.** With the array guard gone the
+  function is a `try`/`catch` plus one `return`; restructuring it further is not part of
+  ADR-322 and is not done here.
 - **The stale backlog reference to `docs/adapters/aider-poc-record.md`**
   (`BACKLOG.md:293`). Recorded here as drift; correcting `BACKLOG.md` prose is the
   documentation phase's work, not a design change.
