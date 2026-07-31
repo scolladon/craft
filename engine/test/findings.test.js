@@ -578,7 +578,7 @@ test('Given a single-range scope spec, when parseScopeSpec runs, then it returns
 test('Given a scope spec with two ranges on the same file, when parseScopeSpec runs, then it returns both ranges in order', () => {
   const sut = parseScopeSpec;
 
-  const result = sut('src/a.js:3-9,src/a.js:20-25');
+  const result = sut('src/a.js:3-9\nsrc/a.js:20-25');
 
   assert.deepEqual(result, [
     { file: 'src/a.js', start: 3, end: 9 },
@@ -589,12 +589,34 @@ test('Given a scope spec with two ranges on the same file, when parseScopeSpec r
 test('Given a scope spec spanning multiple files, when parseScopeSpec runs, then it returns one range per file in order', () => {
   const sut = parseScopeSpec;
 
-  const result = sut('src/a.js:3-9,src/b.js:1-2');
+  const result = sut('src/a.js:3-9\nsrc/b.js:1-2');
 
   assert.deepEqual(result, [
     { file: 'src/a.js', start: 3, end: 9 },
     { file: 'src/b.js', start: 1, end: 2 },
   ]);
+});
+
+// A path may legally contain a comma but can never contain a newline. The
+// comma-joined form the module used to accept is now a single entry: the
+// greedy SCOPE_ENTRY_PATTERN (findings.js:43) still finds a valid-looking
+// range at the tail, so it absorbs everything before it — including the
+// other "entries" and their own commas — into one garbage file name rather
+// than throwing. Pinned here so the actual (surprising) shape is on record.
+test('Given the retired comma-joined form as a single-argument spec, when parseScopeSpec runs, then it collapses to one entry via the last colon rather than throwing', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('a.js:1-9, b.js:1-9');
+
+  assert.deepEqual(result, [{ file: 'a.js:1-9, b.js', start: 1, end: 9 }]);
+});
+
+test('Given a comma-bearing path as a single-entry spec, when parseScopeSpec runs, then it returns one range for that path', () => {
+  const sut = parseScopeSpec;
+
+  const result = sut('a,b.js:1-9');
+
+  assert.deepEqual(result, [{ file: 'a,b.js', start: 1, end: 9 }]);
 });
 
 for (const entry of ['a.js:3', 'a.js:x-9', 'a.js:9-3', 'a.js:0-3']) {
@@ -608,31 +630,40 @@ for (const entry of ['a.js:3', 'a.js:x-9', 'a.js:9-3', 'a.js:0-3']) {
   });
 }
 
-// Kills the Regex mutants at findings.js:34 (SCOPE_ENTRY_PATTERN's `^`/`$` anchors
-// removed). `.` never matches `\n`, so an anchored pattern cannot match a
-// range-shaped suffix that only appears after an embedded newline, and cannot
-// match past a `$` when garbage trails the range — an unanchored pattern would
-// silently accept both instead of rejecting them.
-test('Given a scope entry with an embedded newline before the range-shaped part, when parseScopeSpec runs, then it is rejected rather than matched from a later position', () => {
+// parseScopeSpec now splits the whole spec on `\n` before matching any entry,
+// so no single entry can ever contain a newline — the `^` anchor on
+// SCOPE_ENTRY_PATTERN (findings.js:43) is no longer reachable through this
+// input. What this pins instead is the split point itself: `junk` is a whole
+// entry in its own right, and it is rejected on its own merits, independent
+// of the well-formed entry that follows the newline.
+test('Given a scope spec with a newline separating a malformed entry from a well-formed one, when parseScopeSpec runs, then it throws naming the malformed entry', () => {
   const sut = parseScopeSpec;
 
-  assert.throws(() => sut('junk\na.js:1-9'), /malformed scope entry/u);
+  assert.throws(() => sut('junk\na.js:1-9'), (err) => err.message === 'malformed scope entry: "junk"');
 });
 
+// Kills the Regex mutant at findings.js:43 (SCOPE_ENTRY_PATTERN's `$` anchor
+// removed): with no anchor, `.+` could match a truncated prefix and let
+// trailing garbage after a valid-looking range through silently.
 test('Given a scope entry with garbage trailing a valid-looking range, when parseScopeSpec runs, then it is rejected rather than accepted as a truncated prefix', () => {
   const sut = parseScopeSpec;
 
   assert.throws(() => sut('a.js:1-9extra'), /malformed scope entry/u);
 });
 
-// Kills the Regex mutants at findings.js:38 (WHOLE_FILE_ENTRY_PATTERN's `^`/`$`
-// anchors removed) — same reasoning as SCOPE_ENTRY_PATTERN above.
-test('Given a whole-file entry with an embedded newline before the marker, when parseScopeSpec runs, then it is rejected rather than matched from a later position', () => {
+// Same split-point reasoning as SCOPE_ENTRY_PATTERN above: parseScopeSpec
+// never hands WHOLE_FILE_ENTRY_PATTERN (findings.js:47) an entry containing a
+// newline, so this pins that `junk` is rejected as its own entry rather than
+// proving the `^` anchor stops a later match.
+test('Given a scope spec with a newline separating a malformed entry from a whole-file entry, when parseScopeSpec runs, then it throws naming the malformed entry', () => {
   const sut = parseScopeSpec;
 
-  assert.throws(() => sut('junk\na.js:*'), /malformed scope entry/u);
+  assert.throws(() => sut('junk\na.js:*'), (err) => err.message === 'malformed scope entry: "junk"');
 });
 
+// Kills the Regex mutant at findings.js:47 (WHOLE_FILE_ENTRY_PATTERN's `$`
+// anchor removed): with no anchor, `.+` could match a truncated prefix and let
+// garbage after the `*` marker through silently.
 test('Given a whole-file entry with garbage trailing the "*" marker, when parseScopeSpec runs, then it is rejected rather than accepted as a truncated prefix', () => {
   const sut = parseScopeSpec;
 
@@ -719,10 +750,10 @@ test('Given generated findings and range sets, when filterFindings runs, then th
   }
 });
 
-test('Given a scope spec with spaces after its commas, when parsed, then every entry is still recognised', () => {
+test('Given a scope spec with spaces after its newlines, when parsed, then every entry is still recognised', () => {
   const sut = parseScopeSpec;
 
-  const result = sut('a.js:1-9, b.js:2-4 ,\tc.js:3-3');
+  const result = sut('a.js:1-9\n b.js:2-4 \n\tc.js:3-3');
 
   assert.deepEqual(result, [
     { file: 'a.js', start: 1, end: 9 },
@@ -734,7 +765,7 @@ test('Given a scope spec with spaces after its commas, when parsed, then every e
 test('Given an entry that is only whitespace, when the spec is parsed, then it is rejected as malformed', () => {
   const sut = parseScopeSpec;
 
-  assert.throws(() => sut('a.js:1-9,   '), /malformed scope entry/u);
+  assert.throws(() => sut('a.js:1-9\n   '), /malformed scope entry/u);
 });
 
 test('Given findings whose paths carry a leading dot-slash, when filtered against a bare-path range, then they are kept', () => {

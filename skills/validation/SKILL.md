@@ -133,7 +133,7 @@ sub-concern also no-op'd.
      **outside the worktree** (an in-tree `.craft-*` sibling can be swept into a commit
      by one of the agents running in parallel during `documentation`; an out-of-tree
      temp needs no ignore rule and no cleanup contract — `contracts/producer.md:5`
-     throwaway discipline). Build the comma-joined scope spec from the **same**
+     throwaway discipline). Build the newline-joined scope spec from the **same**
      `git diff -U0` walk the Scope bullet above already runs, and **write it to a second
      `mktemp` file outside the worktree** (`$specfile`, same placement and same reason as
      `$out`), **then read it into a shell variable** — never interpolate repo-derived

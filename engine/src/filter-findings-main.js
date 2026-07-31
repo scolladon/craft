@@ -66,7 +66,7 @@ function parseArgs(argv) {
 /**
  * Main entrypoint for filter-findings logic. Consumes a canonical `Finding[]`
  * — never raw technique output, so the engine stays technique-agnostic —
- * and a single comma-joined scope spec, and emits the findings falling
+ * and a single newline-joined scope spec, and emits the findings falling
  * inside that scope.
  *
  * @param {string[]} argv — process.argv.slice(2)

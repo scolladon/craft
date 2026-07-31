@@ -239,7 +239,7 @@ function parseScopeEntry(entry) {
 }
 
 /**
- * Parses a single comma-joined scope spec into `ScopeRange[]`.
+ * Parses a single newline-joined scope spec into `ScopeRange[]`.
  * An empty spec is the honest "nothing changed" — it returns [].
  *
  * @param {string} spec
@@ -249,10 +249,11 @@ export function parseScopeSpec(spec) {
   if (spec === '') {
     return [];
   }
-  // A spec is hand-authored as often as generated, so "a.js:1-9, b.js:1-9" is a
-  // likely form. Untrimmed, the space joins the filename and every finding for
-  // that file drops silently.
-  return spec.split(',').map(entry => parseScopeEntry(entry.trim()));
+  // A path may legally contain a comma but can never contain a newline, so
+  // splitting on the newline removes the ambiguity at its root instead of
+  // working around it. Each entry is still trimmed: a newline-joined spec
+  // carries leading/trailing whitespace just as easily as a comma-joined one did.
+  return spec.split('\n').map(entry => parseScopeEntry(entry.trim()));
 }
 
 /**
