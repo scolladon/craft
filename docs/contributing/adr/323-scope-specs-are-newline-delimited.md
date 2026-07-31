@@ -37,11 +37,19 @@ still binding; only the separator within that single argument is refined here.
 
 ## Consequences
 
-The hand-authored comma-joined form stops parsing, and it stops parsing loudly — a spec written
-`"a.js:1-9, b.js:1-9"` becomes a single malformed entry and throws, rather than silently scoping to
-something unintended. That is the same failure posture the module already had, so no new class of
-silent drop is introduced. The trimming that the retired comment protected is still worth keeping
-per entry, since a newline-joined spec can carry trailing spaces just as easily.
+The hand-authored comma-joined form stops parsing. **A claim made here when this decision was
+ratified turned out to be false, and is corrected in place rather than left standing:** it stated
+that `"a.js:1-9, b.js:1-9"` would become a single malformed entry and throw, so no new class of
+silent drop was introduced. Measured against the landed code, it does not throw —
+`parseScopeSpec('a.js:1-9, b.js:1-9')` yields `[{ file: 'a.js:1-9, b.js', start: 1, end: 9 }]`,
+because the deliberately greedy head backtracks to the *last* colon and absorbs the rest of the
+spec into the file name. The `:*` form collapses the same way. That is a silent mis-scope: the
+resulting file name matches nothing, so every finding for both files drops without a word.
+
+The delimiter ruling stands; the omission was a guard, not the delimiter. ADR-327 adds it, and the
+"never a silent drop, never a silent widen" invariant this module states in its own comments is
+restored there. The trimming that the retired comment protected is still worth keeping per entry,
+since a newline-joined spec can carry trailing spaces just as easily.
 
 Every generated call site already writes the spec to a file, so the delimiter change is invisible
 there. What must be checked when this lands is documentation and any example spec in prose: an
