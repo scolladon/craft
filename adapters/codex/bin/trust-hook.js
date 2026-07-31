@@ -1,6 +1,15 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { chmodSync, existsSync, readFileSync, realpathSync, renameSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { main, EXIT_REFUSED } from '../src/trust-hook-main.js';
 import { createAppServerRunner } from '../src/app-server-client.js';
@@ -32,6 +41,7 @@ function buildDependencies() {
       chmod: chmodSync,
       stat: statSync,
       realpath: realpathSync,
+      unlink: unlinkSync,
     }),
     guardScriptExists: existsSync,
     resolveRoot: () => resolveCraftRoot(import.meta.url),

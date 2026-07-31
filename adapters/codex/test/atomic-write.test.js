@@ -21,12 +21,25 @@ function missingFileError(path = TARGET) {
   return error;
 }
 
+function failure(message) {
+  const error = new Error(message);
+  error.code = message.split(':')[0];
+  return error;
+}
+
 // Both lookups answer about the path they are asked about: realpath resolves the
 // link (or reports the file absent), and stat only recognises whatever realpath
 // resolved to. Without that, a writer that statted its own temporary path, or one
 // that ignored the link entirely, would still look like it inherited the
 // operator's mode.
-function createFakeFs({ statResult = missingFileError(), realpathResult = missingFileError() } = {}) {
+function createFakeFs({
+  statResult = missingFileError(),
+  realpathResult = missingFileError(),
+  writeFileError,
+  chmodError,
+  renameError,
+  unlinkError,
+} = {}) {
   const calls = [];
   const resolvedTarget = realpathResult instanceof Error ? TARGET : realpathResult;
   const deps = {
@@ -39,12 +52,27 @@ function createFakeFs({ statResult = missingFileError(), realpathResult = missin
     },
     writeFile(path, text, options) {
       calls.push({ op: 'writeFile', path, text, options });
+      if (writeFileError) {
+        throw writeFileError;
+      }
     },
     rename(from, to) {
       calls.push({ op: 'rename', from, to });
+      if (renameError) {
+        throw renameError;
+      }
+    },
+    unlink(path) {
+      calls.push({ op: 'unlink', path });
+      if (unlinkError) {
+        throw unlinkError;
+      }
     },
     chmod(path, mode) {
       calls.push({ op: 'chmod', path, mode });
+      if (chmodError) {
+        throw chmodError;
+      }
     },
     stat(path) {
       calls.push({ op: 'stat', path });
@@ -192,5 +220,83 @@ describe('createAtomicWriter()', () => {
 
     assert.throws(() => sut(TARGET, TEXT), /EACCES/);
     assert.deepEqual(operationsOf(calls, 'writeFile'), []);
+  });
+});
+
+describe('createAtomicWriter() — the temporary file is this run\'s alone', () => {
+  // A fixed temp name is a path an attacker (or an interrupted earlier run) can
+  // occupy in advance: the write then follows a planted symlink, or lands at a
+  // leftover file's mode, and the rename installs that as the operator's config.
+  it('Given two runs against the same target, when each writer runs, then they write to different temporary paths', () => {
+    const first = createFakeFs();
+    const second = createFakeFs();
+
+    createAtomicWriter(first.deps)(TARGET, TEXT);
+    createAtomicWriter(second.deps)(TARGET, TEXT);
+
+    const sut = [first, second].map(({ calls }) => operationsOf(calls, 'writeFile')[0].path);
+    assert.notEqual(sut[0], sut[1]);
+  });
+
+  it('Given a target path, when the writer creates the temporary file, then it demands an exclusive create so an existing path is never followed or reused', () => {
+    const { deps, calls } = createFakeFs();
+    const sut = createAtomicWriter(deps);
+
+    sut(TARGET, TEXT);
+
+    assert.equal(operationsOf(calls, 'writeFile')[0].options.flag, 'wx');
+  });
+});
+
+describe('createAtomicWriter() — a failed write leaves nothing behind', () => {
+  const FAILURES = [
+    ['the write itself fails', { writeFileError: failure('ENOSPC: no space left on device') }],
+    ['the chmod fails', { chmodError: failure('EPERM: operation not permitted') }],
+    ['the rename fails', { renameError: failure('EXDEV: cross-device link not permitted') }],
+  ];
+
+  for (const [label, options] of FAILURES) {
+    it(`Given ${label}, when the writer runs, then the error reaches the caller and the temporary file is removed`, () => {
+      const { deps, calls } = createFakeFs(options);
+      const sut = createAtomicWriter(deps);
+
+      assert.throws(() => sut(TARGET, TEXT), /ENOSPC|EPERM|EXDEV/);
+
+      const [write] = operationsOf(calls, 'writeFile');
+      assert.deepEqual(operationsOf(calls, 'unlink').map((call) => call.path), [write.path]);
+    });
+  }
+
+  it('Given a write that fails, when the writer runs, then no rename is ever attempted onto the target', () => {
+    const { deps, calls } = createFakeFs({ writeFileError: failure('ENOSPC: no space left on device') });
+    const sut = createAtomicWriter(deps);
+
+    assert.throws(() => sut(TARGET, TEXT));
+
+    assert.deepEqual(operationsOf(calls, 'rename'), []);
+  });
+
+  it('Given a rename that fails and a temporary file already gone, when the writer runs, then the original failure is what surfaces', () => {
+    const { deps } = createFakeFs({
+      renameError: failure('EXDEV: cross-device link not permitted'),
+      unlinkError: missingFileError(),
+    });
+    const sut = createAtomicWriter(deps);
+
+    assert.throws(() => sut(TARGET, TEXT), /EXDEV/);
+  });
+
+  it('Given a rename that fails and a temporary file that cannot be removed, when the writer runs, then the error names both failures rather than hiding either', () => {
+    const { deps } = createFakeFs({
+      renameError: failure('EXDEV: cross-device link not permitted'),
+      unlinkError: failure('EPERM: operation not permitted'),
+    });
+    const sut = createAtomicWriter(deps);
+
+    assert.throws(() => sut(TARGET, TEXT), (error) => {
+      assert.match(error.message, /EXDEV/);
+      assert.match(error.message, /EPERM/);
+      return true;
+    });
   });
 });

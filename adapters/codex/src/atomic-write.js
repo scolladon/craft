@@ -10,12 +10,20 @@
  * created in the target's own directory rather than a system temp directory.
  *
  * Every filesystem call is injected, so each branch — an absent target, an
- * inherited mode, an unreadable target — is exercisable without touching a
- * real `$CODEX_HOME`.
+ * inherited mode, an unreadable target, a failed write or rename — is
+ * exercisable without touching a real `$CODEX_HOME`.
  */
 
-const TEMP_FILE_SUFFIX = '.craft-trust-hook.tmp';
+import { randomBytes } from 'node:crypto';
+
+const TEMP_FILE_INFIX = '.craft-trust-hook.';
+const TEMP_FILE_SUFFIX = '.tmp';
+const TEMP_NAME_BYTES = 6;
+// Nothing may be written through a path that already exists: a planted symlink
+// there redirects the content, and a leftover file donates its own permissions.
+const EXCLUSIVE_CREATE_FLAG = 'wx';
 const MISSING_FILE_ERROR_CODE = 'ENOENT';
+const EXISTING_FILE_ERROR_CODE = 'EEXIST';
 const FILE_MODE_MASK = 0o777;
 
 // An absent config is being created here for the first time, and it will carry
@@ -54,21 +62,55 @@ function resolveTargetPath(realpath, path) {
   }
 }
 
+// Unguessable per run, so no earlier run, concurrent run or third party can be
+// sitting on the path this one is about to create.
+function toTemporaryPath(targetPath) {
+  const token = randomBytes(TEMP_NAME_BYTES).toString('hex');
+  return `${targetPath}${TEMP_FILE_INFIX}${token}${TEMP_FILE_SUFFIX}`;
+}
+
+// A cleanup that is itself unsafe is worse than a leak: an exclusive create that
+// failed because the path was already taken created nothing there, so removing
+// that path would delete a file this run does not own. An already-absent
+// temporary file is the state being aimed at, and any other cleanup failure is
+// reported alongside the failure that caused it rather than in place of it.
+function discardTemporaryFile({ unlink, temporaryPath, error }) {
+  if (error.code === EXISTING_FILE_ERROR_CODE) {
+    return;
+  }
+  try {
+    unlink(temporaryPath);
+  } catch (cleanupError) {
+    if (cleanupError.code === MISSING_FILE_ERROR_CODE) {
+      return;
+    }
+    throw new Error(
+      `${error.message} — and the temporary file ${temporaryPath} was left behind: ${cleanupError.message}`,
+      { cause: error }
+    );
+  }
+}
+
 /**
  * @param {{ writeFile: Function, rename: Function, chmod: Function, stat: Function,
- *   realpath: Function }} deps
+ *   realpath: Function, unlink: Function }} deps
  * @returns {(path: string, text: string) => void}
  */
-export function createAtomicWriter({ writeFile, rename, chmod, stat, realpath }) {
+export function createAtomicWriter({ writeFile, rename, chmod, stat, realpath, unlink }) {
   return function writeFileAtomically(path, text) {
     const targetPath = resolveTargetPath(realpath, path);
     const mode = resolveFileMode(stat, targetPath);
-    const temporaryPath = `${targetPath}${TEMP_FILE_SUFFIX}`;
+    const temporaryPath = toTemporaryPath(targetPath);
 
-    writeFile(temporaryPath, text, { mode });
-    // `mode` on the write only applies when it creates the file, so a leftover
-    // temporary file from an interrupted run would keep its old permissions.
-    chmod(temporaryPath, mode);
-    rename(temporaryPath, targetPath);
+    try {
+      writeFile(temporaryPath, text, { mode, flag: EXCLUSIVE_CREATE_FLAG });
+      // `mode` on the write only applies when it creates the file, and an
+      // umask can still narrow it, so the mode is asserted rather than assumed.
+      chmod(temporaryPath, mode);
+      rename(temporaryPath, targetPath);
+    } catch (error) {
+      discardTemporaryFile({ unlink, temporaryPath, error });
+      throw error;
+    }
   };
 }
