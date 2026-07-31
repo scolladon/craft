@@ -196,7 +196,8 @@ describe('main() — refusal matrix', () => {
 
     const result = await sut([], deps);
 
-    assertRefused({ result, writeCalls, stderr });
+    const line = assertRefused({ result, writeCalls, stderr });
+    assert.match(line, /neither CODEX_HOME nor HOME is set/);
     assert.equal(runAppServerCalls.length, 0);
     assert.equal(guardScriptExistsCalls.length, 0);
   });
@@ -302,6 +303,19 @@ describe('main() — refusal matrix', () => {
     assertRefused({ result, writeCalls, stderr });
     assert.equal(runAppServerCalls.length, 0);
   });
+
+  // --check is a whole mode, not a prefix: an argument after it is one this tool
+  // does not understand, and quietly dropping it runs a mode the caller did not
+  // ask for while their exit code says everything went as requested.
+  it('Given --check followed by a further argument, when main runs, then it refuses quoting the arguments it was handed', async () => {
+    const { deps, writeCalls, stderr } = createDeps();
+    const sut = main;
+
+    const result = await sut(['--check', 'extra'], deps);
+
+    const line = assertRefused({ result, writeCalls, stderr });
+    assert.ok(line.includes('--check extra'));
+  });
 });
 
 describe('main() — listing diagnostics', () => {
@@ -315,6 +329,22 @@ describe('main() — listing diagnostics', () => {
     const text = assertRefusedWithDiagnostics({ result, writeCalls, stderr });
     assert.match(text, /failed to load hook config/);
     assert.match(text, /\/fixture\/codex-home\/config\.toml/);
+  });
+
+  // A hook config codex could not load is the likeliest reason no hook matched,
+  // so the refusal itself has to say so. Reporting a plain absence sends the
+  // operator looking for a missing registration instead of the broken config
+  // that hid it — the errors reported separately above are easy to read as
+  // unrelated noise.
+  it('Given zero craft matches and a non-empty errors list, when main runs, then the refusal itself ties the absence to the config errors', async () => {
+    const errors = [{ message: 'failed to load hook config', path: '/fixture/codex-home/config.toml' }];
+    const { deps, writeCalls, stderr } = createDeps({ hooks: [], errors });
+    const sut = main;
+
+    const result = await sut([], deps);
+
+    const text = assertRefusedWithDiagnostics({ result, writeCalls, stderr });
+    assert.match(text, /no craft hook found and codex reported config errors/);
   });
 
   it('Given a response carrying warnings, when main runs, then every warning is reported on stdout and the run completes normally', async () => {
@@ -513,6 +543,25 @@ describe('main() — the config path the write lands on', () => {
       assert.deepEqual(readPaths, [expectedPath]);
     });
   }
+
+  // An exported-but-empty variable is an everyday shell state, and it is not a
+  // CODEX_HOME. Treating it as one resolves to a bare `config.toml` — a path
+  // relative to wherever the process happens to be running, so the trust record
+  // lands beside the caller instead of in the operator's own codex home, and the
+  // guard they were told is now trusted is not.
+  it('Given CODEX_HOME set to an empty string and HOME set, when main writes, then it writes under HOME rather than a path relative to the process cwd', async () => {
+    const { deps, writeCalls } = createDeps({
+      hooks: [craftHook({ trustStatus: 'untrusted' })],
+      env: { CODEX_HOME: '', HOME: HOME_STUB },
+    });
+    const sut = main;
+
+    const result = await sut([], deps);
+
+    assert.equal(result, EXIT_OK);
+    assert.equal(writeCalls.length, 1);
+    assert.equal(writeCalls[0].path, join(HOME_STUB, '.codex', 'config.toml'));
+  });
 });
 
 describe('main() — --check reports the decision it did not act on', () => {

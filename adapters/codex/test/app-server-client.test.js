@@ -146,6 +146,53 @@ describe('createAppServerRunner() — the runner never closes stdin itself', () 
   });
 });
 
+describe('createAppServerRunner() — a line that is no answer does not end the read', () => {
+  // Only two things may end the read: the awaited response, or a line that does
+  // not parse at all (whose diagnostic the caller's own parser produces). A line
+  // that parses to something carrying no id is neither — and reading an id
+  // straight off it throws, which the catch below would mistake for the second
+  // case and resolve on, before the server has answered anything.
+  it('Given a line that parses to null ahead of the response, when the runner runs, then it keeps reading until the awaited response arrives', async () => {
+    const { child } = createFakeChildProcess();
+    const { spawn } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+    const nullLine = 'null\n';
+    const response = responseLine(RESPONSE_ID);
+
+    const runPromise = sut({ requests: [], cwd: CWD, responseId: RESPONSE_ID });
+    child.stdout.emit('data', nullLine);
+    child.stdout.emit('data', response);
+    const result = await runPromise;
+
+    assert.equal(result, `${nullLine}${response}`);
+  });
+
+  // The framing is line-oriented, so a line carrying no characters — or only
+  // blank ones — is padding between messages rather than a message. Inspecting
+  // one as a terminator ends the read on it, because it parses no better than
+  // garbage does.
+  const BLANK_LINES = [
+    ['an empty line', '\n'],
+    ['a whitespace-only line', '   \n'],
+  ];
+
+  for (const [label, blank] of BLANK_LINES) {
+    it(`Given ${label} ahead of the response, when the runner runs, then it keeps reading until the awaited response arrives`, async () => {
+      const { child } = createFakeChildProcess();
+      const { spawn } = createFakeSpawn(child);
+      const sut = createAppServerRunner({ spawn });
+      const response = responseLine(RESPONSE_ID);
+
+      const runPromise = sut({ requests: [], cwd: CWD, responseId: RESPONSE_ID });
+      child.stdout.emit('data', blank);
+      child.stdout.emit('data', response);
+      const result = await runPromise;
+
+      assert.equal(result, `${blank}${response}`);
+    });
+  }
+});
+
 describe('createAppServerRunner() — chunked stdout', () => {
   it('Given stdout that arrives split mid-line across two chunks, when the runner runs, then it still resolves on the reassembled response line', async () => {
     const { child } = createFakeChildProcess();

@@ -73,6 +73,12 @@ function findTableExtent(lines, headerIndex) {
 
 function findTrustedHashIndices(lines, { start, end }) {
   const indices = [];
+  // equivalent mutant (EqualityOperator <=): the one extra line an inclusive
+  // bound would scan is either past the last index — undefined, which the
+  // pattern rejects — or the boundary line itself, and findTableExtent only
+  // ever stops on a line whose first non-whitespace character is `[`, while an
+  // assignment line's is `t`. No line can be both, so the extra scan can never
+  // add an index.
   for (let index = start; index < end; index += 1) {
     if (TRUSTED_HASH_ASSIGNMENT_PATTERN.test(lines[index])) {
       indices.push(index);

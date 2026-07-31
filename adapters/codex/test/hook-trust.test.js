@@ -109,11 +109,47 @@ describe('buildRequests()', () => {
     assert.deepEqual(second.params.cwds, [CWD]);
   });
 
-  it('Given a missing cwd, when buildRequests runs, then it throws', () => {
+  // The version is what makes these lines JSON-RPC at all: a server handed a
+  // request without it answers an error rather than a hooks listing.
+  it('Given a repo root cwd, when buildRequests runs, then both lines declare the protocol version', () => {
     const sut = buildRequests;
 
-    assert.throws(() => sut({}));
+    const result = sut({ cwd: CWD }).map((line) => JSON.parse(line));
+
+    assert.deepEqual(result.map((request) => request.jsonrpc), ['2.0', '2.0']);
   });
+
+  // initialize is where the exchange says who is speaking. An unnamed or
+  // unversioned client is what a server logs and may refuse, and neither field
+  // is one this end can leave for the other to fill in.
+  it('Given a repo root cwd, when buildRequests runs, then the initialize line identifies this client by name and version', () => {
+    const sut = buildRequests;
+
+    const [initialize] = sut({ cwd: CWD }).map((line) => JSON.parse(line));
+
+    const { name, version } = initialize.params.clientInfo;
+    assert.equal(typeof name, 'string');
+    assert.ok(name.length > 0);
+    assert.equal(typeof version, 'string');
+    assert.ok(version.length > 0);
+  });
+
+  // Each of these reaches the guard by a different route — absent, present but
+  // empty, present but not a string — and a cwd that slips through is a listing
+  // scoped to somewhere other than the checkout being trusted.
+  const INVALID_CWDS = [
+    ['absent', {}],
+    ['an empty string', { cwd: '' }],
+    ['a number rather than a string', { cwd: 7 }],
+  ];
+
+  for (const [label, params] of INVALID_CWDS) {
+    it(`Given a cwd that is ${label}, when buildRequests runs, then it throws naming what a cwd must be`, () => {
+      const sut = buildRequests;
+
+      assert.throws(() => sut(params), /cwd must be a non-empty string/);
+    });
+  }
 });
 
 describe('parseHooksList()', () => {
@@ -153,18 +189,30 @@ describe('parseHooksList()', () => {
     assert.throws(() => sut(stream, { requestId: 2 }), /boom from server/);
   });
 
-  it('Given a stream carrying a line that is not valid JSON, when parseHooksList runs, then it throws', () => {
+  it('Given a stream carrying a line that is not valid JSON, when parseHooksList runs, then it throws quoting the offending line', () => {
     const sut = parseHooksList;
     const stream = ['not-json-at-all', envelopeLine()].join('\n');
 
-    assert.throws(() => sut(stream, { requestId: 2 }));
+    assert.throws(() => sut(stream, { requestId: 2 }), /not-json-at-all/);
   });
 
-  it('Given a stream with no response carrying the requested id, when parseHooksList runs, then it throws', () => {
+  // A blank line is framing, not a message — and it parses no better than
+  // garbage does, so a filter that keeps it turns padding into a hard failure.
+  it('Given a stream carrying a whitespace-only line alongside the response, when parseHooksList runs, then that line is ignored and the hooks are returned', () => {
+    const sut = parseHooksList;
+    const hooks = [craftHook()];
+    const stream = ['   ', envelopeLine({ hooks })].join('\n');
+
+    const result = sut(stream, { requestId: 2 });
+
+    assert.deepEqual(result.hooks, hooks);
+  });
+
+  it('Given a stream with no response carrying the requested id, when parseHooksList runs, then it throws naming the id it waited for', () => {
     const sut = parseHooksList;
     const stream = [initializeResponseLine(), notificationLine()].join('\n');
 
-    assert.throws(() => sut(stream, { requestId: 2 }));
+    assert.throws(() => sut(stream, { requestId: 2 }), /no response found for request id 2/);
   });
 
   it('Given a matched response whose result has no data key, when parseHooksList runs, then it throws naming the observed keys', () => {
@@ -188,6 +236,17 @@ describe('parseHooksList()', () => {
     const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, result: { data: [entry] } });
 
     assert.throws(() => sut(stream, { requestId: 2 }));
+  });
+
+  // All four entry fields are required, and cwd is the only one the array check
+  // below cannot also catch — an entry naming a different cwd, or naming none,
+  // is a listing about somewhere other than the checkout being trusted.
+  it('Given a matched response whose data[0] entry is missing cwd, when parseHooksList runs, then it throws naming the missing key', () => {
+    const sut = parseHooksList;
+    const entry = { hooks: [], warnings: [], errors: [] };
+    const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, result: { data: [entry] } });
+
+    assert.throws(() => sut(stream, { requestId: 2 }), /missing "cwd"/);
   });
 
   it('Given a server-initiated request carrying the awaited id ahead of the real response, when parseHooksList runs, then the request is skipped and the response is returned', () => {
@@ -250,6 +309,69 @@ describe('parseHooksList()', () => {
     const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, error: 'boom-as-a-string' });
 
     assert.throws(() => sut(stream, { requestId: 2 }), /boom-as-a-string/);
+  });
+});
+
+describe('parseHooksList() — only a genuine response may supply the listing', () => {
+  // The entry this returns is the sole input to the trust decision, so a message
+  // that merely looks addressed to the awaited id must not be able to supply it.
+  // A server-initiated request carries a method; a response never does, whatever
+  // else it carries alongside.
+  it('Given a method-carrying message that also offers a result under the awaited id, when parseHooksList runs, then it is skipped and the real response supplies the hooks', () => {
+    const sut = parseHooksList;
+    const hooks = [craftHook()];
+    const impostor = JSON.stringify({
+      jsonrpc: '2.0',
+      id: 2,
+      method: 'codex/applyPatchApproval',
+      params: {},
+      result: { data: [{ cwd: CWD, hooks: [foreignHook()], warnings: [], errors: [] }] },
+    });
+    const stream = [impostor, envelopeLine({ hooks })].join('\n');
+
+    const result = sut(stream, { requestId: 2 });
+
+    assert.deepEqual(result.hooks, hooks);
+  });
+
+  // Neither a result nor an error means the message answers nothing. Reading it
+  // as the response stops the search at it and reports the real one absent.
+  it('Given a message under the awaited id carrying neither a result nor an error, when parseHooksList runs, then it is skipped and the real response supplies the hooks', () => {
+    const sut = parseHooksList;
+    const hooks = [craftHook()];
+    const stream = [JSON.stringify({ jsonrpc: '2.0', id: 2 }), envelopeLine({ hooks })].join('\n');
+
+    const result = sut(stream, { requestId: 2 });
+
+    assert.deepEqual(result.hooks, hooks);
+  });
+});
+
+describe('parseHooksList() — a refusal shows what the server actually sent', () => {
+  // The observed keys are quoted so the operator can compare them against what
+  // was expected. Run together they read as one nonsense word and compare
+  // against nothing.
+  it('Given an entry missing a required key, when parseHooksList runs, then the keys it did observe are listed as a readable list', () => {
+    const sut = parseHooksList;
+    const entry = { hooks: [], warnings: [], errors: [] };
+    const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, result: { data: [entry] } });
+
+    assert.throws(() => sut(stream, { requestId: 2 }), /keys: hooks, warnings, errors/);
+  });
+
+  it('Given an entry whose hooks is not an array, when parseHooksList runs, then the keys it observed are listed as a readable list', () => {
+    const sut = parseHooksList;
+    const entry = { cwd: CWD, hooks: 'not-an-array', warnings: [], errors: [] };
+    const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, result: { data: [entry] } });
+
+    assert.throws(() => sut(stream, { requestId: 2 }), /keys: cwd, hooks, warnings, errors/);
+  });
+
+  it('Given a result carrying several keys but no data, when parseHooksList runs, then those keys are listed as a readable list', () => {
+    const sut = parseHooksList;
+    const stream = JSON.stringify({ jsonrpc: '2.0', id: 2, result: { unexpectedKey: true, anotherKey: 1 } });
+
+    assert.throws(() => sut(stream, { requestId: 2 }), /keys: unexpectedKey, anotherKey/);
   });
 });
 
@@ -360,6 +482,33 @@ describe('selectCraftHook()', () => {
     });
   });
 
+  // The caller that has no errors to report passes no options at all, so the
+  // default stands in for an empty list — one that stood in for anything else
+  // would blame a clean listing for config errors nobody reported.
+  it('Given zero matches and no errors option at all, when selectCraftHook runs, then it throws the plain no-match message', () => {
+    const sut = selectCraftHook;
+
+    assert.throws(() => sut([foreignHook()]), (err) => {
+      assert.ok(!/config error/i.test(err.message));
+      return true;
+    });
+  });
+
+  it('Given zero matches and two config errors, when selectCraftHook runs, then both are quoted as a readable list', () => {
+    const sut = selectCraftHook;
+    const errors = [
+      { message: 'failed to load hook config', path: '/fixture/a/config.toml' },
+      { message: 'failed to load hook config', path: '/fixture/b/config.toml' },
+    ];
+
+    assert.throws(() => sut([foreignHook()], { errors }), (err) => {
+      assert.ok(
+        err.message.includes('failed to load hook config (/fixture/a/config.toml); failed to load hook config (/fixture/b/config.toml)')
+      );
+      return true;
+    });
+  });
+
   it('Given zero matches and a non-empty errors list, when selectCraftHook runs, then it throws quoting each error message and path', () => {
     const sut = selectCraftHook;
     const hooks = [foreignHook()];
@@ -378,14 +527,38 @@ describe('selectCraftHook()', () => {
     assert.equal(result, hook);
   });
 
-  it('Given two matching hooks, when selectCraftHook runs, then it throws naming both sourcePaths', () => {
+  it('Given two matching hooks, when selectCraftHook runs, then it throws naming both sourcePaths as a readable list', () => {
     const sut = selectCraftHook;
     const first = craftHook({ command: RAW_COMMAND, sourcePath: '/fixture/codex-home/config.toml' });
     const second = craftHook({ command: EXPANDED_COMMAND, sourcePath: '/fixture/repo/.codex/config.toml' });
 
-    assert.throws(() => sut([first, second]), /\/fixture\/codex-home\/config\.toml/);
-    assert.throws(() => sut([first, second]), /\/fixture\/repo\/\.codex\/config\.toml/);
+    assert.throws(() => sut([first, second]), (err) => {
+      assert.ok(err.message.includes('/fixture/codex-home/config.toml, /fixture/repo/.codex/config.toml'));
+      return true;
+    });
   });
+});
+
+describe('selectCraftHook() — the same command, differently spaced', () => {
+  // A shell collapses runs of whitespace and ignores what surrounds the command,
+  // so each of these IS the registration the guard ships. Refusing one reports
+  // no craft hook for a session the guard is in fact registered to guard, and
+  // the operator is told to fix a registration that is already correct.
+  const SPACINGS = [
+    ['separated by more than one space', `node  /fixture/repo${GUARD_TAIL}`],
+    ['surrounded by leading and trailing whitespace', ` node /fixture/repo${GUARD_TAIL} `],
+  ];
+
+  for (const [label, command] of SPACINGS) {
+    it(`Given a hook command ${label}, when selectCraftHook runs, then it is the craft guard`, () => {
+      const sut = selectCraftHook;
+      const hook = craftHook({ command });
+
+      const result = sut([hook]);
+
+      assert.equal(result, hook);
+    });
+  }
 });
 
 describe('planTrust()', () => {

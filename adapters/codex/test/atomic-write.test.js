@@ -238,6 +238,22 @@ describe('createAtomicWriter() — the temporary file is this run\'s alone', () 
     assert.notEqual(sut[0], sut[1]);
   });
 
+  // A run that dies between the create and the rename leaves this file sitting in
+  // the operator's own config directory. Its name is the only thing telling them
+  // what left it there and that it is a partial write rather than something of
+  // theirs — spelled out here rather than imported, so emptying either part of
+  // the name fails instead of comparing the writer against itself.
+  it('Given a target path, when the writer creates the temporary file, then its name says whose it is and that it is a temporary', () => {
+    const { deps, calls } = createFakeFs();
+    const sut = createAtomicWriter(deps);
+
+    sut(TARGET, TEXT);
+
+    const [write] = operationsOf(calls, 'writeFile');
+    assert.ok(write.path.includes('.craft-trust-hook.'));
+    assert.ok(write.path.endsWith('.tmp'));
+  });
+
   it('Given a target path, when the writer creates the temporary file, then it demands an exclusive create so an existing path is never followed or reused', () => {
     const { deps, calls } = createFakeFs();
     const sut = createAtomicWriter(deps);
@@ -276,14 +292,18 @@ describe('createAtomicWriter() — a failed write leaves nothing behind', () => 
     assert.deepEqual(operationsOf(calls, 'rename'), []);
   });
 
+  // An already-absent temporary file is the state the cleanup is aiming at, so
+  // reaching it is not a second failure to report: the caller must be handed the
+  // failure that actually stopped the write, not one wrapped around a non-event.
   it('Given a rename that fails and a temporary file already gone, when the writer runs, then the original failure is what surfaces', () => {
-    const { deps } = createFakeFs({
-      renameError: failure('EXDEV: cross-device link not permitted'),
-      unlinkError: missingFileError(),
-    });
+    const renameError = failure('EXDEV: cross-device link not permitted');
+    const { deps } = createFakeFs({ renameError, unlinkError: missingFileError() });
     const sut = createAtomicWriter(deps);
 
-    assert.throws(() => sut(TARGET, TEXT), /EXDEV/);
+    assert.throws(() => sut(TARGET, TEXT), (error) => {
+      assert.equal(error, renameError);
+      return true;
+    });
   });
 
   it('Given a rename that fails and a temporary file that cannot be removed, when the writer runs, then the error names both failures rather than hiding either', () => {
@@ -298,5 +318,32 @@ describe('createAtomicWriter() — a failed write leaves nothing behind', () => 
       assert.match(error.message, /EPERM/);
       return true;
     });
+  });
+
+  // Quoting the original failure in the text tells a human what happened; only
+  // carrying it as the cause lets a caller re-raise or match on it.
+  it('Given a rename that fails and a temporary file that cannot be removed, when the writer runs, then the original failure stays reachable as the cause', () => {
+    const renameError = failure('EXDEV: cross-device link not permitted');
+    const { deps } = createFakeFs({ renameError, unlinkError: failure('EPERM: operation not permitted') });
+    const sut = createAtomicWriter(deps);
+
+    assert.throws(() => sut(TARGET, TEXT), (error) => {
+      assert.equal(error.cause, renameError);
+      return true;
+    });
+  });
+});
+
+describe('createAtomicWriter() — a path this run did not create is not its to remove', () => {
+  // The exclusive create failed BECAUSE something was already at that path, so
+  // this run put nothing there: unlinking it would delete a file belonging to a
+  // concurrent run, an interrupted earlier one, or whoever planted it.
+  it('Given an exclusive create refused because the path was already taken, when the writer runs, then nothing is unlinked and the failure reaches the caller', () => {
+    const { deps, calls } = createFakeFs({ writeFileError: failure('EEXIST: file already exists') });
+    const sut = createAtomicWriter(deps);
+
+    assert.throws(() => sut(TARGET, TEXT), /EEXIST/);
+
+    assert.deepEqual(operationsOf(calls, 'unlink'), []);
   });
 });

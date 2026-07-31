@@ -118,11 +118,16 @@ export function createAppServerRunner({ spawn }) {
         finish(() => reject(new Error(`app-server stdin error: ${error.message}`)));
       });
 
+      // equivalent mutant (StringLiteral ""): node resolves an empty encoding
+      // name to utf8 — `new StringDecoder('').encoding === 'utf8'` — so the
+      // mutated call installs the very same decoder on a real stream.
       child.stderr.setEncoding('utf8');
       child.stderr.on('data', (chunk) => {
         stderrText += chunk;
       });
 
+      // equivalent mutant (StringLiteral ""): the empty encoding name resolves
+      // to utf8 here exactly as it does on stderr above.
       child.stdout.setEncoding('utf8');
       child.stdout.on('data', (chunk) => {
         const lines = accumulator.append(chunk);

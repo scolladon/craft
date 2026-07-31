@@ -8,6 +8,10 @@ describe('escapeControlChars()', () => {
     ['a carriage return', 'a\rb', 'a\\u000Db'],
     ['a tab', 'a\tb', 'a\\u0009b'],
     ['a NUL', 'a\u0000b', 'a\\u0000b'],
+    // The last code point of the control range, and the only one that decides
+    // whether that bound is inclusive — TOML forbids it unescaped like every
+    // other control character, so the range may not stop one short of it.
+    ['a unit separator (U+001F)', 'a\u001Fb', 'a\\u001Fb'],
     ['DEL', 'a\u007Fb', 'a\\u007Fb'],
     // Invisible on every sink this renders to, and a bidi override reorders the
     // visible text around it — so a command shown to a human can read as something

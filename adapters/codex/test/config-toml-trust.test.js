@@ -184,6 +184,9 @@ describe('upsertTrustedHash() — only a table header ends a table', () => {
   const NON_HEADER_LINES = [
     ['an array element on its own line', 'matchers = [\n["a"],\n]'],
     ['a closing bracket on its own line', 'matchers = [\n  "a"\n]'],
+    // The commonest of the three, and the one a rule that merely looks for
+    // bracket-shaped text anywhere in the line mistakes for a header.
+    ['an inline array as its value', 'matchers = ["a"]'],
   ];
 
   for (const [label, value] of NON_HEADER_LINES) {
@@ -219,6 +222,61 @@ describe('upsertTrustedHash() — only a table header ends a table', () => {
 
     assert.ok(result.includes(`${tableHeader()}\n${assignmentLine()}\n`));
     assert.ok(result.includes(following));
+  });
+});
+
+describe('upsertTrustedHash() — what counts as the table\'s own trusted_hash', () => {
+  // TOML lets an operator indent a key and space the equals sign as they like,
+  // and this file already accepts an indented table header. A spelling the
+  // lookup misses does not read as "no key yet" harmlessly: a second
+  // trusted_hash is inserted beside the first, a duplicate key is invalid TOML,
+  // and codex then stops parsing config.toml — so the guard stops being
+  // registered while this reports success.
+  const SPELLINGS = [
+    ['indented', `  trusted_hash = "${HASH}"`],
+    ['written with no space around the equals sign', `trusted_hash="${HASH}"`],
+    ['written with several spaces before the equals sign', `trusted_hash   = "${HASH}"`],
+  ];
+
+  for (const [label, existing] of SPELLINGS) {
+    it(`Given a target table whose trusted_hash is ${label}, when upsertTrustedHash runs, then that assignment is replaced rather than a second one inserted`, () => {
+      const sut = upsertTrustedHash;
+      const input = `${tableHeader()}\n${existing}\n`;
+
+      const result = sut(input, { key: CODEX_HOME_KEY, hash: NEW_HASH });
+
+      assert.equal(result.split('trusted_hash').length - 1, 1);
+      assert.ok(result.includes(assignmentLine(NEW_HASH)));
+    });
+  }
+
+  // A commented-out attempt is text, not an assignment. Counting it as one makes
+  // the writer see two keys where the operator wrote one and refuse a config
+  // that is perfectly valid.
+  it('Given a target table carrying a commented-out trusted_hash above the real one, when upsertTrustedHash runs, then the comment survives and only the assignment is replaced', () => {
+    const sut = upsertTrustedHash;
+    const comment = '# trusted_hash = "an earlier attempt, kept by the operator"';
+    const input = `${tableHeader()}\n${comment}\ntrusted_hash = "${HASH}"\n`;
+
+    const result = sut(input, { key: CODEX_HOME_KEY, hash: NEW_HASH });
+
+    assert.ok(result.includes(comment));
+    assert.ok(result.includes(assignmentLine(NEW_HASH)));
+  });
+});
+
+describe('upsertTrustedHash() — the target table\'s own header may be indented', () => {
+  // An indented header is legal TOML. Failing to recognise it appends a SECOND
+  // [hooks.state.<key>] table, and a duplicate table is invalid TOML — the same
+  // guard-absent state behind a success message that a duplicate key produces.
+  it('Given the target table under an indented header, when upsertTrustedHash runs, then that table is edited rather than a second one appended', () => {
+    const sut = upsertTrustedHash;
+    const input = `  ${tableHeader()}\ntrusted_hash = "${HASH}"\n`;
+
+    const result = sut(input, { key: CODEX_HOME_KEY, hash: NEW_HASH });
+
+    assert.equal(result.split(tableHeader()).length - 1, 1);
+    assert.ok(result.includes(assignmentLine(NEW_HASH)));
   });
 });
 
