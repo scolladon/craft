@@ -69,15 +69,10 @@ function toTemporaryPath(targetPath) {
   return `${targetPath}${TEMP_FILE_INFIX}${token}${TEMP_FILE_SUFFIX}`;
 }
 
-// A cleanup that is itself unsafe is worse than a leak: an exclusive create that
-// failed because the path was already taken created nothing there, so removing
-// that path would delete a file this run does not own. An already-absent
-// temporary file is the state being aimed at, and any other cleanup failure is
-// reported alongside the failure that caused it rather than in place of it.
+// An already-absent temporary file is the state being aimed at, so reaching it is
+// not a second failure to report; any other cleanup failure is reported alongside
+// the failure that caused it rather than in place of it.
 function discardTemporaryFile({ unlink, temporaryPath, error }) {
-  if (error.code === EXISTING_FILE_ERROR_CODE) {
-    return;
-  }
   try {
     unlink(temporaryPath);
   } catch (cleanupError) {
@@ -88,6 +83,24 @@ function discardTemporaryFile({ unlink, temporaryPath, error }) {
       `${error.message} — and the temporary file ${temporaryPath} was left behind: ${cleanupError.message}`,
       { cause: error }
     );
+  }
+}
+
+// A cleanup that is itself unsafe is worse than a leak, and this is the one call
+// that can prove the cleanup would be: an exclusive create refused BECAUSE the
+// path was already taken created nothing there, so removing that path would
+// delete a file this run does not own. The same code from any other call is
+// about something else — a rename reports it about the target — and any other
+// create failure can still leave the file behind, since a write that runs out of
+// space creates first and fails after.
+function createTemporaryFile({ writeFile, unlink, temporaryPath, text, mode }) {
+  try {
+    writeFile(temporaryPath, text, { mode, flag: EXCLUSIVE_CREATE_FLAG });
+  } catch (error) {
+    if (error.code !== EXISTING_FILE_ERROR_CODE) {
+      discardTemporaryFile({ unlink, temporaryPath, error });
+    }
+    throw error;
   }
 }
 
@@ -102,8 +115,9 @@ export function createAtomicWriter({ writeFile, rename, chmod, stat, realpath, u
     const mode = resolveFileMode(stat, targetPath);
     const temporaryPath = toTemporaryPath(targetPath);
 
+    createTemporaryFile({ writeFile, unlink, temporaryPath, text, mode });
+
     try {
-      writeFile(temporaryPath, text, { mode, flag: EXCLUSIVE_CREATE_FLAG });
       // `mode` on the write only applies when it creates the file, and an
       // umask can still narrow it, so the mode is asserted rather than assumed.
       chmod(temporaryPath, mode);

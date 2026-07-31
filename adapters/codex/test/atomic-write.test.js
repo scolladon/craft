@@ -346,4 +346,19 @@ describe('createAtomicWriter() — a path this run did not create is not its to 
 
     assert.deepEqual(operationsOf(calls, 'unlink'), []);
   });
+
+  // Only the create can report that code about the temporary file. A rename
+  // reporting it is talking about the TARGET being occupied — by a directory,
+  // say — while the temporary file is one this run did create and is the only
+  // one that can remove, so keeping it would leave it in the operator's own
+  // config directory forever.
+  it("Given a rename refused because the target path is occupied, when the writer runs, then this run's own temporary file is still removed", () => {
+    const { deps, calls } = createFakeFs({ renameError: failure('EEXIST: file already exists') });
+    const sut = createAtomicWriter(deps);
+
+    assert.throws(() => sut(TARGET, TEXT), /EEXIST/);
+
+    const [write] = operationsOf(calls, 'writeFile');
+    assert.deepEqual(operationsOf(calls, 'unlink').map((call) => call.path), [write.path]);
+  });
 });
