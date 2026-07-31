@@ -48,8 +48,8 @@ const ENTRY_ARRAY_KEYS = ['hooks', 'warnings', 'errors'];
 
 // The action a hook's trustStatus resolves to. A status outside this map is
 // not a benign default — planTrust throws rather than guessing an action.
-const ACTION_WRITE = 'write';
-const ACTION_NOOP = 'noop';
+export const ACTION_WRITE = 'write';
+export const ACTION_NOOP = 'noop';
 const TRUST_STATUS_ACTIONS = Object.freeze({
   trusted: ACTION_NOOP,
   untrusted: ACTION_WRITE,

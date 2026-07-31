@@ -17,6 +17,7 @@ import {
   planTrust,
   describeListingEntry,
   GUARD_SCRIPT_SEGMENTS,
+  ACTION_NOOP,
 } from './hook-trust.js';
 import { upsertTrustedHash } from './config-toml-trust.js';
 import { toDisplayText } from './safe-text.js';
@@ -27,7 +28,6 @@ export const EXIT_REFUSED = 2;
 
 const OUTPUT_PREFIX = 'trust-hook: ';
 const ARG_CHECK = '--check';
-const ACTION_NOOP = 'noop';
 const CONFIG_FILE_NAME = 'config.toml';
 const CODEX_HOME_DIR_NAME = '.codex';
 
