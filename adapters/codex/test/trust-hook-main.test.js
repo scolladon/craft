@@ -390,6 +390,35 @@ describe('main() — server-supplied text never forges a line', () => {
     assert.equal(countOutputLines(stdout), 2);
   });
 
+  // currentHash is server-supplied like every other field here, so it forges a
+  // `trust-hook: trusted …` line exactly as a forged key or sourcePath would —
+  // and it is the value the success line exists to show the operator.
+  it('Given a matched hook whose currentHash carries a line feed, when main runs and writes, then the trusted announcement stays on one line', async () => {
+    const { deps, stdout } = createDeps({
+      hooks: [craftHook({ trustStatus: 'untrusted', currentHash: `${CURRENT_HASH}${FORGED_TAIL}` })],
+    });
+    const sut = main;
+
+    await sut([], deps);
+
+    assert.equal(stdout.text().includes(FORGED_TAIL), false);
+    assert.equal(countOutputLines(stdout), 2);
+  });
+
+  // --check is the mode a pipeline consumes, so a forged line here is read by a
+  // script rather than a person.
+  it('Given a matched hook whose key carries a line feed, when main runs with --check, then the check line stays on one line', async () => {
+    const { deps, stdout } = createDeps({
+      hooks: [craftHook({ trustStatus: 'untrusted', key: `${HOOK_KEY}${FORGED_TAIL}` })],
+    });
+    const sut = main;
+
+    await sut(['--check'], deps);
+
+    assert.equal(stdout.text().includes(FORGED_TAIL), false);
+    assert.equal(countOutputLines(stdout), 2);
+  });
+
   it('Given a runAppServer whose rejection message carries a line feed, when main runs, then stderr stays on one line', async () => {
     const { deps, writeCalls, stderr } = createDeps({
       runAppServer: async () => {
