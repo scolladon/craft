@@ -45,9 +45,15 @@ The cap is the load-bearing behaviour change: input accepted today is rejected t
 over 200× the longest per-line record in the committed corpus (78 characters) and sits *above* the
 quadratic's knee, so the ReDoS guards can be raised past 10,000 characters and still exercise the
 split path rather than terminating early at the cap — the guards keep testing what they were
-written to test. The cap also bounds the worst reachable input to 243.6 ms even if the delimiter
-ever regresses, which is why it earns its place alongside the delimiter rewrite rather than being
-made redundant by it.
+written to test.
+
+The cap also bounds what a regressed delimiter could cost, and that bound is **per line**, not per
+input: roughly 240 ms for one at-cap line, multiplied by the line count, since nothing bounds how
+many lines arrive. An earlier statement of this consequence read as though the cap bounded the whole
+input at 243.6 ms; measured against a deliberately regressed copy, fifty well-formed at-cap lines
+cost 12.2 s. The per-line bound is still worth having — it is why the cap earns its place alongside
+the delimiter rewrite rather than being made redundant by it — but it is a bound on the blast radius
+of a regression, not a guarantee about total work.
 
 The error message keeps the existing `Cannot parse findings: ` prefix and the existing
 120-character echo truncation, so operator-facing output stays one family. JSON payloads are

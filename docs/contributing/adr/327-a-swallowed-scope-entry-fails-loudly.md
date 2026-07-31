@@ -47,8 +47,23 @@ colon but no range, and `notes:1-9.txt` carries a range but no trailing comma. N
 
 This does not make every mis-typed spec loud, and it should not be read as doing so. It closes the
 one shape the delimiter change created — a whole comma-joined spec arriving as a single entry —
-which is the shape a human hand-authoring the retired form will actually produce. A spec that is
-malformed in some other way still fails however it failed before.
+which is the shape a human hand-authoring the retired form will actually produce.
+
+**One residual hole is deliberate, because closing it would cost more than it buys.** When the
+*first* entry of a retired comma-joined spec carries no range, nothing is left behind for the guard
+to see, and the spec still collapses silently:
+
+```
+parseScopeSpec('a.js,b.js:1-9') → [{ file: 'a.js,b.js', start: 1, end: 9 }]
+```
+
+Widening the guard to catch it was proposed and rejected on measurement: every formulation that
+rejects `a.js,b.js:1-9` also rejects `a,b.js:1-9` — a legitimate comma-bearing path, which is the
+exact capability the newline delimiter was chosen to support. The two are shape-identical and
+genuinely indistinguishable without knowing whether `a.js` is a file or a fragment. The guard stays
+narrow, and this shape stays a known limitation rather than a bug to be fixed later.
+
+A spec that is malformed in some other way still fails however it failed before.
 
 The general lesson is recorded here rather than in the design: a decision about a regex's *inputs*
 is not verified by reading the regex. ADR-323's false consequence survived ratification because it
