@@ -347,4 +347,18 @@ describe('README.md — honesty pins', () => {
 
     assert.match(sut, /--ephemeral/);
   });
+
+  it('Given README.md, when scanned, then it shows the ./-prefixed local marketplace source form and discloses the shorthand misresolution', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    assert.match(sut, /codex plugin marketplace add \.\/adapters\/codex/);
+    assert.match(sut, /owner\/repo/);
+  });
+
+  it('Given README.md, when scanned, then it documents the scriptable trust path and its read-only check', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    assert.match(sut, /bin\/trust-hook\.js/);
+    assert.match(sut, /--check/);
+  });
 });
