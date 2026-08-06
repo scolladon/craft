@@ -133,6 +133,27 @@ test('Given a recomputed minHours that rounds to 1.0 instead of 0.5, when compar
   assert.ok(finding, 'expected a telemetry:min finding');
 });
 
+test('Given a shortest run under half an hour and a README claiming the matching rounded-up minutes, when compareClaims, then no telemetry:min finding is produced', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 25, medianHours: 1.4, minHours: 0.1535, maxHours: 4.02 };
+  const costClaims = { runCount: '25', median: '1.4', min: 'under 10 minutes', max: '4' };
+
+  const result = sut(recomputed, costClaims);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given a shortest run under half an hour, when compareClaims and the README rounds the minutes down instead of up, then a telemetry:min finding is produced', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 25, medianHours: 1.4, minHours: 0.1535, maxHours: 4.02 };
+  const costClaims = { runCount: '25', median: '1.4', min: 'under 5 minutes', max: '4' };
+
+  const result = sut(recomputed, costClaims);
+
+  const finding = result.find((line) => line.startsWith('telemetry:min'));
+  assert.ok(finding, 'expected a telemetry:min finding when the claim understates the minimum');
+});
+
 test('Given a recomputed minHours that rounds to 0.5 but the README claims different wording, when compareClaims, then a telemetry:min finding is still produced (both the number and the phrase must match)', () => {
   const sut = compareClaims;
   const recomputed = { runCount: 27, medianHours: 1.2942, minHours: 0.4609, maxHours: 5.0083 };
