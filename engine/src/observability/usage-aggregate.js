@@ -11,7 +11,17 @@ export const CACHE_HOTSPOT_THRESHOLD = 0.5;
 export const REVIEW_WASTE_CYCLES = 2;
 export const DEFAULT_DRIFT_THRESHOLD = 0.25;
 
+// Price tables are per-MTok (per million tokens); token counts are per-unit. One
+// division converts a summed unit-rate product into dollars — applied once per
+// emitted cost value, never folded into the price table itself (pricing.js keeps
+// --prices overrides comparable to DEFAULT_PRICES only if both stay per-MTok).
+const TOKENS_PER_MTOK = 1_000_000;
+
 // ── Private: pure math helpers ────────────────────────────────────────────────
+
+function toDollars(summedRateProduct) {
+  return summedRateProduct / TOKENS_PER_MTOK;
+}
 
 // Numerically safe on malformed/older-schema groups: a missing tokens object or
 // field contributes 0, never NaN (NaN would silently swallow drift entries).
@@ -24,6 +34,11 @@ function computeCacheEfficiency(tokens) {
   return denom === 0 ? 0 : tokens.cacheCreation / denom;
 }
 
+// Undivided by design: this composes into computePricedCost's single toDollars()
+// call below, and is also called standalone at buildEnrichedGroup's own call site,
+// which converts it there instead. Dividing here would double-convert the composed
+// call while leaving the standalone call under-converted — the asymmetry is load-
+// bearing, not an oversight.
 function computePricedCreation(cacheCreationTtl, cacheCreation, prices) {
   if (cacheCreationTtl) {
     return cacheCreationTtl.creation5m * prices.cacheCreation5m
@@ -34,10 +49,15 @@ function computePricedCreation(cacheCreationTtl, cacheCreation, prices) {
 
 function computePricedCost(tokens, cacheCreationTtl, prices) {
   const creation = computePricedCreation(cacheCreationTtl, tokens.cacheCreation, prices);
-  return tokens.input * prices.input
-    + tokens.cacheRead * prices.cacheRead
-    + creation
-    + tokens.output * prices.output;
+  // Convert the whole summed rate-product to dollars exactly once, at the sum —
+  // never inside computePricedCreation or the price table — so every intermediate
+  // term stays comparable and a --prices override rate is never scaled twice.
+  return toDollars(
+    tokens.input * prices.input
+      + tokens.cacheRead * prices.cacheRead
+      + creation
+      + tokens.output * prices.output
+  );
 }
 
 function computeCost(tokens, cacheCreationTtl, model, priceTable) {
@@ -88,8 +108,11 @@ function buildGroupMap(events) {
 function buildEnrichedGroup(runId, raw, priceTable) {
   const prices = priceTable[raw.model];
   const cost = computeCost(raw.tokens, raw.cacheCreationTtl, raw.model, priceTable);
+  // The only emitter of computePricedCreation that does not compose inside
+  // computePricedCost, so it must convert to dollars itself to match cost.priced's
+  // unit (see the comment on computePricedCreation for why it stays undivided).
   const pricedCreationCost = prices
-    ? computePricedCreation(raw.cacheCreationTtl, raw.tokens.cacheCreation, prices)
+    ? toDollars(computePricedCreation(raw.cacheCreationTtl, raw.tokens.cacheCreation, prices))
     : null;
   return {
     run: runId, phase: raw.phase, role: raw.role, model: raw.model,
@@ -419,9 +442,8 @@ export function renderMarkdown(report) {
   for (const run of report.runs) {
     lines.push(`\n## Run: ${run.run}${run.slug ? ` (${run.slug})` : ''}`);
     for (const g of run.groups) {
-      // C2: divide by 1e6 for display — internal priced is Σ(tokens × $/MTok).
       const costStr = g.cost.priced != null
-        ? `$${(g.cost.priced / 1e6).toFixed(4)}` : `${g.cost.relative} rel`;
+        ? `$${g.cost.priced.toFixed(4)}` : `${g.cost.relative} rel`;
       lines.push(`- **${g.phase}/${g.role ?? 'n/a'}** [${g.model}]: tokens=${JSON.stringify(g.tokens)} cacheEff=${g.cacheEfficiency.toFixed(3)} cost=${costStr}`);
     }
   }

@@ -10,6 +10,7 @@ import {
   REVIEW_WASTE_CYCLES,
   DEFAULT_DRIFT_THRESHOLD,
 } from '../src/observability/usage-aggregate.js';
+import { DEFAULT_PRICES } from '../src/observability/adapters/claude/pricing.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ const makeEvent = (overrides = {}) => ({
 
 // ── 1. Token sums, cacheEfficiency, cost.priced ───────────────────────────────
 
-test('Given a single designer UsageEvent and a fixed price table, when aggregate runs, then the group carries summed token classes, the right cacheEfficiency, and cost.priced = Σ class×rate', () => {
+test('Given a single designer UsageEvent and a fixed price table, when aggregate runs, then the group carries summed token classes, the right cacheEfficiency, and cost.priced = Σ class×rate ÷ 1 MTok', () => {
   const event = makeEvent({ tokens: { input: 2, cacheRead: 100, cacheCreation: 50, output: 10 } });
   const sut = aggregate;
 
@@ -42,8 +43,8 @@ test('Given a single designer UsageEvent and a fixed price table, when aggregate
   const group = result.runs[0].groups[0];
   assert.deepEqual(group.tokens, { input: 2, cacheRead: 100, cacheCreation: 50, output: 10 });
   assert.ok(Math.abs(group.cacheEfficiency - 50 / 150) < 1e-10);
-  // cost.priced = 2*5 + 100*0.5 + 50*6.25 + 10*25 = 10 + 50 + 312.5 + 250 = 622.5
-  assert.equal(group.cost.priced, 2 * 5 + 100 * 0.5 + 50 * 6.25 + 10 * 25);
+  // cost.priced = (2*5 + 100*0.5 + 50*6.25 + 10*25) / 1e6 = 622.5 / 1e6
+  assert.equal(group.cost.priced, (2 * 5 + 100 * 0.5 + 50 * 6.25 + 10 * 25) / 1e6);
   assert.equal(result.schemaVersion, 1);
 });
 
@@ -73,8 +74,8 @@ test('Given a cacheCreationTtl split, when aggregate prices creation, then creat
   const result = sut([event], PRICE_TABLE);
 
   const group = result.runs[0].groups[0];
-  // cost.priced = 200 * 6.25 + 100 * 10 = 1250 + 1000 = 2250
-  assert.equal(group.cost.priced, 200 * 6.25 + 100 * 10);
+  // cost.priced = (200 * 6.25 + 100 * 10) / 1e6 = 2250 / 1e6
+  assert.equal(group.cost.priced, (200 * 6.25 + 100 * 10) / 1e6);
 });
 
 // ── 4. Review cycles counted by role, costPerCycle ───────────────────────────
@@ -365,7 +366,7 @@ test('Given two events in the same group both carrying cacheCreationTtl, when ag
   // model-a: cacheCreation5m=6.25, cacheCreation1h=10
   // Event 1: TTL = { creation5m: 60, creation1h: 40 } → cost = 60*6.25 + 40*10 = 375 + 400 = 775
   // Event 2: TTL = { creation5m: 120, creation1h: 80 } → cost = 120*6.25 + 80*10 = 750 + 800 = 1550
-  // Accumulated: creation5m=180, creation1h=120 → cost = 180*6.25 + 120*10 = 1125 + 1200 = 2325
+  // Accumulated: creation5m=180, creation1h=120 → cost = (180*6.25 + 120*10) / 1e6 = 2325 / 1e6
   const events = [
     makeEvent({ tokens: { input: 0, cacheRead: 0, cacheCreation: 100, output: 0 }, cacheCreationTtl: { creation5m: 60, creation1h: 40 } }),
     makeEvent({ tokens: { input: 0, cacheRead: 0, cacheCreation: 200, output: 0 }, cacheCreationTtl: { creation5m: 120, creation1h: 80 } }),
@@ -375,7 +376,7 @@ test('Given two events in the same group both carrying cacheCreationTtl, when ag
   const result = sut(events, PRICE_TABLE);
 
   const group = result.runs[0].groups[0];
-  assert.equal(group.cost.priced, 2325, 'cost.priced must reflect accumulated cacheCreationTtl: 180*6.25 + 120*10 = 2325');
+  assert.equal(group.cost.priced, 2325 / 1e6, 'cost.priced must reflect accumulated cacheCreationTtl: (180*6.25 + 120*10) / 1e6 = 2325 / 1e6');
 });
 
 // ── 18. Two events in the same group produce one group, not two ───────────────
@@ -443,7 +444,7 @@ test('Given review events with roles beta and alpha in that order, when aggregat
 
 test('Given two review events with the same role and known tokens, when aggregate runs, then costPerCycle carries exact priced cost for each', () => {
   const tokens = { input: 0, cacheRead: 1000, cacheCreation: 0, output: 0 };
-  // cost = 1000 * 0.5 = 500 for model-a
+  // cost = (1000 * 0.5) / 1e6 = 500 / 1e6 for model-a
   const events = [
     makeEvent({ phase: 'review', role: 'code', tokens }),
     makeEvent({ phase: 'review', role: 'code', tokens }),
@@ -455,8 +456,8 @@ test('Given two review events with the same role and known tokens, when aggregat
   const cycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
   assert.ok(cycle, 'cycle for code must exist');
   assert.equal(cycle.costPerCycle.length, 2);
-  assert.equal(cycle.costPerCycle[0], 500, 'each costPerCycle must be exact: 1000*0.5=500');
-  assert.equal(cycle.costPerCycle[1], 500);
+  assert.equal(cycle.costPerCycle[0], 500 / 1e6, 'each costPerCycle must be exact: (1000*0.5)/1e6 = 500/1e6');
+  assert.equal(cycle.costPerCycle[1], 500 / 1e6);
 });
 
 // ── 23. run.slug is set from first event with non-null slug ───────────────────
@@ -690,21 +691,21 @@ test('Given a report with null-valued fields, when serializeReport runs, then th
   assert.deepEqual(groupKeys, sorted, 'group keys must be sorted in serialized JSON');
 });
 
-// ── 36. renderMarkdown: cost string uses exact dollar format with /1e6 scale ──
+// ── 36. renderMarkdown: cost.priced is already dollars — no further scaling ──
 
-test('Given a group with cost.priced = 622.5e6 (scaled), when renderMarkdown runs, then the cost string is in the $X.XXXX format divided by 1e6', () => {
-  // input=0, cacheRead=0, cacheCreation=0, output=0; tokens*0 → cost=0. Use non-zero:
-  // input=2, cacheRead=100, cacheCreation=50, output=10, model-a → cost = 622.5
+test('Given a group whose cost.priced is already a dollar figure, when renderMarkdown runs, then the cost string formats it directly with no further scaling and never renders $0.0000', () => {
+  // aggregate() denominates cost.priced in dollars; renderMarkdown must format it
+  // as-is. input=2, cacheRead=100, cacheCreation=50, output=10, model-a →
+  // cost.priced = (2*5 + 100*0.5 + 50*6.25 + 10*25) / 1e6 = 622.5 / 1e6 = 0.0006225
   const event = makeEvent({ tokens: { input: 2, cacheRead: 100, cacheCreation: 50, output: 10 } });
   const report = aggregate([event], PRICE_TABLE);
   const sut = renderMarkdown;
 
   const result = sut(report);
 
-  // cost.priced = 622.5 → divided by 1e6 → 0.0006225 → formatted as $0.0006
-  // Actually: 622.5 / 1e6 = 0.0006225 → toFixed(4) = '0.0006'
   assert.ok(result.includes('$'), 'priced cost must include dollar sign');
-  assert.ok(result.includes('0.0006'), 'cost must be expressed as dollar amount / 1e6');
+  assert.ok(result.includes('$0.0006'), 'cost.priced=0.0006225 must render as $0.0006 with no further division');
+  assert.ok(!result.includes('$0.0000'), 'a real non-zero cost.priced must never render as $0.0000 — that would mean a stray compensating division survived');
 });
 
 // ── 37. renderMarkdown: role null shows n/a, recommendations section ──────────
@@ -902,7 +903,7 @@ test('Given events that produce both a cache-hotspot rec and a model-routing rec
 // ── 51. computeBaselineDeltas: pricedCostDelta is current minus baseline ──────
 
 test('Given a current report and a baseline report for the same group, when aggregate runs with baseline, then baselineDeltas carry the exact priced cost difference', () => {
-  // baseline cost = 1*5 + 1*25 = 30; current cost = 2*5 + 100*0.5 + 50*6.25 + 10*25 = 622.5
+  // baseline cost = (1*5 + 1*25) / 1e6 = 30 / 1e6; current cost = (2*5 + 100*0.5 + 50*6.25 + 10*25) / 1e6 = 622.5 / 1e6
   const baselineEvents = [makeEvent({ tokens: { input: 1, cacheRead: 0, cacheCreation: 0, output: 1 } })];
   const baseline = aggregate(baselineEvents, PRICE_TABLE);
 
@@ -911,7 +912,7 @@ test('Given a current report and a baseline report for the same group, when aggr
   assert.ok(result.baselineDeltas, 'baselineDeltas must exist');
   assert.equal(result.baselineDeltas.length, 1);
   const delta = result.baselineDeltas[0];
-  assert.equal(delta.pricedCostDelta, 622.5 - 30, 'pricedCostDelta must be current minus baseline, not plus');
+  assert.equal(delta.pricedCostDelta, (622.5 - 30) / 1e6, 'pricedCostDelta must be current minus baseline, not plus');
   const tokenKeys = Object.keys(delta.tokensDelta);
   assert.deepEqual(tokenKeys, [...tokenKeys].sort(), 'tokensDelta keys must be alphabetically sorted');
 });
@@ -1423,4 +1424,73 @@ test('Given no skip markers argument, when aggregate runs, then recommendations 
   const result = sut(events, PRICE_TABLE);
 
   assert.equal(result.recommendations.filter(r => r.kind === 'phase-skip').length, 0);
+});
+
+// ── Golden vector: real DEFAULT_PRICES reconcile the published craft-arm dollars ──
+
+test('Given the measured per-model token-class totals of the published craft benchmark arm, when aggregate runs against the shipped DEFAULT_PRICES, then the summed cost.relative is the corpus token count and the summed cost.priced reconciles to the published dollar figure', () => {
+  const opusEvent = makeEvent({
+    model: 'claude-opus-5', phase: 'implementation', role: 'part-implementer',
+    tokens: { input: 2_800, output: 815_845, cacheRead: 226_695_412, cacheCreation: 6_078_085 },
+    cacheCreationTtl: { creation5m: 5_092_346, creation1h: 985_739 },
+  });
+  const sonnetEvent = makeEvent({
+    model: 'claude-sonnet-5', phase: 'implementation', role: 'part-implementer',
+    tokens: { input: 11_534, output: 319_302, cacheRead: 303_340_224, cacheCreation: 7_008_625 },
+    cacheCreationTtl: { creation5m: 7_008_625, creation1h: 0 },
+  });
+  const sut = aggregate;
+
+  const result = sut([opusEvent, sonnetEvent], DEFAULT_PRICES);
+
+  const groups = result.runs[0].groups;
+  const totalRelative = groups.reduce((sum, g) => sum + g.cost.relative, 0);
+  assert.equal(totalRelative, 544_271_827, 'summed cost.relative must equal the corpus token count');
+
+  // Expected dollars are built from the SAME rate objects the implementation reads
+  // (DEFAULT_PRICES entries), never hand-typed decimals — a literal 0.3 is not the
+  // same double as 3 * CACHE_READ_MULTIPLIER. Each group's expression is summed
+  // in the same shape computePricedCost uses, then the two groups are added exactly
+  // like the report does — dividing one summed Σ and summing two already-divided
+  // per-group Σs are not bit-identical in IEEE-754.
+  //   opus-5:    2,800×5 + 815,845×25 + 226,695,412×0.5 + 5,092,346×6.25 + 985,739×10   = 175,442,383.50
+  //   sonnet-5:  11,534×3 + 319,302×15 + 303,340,224×0.3 + 7,008,625×3.75 + 0×6         = 122,108,542.95
+  //                                                                                 Σ   = 297,550,926.45
+  //                                                                           ÷ 1e6     = $297.550926
+  const opusPrices = DEFAULT_PRICES['claude-opus-5'];
+  const sonnetPrices = DEFAULT_PRICES['claude-sonnet-5'];
+  const expectedOpusDollars = (
+    2_800 * opusPrices.input
+    + 226_695_412 * opusPrices.cacheRead
+    + (5_092_346 * opusPrices.cacheCreation5m + 985_739 * opusPrices.cacheCreation1h)
+    + 815_845 * opusPrices.output
+  ) / 1e6;
+  const expectedSonnetDollars = (
+    11_534 * sonnetPrices.input
+    + 303_340_224 * sonnetPrices.cacheRead
+    + (7_008_625 * sonnetPrices.cacheCreation5m + 0 * sonnetPrices.cacheCreation1h)
+    + 319_302 * sonnetPrices.output
+  ) / 1e6;
+  const totalPriced = groups.reduce((sum, g) => sum + g.cost.priced, 0);
+  assert.equal(totalPriced, expectedOpusDollars + expectedSonnetDollars, 'summed cost.priced must reconcile to the published craft-arm dollar figure ($297.55)');
+});
+
+// ── shareOfRunCost companion: pins the division to the emitting site, not the composed one ──
+
+test('Given a group whose cacheEfficiency clears CACHE_HOTSPOT_THRESHOLD, when aggregate runs, then evidence.pricedCreationCost is in the same unit as cost.priced and evidence.shareOfRunCost lies in [0, 1]', () => {
+  const event = makeEvent({ tokens: { input: 0, cacheRead: 10, cacheCreation: 500, output: 0 } });
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE);
+
+  const group = result.runs[0].groups[0];
+  const rec = result.recommendations.find(r => r.kind === 'cache-hotspot');
+  assert.ok(rec, 'expected a cache-hotspot recommendation');
+  // If pricedCreationCost were left undivided (or the division moved to the composed
+  // call inside computePricedCost instead of this standalone site), it would land at
+  // 1e6× or 1e-6× cost.priced instead of being one of its dollar-scaled components.
+  assert.ok(rec.evidence.pricedCreationCost <= group.cost.priced,
+    'pricedCreationCost must be in the same dollar unit as cost.priced — a component, never larger than the whole');
+  assert.ok(rec.evidence.shareOfRunCost >= 0 && rec.evidence.shareOfRunCost <= 1,
+    'shareOfRunCost must land in [0, 1] once both sides of the ratio share a unit');
 });

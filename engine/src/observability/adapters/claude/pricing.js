@@ -6,7 +6,9 @@
  * multiplies raw token counts by these per-MTok dollar rates.
  *
  * Unit: USD per million tokens (per-MTok).
- * The core stores per-MTok rates directly; no 1e6 scaling is applied.
+ * The core divides the summed Σ(tokens × per-MTok rate) by one million once per
+ * emitted dollar value; every entry in this table — including --prices overrides —
+ * stays per-MTok, since the division is never applied to the rates themselves.
  *
  * @update-needed Prices are spot-checked against the `claude-api` skill.
  * Run `/claude-api` to fetch current list prices and update this table.
@@ -60,7 +62,9 @@ export const DEFAULT_PRICES = Object.freeze({
   'claude-opus-4-8': priceEntry(5, 25),
   'claude-opus-4-7': priceEntry(5, 25),
   'claude-opus-4-6': priceEntry(5, 25),
+  'claude-opus-5': priceEntry(5, 25),
   'claude-sonnet-4-6': priceEntry(3, 15),
+  'claude-sonnet-5': priceEntry(3, 15),
   'claude-fable-5': priceEntry(10, 50),
   'claude-mythos-5': priceEntry(10, 50),
   'claude-haiku-4-5': priceEntry(1, 5),

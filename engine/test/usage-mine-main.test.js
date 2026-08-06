@@ -376,6 +376,27 @@ test('Given a --prices override file with a custom model, when main runs, then t
   assert.ok(totalCost > 0, 'cost must reflect override prices');
 });
 
+test('Given a --prices override file with per-MTok rates, when main runs, then the report prices the override in dollars: Σ(class × overrideRate) / 1e6', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+  const pricesOverride = { 'claude-opus-4-8': { input: 100, output: 200, cacheRead: 10, cacheCreation5m: 20, cacheCreation1h: 30 } };
+  const pricesPath = join(repoRoot, 'prices.json');
+  writeFileSync(pricesPath, JSON.stringify(pricesOverride), 'utf8');
+
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir, '--prices', pricesPath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const totalCost = report.runs.flatMap(r => r.groups).reduce((s, g) => s + (g.cost.priced ?? 0), 0);
+  // ROLLUP_LINE tokens: input=2, cacheRead=196062, cacheCreation split {5m:255, 1h:0}, output=900.
+  // Σ = 2*100 + 196062*10 + (255*20 + 0*30) + 900*200 = 200 + 1,960,620 + 5,100 + 180,000 = 2,145,920
+  const expected = (2 * 100 + 196062 * 10 + (255 * 20 + 0 * 30) + 900 * 200) / 1e6;
+  assert.equal(totalCost, expected, 'a per-MTok override entry must price in dollars — this breaks if the divisor is ever pushed into priceEntry');
+});
+
 // ─── 8. --include-inline OFF default → noted gap, no fabricated cost ─────────
 
 test('Given a spawn-sparse dir (inline-only lines) without --include-inline, when main runs, then report is a noted no-op and exit is 0', async () => {
