@@ -171,7 +171,7 @@ in code where a silent regression is expensive to discover later.
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
 receipts: [27 design docs](docs/contributing/design/), [26 parted plans](docs/contributing/plan/),
-[340 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/contributing/metrics-baseline.report.json)
+[341 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
@@ -228,9 +228,9 @@ Guard postures and contract-discovery records: [adapters/README.md](adapters/REA
 
 ## FAQ
 
-**What does a run cost?** Across the [27 telemetered runs](docs/contributing/metrics-baseline.report.json)
-that built this repo: the median run logs ≈1.3 hours of role-agent activity, from
-half an hour for a small change to ≈5 hours for the largest feature (parallel
+**What does a run cost?** Across the [25 telemetered runs](docs/contributing/metrics-baseline.report.json)
+that built this repo: the median run logs ≈1.4 hours of role-agent activity, from
+under 10 minutes for a small change to ≈4 hours for the largest feature (parallel
 fan-outs mean wall-clock is lower). Time concentrates in implementation, validation,
 and review. Heavy-reasoning roles (design, review) run on the frontier model;
 mechanical roles (implementation, validation, docs) run on a cheaper tier — all
