@@ -34,8 +34,8 @@ harder than craft's design phase could not hand it an advantage.
 | | plain | staged | craft |
 |---|---|---|---|
 | Interactions | 1 | 3 | 1 |
-| Tokens | 88.6M | 154.3M | 544.3M |
-| Cost | $62.72 | $103.95 | $297.55 |
+| Tokens | 61.3M | 93.3M | 273.1M |
+| Cost | $39.13 | $57.77 | $145.67 |
 | Agent time | 41m | 1h 8m | 4h 49m |
 | Commits | 1 | 7 | 13 |
 | Gates (cold cache) | 5/5 pass | 5/5 pass | 5/5 pass |
@@ -48,7 +48,18 @@ arms were never told they were being measured, which would have biased them.
 Quality was scored by an independent judge on anonymized diffs with all
 process markers stripped; the mapping was revealed only after scoring.
 
-**craft cost 4.7x the plain run.**
+**craft cost 3.7x the plain run.**
+
+> **Token and cost figures were corrected in August 2026.** The original collector
+> counted one usage record per transcript *line*. A single assistant response is
+> written as one line per content block (thinking, text, each tool call), and every
+> one of those lines repeats the same request's `input` and `cache_read` counts — so
+> summing per line adds the same request's input two or three times. The over-count
+> was uneven across arms (1.45x plain, 1.65x staged, 1.99x craft), which moved the
+> headline multiple as well: originally reported as 4.7x, actually 3.7x. Unlike the
+> two harness bugs in the caveats below, this one worked *against* craft. Every
+> figure above is now counted once per billed turn. Agent time, commits, tests, and
+> the quality scores are unaffected — none derive from token counts.
 
 ## What that bought
 
@@ -120,7 +131,7 @@ Honest scoring, from the same blind judge:
 - **Plan gaps.** Part enumeration missed two test files; implementers caught them
   as collateral and reported it. Recovery worked; the plan was still wrong.
 
-More process is also not automatically better. The **staged** arm spent 66% more
+More process is also not automatically better. The **staged** arm spent 48% more
 than the plain run and scored *worse* — it used the extra thinking to invent
 three role interfaces, a 173-line builder, a visitor protocol, and an unrequested
 `Object.freeze`. Where the thinking lands matters more than how much of it there
@@ -138,7 +149,7 @@ tooling could not.
 spikes and throwaway prototypes; in a repo with no usable test command, where the
 never-commit-on-red invariant has nothing to stand on; or under a tight token
 budget — expect single-digit-x the cost of an unguided run, with sub-agents
-dominating (75% of tokens here).
+dominating (74% of tokens here).
 
 ## Caveats
 
@@ -156,18 +167,30 @@ dominating (75% of tokens here).
 5. **"Plain" is not unguided.** A global instruction set (TDD, SOLID,
    conventional commits, coverage expectations) applied to all three arms. A
    genuinely unguided run would likely score worse.
-6. **The measurement harness had two bugs, both flattering craft** — see below.
+6. **The measurement harness had three bugs** — two flattering craft, and a
+   per-line over-count that worked against it, inflating the reported multiple
+   from 3.7x to 4.7x. All three are described below; the figures above are
+   post-correction.
 
 ## Measuring this yourself
 
-Two traps, both found the hard way:
+Three traps, all found the hard way:
 
 **Sub-agent cost is not in the spawn rollup.** The parent session records a
 rollup carrying the sub-agent's *final message* usage. Summing those
 under-reported real sub-agent cost by **~58x** in this run. Read the nested
-per-sub-agent transcripts instead. *craft's own metrics ledger is written from
-the rollup path and currently carries this error — it under-reports its own
-cost.*
+per-sub-agent transcripts instead. *craft's miner now does; `/craft:metrics` and
+the committed baseline are produced from the transcript path.*
+
+**One assistant response is many transcript lines.** Claude Code writes one line
+per content block — thinking, text, each tool call — and every one repeats the
+same `message.id` with the *same* `input_tokens` and `cache_read_input_tokens`,
+only `output_tokens` growing. Those are per-request quantities, so counting them
+per line adds the same request's input two or three times: measured here, 24,909
+usage-bearing lines carried just 10,784 distinct message ids. Key on the message
+id and take the last line's counts. This is the trap that produced the corrected
+figures above — and note that fixing the first trap alone turns a ~58x
+under-count into a ~2x over-count, which looks plausible and is not.
 
 **A typed slash command is not a `human` origin.** It arrives as
 `<command-name>` markup with no origin field, so a naive interaction count scores

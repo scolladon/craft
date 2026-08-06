@@ -123,14 +123,14 @@ anonymized diffs, mapping revealed only after scoring.
 | | plain prompt | design+plan+impl | craft |
 |---|---|---|---|
 | Interactions | 1 | 3 | 1 |
-| Tokens | 88.6M | 154.3M | 544.3M |
-| Cost | $62.72 | $103.95 | $297.55 |
+| Tokens | 61.3M | 93.3M | 273.1M |
+| Cost | $39.13 | $57.77 | $145.67 |
 | Agent time | 41m | 1h 8m | 4h 49m |
 | Gates | 5/5 pass | 5/5 pass | 5/5 pass |
 | Blind quality | 25/35 | 23/35 | **27/35** |
 | Mergeable as-is | **no** | with 2 fixes | with 1 fix |
 
-craft cost **4.7x** the plain run. What that bought:
+craft cost **3.7x** the plain run. What that bought:
 
 - The plain run passed every gate — build, lint, integration, functional, 1343 unit
   tests at a **100% coverage threshold** — and silently changed generated output.
@@ -146,9 +146,16 @@ craft cost **4.7x** the plain run. What that bought:
 
 craft also *lost* dimensions: the plain run scored higher on purity, and
 craft's scope discipline was worse. And more process is not automatically
-better — the middle arm spent 66% more than the plain run and scored
+better — the middle arm spent 48% more than the plain run and scored
 **worse**, having invented three role interfaces, a 173-line builder and a
 visitor protocol nobody asked for.
+
+> **These figures were corrected in August 2026.** The original collector counted
+> one usage record per transcript *line*, but a single assistant response is
+> written as one line per content block, each repeating the same request's input
+> and cache-read counts. That over-counted every arm — unevenly (1.45x plain,
+> 1.99x craft), so the published multiple was 4.7x rather than the true 3.7x.
+> The numbers above are counted once per billed turn.
 
 Full method, per-dimension scoring, where craft lost, and the caveats:
 [docs/guides/comparison.md](docs/guides/comparison.md).
@@ -162,7 +169,7 @@ Full method, per-dimension scoring, where craft lost, and the caveats:
 - **No usable gate.** craft leans on your repo's test command. Without one, the
   never-commit-on-red invariant has nothing to stand on.
 - **Tight token budget.** Expect single-digit-x the cost of an unguided run.
-  Sub-agents dominate — 75% of tokens in the run above.
+  Sub-agents dominate — 74% of tokens in the run above.
 
 craft earns its cost when the change is wide, behaviour-preserving, or lands
 in code where a silent regression is expensive to discover later.
