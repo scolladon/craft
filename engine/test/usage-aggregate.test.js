@@ -1462,16 +1462,20 @@ test('Given no skip markers argument, when aggregate runs, then recommendations 
 
 // ── Golden vector: real DEFAULT_PRICES reconcile the published craft-arm dollars ──
 
-test('Given the measured per-model token-class totals of the published craft benchmark arm, when aggregate runs against the shipped DEFAULT_PRICES, then the summed cost.relative is the corpus token count and the summed cost.priced reconciles to the published dollar figure', () => {
+test('Given the re-derived per-message token-class totals of the craft benchmark arm, when aggregate runs against the shipped DEFAULT_PRICES, then the summed cost.relative is the corrected corpus token count and the summed cost.priced reconciles to the corrected dollar figure', () => {
+  // Usage events are keyed on the assistant message.id (one event per billed turn), not
+  // per transcript line — the earlier per-line vector double-counted request-level fields
+  // and is superseded by these per-message totals (independently re-derived from the same
+  // on-disk transcripts): craft 273,114,810 tokens / $145.67 (was 544,271,827 / $297.55).
   const opusEvent = makeEvent({
     model: 'claude-opus-5', phase: 'implementation', role: 'part-implementer',
-    tokens: { input: 2_800, output: 815_845, cacheRead: 226_695_412, cacheCreation: 6_078_085 },
-    cacheCreationTtl: { creation5m: 5_092_346, creation1h: 985_739 },
+    tokens: { input: 1_283, output: 373_875, cacheRead: 103_887_059, cacheCreation: 2_785_387 },
+    cacheCreationTtl: { creation5m: 2_333_655, creation1h: 451_732 },
   });
   const sonnetEvent = makeEvent({
     model: 'claude-sonnet-5', phase: 'implementation', role: 'part-implementer',
-    tokens: { input: 11_534, output: 319_302, cacheRead: 303_340_224, cacheCreation: 7_008_625 },
-    cacheCreationTtl: { creation5m: 7_008_625, creation1h: 0 },
+    tokens: { input: 6_165, output: 170_676, cacheRead: 162_144_054, cacheCreation: 3_746_311 },
+    cacheCreationTtl: { creation5m: 3_746_311, creation1h: 0 },
   });
   const sut = aggregate;
 
@@ -1479,34 +1483,46 @@ test('Given the measured per-model token-class totals of the published craft ben
 
   const groups = result.runs[0].groups;
   const totalRelative = groups.reduce((sum, g) => sum + g.cost.relative, 0);
-  assert.equal(totalRelative, 544_271_827, 'summed cost.relative must equal the corpus token count');
+  assert.equal(totalRelative, 273_114_810, 'summed cost.relative must equal the corrected per-message corpus token count');
 
   // Expected dollars are built from the SAME rate objects the implementation reads
   // (DEFAULT_PRICES entries), never hand-typed decimals — a literal 0.3 is not the
   // same double as 3 * CACHE_READ_MULTIPLIER. Each group's expression is summed
   // in the same shape computePricedCost uses, then the two groups are added exactly
   // like the report does — dividing one summed Σ and summing two already-divided
-  // per-group Σs are not bit-identical in IEEE-754.
-  //   opus-5:    2,800×5 + 815,845×25 + 226,695,412×0.5 + 5,092,346×6.25 + 985,739×10   = 175,442,383.50
-  //   sonnet-5:  11,534×3 + 319,302×15 + 303,340,224×0.3 + 7,008,625×3.75 + 0×6         = 122,108,542.95
-  //                                                                                 Σ   = 297,550,926.45
-  //                                                                           ÷ 1e6     = $297.550926
+  // per-group Σs are not bit-identical in IEEE-754. This pins unit-placement (the
+  // divisor lands once, at the sum) but NOT the published number itself — a
+  // DEFAULT_PRICES edit would move this expected value right along with the
+  // implementation's output, so the literal pin below is the one that actually
+  // guards the published figure.
+  //   opus-5:    1,283×5 + 373,875×25 + 103,887,059×0.5 + 2,333,655×6.25 + 451,732×10   = 80,399,483.25
+  //   sonnet-5:  6,165×3 + 170,676×15 + 162,144,054×0.3 + 3,746,311×3.75 + 0×6           = 65,270,517.45
+  //                                                                                 Σ    = 145,670,000.70
+  //                                                                           ÷ 1e6      = $145.670001
   const opusPrices = DEFAULT_PRICES['claude-opus-5'];
   const sonnetPrices = DEFAULT_PRICES['claude-sonnet-5'];
   const expectedOpusDollars = (
-    2_800 * opusPrices.input
-    + 226_695_412 * opusPrices.cacheRead
-    + (5_092_346 * opusPrices.cacheCreation5m + 985_739 * opusPrices.cacheCreation1h)
-    + 815_845 * opusPrices.output
+    1_283 * opusPrices.input
+    + 103_887_059 * opusPrices.cacheRead
+    + (2_333_655 * opusPrices.cacheCreation5m + 451_732 * opusPrices.cacheCreation1h)
+    + 373_875 * opusPrices.output
   ) / 1e6;
   const expectedSonnetDollars = (
-    11_534 * sonnetPrices.input
-    + 303_340_224 * sonnetPrices.cacheRead
-    + (7_008_625 * sonnetPrices.cacheCreation5m + 0 * sonnetPrices.cacheCreation1h)
-    + 319_302 * sonnetPrices.output
+    6_165 * sonnetPrices.input
+    + 162_144_054 * sonnetPrices.cacheRead
+    + (3_746_311 * sonnetPrices.cacheCreation5m + 0 * sonnetPrices.cacheCreation1h)
+    + 170_676 * sonnetPrices.output
   ) / 1e6;
   const totalPriced = groups.reduce((sum, g) => sum + g.cost.priced, 0);
-  assert.equal(totalPriced, expectedOpusDollars + expectedSonnetDollars, 'summed cost.priced must reconcile to the published craft-arm dollar figure ($297.55)');
+  assert.equal(totalPriced, expectedOpusDollars + expectedSonnetDollars, 'summed cost.priced must reconcile via the shipped DEFAULT_PRICES rate objects (float-identity, unit-placement only)');
+
+  // A literal, price-table-independent pin of the published craft-arm dollar figure
+  // ($145.67, per-message). Unlike the rate-derived assertion above, this number does
+  // not move if DEFAULT_PRICES is edited — it must stay broken until the published
+  // figure is republished from a fresh corpus re-derivation, catching the case where a
+  // price-table edit keeps the reconciliation looking intact while the published number
+  // silently drifts underneath it.
+  assert.equal(totalPriced, 145.6700007, 'a DEFAULT_PRICES edit must break this literal until the published $145.67 figure is republished');
 });
 
 // ── shareOfRunCost companion: pins the division to the emitting site, not the composed one ──
@@ -1520,11 +1536,13 @@ test('Given a group whose cacheEfficiency clears CACHE_HOTSPOT_THRESHOLD, when a
   const group = result.runs[0].groups[0];
   const rec = result.recommendations.find(r => r.kind === 'cache-hotspot');
   assert.ok(rec, 'expected a cache-hotspot recommendation');
-  // If pricedCreationCost were left undivided (or the division moved to the composed
-  // call inside computePricedCost instead of this standalone site), it would land at
-  // 1e6× or 1e-6× cost.priced instead of being one of its dollar-scaled components.
-  assert.ok(rec.evidence.pricedCreationCost <= group.cost.priced,
-    'pricedCreationCost must be in the same dollar unit as cost.priced — a component, never larger than the whole');
+  // Pinned to the exact value, not merely bounded by cost.priced: an inequality alone
+  // catches an UNdivided standalone value (1e6×) but not an EXTRA division (the divisor
+  // moved into computePricedCreation itself, under-dividing this standalone call and
+  // double-dividing the composed one) — that mutant still satisfies "<= cost.priced".
+  const expectedPricedCreationCost = (500 * PRICE_TABLE['model-a'].cacheCreation5m) / 1e6;
+  assert.equal(rec.evidence.pricedCreationCost, expectedPricedCreationCost,
+    'pricedCreationCost must equal the standalone computePricedCreation call divided exactly once');
   assert.ok(rec.evidence.shareOfRunCost >= 0 && rec.evidence.shareOfRunCost <= 1,
     'shareOfRunCost must land in [0, 1] once both sides of the ratio share a unit');
 });

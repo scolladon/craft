@@ -66,7 +66,7 @@ const ROLLUP_LINE = JSON.stringify({
       cache_read_input_tokens: 196062,
       cache_creation_input_tokens: 255,
       output_tokens: 900,
-      cache_creation: { ephemeral_5m_input_tokens: 255, ephemeral_1h_input_tokens: 0 },
+      cache_creation: { ephemeral_5m_input_tokens: 200, ephemeral_1h_input_tokens: 55 },
     },
     status: 'completed',
     agentId: 'agent-1',
@@ -91,12 +91,14 @@ const MAIN_USAGE_LINE = JSON.stringify({
       cache_read_input_tokens: 196062,
       cache_creation_input_tokens: 255,
       output_tokens: 900,
-      cache_creation: { ephemeral_5m_input_tokens: 255, ephemeral_1h_input_tokens: 0 },
+      cache_creation: { ephemeral_5m_input_tokens: 200, ephemeral_1h_input_tokens: 55 },
     },
   },
 });
 
-// A non-rollup line (inline usage, no toolUseResult — silently ignored by parseLines).
+// A main-loop assistant usage line with no toolUseResult — the emission rule reads
+// message.usage directly, so this produces an event too (main-loop inclusion is
+// default-on; see the §8 tests below).
 const INLINE_LINE = JSON.stringify({
   type: 'assistant',
   sessionId: 'sess-bbb',
@@ -299,6 +301,7 @@ test('Given a transcript dir with only malformed-JSON lines, when main runs, the
   assert.equal(result, 0);
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   assert.deepEqual(report.runs, []);
+  assert.equal(report.note, 'no events provided');
 });
 
 // ─── 5. Streaming proof — never readFileSync transcripts ─────────────────────
@@ -463,9 +466,11 @@ test('Given a --prices override file with per-MTok rates, when main runs, then t
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   const totalCost = report.runs.flatMap(r => r.groups).reduce((s, g) => s + (g.cost.priced ?? 0), 0);
-  // MAIN_USAGE_LINE tokens: input=2, cacheRead=196062, cacheCreation split {5m:255, 1h:0}, output=900.
-  // Σ = 2*100 + 196062*10 + (255*20 + 0*30) + 900*200 = 200 + 1,960,620 + 5,100 + 180,000 = 2,145,920
-  const expected = (2 * 100 + 196062 * 10 + (255 * 20 + 0 * 30) + 900 * 200) / 1e6;
+  // MAIN_USAGE_LINE tokens: input=2, cacheRead=196062, cacheCreation split {5m:200, 1h:55}, output=900.
+  // The split is non-zero on both sides so the TTL-aware branch (5m*rate + 1h*rate) and the
+  // flat cacheCreation*cacheCreation5m fallback diverge — this only passes under the real branch.
+  // Σ = 2*100 + 196062*10 + (200*20 + 55*30) + 900*200 = 200 + 1,960,620 + 5,650 + 180,000 = 2,146,470
+  const expected = (2 * 100 + 196062 * 10 + (200 * 20 + 55 * 30) + 900 * 200) / 1e6;
   assert.equal(totalCost, expected, 'a per-MTok override entry must price in dollars — this breaks if the divisor is ever pushed into priceEntry');
 });
 
@@ -846,7 +851,7 @@ test('Given a containByRealpath that accepts json but rejects the md write path,
 
 // ─── P29-13. non-.jsonl files in transcript dir are not processed ─────────────
 
-test('Given a transcript dir containing both a .jsonl rollup file and a .txt file, when main runs, then only the .jsonl is processed and stderr contains no skipped message', async () => {
+test('Given a transcript dir containing both a .jsonl main-loop usage file and a .txt file, when main runs, then only the .jsonl is processed and stderr contains no skipped message', async () => {
   const sut = main;
   const { projectsRoot, transcriptDir } = makeFixture();
   writeFileSync(join(transcriptDir, 'notes.txt'), 'not json at all', 'utf8');
@@ -862,7 +867,7 @@ test('Given a transcript dir containing both a .jsonl rollup file and a .txt fil
 
 // ─── P29-14. all-valid lines + no --baseline → stderr empty ──────────────────
 
-test('Given a transcript with only valid rollup lines and no --baseline flag, when main runs, then stderr is empty (no skipped count, no unreadable-baseline message)', async () => {
+test('Given a transcript with only valid main-loop usage lines and no --baseline flag, when main runs, then stderr is empty (no skipped count, no unreadable-baseline message)', async () => {
   const sut = main;
   const { projectsRoot, transcriptDir } = makeFixture();
   const repoRoot = makeTmp('repo-');
@@ -1126,6 +1131,33 @@ test('Given a subagents directory that is a symlink escaping the read root, when
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   const roles = report.runs.flatMap(r => r.groups).map(g => g.role);
   assert.ok(!roles.some(r => r !== 'main-loop'), `the escaping symlink must not surface any sub-agent group; got: ${roles}`);
+});
+
+// The two symlink tests above both escape at a DIRECTORY discovery lists — caught by
+// discover()'s directory-level `unreadable` counter. This one escapes at the individual
+// FILE a directory listing already named — caught only by streamTranscriptFiles' own
+// per-entry containment guard (its `refused` counter), a distinct code path.
+test('Given a transcript dir whose root-level .jsonl file is itself a symlink escaping the read root, when main runs, then that file is refused by read containment, stderr counts it, and the other file\'s events still land in the report', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('projects-');
+  const transcriptDir = join(projectsRoot, 'proj');
+  mkdirSync(transcriptDir);
+  writeFileSync(join(transcriptDir, 'sess-good.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
+  const outsideTarget = makeTmp('outside-transcript-');
+  writeFileSync(join(outsideTarget, 'escaped.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
+  symlinkSync(join(outsideTarget, 'escaped.jsonl'), join(transcriptDir, 'sess-escape.jsonl'));
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stderr.joined().includes('1 path(s) refused by read containment'),
+    `stderr must count the refused path; got: ${io.stderr.joined()}`,
+  );
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.ok(report.runs.length > 0, 'the other, non-symlinked file\'s events must still land in the report');
 });
 
 test('Given a main-loop event carrying a slug and a slug-less sub-agent event sharing its run, when main runs, then the run inherits the main-loop slug', async () => {

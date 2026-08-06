@@ -168,6 +168,30 @@ test('Given a subagents directory holding two flat sibling transcripts, when dis
   );
 });
 
+// ── 8b. a subagents sibling missing the agent- prefix is refused by shape ──
+
+test('Given a subagents directory holding two agent- transcripts and a third .jsonl lacking the prefix, when discover runs, then only the two agent-*.jsonl entries are returned', () => {
+  const ports = makePorts({
+    dirs: {
+      '': ['sess-a'],
+      'sess-a': ['subagents'],
+      'sess-a/subagents': ['agent-1.jsonl', 'agent-2.jsonl', 'notes.jsonl'],
+    },
+    files: {
+      'sess-a/subagents/agent-1.meta.json': '{"agentType":"craft:designer"}',
+      'sess-a/subagents/agent-2.meta.json': '{"agentType":"craft:reviewer"}',
+    },
+  });
+  const sut = discover;
+
+  const result = sut(ports);
+
+  assert.deepEqual(
+    result.entries.map((e) => e.relPath),
+    ['sess-a/subagents/agent-1.jsonl', 'sess-a/subagents/agent-2.jsonl'],
+  );
+});
+
 // ── 9. a transcript with no sidecar still yields an entry, unlabelled ──────
 
 test('Given a sub-agent transcript with no sidecar file, when discover runs, then the entry is still returned with agentType null', () => {
