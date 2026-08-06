@@ -239,21 +239,22 @@
       "run": "fea16e12-ba97-45d1-9a31-c480277c4b61"
     },
     {
-      "detail": "role reviewer has 75 review cycles",
+      "detail": "role reviewer has 6 review cycles",
       "evidence": {
-        "cycles": 75,
+        "billedTurns": 116,
+        "cycles": 6,
         "maxCost": {
           "priced": 0.26375375,
           "relative": 193620
         },
         "meanCost": {
-          "priced": 0.1250373933333333,
-          "relative": 105935.34666666666
+          "priced": 0.11749220258620689,
+          "relative": 100631.31896551725
         },
         "role": "reviewer",
         "totalCost": {
-          "priced": 9.377804499999998,
-          "relative": 7945151
+          "priced": 13.6290955,
+          "relative": 11673233
         }
       },
       "kind": "review-waste",
@@ -262,9 +263,10 @@
       "run": "0dc14aa5-aad8-4746-9cd1-781277971d94"
     },
     {
-      "detail": "role reviewer has 155 review cycles",
+      "detail": "role reviewer has 7 review cycles",
       "evidence": {
-        "cycles": 155,
+        "billedTurns": 155,
+        "cycles": 7,
         "maxCost": {
           "priced": 0.38578175,
           "relative": 153844
@@ -285,32 +287,10 @@
       "run": "2c4cd054-388d-4e72-9c03-eb8b9aa445d6"
     },
     {
-      "detail": "role reviewer has 20 review cycles",
+      "detail": "role reviewer has 10 review cycles",
       "evidence": {
-        "cycles": 20,
-        "maxCost": {
-          "priced": 0.23639125,
-          "relative": 96172
-        },
-        "meanCost": {
-          "priced": 0.11584665000000001,
-          "relative": 65685.6
-        },
-        "role": "reviewer",
-        "totalCost": {
-          "priced": 2.316933,
-          "relative": 1313712
-        }
-      },
-      "kind": "review-waste",
-      "model": null,
-      "phase": "review",
-      "run": "2ccfd2aa-a0d5-479b-bbf0-b3750ad53982"
-    },
-    {
-      "detail": "role reviewer has 278 review cycles",
-      "evidence": {
-        "cycles": 278,
+        "billedTurns": 278,
+        "cycles": 10,
         "maxCost": {
           "priced": 0.282024,
           "relative": 168406
@@ -331,9 +311,10 @@
       "run": "3bb0b485-8f7f-423a-9dce-153d4287ae18"
     },
     {
-      "detail": "role reviewer has 35 review cycles",
+      "detail": "role reviewer has 5 review cycles",
       "evidence": {
-        "cycles": 35,
+        "billedTurns": 35,
+        "cycles": 5,
         "maxCost": {
           "priced": 0.2945,
           "relative": 91836
@@ -354,9 +335,10 @@
       "run": "4090e287-5898-42bd-9406-b224559da069"
     },
     {
-      "detail": "role reviewer has 30 review cycles",
+      "detail": "role reviewer has 5 review cycles",
       "evidence": {
-        "cycles": 30,
+        "billedTurns": 30,
+        "cycles": 5,
         "maxCost": {
           "priced": 0.3588345,
           "relative": 85063
@@ -377,9 +359,10 @@
       "run": "547598b5-47c3-4b59-b327-3f467d44bed7"
     },
     {
-      "detail": "role reviewer has 58 review cycles",
+      "detail": "role reviewer has 5 review cycles",
       "evidence": {
-        "cycles": 58,
+        "billedTurns": 58,
+        "cycles": 5,
         "maxCost": {
           "priced": 0.36352875,
           "relative": 194020
@@ -400,9 +383,10 @@
       "run": "a0916f79-362f-4eef-b0cb-9017aa8cdde2"
     },
     {
-      "detail": "role reviewer has 112 review cycles",
+      "detail": "role reviewer has 4 review cycles",
       "evidence": {
-        "cycles": 112,
+        "billedTurns": 112,
+        "cycles": 4,
         "maxCost": {
           "priced": 0.4147385,
           "relative": 153335
@@ -423,9 +407,10 @@
       "run": "aee6119c-59bb-497b-879b-245c5b88bf41"
     },
     {
-      "detail": "role reviewer has 65 review cycles",
+      "detail": "role reviewer has 6 review cycles",
       "evidence": {
-        "cycles": 65,
+        "billedTurns": 65,
+        "cycles": 6,
         "maxCost": {
           "priced": 0.280087,
           "relative": 95694
@@ -446,9 +431,10 @@
       "run": "aef67267-3d97-42eb-b9a4-5b404a9b9809"
     },
     {
-      "detail": "role reviewer has 30 review cycles",
+      "detail": "role reviewer has 3 review cycles",
       "evidence": {
-        "cycles": 30,
+        "billedTurns": 30,
+        "cycles": 3,
         "maxCost": {
           "priced": 0.2723095,
           "relative": 95359
@@ -469,9 +455,10 @@
       "run": "bf48de90-be1b-49a3-8d01-d44d56f7f08b"
     },
     {
-      "detail": "role reviewer has 36 review cycles",
+      "detail": "role reviewer has 4 review cycles",
       "evidence": {
-        "cycles": 36,
+        "billedTurns": 36,
+        "cycles": 4,
         "maxCost": {
           "priced": 0.36200125,
           "relative": 124053
@@ -492,9 +479,10 @@
       "run": "ca69ce44-306a-4cdd-bc1d-74febceb4e9f"
     },
     {
-      "detail": "role reviewer has 35 review cycles",
+      "detail": "role reviewer has 4 review cycles",
       "evidence": {
-        "cycles": 35,
+        "billedTurns": 35,
+        "cycles": 4,
         "maxCost": {
           "priced": 0.258089,
           "relative": 110771
@@ -515,9 +503,10 @@
       "run": "d24decf6-ea83-4adb-9076-a7ed65128c21"
     },
     {
-      "detail": "role reviewer has 53 review cycles",
+      "detail": "role reviewer has 6 review cycles",
       "evidence": {
-        "cycles": 53,
+        "billedTurns": 53,
+        "cycles": 6,
         "maxCost": {
           "priced": 0.301173,
           "relative": 94987
@@ -538,9 +527,10 @@
       "run": "d9816d68-e739-4cf3-a1bc-417af2e3ceca"
     },
     {
-      "detail": "role reviewer has 43 review cycles",
+      "detail": "role reviewer has 5 review cycles",
       "evidence": {
-        "cycles": 43,
+        "billedTurns": 43,
+        "cycles": 5,
         "maxCost": {
           "priced": 0.2394975,
           "relative": 123103
@@ -561,9 +551,10 @@
       "run": "e9f80eb2-c53b-43ad-86b8-e9ca962e24e7"
     },
     {
-      "detail": "role reviewer has 38 review cycles",
+      "detail": "role reviewer has 4 review cycles",
       "evidence": {
-        "cycles": 38,
+        "billedTurns": 38,
+        "cycles": 4,
         "maxCost": {
           "priced": 0.23447875,
           "relative": 117196
@@ -584,9 +575,10 @@
       "run": "f250cfb8-08b3-4421-af8d-20b30129195a"
     },
     {
-      "detail": "role reviewer has 59 review cycles",
+      "detail": "role reviewer has 5 review cycles",
       "evidence": {
-        "cycles": 59,
+        "billedTurns": 59,
+        "cycles": 5,
         "maxCost": {
           "priced": 0.2379775,
           "relative": 114054
@@ -629,39 +621,39 @@
           }
         },
         {
-          "cacheEfficiency": 0.017903939469539068,
+          "cacheEfficiency": 0.017114306274406892,
           "cost": {
-            "priced": 36.99427395,
-            "relative": 85945582
+            "priced": 43.82615835000001,
+            "relative": 102952180
           },
-          "durationMs": 6293034,
-          "messages": 535,
+          "durationMs": 7271744,
+          "messages": 633,
           "model": "claude-sonnet-5",
           "phase": "implementation",
           "role": "part-implementer",
           "tokens": {
-            "cacheCreation": 1531257,
-            "cacheRead": 83995004,
-            "input": 19688,
-            "output": 399633
+            "cacheCreation": 1753445,
+            "cacheRead": 100701482,
+            "input": 34875,
+            "output": 462378
           }
         },
         {
-          "cacheEfficiency": 0.017777681519875525,
+          "cacheEfficiency": 0.014409517593504314,
           "cost": {
-            "priced": 28.1785765,
-            "relative": 36672466
+            "priced": 34.5598485,
+            "relative": 47646611
           },
           "durationMs": 0,
-          "messages": 164,
+          "messages": 194,
           "model": "claude-opus-5",
           "phase": null,
           "role": "main-loop",
           "tokens": {
-            "cacheCreation": 649281,
-            "cacheRead": 35872973,
-            "input": 301,
-            "output": 149911
+            "cacheCreation": 684068,
+            "cacheRead": 46789277,
+            "input": 356,
+            "output": 172910
           }
         },
         {
@@ -683,39 +675,40 @@
           }
         },
         {
-          "cacheEfficiency": 0.06331707921783329,
+          "cacheEfficiency": 0.06242062818686157,
           "cost": {
-            "priced": 9.3778045,
-            "relative": 7945151
+            "priced": 13.6290955,
+            "relative": 11673233
           },
-          "durationMs": 1723101,
-          "messages": 75,
+          "durationMs": 2405195,
+          "messages": 116,
           "model": "claude-opus-5",
           "phase": "review",
           "role": "reviewer",
           "tokens": {
-            "cacheCreation": 496462,
-            "cacheRead": 7344424,
-            "input": 196,
-            "output": 104069
+            "cacheCreation": 719144,
+            "cacheRead": 10801791,
+            "input": 3695,
+            "output": 148603
           }
         }
       ],
       "reviewCycles": [
         {
-          "cycles": 75,
+          "billedTurns": 116,
+          "cycles": 6,
           "maxCost": {
             "priced": 0.26375375,
             "relative": 193620
           },
           "meanCost": {
-            "priced": 0.1250373933333333,
-            "relative": 105935.34666666666
+            "priced": 0.11749220258620689,
+            "relative": 100631.31896551725
           },
           "role": "reviewer",
           "totalCost": {
-            "priced": 9.377804499999998,
-            "relative": 7945151
+            "priced": 13.6290955,
+            "relative": 11673233
           }
         }
       ],
@@ -1072,7 +1065,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 155,
+          "billedTurns": 155,
+          "cycles": 7,
           "maxCost": {
             "priced": 0.38578175,
             "relative": 153844
@@ -1186,7 +1180,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 20,
+          "billedTurns": 20,
+          "cycles": 2,
           "maxCost": {
             "priced": 0.23639125,
             "relative": 96172
@@ -1343,7 +1338,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 278,
+          "billedTurns": 278,
+          "cycles": 10,
           "maxCost": {
             "priced": 0.282024,
             "relative": 168406
@@ -1493,7 +1489,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 35,
+          "billedTurns": 35,
+          "cycles": 5,
           "maxCost": {
             "priced": 0.2945,
             "relative": 91836
@@ -1596,7 +1593,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 30,
+          "billedTurns": 30,
+          "cycles": 5,
           "maxCost": {
             "priced": 0.3588345,
             "relative": 85063
@@ -1778,7 +1776,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 58,
+          "billedTurns": 58,
+          "cycles": 5,
           "maxCost": {
             "priced": 0.36352875,
             "relative": 194020
@@ -1928,7 +1927,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 112,
+          "billedTurns": 112,
+          "cycles": 4,
           "maxCost": {
             "priced": 0.4147385,
             "relative": 153335
@@ -2042,7 +2042,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 65,
+          "billedTurns": 65,
+          "cycles": 6,
           "maxCost": {
             "priced": 0.280087,
             "relative": 95694
@@ -2102,7 +2103,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 30,
+          "billedTurns": 30,
+          "cycles": 3,
           "maxCost": {
             "priced": 0.2723095,
             "relative": 95359
@@ -2252,7 +2254,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 36,
+          "billedTurns": 36,
+          "cycles": 4,
           "maxCost": {
             "priced": 0.36200125,
             "relative": 124053
@@ -2402,7 +2405,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 35,
+          "billedTurns": 35,
+          "cycles": 4,
           "maxCost": {
             "priced": 0.258089,
             "relative": 110771
@@ -2552,7 +2556,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 53,
+          "billedTurns": 53,
+          "cycles": 6,
           "maxCost": {
             "priced": 0.301173,
             "relative": 94987
@@ -2666,7 +2671,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 43,
+          "billedTurns": 43,
+          "cycles": 5,
           "maxCost": {
             "priced": 0.2394975,
             "relative": 123103
@@ -2823,7 +2829,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 38,
+          "billedTurns": 38,
+          "cycles": 4,
           "maxCost": {
             "priced": 0.23447875,
             "relative": 117196
@@ -3016,7 +3023,8 @@
       ],
       "reviewCycles": [
         {
-          "cycles": 59,
+          "billedTurns": 59,
+          "cycles": 5,
           "maxCost": {
             "priced": 0.2379775,
             "relative": 114054
