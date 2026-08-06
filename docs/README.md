@@ -9,5 +9,5 @@ Two audiences, two trees.
 
 | Tree | Audience | Holds |
 |---|---|---|
-| [`guides/`](guides/) | craft users | concepts, customization guide, model-class matrix |
+| [`guides/`](guides/) | craft users | concepts, customization guide, model-class matrix, measured cost comparison |
 | [`contributing/`](contributing/README.md) | craft contributors | ADRs, design docs, plans, contract specs, archive, legacy program docs, DOD, metrics baseline |

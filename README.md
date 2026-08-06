@@ -113,6 +113,60 @@ Phases also run standalone, on any branch:
 | `/craft:init` | interview-driven manifest generator |
 | `/craft:metrics` | mines your transcript history into a usage report |
 
+## What it costs, measured
+
+One controlled comparison (n=1): the same behaviour-preserving refactor on the same
+repo and base commit, three processes, isolated worktrees. Metrics derived from
+transcripts, not self-reported. Quality scored blind by an independent judge on
+anonymized diffs, mapping revealed only after scoring.
+
+| | plain prompt | design+plan+impl | craft |
+|---|---|---|---|
+| Interactions | 1 | 3 | 1 |
+| Tokens | 88.6M | 154.3M | 544.3M |
+| Cost | $62.72 | $103.95 | $297.55 |
+| Agent time | 41m | 1h 8m | 4h 49m |
+| Gates | 5/5 pass | 5/5 pass | 5/5 pass |
+| Blind quality | 25/35 | 23/35 | **27/35** |
+| Mergeable as-is | **no** | with 2 fixes | with 1 fix |
+
+craft cost **4.7x** the plain run. What that bought:
+
+- The plain run passed every gate — build, lint, integration, functional, 1343 unit
+  tests at a **100% coverage threshold** — and silently changed generated output.
+  Nothing in the repo's tooling would have caught it; the mutation job that might
+  have was itself broken.
+- craft's review phase found two HIGH test defects that 100% coverage hid (assertion
+  legs wired but never asserted), each **proven red by injection** before being
+  accepted.
+- It root-caused a 6.9x benchmark "regression" to a self-referential fixture instead
+  of shipping the false alarm.
+- It surfaced a pre-existing broken CI gate, proved it independent of its own change,
+  and declined to fix it as out of scope.
+
+craft also *lost* dimensions: the plain run scored higher on purity, and
+craft's scope discipline was worse. And more process is not automatically
+better — the middle arm spent 66% more than the plain run and scored
+**worse**, having invented three role interfaces, a 173-line builder and a
+visitor protocol nobody asked for.
+
+Full method, per-dimension scoring, where craft lost, and the caveats:
+[docs/guides/comparison.md](docs/guides/comparison.md).
+
+## When not to use craft
+
+- **Low blast radius.** A one-file fix, a copy change, a dependency bump — the
+  pipeline costs more than the risk it retires.
+- **Exploration.** Spikes and throwaway prototypes want a fast loop, not gated
+  delivery.
+- **No usable gate.** craft leans on your repo's test command. Without one, the
+  never-commit-on-red invariant has nothing to stand on.
+- **Tight token budget.** Expect single-digit-x the cost of an unguided run.
+  Sub-agents dominate — 75% of tokens in the run above.
+
+craft earns its cost when the change is wide, behaviour-preserving, or lands
+in code where a silent regression is expensive to discover later.
+
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
