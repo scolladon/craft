@@ -6,17 +6,33 @@
  *   READ  root — source-aware default (or override); transcript dir must be inside.
  *   WRITE root — repoRoot (process.cwd() by default); output paths must be inside.
  *
+ * The READ root and the default transcript dir are deliberately two different
+ * values. Only the claude source nests a per-project directory under its read
+ * root (DEFAULT_TRANSCRIPT_DIRS); every other source's transcript dir IS its
+ * read root. Collapsing the two would either shrink the containment boundary
+ * to one project (refusing every --dir at any other project on the same box)
+ * or widen the default transcript dir past what containment should allow.
+ *
+ * For sources with a SOURCE_DISCOVERY entry (claude), file discovery walks a
+ * pinned multi-level shape via adapter-authored `discover({ listDir, readText })`
+ * — the adapter names relative paths only, this module joins, realpath-contains,
+ * opens and reads every one of them. Sources with no entry keep the flat
+ * single-level readdirSync + matcher path.
+ *
  * TOCTOU caveat: containByRealpath returns a lexical path; actual reads/writes
  * happen after the check — acceptable under the local advisory threat model
  * (identical basis to memory/policy containment in contain.js).
  *
  * Advisory: absent / malformed / out-of-bounds dir → recorded no-op report, exit 0.
+ * Every counted-fallback branch (unreadable sub-agent dirs, unlabelled
+ * transcripts, containment-refused entries) is advisory too — surfaced on
+ * stderr, never gating.
  * Config error: an unknown/unbuilt --source is the one exception — rejected
  * with a non-zero exit before any I/O begins.
  * Redaction: report contains no file paths, $HOME fragments, or prompt text.
  */
 
-import { resolve, join, dirname } from 'node:path';
+import { resolve, join, dirname, sep } from 'node:path';
 import { homedir } from 'node:os';
 import {
   readFileSync as nodeReadFileSync,
@@ -26,6 +42,7 @@ import {
 } from 'node:fs';
 import { createInterface as nodeCreateInterface } from 'node:readline';
 import { containByRealpath as nodeContainByRealpath } from '../contain.js';
+import { discover as claudeDiscover } from './adapters/claude/discovery.js';
 import { parseLines as claudeParseLines } from './adapters/claude/telemetry.js';
 import { parseLines as opencodeParseLines } from './adapters/opencode/telemetry.js';
 import { parseLines as piParseLines } from './adapters/pi/telemetry.js';
@@ -123,11 +140,44 @@ export function resolveDefaultReadRoot(source) {
     : DEFAULT_READ_ROOTS.claude;
   return thunk();
 }
+
+// C7: source→default-transcript-dir lookup, mirroring SOURCE_FILE_MATCHERS —
+// a single named entry plus a default, not a conditional. Deliberately
+// SEPARATE from DEFAULT_READ_ROOTS: only the claude layout nests a
+// per-project directory under its read root. Pointing the containment
+// ROOT itself at that nested directory (instead of just the default
+// transcript DIR) would shrink the boundary to one project and start
+// refusing every explicit --dir at any other project on the same box.
+const DEFAULT_TRANSCRIPT_DIRS = Object.freeze({
+  claude: (root, cwd) => join(root, dashedCwd(cwd)),
+});
+const DEFAULT_TRANSCRIPT_DIR = (root) => root; // today's behaviour, every other source
+
+// Every path separator and every '.' becomes '-'. Verified live against the
+// real projects root: '/Users/x/y/z' -> '-Users-x-y-z', and a nested path
+// producing a doubled dash. No path on this box contains a '.', so the dot
+// rule itself is unverified locally.
+export function dashedCwd(cwd) {
+  return cwd.split(sep).join('-').replace(/\./g, '-');
+}
+
+// Exported as a direct unit-test seam, mirroring resolveDefaultReadRoot.
+// Own-property check for the same inherited-member reason as the other
+// per-source lookups in this module.
+export function resolveDefaultTranscriptDir(source, projectsRoot, cwd) {
+  const resolver = Object.hasOwn(DEFAULT_TRANSCRIPT_DIRS, source)
+    ? DEFAULT_TRANSCRIPT_DIRS[source]
+    : DEFAULT_TRANSCRIPT_DIR;
+  return resolver(projectsRoot, cwd);
+}
+
+// C7: source→discovery-walk lookup. Sources with no entry keep the flat
+// single-level readdirSync + matcher path unchanged below.
+const SOURCE_DISCOVERY = Object.freeze({ claude: claudeDiscover });
+
 const REPORT_JSON = 'report.json';
 const REPORT_MD = 'report.md';
-const INLINE_GAP_NOTE =
-  'no rollup events found; inline phases excluded by default (pass --include-inline to include)';
-// C7: named constants for the remaining no-op notes.
+// C7: named constants for the no-op notes.
 const UNCONTAINED_NOTE = 'transcript dir not contained within projects root';
 const ABSENT_NOTE = 'transcript dir absent';
 const NO_EVENTS_NOTE = 'no events provided';
@@ -151,7 +201,7 @@ function parseArgs(argv) {
     baseline: null,
     since: null,
     pricesFile: null,
-    includeInline: false,
+    includeInline: true,
     threshold: null,
     source: null,
   };
@@ -172,8 +222,8 @@ function parseArgs(argv) {
       case '--prices':
         parsed.pricesFile = argv[++i] ?? null;
         break;
-      case '--include-inline':
-        parsed.includeInline = true;
+      case '--no-inline':
+        parsed.includeInline = false;
         break;
       case '--threshold':
         parsed.threshold = argv[++i] ?? null;
@@ -189,8 +239,8 @@ function resolveThreshold(rawThreshold) {
   return Number.isFinite(parsed) ? parsed : DEFAULT_DRIFT_THRESHOLD;
 }
 
-function resolveTranscriptDir(parsedDir, projectsRoot) {
-  return parsedDir ? resolve(parsedDir) : projectsRoot;
+function resolveTranscriptDir(parsedDir, defaultTranscriptDir) {
+  return parsedDir ? resolve(parsedDir) : defaultTranscriptDir;
 }
 
 // Named error message — no boolean params, one targeted stderr line.
@@ -209,29 +259,60 @@ function loadJson(filePath, readFileSync, stderr, kind) {
   }
 }
 
-async function streamTranscriptFiles(jsonlFiles, transcriptDir, createReadStream, createInterface, containByRealpath, parseTranscriptLines, since = null) {
+// `entries` carries { relPath, context } pairs — relPath is realpath-checked
+// per entry exactly as a bare filename was before; context is the adapter's
+// opaque sidecar label (or null for sources with no SOURCE_DISCOVERY entry).
+// includeInline is authored HERE, spread alongside the adapter's own context —
+// this module never reads a field of that context, only adds its own key.
+async function streamTranscriptFiles(entries, transcriptDir, createReadStream, createInterface, containByRealpath, parseTranscriptLines, since = null, includeInline = true) {
   const allEvents = [];
   const allMarkers = [];
   let totalSkipped = 0;
-  for (const file of jsonlFiles) {
-    // A3: per-file containment guard — each .jsonl child is realpath-checked before streaming.
-    const safeFile = containByRealpath(transcriptDir, join(transcriptDir, file));
-    if (!safeFile) continue;
+  let totalUnlabelled = 0;
+  let refused = 0;
+  for (const entry of entries) {
+    // A3: per-entry containment guard — a discovery-supplied relPath is
+    // realpath-checked before streaming exactly like a flat filename was;
+    // reach extends to the discovery depth, the check itself is unchanged.
+    const safeFile = containByRealpath(transcriptDir, join(transcriptDir, entry.relPath));
+    if (!safeFile) { refused++; continue; }
     try {
       // Streaming via readline — never readFileSync — avoids OOM on large transcripts.
       const stream = createReadStream(safeFile);
       const lines = createInterface({ input: stream, crlfDelay: Infinity });
-      const { events, skipped, markers } = await parseTranscriptLines(lines, since);
+      const parseContext = { ...(entry.context ?? {}), includeInline };
+      const { events, skipped, markers, unlabelled } = await parseTranscriptLines(lines, since, parseContext);
       // G2: for-of avoids spread-on-large-array stack overflow.
       for (const e of events) allEvents.push(e);
       for (const m of markers) allMarkers.push(m);
       totalSkipped += skipped;
+      totalUnlabelled += unlabelled ?? 0;
     } catch {
       continue;
     }
   }
-  // C4: propagate total skipped count and the phase-skip markers so callers can surface them.
-  return { events: allEvents, skipped: totalSkipped, markers: allMarkers };
+  // C4: propagate total skipped/unlabelled/refused counts and the phase-skip
+  // markers so callers can surface them — every one advisory, never gating.
+  return { events: allEvents, skipped: totalSkipped, markers: allMarkers, unlabelled: totalUnlabelled, refused };
+}
+
+// The ports discover() receives — both absorb their own failures into the
+// documented null and never throw, which is what lets discover() stay a pure
+// walk with containment un-bypassable by adapter code even in principle.
+function makeDiscoveryPorts(readRoot, { readdirSync, readFileSync, containByRealpath }) {
+  const safe = (relPath) => containByRealpath(readRoot, join(readRoot, relPath));
+  return {
+    listDir(relPath) {
+      const p = safe(relPath);
+      if (!p) return null;
+      try { return readdirSync(p); } catch { return null; }
+    },
+    readText(relPath) {
+      const p = safe(relPath);
+      if (!p) return null;
+      try { return readFileSync(p, 'utf8'); } catch { return null; }
+    },
+  };
 }
 
 function attemptWriteReports(repoRoot, report, writeFileSync, checkContain, stderr) {
@@ -272,7 +353,8 @@ function attemptWriteReports(repoRoot, report, writeFileSync, checkContain, stde
  * @param {{ stderr: { write(s: string): void }, readFileSync?: Function,
  *   writeFileSync?: Function, createReadStream?: Function,
  *   createInterface?: Function, readdirSync?: Function,
- *   containByRealpath?: Function, projectsRoot?: string, repoRoot?: string }} io
+ *   containByRealpath?: Function, projectsRoot?: string, repoRoot?: string,
+ *   cwd?: string }} io
  * @returns {Promise<number>} exit code — 0 for every advisory path (default
  *   claude source, all no-op/malformed/containment branches); the one
  *   exception is an unknown/unbuilt `--source`, a config error caught before
@@ -289,6 +371,7 @@ export async function main(argv, io) {
     containByRealpath = nodeContainByRealpath,
     projectsRoot: projectsRootOverride,
     repoRoot = process.cwd(),
+    cwd = process.cwd(),
   } = io;
 
   const parsed = parseArgs(argv);
@@ -303,10 +386,13 @@ export async function main(argv, io) {
   }
   const parseTranscriptLines = SOURCES[source];
   // Source-aware read root: an explicit io.projectsRoot override always wins
-  // (tests inject it); otherwise the default resolves per source.
+  // (tests inject it); otherwise the default resolves per source. This is the
+  // CONTAINMENT root and stays the same value regardless of --dir or of the
+  // per-source default transcript dir below — see the module header.
   const projectsRoot = projectsRootOverride ?? resolveDefaultReadRoot(source);
+  const defaultTranscriptDir = resolveDefaultTranscriptDir(source, projectsRoot, cwd);
 
-  const transcriptDir = resolveTranscriptDir(parsed.dir, projectsRoot);
+  const transcriptDir = resolveTranscriptDir(parsed.dir, defaultTranscriptDir);
   // C3: single-call helper — writes a no-op report and returns EXIT_OK.
   const writeNoOp = (note) =>
     attemptWriteReports(repoRoot, noOpReport(note), writeFileSync, containByRealpath, stderr);
@@ -315,10 +401,13 @@ export async function main(argv, io) {
   const safeTranscriptDir = containByRealpath(projectsRoot, transcriptDir);
   if (!safeTranscriptDir) { writeNoOp(UNCONTAINED_NOTE); return EXIT_OK; }
 
-  // Discover transcript files in the contained dir, per the source's matcher.
-  let jsonlFiles;
+  // Unfiltered probe — the note-producing read for ENOENT vs. any other
+  // error. Kept exactly as before regardless of which discovery path runs
+  // next: a source-specific walk still needs to know the dir was readable at
+  // all before it starts naming relative paths inside it.
+  let rootListing;
   try {
-    jsonlFiles = readdirSync(safeTranscriptDir).filter(resolveFileMatcher(source));
+    rootListing = readdirSync(safeTranscriptDir);
   } catch (e) {
     const note = e.code === 'ENOENT'
       ? ABSENT_NOTE
@@ -327,22 +416,34 @@ export async function main(argv, io) {
     return EXIT_OK;
   }
 
-  if (!jsonlFiles.length) { writeNoOp(noFilesNote(source)); return EXIT_OK; }
+  // Discover transcript entries: a source-specific multi-level walk behind
+  // injected ports when one is registered, otherwise the flat single-level
+  // matcher over the probe above — unchanged for every other binding.
+  const { entries, unreadable } = Object.hasOwn(SOURCE_DISCOVERY, source)
+    ? SOURCE_DISCOVERY[source](makeDiscoveryPorts(safeTranscriptDir, { readdirSync, readFileSync, containByRealpath }))
+    : { entries: rootListing.filter(resolveFileMatcher(source)).map((relPath) => ({ relPath, context: null })), unreadable: 0 };
 
-  // Stream-parse all transcript files (never readFileSync — see module header).
-  const { events, skipped, markers } = await streamTranscriptFiles(
-    jsonlFiles,
+  if (!entries.length) { writeNoOp(noFilesNote(source)); return EXIT_OK; }
+
+  // Stream-parse all transcript entries (never readFileSync — see module header).
+  const { events, skipped, markers, unlabelled, refused } = await streamTranscriptFiles(
+    entries,
     safeTranscriptDir,
     createReadStream,
     createInterface,
     containByRealpath,
     parseTranscriptLines,
     parsed.since ?? null,
+    parsed.includeInline,
   );
-  // C4: surface malformed-line count so callers can see parse quality.
+  // C4: surface counted-fallback tallies so callers can see run quality —
+  // every line advisory, emitted only when its count is > 0.
   if (skipped > 0) stderr.write(`usage-mine: skipped ${skipped} malformed line(s)\n`);
+  if (unlabelled > 0) stderr.write(`usage-mine: ${unlabelled} transcript(s) with no resolvable agent label\n`);
+  if (unreadable > 0) stderr.write(`usage-mine: ${unreadable} unreadable sub-agent directory(ies)\n`);
+  if (refused > 0) stderr.write(`usage-mine: ${refused} path(s) refused by read containment\n`);
 
-  if (!events.length) { writeNoOp(parsed.includeInline ? NO_EVENTS_NOTE : INLINE_GAP_NOTE); return EXIT_OK; }
+  if (!events.length) { writeNoOp(NO_EVENTS_NOTE); return EXIT_OK; }
 
   const priceTable = loadPriceTable(loadJson(parsed.pricesFile, readFileSync, stderr, '--prices'));
   const baselineReport = loadJson(parsed.baseline, readFileSync, stderr, '--baseline') ?? undefined;

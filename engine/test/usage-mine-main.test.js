@@ -11,16 +11,26 @@ import {
   mkdtempSync,
   writeFileSync,
   readFileSync,
+  readdirSync,
   createReadStream,
   rmSync,
   mkdirSync,
   existsSync,
+  symlinkSync,
 } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, dirname } from 'node:path';
 import { tmpdir, homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { main, resolveDefaultReadRoot, resolveSourceFilter, resolveFileMatcher, resolveFileLabel } from '../src/observability/usage-mine-main.js';
+import {
+  main,
+  resolveDefaultReadRoot,
+  resolveSourceFilter,
+  resolveFileMatcher,
+  resolveFileLabel,
+  dashedCwd,
+  resolveDefaultTranscriptDir,
+} from '../src/observability/usage-mine-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
 import { serializeReport } from '../src/observability/usage-aggregate.js';
@@ -134,6 +144,44 @@ function makeIo(overrides = {}) {
     containByRealpath,
     ...overrides,
   };
+}
+
+/**
+ * Build a two-level claude project tree: <root>/proj/<sessionId>.jsonl
+ * (main-loop) plus <root>/proj/<sessionId>/subagents/agent-<id>.jsonl (+
+ * sidecar). Returns { projectsRoot, transcriptDir } — transcriptDir is the
+ * project dir, exactly what --dir points a discovery walk's root listing at.
+ */
+function makeClaudeProjectFixture({ sessionId = 'sess-x', mainLines = [], subagents = [] } = {}) {
+  const projectsRoot = makeTmp('projects-');
+  const transcriptDir = join(projectsRoot, 'proj');
+  mkdirSync(transcriptDir);
+  if (mainLines.length) {
+    writeFileSync(join(transcriptDir, `${sessionId}.jsonl`), mainLines.join('\n') + '\n', 'utf8');
+  }
+  if (subagents.length) {
+    const subagentsDir = join(transcriptDir, sessionId, 'subagents');
+    mkdirSync(subagentsDir, { recursive: true });
+    for (const { id, lines, sidecar } of subagents) {
+      writeFileSync(join(subagentsDir, `agent-${id}.jsonl`), lines.join('\n') + '\n', 'utf8');
+      if (sidecar !== undefined) writeFileSync(join(subagentsDir, `agent-${id}.meta.json`), sidecar, 'utf8');
+    }
+  }
+  return { projectsRoot, transcriptDir, sessionId };
+}
+
+// A sub-agent assistant usage line — real field names, hand-chosen small numbers.
+function subagentAssistantLine({ sessionId, timestamp = '2026-01-01T00:05:00.000Z', input = 5, output = 5 }) {
+  return JSON.stringify({
+    type: 'assistant',
+    sessionId,
+    timestamp,
+    message: {
+      role: 'assistant',
+      model: 'claude-sonnet-4-6',
+      usage: { input_tokens: input, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: output },
+    },
+  });
 }
 
 // ─── 1. Happy path — writes report.json + report.md, exits 0 ─────────────────
@@ -423,7 +471,7 @@ test('Given a --prices override file with per-MTok rates, when main runs, then t
 
 // ─── 8. main-loop inclusion is default-on — an inline-only dir now yields events ──
 
-test('Given a dir of only main-loop assistant usage lines without --include-inline, when main runs, then the report carries a non-empty main-loop run (main-loop inclusion is default-on)', async () => {
+test('Given a dir of only main-loop assistant usage lines and no flags, when main runs, then the report carries a non-empty main-loop run (main-loop inclusion is default-on)', async () => {
   const sut = main;
   const { projectsRoot, transcriptDir } = makeFixture({ lines: [INLINE_LINE] });
   const repoRoot = makeTmp('repo-');
@@ -435,6 +483,24 @@ test('Given a dir of only main-loop assistant usage lines without --include-inli
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   assert.ok(report.runs.length > 0, 'runs must be non-empty — main-loop turns are events now');
   assert.equal(report.runs[0].groups[0].role, 'main-loop');
+});
+
+test('Given a dir of only main-loop assistant usage lines, when main runs with default flags, then the report carries exactly one role: main-loop, phase: null group with the exact token total', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture();
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const mainLoopGroups = report.runs.flatMap(r => r.groups).filter(g => g.role === 'main-loop');
+  assert.equal(mainLoopGroups.length, 1, 'exactly one main-loop group, no per-phase split');
+  assert.equal(mainLoopGroups[0].phase, null);
+  const { input, cacheRead, cacheCreation, output } = mainLoopGroups[0].tokens;
+  // MAIN_USAGE_LINE token total: 2 + 196062 + 255 + 900 = 197219.
+  assert.equal(input + cacheRead + cacheCreation + output, 197219);
 });
 
 // ─── No-op report contains no absolute paths ─────────────────────────────────
@@ -479,19 +545,38 @@ test('Given a fixture with real transcript data, when main runs, then the popula
   }
 });
 
-// ─── --include-inline flag path — main-loop lines already emit regardless (F4) ──
+// ─── --no-inline drops main-loop EVENTS but never main-loop MARKERS ──────────
 
-test('Given an inline-only transcript dir with --include-inline passed explicitly, when main runs, then exit 0 and the report still carries the main-loop run', async () => {
+test('Given a session with a main-loop usage line, an auto-skip marker, and a sub-agent transcript, when main runs with --no-inline, then the main-loop group is dropped but the sub-agent group and the auto-skip recommendation survive', async () => {
   const sut = main;
-  const { projectsRoot, transcriptDir } = makeFixture({ lines: [INLINE_LINE] });
+  const sessionId = 'sess-noinline';
+  const mainLine = JSON.stringify({
+    type: 'assistant', sessionId, slug: 'feature-x', timestamp: '2026-01-01T00:00:00.000Z',
+    message: { role: 'assistant', model: 'claude-opus-4-8', usage: { input_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 900 } },
+  });
+  // auto-skip: tokens ride in orchestrator assistant text — a marker line, not a usage line.
+  const autoSkipLine = JSON.stringify({
+    type: 'assistant',
+    sessionId,
+    message: { role: 'assistant', content: [{ type: 'text', text: 'auto-skip: review — evaluated unnecessary (no source diff in scope)' }] },
+  });
+  const { projectsRoot, transcriptDir } = makeClaudeProjectFixture({
+    sessionId,
+    mainLines: [mainLine, autoSkipLine],
+    subagents: [{ id: '1', lines: [subagentAssistantLine({ sessionId })], sidecar: JSON.stringify({ agentType: 'craft:designer' }) }],
+  });
   const repoRoot = makeTmp('repo-');
   const io = makeIo({ projectsRoot, repoRoot });
 
-  const result = await sut(['--dir', transcriptDir, '--include-inline'], io);
+  const result = await sut(['--dir', transcriptDir, '--no-inline'], io);
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
-  assert.ok(report.runs.length > 0, 'runs must be non-empty with or without the flag');
+  const roles = report.runs.flatMap(r => r.groups).map(g => g.role);
+  assert.ok(!roles.includes('main-loop'), `--no-inline must drop the main-loop group; got roles: ${roles}`);
+  assert.ok(roles.includes('designer'), `the sub-agent group must survive --no-inline; got roles: ${roles}`);
+  const skipRecs = report.recommendations.filter(r => r.kind === 'phase-skip');
+  assert.deepEqual(skipRecs.map(r => r.phase), ['review'], '--no-inline must not drop the auto-skip marker');
 });
 
 // ─── Malformed --prices JSON (F5) ────────────────────────────────────────────
@@ -881,6 +966,240 @@ test('Given a --prices path where readFileSync throws EACCES, when main runs, th
     `stderr must note unreadable prices file; got: ${io.stderr.joined()}`,
   );
   assert.ok(existsSync(join(repoRoot, 'report.json')), 'report.json must still be written with default prices');
+});
+
+// ─── Sub-agent transcript discovery — the front-door wiring of discover() ────
+
+// The regression this whole change exists to prevent: a rollup line (never read
+// for tokens — the emission rule reads only message.usage) totals 1,000; the
+// sub-agent transcript it spawned totals 100,000. Truth is 100,000 — not 1,000
+// (today's under-report) and not 101,000 (a double-count of both sources).
+test('Given a session whose main-loop file carries a rollup and whose sub-agent transcript carries real usage, when main runs, then the relative cost total is the sub-agent total exactly — not the rollup total, not the sum of both', async () => {
+  const sut = main;
+  const sessionId = 'sess-100x';
+  const rollupLine = JSON.stringify({
+    type: 'user',
+    sessionId,
+    timestamp: '2026-01-01T00:00:00.000Z',
+    toolUseResult: {
+      agentType: 'craft:designer',
+      resolvedModel: 'claude-opus-4-8',
+      totalDurationMs: 1000,
+      totalTokens: 1000,
+      usage: { input_tokens: 1000, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 0 },
+    },
+    isSidechain: false,
+  });
+  const subagentLine = subagentAssistantLine({ sessionId, input: 100000, output: 0 });
+  const { projectsRoot, transcriptDir } = makeClaudeProjectFixture({
+    sessionId,
+    mainLines: [rollupLine],
+    subagents: [{ id: '1', lines: [subagentLine], sidecar: JSON.stringify({ agentType: 'craft:designer' }) }],
+  });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const totalRelative = report.runs.flatMap(r => r.groups).reduce((s, g) => s + g.cost.relative, 0);
+  assert.equal(totalRelative, 100000, `expected the sub-agent total 100000; got ${totalRelative}`);
+  assert.notEqual(totalRelative, 1000, 'must not silently read only the rollup (the original defect)');
+  assert.notEqual(totalRelative, 101000, 'must not double-count the rollup alongside the sub-agent transcript');
+});
+
+test('Given a sub-agent transcript labelled by its sidecar, when main runs, then the group carries the sidecar-resolved role and phase', async () => {
+  const sut = main;
+  const sessionId = 'sess-role';
+  const { projectsRoot, transcriptDir } = makeClaudeProjectFixture({
+    sessionId,
+    subagents: [{ id: '1', lines: [subagentAssistantLine({ sessionId })], sidecar: JSON.stringify({ agentType: 'craft:reviewer' }) }],
+  });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const groups = report.runs.flatMap(r => r.groups);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0].role, 'reviewer');
+  assert.equal(groups[0].phase, 'review');
+});
+
+test('Given a sub-agent transcript with no sidecar file, when main runs, then the group carries role: null and stderr reports it as unlabelled', async () => {
+  const sut = main;
+  const sessionId = 'sess-nosidecar';
+  const { projectsRoot, transcriptDir } = makeClaudeProjectFixture({
+    sessionId,
+    subagents: [{ id: 'orphan', lines: [subagentAssistantLine({ sessionId })] }],
+  });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stderr.joined().includes('transcript(s) with no resolvable agent label'),
+    `stderr must note the unlabelled transcript; got: ${io.stderr.joined()}`,
+  );
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const roles = report.runs.flatMap(r => r.groups).map(g => g.role);
+  assert.ok(roles.includes(null), `the no-sidecar sub-agent group must carry role: null; got: ${roles}`);
+});
+
+test('Given a session whose subagents directory is named in its parent listing but cannot itself be listed, when main runs, then that session contributes no sub-agent entries, stderr counts it as unreadable, and exit is 0', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('projects-');
+  const transcriptDir = join(projectsRoot, 'proj');
+  mkdirSync(transcriptDir);
+  writeFileSync(join(transcriptDir, 'sess-good.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
+  const unreadableSubagentsDir = join(transcriptDir, 'sess-unreadable', 'subagents');
+  mkdirSync(unreadableSubagentsDir, { recursive: true });
+  writeFileSync(join(unreadableSubagentsDir, 'agent-1.jsonl'), subagentAssistantLine({ sessionId: 'sess-unreadable' }) + '\n', 'utf8');
+  const repoRoot = makeTmp('repo-');
+  const eaccesError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
+  const mockReaddirSync = (p, ...rest) => {
+    if (typeof p === 'string' && p.endsWith(join('sess-unreadable', 'subagents'))) throw eaccesError;
+    return readdirSync(p, ...rest);
+  };
+  const io = makeIo({ projectsRoot, repoRoot, readdirSync: mockReaddirSync });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stderr.joined().includes('1 unreadable sub-agent directory'),
+    `stderr must count the unreadable dir; got: ${io.stderr.joined()}`,
+  );
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const roles = report.runs.flatMap(r => r.groups).map(g => g.role);
+  assert.ok(!roles.some(r => r !== 'main-loop'), `the unreadable session must contribute no sub-agent group; got: ${roles}`);
+});
+
+test('Given a subagents directory that is a symlink escaping the read root, when main runs, then that session contributes no sub-agent entries, stderr counts it as unreadable, and exit is 0', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('projects-');
+  const transcriptDir = join(projectsRoot, 'proj');
+  mkdirSync(transcriptDir);
+  writeFileSync(join(transcriptDir, 'sess-good.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
+  const sessionDir = join(transcriptDir, 'sess-escape');
+  mkdirSync(sessionDir, { recursive: true });
+  const outsideTarget = makeTmp('outside-subagents-');
+  writeFileSync(join(outsideTarget, 'agent-1.jsonl'), subagentAssistantLine({ sessionId: 'sess-escape' }) + '\n', 'utf8');
+  symlinkSync(outsideTarget, join(sessionDir, 'subagents'));
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stderr.joined().includes('1 unreadable sub-agent directory'),
+    `a symlink escape must be refused and counted as unreadable, never followed; got: ${io.stderr.joined()}`,
+  );
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const roles = report.runs.flatMap(r => r.groups).map(g => g.role);
+  assert.ok(!roles.some(r => r !== 'main-loop'), `the escaping symlink must not surface any sub-agent group; got: ${roles}`);
+});
+
+test('Given a main-loop event carrying a slug and a slug-less sub-agent event sharing its run, when main runs, then the run inherits the main-loop slug', async () => {
+  const sut = main;
+  const sessionId = 'sess-slug';
+  const mainLine = JSON.stringify({
+    type: 'assistant', sessionId, slug: 'feature-slug', timestamp: '2026-01-01T00:00:00.000Z',
+    message: { role: 'assistant', model: 'claude-opus-4-8', usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 } },
+  });
+  const { projectsRoot, transcriptDir } = makeClaudeProjectFixture({
+    sessionId,
+    mainLines: [mainLine],
+    subagents: [{ id: '1', lines: [subagentAssistantLine({ sessionId })], sidecar: JSON.stringify({ agentType: 'craft:designer' }) }],
+  });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.equal(report.runs.length, 1);
+  assert.equal(report.runs[0].slug, 'feature-slug', 'the sub-agent group\'s run must inherit the main-loop slug');
+  const roles = report.runs[0].groups.map(g => g.role);
+  assert.ok(roles.includes('designer'), `the sub-agent group must be present in the same run; got: ${roles}`);
+});
+
+// ─── Zero-arg read root: dashedCwd + resolveDefaultTranscriptDir ─────────────
+
+test('Given a plain absolute cwd, when dashedCwd runs, then every path separator becomes a dash', () => {
+  const sut = dashedCwd;
+
+  const result = sut('/Users/scolladon/workspace/perso/craft');
+
+  assert.equal(result, '-Users-scolladon-workspace-perso-craft');
+});
+
+test('Given a cwd containing a dot, when dashedCwd runs, then the dot also becomes a dash', () => {
+  const sut = dashedCwd;
+
+  // Verified live: a scratchpad path nested under an already-dashed segment
+  // produces a doubled dash. No path on this box contains a '.', so the dot
+  // rule itself is asserted directly rather than reproduced from a live path.
+  const result = sut('/private/tmp/claude-501/-Users-x-craft/sub.dir/scratchpad');
+
+  assert.equal(result, '-private-tmp-claude-501--Users-x-craft-sub-dir-scratchpad');
+});
+
+test('Given source claude, when resolveDefaultTranscriptDir runs, then it joins the projects root with the dashed cwd', () => {
+  const sut = resolveDefaultTranscriptDir;
+
+  const result = sut('claude', '/root', '/a/b');
+
+  assert.equal(result, join('/root', '-a-b'));
+});
+
+test('Given a non-claude source, when resolveDefaultTranscriptDir runs, then it resolves to the root unchanged', () => {
+  const sut = resolveDefaultTranscriptDir;
+
+  const result = sut('opencode', '/root', '/a/b');
+
+  assert.equal(result, '/root');
+});
+
+test('Given no --dir flag, when main runs with an injected cwd, then it resolves the transcript dir under the dashed cwd inside the default projects root', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('projects-');
+  const cwd = '/some/project/path';
+  const dashedDir = join(projectsRoot, dashedCwd(cwd));
+  mkdirSync(dashedDir, { recursive: true });
+  writeFileSync(join(dashedDir, 'sess-zero.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot, cwd });
+
+  const result = await sut([], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.ok(report.runs.length > 0, 'the zero-arg run must resolve the dashed-cwd directory and mine it');
+});
+
+test('Given the default transcript dir resolves under one project, when main runs with --dir pointing at a different project under the same root, then containment still accepts it (the containment root did not shrink)', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('projects-');
+  const cwd = '/some/other/project';
+  const otherProjectDir = join(projectsRoot, 'another-project');
+  mkdirSync(otherProjectDir, { recursive: true });
+  writeFileSync(join(otherProjectDir, 'sess-other.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot, cwd });
+
+  const result = await sut(['--dir', otherProjectDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.ok(report.runs.length > 0, 'an explicit --dir at a different project under the unchanged containment root must still be accepted');
 });
 
 // ─── phase-skip signal — auto-skip token in transcript → report rec ───────────
