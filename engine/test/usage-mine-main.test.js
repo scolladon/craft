@@ -1056,6 +1056,40 @@ test('Given a sub-agent transcript labelled by its sidecar, when main runs, then
   assert.equal(groups[0].phase, 'review');
 });
 
+test('Given two reviewer sub-agent transcripts where one emits multiple billed turns, when main runs, then reviewCycles counts one cycle per spawn — not per billed turn — while billedTurns keeps the turn count', async () => {
+  const sut = main;
+  const sessionId = 'sess-cycles';
+  const { projectsRoot, transcriptDir } = makeClaudeProjectFixture({
+    sessionId,
+    subagents: [
+      {
+        id: '1',
+        lines: [
+          subagentAssistantLine({ sessionId, timestamp: '2026-01-01T00:05:00.000Z' }),
+          subagentAssistantLine({ sessionId, timestamp: '2026-01-01T00:05:05.000Z' }),
+        ],
+        sidecar: JSON.stringify({ agentType: 'craft:reviewer' }),
+      },
+      {
+        id: '2',
+        lines: [subagentAssistantLine({ sessionId, timestamp: '2026-01-01T00:06:00.000Z' })],
+        sidecar: JSON.stringify({ agentType: 'craft:reviewer' }),
+      },
+    ],
+  });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  const reviewerCycle = report.runs.flatMap(r => r.reviewCycles).find(c => c.role === 'reviewer');
+  assert.ok(reviewerCycle, 'a reviewer reviewCycles entry must exist');
+  assert.equal(reviewerCycle.cycles, 2, 'two sub-agent transcripts must count as two review cycles, regardless of billed-turn count');
+  assert.equal(reviewerCycle.billedTurns, 3, 'billedTurns must equal the three underlying billed turns (2 + 1)');
+});
+
 test('Given a sub-agent transcript with no sidecar file, when main runs, then the group carries role: null and stderr reports it as unlabelled', async () => {
   const sut = main;
   const sessionId = 'sess-nosidecar';

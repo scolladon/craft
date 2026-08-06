@@ -91,12 +91,12 @@ test('Given a cacheCreationTtl split, when aggregate prices creation, then creat
   assert.equal(group.cost.priced, (200 * 6.25 + 100 * 10) / 1e6);
 });
 
-// ── 4. Review cycles counted by role, totalCost/maxCost/meanCost aggregates ──
+// ── 4. Review cycles counted by distinct spawn, totalCost/maxCost/meanCost aggregates ──
 
-test('Given two review events grouped by role, when aggregate runs, then reviewCycles counts the cycles and emits totalCost/maxCost/meanCost aggregates', () => {
+test('Given two review events from two distinct spawns, when aggregate runs, then reviewCycles counts one cycle per spawn and emits totalCost/maxCost/meanCost aggregates over both billed turns', () => {
   const events = [
-    makeEvent({ phase: 'review', role: 'code', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
-    makeEvent({ phase: 'review', role: 'code', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 0, tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 1, tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
   ];
   const sut = aggregate;
 
@@ -106,11 +106,45 @@ test('Given two review events grouped by role, when aggregate runs, then reviewC
   assert.ok(cycles.length > 0);
   const codeCycle = cycles.find(c => c.role === 'code');
   assert.ok(codeCycle);
-  assert.equal(codeCycle.cycles, 2);
+  assert.equal(codeCycle.cycles, 2, 'two distinct spawnIds must count as two cycles');
+  assert.equal(codeCycle.billedTurns, 2, 'billedTurns must keep the per-turn count separately');
   assert.equal(typeof codeCycle.totalCost.priced, 'number');
   assert.equal(typeof codeCycle.maxCost.priced, 'number');
   assert.equal(typeof codeCycle.meanCost.priced, 'number');
   assert.equal(typeof codeCycle.totalCost.relative, 'number');
+});
+
+// ── 4b. Many billed turns from the SAME spawn count as one cycle (the regression) ──
+
+test('Given three review events sharing one spawnId (one reviewer sub-agent that emitted three billed turns), when aggregate runs, then reviewCycles counts exactly one cycle while billedTurns records all three', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code', spawnId: 7 }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 7 }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 7 }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const codeCycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  assert.equal(codeCycle.cycles, 1, 'three billed turns from one spawn must count as one review cycle, not three');
+  assert.equal(codeCycle.billedTurns, 3, 'billedTurns must still report the three underlying turns');
+});
+
+// ── 4c. Events with no spawn identity collapse into one cycle, never one per turn ──
+
+test('Given two review events with no spawnId (a source with no per-spawn transcript boundary), when aggregate runs, then they collapse into a single review cycle rather than being assumed distinct', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code' }),
+    makeEvent({ phase: 'review', role: 'code' }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const codeCycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  assert.equal(codeCycle.cycles, 1, 'events lacking a spawn identity must not be assumed to be distinct cycles');
+  assert.equal(codeCycle.billedTurns, 2, 'billedTurns still counts both turns');
 });
 
 // ── 5. Order-invariance ───────────────────────────────────────────────────────
@@ -321,19 +355,20 @@ test('Given a baseline object with no runs array (a malformed or schema-mismatch
 
 // ── 14. Review-waste recommendation fires at 3 cycles (F3) ───────────────────
 
-test('Given three review-cycle events in one run, when aggregate runs, then a review-waste recommendation is emitted with cycles=3 and numeric totalCost/meanCost aggregates', () => {
+test('Given three review events from three distinct spawns in one run, when aggregate runs, then a review-waste recommendation is emitted with cycles=3 and numeric totalCost/meanCost aggregates', () => {
   // REVIEW_WASTE_CYCLES = 2; >2 means 3+ cycles fire the rec.
-  const reviewEvent = (n) => makeEvent({
+  const reviewEvent = (spawnId) => makeEvent({
     phase: 'review',
     role: 'reviewer',
     model: 'model-a',
-    run: `run-${n}`,
+    run: 'run-rev',
+    spawnId,
     tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 },
   });
-  // Three reviewer events in the same run share the same run/role.
-  const event1 = { ...reviewEvent(1), run: 'run-rev' };
-  const event2 = { ...reviewEvent(2), run: 'run-rev' };
-  const event3 = { ...reviewEvent(3), run: 'run-rev' };
+  // Three reviewer events from three distinct spawns, all in the same run.
+  const event1 = reviewEvent(0);
+  const event2 = reviewEvent(1);
+  const event3 = reviewEvent(2);
   const sut = aggregate;
 
   const result = sut([event1, event2, event3], PRICE_TABLE);
@@ -341,7 +376,8 @@ test('Given three review-cycle events in one run, when aggregate runs, then a re
   const wasteRecs = result.recommendations.filter(r => r.kind === 'review-waste');
   assert.ok(wasteRecs.length > 0, 'review-waste recommendation must be emitted');
   const rec = wasteRecs[0];
-  assert.equal(rec.evidence.cycles, 3, 'evidence.cycles must equal 3');
+  assert.equal(rec.evidence.cycles, 3, 'evidence.cycles must equal 3 distinct spawns');
+  assert.equal(rec.evidence.billedTurns, 3, 'evidence.billedTurns must equal the 3 underlying turns');
   assert.equal(typeof rec.evidence.totalCost.priced, 'number', 'totalCost.priced must be a number');
   assert.equal(typeof rec.evidence.meanCost.priced, 'number', 'meanCost.priced must be a number');
   assert.equal(rec.evidence.totalCost.priced, rec.evidence.meanCost.priced * 3, 'totalCost must equal meanCost times the cycle count for equal-cost cycles');
@@ -638,11 +674,11 @@ test('Given two runs each with two models for the same phase, when aggregate run
 
 // ── 31. reviewWaste detail string and phase field ─────────────────────────────
 
-test('Given three review events for the same role, when aggregate runs, then the review-waste rec has phase=review and detail naming the role and cycle count', () => {
+test('Given three review events from three distinct spawns for the same role, when aggregate runs, then the review-waste rec has phase=review and detail naming the role and cycle count', () => {
   const events = [
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 0 }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 1 }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 2 }) },
   ];
   const sut = aggregate;
 
@@ -660,10 +696,10 @@ test('Given three review events for the same role, when aggregate runs, then the
 test('Given two recs of different kinds, when aggregate runs, then recommendations are sorted alphabetically by kind', () => {
   // cache-hotspot (c) sorts before model-routing (m) sorts before review-waste (r)
   const events = [
-    // review waste: 3 review events (r sorts last)
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
+    // review waste: 3 review events from 3 distinct spawns (r sorts last)
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 0 }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 1 }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 2 }) },
     // cache hotspot: high creation ratio (c sorts first)
     { ...makeEvent({ run: 'r1', phase: 'design', role: 'designer', tokens: { input: 0, cacheRead: 5, cacheCreation: 500, output: 0 } }) },
   ];
@@ -804,8 +840,8 @@ test('Given a group with a known priced cost, when renderMarkdown runs, then cos
 // ── 42. renderMarkdown: recommendations section present; null model shows n/a ─
 
 test('Given a report with a recommendation whose model is null, when renderMarkdown runs, then the recommendations section exists and shows n/a for model', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, () =>
-    makeEvent({ phase: 'review', role: 'reviewer' })
+  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, (_, spawnId) =>
+    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
   );
   const sut = renderMarkdown;
 
@@ -830,8 +866,8 @@ test('Given an empty events array, when renderMarkdown runs on the no-data repor
 // ── 44. serializeReport: keys alphabetically sorted and trailing newline ──────
 
 test('Given a report object with a null model recommendation, when serializeReport runs, then JSON keys are alphabetically sorted, null is preserved, and output ends with a newline', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, () =>
-    makeEvent({ phase: 'review', role: 'reviewer' })
+  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, (_, spawnId) =>
+    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
   );
   const report = aggregate(events, PRICE_TABLE);
   const sut = serializeReport;
@@ -907,9 +943,9 @@ test('Given two groups in the same run/phase with different priced costs, when a
 
 // ── 49. reviewWasteRecs: exactly REVIEW_WASTE_CYCLES does not fire ────────────
 
-test('Given review cycles exactly equal to REVIEW_WASTE_CYCLES, when aggregate runs, then no review-waste recommendation is emitted', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES }, () =>
-    makeEvent({ phase: 'review', role: 'reviewer' })
+test('Given review cycles from distinct spawns exactly equal to REVIEW_WASTE_CYCLES, when aggregate runs, then no review-waste recommendation is emitted', () => {
+  const events = Array.from({ length: REVIEW_WASTE_CYCLES }, (_, spawnId) =>
+    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
   );
 
   const result = aggregate(events, PRICE_TABLE);

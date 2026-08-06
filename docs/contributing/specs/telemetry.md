@@ -14,8 +14,14 @@ subjects: ['engine/src/observability/**']
     path; the `readTranscripts` provider owns the runtime path.
   - **post**: each returned `UsageEvent` is path-free, PII-free, and carries only the fields the
     core expects: `run`, `slug?`, `phase`, `role?`, `model`, `tokens`, `messages`,
-    `durationMs`, `cacheCreationTtl?`. The adapter never throws; partial data returns a partial
-    (possibly empty) array, never a rejection.
+    `durationMs`, `cacheCreationTtl?`, `spawnId?`. The adapter never throws; partial data returns a
+    partial (possibly empty) array, never a rejection.
+  - `spawnId` is an opaque per-transcript ordinal (never a path, filename, or agent id) that
+    identifies which sub-agent spawn an event came from — see
+    [reviewCycles](#reviewcycles-runsreviewcycles) below for why the core needs it. Only the
+    claude binding populates it (`null` on its main-loop events, since a main-loop transcript is
+    not itself a spawn); every other binding omits the field, which the core treats identically to
+    `null`.
 
 - `aggregate(events, priceTable, baselineReport?, threshold?) → report` — pure core function
   consuming the `UsageEvent[]` stream produced by `collect`; emits the structured `report` object
@@ -46,6 +52,12 @@ The valid bindings are **`{ claude, pi, opencode, copilot, codex, aider }`**.
 - **sessionId injection** (ADR-186): when the caller supplies a `sessionId` the binding attaches
   it as the `run` field on each event, providing stable run identity across re-runs of the same
   session.
+- **Spawn identity**: the front door (`usage-mine-main.js`) discovers one entry per transcript
+  file and stamps an opaque positional ordinal onto each entry's parse context as `spawnId`
+  before calling this binding — never the path, filename, or agent id. Because `parseLines` is
+  invoked exactly once per sub-agent transcript, and one sub-agent transcript IS one spawn, every
+  event a single call emits carries that call's `spawnId`, however many billed turns the
+  transcript contains. Main-loop events always carry `spawnId: null`.
 
 The binding is called once per invocation by the CLI front-door (`engine/src/observability/usage-mine-main.js`),
 which resolves flags, injects deps, and passes the resulting `UsageEvent[]` to `aggregate`.
@@ -321,7 +333,7 @@ Keys deep-sorted: `cacheEfficiency`, `cost`, `durationMs`, `messages`, `model`, 
   "messages": 3,
   "model": "claude-sonnet-4-5",
   "phase": "implement",
-  "role": "craft:part-implementer",
+  "role": "part-implementer",
   "tokens": {
     "cacheCreation": 1200,
     "cacheRead": 800,
@@ -342,25 +354,37 @@ is zero.
 
 ### reviewCycles (`runs[*].reviewCycles[*]`)
 
-Keys deep-sorted: `cycles`, `maxCost`, `meanCost`, `role`, `totalCost`.
+Keys deep-sorted: `billedTurns`, `cycles`, `maxCost`, `meanCost`, `role`, `totalCost`.
 
 ```json
 {
+  "billedTurns": 5,
   "cycles": 2,
   "maxCost": { "priced": 0.0015, "relative": 5200 },
   "meanCost": { "priced": 0.00135, "relative": 4750 },
-  "role": "craft:reviewer",
+  "role": "reviewer",
   "totalCost": { "priced": 0.0027, "relative": 9500 }
 }
 ```
 
-`totalCost`, `maxCost`, and `meanCost` are O(1)-per-role aggregates over the role's review-cycle
-events, computed in the same pass that builds `groups` — `reviewCycles` size stays proportional to
-distinct `(run, role)` pairs, never to turn/message count. Each mirrors the `cost: { priced,
-relative }` shape every group already carries: `priced` and `relative` are aggregated as two
-separate dimensions, never collapsed together. `priced` is `null` for all three fields the moment
-any one cycle's model lacks pricing — a partial sum would misrepresent the role's true cost, not
-merely omit a data point; `relative` is always present.
+`cycles` is the count of **distinct sub-agent spawns**, not billed turns: a single reviewer
+sub-agent can emit many billed-turn events (one per assistant `message.id`), and each event
+carries the opaque `spawnId` its transcript file was assigned (see
+[Spawn identity](#claude-binding) above) — `cycles` is `new Set(events.map(e => e.spawnId)).size`
+over the role's review-phase events. Events sharing no spawn identity at all (an `undefined`
+`spawnId`, e.g. a binding with no per-spawn transcript boundary) collapse into a single cycle
+rather than being assumed distinct. `billedTurns` keeps the older per-turn count — the size of the
+underlying event list — available alongside `cycles` rather than dropping it; it is what `cycles`
+used to mean before this fix, and grows with corpus size the way `cycles` no longer does.
+
+`totalCost`, `maxCost`, and `meanCost` are O(1)-per-role aggregates over **all** of the role's
+review-cycle events (every billed turn, not deduplicated by spawn), computed in the same pass that
+builds `groups` — `reviewCycles` size stays proportional to distinct `(run, role)` pairs, never to
+turn/message count. Each mirrors the `cost: { priced, relative }` shape every group already
+carries: `priced` and `relative` are aggregated as two separate dimensions, never collapsed
+together. `priced` is `null` for all three fields the moment any one cycle's model lacks pricing —
+a partial sum would misrepresent the role's true cost, not merely omit a data point; `relative` is
+always present.
 
 ### Recommendations (`recommendations[*]`)
 
@@ -407,12 +431,13 @@ Three kinds are currently emitted:
 
 ```json
 {
-  "detail": "role craft:reviewer has 5 review cycles",
+  "detail": "role reviewer has 5 review cycles",
   "evidence": {
+    "billedTurns": 11,
     "cycles": 5,
     "maxCost": { "priced": 0.001, "relative": 3500 },
     "meanCost": { "priced": 0.001, "relative": 3500 },
-    "role": "craft:reviewer",
+    "role": "reviewer",
     "totalCost": { "priced": 0.005, "relative": 17500 }
   },
   "kind": "review-waste",
@@ -421,6 +446,9 @@ Three kinds are currently emitted:
   "run": "session-abc123"
 }
 ```
+
+`evidence` mirrors its `reviewCycles` entry exactly, `billedTurns` included — see
+[reviewCycles](#reviewcycles-runsreviewcycles) above for what each field means.
 
 ### Baseline deltas (`baselineDeltas[*]`)
 
@@ -434,7 +462,7 @@ baseline reports (matched by `run + phase + role + model`). Keys deep-sorted:
   "model": "claude-sonnet-4-5",
   "phase": "implement",
   "pricedCostDelta": -0.0003,
-  "role": "craft:part-implementer",
+  "role": "part-implementer",
   "run": "session-abc123",
   "tokensDelta": {
     "cacheCreation": 100,

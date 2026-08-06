@@ -147,25 +147,52 @@ function toReportGroup(enriched) {
 
 // ── Private: review cycles ────────────────────────────────────────────────────
 
-function sum(values) {
-  return values.reduce((total, v) => total + v, 0);
-}
-
 // aggregates one cost dimension (all-priced or all-relative values) in
 // isolation — the caller never mixes the two into one array. The moment any
 // single value is null (an unpriced model among the role's cycles), the whole
 // dimension aggregates to null: a partial sum would misrepresent the role's
 // true cost, not merely omit a data point.
+// `values` is one entry per billed turn, so it grows with corpus size — total
+// and max are folded into this single reduce pass (never Math.max(...values),
+// which would throw RangeError past ~120k spread arguments, and aggregate()
+// sits outside any try/catch, which would turn an advisory exit-0 tool into a
+// hard failure). `mean` in the caller derives from `total` rather than a
+// second traversal.
+function sumAndMax(values) {
+  return values.reduce(
+    (acc, v) => ({ total: acc.total + v, max: v > acc.max ? v : acc.max }),
+    { total: 0, max: -Infinity }
+  );
+}
+
 function aggregateCostDimension(values) {
   if (values.some(v => v == null)) return { total: null, max: null, mean: null };
-  return { total: sum(values), max: Math.max(...values), mean: sum(values) / values.length };
+  const { total, max } = sumAndMax(values);
+  return { total, max, mean: total / values.length };
+}
+
+// A "cycle" is one sub-agent spawn, not one billed turn: a single reviewer
+// sub-agent can emit many billed-turn events (one per assistant message.id),
+// and counting those turns as cycles is exactly the defect this fixes. `evt.
+// spawnId` is the opaque per-transcript ordinal the claude adapter stamps
+// onto every event it emits from one parseLines() call — one call per
+// sub-agent transcript, one transcript per spawn — so events sharing a
+// spawnId collapse to the one cycle they actually came from. Events that
+// carry no spawn identity at all (main-loop events, which never reach here
+// since their phase is always null; or a source with no per-spawn transcript
+// boundary) share the single `undefined` key and collapse together too —
+// honest under-counting rather than assuming turn-count distinctness.
+function distinctSpawnCount(evts) {
+  return new Set(evts.map(e => e.spawnId)).size;
 }
 
 // O(1)-per-role aggregate evidence computed in the same single pass, so
 // reviewCycles size stays proportional to distinct (run, role) pairs rather
 // than to turn count. priced and relative stay in their own { priced, relative }
 // shape at every level — mirroring the shape every group already carries —
-// never collapsed together with `??`.
+// never collapsed together with `??`. `billedTurns` keeps the pre-fix
+// per-turn count available (cost/schedule signal) alongside the corrected
+// `cycles` (spawn-identity signal) rather than dropping it.
 function buildReviewCycles(events, priceTable) {
   const byRole = new Map();
   for (const evt of events) {
@@ -182,7 +209,8 @@ function buildReviewCycles(events, priceTable) {
       const relative = aggregateCostDimension(costs.map(c => c.relative));
       return {
         role,
-        cycles: evts.length,
+        cycles: distinctSpawnCount(evts),
+        billedTurns: evts.length,
         totalCost: { priced: priced.total, relative: relative.total },
         maxCost: { priced: priced.max, relative: relative.max },
         meanCost: { priced: priced.mean, relative: relative.mean },
@@ -274,7 +302,7 @@ function reviewWasteRecs(runs) {
         kind: 'review-waste', run: run.run, phase: 'review', model: null,
         detail: `role ${rc.role} has ${rc.cycles} review cycles`,
         evidence: {
-          role: rc.role, cycles: rc.cycles,
+          role: rc.role, cycles: rc.cycles, billedTurns: rc.billedTurns,
           totalCost: rc.totalCost, maxCost: rc.maxCost, meanCost: rc.meanCost,
         },
       }))

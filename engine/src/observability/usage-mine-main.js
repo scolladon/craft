@@ -274,7 +274,13 @@ async function streamTranscriptFiles(entries, transcriptDir, createReadStream, c
   // it is counted here and surfaced on stderr by the caller, same as every
   // other counted-fallback branch.
   let failed = 0;
-  for (const entry of entries) {
+  // `entries.entries()` gives each transcript file an opaque positional
+  // ordinal — never the path, filename, or agent id itself. parseLines is
+  // invoked exactly once per entry, so one sub-agent transcript IS one
+  // spawn: the claude adapter stamps this ordinal onto every event that one
+  // call emits, giving the aggregate core a spawn identity to count review
+  // cycles by instead of billed turns. Non-claude adapters ignore the field.
+  for (const [spawnId, entry] of entries.entries()) {
     // A3: per-entry containment guard — a discovery-supplied relPath is
     // realpath-checked before streaming exactly like a flat filename was;
     // reach extends to the discovery depth, the check itself is unchanged.
@@ -284,7 +290,7 @@ async function streamTranscriptFiles(entries, transcriptDir, createReadStream, c
       // Streaming via readline — never readFileSync — avoids OOM on large transcripts.
       const stream = createReadStream(safeFile);
       const lines = createInterface({ input: stream, crlfDelay: Infinity });
-      const parseContext = { ...(entry.context ?? {}), includeInline };
+      const parseContext = { ...(entry.context ?? {}), includeInline, spawnId };
       const { events, skipped, markers, unlabelled } = await parseTranscriptLines(lines, since, parseContext);
       // G2: for-of avoids spread-on-large-array stack overflow.
       for (const e of events) allEvents.push(e);

@@ -34,12 +34,16 @@ const SUBAGENTS_DIR = 'subagents';
 const TRANSCRIPT_SUFFIX = '.jsonl';
 const SIDECAR_SUFFIX = '.meta.json';
 const SUBAGENT_PREFIX = 'agent-';
-// the sidecar's agentType is untrusted upstream content — bound it to a
-// canonical lowercase identifier before it can reach a `context` and, from
-// there, any bare object-property lookup downstream (report.json's phase
-// mapping). A value failing this shape is treated identically to a missing
-// sidecar: no label, counted — never a throw.
-const AGENT_TYPE_PATTERN = /^[a-z][a-z0-9:-]{0,63}$/;
+// the sidecar's agentType is untrusted upstream content — this pattern is a
+// shape/length bound for report hygiene only (stock Claude Code agent types
+// like `Explore` and `Plan` are capitalised, so the bound must accept them).
+// It is NOT what stops a prototype-pollution key (e.g. "constructor", which
+// passes this pattern cleanly) from resolving as a bogus phase or price
+// entry downstream — that protection is `Object.hasOwn` at every lookup
+// site (phaseFromAgentType, lookupPrices), not this pattern. A value failing
+// this shape is treated identically to a missing sidecar: no label,
+// counted — never a throw.
+const AGENT_TYPE_PATTERN = /^[A-Za-z][A-Za-z0-9:_-]{0,63}$/;
 
 /**
  * @param {{ listDir: (relPath: string) => string[] | null,

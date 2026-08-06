@@ -205,11 +205,18 @@ function foldEventByMessageId(events, indexByMessageId, messageId, candidateEven
  * `auto-skip:` run-record scan off (those tokens are orchestrator prose, and a
  * sub-agent transcript is untrusted output, not a run record), and folds the
  * transcript's timestamp span onto the last emitted event's `durationMs`
- * instead of leaving it at 0.
+ * instead of leaving it at 0. It also stamps `context.spawnId` — the opaque
+ * per-transcript ordinal the front door assigns once per parseLines() call —
+ * onto every emitted event as `spawnId`, giving the aggregate core a spawn
+ * identity to count review cycles by (one sub-agent transcript IS one spawn,
+ * however many billed turns it contains). Main-loop events always carry
+ * `spawnId: null`: a main-loop transcript is not itself a spawn, and its
+ * events never reach `phase: 'review'` in the first place (phase is always
+ * null on the main-loop path below).
  *
  * @param {AsyncIterable<string>} lines - Line stream
  * @param {string | null} [since] - ISO timestamp cutoff (inclusive lower bound)
- * @param {{ sourceKind?: string, agentType?: string | null, includeInline?: boolean } | null} [context]
+ * @param {{ sourceKind?: string, agentType?: string | null, includeInline?: boolean, spawnId?: number } | null} [context]
  * @returns {Promise<{ events: object[], skipped: number, markers: object[], unlabelled: number }>}
  */
 export async function parseLines(lines, since = null, context = null) {
@@ -266,12 +273,16 @@ export async function parseLines(lines, since = null, context = null) {
     const role = isSubagent ? roleFromAgentType(context.agentType) : 'main-loop';
     if (role === null) sawUnlabelledEvent = true;
     const phase = isSubagent ? phaseFromAgentType(context.agentType) : null;
+    // See the module header: a spawn identity belongs only to a sub-agent
+    // transcript, never to the main loop.
+    const spawnId = isSubagent ? (context.spawnId ?? null) : null;
 
     foldEventByMessageId(events, indexByMessageId, messageId, {
       run: parsed.sessionId ?? null,
       slug: parsed.slug ?? null,
       phase,
       role,
+      spawnId,
       model: normalizeModel(parsed.message?.model ?? null),
       tokens,
       cacheCreationTtl,

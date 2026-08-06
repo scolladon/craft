@@ -282,6 +282,24 @@ test('Given a sub-agent transcript whose sidecar carries an agentType longer tha
   assert.equal(result.entries[0].context.agentType, null, 'an over-length agentType must be rejected by the bounded identifier pattern');
 });
 
+// ── 11d. a capitalised stock agent type (e.g. "Explore") survives as a label ──
+
+test('Given a sub-agent transcript whose sidecar carries agentType "Explore" (a capitalised stock Claude Code agent type), when discover runs, then it survives as the agentType label instead of being rejected', () => {
+  const ports = makePorts({
+    dirs: {
+      '': ['sess-a'],
+      'sess-a': ['subagents'],
+      'sess-a/subagents': ['agent-1.jsonl'],
+    },
+    files: { 'sess-a/subagents/agent-1.meta.json': '{"agentType":"Explore"}' },
+  });
+  const sut = discover;
+
+  const result = sut(ports);
+
+  assert.equal(result.entries[0].context.agentType, 'Explore', 'a capitalised stock agent type must survive, not be treated as a missing sidecar');
+});
+
 // ── 12. an unlistable root yields zero entries and does not throw ─────────
 
 test('Given a root that cannot be listed at all, when discover runs, then it yields zero entries and does not throw', () => {
