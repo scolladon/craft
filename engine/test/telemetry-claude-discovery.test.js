@@ -221,7 +221,7 @@ test('Given a sub-agent transcript whose sidecar is valid JSON but carries no ag
   assert.equal(result.entries[0].context.agentType, null);
 });
 
-// ── 11b. F1: a sidecar agentType shaped as a prototype-pollution key is rejected ──
+// ── 11b. a sidecar agentType shaped as a prototype-pollution key is rejected ──
 
 test('Given a sub-agent transcript whose sidecar carries agentType "__proto__", when discover runs, then it yields agentType null — the same outcome as a missing sidecar', () => {
   const ports = makePorts({
@@ -239,7 +239,7 @@ test('Given a sub-agent transcript whose sidecar carries agentType "__proto__", 
   assert.equal(result.entries[0].context.agentType, null, 'a prototype-pollution-shaped agentType must be rejected, not passed through');
 });
 
-// ── 11c. F1: an out-of-bounds-length sidecar agentType is rejected ────────
+// ── 11c. an out-of-bounds-length sidecar agentType is rejected ────────
 
 test('Given a sub-agent transcript whose sidecar carries an agentType longer than the bounded identifier pattern allows, when discover runs, then it yields agentType null', () => {
   const overlong = 'a'.repeat(65);

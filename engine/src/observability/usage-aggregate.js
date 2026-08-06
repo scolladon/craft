@@ -60,7 +60,7 @@ function computePricedCost(tokens, cacheCreationTtl, prices) {
   );
 }
 
-// F2: model is a transcript-controlled string — a bare priceTable[model] access
+// model is a transcript-controlled string — a bare priceTable[model] access
 // would resolve an inherited Object.prototype member (e.g. model: "constructor")
 // to a truthy-but-wrong price entry and corrupt cost math with NaN. Object.hasOwn
 // gates the lookup to the table's own keys only, mirroring the front door's
@@ -151,7 +151,7 @@ function sum(values) {
   return values.reduce((total, v) => total + v, 0);
 }
 
-// F4b: aggregates one cost dimension (all-priced or all-relative values) in
+// aggregates one cost dimension (all-priced or all-relative values) in
 // isolation — the caller never mixes the two into one array. The moment any
 // single value is null (an unpriced model among the role's cycles), the whole
 // dimension aggregates to null: a partial sum would misrepresent the role's
@@ -161,7 +161,7 @@ function aggregateCostDimension(values) {
   return { total: sum(values), max: Math.max(...values), mean: sum(values) / values.length };
 }
 
-// F4: O(1)-per-role aggregate evidence computed in the same single pass, so
+// O(1)-per-role aggregate evidence computed in the same single pass, so
 // reviewCycles size stays proportional to distinct (run, role) pairs rather
 // than to turn count. priced and relative stay in their own { priced, relative }
 // shape at every level — mirroring the shape every group already carries —
@@ -234,7 +234,7 @@ function cacheHotspotRecs(enrichedGroups) {
 }
 
 function buildRoutingRec(expensive, cheap, priceTable) {
-  const cheapPrices = priceTable[cheap.model];
+  const cheapPrices = lookupPrices(priceTable, cheap.model);
   if (!cheapPrices) return null;
   const projected = computePricedCost(expensive.tokens, expensive.cacheCreationTtl, cheapPrices);
   if (projected >= expensive.cost.priced) return null;

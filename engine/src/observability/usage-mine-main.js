@@ -270,7 +270,7 @@ async function streamTranscriptFiles(entries, transcriptDir, createReadStream, c
   let totalSkipped = 0;
   let totalUnlabelled = 0;
   let refused = 0;
-  // F3: a transcript that fails to open or parse must not vanish silently —
+  // a transcript that fails to open or parse must not vanish silently —
   // it is counted here and surfaced on stderr by the caller, same as every
   // other counted-fallback branch.
   let failed = 0;
@@ -448,7 +448,7 @@ export async function main(argv, io) {
   if (unlabelled > 0) stderr.write(`usage-mine: ${unlabelled} transcript(s) with no resolvable agent label\n`);
   if (unreadable > 0) stderr.write(`usage-mine: ${unreadable} unreadable sub-agent directory(ies)\n`);
   if (refused > 0) stderr.write(`usage-mine: ${refused} path(s) refused by read containment\n`);
-  // F3: a transcript dropped by streamTranscriptFiles' catch (open/parse failure)
+  // a transcript dropped by streamTranscriptFiles' catch (open/parse failure)
   // must leave the same kind of trace as every other counted-fallback branch.
   if (failed > 0) stderr.write(`usage-mine: ${failed} transcript(s) could not be read\n`);
 

@@ -34,7 +34,7 @@ const SUBAGENTS_DIR = 'subagents';
 const TRANSCRIPT_SUFFIX = '.jsonl';
 const SIDECAR_SUFFIX = '.meta.json';
 const SUBAGENT_PREFIX = 'agent-';
-// F1: the sidecar's agentType is untrusted upstream content — bound it to a
+// the sidecar's agentType is untrusted upstream content — bound it to a
 // canonical lowercase identifier before it can reach a `context` and, from
 // there, any bare object-property lookup downstream (report.json's phase
 // mapping). A value failing this shape is treated identically to a missing
@@ -88,7 +88,7 @@ export function discover({ listDir, readText }) {
     for (const subagentName of [...subagentNames].sort()) {
       if (!subagentName.startsWith(SUBAGENT_PREFIX) || !subagentName.endsWith(TRANSCRIPT_SUFFIX)) continue;
 
-      // F6: derived from the two named suffix constants, not a re-hardcoded
+      // derived from the two named suffix constants, not a re-hardcoded
       // literal — subagentName is already confirmed to end with TRANSCRIPT_SUFFIX
       // by the guard above.
       const sidecarName = subagentName.slice(0, -TRANSCRIPT_SUFFIX.length) + SIDECAR_SUFFIX;

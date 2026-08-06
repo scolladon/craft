@@ -62,7 +62,7 @@ test('Given an event whose model key is absent from the price table, when aggreg
   assert.ok(group.cost.relative > 0);
 });
 
-// ── 2b. F2: model colliding with an Object.prototype member never resolves as pricing ──
+// ── 2b. model colliding with an Object.prototype member never resolves as pricing ──
 
 test('Given an event whose model is the literal string "constructor" (an inherited Object.prototype member), when aggregate runs, then cost.priced is null, not NaN', () => {
   const event = makeEvent({ model: 'constructor' });
@@ -477,7 +477,7 @@ test('Given two review events with the same role and known tokens, when aggregat
   assert.equal(cycle.meanCost.priced, 500 / 1e6, 'meanCost.priced must be the exact per-cycle cost (both cycles equal)');
 });
 
-// ── 22b. F4b: priced and relative aggregates never collapse into one mixed-unit figure ──
+// ── 22b. priced and relative aggregates never collapse into one mixed-unit figure ──
 
 test('Given a review-cycle event whose model is unpriced, when aggregate runs, then reviewCycles priced aggregates are null while relative aggregates stay numeric (units never collapse)', () => {
   const events = [

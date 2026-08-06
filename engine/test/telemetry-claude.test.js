@@ -309,7 +309,7 @@ test('Given each recognized craft agentType via an injected sub-agent context, w
   }
 });
 
-// ── 16b. parseLines — F1: a role colliding with an Object.prototype member never
+// ── 16b. parseLines — a role colliding with an Object.prototype member never
 // resolves the inherited member as a phase ────────────────────────────────────
 
 test('Given a sub-agent context whose agentType strips to the role "constructor" (an inherited Object.prototype member), when parseLines runs, then phase is null, not the Object function', async () => {

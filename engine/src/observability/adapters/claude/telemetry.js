@@ -96,7 +96,7 @@ function roleFromAgentType(agentType) {
  */
 function phaseFromAgentType(agentType) {
   const role = roleFromAgentType(agentType);
-  // F1: role is derived from an untrusted sidecar/transcript field — a bare
+  // role is derived from an untrusted sidecar/transcript field — a bare
   // ROLE_TO_PHASE[role] would resolve an inherited Object.prototype member
   // (e.g. role: "constructor" → the Object function) as a truthy-but-wrong
   // phase. Object.hasOwn gates the lookup to the table's own keys only.
