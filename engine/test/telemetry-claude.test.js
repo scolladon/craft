@@ -630,3 +630,159 @@ test('Given a generated mix of rollup lines, usage lines, blank lines and malfor
     assert.equal(total, expectedTotal, 'total emitted tokens must equal the sum over usage lines alone');
   }
 });
+
+// ── 29. parseLines — cacheCreationTtl is pinned on the emitted event ─────────
+
+test('Given a usage-bearing line carrying a cache_creation 5m/1h split, when parseLines runs, then the emitted event cacheCreationTtl deep-equals the split', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant', sessionId: 'sess-ttl', timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: 'claude-sonnet-4-6',
+      usage: {
+        input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 27, output_tokens: 1,
+        cache_creation: { ephemeral_5m_input_tokens: 20, ephemeral_1h_input_tokens: 7 },
+      },
+    },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.deepEqual(result.events[0].cacheCreationTtl, { creation5m: 20, creation1h: 7 });
+});
+
+// ── 30. parseLines — <synthetic>-model lines never surface as billed events ──
+
+test('Given an assistant line carrying model <synthetic> and a message.usage block, when parseLines runs, then no event is emitted and the line does not count as skipped', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant', sessionId: 'sess-synth', timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: '<synthetic>',
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events.length, 0, 'a synthetic-model line is a zero-cost injected turn, not a billed event');
+  assert.equal(result.skipped, 0, 'a well-formed synthetic line must not count as skipped');
+});
+
+// ── 31. parseLines — a truthy but unrecognized agentType passes through as role ──
+
+test('Given a sub-agent context whose agentType is truthy but unrecognized, when parseLines runs, then role is the raw agentType, phase is null, and unlabelled is 0', async () => {
+  const sut = parseLines;
+  const usageLine = JSON.stringify({
+    type: 'assistant', sessionId: 's1', timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: 'claude-sonnet-4-6',
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+
+  const result = await sut(asyncLines([usageLine]), null, { sourceKind: 'subagent', agentType: 'code-reviewer' });
+
+  assert.equal(result.events[0].role, 'code-reviewer', 'an unrecognized agentType still resolves to a role');
+  assert.equal(result.events[0].phase, null, 'an unrecognized agentType has no phase mapping');
+  assert.equal(result.unlabelled, 0, 'a resolved role must not count as unlabelled');
+});
+
+// ── 32. parseLines — unlabelled is a 0/1 transcript flag, not a per-event count ──
+
+test('Given two usage-bearing lines with a null agentType, when parseLines runs, then both emit events but unlabelled stays 1, not 2', async () => {
+  const sut = parseLines;
+  const mkLine = (sessionId) => JSON.stringify({
+    type: 'assistant', sessionId, timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: 'claude-sonnet-4-6',
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+
+  const result = await sut(
+    asyncLines([mkLine('sess-a'), mkLine('sess-b')]),
+    null,
+    { sourceKind: 'subagent', agentType: null },
+  );
+
+  assert.equal(result.events.length, 2, 'both unlabelled lines still emit their own events');
+  assert.equal(result.unlabelled, 1, 'unlabelled must be a flag pinned at 1, not a count of unlabelled lines');
+});
+
+// ── 33. parseLines — one assistant message split across content-block lines ──
+
+test('Given one assistant message split across three lines (thinking, text, tool_use) sharing message.id with identical input/cache and growing output, when parseLines runs, then exactly one event is emitted carrying the last line tokens, and messages counts the billed turn once', async () => {
+  const sut = parseLines;
+  const mkLine = (blockType, outputTokens) => JSON.stringify({
+    type: 'assistant', sessionId: 'sess-multi', timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      id: 'msg-1', role: 'assistant', model: 'claude-sonnet-4-6', type: blockType,
+      usage: { input_tokens: 40, cache_read_input_tokens: 500, cache_creation_input_tokens: 0, output_tokens: outputTokens },
+    },
+  });
+
+  const result = await sut(asyncLines([
+    mkLine('thinking', 5),
+    mkLine('text', 12),
+    mkLine('tool_use', 30),
+  ]));
+
+  assert.equal(result.events.length, 1, 'a single billed turn yields exactly one event, not one per content block');
+  assert.equal(result.events[0].tokens.output, 30, 'the last line carries the complete turn');
+  assert.equal(result.events[0].tokens.input, 40, 'input is a per-request field, counted once, not summed across blocks');
+  assert.equal(result.events[0].messages, 1, 'messages counts the billed turn, not the transcript line count');
+});
+
+// ── 34. parseLines — lines without message.id have nothing to dedup against ──
+
+test('Given two usage-bearing lines that carry no message.id, when parseLines runs, then each emits its own event unconditionally', async () => {
+  const sut = parseLines;
+  const mkLine = (input) => JSON.stringify({
+    type: 'assistant', sessionId: 'sess-noid', timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: 'claude-sonnet-4-6',
+      usage: { input_tokens: input, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: input },
+    },
+  });
+
+  const result = await sut(asyncLines([mkLine(1), mkLine(2)]));
+
+  assert.equal(result.events.length, 2, 'lines without message.id have nothing to key a dedup against, so both must emit');
+});
+
+// ── 35. parseLines — dedup interacts correctly with sub-agent span and billed-turn count ──
+
+test('Given a sub-agent stream where one message spans two lines and a second single-line message follows, when parseLines runs, then two events are emitted, the span still folds over all three lines onto the last event, and messages sums to the two billed turns', async () => {
+  const sut = parseLines;
+  const t0 = '2026-01-01T00:00:00.000Z';
+  const t1 = '2026-01-01T00:03:00.000Z';
+  const t2 = '2026-01-01T00:08:00.000Z';
+  const firstMessageLine = (ts, outputTokens) => JSON.stringify({
+    type: 'assistant', sessionId: 'sess-parent', timestamp: ts,
+    message: {
+      id: 'msg-a', role: 'assistant', model: 'claude-opus-4-8',
+      usage: { input_tokens: 7, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: outputTokens },
+    },
+  });
+  const secondMessageLine = JSON.stringify({
+    type: 'assistant', sessionId: 'sess-parent', timestamp: t2,
+    message: {
+      id: 'msg-b', role: 'assistant', model: 'claude-opus-4-8',
+      usage: { input_tokens: 3, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 4 },
+    },
+  });
+
+  const result = await sut(
+    asyncLines([firstMessageLine(t0, 2), firstMessageLine(t1, 9), secondMessageLine]),
+    null,
+    { sourceKind: 'subagent', agentType: 'craft:designer' },
+  );
+
+  assert.equal(result.events.length, 2, 'two distinct message ids yield two events, not three lines');
+  assert.equal(result.events[0].tokens.output, 9, 'the repeated message keeps its last-line tokens');
+  assert.equal(result.events[0].durationMs, 0, 'only the last event carries the folded span');
+  assert.equal(result.events[1].durationMs, Date.parse(t2) - Date.parse(t0), 'the span folds over all three lines regardless of dedup');
+  const totalMessages = result.events.reduce((sum, e) => sum + e.messages, 0);
+  assert.equal(totalMessages, 2, 'messages sums to the two billed turns, not the three transcript lines');
+});
