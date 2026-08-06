@@ -5,9 +5,35 @@
 > the per-sub-agent transcripts on disk instead of the spawn rollup's final-message usage,
 > without double-counting, without dropping in-flight sub-agents, and without turning the
 > advisory observability port into a gate.
-> Status: draft → self-reviewed ×3 → accepted-pending-ADR
+> Status: draft → self-reviewed ×3 → accepted-pending-ADR → **revised against ADR-328…338, self-reviewed ×3, accepted**
 
 ## Context
+
+**Eleven decisions are ratified and binding. Nothing in this section is open.** The planner
+reads a settled design; it must not re-litigate any of the following, and the *Decision
+candidates* table below records each as SETTLED with its ADR.
+
+| ADR | Settled |
+|---|---|
+| 328 | Sub-agent labels come from the `agent-<id>.meta.json` sidecar; spawn rollups are never read — not for tokens, not for labels |
+| 329 | Main-loop usage is **included by default**, as one `role: 'main-loop'`, `phase: null` group; `--no-inline` opts out; refines ADR-187 |
+| 330 | The `.claude/craft-metrics.md` row is sourced from the phase's own sub-agent transcript; `skills/run/SKILL.md` **is in scope**; refines ADR-119/184 |
+| 331 | The 372 historical ledger rows are annotated with one boundary marker, never migrated |
+| 332 | The drift baseline is regenerated in this change, **after** the pricing correction and **with** main-loop inclusion on |
+| 333 | Two-level discovery lives in the claude adapter as `discover({ listDir, readText })`; the front door keeps every path, containment check, and I/O |
+| 334 | The sidecar context reaches `parseLines` as an opaque third argument the front door never inspects |
+| 335 | The walk is a pinned two-level shape, not a generic recursion |
+| 336 | The zero-arg read root resolves the dashed cwd under `~/.claude/projects` |
+| 337 | Sub-agent `messages`/`durationMs` derive from the transcript, not from a rollup join |
+| 338 | **Priced cost is corrected in this change** — the two current model entries *and* the missing `1e6` divisor |
+
+**ADR-338 deviates from what this doc originally recommended, and it moves real work.** The
+earlier draft recommended DC-10(a) — tokens only, document the dollar gap, file follow-ups —
+honoring the brief's "pricing table updates are out of scope" line. The user chose (c). The
+priced-cost path is therefore designed here, not deferred, and `$297.55` became a claim this
+change must verify rather than a gap it may document. ADR-330 likewise widened the boundary:
+`skills/run/SKILL.md` is in. The *Out of scope* section states the ratified boundary, not the
+brief's original one.
 
 What exists today, and the patterns this feature must follow:
 
@@ -49,18 +75,22 @@ What exists today, and the patterns this feature must follow:
   change reads (a sidecar file, a filename) must be mapped into the existing whitelisted
   fields or dropped; nothing new gets emitted.
 
-- **Prior decisions this design is bound by.** ADR-186 (run identity is the `sessionId`,
-  so re-mining the same session yields identical `run` values and diffing is meaningful).
-  ADR-187 (inline per-turn usage is a noted gap; `--include-inline` is the opt-in — this
-  design proposes revisiting it, which is why it is a decision candidate and not a
-  unilateral change). ADR-119 (`.claude/craft-metrics.md` is a separate append-only metrics
-  artifact, never the learnings store). **ADR-184** is the one this change most directly
-  strains: it settled that the miner *complements* the ledger — "cheap append = live
-  breadcrumb; miner = offline deep read" — and pinned the ledger writer's data source as
-  the live `Agent` `<usage>` block, which "exposes only `subagent_tokens`". That block is
-  precisely the final-message usage this design proves is ~100x low, so ADR-184's
-  cheap-breadcrumb premise and this change's correctness goal now pull in opposite
-  directions. DC-3a is where that is settled.
+- **Prior decisions this design is bound by, and the three it amends.** ADR-186 (run identity
+  is the `sessionId`, so re-mining the same session yields identical `run` values and diffing
+  stays meaningful) holds unchanged — sub-agent lines carry the *parent* session id, so the
+  identity survives the new event source. ADR-183 (the price table is claude-binding-owned,
+  overridable via `--prices`) holds and constrains where the `1e6` may go. Three are amended
+  by this change, each by a ratified ADR rather than by this doc:
+  **ADR-187** (inline usage opt-in) → refined by ADR-329, which flips the default and forbids
+  the per-phase split it objected to;
+  **ADR-119** (`.claude/craft-metrics.md` is a separate append-only metrics artifact) → kept,
+  with ADR-330 changing the row's *data source* and ADR-331 honoring append-only by making the
+  boundary marker itself an append;
+  **ADR-184** (the miner *complements* the ledger — "cheap append = live breadcrumb; miner =
+  offline deep read", ledger sourced from the live `Agent` `<usage>` block that "exposes only
+  `subagent_tokens`") → the strained one. That block is precisely the final-message usage this
+  design proves is ~100x low, so ADR-184's stated data source is now known to be *wrong*, not
+  merely cheap. ADR-330 replaces it with a per-phase transcript read.
 
 - **`prose-lint` and design docs.** Docs under `docs/contributing/design/` are outside the
   `prose-lint` corpus and outside `intention-lint`'s living set, so this doc may quote
@@ -75,9 +105,18 @@ What exists today, and the patterns this feature must follow:
 - **The artifacts that encode the broken accounting.**
   `docs/contributing/metrics-baseline.report.json` (the committed drift baseline — 27 runs,
   144 groups, 39.7M total relative tokens, produced entirely by the broken path);
-  `.claude/craft-metrics.md` (append-only, 30.6K, 372 rows, **372 of them `cache=na`**); `README.md` and
-  `docs/guides/comparison.md` (which quote `544.3M tokens / $297.55` from the *external*
-  collector, never from craft).
+  `.claude/craft-metrics.md` (append-only, 30.6K, 372 rows, **372 of them `cache=na`**);
+  `README.md` (FAQ run-count and run-hours claims, guarded by the `readme-drift` CI job).
+
+- **The artifacts that encode the *correct* accounting, and are therefore the oracle.**
+  `README.md` §"What it costs, measured" and `docs/guides/comparison.md` publish a three-arm
+  table (`88.6M/$62.72`, `154.3M/$103.95`, `544.3M/$297.55`). `comparison.md` §"Measuring this
+  yourself" states the method those figures were collected by, and it is *this* design's
+  method: *"Sub-agent cost is not in the spawn rollup… Read the nested per-sub-agent
+  transcripts instead"* — with craft's own ledger called out in the same paragraph as carrying
+  the error. The three arms' transcripts are still on disk, so those figures are not an
+  external claim to be taken on trust: they are a runnable oracle. They are reconciled to the
+  cent in `## Design`.
 
 ## Requirements
 
@@ -121,20 +160,80 @@ Verifiable statements that must hold when this ships:
 8. **The advertised front door reports something.** A zero-argument
    `node engine/bin/usage-mine.js` from a repo with transcript history produces a report
    with runs in it. Today it produces `{"note":"no .jsonl transcript files found","runs":[]}`
-   — see defect 3 below. (Subject to DC-8.)
+   — see defect 3 below (ADR-336).
 
 9. **Determinism.** No clock, no random, no network in any new code path; identical input
    trees produce byte-identical `report.json` through `serializeReport`.
 
-10. **Baseline coherence.** After the change, `--baseline docs/contributing/metrics-baseline.report.json`
-    does not report every phase as drifted. Since drift compares per-phase *means* and the
-    correction is ~100x, this is only satisfiable by regenerating the baseline in the same
-    change (DC-4).
+10. **Main-loop cost is in the default report.** Without any flag, a report over a corpus with
+    main-loop turns carries a `role: 'main-loop'`, `phase: null` group whose tokens are the
+    exact sum over main-loop `message.usage` lines, with no per-phase split of that total
+    anywhere in the report. `--no-inline` suppresses that group and nothing else (ADR-329).
+    Pinned: `--include-inline` today reaches only the zero-event *note text* and has never
+    caused a single inline event to be emitted — see defect 4 — so this requirement is about
+    building a flag path that does not exist, not about flipping one that does.
 
-11. **Acceptance.** `bash scripts/ci.sh` green; `npm --prefix engine run mutation` holds its
-    threshold over `engine/src/observability/**`; a regression test fails on the pre-fix
-    parser (Test strategy §"the 100x regression test"); no provenance refs, no suppression
-    directives, no swallowed errors in any touched source or test.
+11. **`cost.priced` is denominated in dollars.** For a group whose model is in the price table,
+    `cost.priced` equals `Σ(tokenClass × perMTokRate) / 1e6` USD. The unit holds across
+    **every** field derived from it — `runs[*].groups[*].cost.priced`,
+    `runs[*].reviewCycles[*].costPerCycle[i]`,
+    `recommendations[*].evidence.pricedCreationCost`, `.currentPricedCost`,
+    `.projectedPricedCost`, and `baselineDeltas[*].pricedCostDelta` — and `renderMarkdown`
+    applies **no** further scaling. Verifiable end-to-end: a group whose `cost.priced` is
+    `0.0006225` renders as `$0.0006`, and `evidence.shareOfRunCost` stays a ratio in `[0,1]`
+    (it is a quotient of two priced values and breaks by a factor of 10⁶ if only one of them
+    is converted — see the call-site table in `## Design`).
+
+12. **The two current models are priced.** `DEFAULT_PRICES` gains `claude-opus-5` at
+    `priceEntry(5, 25)` and `claude-sonnet-5` at `priceEntry(3, 15)`. Verifiable against the
+    live corpus: **1,955,354,633 of 3,945,021,795 tokens (49.6%) currently price to `null`**
+    because they carry one of those two ids; after the change, zero do.
+
+13. **The published comparison figures reconcile, to the cent.** With ADR-328/329/338 in
+    force, the miner run over each experiment arm's own project directory reproduces the
+    `README.md` / `docs/guides/comparison.md` table exactly:
+
+    | Arm | `--dir` (under `~/.claude/projects/`) | Window | `cost.relative` | `cost.priced` |
+    |---|---|---|---|---|
+    | plain | `-Users-scolladon-workspace-perso-node-sgd-bench-arm-a-plain` | whole dir | **88,634,469** (88.6M ✓) | **$62.722473** ($62.72 ✓) |
+    | staged | `-Users-scolladon-workspace-perso-node-sgd-bench-arm-b-staged` | whole dir | **154,307,277** (154.3M ✓) | **$103.950712** ($103.95 ✓) |
+    | craft | `-Users-scolladon-workspace-perso-node-sgd-bench-arm-c-craft` | lines before `2026-08-05T00:00:00Z` | **544,271,827** (544.3M ✓) | **$297.550926** ($297.55 ✓) |
+
+    The craft arm needs the window because that session was resumed the following day; the
+    whole directory yields 753,224,548 / $425.62 (see *Reconciling the published figures*).
+    **How this is verified without a corpus in CI:** as a golden vector over the measured
+    per-model token-class totals, in the pure core — DC-11(a) and Test strategy §"the dollar
+    reconciliation test". An exact *live* re-derivation of the craft arm additionally needs an
+    upper time bound the CLI does not have; that is DC-11(b), and it is not required for this
+    requirement to hold.
+
+14. **Ordering (ADR-332).** The pricing correction (Req 11 + 12) lands **before**
+    `docs/contributing/metrics-baseline.report.json` is regenerated, and the regeneration runs
+    with main-loop inclusion **on** (Req 10). Mechanically verifiable on the committed
+    baseline: no group carrying `claude-opus-5` or `claude-sonnet-5` has `cost.priced: null`;
+    at least one group has `role: "main-loop"`; and the sum of `cost.priced` across the file is
+    of order 10³ dollars, not 10⁹ — the current file sums to 31,171,735.70, so any regenerated
+    value above ~10⁶ is proof the divisor did not land.
+
+15. **Baseline coherence.** After the change, `--baseline docs/contributing/metrics-baseline.report.json`
+    does not report every phase as drifted. Since drift compares per-phase *means* and the
+    token correction is ~100x, this is only satisfiable by the ADR-332 regeneration.
+
+16. **The ledger stops accruing false rows, and the break is visible.**
+    `skills/run/SKILL.md` instructs the session to source `tokens=` / `duration_ms=` /
+    `cache_read=` / `cache_creation=` from that phase's own sub-agent transcript rather than
+    from the returned spawn usage block (ADR-330), so a new row can carry the real cache split
+    instead of degrading to `cache=na`. One boundary marker line is appended to
+    `.claude/craft-metrics.md` naming the date and the correction (ADR-331); the 372 existing
+    rows are left in place, unedited.
+
+17. **Acceptance.** `bash scripts/ci.sh` green (including the `readme-drift` job, which will
+    demand the README FAQ claims move with the regenerated baseline);
+    `npm --prefix engine run mutation` holds its threshold over
+    `engine/src/observability/**`; a regression test fails on the pre-fix parser
+    (Test strategy §"the 100x regression test") and a second one fails on the pre-fix pricing
+    path (§"the dollar reconciliation test"); no provenance refs, no suppression directives,
+    no swallowed errors in any touched source or test.
 
 ## Design
 
@@ -143,6 +242,13 @@ Verifiable statements that must hold when this ships:
 Measured on this box on 2026-08-06 against
 `~/.claude/projects/-Users-scolladon-workspace-perso-craft`. Every number below was
 re-derived here; the orchestrator's pre-chew is corrected where it differs (marked ⚠).
+
+**The corpus is live and grows under the miner's feet.** Re-measured later the same day while
+revising this doc against the ADRs, it read 274 files / 244 sidecars / 3,945,021,795 tokens
+against the 273 / 243 / ~3.92B below. Nothing contradicts — one session was added in between.
+Every ratio, coverage fraction, and structural pin held identically across both measurements.
+Treat the absolute counts as dated anchors and the *ratios* as the load-bearing claims; no test
+may assert a corpus absolute (see `## Test strategy`, tier 2).
 
 **Layout** — verified, non-negotiable:
 
@@ -242,7 +348,11 @@ version`. Pinned properties:
 | `cache_creation_input_tokens` vs `ephemeral_5m + ephemeral_1h` | **equal on 1618/1618** usage lines (8,996,735 both ways) |
 
 That last row is what makes `tokensFromClaudeUsage` + `computeRelativeCost` reproduce the
-external collector's token formula exactly, with no new arithmetic.
+published comparison's token formula exactly, with no new arithmetic. It was re-confirmed on a
+second, independent corpus while revising this doc: 0 mismatches across all 3,607 usage lines of
+the three benchmark arms — see *Reconciling the published figures*.
+`message.model` also carries `claude-opus-4-8` and `claude-fable-5` elsewhere in the corpus,
+both already in `DEFAULT_PRICES`; only the two `-5` ids are missing (defect 7).
 
 ### Defect 1 — non-recursive discovery (the structural root cause)
 
@@ -275,7 +385,46 @@ exist anywhere in `engine/`** (grep for `dashed`/`toDashes`/`replace(/\//g` → 
 the advertised zero-argument `/craft:metrics` has always produced an empty report; every
 non-empty report ever produced — including the committed baseline — came from an explicit
 `--dir`. This is a third independent defect on the same feature and is why the brief's
-"cannot be trusted" is an understatement. Fixing it is DC-8.
+"cannot be trusted" is an understatement. Fixing it is ADR-336.
+
+### Defect 4 — `--include-inline` is inert (⚠ not in the brief, and it changes ADR-329's shape)
+
+`parseArgs` sets `parsed.includeInline`, and that value is read in exactly **one** place:
+
+```js
+if (!events.length) { writeNoOp(parsed.includeInline ? NO_EVENTS_NOTE : INLINE_GAP_NOTE); return EXIT_OK; }
+```
+
+It selects between two *note strings* on the zero-event path. It is never passed to
+`parseLines`, and the claude adapter takes no such parameter — its `parseLines(lines, since)`
+signature has no third argument today, and its body `continue`s on every non-rollup line
+unconditionally. **So `--include-inline` has never included one inline token**, and ADR-187's
+"opt-in" was documented but never wired.
+
+This matters for how ADR-329 is built: `--no-inline` cannot be implemented by inverting an
+existing flag path, because there is no existing flag path. The inclusion decision must reach
+the parser (or the front door must filter the parser's output), which is one more reason the
+`context` argument of ADR-334 carries `sourceKind` — a `sourceKind: 'main'` event is exactly
+the set `--no-inline` drops, and the front door can drop it without knowing what `sourceKind`
+means beyond the value the adapter's own discovery put there. Under ADR-334's opaque-blob
+contract the cleanest expression is that the *adapter* honors the flag: the third argument is
+authored by `discover`, so the front door passes the flag alongside it and the adapter decides.
+Either placement satisfies ADR-329; neither is a new load-bearing choice, because the observable
+contract — "no main-loop group in the report" — is identical.
+
+**Two more surfaces the flag drags along.** `INLINE_GAP_NOTE` reads
+*"no rollup events found; inline phases excluded by default (pass --include-inline to include)"*
+— every clause of it is false after ADR-328 and ADR-329 (rollups are not events, inline is not
+excluded, and the flag it names no longer exists). It is one of only four notes the port can
+emit, so it is part of the observable contract and its replacement belongs in the same commit as
+the flag. And `parseArgs` has no `--no-inline` case at all; adding one is not symmetric with
+deleting `--include-inline`, because the parsed field's default inverts.
+
+**The trap in that flag: `--no-inline` must drop main-loop *events*, never main-loop *markers*.**
+`auto-skip:` phase tokens are harvested from main-loop assistant text and feed `phaseSkipRecs`,
+which is a behavioural signal with no cost dimension. A `--no-inline` implemented as "skip
+main-loop lines" silently disables phase-skip recommendations as a side effect. The drop applies
+to the emitted `UsageEvent[]` only; the marker scan runs first and is unconditional.
 
 ### The emission rule — how double counting is structurally prevented
 
@@ -317,7 +466,7 @@ The design tension named in the brief is real: file **discovery** lives in
 `usage-mine-main.js`, token **truth** lives in files only the claude adapter knows how to
 interpret, and the spec forbids handing the adapter an absolute path.
 
-Recommended resolution (DC-5/DC-6): **the adapter exports a port-injected discovery
+Ratified resolution (ADR-333 / ADR-334): **the adapter exports a port-injected discovery
 descriptor; the front door remains the only holder of paths, containment, and I/O.**
 
 ```
@@ -360,7 +509,7 @@ Why this shape:
   `readdirSync` + matcher path and today's two-argument `parseLines` call (the third
   argument is optional and ignored). No other adapter changes.
 
-**The walk is a pinned shape, not a generic recursion** (DC-7). `discover` reads exactly:
+**The walk is a pinned shape, not a generic recursion** (ADR-335). `discover` reads exactly:
 
 ```
 <root>/*.jsonl                        → { relPath, context: { sourceKind: 'main' } }
@@ -409,7 +558,7 @@ Pointing `--dir` one level *down* at a session directory finds neither — no `.
 directly in a session dir, and the sub-agent probe would look for `<sid>/subagents/subagents/`.
 The result is `no .jsonl transcript files found`, exit 0, which reads as a cost-free run.
 `docs/contributing/specs/telemetry.md` already carries this caveat for `--source codex`; the
-claude binding needs the equivalent paragraph, and DC-8(a) removes the common case of hitting
+claude binding needs the equivalent paragraph, and ADR-336 removes the common case of hitting
 it by making the zero-arg default resolve the correct level automatically.
 
 ### Advisory contract across the new surface
@@ -438,7 +587,7 @@ from a cost-free run, which is the failure this whole change exists to end.
 | Field | Source | Notes |
 |---|---|---|
 | `run` | the line's `sessionId` | the **parent** session id (pinned 20/20) — ADR-186 identity holds; sub-agent groups land in the same run as the main loop |
-| `slug` | `null` | absent from sub-agent lines. `groupByRun` takes the first non-null slug per run, so the run's slug is inherited from the main-loop events — **only if main-loop events are in the stream**, which couples this to DC-2 |
+| `slug` | `null` | absent from sub-agent lines. `groupByRun` takes the first non-null slug per run, so the run's slug is inherited from the main-loop events — **only if main-loop events are in the stream**, which ADR-329 guarantees by default |
 | `role` | `roleFromAgentType(context.agentType)` — sidecar | 243/243 coverage; existing `craft:` prefix strip reused unchanged |
 | `phase` | `phaseFromAgentType(context.agentType)` — existing `ROLE_TO_PHASE` | unrecognised type ⇒ `null`, as today |
 | `model` | `normalizeModel(line.message.model)`, **per turn** | full priceable ids; `[1m]` strip reused. Per-turn rather than per-file so a mid-run model switch attributes correctly even though none was observed (0/20) |
@@ -453,7 +602,7 @@ are different quantities (tool-uses vs. billed turns; agent-active time vs. wall
 including queueing). `durationMs` is a `drift` dimension, so it cannot become zero without
 silently disabling half the drift signal — the design derives it from the transcript's
 `last(timestamp) − first(timestamp)` and attributes the whole span to one event per
-transcript, so per-group sums stay meaningful. DC-9 covers the alternative of joining the
+transcript, so per-group sums stay meaningful. ADR-337 ratified this over the alternative of joining the
 rollup for these two dimensions only.
 
 **`--since` interacts with the span and must not be papered over.** The cutoff drops lines
@@ -476,40 +625,172 @@ rather than inheriting the existing marker tests.
 
 Under the single emission rule, main-loop `assistant` lines carrying `message.usage` are
 event-bearing on exactly the same terms. Their `agentType` is undefined, so `role`/`phase`
-would be `null` — which is why DC-2 (the `--include-inline` default) is coupled to DC-1 and
-not independent: **if rollups stop being a token source and inline stays opt-in, the default
-report loses main-loop cost entirely and gains nothing to replace it.** The recommended
-resolution attributes all main-loop turns to a single `role: 'main-loop'`, `phase: null`
-group — an exact total with an honest refusal to split it per phase, rather than ADR-187's
-approximate bucketing. ADR-187's stated objection ("the orchestrator session's `cache_read`
-accumulates across phases, inflating any single inline phase") is an objection to the
-*per-phase split*, not to the *total*; the total is exact.
+would be `null`. ADR-329 settles what happens next: **all main-loop turns are attributed to a
+single `role: 'main-loop'`, `phase: null` group, included by default** — an exact total with an
+honest refusal to split it per phase, rather than ADR-187's approximate bucketing. ADR-187's
+stated objection ("the orchestrator session's `cache_read` accumulates across phases, inflating
+any single inline phase") is an objection to the *per-phase split*, not to the *total*; the
+total is exact. Without ADR-329 the default report would omit 2.36B of the corpus's 3.95B
+tokens, since ADR-328 simultaneously removes rollups as a token source.
 
-### Pricing reconciliation — what reproduces and what cannot
+Two consequences the planner must carry:
 
-The brief asks whether the fixed miner reproduces the published `544.3M tokens / $297.55`.
-Investigated rather than assumed:
+- **"One group" means one group *per model*.** `buildGroupKey` is `phase \x00 role \x00 model`,
+  so a session whose main loop switched models — a degradation, which craft records
+  deliberately — yields one `main-loop`/`null` group per model, exactly like every other group
+  in the report. ADR-329's "one group" is about refusing a *per-phase* split, not about
+  collapsing models. Nothing extra is needed for this; it is stated so nobody implements a
+  model-flattening special case to satisfy the ADR's wording.
+- **`slug` is restored by side effect.** Sub-agent lines have no `slug`; `groupByRun` takes the
+  first non-null slug per run, which only main-loop lines carry. Main-loop events being in the
+  default stream is what gives sub-agent groups a run slug at all.
+- **A main-loop event's `messages` and `durationMs` are NOT settled by ADR-337**, which speaks
+  only to sub-agent events. That gap is DC-12 below, one of the two open choices this revision
+  surfaces.
 
-- **Tokens: yes.** The oracle's formula is `input + output + cache_read + ephemeral_5m +
-  ephemeral_1h`. `tokensFromClaudeUsage` maps `cache_creation_input_tokens` into
-  `tokens.cacheCreation`, and `cache_creation_input_tokens === ephemeral_5m + ephemeral_1h`
-  on 1618/1618 measured usage lines. `computeRelativeCost` sums all four. So
-  `cost.relative` is the oracle's number, exactly, with no new arithmetic.
-- **Dollars: no, and for two reasons neither of which this change may touch.**
-  1. `DEFAULT_PRICES` in `adapters/claude/pricing.js` contains
-     `claude-opus-4-8/4-7/4-6, claude-sonnet-4-6, claude-fable-5, claude-mythos-5,
-     claude-haiku-4-5` — **no `claude-opus-5`, no `claude-sonnet-5`**. Every group in a
-     corrected report gets `cost.priced: null`. The oracle has both
-     (`opus-5 = RATE(5,25)`, `sonnet-5 = RATE(3,15)`). Adding them is a pricing-table
-     update, explicitly out of scope.
-  2. `computePricedCost` multiplies raw token counts by **per-MTok** rates with no `1e6`
-     divisor (`pricing.js` header: *"The core stores per-MTok rates directly; no 1e6 scaling
-     is applied"*). Summing `cost.priced` across the committed baseline yields
-     **$31,171,735.70** for 39.7M tokens — the values are dollars × 10⁶, not dollars. This
-     is a pre-existing core arithmetic defect independent of this change.
+### Priced cost — two defects, their interaction, and where the `1e6` goes
 
-  **The README/comparison figures are therefore not wrong — they are simply not craft-derived,
-  and craft cannot currently derive them.** DC-10 asks how far this change should reach.
+ADR-338 put this path in scope, overriding this doc's earlier recommendation and the brief's
+"pricing table updates are out of scope" line. Both defects are pre-existing, independent of
+the transcript work, and must land **before** the ADR-332 baseline regeneration.
+
+**Defect 6 — `cost.priced` is not denominated in dollars.**
+`DEFAULT_PRICES` entries are documented as *"USD per million tokens (per-MTok)"*, and
+`computePricedCost` multiplies raw token counts by those rates with no divisor, so every
+emitted `cost.priced` is `dollars × 10⁶`. Summing the committed baseline's `priced` values
+gives **$31,171,735.70** for 39.7M tokens — i.e. $31.17. The defect is masked, not absent:
+`renderMarkdown` carries a compensating `/1e6` at the render boundary
+(`` `$${(g.cost.priced / 1e6).toFixed(4)}` ``, commented *"C2: divide by 1e6 for display"*), so
+`report.md` has always shown plausible dollars while `report.json` — the machine-readable
+artifact that `craft:init`, `tune-plan`, the baseline and the drift signal all consume — has
+always carried the scaled value. `docs/contributing/specs/telemetry.md` documents the field as
+`"priced": 0.00123` against `"relative": 4500`, i.e. **as dollars**. The fix therefore makes the
+code match its own spec; the spec's schema section needs no change.
+
+**Defect 7 — the two models craft actually runs on are absent from the table.**
+`DEFAULT_PRICES` holds `claude-opus-4-8/4-7/4-6`, `claude-sonnet-4-6`, `claude-fable-5`,
+`claude-mythos-5`, `claude-haiku-4-5` — no `claude-opus-5`, no `claude-sonnet-5`. Measured on
+the live corpus (2026-08-06): **1,955,354,633 of 3,945,021,795 tokens (49.6%) carry one of
+those two ids** and therefore price to `null` today.
+
+**How they interact — and why ADR-338 forecloses fixing only one.** Fixing 7 alone converts
+half the corpus from `null` (honestly "unknown") to a confidently wrong number 10⁶ too large.
+Fixing 6 alone leaves half the corpus unpriced, so the correction is unobservable on exactly the
+groups this change creates. Only both together make `cost.priced` mean anything — which is what
+ADR-338 ratified and why its option 2 is explicitly foreclosed.
+
+#### What the `1e6` divides, and where — stated so it cannot be applied at the wrong level
+
+The divisor converts a **Σ of (token count × dollars-per-million-tokens)** into **dollars**. It
+is applied **once per emitted dollar value**, at the boundary where a Σ becomes a reported
+field. It is *not* applied to the rates, and *not* applied per token class:
+
+- **Not to the rates.** `--prices <file>` overrides are documented as per-MTok (ADR-183), and
+  `PRICES_AS_OF` exists so the table can be spot-checked against the vendor's per-MTok list
+  price. Dividing inside `priceEntry` would silently leave `mergePrices`' override entries
+  un-divided — a partial override would then be 10⁶ off against the defaults it merges with,
+  which is a worse footgun than the one being fixed. Rates stay per-MTok; the price table's
+  unit contract is unchanged.
+- **Not per token class.** Arithmetically identical, but it multiplies the number of division
+  sites by five and gives a future edit five chances to miss one.
+
+The hazard is that `computePricedCreation` is **both** composed by `computePricedCost` **and**
+emitted directly. Dividing in both double-divides (10⁻¹²); dividing in neither leaves an
+emitted field scaled. Full call-site inventory of
+`engine/src/observability/usage-aggregate.js`:
+
+| # | Site | Reads | Today | After |
+|---|---|---|---|---|
+| 1 | `computePricedCost(tokens, cacheCreationTtl, prices)` | `computePricedCreation` + 3 class terms | Σ | **Σ / `TOKENS_PER_MTOK`** — the single division named by ADR-338 |
+| 2 | `computePricedCreation(cacheCreationTtl, cacheCreation, prices)` **as called from site 1** | — | Σ | **unchanged — must stay undivided**, or site 1 double-divides the creation term |
+| 3 | `buildEnrichedGroup` → `pricedCreationCost` | `computePricedCreation` **directly** | Σ | **must be divided at this site** — the only emitter that does not inherit site 1 |
+| 4 | `computeCost` → `cost.priced` | site 1 | Σ | inherits ÷ |
+| 5 | `buildReviewCycles` → `costPerCycle[i]` | `computeCost().priced` | Σ | inherits ÷ |
+| 6 | `buildRoutingRec` → `projected`, `evidence.projectedPricedCost`, `.currentPricedCost` | site 1 + `cost.priced` | Σ | inherits ÷ on both sides of the `projected >= expensive.cost.priced` comparison — scale-invariant, so routing behaviour is unchanged |
+| 7 | `cacheHotspotRecs` → `evidence.shareOfRunCost` | `pricedCreationCost / Σ cost.priced` | ratio, unit-consistent | **stays a ratio only if site 3 is divided** — otherwise it becomes 10⁶ |
+| 8 | `computeBaselineDeltas` → `pricedCostDelta` | difference of two `cost.priced` | Σ | inherits ÷ |
+| 9 | `renderMarkdown` cost string | `g.cost.priced / 1e6` | compensator | **delete the `/1e6`** — leaving it renders `$0.0000` for every group |
+
+Row 7 is the reason row 3 cannot be skipped: `shareOfRunCost` is currently *correct* precisely
+because numerator and denominator are scaled identically. A fix applied only to
+`computePricedCost` breaks a field that works today. Row 9 is the reason the fix cannot be
+applied without touching the renderer: the compensator and the correction cancel to a
+1000000× under-report in `report.md`.
+
+Shape: one named constant (`TOKENS_PER_MTOK = 1e6`) and one named conversion used at sites 1
+and 3, so both emitters read as a unit conversion rather than as a magic divisor. `pricing.js`'s
+header line *"The core stores per-MTok rates directly; no 1e6 scaling is applied"* and
+`docs/contributing/plan/usage-telemetry-miner.md`'s *"the core only multiplies, never interprets
+the unit"* both become false and must be corrected in the same change — after this, the core
+**does** interpret the injected table's unit as per-MTok, and that is now a load-bearing
+contract of the port rather than an incidental convention.
+
+#### Reconciling the published figures — measured, not assumed
+
+`README.md` and `docs/guides/comparison.md` publish a three-arm table. `comparison.md`
+§"Measuring this yourself" states the collection method, and it is this design's method:
+*"Sub-agent cost is not in the spawn rollup… Read the nested per-sub-agent transcripts
+instead"*, with the ~58x under-report and craft's own broken ledger named in the same
+paragraph. All three arms' transcripts are still on disk, so the figures were re-derived rather
+than trusted. Measured on this box on 2026-08-06 with the design's token convention and the
+corrected pricing path (`opus-5 = priceEntry(5,25)`, `sonnet-5 = priceEntry(3,15)`, cache
+multipliers `0.1 / 1.25 / 2.0`, one `1e6` division):
+
+| Arm | Project dir under `~/.claude/projects/` | Files | Published | Re-derived tokens | Re-derived dollars |
+|---|---|---|---|---|---|
+| plain | `…-sgd-bench-arm-a-plain` | 1 main, 0 sub | 88.6M / $62.72 | **88,634,469** | **$62.722473** |
+| staged | `…-sgd-bench-arm-b-staged` | 1 main, 0 sub | 154.3M / $103.95 | **154,307,277** | **$103.950712** |
+| craft | `…-sgd-bench-arm-c-craft` | 1 main, 20 sub | 544.3M / $297.55 | **544,271,827** | **$297.550926** |
+
+**All three reconcile exactly.** The craft arm's arithmetic in full, from the per-model class
+totals over lines timestamped before `2026-08-05T00:00:00Z`:
+
+```
+claude-opus-5    in 2,800×5 + out 815,845×25 + cacheRead 226,695,412×0.5
+                 + c5m 5,092,346×6.25 + c1h 985,739×10          = 175,442,383.50
+claude-sonnet-5  in 11,534×3 + out 319,302×15 + cacheRead 303,340,224×0.3
+                 + c5m 7,008,625×3.75 + c1h 0×6                 = 122,108,542.95
+                                                          Σ    = 297,550,926.45
+                                                    ÷ 1e6      = $297.550926 → $297.55 ✓
+tokens: 233,592,142 (opus-5) + 310,679,685 (sonnet-5)           = 544,271,827 → 544.3M ✓
+sub-agent share: 411,039,909 / 544,271,827 = 75.5%  (comparison.md: "75% of tokens here") ✓
+```
+
+What this pins, beyond the headline:
+
+- The token convention (`input + output + cache_read + ephemeral_5m + ephemeral_1h`) is
+  confirmed against an independent oracle on 2,853 usage lines.
+- Both new rate entries are confirmed to the cent. `claude-opus-5 = priceEntry(5, 25)` and
+  `claude-sonnet-5 = priceEntry(3, 15)` are not looked-up values; they are the only rates that
+  reproduce the published dollars.
+- **Every cache multiplier is independently exercised.** Arms A and B carry `ephemeral_1h` with
+  zero `ephemeral_5m` (confirming `2.0×`); arm C carries both (confirming `1.25×`); all three
+  are cache-read-dominated (confirming `0.1×`).
+- The `1e6` divisor is confirmed as the correct and only scaling: the published dollars *are*
+  `Σ(tokens × per-MTok rate) / 1e6`.
+- **ADR-329 is load-bearing for the reconciliation, not just for completeness.** Arms A and B
+  have **zero** sub-agent transcripts — their entire cost is main-loop. Under today's default
+  the miner emits no events for them at all and writes the `INLINE_GAP_NOTE` no-op. Two thirds
+  of the oracle is unreachable without main-loop inclusion on by default.
+- `cache_creation_input_tokens === ephemeral_5m + ephemeral_1h` held on **every** usage line in
+  all three arms (0 mismatches / 3,607 lines), corroborating the 1618/1618 pin above.
+
+**The one caveat, and it is not a doc defect.** The craft arm's session was *resumed* on
+2026-08-05 (two further sub-agents, 10:43 and 12:17). Mining the whole directory therefore
+yields **753,224,548 tokens / $425.62** — the published figures plus 208,952,721 tokens /
+$128.07 of post-experiment work. The miner has `--since` (a lower bound) and **no upper
+bound**, so an exact live re-derivation of the craft arm is not expressible through today's
+CLI. That is DC-11 below. The published numbers are correct for the window they claim; the
+directory has simply moved on since.
+
+**Verdict on the brief's standing question.** Both halves of `544.3M tokens / $297.55` are
+reproducible by the corrected miner, and the README and `comparison.md` figures are correct as
+published. They are *not*, however, reproducible from craft's own corpus or its regenerated
+baseline — those describe a different repository (`sgd-bench-arm-c-craft`, one run) than the
+craft repo's own 3.95B-token history. Nothing in README or `comparison.md` needs a numeric
+correction on account of this change. What does change there is the FAQ's *telemetry claims*
+(run count, median/min/max run hours), which are recomputed from the regenerated baseline —
+see *Artifact reconciliation*.
 
 ### Artifact reconciliation
 
@@ -518,50 +799,101 @@ Investigated rather than assumed:
   `phase: null, role: null` noise group (an untyped rollup, per the analysis above) and 17
   `phase: null` groups from the retired `slice-implementer` role. Drift compares per-phase
   *means*; a ~100x correction reads as drift on every phase, permanently, until the baseline
-  is regenerated. Regeneration in the same change is effectively forced by Requirement 10 —
-  DC-4 decides its form.
-- **`.claude/craft-metrics.md`** — ⚠ **not written by the miner.** `skills/run/SKILL.md`
-  §metrics artifact instructs the session to append
-  `<run-id> <phase-id> tokens=<subagent_tokens> duration_ms=<n> cache_read=<n> cache_creation=<n>`
-  from *"the usage block the spawn already returns"* — the identical final-message usage the
-  miner reads, so identically ~100x low (row magnitudes 60k–200k match rollup `totalTokens`
-  exactly). **Fixing the miner does not fix future ledger rows.** That makes two separate
-  questions — the writer (DC-3a) and the historical rows (DC-3b).
+  is regenerated. ADR-332 regenerates it here, under a **strict ordering**: the pricing
+  correction (defects 6 + 7) lands first, then main-loop inclusion (ADR-329) is on, then the
+  baseline is regenerated. Regenerating before either would bake a second stale baseline —
+  one still carrying `null` for half its groups, or one missing main-loop cost entirely.
 
-  ⚠ **A fourth defect surfaces here: the ADR-184 writer upgrade never took effect.**
+  Sanity targets for the regeneration, measured on the live corpus 2026-08-06 (it grows, so
+  these are order-of-magnitude anchors, not assertions): 274 files (30 main-loop, 244
+  sub-agent), 3,945,021,795 relative tokens, **$3,628.82** priced — of which **$1,397.29** is
+  currently unpriceable for want of the two model entries. Runs move from 27 to ≈30, since
+  enumeration becomes transcript-driven and sub-agent lines carry the parent session id.
+- **`.claude/craft-metrics.md`** — ⚠ **not written by the miner.** `skills/run/SKILL.md`
+  (§metrics artifact, and the "Numbers are harness-sourced" note above it) instructs the
+  session to append
+  `<run-id> <phase-id> tokens=<subagent_tokens> duration_ms=<n> cache_read=<n> cache_creation=<n>`
+  from *"the usage block the spawn already returns — exact, zero extra cost"* — the identical
+  final-message usage the miner reads, so identically ~100x low (row magnitudes 60k–200k match
+  rollup `totalTokens` exactly). **Fixing the miner does not fix future ledger rows.** ADR-330
+  settles the writer (source the row from that phase's own sub-agent transcript) and ADR-331
+  settles the history (append one boundary marker; never migrate). Both edits are in scope;
+  `skills/run/SKILL.md` is explicitly authorized by ADR-330, and the "exact, zero extra cost"
+  rationale must be corrected in the same edit rather than left contradicting the new
+  instruction.
+
+  ⚠ **Defect 5 surfaces here: the ADR-184 writer upgrade never took effect.**
   ADR-184 replaced the lossy `cache=na` field with a real `cache_read=`/`cache_creation=`
   split, degrading to `cache=na` only "if the split is genuinely unavailable for a given
   spawn". Measured on the committed file: **372 of 372 rows are `cache=na`; zero rows carry
   `cache_read=`.** The degradation path is the only path that has ever executed. The cause
   is the same one this whole design is about — the split was to be recovered "by parsing the
   run's own spawn-rollup lines", and the untyped/usage-less rollups plus the final-message-only
-  `usage` make that recovery empty in practice. Any DC-3a option other than (a) should fix
-  this in the same stroke, since it has the same root cause and the same file.
-- **`docs/contributing/specs/telemetry.md`** — the living-intention page for this scope.
-  Sections needing refresh: *Claude binding* (discovery + emission rule + sidecar labelling),
-  *Inline gap / --include-inline (ADR-187)* (whatever DC-2 lands), *Failure semantics* (the
-  new counted-fallback branches), and its final line, which points at the stale path
+  `usage` make that recovery empty in practice. ADR-330 fixes it in the same stroke: the
+  sub-agent transcript carries `cache_read_input_tokens` and `cache_creation` on every
+  usage-bearing line, so the split the ledger has never once recorded becomes available from
+  the same read that supplies the token total.
+- **`README.md`** — two independent surfaces, and conflating them is the easy mistake.
+  The *cost comparison table* (§"What it costs, measured") and `docs/guides/comparison.md`
+  need **no** numeric change: their figures were collected by this design's own method and
+  reconcile to the cent (above). The *FAQ telemetry claims* (`27 telemetered runs`, median
+  ≈1.3 h, min ≈0.5 h, max ≈5 h) are recomputed from the regenerated baseline by
+  `engine/src/telemetry-claims.js` → `recomputeClaims`, guarded by the `readme-drift` CI job,
+  and **will** move. Note that `recomputeClaims` sums `durationMs` across *all* groups in a
+  run, and the FAQ prose scopes that sum to *"role-agent activity"* — a claim that main-loop
+  groups would falsify by construction. That is DC-12.
+- **`docs/contributing/specs/telemetry.md`** — the living-intention page for this scope
+  (`subjects: ['engine/src/observability/**']`). Sections needing refresh: *Claude binding*
+  (discovery + emission rule + sidecar labelling), *Inline gap / `--include-inline` (ADR-187)*
+  (rewritten for ADR-329's default-on + `--no-inline`, not deleted), *Failure semantics* (the
+  new counted-fallback branches), the wrong-level `--dir` caveat for the claude binding
+  (currently present only for codex), and its final line, which points at the stale path
   `docs/metrics-baseline.report.json` — the real path is
-  `docs/contributing/metrics-baseline.report.json`.
+  `docs/contributing/metrics-baseline.report.json`. Its `report.json` schema section needs
+  **no** unit change: it already documents `cost.priced` as dollars (`0.00123` against
+  `4500` relative), which is what defect 6 makes true.
+- **`skills/metrics/SKILL.md`** — its flag table lists `--include-inline` ("Include inline-phase
+  transcript segments"); under ADR-329 that row becomes `--no-inline`. Its §2 claim that the
+  miner resolves the transcript directory via a `cwd → dashes` mapping becomes true for the
+  first time under ADR-336.
+- **`engine/src/tune-plan.js`** — `modelRoutingProposals` computes
+  `savings = currentPricedCost − projectedPricedCost` and interpolates it into a rationale
+  string as `saves ~${savings} priced`. Both operands rescale together, so proposal *selection*
+  is unchanged; only the printed magnitude and its unit change. The word "priced" in that
+  string now means dollars and should say so.
 
 ## Decision candidates
 
-The designer never decides these; the user does, in the ADR phase. DC-1 and DC-2 are coupled
-— see the *Main-loop events* section.
+**All eleven original candidates are SETTLED.** They were put to the user in the ADR phase and
+ratified as ADR-328…338; the table below records each choice and its record so the planner
+never re-opens one. Ten went the way this doc recommended; **DC-10 did not** — the user chose
+(c) over the recommended (a), which is why the priced-cost path is designed above rather than
+deferred, and why this doc was revised before planning.
+
+| # | Choice | Ratified | Record | Deviation |
+|---|---|---|---|---|
+| 1 | Where role/phase labels come from once transcripts supply tokens | **(b)** sidecar only; rollups are never read, for tokens or labels | ADR-328 | — |
+| 2 | `--include-inline` default | **(b)** default-on, one `role: 'main-loop'` / `phase: null` group, no fabricated per-phase split, `--no-inline` opts out | ADR-329 | — (refines ADR-187) |
+| 3a | `.claude/craft-metrics.md` — the writer | **(b)** source each row from that phase's own sub-agent transcript; `skills/run/SKILL.md` is in scope | ADR-330 | — (refines ADR-119, ADR-184) |
+| 3b | `.claude/craft-metrics.md` — the 372 historical rows | **(a)** leave + one appended boundary marker; migration foreclosed | ADR-331 | — (refines ADR-119) |
+| 4 | Drift-baseline regeneration | **(a)** regenerate in this change, after the pricing correction and with main-loop inclusion on | ADR-332 | — |
+| 5 | Where the two-level discovery lives | **(b)** the claude adapter exports `discover({ listDir, readText })`; the front door keeps paths, containment, I/O | ADR-333 | adopted as recommended, no user judgment |
+| 6 | How the sidecar label reaches the parser | **(b)** `parseLines(lines, since, context)`, context authored by `discover`, opaque to the front door | ADR-334 | adopted as recommended, no user judgment |
+| 7 | Walk shape | **(a)** pinned two-level shape; no generic recursion, no config glob | ADR-335 | adopted as recommended, no user judgment |
+| 8 | The zero-arg read root (defect 3) | **(a)** `DEFAULT_READ_ROOTS.claude` resolves `join(projectsDir, dashed(cwd))`; containment root unchanged | ADR-336 | — |
+| 9 | `messages` / `durationMs` for **sub-agent** events | **(a)** derive from the transcript — billed turns, and `last − first` span attributed once per transcript | ADR-337 | adopted as recommended, no user judgment |
+| 10 | How far cost reconciliation reaches | **(c)** add `claude-opus-5` / `claude-sonnet-5` **and** fix the missing `1e6` divisor | ADR-338 | ⚠ **user overrode the recommended (a)** — option (b) explicitly foreclosed as a partial step |
+
+### Open — surfaced by this revision, covered by no ADR
+
+Two load-bearing choices fall out of the ratified set rather than out of the brief. Both are
+consequences of ADR-329 and ADR-338 interacting with surfaces the ADRs did not reach. The
+designer does not decide these.
 
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
 |---|---|---|---|---|
-| 1 | **Where role/phase labels come from once transcripts supply tokens** | (a) rollups stay the labelling source, transcripts supply tokens (the brief's framing); (b) **rollups go entirely** — the `agent-<id>.meta.json` sidecar supplies `agentType`; (c) sidecar primary, rollup `agentType` as a fallback when the sidecar is missing or unparseable | **(b)** | Coverage decides it: sidecar `agentType` is **243/243**, rollup `agentType` is **188/237** corpus-wide and **13/20** in the reference session — and the 7 unlabelled rollups there are the *same* lines that carry no `usage`, so (a) leaves exactly the reviewer work both unlabelled and uncosted. (b) also makes Requirement 2 structural: if rollups are never read, they cannot be double-counted, and the depth-2 nested-rollup vector disappears without a special case. Risk to weigh: the sidecar is an undocumented upstream file, so an upstream rename silently unlabels everything — mitigated by the counted fallback (Requirement 4), never a silent `null`. (c) buys back rollup parsing plus a precedence rule for a set the sidecar already fully covers. |
-| 2 | **`--include-inline` default** | (a) stays opt-in (status quo, ADR-187); (b) **default-on**, main-loop turns aggregated into one `role: 'main-loop'`, `phase: null` group with no fabricated per-phase split, `--no-inline` to opt out; (c) default-on **with** ADR-187's per-phase bucketing heuristic | **(b)** | Under DC-1(b) rollups stop being a token source, so (a) makes the default report omit main-loop cost entirely — 190.6M of 392.7M tokens in the reference session, 2.36B of 3.92B corpus-wide. ADR-187's objection (accumulating `cache_read` inflates any single inline phase) is an objection to the per-phase *split*, not the *total*; (b) publishes the exact total and refuses the split, which is the honest shape and keeps ADR-187's "never fabricate" intact. (b) also restores run `slug` on sub-agent groups (`groupByRun` inherits the first non-null slug). (c) re-adopts the approximation ADR-187 deliberately gated. Requires amending ADR-187. |
-| 3a | **`.claude/craft-metrics.md` — the writer (future rows)** | (a) leave `skills/run/SKILL.md` as-is; new rows keep the ~100x under-report and the permanent `cache=na`; (b) **change the instruction** to source the row from the phase's own sub-agent transcript instead of the returned spawn usage block — which also finally delivers the ADR-184 cache split; (c) retire per-phase row writing and let `craft:metrics` be the single source | **(b)** | The brief says "fix the measurement", and this ledger is the second consumer of the same broken number — the miner fix does not reach it (the row is written by the session at run time, ADR-119). (a) leaves a known-false artifact accruing and leaves 372/372 `cache=na` unexplained. Cost objection to weigh: ADR-184 chose the returned usage block because it was "exact, zero extra cost"; reading one transcript per phase is no longer zero-cost, though it is one file read, not the corpus scan ADR-184 rejected — **ADR-184 needs amending either way**, because its stated data source is now known to be wrong, not merely expensive. (c) is the cleanest end state but drops per-phase-id granularity the miner cannot reconstruct (the ledger keys on `implementation-part7-mirror-sync`; the miner on `phase: implementation`). Note this touches `skills/run/SKILL.md`, outside `adapters/` — confirm it is in scope. |
-| 3b | **`.claude/craft-metrics.md` — the 372 historical rows** | (a) **leave + annotate**: append one boundary marker line naming the date and the correction, so old and new rows are never silently compared; (b) migrate — recompute historical rows from the surviving transcripts; (c) leave untouched, document the break in the spec page only | **(a)** | Cheapest thing that prevents the real harm (a reader trending across the boundary). (b) is only partially possible — transcripts are pruned over time, and the 27 baseline runs span sessions whose transcripts no longer all exist, so a migration would silently produce a mixed-fidelity file, which is worse than an annotated break. (c) leaves the artifact self-contradicting for anyone who does not read the spec. Note the file is append-only by ADR-119, which (a) honors and (b) violates. |
-| 4 | **`docs/contributing/metrics-baseline.report.json` regeneration** | (a) **regenerate in this change** from the full local corpus with the fixed miner; (b) regenerate **and** keep the pre-fix file as an archived snapshot beside it; (c) delete it and re-seed on the next run | **(a)** | Drift compares per-phase means; a ~100x correction against a stale baseline flags every phase forever, which is Requirement 10 failing. (b) preserves history but the archived file has no consumer and its only use — comparing across the accounting change — is exactly the comparison that is invalid. (c) leaves `--baseline` broken for the intervening period and loses the drift signal on the very change most likely to need it. Consequence to accept under (a): `test/telemetry-claims.test.js` and the README FAQ numbers recomputed from this file (run count, median/min/max hours) will move, and the `readme-drift` guard will demand the README be updated in the same commit. |
-| 5 | **Where the two-level discovery lives** | (a) a `SOURCE_DISCOVERY` frozen per-source lookup in `usage-mine-main.js` holding the walk inline; (b) **the claude adapter exports `discover({ listDir, readText })`**, both ports front-door-owned and contained; the front door calls it through the same per-source lookup and keeps all paths, containment, and I/O; (c) pass the adapter an absolute path and let it discover | **(b)** | (c) violates the spec's explicit *"the adapter never receives an absolute path"* contract. (a) honors the contract but puts the `<sessionId>/subagents/agent-*.jsonl` shape — pure claude knowledge — inside the shared selector, next to five other sources that must not know it. (b) keeps the layout knowledge with the binding that owns every other claude runtime specific, keeps the front door the sole path-holder and the sole realpath-checker, and makes the walk unit-testable against fake ports with no filesystem. Costs one new file. |
-| 6 | **How the sidecar label reaches the parser** | (a) widen the port to `parseLines(lines, since, context)` with the **front door** building the context (it must then read and parse the sidecar itself); (b) **same signature, but the adapter's `discover` builds the context** and the front door passes it through as an opaque blob it never inspects; (c) prepend the sidecar as a synthetic first line of the stream | **(b)** | Same one-argument widening either way — the question is who authors the blob. (b) keeps sidecar parsing, field names, and fallback policy inside the claude adapter; the front door's contract becomes "carry this opaque value from discovery to parse", which is source-agnostic and needs no claude knowledge. (a) drags `agentType`/`spawnDepth`/the sidecar filename convention into the shared front door. (c) corrupts the line stream's meaning and would trip the malformed-line counter in every other reader of that stream. The third argument is optional; the other six adapters are unchanged. |
-| 7 | **Walk shape** | (a) **pinned two-level shape** — `<root>/*.jsonl` and `<root>/<dir>/subagents/agent-*.jsonl`, nothing else; (b) generic bounded-depth recursive walk for `*.jsonl`; (c) glob pattern from config | **(a)** | Fail-closed. A `memory/` directory already sits in the projects root and upstream may add more; (b) would descend it and anything future, and would pick up files whose shape the parser has never seen — producing counted skips that look like corruption. Pinned: **no** nested directories exist inside any of the 19 `subagents/` dirs, and depth-2 sub-agents are flat siblings — so recursion buys nothing that the pinned shape does not already cover. (c) makes the containment surface user-controlled. Cost of (a): an upstream layout change breaks discovery loudly rather than degrading — which is the preferred direction here. |
-| 8 | **The zero-arg read root (defect 3)** | (a) **fix here** — `DEFAULT_READ_ROOTS.claude` resolves `join(projectsDir, dashed(cwd))`, containment root stays `~/.claude/projects`; (b) fix `skills/metrics/SKILL.md` instead to require an explicit `--dir`; (c) out of scope — separate change | **(a)** | Without it the entire fix is unobservable through the advertised front door: `/craft:metrics` with no flags returns `"no .jsonl transcript files found"` today and would keep doing so. The dashed-cwd mapping is already what the SKILL *documents*, so (a) makes code match the contract rather than adding one. It is ~5 lines in an existing seam, in the file this change already opens. (b) documents the defect instead of fixing it and leaves per-repo scoping to the caller. (c) ships a fix nobody can see. |
-| 9 | **`messages` / `durationMs` for sub-agent events** | (a) **derive from the transcript** — `messages` = billed turns, `durationMs` = `last − first` timestamp span attributed once per transcript; (b) join the rollup by `agentId` for these two dimensions only, tokens still from the transcript; (c) emit `0` for both on sub-agent events | **(a)** | `durationMs` is a `drift` dimension; (c) silently disables half the drift signal. (b) reintroduces a rollup read purely for metadata, brings back the 6/243 orphan blind spot (in-flight sub-agents would get 0), and reopens the double-count question for a future maintainer who sees rollups being parsed again. (a) is self-contained and every input is pinned present (timestamps 2707/2707). Accept the semantic shift and record it: rollup `totalToolUseCount` 74 vs 138 billed turns; rollup `totalDurationMs` 921,407 vs wallclock span 1,134,897 — these are different quantities, so cross-boundary comparison of these two fields is invalid, same as DC-3b/DC-4. |
-| 10 | **How far cost reconciliation reaches** | (a) **tokens only** — prove `cost.relative` reproduces the oracle exactly, document that `cost.priced` cannot match the published dollars, file two follow-ups; (b) add `claude-opus-5`/`claude-sonnet-5` to `DEFAULT_PRICES` here; (c) (b) plus fix the missing `1e6` divisor in `computePricedCost` | **(a)** | Honors the brief's stated out-of-scope line ("pricing table updates"). It also keeps the change honest: (b) alone would publish `cost.priced` values that are 10⁶× the real dollars, which is a *worse* false number than the current `null`. (c) is the only alternative that would actually reproduce `$297.55`, but it changes every historical `priced` value in the baseline and in every consumer, which deserves its own change and its own ADR. Under (a) the answer to "does the fixed miner reproduce the README figures" is: **544.3M tokens yes, $297.55 no** — and the README figures are correct, just externally sourced. |
+| 11 | **How the published-dollar reconciliation is made assertable and reproducible.** ADR-338's consequences require the test strategy to assert `$297.55`, but the exact live re-derivation needs an *upper* time bound the CLI does not have: the craft arm's session was resumed the day after the experiment, so mining its directory yields $425.62, not $297.55. | (a) **assert it as a golden vector in the pure core** — an `aggregate` test over events carrying the measured per-model class totals, asserting `544,271,827` relative and `297,550,926.45 / 1e6` priced; the live recipe in the spec page documents the window as prose and accepts that a whole-directory run reports more; (b) (a) **plus add `--until <iso>`**, the mirror of `--since`, so the recipe reproduces the published number exactly through the front door; (c) live opt-in script only, no CI assertion | **(a)** | (a) satisfies ADR-338's "the test strategy must assert it" with a deterministic, corpus-free, CI-runnable test that pins the exact published claim, and needs no new user-facing surface. (b) is genuinely useful — an upper bound is the natural mirror of `--since` and would make any historical window re-derivable — but it adds a CLI flag, a spec section, and a containment-neutral but test-bearing code path to a change that already spans discovery, pricing, a skill, and a baseline. (c) is ruled out by ADR-338 as written. If (b) is chosen, note that `--until` must filter on the same top-level `timestamp` as `--since` and interact with the ADR-337 duration span identically (span computed over surviving lines only). |
+| 12 | **What `messages` and `durationMs` a main-loop event carries.** ADR-337 settles this for sub-agent events only, and ADR-329 puts main-loop events in the default report for the first time. `engine/src/telemetry-claims.js` → `recomputeClaims` sums `durationMs` across **all** groups in a run and feeds the README FAQ's run-hours claims through the `readme-drift` gate; the FAQ prose scopes that number to *"role-agent activity"*. A main-loop group's span overlaps every sub-agent span in the same run, so including it roughly doubles a figure the prose says excludes it. | (a) **`messages` = billed main-loop turns, `durationMs` = 0** — the main-loop group carries exact cost and message count but contributes no duration, keeping run-hours "role-agent activity" as the README states; (b) **symmetric with ADR-337** — `durationMs` = the main-loop transcript's `last − first` span, and the README prose is rewritten to say what the number now means (orchestrator wallclock + summed role-agent spans); (c) main-loop `durationMs` = span, and `recomputeClaims` is changed to exclude `phase: null` groups | **(a)** | It is the only option that leaves the README's *sentence* true, not merely its numbers refreshed, and it keeps `durationMs` meaning one thing across the report — "time attributable to a labelled role". Losing the orchestrator's wallclock costs nothing measurable: it is already recoverable as the run's own span, and no consumer reads it. (b) is more symmetric and arguably more honest as raw telemetry, but it silently redefines a published claim and makes the drift dimension mix two incomparable quantities. (c) fixes the README at the cost of putting report-schema knowledge (`phase: null` means orchestrator) inside the drift-guard, which is the coupling `recomputeClaims` was written to avoid. Whichever is chosen, `messages` for a main-loop event is 1 per billed turn under every option — that is not in question. |
 
 ## Test strategy
 
@@ -592,12 +924,82 @@ The corpus is ~3.9B tokens across 273 files. Three tiers, none of which commits 
    `input + output + cache_read + ephemeral_5m + ephemeral_1h` — which is the one property
    the corpus reconciliation actually depends on (pinned equal on 1618/1618 real lines).
 
-3. **An opt-in live reconciliation script, not a test.** `scripts/` gains no new gate; a
+3. **An opt-in live reconciliation recipe, not a test.** `scripts/` gains no new gate; a
    short reproduction recipe goes in the spec page so any maintainer can re-derive the
    corpus numbers on their own machine in one command. It never runs in CI (no corpus in
-   CI, and the numbers are machine-specific).
+   CI, and the numbers are machine-specific). The recipe must name the craft arm's window
+   caveat explicitly — see DC-11.
 
-### The 100x regression test (Requirement 11)
+### The dollar reconciliation test (Requirements 11, 12, 13)
+
+ADR-338's consequences require this change to *assert* the published dollar figure, not merely
+claim it. The assertion is a **golden vector in the pure core** — deterministic, corpus-free,
+CI-runnable, and pinning the exact published claim (DC-11(a); if the user picks (b) this test
+stays and gains a live counterpart):
+
+> *Given two `UsageEvent`s carrying the measured per-model token-class totals of the published
+> craft arm — `claude-opus-5` with `{input: 2_800, output: 815_845, cacheRead: 226_695_412,
+> cacheCreation: 6_078_085}` and `cacheCreationTtl {creation5m: 5_092_346, creation1h: 985_739}`,
+> and `claude-sonnet-5` with `{input: 11_534, output: 319_302, cacheRead: 303_340_224,
+> cacheCreation: 7_008_625}` and `cacheCreationTtl {creation5m: 7_008_625, creation1h: 0}` —
+> when `aggregate` runs against `DEFAULT_PRICES`, then the summed `cost.relative` is
+> **544,271,827** and the summed `cost.priced` is **`297_550_926.45 / 1e6`** (297.55092645),
+> which renders as `$297.5509`.*
+
+It fails three distinct ways on three distinct pre-fix states, which is what makes it worth
+writing: `cost.priced` is `null` without the two model entries (defect 7); it is
+`297_550_926.45` without the divisor (defect 6); and it renders `$0.0000` if the divisor lands
+while `renderMarkdown` keeps its compensator (call-site row 9). Placed in
+`engine/test/usage-aggregate.test.js` alongside the existing exact-arithmetic cases, using the
+**real** `DEFAULT_PRICES` rather than the file's synthetic `PRICE_TABLE` — this is the one test
+whose point is that the shipped rates are right. Build the two events through the file's
+existing `makeEvent` helper: `accumulateGroup` adds `event.messages` and `event.durationMs`
+unguarded, so a hand-rolled event literal that omits them poisons the group with `NaN` and the
+failure reads as a pricing bug.
+
+A companion unit case pins the hazard the call-site table names, since the golden vector alone
+does not distinguish it:
+
+> *Given a group whose `cacheEfficiency` clears the hotspot threshold, when `aggregate` runs,
+> then `recommendations[*].evidence.pricedCreationCost` is in the same unit as
+> `cost.priced` and `evidence.shareOfRunCost` lies in `[0, 1]`.*
+
+That is the assertion that fails if `computePricedCreation` is divided at the composed site
+(row 2) or left undivided at the emitting site (row 3).
+
+Two precision notes the planner must not discover at the keyboard. **Assert the expression, not
+a decimal literal** — `297.55092645` typed by hand is not necessarily the double that
+`297_550_926.45 / 1e6` evaluates to. And **sum the two groups' `cost.priced` in the test the
+same way the report does** (per group, then add); dividing a summed Σ and summing two divided Σs
+are not bit-identical in IEEE-754, so an `assert.equal` written against the wrong association
+will fail for a reason that has nothing to do with the fix. If either bites, assert against a
+relative epsilon and say so in the test name — never widen it silently.
+
+**Existing tests that must change, and why each is a rewrite rather than a renumber.** These
+encode the defect and will otherwise mask the fix:
+
+| Test | Currently asserts | After |
+|---|---|---|
+| `usage-aggregate.test.js` §1 "…`cost.priced` = Σ class×rate" | `622.5` | `622.5 / 1e6`; the title's "Σ class×rate" is now "Σ class×rate ÷ 1 MTok" |
+| §3 "cacheCreationTtl split" | `2250` | `2250 / 1e6` |
+| §17 "…reflects the accumulated TTL split" | `2325` | `2325 / 1e6` |
+| §22 "costPerCycle carries exact priced cost" | `500` | `500 / 1e6` |
+| §36 "…cost string … divided by 1e6" | `$0.0006` **and a title + comment asserting the compensator is correct** | passes numerically either way once both edits land — so it must be **rewritten**, not left: as written it documents the bug as intended behaviour |
+| §51 "…exact priced cost difference" | `622.5 - 30` | `(622.5 - 30) / 1e6` |
+
+§36 is the trap. `622.5 → 0.0006225 → "$0.0006"` before the fix (divide at render) and after it
+(divide at compute), so the assertion survives while its title and comments become false. It
+catches the *double*-division and nothing else. Rewrite its title and comment to state the
+invariant that actually holds — `renderMarkdown` formats `cost.priced` as dollars with no
+scaling — and add the `$0.0000` regression it should have been guarding.
+
+`engine/test/tune-plan*.test.js` and `tune-plan.bin.test.js` build reports by hand with literal
+`cost: { priced: 100 }` and never reach `computePricedCost`; they stay green untouched.
+`engine/test/tune-smoke.test.js` goes through `aggregate` but asserts a *relative* outcome (the
+flagged phase's priced cost drops to the projected figure), so it is scale-invariant — assert
+that it is, rather than assuming it.
+
+### The 100x regression test (Requirement 17)
 
 The test that would have caught this, stated so it fails on the pre-fix parser:
 
@@ -638,19 +1040,31 @@ together — the seam where the defect actually lives.
   the existing containment-test pattern) and the refusal is counted; a source with no
   `SOURCE_DISCOVERY` entry (opencode fixture dir) behaves exactly as before — the
   no-regression guard for the other five bindings; zero-arg read-root resolution under
-  DC-8(a) via the exported `resolveDefaultReadRoot` seam.
+  ADR-336 via the exported `resolveDefaultReadRoot` seam; **`--no-inline` drops the
+  `role: 'main-loop'` group and nothing else — the same fixture still yields its `auto-skip:`
+  phase markers** (the ADR-329 trap named in defect 4).
 - **`engine/test/usage-mine.bin.test.js`** (extend) — one subprocess smoke over the new
   fixture tree in a mktemp throwaway: exit 0, `report.json` + `report.md` written, sub-agent
-  groups present with non-null roles.
-- **`engine/test/usage-aggregate.test.js`** (extend, only if `aggregate` changes) — expected
-  unchanged; assert it: a `role: 'main-loop'`, `phase: null` group aggregates and prices
-  like any other, and `groupByRun` propagates the main-loop `slug` onto slug-less sub-agent
-  events sharing a `run`.
+  groups present with non-null roles, and `report.md`'s cost string is a plausible dollar
+  figure rather than `$0.0000` (the end-to-end guard on call-site row 9).
+- **`engine/test/usage-aggregate.test.js`** (extend + amend) — the dollar reconciliation test
+  and its `shareOfRunCost` companion above; the six existing assertions rescaled per the table
+  above; plus: a `role: 'main-loop'`, `phase: null` group aggregates and prices like any
+  other, and `groupByRun` propagates the main-loop `slug` onto slug-less sub-agent events
+  sharing a `run`.
+- **`engine/src/observability/adapters/claude/pricing.js`** — the two new entries are data, but
+  the module header's *"no 1e6 scaling is applied"* is now false and must change with them.
+  There is no dedicated `pricing.test.js`; `mergePrices`/`loadPriceTable` are exercised through
+  `usage-mine-main.test.js` §7 (`--prices` override). Add a case asserting a per-MTok override
+  entry prices in dollars — i.e. that the unit contract for overrides is unchanged by the fix,
+  which is the property that breaks if the divisor is pushed into `priceEntry`.
 - **`engine/test/metrics-split.test.js`** — must stay green untouched; `tokensFromClaudeUsage`
   keeps its signature and semantics (it is the shared dependency).
-- **`engine/test/telemetry-claims.test.js`** — will move with the regenerated baseline
-  (DC-4); the recomputed run count / median / min / max hours must be updated in the same
-  commit as the baseline and the README, or the `readme-drift` CI job fails.
+- **`engine/test/telemetry-claims.test.js`** — its last case pins the live README figures
+  (`runCount: 27`, `medianHours: 1.2942`, …) against `compareClaims`; the rest are pure unit
+  tests over synthetic reports and are unaffected. That one case, the README FAQ numbers, and
+  the regenerated baseline must move in the same commit or the `readme-drift` CI job fails.
+  Whether the run-hours figure *should* move at all depends on DC-12.
 - **Property lens** (parser/matcher pair touched): over generated line streams mixing
   `user`-rollup lines, `assistant`-usage lines, blank lines, and malformed JSON in arbitrary
   order — total emitted tokens equal the sum over `assistant` lines alone, invariant under
@@ -661,15 +1075,37 @@ together — the seam where the defect actually lives.
 
 ## Out of scope
 
-- **Pricing table updates** — `claude-opus-5`/`claude-sonnet-5` are absent from
-  `DEFAULT_PRICES`, so a corrected report prices them `null`. Named as a follow-up; DC-10
-  confirms the boundary.
-- **The missing `1e6` divisor in `computePricedCost`** — `cost.priced` is dollars × 10⁶
-  today (the committed baseline sums to $31,171,735.70 for 39.7M tokens). A pre-existing
-  core defect, independent of this change, that would rewrite every historical `priced`
-  value; its own change and its own ADR.
-- **New report formats or fields** — `report.json`/`report.md` schemas are unchanged. No new
-  `UsageEvent` field, which is also what keeps the redaction whitelist intact.
+This is the **ratified** boundary, not the brief's. ADR-338 pulled the whole priced-cost path
+*in*; ADR-330 pulled `skills/run/SKILL.md` *in*. Both were out of scope when this doc was first
+written; neither is now.
+
+**In scope, stated here because the brief said otherwise and the conflation is easy:**
+
+- **`DEFAULT_PRICES` gains `claude-opus-5` and `claude-sonnet-5`** (ADR-338). The brief's
+  "pricing table updates are out of scope" line is superseded.
+- **The missing `1e6` divisor in `computePricedCost`** (ADR-338), together with the
+  compensating `/1e6` in `renderMarkdown` and the direct `pricedCreationCost` emission — all
+  nine call sites in the table above move as one unit or the report becomes internally
+  inconsistent. It rewrites every historical `priced` value; that is accepted, and it is why
+  ADR-332 orders the baseline regeneration after it.
+- **`skills/run/SKILL.md`** (ADR-330) — the metrics-ledger row's data source, and the
+  "exact, zero extra cost" rationale that no longer holds.
+- **`.claude/craft-metrics.md`** (ADR-331) — one appended boundary marker. Not an edit of any
+  existing row.
+
+**Genuinely out of scope:**
+
+- **New report formats or fields** — `report.json` / `report.md` schemas are unchanged. No new
+  `UsageEvent` field, which is also what keeps the redaction whitelist intact. `cost.priced`
+  changes its *magnitude*, never its name, type, or nullability contract.
+- **`costPerCycle`'s priced/relative unit mixing.** `buildReviewCycles` falls back to
+  `computeRelativeCost(e.tokens)` — a raw token count — when a model is unpriced, so one array
+  can hold dollars and token counts. `docs/contributing/specs/telemetry.md` documents exactly
+  this behaviour, and no ADR authorizes changing a documented field. The correction makes the
+  mismatch starker (dollars are now ~10⁶ smaller than the fallback rather than comparable in
+  magnitude), but ADR-338 both models being added means the fallback stops firing for craft's
+  own corpus. **Named as a follow-up**, not silently absorbed: the honest fix is a discriminated
+  value, not a wider divisor.
 - **Any adapter other than `adapters/claude/`** — opencode, pi, copilot, codex, aider, and
   the unwired cursor binding keep today's flat discovery and today's two-argument
   `parseLines` call. The optional third argument is additive.
@@ -678,13 +1114,20 @@ together — the seam where the defect actually lives.
   needs a live run per tool.
 - **Retro-mining sessions whose transcripts have been pruned** — transcript retention is
   upstream-controlled, so historical accuracy is bounded by what is still on disk. This is
-  the substantive argument against DC-3b(b) migration.
+  the substantive argument ADR-331 accepted against migrating the ledger.
 - **Making telemetry gate anything** — the port stays advisory (exit 0 on every input
-  failure). A wrong number is a bad report, never a blocked run.
-- **`docs/guides/comparison.md` and the README *cost* figures** (`544.3M tokens / $297.55`)
-  — investigated (see Design): externally collected and correct. They are not restated from
-  craft's own miner in this change, because craft cannot yet produce the dollar figure.
-  **Not** out of scope, and easy to conflate with the above: the README FAQ's *telemetry
-  claims* (run count, median/min/max run hours) are recomputed from
-  `docs/contributing/metrics-baseline.report.json` and guarded by the `readme-drift` CI job,
-  so regenerating the baseline under DC-4 forces them to move in the same commit.
+  failure). A wrong number is a bad report, never a blocked run. Every branch added by the
+  priced-cost work is pure arithmetic over already-parsed data and cannot introduce an exit
+  path at all.
+- **`docs/guides/comparison.md` and the README *cost comparison table*** — investigated, not
+  assumed (see *Reconciling the published figures*): all three arms reproduce to the cent under
+  the corrected miner, so **no figure there needs correcting**. The change does not restate them
+  from craft's own corpus either, because they describe a different repository's single run.
+  **Not** out of scope, and easy to conflate: the README FAQ's *telemetry claims* (run count,
+  median/min/max run hours) are recomputed from
+  `docs/contributing/metrics-baseline.report.json` and guarded by the `readme-drift` CI job, so
+  the ADR-332 regeneration forces them to move in the same commit — and DC-12 decides whether
+  the run-hours *sentence* survives that move unchanged.
+- **An `--until` flag** — the mirror of `--since` that would make the craft arm's published
+  window re-derivable through the front door. Deliberately parked as DC-11(b) rather than
+  assumed; DC-11(a) meets ADR-338's assertion requirement without it.
