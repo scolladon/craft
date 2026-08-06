@@ -25,8 +25,8 @@
  *
  * Advisory: absent / malformed / out-of-bounds dir → recorded no-op report, exit 0.
  * Every counted-fallback branch (unreadable sub-agent dirs, unlabelled
- * transcripts, containment-refused entries) is advisory too — surfaced on
- * stderr, never gating.
+ * transcripts, containment-refused entries, transcripts that failed to open or
+ * parse) is advisory too — surfaced on stderr, never gating.
  * Config error: an unknown/unbuilt --source is the one exception — rejected
  * with a non-zero exit before any I/O begins.
  * Redaction: report contains no file paths, $HOME fragments, or prompt text.
@@ -270,6 +270,10 @@ async function streamTranscriptFiles(entries, transcriptDir, createReadStream, c
   let totalSkipped = 0;
   let totalUnlabelled = 0;
   let refused = 0;
+  // F3: a transcript that fails to open or parse must not vanish silently —
+  // it is counted here and surfaced on stderr by the caller, same as every
+  // other counted-fallback branch.
+  let failed = 0;
   for (const entry of entries) {
     // A3: per-entry containment guard — a discovery-supplied relPath is
     // realpath-checked before streaming exactly like a flat filename was;
@@ -288,12 +292,14 @@ async function streamTranscriptFiles(entries, transcriptDir, createReadStream, c
       totalSkipped += skipped;
       totalUnlabelled += unlabelled ?? 0;
     } catch {
+      failed++;
       continue;
     }
   }
-  // C4: propagate total skipped/unlabelled/refused counts and the phase-skip
-  // markers so callers can surface them — every one advisory, never gating.
-  return { events: allEvents, skipped: totalSkipped, markers: allMarkers, unlabelled: totalUnlabelled, refused };
+  // C4: propagate total skipped/unlabelled/refused/failed counts and the
+  // phase-skip markers so callers can surface them — every one advisory,
+  // never gating.
+  return { events: allEvents, skipped: totalSkipped, markers: allMarkers, unlabelled: totalUnlabelled, refused, failed };
 }
 
 // The ports discover() receives — both absorb their own failures into the
@@ -426,7 +432,7 @@ export async function main(argv, io) {
   if (!entries.length) { writeNoOp(noFilesNote(source)); return EXIT_OK; }
 
   // Stream-parse all transcript entries (never readFileSync — see module header).
-  const { events, skipped, markers, unlabelled, refused } = await streamTranscriptFiles(
+  const { events, skipped, markers, unlabelled, refused, failed } = await streamTranscriptFiles(
     entries,
     safeTranscriptDir,
     createReadStream,
@@ -442,6 +448,9 @@ export async function main(argv, io) {
   if (unlabelled > 0) stderr.write(`usage-mine: ${unlabelled} transcript(s) with no resolvable agent label\n`);
   if (unreadable > 0) stderr.write(`usage-mine: ${unreadable} unreadable sub-agent directory(ies)\n`);
   if (refused > 0) stderr.write(`usage-mine: ${refused} path(s) refused by read containment\n`);
+  // F3: a transcript dropped by streamTranscriptFiles' catch (open/parse failure)
+  // must leave the same kind of trace as every other counted-fallback branch.
+  if (failed > 0) stderr.write(`usage-mine: ${failed} transcript(s) could not be read\n`);
 
   if (!events.length) { writeNoOp(NO_EVENTS_NOTE); return EXIT_OK; }
 

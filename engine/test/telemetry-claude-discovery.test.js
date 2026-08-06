@@ -221,6 +221,43 @@ test('Given a sub-agent transcript whose sidecar is valid JSON but carries no ag
   assert.equal(result.entries[0].context.agentType, null);
 });
 
+// ── 11b. F1: a sidecar agentType shaped as a prototype-pollution key is rejected ──
+
+test('Given a sub-agent transcript whose sidecar carries agentType "__proto__", when discover runs, then it yields agentType null — the same outcome as a missing sidecar', () => {
+  const ports = makePorts({
+    dirs: {
+      '': ['sess-a'],
+      'sess-a': ['subagents'],
+      'sess-a/subagents': ['agent-1.jsonl'],
+    },
+    files: { 'sess-a/subagents/agent-1.meta.json': '{"agentType":"__proto__"}' },
+  });
+  const sut = discover;
+
+  const result = sut(ports);
+
+  assert.equal(result.entries[0].context.agentType, null, 'a prototype-pollution-shaped agentType must be rejected, not passed through');
+});
+
+// ── 11c. F1: an out-of-bounds-length sidecar agentType is rejected ────────
+
+test('Given a sub-agent transcript whose sidecar carries an agentType longer than the bounded identifier pattern allows, when discover runs, then it yields agentType null', () => {
+  const overlong = 'a'.repeat(65);
+  const ports = makePorts({
+    dirs: {
+      '': ['sess-a'],
+      'sess-a': ['subagents'],
+      'sess-a/subagents': ['agent-1.jsonl'],
+    },
+    files: { 'sess-a/subagents/agent-1.meta.json': JSON.stringify({ agentType: overlong }) },
+  });
+  const sut = discover;
+
+  const result = sut(ports);
+
+  assert.equal(result.entries[0].context.agentType, null, 'an over-length agentType must be rejected by the bounded identifier pattern');
+});
+
 // ── 12. an unlistable root yields zero entries and does not throw ─────────
 
 test('Given a root that cannot be listed at all, when discover runs, then it yields zero entries and does not throw', () => {

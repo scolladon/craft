@@ -60,8 +60,17 @@ function computePricedCost(tokens, cacheCreationTtl, prices) {
   );
 }
 
+// F2: model is a transcript-controlled string — a bare priceTable[model] access
+// would resolve an inherited Object.prototype member (e.g. model: "constructor")
+// to a truthy-but-wrong price entry and corrupt cost math with NaN. Object.hasOwn
+// gates the lookup to the table's own keys only, mirroring the front door's
+// existing SOURCES/DEFAULT_READ_ROOTS discipline.
+function lookupPrices(priceTable, model) {
+  return Object.hasOwn(priceTable, model) ? priceTable[model] : undefined;
+}
+
 function computeCost(tokens, cacheCreationTtl, model, priceTable) {
-  const prices = priceTable[model];
+  const prices = lookupPrices(priceTable, model);
   const priced = prices ? computePricedCost(tokens, cacheCreationTtl, prices) : null;
   return { priced, relative: computeRelativeCost(tokens) };
 }
@@ -106,7 +115,7 @@ function buildGroupMap(events) {
 // ── Private: enriched group (carries internal fields for rec builders) ─────────
 
 function buildEnrichedGroup(runId, raw, priceTable) {
-  const prices = priceTable[raw.model];
+  const prices = lookupPrices(priceTable, raw.model);
   const cost = computeCost(raw.tokens, raw.cacheCreationTtl, raw.model, priceTable);
   // The only emitter of computePricedCreation that does not compose inside
   // computePricedCost, so it must convert to dollars itself to match cost.priced's
@@ -138,6 +147,25 @@ function toReportGroup(enriched) {
 
 // ── Private: review cycles ────────────────────────────────────────────────────
 
+function sum(values) {
+  return values.reduce((total, v) => total + v, 0);
+}
+
+// F4b: aggregates one cost dimension (all-priced or all-relative values) in
+// isolation — the caller never mixes the two into one array. The moment any
+// single value is null (an unpriced model among the role's cycles), the whole
+// dimension aggregates to null: a partial sum would misrepresent the role's
+// true cost, not merely omit a data point.
+function aggregateCostDimension(values) {
+  if (values.some(v => v == null)) return { total: null, max: null, mean: null };
+  return { total: sum(values), max: Math.max(...values), mean: sum(values) / values.length };
+}
+
+// F4: O(1)-per-role aggregate evidence computed in the same single pass, so
+// reviewCycles size stays proportional to distinct (run, role) pairs rather
+// than to turn count. priced and relative stay in their own { priced, relative }
+// shape at every level — mirroring the shape every group already carries —
+// never collapsed together with `??`.
 function buildReviewCycles(events, priceTable) {
   const byRole = new Map();
   for (const evt of events) {
@@ -148,14 +176,18 @@ function buildReviewCycles(events, priceTable) {
   }
   return [...byRole.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([role, evts]) => ({
-      role,
-      cycles: evts.length,
-      costPerCycle: evts.map(e =>
-        computeCost(e.tokens, e.cacheCreationTtl, e.model, priceTable).priced
-        ?? computeRelativeCost(e.tokens)
-      ),
-    }));
+    .map(([role, evts]) => {
+      const costs = evts.map(e => computeCost(e.tokens, e.cacheCreationTtl, e.model, priceTable));
+      const priced = aggregateCostDimension(costs.map(c => c.priced));
+      const relative = aggregateCostDimension(costs.map(c => c.relative));
+      return {
+        role,
+        cycles: evts.length,
+        totalCost: { priced: priced.total, relative: relative.total },
+        maxCost: { priced: priced.max, relative: relative.max },
+        meanCost: { priced: priced.mean, relative: relative.mean },
+      };
+    });
 }
 
 // ── Private: run builder ──────────────────────────────────────────────────────
@@ -241,7 +273,10 @@ function reviewWasteRecs(runs) {
       .map(rc => ({
         kind: 'review-waste', run: run.run, phase: 'review', model: null,
         detail: `role ${rc.role} has ${rc.cycles} review cycles`,
-        evidence: { role: rc.role, cycles: rc.cycles, costPerCycle: rc.costPerCycle },
+        evidence: {
+          role: rc.role, cycles: rc.cycles,
+          totalCost: rc.totalCost, maxCost: rc.maxCost, meanCost: rc.meanCost,
+        },
       }))
   );
 }

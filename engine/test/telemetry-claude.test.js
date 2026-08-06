@@ -309,6 +309,27 @@ test('Given each recognized craft agentType via an injected sub-agent context, w
   }
 });
 
+// ── 16b. parseLines — F1: a role colliding with an Object.prototype member never
+// resolves the inherited member as a phase ────────────────────────────────────
+
+test('Given a sub-agent context whose agentType strips to the role "constructor" (an inherited Object.prototype member), when parseLines runs, then phase is null, not the Object function', async () => {
+  const sut = parseLines;
+  const usageLine = JSON.stringify({
+    type: 'assistant',
+    sessionId: 'sess-proto',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: 'claude-sonnet-4-6',
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+
+  const result = await sut(asyncLines([usageLine]), null, { sourceKind: 'subagent', agentType: 'craft:constructor' });
+
+  assert.equal(result.events[0].role, 'constructor', 'role must still resolve — only the phase lookup is guarded');
+  assert.equal(result.events[0].phase, null, 'a bare ROLE_TO_PHASE[role] would resolve the inherited Object constructor — must be null instead');
+});
+
 // ── 17. parseLines — sub-agent context naming craft:designer resolves role and phase ──
 
 test('Given an injected sub-agent context naming craft:designer, when parseLines runs, then role is designer and phase is design', async () => {

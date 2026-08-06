@@ -32,7 +32,14 @@
 
 const SUBAGENTS_DIR = 'subagents';
 const TRANSCRIPT_SUFFIX = '.jsonl';
+const SIDECAR_SUFFIX = '.meta.json';
 const SUBAGENT_PREFIX = 'agent-';
+// F1: the sidecar's agentType is untrusted upstream content — bound it to a
+// canonical lowercase identifier before it can reach a `context` and, from
+// there, any bare object-property lookup downstream (report.json's phase
+// mapping). A value failing this shape is treated identically to a missing
+// sidecar: no label, counted — never a throw.
+const AGENT_TYPE_PATTERN = /^[a-z][a-z0-9:-]{0,63}$/;
 
 /**
  * @param {{ listDir: (relPath: string) => string[] | null,
@@ -81,7 +88,10 @@ export function discover({ listDir, readText }) {
     for (const subagentName of [...subagentNames].sort()) {
       if (!subagentName.startsWith(SUBAGENT_PREFIX) || !subagentName.endsWith(TRANSCRIPT_SUFFIX)) continue;
 
-      const sidecarName = subagentName.replace(/\.jsonl$/, '.meta.json');
+      // F6: derived from the two named suffix constants, not a re-hardcoded
+      // literal — subagentName is already confirmed to end with TRANSCRIPT_SUFFIX
+      // by the guard above.
+      const sidecarName = subagentName.slice(0, -TRANSCRIPT_SUFFIX.length) + SIDECAR_SUFFIX;
       const raw = readText(`${subagentsPath}/${sidecarName}`);
       const agentType = parseAgentType(raw);
 
@@ -102,7 +112,9 @@ function parseAgentType(raw) {
   if (raw === null) return null;
   try {
     const parsed = JSON.parse(raw);
-    return typeof parsed.agentType === 'string' ? parsed.agentType : null;
+    return typeof parsed.agentType === 'string' && AGENT_TYPE_PATTERN.test(parsed.agentType)
+      ? parsed.agentType
+      : null;
   } catch {
     return null;
   }

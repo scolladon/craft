@@ -76,8 +76,11 @@ function findMedianDrift(recomputed, costClaims) {
 /**
  * Render the shortest run as the prose phrase the README is expected to carry.
  *
- * Sub-half-hour durations round UP to the next five minutes, so the published claim can
- * never understate how short the shortest run was. Above half an hour no phrasing
+ * Below 15 minutes (hours < 0.25 — the only range nearestHalf never resolves to 'half
+ * an hour'), durations round UP to the next five minutes, so the published claim can
+ * never OVERstate how short the shortest run was (it never rounds down past the true
+ * value). From 0.25h up to (but not including) 0.75h the fixed 'half an hour' phrase
+ * takes precedence over that five-minute rounding. At 0.75h and above no phrasing
  * convention exists, so the caller reports drift with the recomputed number rather than
  * inventing wording the README was never written to match.
  *

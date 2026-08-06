@@ -944,6 +944,28 @@ test('Given two transcript files where createReadStream throws for one but succe
   assert.ok(report.runs.length > 0, 'report must have events from the successful file');
 });
 
+// ─── F3. a transcript that fails to open/parse is counted and surfaced, never silently dropped ──
+
+test('Given a transcript file whose createReadStream throws, when main runs, then stderr reports it as an unreadable transcript with an exact count and exits 0', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('projects-');
+  const transcriptDir = join(projectsRoot, 'project');
+  mkdirSync(transcriptDir);
+  writeFileSync(join(transcriptDir, 'a-bad.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
+  const repoRoot = makeTmp('repo-');
+  const streamError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
+  const mockCreateReadStream = () => { throw streamError; };
+  const io = makeIo({ projectsRoot, repoRoot, createReadStream: mockCreateReadStream });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0);
+  assert.ok(
+    io.stderr.joined().includes('usage-mine: 1 transcript(s) could not be read'),
+    `stderr must report the dropped transcript; got: ${io.stderr.joined()}`,
+  );
+});
+
 // ─── P29-18. loadJson readFileSync throws for --prices → defaults used, stderr note, exit 0 ──
 
 test('Given a --prices path where readFileSync throws EACCES, when main runs, then defaults are used, stderr notes the unreadable file, and exits 0', async () => {

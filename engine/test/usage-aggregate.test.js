@@ -62,6 +62,19 @@ test('Given an event whose model key is absent from the price table, when aggreg
   assert.ok(group.cost.relative > 0);
 });
 
+// ── 2b. F2: model colliding with an Object.prototype member never resolves as pricing ──
+
+test('Given an event whose model is the literal string "constructor" (an inherited Object.prototype member), when aggregate runs, then cost.priced is null, not NaN', () => {
+  const event = makeEvent({ model: 'constructor' });
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE);
+
+  const group = result.runs[0].groups[0];
+  assert.equal(group.cost.priced, null, 'a bare priceTable[model] would resolve the inherited Object constructor as a truthy-but-wrong price entry');
+  assert.ok(!Number.isNaN(group.cost.priced), 'cost.priced must never be NaN');
+});
+
 // ── 3. cacheCreationTtl split ─────────────────────────────────────────────────
 
 test('Given a cacheCreationTtl split, when aggregate prices creation, then creation5m uses the 5m rate and creation1h uses the 1h rate', () => {
@@ -78,9 +91,9 @@ test('Given a cacheCreationTtl split, when aggregate prices creation, then creat
   assert.equal(group.cost.priced, (200 * 6.25 + 100 * 10) / 1e6);
 });
 
-// ── 4. Review cycles counted by role, costPerCycle ───────────────────────────
+// ── 4. Review cycles counted by role, totalCost/maxCost/meanCost aggregates ──
 
-test('Given two review events grouped by role, when aggregate runs, then reviewCycles counts the cycles and emits costPerCycle', () => {
+test('Given two review events grouped by role, when aggregate runs, then reviewCycles counts the cycles and emits totalCost/maxCost/meanCost aggregates', () => {
   const events = [
     makeEvent({ phase: 'review', role: 'code', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
     makeEvent({ phase: 'review', role: 'code', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
@@ -94,8 +107,10 @@ test('Given two review events grouped by role, when aggregate runs, then reviewC
   const codeCycle = cycles.find(c => c.role === 'code');
   assert.ok(codeCycle);
   assert.equal(codeCycle.cycles, 2);
-  assert.ok(Array.isArray(codeCycle.costPerCycle));
-  assert.equal(codeCycle.costPerCycle.length, 2);
+  assert.equal(typeof codeCycle.totalCost.priced, 'number');
+  assert.equal(typeof codeCycle.maxCost.priced, 'number');
+  assert.equal(typeof codeCycle.meanCost.priced, 'number');
+  assert.equal(typeof codeCycle.totalCost.relative, 'number');
 });
 
 // ── 5. Order-invariance ───────────────────────────────────────────────────────
@@ -306,7 +321,7 @@ test('Given a baseline object with no runs array (a malformed or schema-mismatch
 
 // ── 14. Review-waste recommendation fires at 3 cycles (F3) ───────────────────
 
-test('Given three review-cycle events in one run, when aggregate runs, then a review-waste recommendation is emitted with cycles=3 and costPerCycle.length=3', () => {
+test('Given three review-cycle events in one run, when aggregate runs, then a review-waste recommendation is emitted with cycles=3 and numeric totalCost/meanCost aggregates', () => {
   // REVIEW_WASTE_CYCLES = 2; >2 means 3+ cycles fire the rec.
   const reviewEvent = (n) => makeEvent({
     phase: 'review',
@@ -327,7 +342,9 @@ test('Given three review-cycle events in one run, when aggregate runs, then a re
   assert.ok(wasteRecs.length > 0, 'review-waste recommendation must be emitted');
   const rec = wasteRecs[0];
   assert.equal(rec.evidence.cycles, 3, 'evidence.cycles must equal 3');
-  assert.equal(rec.evidence.costPerCycle.length, 3, 'costPerCycle must have 3 entries');
+  assert.equal(typeof rec.evidence.totalCost.priced, 'number', 'totalCost.priced must be a number');
+  assert.equal(typeof rec.evidence.meanCost.priced, 'number', 'meanCost.priced must be a number');
+  assert.equal(rec.evidence.totalCost.priced, rec.evidence.meanCost.priced * 3, 'totalCost must equal meanCost times the cycle count for equal-cost cycles');
 });
 
 // ── P29 kill-tests: target survivors from mutation run ────────────────────────
@@ -440,11 +457,11 @@ test('Given review events with roles beta and alpha in that order, when aggregat
   assert.equal(cycles[1].role, 'zzz-role');
 });
 
-// ── 22. costPerCycle carries exact priced cost per review event ───────────────
+// ── 22. reviewCycles totalCost/maxCost/meanCost carry exact aggregated priced cost ──
 
-test('Given two review events with the same role and known tokens, when aggregate runs, then costPerCycle carries exact priced cost for each', () => {
+test('Given two review events with the same role and known tokens, when aggregate runs, then totalCost/maxCost/meanCost.priced carry the exact aggregated priced cost', () => {
   const tokens = { input: 0, cacheRead: 1000, cacheCreation: 0, output: 0 };
-  // cost = (1000 * 0.5) / 1e6 = 500 / 1e6 for model-a
+  // cost = (1000 * 0.5) / 1e6 = 500 / 1e6 for model-a, per event
   const events = [
     makeEvent({ phase: 'review', role: 'code', tokens }),
     makeEvent({ phase: 'review', role: 'code', tokens }),
@@ -455,9 +472,26 @@ test('Given two review events with the same role and known tokens, when aggregat
 
   const cycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
   assert.ok(cycle, 'cycle for code must exist');
-  assert.equal(cycle.costPerCycle.length, 2);
-  assert.equal(cycle.costPerCycle[0], 500 / 1e6, 'each costPerCycle must be exact: (1000*0.5)/1e6 = 500/1e6');
-  assert.equal(cycle.costPerCycle[1], 500 / 1e6);
+  assert.equal(cycle.totalCost.priced, 2 * (500 / 1e6), 'totalCost.priced must be the exact sum of both cycles');
+  assert.equal(cycle.maxCost.priced, 500 / 1e6, 'maxCost.priced must be the exact per-cycle cost (both cycles equal)');
+  assert.equal(cycle.meanCost.priced, 500 / 1e6, 'meanCost.priced must be the exact per-cycle cost (both cycles equal)');
+});
+
+// ── 22b. F4b: priced and relative aggregates never collapse into one mixed-unit figure ──
+
+test('Given a review-cycle event whose model is unpriced, when aggregate runs, then reviewCycles priced aggregates are null while relative aggregates stay numeric (units never collapse)', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code', model: 'unknown-model', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const cycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  assert.equal(cycle.totalCost.priced, null, 'an unpriced model must leave priced aggregates null, never a token count masquerading as dollars');
+  assert.equal(cycle.maxCost.priced, null);
+  assert.equal(cycle.meanCost.priced, null);
+  assert.equal(cycle.totalCost.relative, 15, 'relative aggregate must stay the exact token sum, independent of pricing');
 });
 
 // ── 23. run.slug is set from first event with non-null slug ───────────────────
