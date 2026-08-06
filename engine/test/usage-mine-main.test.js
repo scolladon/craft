@@ -36,7 +36,9 @@ const CODEX_HOME_ENV_VAR = 'CODEX_HOME';
 const AIDER_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'aider');
 const AIDER_HISTORY_FILENAME = '.aider.chat.history.md';
 
-// A valid rollup JSONL line (matches single-rollup.jsonl fixture structure).
+// A spawn-rollup JSONL line: a 'user' line carrying toolUseResult, no message.usage.
+// Kept only where a test's point is that a rollup contributes nothing — the emission
+// rule reads message.usage exclusively, so this shape never yields an event.
 const ROLLUP_LINE = JSON.stringify({
   type: 'user',
   sessionId: 'sess-aaa',
@@ -60,6 +62,28 @@ const ROLLUP_LINE = JSON.stringify({
     agentId: 'agent-1',
   },
   isSidechain: false,
+});
+
+// A main-loop assistant usage line — carries the same token numbers as ROLLUP_LINE
+// so the drift-fixture arithmetic in the §6b block still lines up (group total
+// 2 + 196062 + 255 + 900 = 197219). This is makeFixture's default: the emission
+// rule reads message.usage, and a 'user'-role rollup line no longer produces one.
+const MAIN_USAGE_LINE = JSON.stringify({
+  type: 'assistant',
+  sessionId: 'sess-aaa',
+  slug: 'feature-x',
+  timestamp: '2026-01-01T00:00:00.000Z',
+  message: {
+    role: 'assistant',
+    model: 'claude-opus-4-8',
+    usage: {
+      input_tokens: 2,
+      cache_read_input_tokens: 196062,
+      cache_creation_input_tokens: 255,
+      output_tokens: 900,
+      cache_creation: { ephemeral_5m_input_tokens: 255, ephemeral_1h_input_tokens: 0 },
+    },
+  },
 });
 
 // A non-rollup line (inline usage, no toolUseResult — silently ignored by parseLines).
@@ -87,7 +111,7 @@ function makeTmp(prefix = 'usage-mine-') {
  * Build a projects root with one transcript subdir containing a .jsonl file.
  * Returns { projectsRoot, transcriptDir }.
  */
-function makeFixture({ lines = [ROLLUP_LINE] } = {}) {
+function makeFixture({ lines = [MAIN_USAGE_LINE] } = {}) {
   const projectsRoot = makeTmp('projects-');
   const transcriptDir = join(projectsRoot, 'project-slug');
   mkdirSync(transcriptDir);
@@ -281,8 +305,8 @@ function makeDriftedBaselineReport(tokens) {
       run: 'sess-aaa',
       slug: 'feature-x',
       groups: [{
-        phase: 'design', role: 'designer', model: 'claude-opus-4-8',
-        tokens, durationMs: 589907, messages: 10, cacheEfficiency: 0,
+        phase: null, role: 'main-loop', model: 'claude-opus-4-8',
+        tokens, durationMs: 0, messages: 1, cacheEfficiency: 0,
         cost: { priced: null, relative: 150000 },
       }],
       reviewCycles: [],
@@ -309,8 +333,8 @@ test('Given a baseline group whose token-total is far below the mined fixture, w
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   assert.ok(
-    report.drift.some(d => d.phase === 'design' && d.dimension === 'tokens-total'),
-    'default threshold must flag the design phase token-total drift'
+    report.drift.some(d => d.phase === null && d.dimension === 'tokens-total'),
+    'default threshold must flag the main-loop group token-total drift'
   );
 });
 
@@ -391,15 +415,15 @@ test('Given a --prices override file with per-MTok rates, when main runs, then t
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   const totalCost = report.runs.flatMap(r => r.groups).reduce((s, g) => s + (g.cost.priced ?? 0), 0);
-  // ROLLUP_LINE tokens: input=2, cacheRead=196062, cacheCreation split {5m:255, 1h:0}, output=900.
+  // MAIN_USAGE_LINE tokens: input=2, cacheRead=196062, cacheCreation split {5m:255, 1h:0}, output=900.
   // Σ = 2*100 + 196062*10 + (255*20 + 0*30) + 900*200 = 200 + 1,960,620 + 5,100 + 180,000 = 2,145,920
   const expected = (2 * 100 + 196062 * 10 + (255 * 20 + 0 * 30) + 900 * 200) / 1e6;
   assert.equal(totalCost, expected, 'a per-MTok override entry must price in dollars — this breaks if the divisor is ever pushed into priceEntry');
 });
 
-// ─── 8. --include-inline OFF default → noted gap, no fabricated cost ─────────
+// ─── 8. main-loop inclusion is default-on — an inline-only dir now yields events ──
 
-test('Given a spawn-sparse dir (inline-only lines) without --include-inline, when main runs, then report is a noted no-op and exit is 0', async () => {
+test('Given a dir of only main-loop assistant usage lines without --include-inline, when main runs, then the report carries a non-empty main-loop run (main-loop inclusion is default-on)', async () => {
   const sut = main;
   const { projectsRoot, transcriptDir } = makeFixture({ lines: [INLINE_LINE] });
   const repoRoot = makeTmp('repo-');
@@ -407,13 +431,10 @@ test('Given a spawn-sparse dir (inline-only lines) without --include-inline, whe
 
   const result = await sut(['--dir', transcriptDir], io);
 
-  assert.equal(result, 0);
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
-  assert.deepEqual(report.runs, [], 'runs must be empty — no fabricated cost');
-  assert.ok(
-    typeof report.note === 'string' && report.note.toLowerCase().includes('inline'),
-    `note must mention inline gap; got: ${report.note}`,
-  );
+  assert.ok(report.runs.length > 0, 'runs must be non-empty — main-loop turns are events now');
+  assert.equal(report.runs[0].groups[0].role, 'main-loop');
 });
 
 // ─── No-op report contains no absolute paths ─────────────────────────────────
@@ -458,9 +479,9 @@ test('Given a fixture with real transcript data, when main runs, then the popula
   }
 });
 
-// ─── --include-inline ON path (F4) ───────────────────────────────────────────
+// ─── --include-inline flag path — main-loop lines already emit regardless (F4) ──
 
-test('Given an inline-only transcript dir with --include-inline flag, when main runs, then exit 0 and note is exactly "no events provided"', async () => {
+test('Given an inline-only transcript dir with --include-inline passed explicitly, when main runs, then exit 0 and the report still carries the main-loop run', async () => {
   const sut = main;
   const { projectsRoot, transcriptDir } = makeFixture({ lines: [INLINE_LINE] });
   const repoRoot = makeTmp('repo-');
@@ -468,9 +489,9 @@ test('Given an inline-only transcript dir with --include-inline flag, when main 
 
   const result = await sut(['--dir', transcriptDir, '--include-inline'], io);
 
-  assert.equal(result, 0);
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
-  assert.equal(report.note, 'no events provided', `expected note "no events provided"; got: ${report.note}`);
+  assert.ok(report.runs.length > 0, 'runs must be non-empty with or without the flag');
 });
 
 // ─── Malformed --prices JSON (F5) ────────────────────────────────────────────
@@ -561,21 +582,19 @@ test('Given an empty transcript dir, when main runs with --source codex, then th
 
 // ─── P29-3. --since filters events by timestamp ──────────────────────────────
 
-test('Given two rollup lines with timestamps before and after a --since cutoff, when main runs with --since, then only the later event appears in the report', async () => {
+test('Given two assistant usage lines with timestamps before and after a --since cutoff, when main runs with --since, then only the later event appears in the report', async () => {
   const sut = main;
   const BEFORE = JSON.stringify({
-    type: 'user', sessionId: 'sess-before', slug: 'f', timestamp: '2026-01-01T00:00:00.000Z',
-    toolUseResult: {
-      agentType: 'craft:designer', resolvedModel: 'claude-sonnet-4-6',
-      totalDurationMs: 100, totalToolUseCount: 1,
+    type: 'assistant', sessionId: 'sess-before', slug: 'f', timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: 'claude-sonnet-4-6',
       usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
     },
   });
   const AFTER = JSON.stringify({
-    type: 'user', sessionId: 'sess-after', slug: 'f', timestamp: '2026-06-01T00:00:00.000Z',
-    toolUseResult: {
-      agentType: 'craft:planner', resolvedModel: 'claude-sonnet-4-6',
-      totalDurationMs: 200, totalToolUseCount: 2,
+    type: 'assistant', sessionId: 'sess-after', slug: 'f', timestamp: '2026-06-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: 'claude-sonnet-4-6',
       usage: { input_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 2 },
     },
   });
@@ -642,12 +661,12 @@ test('Given a --dir that escapes the projects root, when main runs, then the rep
 
 // ─── P29-7. non-.jsonl files in transcript dir are filtered out ───────────────
 
-test('Given a transcript dir containing both a .jsonl rollup file and a .txt file, when main runs, then only the .jsonl file is processed', async () => {
+test('Given a transcript dir containing both a .jsonl usage file and a .txt file, when main runs, then only the .jsonl file is processed', async () => {
   const sut = main;
   const projectsRoot = makeTmp('projects-');
   const transcriptDir = join(projectsRoot, 'project');
   mkdirSync(transcriptDir);
-  writeFileSync(join(transcriptDir, 'transcript.jsonl'), ROLLUP_LINE + '\n', 'utf8');
+  writeFileSync(join(transcriptDir, 'transcript.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
   writeFileSync(join(transcriptDir, 'notes.txt'), 'this should be ignored\n', 'utf8');
   const repoRoot = makeTmp('repo-');
   const io = makeIo({ projectsRoot, repoRoot });
@@ -822,8 +841,8 @@ test('Given two transcript files where createReadStream throws for one but succe
   const projectsRoot = makeTmp('projects-');
   const transcriptDir = join(projectsRoot, 'project');
   mkdirSync(transcriptDir);
-  writeFileSync(join(transcriptDir, 'a-bad.jsonl'), ROLLUP_LINE + '\n', 'utf8');
-  writeFileSync(join(transcriptDir, 'b-good.jsonl'), ROLLUP_LINE + '\n', 'utf8');
+  writeFileSync(join(transcriptDir, 'a-bad.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
+  writeFileSync(join(transcriptDir, 'b-good.jsonl'), MAIN_USAGE_LINE + '\n', 'utf8');
   const repoRoot = makeTmp('repo-');
   const streamError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
   const mockCreateReadStream = (path) => {
@@ -866,14 +885,16 @@ test('Given a --prices path where readFileSync throws EACCES, when main runs, th
 
 // ─── phase-skip signal — auto-skip token in transcript → report rec ───────────
 
-test('Given a transcript with a rollup and an auto-skip token, when main runs, then report.json carries a phase-skip recommendation', async () => {
+test('Given a transcript with a usage event and an auto-skip token, when main runs, then report.json carries a phase-skip recommendation', async () => {
   const sut = main;
   const autoSkipLine = JSON.stringify({
     type: 'assistant',
     sessionId: 'sess-aaa',
     message: { role: 'assistant', content: [{ type: 'text', text: 'auto-skip: review — evaluated unnecessary (no source diff in scope)' }] },
   });
-  const { projectsRoot, transcriptDir } = makeFixture({ lines: [ROLLUP_LINE, autoSkipLine] });
+  // A no-op run (zero events) skips recommendation computation entirely, so this
+  // needs a genuine usage event alongside the marker line, not just a rollup.
+  const { projectsRoot, transcriptDir } = makeFixture({ lines: [MAIN_USAGE_LINE, autoSkipLine] });
   const repoRoot = makeTmp('repo-');
   const io = makeIo({ projectsRoot, repoRoot });
 

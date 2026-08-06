@@ -275,7 +275,7 @@ test('Given a fixed pi UsageEvent set, when aggregate and serializeReport run, t
   const piReport = aggregate(FIXED_PI_EVENTS, {});
   const sut = serializeReport(piReport);
 
-  const claudeEvents = (await parseClaudeLines(asyncLines(claudeFixtureLines('single-rollup.jsonl')))).events;
+  const claudeEvents = (await parseClaudeLines(asyncLines(claudeFixtureLines('main-loop-usage.jsonl')))).events;
   const claudeReport = aggregate(claudeEvents, {});
   const claudeSerialized = serializeReport(claudeReport);
 

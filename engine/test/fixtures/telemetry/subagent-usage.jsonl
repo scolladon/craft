@@ -1,0 +1,1 @@
+{"type":"assistant","sessionId":"sess-parent","cwd":"/repo","timestamp":"2026-01-01T00:05:00.000Z","message":{"role":"assistant","model":"claude-opus-4-8","usage":{"input_tokens":3,"cache_read_input_tokens":60,"cache_creation_input_tokens":10,"output_tokens":9,"cache_creation":{"ephemeral_5m_input_tokens":10,"ephemeral_1h_input_tokens":0}}}}

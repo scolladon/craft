@@ -377,7 +377,7 @@ test('Given a fixed opencode UsageEvent set, when aggregate and serializeReport 
   const opencodeReport = aggregate(FIXED_OPENCODE_EVENTS, {});
   const sut = serializeReport(opencodeReport);
 
-  const claudeEvents = (await parseClaudeLines(asyncLines(claudeFixtureLines('single-rollup.jsonl')))).events;
+  const claudeEvents = (await parseClaudeLines(asyncLines(claudeFixtureLines('main-loop-usage.jsonl')))).events;
   const claudeReport = aggregate(claudeEvents, {});
   const claudeSerialized = serializeReport(claudeReport);
 
