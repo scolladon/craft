@@ -446,9 +446,11 @@ record a tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / part-TDD
 structured-review / blocker / full-pipeline-completion), and capture the per-phase
 tokens + wall-clock into the committed artifact and the run record.
 
-**Numbers are harness-sourced.** The orchestrator reads `subagent_tokens` and
-`duration_ms` from the usage block the spawn already returns — exact, zero-cost. No
-agent is asked to report its own usage.
+**Numbers are harness-sourced.** The orchestrator reads `subagent_tokens` and `duration_ms`
+from that phase's own sub-agent transcript, not from the spawn's returned final-message usage
+block — that block reflects only the sub-agent's last turn, not its cumulative usage, so
+trusting it undercounts by roughly two orders of magnitude. This is one file read per phase,
+not zero-cost. No agent is asked to report its own usage.
 
 **Where results land:** fill `docs/guides/model-class-matrix.md` (the committed, diffable
 artifact template) and append a one-line entry to the run record under
@@ -524,12 +526,15 @@ A failed ledger append (anywhere in the walk) is surfaced to the user in-session
 run continues; it is **not** recorded into the ledger itself (that would be circular) —
 same posture as a failed `save` above.
 
-**Metrics artifact (separate, append-only).** For each agent-spawned phase that returned a
-usage block, append one line to `.claude/craft-metrics.md` (ADR-119):
-`<run-id> <phase-id> tokens=<subagent_tokens> duration_ms=<duration_ms> cache_read=<n> cache_creation=<n>` (degrades to `cache=na` when the split is unavailable).
-Source: the usage block the spawn already returns — exact, zero extra cost. Role-less /
-inline phases have no spawn usage block; omit them. Metrics go to `.claude/craft-metrics.md`
-**only** — never into the learnings store `.claude/craft-memory.md`.
+**Metrics artifact (separate, append-only).** For each agent-spawned phase, append one line to
+`.claude/craft-metrics.md` (ADR-119):
+`<run-id> <phase-id> tokens=<subagent_tokens> duration_ms=<duration_ms> cache_read=<n> cache_creation=<n>` (degrades to `cache=na` only when that phase's transcript is genuinely unavailable).
+Source: that phase's own sub-agent transcript, not the spawn's returned final-message usage
+block — read the `agent-*.jsonl` file under this session's own `subagents/` directory
+(`~/.claude/projects/<cwd → dashes>/<session-id>/subagents/`), matched to the phase by its
+sidecar's `toolUseId`. One file read per phase — no longer zero-cost. Role-less / inline
+phases spawn no sub-agent and have no transcript; omit them. Metrics go to
+`.claude/craft-metrics.md` **only** — never into the learnings store `.claude/craft-memory.md`.
 
 Final message: the PR URL (or branch name if no remote) + one-line summary + the run
 record.

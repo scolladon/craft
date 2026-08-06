@@ -374,3 +374,4 @@ scheduled-backlog-sweep review-fixes-batch-a tokens=165096 duration_ms=783617 ca
 scheduled-backlog-sweep review-fixes-batch-b tokens=182241 duration_ms=1159792 cache=na
 scheduled-backlog-sweep review-fixes-batch-c tokens=125108 duration_ms=449297 cache=na
 scheduled-backlog-sweep documentation tokens=191984 duration_ms=443475 cache=na
+ACCOUNTING-BOUNDARY(2026-08-06): rows above this line were written from the spawn's returned final-message usage and undercount tokens and duration by roughly 100x; rows below are written from that phase's own sub-agent transcript and are not comparable to rows above — do not trend across this line.
