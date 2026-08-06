@@ -134,7 +134,7 @@ craft cost **4.7x** the plain run. What that bought:
 
 - The plain run passed every gate — build, lint, integration, functional, 1343 unit
   tests at a **100% coverage threshold** — and silently changed generated output.
-  Nothing in the repo's tooling would have caught it; the mutation job that might
+  Nothing in the repo's tooling would have caught it; the one CI job that might
   have was itself broken.
 - craft's review phase found two HIGH test defects that 100% coverage hid (assertion
   legs wired but never asserted), each **proven red by injection** before being
