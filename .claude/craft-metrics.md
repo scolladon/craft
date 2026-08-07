@@ -375,3 +375,22 @@ scheduled-backlog-sweep review-fixes-batch-b tokens=182241 duration_ms=1159792 c
 scheduled-backlog-sweep review-fixes-batch-c tokens=125108 duration_ms=449297 cache=na
 scheduled-backlog-sweep documentation tokens=191984 duration_ms=443475 cache=na
 ACCOUNTING-BOUNDARY(2026-08-06): rows above this line were written from the spawn's returned final-message usage and undercount tokens and duration by roughly 100x; rows below are written from that phase's own sub-agent transcript and are not comparable to rows above — do not trend across this line.
+harness-hygiene-followups design tokens=88311 duration_ms=1565962 cache_read=13348907 cache_creation=264920
+harness-hygiene-followups documentation tokens=35068 duration_ms=175929 cache_read=1117516 cache_creation=103145
+harness-hygiene-followups implementation tokens=39942 duration_ms=437588 cache_read=2982229 cache_creation=110367
+harness-hygiene-followups implementation tokens=2443 duration_ms=54017 cache_read=534974 cache_creation=57193
+harness-hygiene-followups implementation tokens=29712 duration_ms=397012 cache_read=4422057 cache_creation=105044
+harness-hygiene-followups implementation tokens=9485 duration_ms=161149 cache_read=1987206 cache_creation=66524
+harness-hygiene-followups implementation tokens=15526 duration_ms=427712 cache_read=1710179 cache_creation=71052
+harness-hygiene-followups implementation tokens=38702 duration_ms=326853 cache_read=2448186 cache_creation=86251
+harness-hygiene-followups implementation tokens=42741 duration_ms=534299 cache_read=7113036 cache_creation=142918
+harness-hygiene-followups planning tokens=80370 duration_ms=1314222 cache_read=11840521 cache_creation=453035
+harness-hygiene-followups review tokens=36726 duration_ms=454238 cache_read=3606540 cache_creation=112054
+harness-hygiene-followups review tokens=25949 duration_ms=437702 cache_read=1408293 cache_creation=99647
+harness-hygiene-followups review tokens=71695 duration_ms=925429 cache_read=10077650 cache_creation=203221
+harness-hygiene-followups review tokens=24618 duration_ms=392708 cache_read=1459900 cache_creation=82769
+harness-hygiene-followups review tokens=29445 duration_ms=437611 cache_read=4410528 cache_creation=105877
+harness-hygiene-followups review tokens=47358 duration_ms=721753 cache_read=3727513 cache_creation=152959
+harness-hygiene-followups review tokens=50631 duration_ms=719907 cache_read=4488165 cache_creation=150715
+harness-hygiene-followups review tokens=16626 duration_ms=596077 cache_read=1588099 cache_creation=87818
+harness-hygiene-followups validation tokens=17053 duration_ms=268961 cache_read=1623975 cache_creation=93697
