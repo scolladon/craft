@@ -7,6 +7,12 @@ const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
 const GITIGNORE = path.join(ROOT, '.gitignore');
+const STORE_PATH = path.join(ROOT, '.claude/craft-memory.md');
+
+function importMemoryModule() {
+  const { pathToFileURL } = require('node:url');
+  return import(pathToFileURL(path.join(ROOT, 'engine/src/observability/memory.js')).href);
+}
 
 function grepQX(pattern, filePath) {
   try {
@@ -99,5 +105,90 @@ test(
       !grepRE('P22|ADR-[0-9]', memorySrc, memoryTest),
       'engine/src/observability/memory.js and engine/test/memory.test.js should contain no P22 or ADR tokens',
     );
+  },
+);
+
+test(
+  'Given the committed memory store content, when it is parsed, then all five concerns are present with 67 entries total',
+  async () => {
+    const { parseStore } = await importMemoryModule();
+    const raw = fs.readFileSync(STORE_PATH, 'utf8');
+
+    const sut = parseStore(raw);
+
+    assert.ok(sut, 'the committed store should parse');
+    const counts = Object.fromEntries(
+      Object.entries(sut.entries).map(([concern, entries]) => [concern, entries.length]),
+    );
+    assert.deepStrictEqual(counts, {
+      toolchain: 1,
+      'gate-cmd': 2,
+      'validation-tool': 1,
+      findings: 43,
+      'part-sizing': 20,
+    });
+  },
+);
+
+test(
+  'Given the committed memory store, when it is loaded through the real store path, then it is not reported malformed and nothing is evicted',
+  async () => {
+    const { load } = await importMemoryModule();
+
+    const sut = load(ROOT, { readStore: (p) => fs.readFileSync(p, 'utf8') });
+
+    assert.strictEqual(sut.loadNote, null, 'the committed store should not be reported malformed');
+    assert.deepStrictEqual(sut.evicted, []);
+  },
+);
+
+test(
+  'Given the committed memory store, when every loaded entry is checked, then its confidence is an integer within FLOOR..CEILING',
+  async () => {
+    const { load, FLOOR, CEILING } = await importMemoryModule();
+
+    const sut = load(ROOT, { readStore: (p) => fs.readFileSync(p, 'utf8') });
+    const allEntries = Object.values(sut.entries).flat();
+
+    assert.ok(allEntries.length > 0, 'the loaded store should not be empty');
+    assert.ok(
+      allEntries.every(
+        (entry) => Number.isInteger(entry.confidence) && entry.confidence > FLOOR && entry.confidence <= CEILING,
+      ),
+      'every entry confidence should be an integer in FLOOR..CEILING',
+    );
+  },
+);
+
+test(
+  'Given the committed memory store, when one decay STEP is simulated on every loaded entry, then every entry still survives above FLOOR',
+  async () => {
+    const { load, FLOOR, STEP } = await importMemoryModule();
+
+    const sut = load(ROOT, { readStore: (p) => fs.readFileSync(p, 'utf8') });
+    const allEntries = Object.values(sut.entries).flat();
+
+    assert.ok(allEntries.length > 0, 'the loaded store should not be empty');
+    assert.ok(
+      allEntries.every((entry) => entry.confidence - STEP > FLOOR),
+      'every entry should survive one decay STEP without evicting at FLOOR',
+    );
+  },
+);
+
+test(
+  'Given the committed memory store content, when parsed then serialized twice, then the round-trip is stable and lossless',
+  async () => {
+    const { parseStore, serializeStore } = await importMemoryModule();
+    const raw = fs.readFileSync(STORE_PATH, 'utf8');
+
+    const sut = parseStore(raw);
+
+    assert.ok(sut, 'the committed store should parse');
+    const view = { entries: sut.entries, evicted: [], loadNote: null };
+    const first = serializeStore(view);
+    const second = serializeStore(view);
+    assert.strictEqual(first, second, 'serializeStore should be deterministic across calls');
+    assert.deepStrictEqual(parseStore(first).entries, sut.entries, 'reparsing the serialized store should round-trip losslessly');
   },
 );
