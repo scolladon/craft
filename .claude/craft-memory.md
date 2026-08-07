@@ -558,7 +558,7 @@ part-sizing:
     provenance:
       run: native-pi-binding
       commit: bd4d8d8
-      date: '2026-07-20'
+      date: '2026-07-19'
   - concern: part-sizing
     size: bash-sync-tool
     outcome: pass
