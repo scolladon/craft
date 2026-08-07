@@ -175,6 +175,51 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-08-07 — follow-ups surfaced by the harness-hygiene-followups run, not yet scheduled)
+
+**The committed baseline's `review-waste` recommendations are stale against the threshold that
+produced them.** `docs/contributing/metrics-baseline.report.json` carries 15 `review-waste`
+entries computed under the retired `cycles > 2` rule; the shipped rule is
+`billedTurns > 85`, which selects 4 of the same 16 `reviewCycles`. Re-mining the corpus was
+explicitly out of scope for the run that changed the threshold, and no test compares the
+committed report against what the current code would emit — so nothing is red, and nothing
+will notice. Either regenerate the report, or add a guard that fails when a committed report's
+recommendations disagree with a replay through the current rules. The second is the durable
+answer; the first is a prerequisite for it.
+
+**Two spawn sites still carry the defects their siblings just had fixed.**
+`test/source-hygiene.test.js` swallows a failed `git ls-files` into an empty set
+(`catch { result = err.stdout ?? '' }`), so its class-A/B scans pass vacuously wherever git
+fails — the identical defect removed from `test/architecture-boundaries.test.js`, where the
+throw now propagates. `test/helpers/tmp-git-repo.js` runs `git init` with no pinned
+environment, so an ambient `GIT_DIR` redirects it into an undeclared repo — the identical
+escape closed in `adapters/pi/test/cli.test.js`. Both are one-line fixes; neither was in
+scope, and leaving them is what turns a fixed defect back into a repo-wide pattern.
+
+**`docs/contributing/specs/memory.md` is a living spec no freshness guard can see.** It carries
+no `subjects:` frontmatter, so the intention harness lists it under `skipped[]` as
+`no-subjects` and can never raise `INTENTION-DRIFT` for it. It changed twice in one run —
+degraded-view semantics on both port verbs — and was refreshed only because a human said so.
+`specs/telemetry.md` carries `subjects: ['engine/src/observability/**']` and would flag the
+same file; `memory.js` lives under that glob, so telemetry.md over-flags what memory.md cannot
+flag at all. Give memory.md its own subjects, and sweep the corpus for other subject-less
+living pages while there.
+
+**A provenance ref sits in shipped adapter source.** `adapters/pi/src/run.js:96` carries
+`- DC-3: does NOT add --model/--provider to argv`, a decision-candidate number from the run
+that wrote it (commit 8ef1244). The engine-owned contract forbids phase/ADR/backlog refs in
+source and test, and no lint enforces it — the sweep that found this one was manual. Strip the
+ref (the sentence is useful; its numbering is not), and consider whether the hygiene lints
+should carry a provenance-ref rule so the next one fails loudly.
+
+**Committed docs disclose the maintainer's home directory.** Design and plan docs embed
+absolute paths like `/Users/<name>/…`, leaking the OS username and toolchain layout into a
+public repo. This is repo-wide convention, not a regression — 18 files on `main` do it, and
+the plan template appears to mandate an absolute working-directory line — which is exactly why
+it needs a template-level decision rather than a per-file patch. The memory store already
+forbids the same leak for `findings.file`; the inconsistency is between artifact types, not
+within one.
+
 ### Open (scoped 2026-07-30 — follow-ups surfaced by the orchestrator-tax-hardening run, not yet scheduled)
 
 **Newline-delimited scope specs — delivered 2026-07-31** (scheduled-backlog-sweep, ADR-323).
