@@ -313,8 +313,8 @@ export async function parseLines(lines, since = null, context = null) {
   // `isSubagent && events.length > 0 && span.first !== null && span.last !== null`
   // reduces to exactly `span.first !== null` under every reachable state, which is
   // also what each surviving `true`-substitution / weakened-comparison / `||`-with-
-  // the-null-check mutant reduces to — none can select a different branch. The
-  // `isSubagent || …` mutant is the one exception: `isSubagent` alone is NOT
+  // the-null-check variant reduces to — none can select a different branch. The
+  // `isSubagent || …` rewrite is the one exception: `isSubagent` alone is NOT
   // implied by `span.first !== null`'s negation, so it wrongly fires on an
   // isSubagent=true stream with zero events, changing observable behaviour (and is
   // covered by the dedicated test below).
