@@ -10,28 +10,14 @@
  * No clock reads, no random, no model-id literals in core paths.
  */
 
+import { phaseForRole } from '../../role-phase.js';
+
 const SYNTHETIC_MODEL = '<synthetic>';
 const CRAFT_PREFIX = 'craft-';
 
 // Coerce non-finite values (string, NaN, null, undefined) to 0 so they can't
 // poison downstream cost math.
 const numOrZero = (v) => (Number.isFinite(v) ? v : 0);
-
-/**
- * Map from the role label (the opencode agent name after stripping the
- * "craft-" prefix) to the vendor-neutral phase label — the 9 craft roles.
- */
-const ROLE_TO_PHASE = Object.freeze({
-  'designer': 'design',
-  'planner': 'planning',
-  'part-implementer': 'implementation',
-  'reviewer': 'review',
-  'harness-triager': 'validation',
-  'docs-writer': 'documentation',
-  'backlog-ticker': 'documentation',
-  'requirements-writer': 'requirements',
-  'refactor-executor': 'refactoring',
-});
 
 /**
  * Derive the vendor-neutral role string from a raw opencode agent name.
@@ -53,14 +39,7 @@ function roleFromAgent(agent) {
  * @returns {string | null}
  */
 function phaseFromAgent(agent) {
-  const role = roleFromAgent(agent);
-  // agent is a transcript-controlled string: a bare ROLE_TO_PHASE[role] access
-  // resolves an inherited Object.prototype member (agent "constructor" yields a
-  // function, "__proto__" an object), and JSON.stringify then either DROPS the key
-  // or writes `{}` into a committed report whose schema contracts string|null.
-  // Object.hasOwn gates the lookup to the map's own keys, matching the claude
-  // binding and the front door's SOURCES/DEFAULT_READ_ROOTS discipline.
-  return role && Object.hasOwn(ROLE_TO_PHASE, role) ? ROLE_TO_PHASE[role] : null;
+  return phaseForRole(roleFromAgent(agent));
 }
 
 /**

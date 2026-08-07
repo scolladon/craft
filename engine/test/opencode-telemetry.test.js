@@ -348,6 +348,23 @@ test('Given each of the 9 craft-<role> agent names, when parseLines runs, then p
   }
 });
 
+// ── 11b. parseLines — legacy validation-triager alias, shared with the claude
+// binding via the centralized role→phase vocabulary, resolves to a phase ──────
+
+test('Given the agent name craft-validation-triager (a legacy alias absent from opencode\'s prior local map), when parseLines runs, then phase resolves to validation instead of null', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    sessionID: 's1', agent: 'craft-validation-triager', model: 'anthropic/claude-sonnet-4-6',
+    tokens: { input: 1, cacheRead: 0, cacheCreation: 0, output: 1 },
+    toolCalls: 1, durationMs: 100,
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].role, 'validation-triager');
+  assert.equal(result.events[0].phase, 'validation');
+});
+
 // ── 12. parseLines — markers is always [] (auto-skip mapping deferred) ──────────
 
 test('Given a fixture with a valid event, when parseLines runs, then markers is an empty array', async () => {

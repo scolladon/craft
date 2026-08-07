@@ -29,6 +29,7 @@
  */
 
 import { autoSkipPhasesInText } from '../../skip-signals.js';
+import { phaseForRole } from '../../role-phase.js';
 
 const MODEL_1M_SUFFIX = '[1m]';
 const CRAFT_PREFIX = 'craft:';
@@ -42,23 +43,6 @@ export const CACHE_CREATION_FIELD = 'cache_creation_input_tokens';
 
 // F6: coerce non-finite values (string, NaN, null) to 0 so they can't poison cost math.
 const numOrZero = (v) => (Number.isFinite(v) ? v : 0);
-
-/**
- * Map from the role label (agentType after stripping the "craft:" prefix)
- * to the vendor-neutral phase label.
- */
-const ROLE_TO_PHASE = Object.freeze({
-  'designer': 'design',
-  'planner': 'planning',
-  'part-implementer': 'implementation',
-  'reviewer': 'review',
-  'harness-triager': 'validation',
-  'validation-triager': 'validation',
-  'docs-writer': 'documentation',
-  'backlog-ticker': 'documentation',
-  'requirements-writer': 'requirements',
-  'refactor-executor': 'refactoring',
-});
 
 /**
  * Strip the [1m] context-size suffix from a model id if present.
@@ -95,12 +79,7 @@ function roleFromAgentType(agentType) {
  * @returns {string | null}
  */
 function phaseFromAgentType(agentType) {
-  const role = roleFromAgentType(agentType);
-  // role is derived from an untrusted sidecar/transcript field — a bare
-  // ROLE_TO_PHASE[role] would resolve an inherited Object.prototype member
-  // (e.g. role: "constructor" → the Object function) as a truthy-but-wrong
-  // phase. Object.hasOwn gates the lookup to the table's own keys only.
-  return role && Object.hasOwn(ROLE_TO_PHASE, role) ? ROLE_TO_PHASE[role] : null;
+  return phaseForRole(roleFromAgentType(agentType));
 }
 
 /**
