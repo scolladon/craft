@@ -1,0 +1,3 @@
+A session directory that never grew a subagents child — discovery must yield
+its main-loop entry only (there is none here, this dir just proves the shape
+is refused rather than mistakenly walked).

@@ -133,6 +133,27 @@ test('Given a recomputed minHours that rounds to 1.0 instead of 0.5, when compar
   assert.ok(finding, 'expected a telemetry:min finding');
 });
 
+test('Given a shortest run under half an hour and a README claiming the matching rounded-up minutes, when compareClaims, then no telemetry:min finding is produced', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 25, medianHours: 1.4, minHours: 0.1535, maxHours: 4.02 };
+  const costClaims = { runCount: '25', median: '1.4', min: 'under 10 minutes', max: '4' };
+
+  const result = sut(recomputed, costClaims);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given a shortest run under half an hour, when compareClaims and the README rounds the minutes down instead of up, then a telemetry:min finding is produced', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 25, medianHours: 1.4, minHours: 0.1535, maxHours: 4.02 };
+  const costClaims = { runCount: '25', median: '1.4', min: 'under 5 minutes', max: '4' };
+
+  const result = sut(recomputed, costClaims);
+
+  const finding = result.find((line) => line.startsWith('telemetry:min'));
+  assert.ok(finding, 'expected a telemetry:min finding when the claim understates the minimum');
+});
+
 test('Given a recomputed minHours that rounds to 0.5 but the README claims different wording, when compareClaims, then a telemetry:min finding is still produced (both the number and the phrase must match)', () => {
   const sut = compareClaims;
   const recomputed = { runCount: 27, medianHours: 1.2942, minHours: 0.4609, maxHours: 5.0083 };
@@ -142,4 +163,30 @@ test('Given a recomputed minHours that rounds to 0.5 but the README claims diffe
 
   const finding = result.find((line) => line.startsWith('telemetry:min'));
   assert.ok(finding, 'expected a telemetry:min finding even though rounded minHours is 0.5');
+});
+
+test('Given a recomputed minHours at or above the half-hour convention boundary, when compareClaims runs, then the min finding reports the raw recomputed number, not a fabricated minutes phrase', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 1, medianHours: 2, minHours: 2, maxHours: 2 };
+  const costClaims = { runCount: '1', median: '2', min: 'under 60 minutes', max: '2' };
+
+  const result = sut(recomputed, costClaims);
+
+  assert.ok(
+    result.includes('telemetry:min: readme=under 60 minutes recomputed=2'),
+    `min drift must report the raw recomputed number once hours cross the half-hour convention boundary, never a minutes phrase or the literal "null"; got: ${JSON.stringify(result)}`,
+  );
+});
+
+test('Given recomputed minHours above the boundary (no phrase convention applies) and a README min that is itself null, when compareClaims runs, then drift is still reported, not silently matched away', () => {
+  const sut = compareClaims;
+  const recomputed = { runCount: 1, medianHours: 2, minHours: 2, maxHours: 2 };
+  const costClaims = { runCount: '1', median: '2', min: null, max: '2' };
+
+  const result = sut(recomputed, costClaims);
+
+  assert.ok(
+    result.some((line) => line.startsWith('telemetry:min:')),
+    'a null README min must never be treated as matching the no-phrase-applies case',
+  );
 });

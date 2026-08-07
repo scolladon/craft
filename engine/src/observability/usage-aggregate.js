@@ -11,7 +11,17 @@ export const CACHE_HOTSPOT_THRESHOLD = 0.5;
 export const REVIEW_WASTE_CYCLES = 2;
 export const DEFAULT_DRIFT_THRESHOLD = 0.25;
 
+// Price tables are per-MTok (per million tokens); token counts are per-unit. One
+// division converts a summed unit-rate product into dollars — applied once per
+// emitted cost value, never folded into the price table itself (pricing.js keeps
+// --prices overrides comparable to DEFAULT_PRICES only if both stay per-MTok).
+const TOKENS_PER_MTOK = 1_000_000;
+
 // ── Private: pure math helpers ────────────────────────────────────────────────
+
+function toDollars(summedRateProduct) {
+  return summedRateProduct / TOKENS_PER_MTOK;
+}
 
 // Numerically safe on malformed/older-schema groups: a missing tokens object or
 // field contributes 0, never NaN (NaN would silently swallow drift entries).
@@ -24,6 +34,11 @@ function computeCacheEfficiency(tokens) {
   return denom === 0 ? 0 : tokens.cacheCreation / denom;
 }
 
+// Undivided by design: this composes into computePricedCost's single toDollars()
+// call below, and is also called standalone at buildEnrichedGroup's own call site,
+// which converts it there instead. Dividing here would double-convert the composed
+// call while leaving the standalone call under-converted — the asymmetry is load-
+// bearing, not an oversight.
 function computePricedCreation(cacheCreationTtl, cacheCreation, prices) {
   if (cacheCreationTtl) {
     return cacheCreationTtl.creation5m * prices.cacheCreation5m
@@ -34,14 +49,28 @@ function computePricedCreation(cacheCreationTtl, cacheCreation, prices) {
 
 function computePricedCost(tokens, cacheCreationTtl, prices) {
   const creation = computePricedCreation(cacheCreationTtl, tokens.cacheCreation, prices);
-  return tokens.input * prices.input
-    + tokens.cacheRead * prices.cacheRead
-    + creation
-    + tokens.output * prices.output;
+  // Convert the whole summed rate-product to dollars exactly once, at the sum —
+  // never inside computePricedCreation or the price table — so every intermediate
+  // term stays comparable and a --prices override rate is never scaled twice.
+  return toDollars(
+    tokens.input * prices.input
+      + tokens.cacheRead * prices.cacheRead
+      + creation
+      + tokens.output * prices.output
+  );
+}
+
+// model is a transcript-controlled string — a bare priceTable[model] access
+// would resolve an inherited Object.prototype member (e.g. model: "constructor")
+// to a truthy-but-wrong price entry and corrupt cost math with NaN. Object.hasOwn
+// gates the lookup to the table's own keys only, mirroring the front door's
+// existing SOURCES/DEFAULT_READ_ROOTS discipline.
+function lookupPrices(priceTable, model) {
+  return Object.hasOwn(priceTable, model) ? priceTable[model] : undefined;
 }
 
 function computeCost(tokens, cacheCreationTtl, model, priceTable) {
-  const prices = priceTable[model];
+  const prices = lookupPrices(priceTable, model);
   const priced = prices ? computePricedCost(tokens, cacheCreationTtl, prices) : null;
   return { priced, relative: computeRelativeCost(tokens) };
 }
@@ -86,10 +115,13 @@ function buildGroupMap(events) {
 // ── Private: enriched group (carries internal fields for rec builders) ─────────
 
 function buildEnrichedGroup(runId, raw, priceTable) {
-  const prices = priceTable[raw.model];
+  const prices = lookupPrices(priceTable, raw.model);
   const cost = computeCost(raw.tokens, raw.cacheCreationTtl, raw.model, priceTable);
+  // The only emitter of computePricedCreation that does not compose inside
+  // computePricedCost, so it must convert to dollars itself to match cost.priced's
+  // unit (see the comment on computePricedCreation for why it stays undivided).
   const pricedCreationCost = prices
-    ? computePricedCreation(raw.cacheCreationTtl, raw.tokens.cacheCreation, prices)
+    ? toDollars(computePricedCreation(raw.cacheCreationTtl, raw.tokens.cacheCreation, prices))
     : null;
   return {
     run: runId, phase: raw.phase, role: raw.role, model: raw.model,
@@ -115,6 +147,57 @@ function toReportGroup(enriched) {
 
 // ── Private: review cycles ────────────────────────────────────────────────────
 
+// aggregates one cost dimension (all-priced or all-relative values) in
+// isolation — the caller never mixes the two into one array. The moment any
+// single value is null (an unpriced model among the role's cycles), the whole
+// dimension aggregates to null: a partial sum would misrepresent the role's
+// true cost, not merely omit a data point.
+// `values` is one entry per billed turn, so it grows with corpus size — total
+// and max are folded into this single reduce pass (never Math.max(...values),
+// which would throw RangeError past ~120k spread arguments, and aggregate()
+// sits outside any try/catch, which would turn an advisory exit-0 tool into a
+// hard failure). `mean` in the caller derives from `total` rather than a
+// second traversal.
+function sumAndMax(values) {
+  return values.reduce(
+    // equivalent mutant (>=): a running max never differs by which branch a tie
+    // takes — when v === acc.max both `v` and `acc.max` are the same value, so
+    // `v >= acc.max ? v : acc.max` selects an equal number to `v > acc.max ? v :
+    // acc.max`; the two operators only diverge exactly at that tie, where the
+    // result is identical either way.
+    (acc, v) => ({ total: acc.total + v, max: v > acc.max ? v : acc.max }),
+    { total: 0, max: -Infinity }
+  );
+}
+
+function aggregateCostDimension(values) {
+  if (values.some(v => v == null)) return { total: null, max: null, mean: null };
+  const { total, max } = sumAndMax(values);
+  return { total, max, mean: total / values.length };
+}
+
+// A "cycle" is one sub-agent spawn, not one billed turn: a single reviewer
+// sub-agent can emit many billed-turn events (one per assistant message.id),
+// and counting those turns as cycles is exactly the defect this fixes. `evt.
+// spawnId` is the opaque per-transcript ordinal the claude adapter stamps
+// onto every event it emits from one parseLines() call — one call per
+// sub-agent transcript, one transcript per spawn — so events sharing a
+// spawnId collapse to the one cycle they actually came from. Events that
+// carry no spawn identity at all (main-loop events, which never reach here
+// since their phase is always null; or a source with no per-spawn transcript
+// boundary) share the single `undefined` key and collapse together too —
+// honest under-counting rather than assuming turn-count distinctness.
+function distinctSpawnCount(evts) {
+  return new Set(evts.map(e => e.spawnId)).size;
+}
+
+// O(1)-per-role aggregate evidence computed in the same single pass, so
+// reviewCycles size stays proportional to distinct (run, role) pairs rather
+// than to turn count. priced and relative stay in their own { priced, relative }
+// shape at every level — mirroring the shape every group already carries —
+// never collapsed together with `??`. `billedTurns` keeps the pre-fix
+// per-turn count available (cost/schedule signal) alongside the corrected
+// `cycles` (spawn-identity signal) rather than dropping it.
 function buildReviewCycles(events, priceTable) {
   const byRole = new Map();
   for (const evt of events) {
@@ -125,14 +208,19 @@ function buildReviewCycles(events, priceTable) {
   }
   return [...byRole.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([role, evts]) => ({
-      role,
-      cycles: evts.length,
-      costPerCycle: evts.map(e =>
-        computeCost(e.tokens, e.cacheCreationTtl, e.model, priceTable).priced
-        ?? computeRelativeCost(e.tokens)
-      ),
-    }));
+    .map(([role, evts]) => {
+      const costs = evts.map(e => computeCost(e.tokens, e.cacheCreationTtl, e.model, priceTable));
+      const priced = aggregateCostDimension(costs.map(c => c.priced));
+      const relative = aggregateCostDimension(costs.map(c => c.relative));
+      return {
+        role,
+        cycles: distinctSpawnCount(evts),
+        billedTurns: evts.length,
+        totalCost: { priced: priced.total, relative: relative.total },
+        maxCost: { priced: priced.max, relative: relative.max },
+        meanCost: { priced: priced.mean, relative: relative.mean },
+      };
+    });
 }
 
 // ── Private: run builder ──────────────────────────────────────────────────────
@@ -179,7 +267,7 @@ function cacheHotspotRecs(enrichedGroups) {
 }
 
 function buildRoutingRec(expensive, cheap, priceTable) {
-  const cheapPrices = priceTable[cheap.model];
+  const cheapPrices = lookupPrices(priceTable, cheap.model);
   if (!cheapPrices) return null;
   const projected = computePricedCost(expensive.tokens, expensive.cacheCreationTtl, cheapPrices);
   if (projected >= expensive.cost.priced) return null;
@@ -218,7 +306,10 @@ function reviewWasteRecs(runs) {
       .map(rc => ({
         kind: 'review-waste', run: run.run, phase: 'review', model: null,
         detail: `role ${rc.role} has ${rc.cycles} review cycles`,
-        evidence: { role: rc.role, cycles: rc.cycles, costPerCycle: rc.costPerCycle },
+        evidence: {
+          role: rc.role, cycles: rc.cycles, billedTurns: rc.billedTurns,
+          totalCost: rc.totalCost, maxCost: rc.maxCost, meanCost: rc.meanCost,
+        },
       }))
   );
 }
@@ -419,9 +510,8 @@ export function renderMarkdown(report) {
   for (const run of report.runs) {
     lines.push(`\n## Run: ${run.run}${run.slug ? ` (${run.slug})` : ''}`);
     for (const g of run.groups) {
-      // C2: divide by 1e6 for display — internal priced is Σ(tokens × $/MTok).
       const costStr = g.cost.priced != null
-        ? `$${(g.cost.priced / 1e6).toFixed(4)}` : `${g.cost.relative} rel`;
+        ? `$${g.cost.priced.toFixed(4)}` : `${g.cost.relative} rel`;
       lines.push(`- **${g.phase}/${g.role ?? 'n/a'}** [${g.model}]: tokens=${JSON.stringify(g.tokens)} cacheEff=${g.cacheEfficiency.toFixed(3)} cost=${costStr}`);
     }
   }

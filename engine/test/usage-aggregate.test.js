@@ -10,6 +10,7 @@ import {
   REVIEW_WASTE_CYCLES,
   DEFAULT_DRIFT_THRESHOLD,
 } from '../src/observability/usage-aggregate.js';
+import { DEFAULT_PRICES } from '../src/observability/adapters/claude/pricing.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -33,7 +34,7 @@ const makeEvent = (overrides = {}) => ({
 
 // ── 1. Token sums, cacheEfficiency, cost.priced ───────────────────────────────
 
-test('Given a single designer UsageEvent and a fixed price table, when aggregate runs, then the group carries summed token classes, the right cacheEfficiency, and cost.priced = Σ class×rate', () => {
+test('Given a single designer UsageEvent and a fixed price table, when aggregate runs, then the group carries summed token classes, the right cacheEfficiency, and cost.priced = Σ class×rate ÷ 1 MTok', () => {
   const event = makeEvent({ tokens: { input: 2, cacheRead: 100, cacheCreation: 50, output: 10 } });
   const sut = aggregate;
 
@@ -42,8 +43,8 @@ test('Given a single designer UsageEvent and a fixed price table, when aggregate
   const group = result.runs[0].groups[0];
   assert.deepEqual(group.tokens, { input: 2, cacheRead: 100, cacheCreation: 50, output: 10 });
   assert.ok(Math.abs(group.cacheEfficiency - 50 / 150) < 1e-10);
-  // cost.priced = 2*5 + 100*0.5 + 50*6.25 + 10*25 = 10 + 50 + 312.5 + 250 = 622.5
-  assert.equal(group.cost.priced, 2 * 5 + 100 * 0.5 + 50 * 6.25 + 10 * 25);
+  // cost.priced = (2*5 + 100*0.5 + 50*6.25 + 10*25) / 1e6 = 622.5 / 1e6
+  assert.equal(group.cost.priced, (2 * 5 + 100 * 0.5 + 50 * 6.25 + 10 * 25) / 1e6);
   assert.equal(result.schemaVersion, 1);
 });
 
@@ -61,6 +62,19 @@ test('Given an event whose model key is absent from the price table, when aggreg
   assert.ok(group.cost.relative > 0);
 });
 
+// ── 2b. model colliding with an Object.prototype member never resolves as pricing ──
+
+test('Given an event whose model is the literal string "constructor" (an inherited Object.prototype member), when aggregate runs, then cost.priced is null, not NaN', () => {
+  const event = makeEvent({ model: 'constructor' });
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE);
+
+  const group = result.runs[0].groups[0];
+  assert.equal(group.cost.priced, null, 'a bare priceTable[model] would resolve the inherited Object constructor as a truthy-but-wrong price entry');
+  assert.ok(!Number.isNaN(group.cost.priced), 'cost.priced must never be NaN');
+});
+
 // ── 3. cacheCreationTtl split ─────────────────────────────────────────────────
 
 test('Given a cacheCreationTtl split, when aggregate prices creation, then creation5m uses the 5m rate and creation1h uses the 1h rate', () => {
@@ -73,16 +87,16 @@ test('Given a cacheCreationTtl split, when aggregate prices creation, then creat
   const result = sut([event], PRICE_TABLE);
 
   const group = result.runs[0].groups[0];
-  // cost.priced = 200 * 6.25 + 100 * 10 = 1250 + 1000 = 2250
-  assert.equal(group.cost.priced, 200 * 6.25 + 100 * 10);
+  // cost.priced = (200 * 6.25 + 100 * 10) / 1e6 = 2250 / 1e6
+  assert.equal(group.cost.priced, (200 * 6.25 + 100 * 10) / 1e6);
 });
 
-// ── 4. Review cycles counted by role, costPerCycle ───────────────────────────
+// ── 4. Review cycles counted by distinct spawn, totalCost/maxCost/meanCost aggregates ──
 
-test('Given two review events grouped by role, when aggregate runs, then reviewCycles counts the cycles and emits costPerCycle', () => {
+test('Given two review events from two distinct spawns, when aggregate runs, then reviewCycles counts one cycle per spawn and emits totalCost/maxCost/meanCost aggregates over both billed turns', () => {
   const events = [
-    makeEvent({ phase: 'review', role: 'code', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
-    makeEvent({ phase: 'review', role: 'code', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 0, tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 1, tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
   ];
   const sut = aggregate;
 
@@ -92,9 +106,81 @@ test('Given two review events grouped by role, when aggregate runs, then reviewC
   assert.ok(cycles.length > 0);
   const codeCycle = cycles.find(c => c.role === 'code');
   assert.ok(codeCycle);
-  assert.equal(codeCycle.cycles, 2);
-  assert.ok(Array.isArray(codeCycle.costPerCycle));
-  assert.equal(codeCycle.costPerCycle.length, 2);
+  assert.equal(codeCycle.cycles, 2, 'two distinct spawnIds must count as two cycles');
+  assert.equal(codeCycle.billedTurns, 2, 'billedTurns must keep the per-turn count separately');
+  assert.equal(typeof codeCycle.totalCost.priced, 'number');
+  assert.equal(typeof codeCycle.maxCost.priced, 'number');
+  assert.equal(typeof codeCycle.meanCost.priced, 'number');
+  assert.equal(typeof codeCycle.totalCost.relative, 'number');
+});
+
+// ── 4b. Many billed turns from the SAME spawn count as one cycle (the regression) ──
+
+test('Given three review events sharing one spawnId (one reviewer sub-agent that emitted three billed turns), when aggregate runs, then reviewCycles counts exactly one cycle while billedTurns records all three', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code', spawnId: 7 }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 7 }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 7 }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const codeCycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  assert.equal(codeCycle.cycles, 1, 'three billed turns from one spawn must count as one review cycle, not three');
+  assert.equal(codeCycle.billedTurns, 3, 'billedTurns must still report the three underlying turns');
+});
+
+// ── 4c. Events with no spawn identity collapse into one cycle, never one per turn ──
+
+test('Given two review events with no spawnId (a source with no per-spawn transcript boundary), when aggregate runs, then they collapse into a single review cycle rather than being assumed distinct', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code' }),
+    makeEvent({ phase: 'review', role: 'code' }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const codeCycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  assert.equal(codeCycle.cycles, 1, 'events lacking a spawn identity must not be assumed to be distinct cycles');
+  assert.equal(codeCycle.billedTurns, 2, 'billedTurns still counts both turns');
+});
+
+// ── 4d. maxCost is the true maximum across cycles, not the last one folded ────
+
+test('Given two review cycles with different costs where the more expensive one is folded first, when aggregate runs, then maxCost.priced is the true maximum, not the last-processed value', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code', spawnId: 0, tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 } }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 1, tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 0 } }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const codeCycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  const expensiveCost = (100 * 5) / 1e6;
+  const cheapCost = (10 * 5) / 1e6;
+  assert.ok(expensiveCost > cheapCost, 'sanity: the first-folded cycle must actually be the more expensive one');
+  assert.equal(codeCycle.maxCost.priced, expensiveCost, 'maxCost must be the true maximum across cycles, not simply the last value folded');
+});
+
+// ── 4e. A single unpriced turn nulls the whole priced dimension, not just its own entry ──
+
+test('Given two review events for the same role where only one has a priced model, when aggregate runs, then priced cost aggregates are entirely null, not partially summed over the priced turn alone', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code', spawnId: 0, model: 'model-a', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 } }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 1, model: 'unknown-model', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 0 } }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const codeCycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  assert.equal(codeCycle.totalCost.priced, null, 'one unpriced turn among the cycle must null the whole priced dimension');
+  assert.equal(codeCycle.maxCost.priced, null);
+  assert.equal(codeCycle.meanCost.priced, null);
+  assert.equal(typeof codeCycle.totalCost.relative, 'number', 'the relative dimension is unaffected — every event has a relative cost');
 });
 
 // ── 5. Order-invariance ───────────────────────────────────────────────────────
@@ -305,19 +391,20 @@ test('Given a baseline object with no runs array (a malformed or schema-mismatch
 
 // ── 14. Review-waste recommendation fires at 3 cycles (F3) ───────────────────
 
-test('Given three review-cycle events in one run, when aggregate runs, then a review-waste recommendation is emitted with cycles=3 and costPerCycle.length=3', () => {
+test('Given three review events from three distinct spawns in one run, when aggregate runs, then a review-waste recommendation is emitted with cycles=3 and numeric totalCost/meanCost aggregates', () => {
   // REVIEW_WASTE_CYCLES = 2; >2 means 3+ cycles fire the rec.
-  const reviewEvent = (n) => makeEvent({
+  const reviewEvent = (spawnId) => makeEvent({
     phase: 'review',
     role: 'reviewer',
     model: 'model-a',
-    run: `run-${n}`,
+    run: 'run-rev',
+    spawnId,
     tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 },
   });
-  // Three reviewer events in the same run share the same run/role.
-  const event1 = { ...reviewEvent(1), run: 'run-rev' };
-  const event2 = { ...reviewEvent(2), run: 'run-rev' };
-  const event3 = { ...reviewEvent(3), run: 'run-rev' };
+  // Three reviewer events from three distinct spawns, all in the same run.
+  const event1 = reviewEvent(0);
+  const event2 = reviewEvent(1);
+  const event3 = reviewEvent(2);
   const sut = aggregate;
 
   const result = sut([event1, event2, event3], PRICE_TABLE);
@@ -325,8 +412,11 @@ test('Given three review-cycle events in one run, when aggregate runs, then a re
   const wasteRecs = result.recommendations.filter(r => r.kind === 'review-waste');
   assert.ok(wasteRecs.length > 0, 'review-waste recommendation must be emitted');
   const rec = wasteRecs[0];
-  assert.equal(rec.evidence.cycles, 3, 'evidence.cycles must equal 3');
-  assert.equal(rec.evidence.costPerCycle.length, 3, 'costPerCycle must have 3 entries');
+  assert.equal(rec.evidence.cycles, 3, 'evidence.cycles must equal 3 distinct spawns');
+  assert.equal(rec.evidence.billedTurns, 3, 'evidence.billedTurns must equal the 3 underlying turns');
+  assert.equal(typeof rec.evidence.totalCost.priced, 'number', 'totalCost.priced must be a number');
+  assert.equal(typeof rec.evidence.meanCost.priced, 'number', 'meanCost.priced must be a number');
+  assert.equal(rec.evidence.totalCost.priced, rec.evidence.meanCost.priced * 3, 'totalCost must equal meanCost times the cycle count for equal-cost cycles');
 });
 
 // ── P29 kill-tests: target survivors from mutation run ────────────────────────
@@ -365,7 +455,7 @@ test('Given two events in the same group both carrying cacheCreationTtl, when ag
   // model-a: cacheCreation5m=6.25, cacheCreation1h=10
   // Event 1: TTL = { creation5m: 60, creation1h: 40 } → cost = 60*6.25 + 40*10 = 375 + 400 = 775
   // Event 2: TTL = { creation5m: 120, creation1h: 80 } → cost = 120*6.25 + 80*10 = 750 + 800 = 1550
-  // Accumulated: creation5m=180, creation1h=120 → cost = 180*6.25 + 120*10 = 1125 + 1200 = 2325
+  // Accumulated: creation5m=180, creation1h=120 → cost = (180*6.25 + 120*10) / 1e6 = 2325 / 1e6
   const events = [
     makeEvent({ tokens: { input: 0, cacheRead: 0, cacheCreation: 100, output: 0 }, cacheCreationTtl: { creation5m: 60, creation1h: 40 } }),
     makeEvent({ tokens: { input: 0, cacheRead: 0, cacheCreation: 200, output: 0 }, cacheCreationTtl: { creation5m: 120, creation1h: 80 } }),
@@ -375,7 +465,7 @@ test('Given two events in the same group both carrying cacheCreationTtl, when ag
   const result = sut(events, PRICE_TABLE);
 
   const group = result.runs[0].groups[0];
-  assert.equal(group.cost.priced, 2325, 'cost.priced must reflect accumulated cacheCreationTtl: 180*6.25 + 120*10 = 2325');
+  assert.equal(group.cost.priced, 2325 / 1e6, 'cost.priced must reflect accumulated cacheCreationTtl: (180*6.25 + 120*10) / 1e6 = 2325 / 1e6');
 });
 
 // ── 18. Two events in the same group produce one group, not two ───────────────
@@ -439,11 +529,11 @@ test('Given review events with roles beta and alpha in that order, when aggregat
   assert.equal(cycles[1].role, 'zzz-role');
 });
 
-// ── 22. costPerCycle carries exact priced cost per review event ───────────────
+// ── 22. reviewCycles totalCost/maxCost/meanCost carry exact aggregated priced cost ──
 
-test('Given two review events with the same role and known tokens, when aggregate runs, then costPerCycle carries exact priced cost for each', () => {
+test('Given two review events with the same role and known tokens, when aggregate runs, then totalCost/maxCost/meanCost.priced carry the exact aggregated priced cost', () => {
   const tokens = { input: 0, cacheRead: 1000, cacheCreation: 0, output: 0 };
-  // cost = 1000 * 0.5 = 500 for model-a
+  // cost = (1000 * 0.5) / 1e6 = 500 / 1e6 for model-a, per event
   const events = [
     makeEvent({ phase: 'review', role: 'code', tokens }),
     makeEvent({ phase: 'review', role: 'code', tokens }),
@@ -454,9 +544,26 @@ test('Given two review events with the same role and known tokens, when aggregat
 
   const cycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
   assert.ok(cycle, 'cycle for code must exist');
-  assert.equal(cycle.costPerCycle.length, 2);
-  assert.equal(cycle.costPerCycle[0], 500, 'each costPerCycle must be exact: 1000*0.5=500');
-  assert.equal(cycle.costPerCycle[1], 500);
+  assert.equal(cycle.totalCost.priced, 2 * (500 / 1e6), 'totalCost.priced must be the exact sum of both cycles');
+  assert.equal(cycle.maxCost.priced, 500 / 1e6, 'maxCost.priced must be the exact per-cycle cost (both cycles equal)');
+  assert.equal(cycle.meanCost.priced, 500 / 1e6, 'meanCost.priced must be the exact per-cycle cost (both cycles equal)');
+});
+
+// ── 22b. priced and relative aggregates never collapse into one mixed-unit figure ──
+
+test('Given a review-cycle event whose model is unpriced, when aggregate runs, then reviewCycles priced aggregates are null while relative aggregates stay numeric (units never collapse)', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code', model: 'unknown-model', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 } }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const cycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  assert.equal(cycle.totalCost.priced, null, 'an unpriced model must leave priced aggregates null, never a token count masquerading as dollars');
+  assert.equal(cycle.maxCost.priced, null);
+  assert.equal(cycle.meanCost.priced, null);
+  assert.equal(cycle.totalCost.relative, 15, 'relative aggregate must stay the exact token sum, independent of pricing');
 });
 
 // ── 23. run.slug is set from first event with non-null slug ───────────────────
@@ -603,11 +710,11 @@ test('Given two runs each with two models for the same phase, when aggregate run
 
 // ── 31. reviewWaste detail string and phase field ─────────────────────────────
 
-test('Given three review events for the same role, when aggregate runs, then the review-waste rec has phase=review and detail naming the role and cycle count', () => {
+test('Given three review events from three distinct spawns for the same role, when aggregate runs, then the review-waste rec has phase=review and detail naming the role and cycle count', () => {
   const events = [
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 0 }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 1 }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 2 }) },
   ];
   const sut = aggregate;
 
@@ -625,10 +732,10 @@ test('Given three review events for the same role, when aggregate runs, then the
 test('Given two recs of different kinds, when aggregate runs, then recommendations are sorted alphabetically by kind', () => {
   // cache-hotspot (c) sorts before model-routing (m) sorts before review-waste (r)
   const events = [
-    // review waste: 3 review events (r sorts last)
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code' }) },
+    // review waste: 3 review events from 3 distinct spawns (r sorts last)
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 0 }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 1 }) },
+    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 2 }) },
     // cache hotspot: high creation ratio (c sorts first)
     { ...makeEvent({ run: 'r1', phase: 'design', role: 'designer', tokens: { input: 0, cacheRead: 5, cacheCreation: 500, output: 0 } }) },
   ];
@@ -690,21 +797,21 @@ test('Given a report with null-valued fields, when serializeReport runs, then th
   assert.deepEqual(groupKeys, sorted, 'group keys must be sorted in serialized JSON');
 });
 
-// ── 36. renderMarkdown: cost string uses exact dollar format with /1e6 scale ──
+// ── 36. renderMarkdown: cost.priced is already dollars — no further scaling ──
 
-test('Given a group with cost.priced = 622.5e6 (scaled), when renderMarkdown runs, then the cost string is in the $X.XXXX format divided by 1e6', () => {
-  // input=0, cacheRead=0, cacheCreation=0, output=0; tokens*0 → cost=0. Use non-zero:
-  // input=2, cacheRead=100, cacheCreation=50, output=10, model-a → cost = 622.5
+test('Given a group whose cost.priced is already a dollar figure, when renderMarkdown runs, then the cost string formats it directly with no further scaling and never renders $0.0000', () => {
+  // aggregate() denominates cost.priced in dollars; renderMarkdown must format it
+  // as-is. input=2, cacheRead=100, cacheCreation=50, output=10, model-a →
+  // cost.priced = (2*5 + 100*0.5 + 50*6.25 + 10*25) / 1e6 = 622.5 / 1e6 = 0.0006225
   const event = makeEvent({ tokens: { input: 2, cacheRead: 100, cacheCreation: 50, output: 10 } });
   const report = aggregate([event], PRICE_TABLE);
   const sut = renderMarkdown;
 
   const result = sut(report);
 
-  // cost.priced = 622.5 → divided by 1e6 → 0.0006225 → formatted as $0.0006
-  // Actually: 622.5 / 1e6 = 0.0006225 → toFixed(4) = '0.0006'
   assert.ok(result.includes('$'), 'priced cost must include dollar sign');
-  assert.ok(result.includes('0.0006'), 'cost must be expressed as dollar amount / 1e6');
+  assert.ok(result.includes('$0.0006'), 'cost.priced=0.0006225 must render as $0.0006 with no further division');
+  assert.ok(!result.includes('$0.0000'), 'a real non-zero cost.priced must never render as $0.0000 — that would mean a stray compensating division survived');
 });
 
 // ── 37. renderMarkdown: role null shows n/a, recommendations section ──────────
@@ -769,8 +876,8 @@ test('Given a group with a known priced cost, when renderMarkdown runs, then cos
 // ── 42. renderMarkdown: recommendations section present; null model shows n/a ─
 
 test('Given a report with a recommendation whose model is null, when renderMarkdown runs, then the recommendations section exists and shows n/a for model', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, () =>
-    makeEvent({ phase: 'review', role: 'reviewer' })
+  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, (_, spawnId) =>
+    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
   );
   const sut = renderMarkdown;
 
@@ -795,8 +902,8 @@ test('Given an empty events array, when renderMarkdown runs on the no-data repor
 // ── 44. serializeReport: keys alphabetically sorted and trailing newline ──────
 
 test('Given a report object with a null model recommendation, when serializeReport runs, then JSON keys are alphabetically sorted, null is preserved, and output ends with a newline', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, () =>
-    makeEvent({ phase: 'review', role: 'reviewer' })
+  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, (_, spawnId) =>
+    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
   );
   const report = aggregate(events, PRICE_TABLE);
   const sut = serializeReport;
@@ -872,9 +979,9 @@ test('Given two groups in the same run/phase with different priced costs, when a
 
 // ── 49. reviewWasteRecs: exactly REVIEW_WASTE_CYCLES does not fire ────────────
 
-test('Given review cycles exactly equal to REVIEW_WASTE_CYCLES, when aggregate runs, then no review-waste recommendation is emitted', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES }, () =>
-    makeEvent({ phase: 'review', role: 'reviewer' })
+test('Given review cycles from distinct spawns exactly equal to REVIEW_WASTE_CYCLES, when aggregate runs, then no review-waste recommendation is emitted', () => {
+  const events = Array.from({ length: REVIEW_WASTE_CYCLES }, (_, spawnId) =>
+    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
   );
 
   const result = aggregate(events, PRICE_TABLE);
@@ -902,7 +1009,7 @@ test('Given events that produce both a cache-hotspot rec and a model-routing rec
 // ── 51. computeBaselineDeltas: pricedCostDelta is current minus baseline ──────
 
 test('Given a current report and a baseline report for the same group, when aggregate runs with baseline, then baselineDeltas carry the exact priced cost difference', () => {
-  // baseline cost = 1*5 + 1*25 = 30; current cost = 2*5 + 100*0.5 + 50*6.25 + 10*25 = 622.5
+  // baseline cost = (1*5 + 1*25) / 1e6 = 30 / 1e6; current cost = (2*5 + 100*0.5 + 50*6.25 + 10*25) / 1e6 = 622.5 / 1e6
   const baselineEvents = [makeEvent({ tokens: { input: 1, cacheRead: 0, cacheCreation: 0, output: 1 } })];
   const baseline = aggregate(baselineEvents, PRICE_TABLE);
 
@@ -911,7 +1018,7 @@ test('Given a current report and a baseline report for the same group, when aggr
   assert.ok(result.baselineDeltas, 'baselineDeltas must exist');
   assert.equal(result.baselineDeltas.length, 1);
   const delta = result.baselineDeltas[0];
-  assert.equal(delta.pricedCostDelta, 622.5 - 30, 'pricedCostDelta must be current minus baseline, not plus');
+  assert.equal(delta.pricedCostDelta, (622.5 - 30) / 1e6, 'pricedCostDelta must be current minus baseline, not plus');
   const tokenKeys = Object.keys(delta.tokensDelta);
   assert.deepEqual(tokenKeys, [...tokenKeys].sort(), 'tokensDelta keys must be alphabetically sorted');
 });
@@ -1423,4 +1530,91 @@ test('Given no skip markers argument, when aggregate runs, then recommendations 
   const result = sut(events, PRICE_TABLE);
 
   assert.equal(result.recommendations.filter(r => r.kind === 'phase-skip').length, 0);
+});
+
+// ── Golden vector: real DEFAULT_PRICES reconcile the published craft-arm dollars ──
+
+test('Given the re-derived per-message token-class totals of the craft benchmark arm, when aggregate runs against the shipped DEFAULT_PRICES, then the summed cost.relative is the corrected corpus token count and the summed cost.priced reconciles to the corrected dollar figure', () => {
+  // Usage events are keyed on the assistant message.id (one event per billed turn), not
+  // per transcript line — the earlier per-line vector double-counted request-level fields
+  // and is superseded by these per-message totals (independently re-derived from the same
+  // on-disk transcripts): craft 273,114,810 tokens / $145.67 (was 544,271,827 / $297.55).
+  const opusEvent = makeEvent({
+    model: 'claude-opus-5', phase: 'implementation', role: 'part-implementer',
+    tokens: { input: 1_283, output: 373_875, cacheRead: 103_887_059, cacheCreation: 2_785_387 },
+    cacheCreationTtl: { creation5m: 2_333_655, creation1h: 451_732 },
+  });
+  const sonnetEvent = makeEvent({
+    model: 'claude-sonnet-5', phase: 'implementation', role: 'part-implementer',
+    tokens: { input: 6_165, output: 170_676, cacheRead: 162_144_054, cacheCreation: 3_746_311 },
+    cacheCreationTtl: { creation5m: 3_746_311, creation1h: 0 },
+  });
+  const sut = aggregate;
+
+  const result = sut([opusEvent, sonnetEvent], DEFAULT_PRICES);
+
+  const groups = result.runs[0].groups;
+  const totalRelative = groups.reduce((sum, g) => sum + g.cost.relative, 0);
+  assert.equal(totalRelative, 273_114_810, 'summed cost.relative must equal the corrected per-message corpus token count');
+
+  // Expected dollars are built from the SAME rate objects the implementation reads
+  // (DEFAULT_PRICES entries), never hand-typed decimals — a literal 0.3 is not the
+  // same double as 3 * CACHE_READ_MULTIPLIER. Each group's expression is summed
+  // in the same shape computePricedCost uses, then the two groups are added exactly
+  // like the report does — dividing one summed Σ and summing two already-divided
+  // per-group Σs are not bit-identical in IEEE-754. This pins unit-placement (the
+  // divisor lands once, at the sum) but NOT the published number itself — a
+  // DEFAULT_PRICES edit would move this expected value right along with the
+  // implementation's output, so the literal pin below is the one that actually
+  // guards the published figure.
+  //   opus-5:    1,283×5 + 373,875×25 + 103,887,059×0.5 + 2,333,655×6.25 + 451,732×10   = 80,399,483.25
+  //   sonnet-5:  6,165×3 + 170,676×15 + 162,144,054×0.3 + 3,746,311×3.75 + 0×6           = 65,270,517.45
+  //                                                                                 Σ    = 145,670,000.70
+  //                                                                           ÷ 1e6      = $145.670001
+  const opusPrices = DEFAULT_PRICES['claude-opus-5'];
+  const sonnetPrices = DEFAULT_PRICES['claude-sonnet-5'];
+  const expectedOpusDollars = (
+    1_283 * opusPrices.input
+    + 103_887_059 * opusPrices.cacheRead
+    + (2_333_655 * opusPrices.cacheCreation5m + 451_732 * opusPrices.cacheCreation1h)
+    + 373_875 * opusPrices.output
+  ) / 1e6;
+  const expectedSonnetDollars = (
+    6_165 * sonnetPrices.input
+    + 162_144_054 * sonnetPrices.cacheRead
+    + (3_746_311 * sonnetPrices.cacheCreation5m + 0 * sonnetPrices.cacheCreation1h)
+    + 170_676 * sonnetPrices.output
+  ) / 1e6;
+  const totalPriced = groups.reduce((sum, g) => sum + g.cost.priced, 0);
+  assert.equal(totalPriced, expectedOpusDollars + expectedSonnetDollars, 'summed cost.priced must reconcile via the shipped DEFAULT_PRICES rate objects (float-identity, unit-placement only)');
+
+  // A literal, price-table-independent pin of the published craft-arm dollar figure
+  // ($145.67, per-message). Unlike the rate-derived assertion above, this number does
+  // not move if DEFAULT_PRICES is edited — it must stay broken until the published
+  // figure is republished from a fresh corpus re-derivation, catching the case where a
+  // price-table edit keeps the reconciliation looking intact while the published number
+  // silently drifts underneath it.
+  assert.equal(totalPriced, 145.6700007, 'a DEFAULT_PRICES edit must break this literal until the published $145.67 figure is republished');
+});
+
+// ── shareOfRunCost companion: pins the division to the emitting site, not the composed one ──
+
+test('Given a group whose cacheEfficiency clears CACHE_HOTSPOT_THRESHOLD, when aggregate runs, then evidence.pricedCreationCost is in the same unit as cost.priced and evidence.shareOfRunCost lies in [0, 1]', () => {
+  const event = makeEvent({ tokens: { input: 0, cacheRead: 10, cacheCreation: 500, output: 0 } });
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE);
+
+  const group = result.runs[0].groups[0];
+  const rec = result.recommendations.find(r => r.kind === 'cache-hotspot');
+  assert.ok(rec, 'expected a cache-hotspot recommendation');
+  // Pinned to the exact value, not merely bounded by cost.priced: an inequality alone
+  // catches an UNdivided standalone value (1e6×) but not an EXTRA division (the divisor
+  // moved into computePricedCreation itself, under-dividing this standalone call and
+  // double-dividing the composed one) — that mutant still satisfies "<= cost.priced".
+  const expectedPricedCreationCost = (500 * PRICE_TABLE['model-a'].cacheCreation5m) / 1e6;
+  assert.equal(rec.evidence.pricedCreationCost, expectedPricedCreationCost,
+    'pricedCreationCost must equal the standalone computePricedCreation call divided exactly once');
+  assert.ok(rec.evidence.shareOfRunCost >= 0 && rec.evidence.shareOfRunCost <= 1,
+    'shareOfRunCost must land in [0, 1] once both sides of the ratio share a unit');
 });

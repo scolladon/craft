@@ -2,42 +2,47 @@
  * Claude JSONL binding: transcript lines → UsageEvent[].
  *
  * Converts raw Claude Code session transcripts (JSONL) into vendor-neutral
- * UsageEvent objects consumed by the usage-aggregate core. Handles both
- * Agent and Task spawn shapes, and both agentType/subagent_type rollup
- * attribution fields. Inline per-turn usage is a noted gap — not emitted
- * by default; opt-in belongs at the CLI layer via --include-inline.
+ * UsageEvent objects consumed by the usage-aggregate core.
+ *
+ * Claude Code writes one transcript line per content block of a single
+ * assistant API response (thinking, text, each tool_use) — every one of those
+ * lines repeats the same `message.id` and the same request-level input/cache
+ * counts. Emission is therefore keyed on `message.id`, not the line: the first
+ * usage-bearing line for an id pushes an event; a later line for the same id
+ * replaces that event's tokens/cacheCreationTtl in place instead of pushing a
+ * duplicate (output is monotonic across a turn's blocks, so the last line
+ * carries the complete turn). A line with no `message.id` always pushes — there
+ * is nothing to key a dedup against. This message-keying is what makes
+ * one-event-per-billed-turn hold.
+ *
+ * A spawn rollup rides on a `user` line's `toolUseResult` and never carries
+ * `message.usage`, so rollups are read for neither tokens nor labels — the two
+ * shapes are disjoint by construction, which keeps the rollup tier unreachable
+ * from here. That disjointness alone does not guarantee uniqueness *within*
+ * the assistant tier — the message-id keying above is what enforces that.
+ *
+ * The optional third `context` argument is authored by the claude adapter's
+ * `discover()` (main-loop vs. sub-agent transcript) and is opaque here beyond
+ * the fields this module reads from it.
  *
  * No clock reads, no random, no model-id literals in core paths.
  */
 
 import { autoSkipPhasesInText } from '../../skip-signals.js';
+import { phaseForRole } from '../../role-phase.js';
 
-const SYNTHETIC_MODEL = '<synthetic>';
 const MODEL_1M_SUFFIX = '[1m]';
 const CRAFT_PREFIX = 'craft:';
+// Zero-cost injected turns (e.g. spawn bookkeeping) carry a usage block but are
+// not billed and are not attributable to a role — excluded at the emission
+// site rather than filtered downstream.
+const SYNTHETIC_MODEL = '<synthetic>';
 // C6: exported so metrics-split.js can single-source these field names.
 export const CACHE_READ_FIELD = 'cache_read_input_tokens';
 export const CACHE_CREATION_FIELD = 'cache_creation_input_tokens';
 
 // F6: coerce non-finite values (string, NaN, null) to 0 so they can't poison cost math.
 const numOrZero = (v) => (Number.isFinite(v) ? v : 0);
-
-/**
- * Map from the role label (agentType after stripping the "craft:" prefix)
- * to the vendor-neutral phase label.
- */
-const ROLE_TO_PHASE = Object.freeze({
-  'designer': 'design',
-  'planner': 'planning',
-  'part-implementer': 'implementation',
-  'reviewer': 'review',
-  'harness-triager': 'validation',
-  'validation-triager': 'validation',
-  'docs-writer': 'documentation',
-  'backlog-ticker': 'documentation',
-  'requirements-writer': 'requirements',
-  'refactor-executor': 'refactoring',
-});
 
 /**
  * Strip the [1m] context-size suffix from a model id if present.
@@ -74,13 +79,12 @@ function roleFromAgentType(agentType) {
  * @returns {string | null}
  */
 function phaseFromAgentType(agentType) {
-  const role = roleFromAgentType(agentType);
-  return role ? (ROLE_TO_PHASE[role] ?? null) : null;
+  return phaseForRole(roleFromAgentType(agentType));
 }
 
 /**
- * Map a raw Claude `usage` object (from message.usage or toolUseResult.usage)
- * to the vendor-neutral token shape the core consumes.
+ * Map a raw Claude `usage` object (from message.usage) to the vendor-neutral
+ * token shape the core consumes.
  *
  * Accepts the standard Claude API field names (input_tokens, etc.).
  * The cacheCreationTtl is extracted when cache_creation is a plain object
@@ -107,52 +111,6 @@ export function tokensFromClaudeUsage(usage) {
 }
 
 /**
- * Convert a toolUseResult rollup + line context into a UsageEvent.
- *
- * Accepts both rollup shapes:
- *   - agentType (current harness) or subagent_type (the field name an older harness used)
- * Returns null for synthetic-model rollups (zero-cost injected spawns).
- *
- * @param {object} rollup - toolUseResult object from a JSONL user line
- * @param {{ sessionId: string | null, slug: string | null }} context
- * @returns {object | null} UsageEvent or null
- */
-export function eventFromRollup(rollup, context) {
-  const resolvedModel = normalizeModel(rollup.resolvedModel ?? rollup.model ?? null);
-  if (resolvedModel === SYNTHETIC_MODEL) return null;
-
-  const agentType = rollup.agentType ?? rollup.subagent_type ?? null;
-  const { tokens, cacheCreationTtl } = tokensFromClaudeUsage(rollup.usage ?? {});
-
-  return {
-    run: context.sessionId ?? null,
-    slug: context.slug ?? null,
-    phase: phaseFromAgentType(agentType),
-    role: roleFromAgentType(agentType),
-    model: resolvedModel,
-    tokens,
-    cacheCreationTtl,
-    messages: rollup.totalToolUseCount ?? 0,
-    durationMs: rollup.totalDurationMs ?? 0,
-  };
-}
-
-/**
- * Determine whether a parsed JSONL line carries an agent spawn rollup.
- *
- * @param {object} parsed
- * @returns {boolean}
- */
-function isRollupLine(parsed) {
-  const tur = parsed.toolUseResult;
-  return (
-    tur != null &&
-    typeof tur === 'object' &&
-    (tur.agentType != null || tur.subagent_type != null || tur.resolvedModel != null)
-  );
-}
-
-/**
  * Concatenate the text of a parsed assistant line's message content. Tolerates a
  * string content, an array of `{ text }` blocks, or neither (returns '').
  * @param {object} parsed
@@ -166,25 +124,96 @@ function assistantTextOf(parsed) {
 }
 
 /**
+ * Fold a Date.parse result into the running [min, max] timestamp span. A
+ * non-finite parse (missing/malformed timestamp) leaves the span untouched —
+ * it contributes neither a floor nor a ceiling, never a clock read.
+ *
+ * @param {{ first: number | null, last: number | null }} span
+ * @param {string | null} timestamp
+ * @returns {{ first: number | null, last: number | null }}
+ */
+function foldTimestamp(span, timestamp) {
+  const parsed = Date.parse(timestamp);
+  if (!Number.isFinite(parsed)) return span;
+  return {
+    first: span.first === null ? parsed : Math.min(span.first, parsed),
+    last: span.last === null ? parsed : Math.max(span.last, parsed),
+  };
+}
+
+/**
+ * Fold one usage-bearing line into `events`, keyed on the assistant
+ * `message.id`. The first line for an id pushes `candidateEvent`; a later
+ * line for the same id replaces the existing event's tokens/cacheCreationTtl
+ * in place rather than pushing a duplicate — see the module header for why.
+ * A null `messageId` always pushes, since there is nothing to key against.
+ *
+ * @param {object[]} events - mutated in place
+ * @param {Map<string, number>} indexByMessageId - message id → index into events
+ * @param {string | null} messageId
+ * @param {object} candidateEvent - pushed when this id is new
+ * @param {{ tokens: object, cacheCreationTtl: object | null }} replacement - applied when this id already exists
+ */
+function foldEventByMessageId(events, indexByMessageId, messageId, candidateEvent, replacement) {
+  // equivalent mutant (false): the map never holds a `null` key — the only writer
+  // is the guarded `.set` below — so `indexByMessageId.get(null)` always returns
+  // undefined too, identical to the ternary's direct `undefined`.
+  const existingIndex = messageId === null ? undefined : indexByMessageId.get(messageId);
+  if (existingIndex !== undefined) {
+    events[existingIndex].tokens = replacement.tokens;
+    events[existingIndex].cacheCreationTtl = replacement.cacheCreationTtl;
+    return;
+  }
+  events.push(candidateEvent);
+  // equivalent mutant (true): indexByMessageId is local to parseLines and read
+  // only via the null-gated ternary above — a `null`-keyed entry this guard
+  // would let through is never read back, and the map's size/contents are never
+  // otherwise observed, so an unconditional .set(null, …) is unobservable.
+  if (messageId !== null) indexByMessageId.set(messageId, events.length - 1);
+}
+
+/**
  * Parse an async iterable of raw JSONL lines into UsageEvents.
  *
+ * Emission rule: one UsageEvent per distinct assistant `message.id` (or per
+ * line, for a line carrying no id) — see the module header for why a later
+ * line sharing an id replaces rather than duplicates.
  * Malformed lines (not valid JSON) are skipped and counted in `skipped`.
- * Synthetic-model rollups are excluded (zero-cost, not attributable).
- * Lines without a toolUseResult rollup are silently ignored — inline
- * per-turn usage is not emitted by default (a known upstream gap).
  *
- * The `since` cutoff is an ISO timestamp string. When set, rollup lines whose
- * top-level `timestamp` predates the cutoff are silently dropped (timestamp is
- * used for internal filtering only — never emitted, redaction-safe).
+ * The `since` cutoff is an ISO timestamp string. When set, lines whose
+ * top-level `timestamp` predates the cutoff are dropped before anything else
+ * — token totals and the sub-agent duration span are both derived only from
+ * surviving lines (timestamp is used for internal ordering only — never
+ * emitted, redaction-safe).
+ *
+ * `context.sourceKind === 'subagent'` switches labelling from the literal
+ * `role: 'main-loop'` to `roleFromAgentType(context.agentType)`, gates the
+ * `auto-skip:` run-record scan off (those tokens are orchestrator prose, and a
+ * sub-agent transcript is untrusted output, not a run record), and folds the
+ * transcript's timestamp span onto the last emitted event's `durationMs`
+ * instead of leaving it at 0. It also stamps `context.spawnId` — the opaque
+ * per-transcript ordinal the front door assigns once per parseLines() call —
+ * onto every emitted event as `spawnId`, giving the aggregate core a spawn
+ * identity to count review cycles by (one sub-agent transcript IS one spawn,
+ * however many billed turns it contains). Main-loop events always carry
+ * `spawnId: null`: a main-loop transcript is not itself a spawn, and its
+ * events never reach `phase: 'review'` in the first place (phase is always
+ * null on the main-loop path below).
  *
  * @param {AsyncIterable<string>} lines - Line stream
  * @param {string | null} [since] - ISO timestamp cutoff (inclusive lower bound)
- * @returns {Promise<{ events: object[], skipped: number }>}
+ * @param {{ sourceKind?: string, agentType?: string | null, includeInline?: boolean, spawnId?: number } | null} [context]
+ * @returns {Promise<{ events: object[], skipped: number, markers: object[], unlabelled: number }>}
  */
-export async function parseLines(lines, since = null) {
+export async function parseLines(lines, since = null, context = null) {
+  const isSubagent = context?.sourceKind === 'subagent';
   const events = [];
+  const indexByMessageId = new Map();
   const markers = [];
   let skipped = 0;
+  let sawUnlabelledEvent = false;
+  let span = { first: null, last: null };
+
   for await (const line of lines) {
     const trimmed = line.trim();
     if (!trimmed) continue;
@@ -195,21 +224,103 @@ export async function parseLines(lines, since = null) {
       skipped++;
       continue;
     }
-    // D: --since filter — timestamp is internal only, never emitted.
+    // --since filter — timestamp is internal only, never emitted.
     if (since) {
       const ts = parsed.timestamp ?? null;
       if (ts !== null && ts < since) continue;
     }
-    // Run-record `auto-skip:` tokens ride in orchestrator assistant text, not a
-    // rollup — scanned before the rollup gate. Only run+phase escape (no text).
-    const run = parsed.sessionId ?? null;
-    for (const phase of autoSkipPhasesInText(assistantTextOf(parsed))) {
-      markers.push({ run, phase });
+
+    // Run-record `auto-skip:` tokens ride in orchestrator assistant text. A
+    // sub-agent's own output is untrusted content, not a run record — scanning
+    // it would let a sub-agent inject a false phase-skip marker.
+    if (!isSubagent) {
+      const run = parsed.sessionId ?? null;
+      for (const phase of autoSkipPhasesInText(assistantTextOf(parsed))) {
+        markers.push({ run, phase });
+      }
     }
-    if (!isRollupLine(parsed)) continue;
-    const context = { sessionId: parsed.sessionId ?? null, slug: parsed.slug ?? null };
-    const event = eventFromRollup(parsed.toolUseResult, context);
-    if (event !== null) events.push(event);
+
+    const usage = parsed.message?.usage;
+    if (usage == null) continue;
+    // Zero-cost injected turns (spawn bookkeeping) are not billed and are not
+    // attributable to a role — see the SYNTHETIC_MODEL definition above.
+    // equivalent mutant (optional chaining removed): reaching this line already
+    // required `parsed.message?.usage` above to be non-nullish, which is only
+    // possible when `parsed.message` itself is non-nullish — so `.model` here
+    // can never throw either way.
+    if (parsed.message?.model === SYNTHETIC_MODEL) continue;
+    // Main-loop inclusion is default-on; --no-inline (front door) sets
+    // includeInline: false to opt back out. Sub-agent streams always emit —
+    // there is no separate "inline gap" concept once the read is opened at all.
+    if (!isSubagent && context?.includeInline === false) continue;
+
+    const { tokens, cacheCreationTtl } = tokensFromClaudeUsage(usage);
+    // The transcript span belongs to every surviving line, whether or not that
+    // line ends up folded into an earlier event by the message-id keying below.
+    // equivalent mutant (true): `span` is never returned from parseLines and is
+    // read only by the isSubagent-gated patch below (line ~290) — folding it
+    // unconditionally on the main-loop path computes a value nothing observes.
+    if (isSubagent) span = foldTimestamp(span, parsed.timestamp ?? null);
+
+    // equivalent mutant (optional chaining removed): `parsed.message` was already
+    // proven non-nullish by the `usage == null` continue above — same reasoning
+    // as the SYNTHETIC_MODEL check.
+    const messageId = parsed.message?.id ?? null;
+    const role = isSubagent ? roleFromAgentType(context.agentType) : 'main-loop';
+    if (role === null) sawUnlabelledEvent = true;
+    const phase = isSubagent ? phaseFromAgentType(context.agentType) : null;
+    // See the module header: a spawn identity belongs only to a sub-agent
+    // transcript, never to the main loop.
+    const spawnId = isSubagent ? (context.spawnId ?? null) : null;
+
+    foldEventByMessageId(events, indexByMessageId, messageId, {
+      run: parsed.sessionId ?? null,
+      slug: parsed.slug ?? null,
+      phase,
+      role,
+      spawnId,
+      // equivalent mutant (optional chaining removed): same non-nullish `parsed.message` proof as above.
+      model: normalizeModel(parsed.message?.model ?? null),
+      tokens,
+      cacheCreationTtl,
+      messages: 1,
+      // Main-loop durationMs stays 0 on every event, including the last — see
+      // below. Sub-agent events default to 0 too; the last one is patched with
+      // the transcript's span once the stream ends.
+      durationMs: 0,
+    }, { tokens, cacheCreationTtl });
   }
-  return { events, skipped, markers };
+
+  // The orchestrator's own wallclock span overlaps every sub-agent span spawned
+  // within it, so attributing main-loop duration would roughly double a report
+  // figure whose prose is scoped to role-agent activity alone. Sub-agent
+  // duration has no such overlap — it is the one span that is genuinely theirs
+  // — so it is folded onto the last event once the transcript is fully read.
+  // Main-loop `messages` is not zeroed: a billed-turn count is real and nothing
+  // else reconstructs it.
+  // equivalent mutants (8 of the 9 survivors at this guard — every variant except
+  // the `isSubagent || …` LogicalOperator one, which is killed by a dedicated
+  // test): span.first and span.last are set together by the single foldTimestamp
+  // call above and only ever move via Math.min/Math.max of numbers, so they are
+  // always BOTH null or BOTH non-null (span.first!==null ⟺ span.last!==null) —
+  // this collapses every `true`/`>=0`-style weakening of the last two conjuncts
+  // to the same value the untouched conjunct already carries. Separately, that
+  // fold is reachable only when isSubagent is true (it is the sole writer, gated
+  // by `if (isSubagent)` a few lines up) and only ever succeeds in the same loop
+  // iteration that also runs foldEventByMessageId (nothing `continue`s between
+  // them), which always leaves events.length >= 1 — so span.first!==null implies
+  // BOTH isSubagent and events.length>0 already. Given those two implications,
+  // `isSubagent && events.length > 0 && span.first !== null && span.last !== null`
+  // reduces to exactly `span.first !== null` under every reachable state, which is
+  // also what each surviving `true`-substitution / weakened-comparison / `||`-with-
+  // the-null-check variant reduces to — none can select a different branch. The
+  // `isSubagent || …` rewrite is the one exception: `isSubagent` alone is NOT
+  // implied by `span.first !== null`'s negation, so it wrongly fires on an
+  // isSubagent=true stream with zero events, changing observable behaviour (and is
+  // covered by the dedicated test below).
+  if (isSubagent && events.length > 0 && span.first !== null && span.last !== null) {
+    events[events.length - 1].durationMs = span.last - span.first;
+  }
+
+  return { events, skipped, markers, unlabelled: sawUnlabelledEvent ? 1 : 0 };
 }

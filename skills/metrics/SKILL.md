@@ -62,7 +62,7 @@ Optional flags (pass through verbatim when the user supplies them):
 | `--threshold <n>` | Relative-delta threshold for the drift signal (default `0.25`); only used when `--baseline` is also supplied |
 | `--since <date>` | Restrict to transcripts on or after this date |
 | `--prices <path>` | Custom pricing table (JSON) |
-| `--include-inline` | Include inline-phase transcript segments |
+| `--no-inline` | Exclude the main-loop usage group (included by default) |
 
 Passing `--baseline docs/contributing/metrics-baseline.report.json` compares the current run against the
 committed snapshot: `report.json` gains a `drift` array flagging any `(phase, dimension)` pair

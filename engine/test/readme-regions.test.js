@@ -255,6 +255,19 @@ test('Given a timeline line whose phase id carries an attached 🧑 marker, when
   assert.deepEqual(result.timelinePhases, ['decisions']);
 });
 
+test('Given an FAQ sentence whose min claim is a minute count rather than "half an hour", when extracted, then costClaims.min captures the minute phrase (the shipped README says "under 10 minutes")', () => {
+  const sut = extractReadmeRegions;
+  const readme = [
+    '**What does a run cost?** Across the 27 telemetered runs that built this repo: the median',
+    'run logs ≈1.3 hours of role-agent activity, from under 10 minutes for a small change to',
+    '≈5 hours for the largest feature.',
+  ].join('\n');
+
+  const result = sut(readme);
+
+  assert.equal(result.costClaims.min, 'under 10 minutes');
+});
+
 test('Given a max claim written as a two-digit number, when extracted, then costClaims.max captures the full number', () => {
   const sut = extractReadmeRegions;
   const readme = [

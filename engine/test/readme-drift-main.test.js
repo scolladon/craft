@@ -78,6 +78,27 @@ const CLEAN_REPORT = report(5_400_000);
 // median 1.75h -> rounds to 1.8, drifts from the README's claimed 1.5
 const BUMPED_REPORT = report(6_300_000);
 
+// A shortest run under 15 minutes (0.1h = 360,000ms) exercises minLabel's
+// under-N-minutes branch instead of the 'half an hour' one — telemetry:min
+// must stay clean when the README already carries the matching minute phrase.
+const MIN_UNDER_TEN_FAQ_SECTION = [
+  '**What does a run cost?** Across the 3 telemetered runs that built this repo: the median',
+  'run logs ≈1.5 hours of role-agent activity, from under 10 minutes for a small change to ≈4 hours',
+  'for the largest feature.',
+].join('\n');
+const MIN_UNDER_TEN_README = [
+  '# fixture', '', MERMAID_BLOCK, '', TIMELINE_BLOCK, '', CLEAN_YAML_BLOCK, '', MIN_UNDER_TEN_FAQ_SECTION, '',
+].join('\n');
+const MIN_UNDER_TEN_REPORT = JSON.stringify({
+  schemaVersion: 1,
+  recommendations: [],
+  runs: [
+    { run: 1, slug: 'a', reviewCycles: 1, groups: [{ durationMs: 360_000 }] },
+    { run: 2, slug: 'b', reviewCycles: 1, groups: [{ durationMs: 5_400_000 }] },
+    { run: 3, slug: 'c', reviewCycles: 1, groups: [{ durationMs: 14_400_000 }] },
+  ],
+});
+
 // ─── test helpers ──────────────────────────────────────────────────────────────
 
 function captureIo() {
@@ -160,6 +181,19 @@ test('Given a tree whose report bumps a duration so the median rounds off, when 
   assert.match(cap.stdout(), /telemetry:median/);
   assert.match(cap.stdout(), /1\.5/);
   assert.match(cap.stdout(), /1\.8/);
+});
+
+test('Given a report whose shortest run is under 15 minutes and a README min claim phrased as a minute count, when main runs, then it returns 0 and writes no finding (clean under-the-minute-threshold path, not just half-an-hour)', () => {
+  const sut = main;
+  const cap = captureIo();
+
+  const status = withFixtureRoot(
+    { readme: MIN_UNDER_TEN_README, report: MIN_UNDER_TEN_REPORT },
+    (root) => sut([root], cap.io),
+  );
+
+  assert.equal(status, 0, `expected clean; got: ${cap.stdout()}`);
+  assert.equal(cap.stdout(), '');
 });
 
 test('Given a tree whose README yaml block is syntactically invalid YAML, when main runs, then it returns 1 with a manifest-snippet finding instead of throwing', () => {

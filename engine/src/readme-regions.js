@@ -19,7 +19,9 @@ const FAQ_ANCHOR = 'What does a run cost?';
 const RUN_COUNT_PATTERN = /(\d+) telemetered runs/;
 const MEDIAN_PATTERN = /≈([\d.]+) hours/;
 const MAX_PATTERN = /to ≈(\d+) hours/;
-const MIN_PHRASE = 'half an hour';
+// Captured by pattern like its three siblings above: pinning one literal phrase made the
+// claim satisfiable only when the shortest run happened to round to half an hour.
+const MIN_PATTERN = /(half an hour|under \d+ minutes)/;
 
 // A corpus claim is a markdown link whose label OPENS with a count and whose
 // target is a directory: `[25 design docs](docs/contributing/design/)`. Both
@@ -148,17 +150,17 @@ function extractTimelinePhases(block) {
 function extractCostClaims(readme) {
   const anchorIndex = readme.indexOf(FAQ_ANCHOR);
   // equivalent mutant (ConditionalExpression `anchorIndex === -1` → false, and StringLiteral
-  // `''` → the tool's fixed placeholder string): both changes only affect `section` on the anchor-absent
+  // `''` → the tool's fixed replacement string): both changes only affect `section` on the anchor-absent
   // path, to either readme.slice(-1) (at most one character) or a fixed 18-character literal
   // with no digits, no ≈, and no 'half an hour' substring. Neither can satisfy
-  // RUN_COUNT_PATTERN, MEDIAN_PATTERN, MAX_PATTERN, or the MIN_PHRASE include check, so
+  // RUN_COUNT_PATTERN, MEDIAN_PATTERN, MAX_PATTERN, or MIN_PATTERN, so
   // costClaims stays all-null exactly as when section === ''.
   const section = anchorIndex === -1 ? '' : readme.slice(anchorIndex);
 
   return {
     runCount: section.match(RUN_COUNT_PATTERN)?.[1] ?? null,
     median: section.match(MEDIAN_PATTERN)?.[1] ?? null,
-    min: section.includes(MIN_PHRASE) ? MIN_PHRASE : null,
+    min: section.match(MIN_PATTERN)?.[1] ?? null,
     max: section.match(MAX_PATTERN)?.[1] ?? null,
   };
 }

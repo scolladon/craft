@@ -151,8 +151,9 @@ JSDoc on each export, early returns, named numeric constants — no magic values
 **Exports (all pure):**
 - `aggregate(events, priceTable) → report` — `events: UsageEvent[]` (seam pinned in plan header),
   `priceTable: { [modelKey]: { input, cacheRead, cacheCreation5m, cacheCreation1h, output } }` in
-  price-per-token (or per-MTok — a fixed unit; the core only multiplies, never interprets the
-  magnitude). Returns the `report` object (schemaVersion 1).
+  per-MTok dollars — a load-bearing unit the core interprets, dividing the summed
+  token×rate product by one million once per emitted cost. Returns the `report` object
+  (schemaVersion 1).
 - `renderMarkdown(report) → string` — deterministic human ranking: top token sinks, worst
   cache-busters (high `cacheEfficiency`), and the `recommendations` list, all with numbers. No
   clock, no randomness; stable ordering identical to the JSON arrays.

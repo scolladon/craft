@@ -5,6 +5,11 @@
  */
 
 const MS_PER_HOUR = 3_600_000;
+const MINUTES_PER_HOUR = 60;
+const HALF_HOUR = 0.5;
+// Sub-half-hour minima are published to a five-minute granularity: finer reads as
+// false precision on a figure that moves with every run.
+const MINUTES_STEP = 5;
 
 function round1(x) {
   return Math.round(x * 10) / 10;
@@ -68,11 +73,36 @@ function findMedianDrift(recomputed, costClaims) {
   return `telemetry:median: readme=${costClaims.median} recomputed=${rounded}`;
 }
 
+/**
+ * Render the shortest run as the prose phrase the README is expected to carry.
+ *
+ * Below 15 minutes (hours < 0.25 — the only range nearestHalf never resolves to 'half
+ * an hour'), durations round UP to the next five minutes, so the published claim can
+ * never OVERstate how short the shortest run was (it never rounds down past the true
+ * value). From 0.25h up to (but not including) 0.75h the fixed 'half an hour' phrase
+ * takes precedence over that five-minute rounding. At 0.75h and above no phrasing
+ * convention exists, so the caller reports drift with the recomputed number rather than
+ * inventing wording the README was never written to match.
+ *
+ * @param {number} hours
+ * @returns {string | null} the expected phrase, or null when no convention covers it
+ */
+function minLabel(hours) {
+  if (nearestHalf(hours) === HALF_HOUR) return 'half an hour';
+  // equivalent mutant (>): the only value where `>=` and `>` diverge is
+  // hours === HALF_HOUR exactly, and nearestHalf(HALF_HOUR) === HALF_HOUR (0.5*2=1,
+  // round(1)=1, /2=0.5) so that exact value is always caught by the branch above
+  // and never reaches this comparison.
+  if (hours >= HALF_HOUR) return null;
+  const minutes = Math.ceil((hours * MINUTES_PER_HOUR) / MINUTES_STEP) * MINUTES_STEP;
+  return `under ${minutes} minutes`;
+}
+
 function findMinDrift(recomputed, costClaims) {
-  const rounded = nearestHalf(recomputed.minHours);
-  const matchesHalfHour = rounded === 0.5 && costClaims.min === 'half an hour';
-  if (matchesHalfHour) return null;
-  return `telemetry:min: readme=${costClaims.min} recomputed=${rounded}`;
+  const expected = minLabel(recomputed.minHours);
+  if (expected !== null && costClaims.min === expected) return null;
+  const reported = expected ?? nearestHalf(recomputed.minHours);
+  return `telemetry:min: readme=${costClaims.min} recomputed=${reported}`;
 }
 
 function findMaxDrift(recomputed, costClaims) {

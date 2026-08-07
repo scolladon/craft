@@ -8,14 +8,22 @@ subjects: ['engine/src/observability/**']
 - `collect(opts, deps) → UsageEvent[]` — parse transcript data into a vendor-neutral stream of
   usage events that the pure core can aggregate.
   - **pre**: `opts` carries a `runFilter` (optional, restricts which run IDs to include),
-    `includeInline` flag (opt-in, see [ADR-187 gap](#inline-gap----include-inline-adr-187)); `deps` carries
+    `includeInline` flag (default `true` — main-loop usage is included unless the front door's
+    `--no-inline` opts it back out, see [main-loop inclusion](#main-loop-inclusion----no-inline-adr-329));
+    `deps` carries
     `readTranscripts: () => AsyncIterable<string>` and an optional `sessionId` (the run-identity
     string, see [ADR-186 below](#run-identity-sessionid-adr-186)). The adapter never receives an absolute
     path; the `readTranscripts` provider owns the runtime path.
   - **post**: each returned `UsageEvent` is path-free, PII-free, and carries only the fields the
     core expects: `run`, `slug?`, `phase`, `role?`, `model`, `tokens`, `messages`,
-    `durationMs`, `cacheCreationTtl?`. The adapter never throws; partial data returns a partial
-    (possibly empty) array, never a rejection.
+    `durationMs`, `cacheCreationTtl?`, `spawnId?`. The adapter never throws; partial data returns a
+    partial (possibly empty) array, never a rejection.
+  - `spawnId` is an opaque per-transcript ordinal (never a path, filename, or agent id) that
+    identifies which sub-agent spawn an event came from — see
+    [reviewCycles](#reviewcycles-runsreviewcycles) below for why the core needs it. Only the
+    claude binding populates it (`null` on its main-loop events, since a main-loop transcript is
+    not itself a spawn); every other binding omits the field, which the core treats identically to
+    `null`.
 
 - `aggregate(events, priceTable, baselineReport?, threshold?) → report` — pure core function
   consuming the `UsageEvent[]` stream produced by `collect`; emits the structured `report` object
@@ -41,11 +49,38 @@ The valid bindings are **`{ claude, pi, opencode, copilot, codex, aider }`**.
   the vendor-neutral `UsageEvent` shape.
 - **Path resolution**: the `~/.claude/projects` location and the cwd-to-dashes slug mapping live
   exclusively here; the core never sees an absolute path.
-- **Spawn-rollup shape**: events that represent rolled-up spawn usage are mapped to their logical
-  `phase`/`role` before entering the core stream.
+- **Two-level discovery**: `engine/src/observability/adapters/claude/discovery.js` exports
+  `discover({ listDir, readText }) → { entries, unreadable }`, a pinned two-level walk —
+  `<root>/*.jsonl` (main-loop) plus `<root>/<sessionId>/subagents/agent-*.jsonl` (sub-agent) —
+  that performs no I/O of its own. `listDir`/`readText` are front-door-owned, already
+  realpath-contained ports; `discover` only ever names relative paths, so it holds no
+  path-resolution power of its own and is unit-testable against fakes with zero filesystem.
+- **Sidecar labelling, not rollups** (ADR-328): rollups are never read, for tokens or for
+  labels. Each sub-agent transcript's role/phase comes from the adjacent
+  `agent-<id>.meta.json` sidecar's `agentType` field, read by `discover` and carried as opaque
+  `context` into `parseLines`; every other sidecar field is discarded at the adapter boundary. A
+  missing or malformed sidecar resolves to `role: null` — a counted fallback (see
+  [Failure semantics](#failure-semantics)), never a throw.
+- **Emission keyed on the assistant message, not the line**: Claude Code writes one transcript
+  line per content block of a single assistant response (thinking, text, each `tool_use`), and
+  every such line repeats the same `message.id` and the same request-level `input`/`cache_read`
+  counts. `parseLines` emits exactly one `UsageEvent` per distinct `message.id`: the first
+  usage-bearing line for an id pushes the event; a later line sharing that id replaces its
+  `tokens`/`cacheCreationTtl` in place rather than pushing a duplicate, since `output_tokens` is
+  monotonic across a turn's blocks and the last line carries the complete turn. A line carrying
+  no `message.id` always pushes. `messages` on the resulting group therefore counts billed
+  turns, not transcript lines. A rollup rides on a `user` line's `toolUseResult` and never
+  carries `message.usage`, so it can never satisfy this rule — the two shapes are structurally
+  disjoint.
 - **sessionId injection** (ADR-186): when the caller supplies a `sessionId` the binding attaches
   it as the `run` field on each event, providing stable run identity across re-runs of the same
   session.
+- **Spawn identity**: the front door (`usage-mine-main.js`) discovers one entry per transcript
+  file and stamps an opaque positional ordinal onto each entry's parse context as `spawnId`
+  before calling this binding — never the path, filename, or agent id. Because `parseLines` is
+  invoked exactly once per sub-agent transcript, and one sub-agent transcript IS one spawn, every
+  event a single call emits carries that call's `spawnId`, however many billed turns the
+  transcript contains. Main-loop events always carry `spawnId: null`.
 
 The binding is called once per invocation by the CLI front-door (`engine/src/observability/usage-mine-main.js`),
 which resolves flags, injects deps, and passes the resulting `UsageEvent[]` to `aggregate`.
@@ -212,6 +247,11 @@ per-source file matcher.
 - A missing, empty, or unreadable transcript source returns an empty `UsageEvent[]`; `aggregate`
   emits `{ schemaVersion: 1, runs: [], note: 'no events provided' }`. No error is thrown.
 - A transcript line that fails to parse is skipped silently; the surrounding lines are unaffected.
+- The claude binding's two-level discovery adds four more counted-fallback branches, each
+  surfaced as its own stderr line and none affecting the exit code: a sub-agent transcript whose
+  `agentType` cannot be resolved from its sidecar (unlabelled), an unreadable `subagents/`
+  directory, a discovered path refused by read containment, and a transcript that failed to open
+  or parse. Every one degrades to a recorded fallback, never a throw.
 - An unpriced model (not in the price table) produces a group with `cost.priced: null`; the
   `relative` cost (total token count) is always present.
 - `baselineDeltas` is omitted when no `--baseline` file is supplied; its presence never affects
@@ -248,18 +288,20 @@ against the same session produces identical `run` values, making report diffing 
 `slug` field (human-readable run label, e.g. `feat/my-feature`) is distinct from `run` and is
 optional.
 
-## Inline gap / --include-inline (ADR-187)
+## Main-loop inclusion / --no-inline (ADR-329)
 
-Phase usage emitted by the orchestrator's inline execution path (phases that run without spawning
-a subprocess) is not captured in transcript rollup records. This is a known gap:
+Main-loop usage is **included by default**. Every main-loop assistant turn is attributed to a
+single `role: 'main-loop'`, `phase: null` group per model — an exact total, deliberately not
+split per phase (ADR-187's stated objection was to an approximate per-phase split, not to the
+total; ADR-329 sidesteps it by never splitting). `messages` on that group counts billed
+main-loop turns; `durationMs` stays `0` on every main-loop event (ADR-340) — the orchestrator's
+wallclock span overlaps every sub-agent span spawned within it, so attributing it would roughly
+double a run-hours figure the README FAQ scopes to role-agent activity alone.
 
-- By default the miner omits inline phase events; the `runs[*].groups` for those phases will be
-  absent.
-- Passing `--include-inline` opts in to experimental inline-event capture. The `UsageEvent[]`
-  stream may then contain additional events tagged with `role: 'inline'`; coverage and accuracy
-  depend on transcript completeness.
-
-Document this gap in any dashboard or report that presents per-phase totals.
+- `--no-inline` drops the `role: 'main-loop'` group and nothing else. `auto-skip:` phase markers
+  are still scanned from main-loop assistant text unconditionally — they carry no cost dimension
+  and the scan runs before the inclusion check.
+- `--include-inline` no longer exists.
 
 ## report.json schema
 
@@ -321,7 +363,7 @@ Keys deep-sorted: `cacheEfficiency`, `cost`, `durationMs`, `messages`, `model`, 
   "messages": 3,
   "model": "claude-sonnet-4-5",
   "phase": "implement",
-  "role": "craft:part-implementer",
+  "role": "part-implementer",
   "tokens": {
     "cacheCreation": 1200,
     "cacheRead": 800,
@@ -334,26 +376,46 @@ Keys deep-sorted: `cacheEfficiency`, `cost`, `durationMs`, `messages`, `model`, 
 **tokens** keys deep-sorted: `cacheCreation`, `cacheRead`, `input`, `output`.
 
 **cost** keys deep-sorted: `priced`, `relative`.
-`priced` is `null` when the model is not in the price table; `relative` (sum of all token
-counts) is always present.
+`priced` is the group's cost in **USD dollars** (`Σ(tokenClass × perMTokRate) / 1e6`), `null`
+when the model is not in the price table; `relative` (sum of all token counts) is always
+present.
 
 **cacheEfficiency**: `cacheCreation / (cacheRead + cacheCreation)`, or `0` when the denominator
 is zero.
 
 ### reviewCycles (`runs[*].reviewCycles[*]`)
 
-Keys deep-sorted: `costPerCycle`, `cycles`, `role`.
+Keys deep-sorted: `billedTurns`, `cycles`, `maxCost`, `meanCost`, `role`, `totalCost`.
 
 ```json
 {
-  "costPerCycle": [0.0012, 0.0015],
+  "billedTurns": 5,
   "cycles": 2,
-  "role": "craft:reviewer"
+  "maxCost": { "priced": 0.0015, "relative": 5200 },
+  "meanCost": { "priced": 0.00135, "relative": 4750 },
+  "role": "reviewer",
+  "totalCost": { "priced": 0.0027, "relative": 9500 }
 }
 ```
 
-`costPerCycle` is an array with one entry per review cycle. Each entry is the priced cost of that
-cycle when the model is priced, or the relative cost otherwise.
+`cycles` is the count of **distinct sub-agent spawns**, not billed turns: a single reviewer
+sub-agent can emit many billed-turn events (one per assistant `message.id`), and each event
+carries the opaque `spawnId` its transcript file was assigned (see
+[Spawn identity](#claude-binding) above) — `cycles` is `new Set(events.map(e => e.spawnId)).size`
+over the role's review-phase events. Events sharing no spawn identity at all (an `undefined`
+`spawnId`, e.g. a binding with no per-spawn transcript boundary) collapse into a single cycle
+rather than being assumed distinct. `billedTurns` keeps the older per-turn count — the size of the
+underlying event list — available alongside `cycles` rather than dropping it; it is what `cycles`
+used to mean before this fix, and grows with corpus size the way `cycles` no longer does.
+
+`totalCost`, `maxCost`, and `meanCost` are O(1)-per-role aggregates over **all** of the role's
+review-cycle events (every billed turn, not deduplicated by spawn), computed in the same pass that
+builds `groups` — `reviewCycles` size stays proportional to distinct `(run, role)` pairs, never to
+turn/message count. Each mirrors the `cost: { priced, relative }` shape every group already
+carries: `priced` and `relative` are aggregated as two separate dimensions, never collapsed
+together. `priced` is `null` for all three fields the moment any one cycle's model lacks pricing —
+a partial sum would misrepresent the role's true cost, not merely omit a data point; `relative` is
+always present.
 
 ### Recommendations (`recommendations[*]`)
 
@@ -400,11 +462,14 @@ Three kinds are currently emitted:
 
 ```json
 {
-  "detail": "role craft:reviewer has 5 review cycles",
+  "detail": "role reviewer has 5 review cycles",
   "evidence": {
-    "costPerCycle": [0.001, 0.001, 0.001, 0.001, 0.001],
+    "billedTurns": 11,
     "cycles": 5,
-    "role": "craft:reviewer"
+    "maxCost": { "priced": 0.001, "relative": 3500 },
+    "meanCost": { "priced": 0.001, "relative": 3500 },
+    "role": "reviewer",
+    "totalCost": { "priced": 0.005, "relative": 17500 }
   },
   "kind": "review-waste",
   "model": null,
@@ -412,6 +477,9 @@ Three kinds are currently emitted:
   "run": "session-abc123"
 }
 ```
+
+`evidence` mirrors its `reviewCycles` entry exactly, `billedTurns` included — see
+[reviewCycles](#reviewcycles-runsreviewcycles) above for what each field means.
 
 ### Baseline deltas (`baselineDeltas[*]`)
 
@@ -425,7 +493,7 @@ baseline reports (matched by `run + phase + role + model`). Keys deep-sorted:
   "model": "claude-sonnet-4-5",
   "phase": "implement",
   "pricedCostDelta": -0.0003,
-  "role": "craft:part-implementer",
+  "role": "part-implementer",
   "run": "session-abc123",
   "tokensDelta": {
     "cacheCreation": 100,
@@ -479,5 +547,5 @@ deep-sorted: `delta`, `dimension`, `phase`, `threshold`.
 `report.md` renders a matching `## Phases drifted since baseline` section, one line per drifted
 `(phase, dimension)` pair, when `drift` is non-empty.
 
-The default committed baseline snapshot lives at `docs/metrics-baseline.report.json`, refreshed on
-demand as part of a closing chore.
+The default committed baseline snapshot lives at
+`docs/contributing/metrics-baseline.report.json`, refreshed on demand as part of a closing chore.
