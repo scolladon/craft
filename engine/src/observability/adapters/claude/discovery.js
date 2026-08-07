@@ -113,6 +113,9 @@ export function discover({ listDir, readText }) {
 // malformed, and present-but-no-agentType all converge on the same outcome
 // here — no label — rather than throwing partway through discovery.
 function parseAgentType(raw) {
+  // equivalent mutant (false): JSON.parse(null) coerces to JSON.parse("null") === null
+  // (verified), so `parsed.agentType` below throws on the null `parsed` and the
+  // catch already returns null — same result as this early return.
   if (raw === null) return null;
   try {
     const parsed = JSON.parse(raw);

@@ -486,6 +486,81 @@ test('Given a sub-agent stream straddling a --since cutoff, when parseLines runs
   );
 });
 
+// ── 24b. parseLines — a non-finite timestamp leaves the span untouched, not poisoned ──
+
+test('Given a sub-agent line whose timestamp does not parse to a finite value, when parseLines runs, then the span is left untouched and durationMs stays 0, not NaN', async () => {
+  const sut = parseLines;
+  const usageLine = JSON.stringify({
+    type: 'assistant', sessionId: 'sess-badts', timestamp: 'not-a-real-timestamp',
+    message: {
+      role: 'assistant', model: 'claude-opus-4-8',
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+
+  const result = await sut(asyncLines([usageLine]), null, { sourceKind: 'subagent', agentType: 'craft:designer' });
+
+  assert.equal(result.events.length, 1);
+  assert.equal(result.events[0].durationMs, 0, 'a non-finite timestamp parse must early-return out of foldTimestamp, leaving the span (and therefore durationMs) untouched');
+});
+
+// ── 24c. parseLines — the span tracks the true max, not the last-processed timestamp ──
+
+test('Given two sub-agent lines with pre-epoch (negative) timestamps where the earlier-processed line is the later one in time, when parseLines runs, then durationMs is the true max-minus-min span, not corrupted by an unconditional overwrite or a null-as-zero floor', async () => {
+  const sut = parseLines;
+  const mkLine = (id, ts) => JSON.stringify({
+    type: 'assistant', sessionId: 'sess-negts', timestamp: ts,
+    message: {
+      id, role: 'assistant', model: 'claude-opus-4-8',
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+  const later = '1969-12-31T23:59:59.000Z'; // Date.parse = -1000
+  const earlier = '1969-12-30T23:59:59.000Z'; // Date.parse = -86401000
+
+  const result = await sut(
+    asyncLines([mkLine('msg-1', later), mkLine('msg-2', earlier)]),
+    null,
+    { sourceKind: 'subagent', agentType: 'craft:designer' },
+  );
+
+  assert.equal(result.events.length, 2);
+  assert.equal(
+    result.events[1].durationMs,
+    Date.parse(later) - Date.parse(earlier),
+    'the last event must carry the true span (max timestamp minus min), even though the max was set on the first fold and the min on the second',
+  );
+});
+
+// ── 24d. parseLines — a truthy spawnId passes through unchanged ──────────────
+
+test('Given a sub-agent context carrying a nonzero spawnId, when parseLines runs, then the emitted event carries that same spawnId, not nulled out by a truthy-left-operand logical AND', async () => {
+  const sut = parseLines;
+  const usageLine = JSON.stringify({
+    type: 'assistant', sessionId: 's1', timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      role: 'assistant', model: 'claude-opus-4-8',
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+
+  const result = await sut(asyncLines([usageLine]), null, { sourceKind: 'subagent', agentType: 'craft:designer', spawnId: 3 });
+
+  assert.equal(result.events[0].spawnId, 3, 'a truthy spawnId must pass through via ?? unchanged, not be replaced by null');
+});
+
+// ── 24e. parseLines — a sub-agent stream with zero usage-bearing lines never
+// attempts to patch a duration onto a non-existent last event ─────────────────
+
+test('Given a sub-agent stream with zero usage-bearing lines, when parseLines runs, then it resolves cleanly with zero events instead of indexing events[-1]', async () => {
+  const sut = parseLines;
+  const noUsageLine = JSON.stringify({ type: 'user', sessionId: 'sess-empty', toolUseResult: { status: 'completed' } });
+
+  const result = await sut(asyncLines([noUsageLine]), null, { sourceKind: 'subagent', agentType: 'craft:designer' });
+
+  assert.equal(result.events.length, 0, 'no usage-bearing lines means no events, and the durationMs patch must not run against an empty array');
+});
+
 // ── 25. parseLines — context.includeInline === false suppresses main-loop emission ──
 
 test('Given context.includeInline is false on a main-loop stream, when parseLines runs, then zero events are emitted but markers still return', async () => {

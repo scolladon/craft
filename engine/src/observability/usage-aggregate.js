@@ -160,6 +160,11 @@ function toReportGroup(enriched) {
 // second traversal.
 function sumAndMax(values) {
   return values.reduce(
+    // equivalent mutant (>=): a running max never differs by which branch a tie
+    // takes — when v === acc.max both `v` and `acc.max` are the same value, so
+    // `v >= acc.max ? v : acc.max` selects an equal number to `v > acc.max ? v :
+    // acc.max`; the two operators only diverge exactly at that tie, where the
+    // result is identical either way.
     (acc, v) => ({ total: acc.total + v, max: v > acc.max ? v : acc.max }),
     { total: 0, max: -Infinity }
   );

@@ -147,6 +147,42 @@ test('Given two review events with no spawnId (a source with no per-spawn transc
   assert.equal(codeCycle.billedTurns, 2, 'billedTurns still counts both turns');
 });
 
+// ── 4d. maxCost is the true maximum across cycles, not the last one folded ────
+
+test('Given two review cycles with different costs where the more expensive one is folded first, when aggregate runs, then maxCost.priced is the true maximum, not the last-processed value', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code', spawnId: 0, tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 } }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 1, tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 0 } }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const codeCycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  const expensiveCost = (100 * 5) / 1e6;
+  const cheapCost = (10 * 5) / 1e6;
+  assert.ok(expensiveCost > cheapCost, 'sanity: the first-folded cycle must actually be the more expensive one');
+  assert.equal(codeCycle.maxCost.priced, expensiveCost, 'maxCost must be the true maximum across cycles, not simply the last value folded');
+});
+
+// ── 4e. A single unpriced turn nulls the whole priced dimension, not just its own entry ──
+
+test('Given two review events for the same role where only one has a priced model, when aggregate runs, then priced cost aggregates are entirely null, not partially summed over the priced turn alone', () => {
+  const events = [
+    makeEvent({ phase: 'review', role: 'code', spawnId: 0, model: 'model-a', tokens: { input: 100, cacheRead: 0, cacheCreation: 0, output: 0 } }),
+    makeEvent({ phase: 'review', role: 'code', spawnId: 1, model: 'unknown-model', tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 0 } }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const codeCycle = result.runs[0].reviewCycles.find(c => c.role === 'code');
+  assert.equal(codeCycle.totalCost.priced, null, 'one unpriced turn among the cycle must null the whole priced dimension');
+  assert.equal(codeCycle.maxCost.priced, null);
+  assert.equal(codeCycle.meanCost.priced, null);
+  assert.equal(typeof codeCycle.totalCost.relative, 'number', 'the relative dimension is unaffected — every event has a relative cost');
+});
+
 // ── 5. Order-invariance ───────────────────────────────────────────────────────
 
 test('Given the same event list in a permuted order, when aggregate then serializeReport runs, then the bytes are identical', () => {

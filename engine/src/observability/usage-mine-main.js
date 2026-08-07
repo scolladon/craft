@@ -264,7 +264,7 @@ function loadJson(filePath, readFileSync, stderr, kind) {
 // opaque sidecar label (or null for sources with no SOURCE_DISCOVERY entry).
 // includeInline is authored HERE, spread alongside the adapter's own context —
 // this module never reads a field of that context, only adds its own key.
-async function streamTranscriptFiles(entries, transcriptDir, createReadStream, createInterface, containByRealpath, parseTranscriptLines, since = null, includeInline = true) {
+export async function streamTranscriptFiles(entries, transcriptDir, createReadStream, createInterface, containByRealpath, parseTranscriptLines, since = null, includeInline = true) {
   const allEvents = [];
   const allMarkers = [];
   let totalSkipped = 0;
@@ -316,12 +316,27 @@ function makeDiscoveryPorts(readRoot, { readdirSync, readFileSync, containByReal
   return {
     listDir(relPath) {
       const p = safe(relPath);
+      // equivalent mutant (false): readdirSync(null) throws TypeError
+      // ERR_INVALID_ARG_TYPE synchronously (verified) — the catch below already
+      // turns that into the same `return null` this guard short-circuits to.
       if (!p) return null;
       try { return readdirSync(p); } catch { return null; }
     },
     readText(relPath) {
       const p = safe(relPath);
+      // equivalent mutant (false): readFileSync(null, 'utf8') throws TypeError
+      // ERR_INVALID_ARG_TYPE synchronously (verified) — same reasoning as listDir.
       if (!p) return null;
+      // equivalent mutant (StringLiteral ""): readFileSync(p,"") returns a Buffer;
+      // this module's only caller (discovery.js's sidecar read) always feeds the
+      // result straight into JSON.parse, which calls Buffer.toString() (utf8
+      // default) first — identical parsed result either way (same pattern as
+      // init-emit-main.js's readAnswersRaw).
+      // equivalent mutant (empty catch): a failed read here would return
+      // undefined instead of null, but parseAgentType's own `raw === null` guard
+      // is the only reader — JSON.parse(undefined) throws a SyntaxError that its
+      // surrounding try/catch already reduces to the same null, so the two
+      // failure values converge before ever becoming observable.
       try { return readFileSync(p, 'utf8'); } catch { return null; }
     },
   };

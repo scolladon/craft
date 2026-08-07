@@ -30,10 +30,12 @@ import {
   resolveFileLabel,
   dashedCwd,
   resolveDefaultTranscriptDir,
+  streamTranscriptFiles,
 } from '../src/observability/usage-mine-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
 import { serializeReport } from '../src/observability/usage-aggregate.js';
+import { parseLines } from '../src/observability/adapters/claude/telemetry.js';
 
 const OPENCODE_FIXTURES_ROOT = join(dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const OPENCODE_FIXTURE_DIR = join(OPENCODE_FIXTURES_ROOT, 'opencode');
@@ -212,6 +214,18 @@ test('Given a contained fixture dir, when main runs, then report.json is valid J
   const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
   assert.equal(report.schemaVersion, 1);
   assert.ok(Array.isArray(report.runs), 'report.runs must be an array');
+});
+
+// ─── 1b. streamTranscriptFiles — includeInline defaults to true when omitted ─
+
+test('Given entries with no includeInline argument, when streamTranscriptFiles runs, then it defaults to true and includes the main-loop line', async () => {
+  const sut = streamTranscriptFiles;
+  const { transcriptDir } = makeFixture({ lines: [MAIN_USAGE_LINE] });
+  const entries = [{ relPath: 'transcript.jsonl', context: null }];
+
+  const result = await sut(entries, transcriptDir, createReadStream, createInterface, containByRealpath, parseLines);
+
+  assert.equal(result.events.length, 1, 'includeInline must default to true when the caller omits it — main-loop inclusion is default-on');
 });
 
 // ─── 2. Read containment rejection → no-op report, exit 0 ────────────────────
@@ -993,6 +1007,31 @@ test('Given a --prices path where readFileSync throws EACCES, when main runs, th
     `stderr must note unreadable prices file; got: ${io.stderr.joined()}`,
   );
   assert.ok(existsSync(join(repoRoot, 'report.json')), 'report.json must still be written with default prices');
+});
+
+// ─── P29-19. zero events → short-circuits before ever touching --prices ─────
+
+test('Given a transcript with no usage-bearing lines and an unreadable --prices file, when main runs, then it exits before ever reading --prices (no unreadable-prices stderr note) and the no-op note is preserved', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture({ lines: [ROLLUP_LINE] });
+  const repoRoot = makeTmp('repo-');
+  const pricesPath = join(repoRoot, 'prices.json');
+  const readError = Object.assign(new Error('EACCES'), { code: 'EACCES' });
+  const mockReadFileSync = (path, enc) => {
+    if (path === pricesPath) throw readError;
+    return readFileSync(path, enc);
+  };
+  const io = makeIo({ projectsRoot, repoRoot, readFileSync: mockReadFileSync });
+
+  const result = await sut(['--dir', transcriptDir, '--prices', pricesPath], io);
+
+  assert.equal(result, 0);
+  assert.ok(
+    !io.stderr.joined().includes('ignoring unreadable'),
+    `a zero-events run must short-circuit before the --prices read that would otherwise note it as unreadable; got: ${io.stderr.joined()}`,
+  );
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.equal(report.note, 'no events provided');
 });
 
 // ─── Sub-agent transcript discovery — the front-door wiring of discover() ────

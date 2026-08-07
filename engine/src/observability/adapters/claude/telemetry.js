@@ -155,6 +155,9 @@ function foldTimestamp(span, timestamp) {
  * @param {{ tokens: object, cacheCreationTtl: object | null }} replacement - applied when this id already exists
  */
 function foldEventByMessageId(events, indexByMessageId, messageId, candidateEvent, replacement) {
+  // equivalent mutant (false): the map never holds a `null` key — the only writer
+  // is the guarded `.set` below — so `indexByMessageId.get(null)` always returns
+  // undefined too, identical to the ternary's direct `undefined`.
   const existingIndex = messageId === null ? undefined : indexByMessageId.get(messageId);
   if (existingIndex !== undefined) {
     events[existingIndex].tokens = replacement.tokens;
@@ -162,6 +165,10 @@ function foldEventByMessageId(events, indexByMessageId, messageId, candidateEven
     return;
   }
   events.push(candidateEvent);
+  // equivalent mutant (true): indexByMessageId is local to parseLines and read
+  // only via the null-gated ternary above — a `null`-keyed entry this guard
+  // would let through is never read back, and the map's size/contents are never
+  // otherwise observed, so an unconditional .set(null, …) is unobservable.
   if (messageId !== null) indexByMessageId.set(messageId, events.length - 1);
 }
 
@@ -237,6 +244,10 @@ export async function parseLines(lines, since = null, context = null) {
     if (usage == null) continue;
     // Zero-cost injected turns (spawn bookkeeping) are not billed and are not
     // attributable to a role — see the SYNTHETIC_MODEL definition above.
+    // equivalent mutant (optional chaining removed): reaching this line already
+    // required `parsed.message?.usage` above to be non-nullish, which is only
+    // possible when `parsed.message` itself is non-nullish — so `.model` here
+    // can never throw either way.
     if (parsed.message?.model === SYNTHETIC_MODEL) continue;
     // Main-loop inclusion is default-on; --no-inline (front door) sets
     // includeInline: false to opt back out. Sub-agent streams always emit —
@@ -246,8 +257,14 @@ export async function parseLines(lines, since = null, context = null) {
     const { tokens, cacheCreationTtl } = tokensFromClaudeUsage(usage);
     // The transcript span belongs to every surviving line, whether or not that
     // line ends up folded into an earlier event by the message-id keying below.
+    // equivalent mutant (true): `span` is never returned from parseLines and is
+    // read only by the isSubagent-gated patch below (line ~290) — folding it
+    // unconditionally on the main-loop path computes a value nothing observes.
     if (isSubagent) span = foldTimestamp(span, parsed.timestamp ?? null);
 
+    // equivalent mutant (optional chaining removed): `parsed.message` was already
+    // proven non-nullish by the `usage == null` continue above — same reasoning
+    // as the SYNTHETIC_MODEL check.
     const messageId = parsed.message?.id ?? null;
     const role = isSubagent ? roleFromAgentType(context.agentType) : 'main-loop';
     if (role === null) sawUnlabelledEvent = true;
@@ -262,6 +279,7 @@ export async function parseLines(lines, since = null, context = null) {
       phase,
       role,
       spawnId,
+      // equivalent mutant (optional chaining removed): same non-nullish `parsed.message` proof as above.
       model: normalizeModel(parsed.message?.model ?? null),
       tokens,
       cacheCreationTtl,
@@ -280,6 +298,26 @@ export async function parseLines(lines, since = null, context = null) {
   // — so it is folded onto the last event once the transcript is fully read.
   // Main-loop `messages` is not zeroed: a billed-turn count is real and nothing
   // else reconstructs it.
+  // equivalent mutants (8 of the 9 survivors at this guard — every variant except
+  // the `isSubagent || …` LogicalOperator one, which is killed by a dedicated
+  // test): span.first and span.last are set together by the single foldTimestamp
+  // call above and only ever move via Math.min/Math.max of numbers, so they are
+  // always BOTH null or BOTH non-null (span.first!==null ⟺ span.last!==null) —
+  // this collapses every `true`/`>=0`-style weakening of the last two conjuncts
+  // to the same value the untouched conjunct already carries. Separately, that
+  // fold is reachable only when isSubagent is true (it is the sole writer, gated
+  // by `if (isSubagent)` a few lines up) and only ever succeeds in the same loop
+  // iteration that also runs foldEventByMessageId (nothing `continue`s between
+  // them), which always leaves events.length >= 1 — so span.first!==null implies
+  // BOTH isSubagent and events.length>0 already. Given those two implications,
+  // `isSubagent && events.length > 0 && span.first !== null && span.last !== null`
+  // reduces to exactly `span.first !== null` under every reachable state, which is
+  // also what each surviving `true`-substitution / weakened-comparison / `||`-with-
+  // the-null-check mutant reduces to — none can select a different branch. The
+  // `isSubagent || …` mutant is the one exception: `isSubagent` alone is NOT
+  // implied by `span.first !== null`'s negation, so it wrongly fires on an
+  // isSubagent=true stream with zero events, changing observable behaviour (and is
+  // covered by the dedicated test below).
   if (isSubagent && events.length > 0 && span.first !== null && span.last !== null) {
     events[events.length - 1].durationMs = span.last - span.first;
   }

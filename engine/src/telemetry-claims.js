@@ -89,6 +89,10 @@ function findMedianDrift(recomputed, costClaims) {
  */
 function minLabel(hours) {
   if (nearestHalf(hours) === HALF_HOUR) return 'half an hour';
+  // equivalent mutant (>): the only value where `>=` and `>` diverge is
+  // hours === HALF_HOUR exactly, and nearestHalf(HALF_HOUR) === HALF_HOUR (0.5*2=1,
+  // round(1)=1, /2=0.5) so that exact value is always caught by the branch above
+  // and never reaches this comparison.
   if (hours >= HALF_HOUR) return null;
   const minutes = Math.ceil((hours * MINUTES_PER_HOUR) / MINUTES_STEP) * MINUTES_STEP;
   return `under ${minutes} minutes`;
