@@ -1437,8 +1437,9 @@ against the regenerated file and report each result:
   the main-loop duration did not land at zero — investigate rather than rewriting the
   prose.
 - **The advertised corpus counts (line ~173) are ALREADY drifted on this branch** and are
-  this part's responsibility: *"[26 design docs](…), [25 parted plans](…), [327 ADRs](…),
-  and [raw telemetry for 27 runs](…)"*. The design doc and the thirteen ADRs are already
+  this part's responsibility — the README sentence reads, with each label carrying a link:
+  "26 design docs, 25 parted plans, 327 ADRs, and raw telemetry for 27 runs".
+  The design doc and the thirteen ADRs are already
   committed, and this plan file itself moved the plan count. **Do not copy numbers from
   this document** — `scripts/readme-drift.sh` prints the tree's actual count in each
   finding (`corpus-counts: <dir> claims N, tree holds M`). Run it, take `M`, and re-run
