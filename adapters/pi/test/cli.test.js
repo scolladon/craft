@@ -119,7 +119,9 @@ describe('cli.js — subprocess execution guard', () => {
   it('Given a decoy GIT_DIR and GIT_WORK_TREE set on the parent process, when the throwaway repo is git-init-ed with the pinned environment, then the throwaway repo receives its own .git and the decoy is untouched', () => {
     const decoyDir = mkdtempSync(join(tmpdir(), 'craft-pi-decoy-'));
     try {
-      const decoyInit = spawnSync(gitPath, ['init', '-q', decoyDir]);
+      // Seeded under the same pinned environment as every other git spawn here: an
+      // ambient GIT_DIR would otherwise redirect this init into an undeclared repo.
+      const decoyInit = spawnSync(gitPath, ['init', '-q', decoyDir], { env: PINNED_ENV });
       assert.equal(decoyInit.status, 0, 'decoy repo must be seeded to observe whether it gets touched');
       const decoyConfigPath = join(decoyDir, '.git', 'config');
       const decoyMtimeBefore = statSync(decoyConfigPath).mtimeMs;

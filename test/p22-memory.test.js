@@ -141,6 +141,19 @@ const SPEC_VALIDATORS = {
   findings: (e) => isRepoRelativePath(e.file) && VALID_SEVERITIES.has(e.severity) && isNonEmptyString(e.pattern),
 };
 
+// A one-way ratchet against bulk entry loss. Growth is free; a drop below any floor is a
+// hard failure. Decay removes at most one step of confidence per run and evicts only at
+// the floor, so a concern shedding entries in bulk is a regeneration or merge accident,
+// which is precisely how this store previously lost records that had to be hand-restored.
+// Raise a floor when the store legitimately grows. Never lower one to make this pass.
+const CONCERN_FLOORS = Object.freeze({
+  toolchain: 1,
+  'gate-cmd': 2,
+  'validation-tool': 1,
+  findings: 40,
+  'part-sizing': 30,
+});
+
 test(
   'Given the committed memory store content, when it is parsed, then all five concerns are present with positive counts and every entry carries its key fields',
   async () => {
@@ -162,7 +175,12 @@ test(
     const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
     assert.ok(total > 0, 'the store should contain at least one entry');
     for (const concern of CONCERNS) {
-      assert.ok(counts[concern] > 0, `${concern} should not be unexpectedly empty`);
+      assert.ok(
+        counts[concern] >= CONCERN_FLOORS[concern],
+        `${concern} holds ${counts[concern]} entries, below the recorded floor of ${CONCERN_FLOORS[concern]} — `
+        + 'entries are only ever decayed one step at a time, so a drop below the floor means bulk loss, '
+        + 'not normal decay. Revise a floor upward when the store legitimately grows, never downward.',
+      );
       for (const entry of sut.entries[concern]) {
         for (const field of CONCERN_KEY_FIELDS[concern]) {
           assert.ok(
@@ -184,6 +202,21 @@ test(
 
     assert.strictEqual(sut.loadNote, null, 'the committed store should not be reported malformed');
     assert.deepStrictEqual(sut.evicted, []);
+  },
+);
+
+test(
+  'Given the committed memory store, when it is re-serialized from its own parsed view, then the result is byte-identical to the committed file',
+  async () => {
+    const { load, serializeStore } = await importMemoryModule();
+    const raw = fs.readFileSync(STORE_PATH, 'utf8');
+
+    const sut = serializeStore(load(ROOT, { readStore: () => raw, validators: {} }));
+
+    // The markdown body is derived from the frontmatter, so a hand-edit to one without the
+    // other leaves the file disagreeing with itself until some unrelated run silently
+    // rewrites it. Comparing bytes — not just a parse round-trip — is what catches that.
+    assert.strictEqual(sut, raw, 'the committed store should already be canonical engine output');
   },
 );
 

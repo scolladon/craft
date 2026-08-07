@@ -440,14 +440,6 @@ part-sizing:
       commit: 5bdbf5a
       date: '2026-08-07'
   - concern: part-sizing
-    size: pure-module
-    outcome: pass
-    confidence: 2
-    provenance:
-      run: p27-despecialize-craft-sources
-      commit: a4849a1
-      date: '2026-06-26'
-  - concern: part-sizing
     size: validator
     outcome: pass
     confidence: 2
@@ -455,14 +447,6 @@ part-sizing:
       run: p27-despecialize-craft-sources
       commit: a4849a1
       date: '2026-06-26'
-  - concern: part-sizing
-    size: docs-prose
-    outcome: pass
-    confidence: 2
-    provenance:
-      run: decisions-remote-slack-example
-      commit: 9229d3f
-      date: '2026-07-27'
   - concern: part-sizing
     size: resolver-wiring
     outcome: pass
@@ -768,8 +752,6 @@ part-sizing:
 - confidence: 4 | provenance: 5bdbf5a / 2026-08-07
 - confidence: 2 | provenance: a4849a1 / 2026-06-26
 - confidence: 2 | provenance: a4849a1 / 2026-06-26
-- confidence: 2 | provenance: 9229d3f / 2026-07-27
-- confidence: 2 | provenance: a4849a1 / 2026-06-26
 - confidence: 2 | provenance: a4849a1 / 2026-06-26
 - confidence: 2 | provenance: 3078c6e / 2026-06-26
 - confidence: 2 | provenance: 3078c6e / 2026-06-26
@@ -780,7 +762,7 @@ part-sizing:
 - confidence: 2 | provenance: f17d07e / 2026-06-28
 - confidence: 2 | provenance: f17d07e / 2026-06-28
 - confidence: 2 | provenance: daf7f05 / 2026-07-03
-- confidence: 2 | provenance: bd4d8d8 / 2026-07-20
+- confidence: 2 | provenance: bd4d8d8 / 2026-07-19
 - confidence: 2 | provenance: f6639d2 / 2026-07-31
 - confidence: 2 | provenance: f6639d2 / 2026-07-31
 - confidence: 2 | provenance: f6639d2 / 2026-07-31
