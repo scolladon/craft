@@ -76,6 +76,25 @@ test('Given a parsed event with model of <synthetic>, when eventFromOpencodeLine
 
 // ── 3. eventFromOpencodeLine — full field mapping + role/phase ───────────────────
 
+test('Given an agent name colliding with an Object.prototype member, when eventFromOpencodeLine runs, then phase is null rather than an inherited member', () => {
+  const sut = eventFromOpencodeLine;
+
+  for (const agent of ['constructor', 'toString', '__proto__', 'valueOf', 'hasOwnProperty']) {
+    const result = sut({
+      sessionID: 'ses-proto', agent,
+      model: 'anthropic/claude-opus-4-8',
+      tokens: { input: 1, cacheRead: 0, cacheCreation: 0, output: 1 },
+      toolCalls: 1, durationMs: 1,
+    });
+
+    // An inherited function survives JSON.stringify as a DROPPED key and an inherited
+    // object as `{}`, either way corrupting a committed report whose schema contracts
+    // string|null — so the type matters as much as the value.
+    assert.equal(result.phase, null, `agent '${agent}' must not resolve to an inherited member`);
+    assert.equal(typeof result.phase, 'object', `agent '${agent}' must yield null, not a function or object`);
+  }
+});
+
 test('Given a parsed craft-designer event, when eventFromOpencodeLine runs, then run, slug, phase, role, model, tokens, cacheCreationTtl, messages and durationMs all map correctly', () => {
   const parsed = {
     sessionID: 'ses-proof', slug: 'feature-x', agent: 'craft-designer',

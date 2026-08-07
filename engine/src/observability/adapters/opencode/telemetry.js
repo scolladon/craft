@@ -54,7 +54,13 @@ function roleFromAgent(agent) {
  */
 function phaseFromAgent(agent) {
   const role = roleFromAgent(agent);
-  return role ? (ROLE_TO_PHASE[role] ?? null) : null;
+  // agent is a transcript-controlled string: a bare ROLE_TO_PHASE[role] access
+  // resolves an inherited Object.prototype member (agent "constructor" yields a
+  // function, "__proto__" an object), and JSON.stringify then either DROPS the key
+  // or writes `{}` into a committed report whose schema contracts string|null.
+  // Object.hasOwn gates the lookup to the map's own keys, matching the claude
+  // binding and the front door's SOURCES/DEFAULT_READ_ROOTS discipline.
+  return role && Object.hasOwn(ROLE_TO_PHASE, role) ? ROLE_TO_PHASE[role] : null;
 }
 
 /**
