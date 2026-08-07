@@ -64,6 +64,16 @@ describe('cli.js — subprocess execution guard', () => {
   let root;
   let binDir;
   let repoDir;
+  let gitPath;
+  let PINNED_ENV;
+
+  // Builds the throwaway repo's git identity from an allowlist, never by spreading
+  // process.env — an ambient GIT_DIR/GIT_WORK_TREE or gitconfig knob (this machine's
+  // global diff.external = difft, for one) must never reach the child.
+  function initRepo(dir) {
+    const result = spawnSync(gitPath, ['init', '-q', dir], { env: PINNED_ENV });
+    assert.equal(result.status, 0, `git init must succeed for ${dir}`);
+  }
 
   before(() => {
     root = mkdtempSync(join(tmpdir(), 'craft-pi-cli-'));
@@ -71,14 +81,21 @@ describe('cli.js — subprocess execution guard', () => {
     mkdirSync(binDir);
     symlinkSync(process.execPath, join(binDir, 'node'));
 
-    const gitPath = resolveOnPath('git');
+    gitPath = resolveOnPath('git');
     assert.ok(gitPath, 'git must resolve on the ambient PATH to build the synthetic bin dir');
     symlinkSync(gitPath, join(binDir, 'git'));
 
+    PINNED_ENV = Object.freeze({
+      PATH: binDir,
+      HOME: root,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+      GIT_CONFIG_NOSYSTEM: '1',
+    });
+
     repoDir = join(root, 'repo');
     mkdirSync(repoDir);
-    const initResult = spawnSync(gitPath, ['init', '-q', repoDir]);
-    assert.equal(initResult.status, 0, 'git init must succeed to seed the throwaway repo');
+    initRepo(repoDir);
   });
 
   after(() => {
@@ -88,15 +105,49 @@ describe('cli.js — subprocess execution guard', () => {
   function runCli(...args) {
     return spawnSync(process.execPath, [CLI_PATH, ...args], {
       cwd: repoDir,
-      env: { ...process.env, PATH: binDir },
+      env: PINNED_ENV,
       encoding: 'utf8',
     });
   }
 
   it('Given a synthetic PATH holding only node and git, when pi is spawned directly by name, then the OS reports ENOENT', () => {
-    const result = spawnSync('pi', ['--version'], { env: { ...process.env, PATH: binDir } });
+    const result = spawnSync('pi', ['--version'], { env: PINNED_ENV });
 
     assert.equal(result.error?.code, 'ENOENT', 'pi must be genuinely absent from the synthetic PATH');
+  });
+
+  it('Given a decoy GIT_DIR and GIT_WORK_TREE set on the parent process, when the throwaway repo is git-init-ed with the pinned environment, then the throwaway repo receives its own .git and the decoy is untouched', () => {
+    const decoyDir = mkdtempSync(join(tmpdir(), 'craft-pi-decoy-'));
+    try {
+      const decoyInit = spawnSync(gitPath, ['init', '-q', decoyDir]);
+      assert.equal(decoyInit.status, 0, 'decoy repo must be seeded to observe whether it gets touched');
+      const decoyConfigPath = join(decoyDir, '.git', 'config');
+      const decoyMtimeBefore = statSync(decoyConfigPath).mtimeMs;
+
+      const throwawayDir = join(root, 'repo-decoy-guard');
+      mkdirSync(throwawayDir);
+
+      process.env.GIT_DIR = join(decoyDir, '.git');
+      process.env.GIT_WORK_TREE = decoyDir;
+      try {
+        initRepo(throwawayDir);
+      } finally {
+        delete process.env.GIT_DIR;
+        delete process.env.GIT_WORK_TREE;
+      }
+
+      assert.ok(
+        statSync(join(throwawayDir, '.git')).isDirectory(),
+        'the throwaway repo must receive its own .git despite the ambient GIT_DIR',
+      );
+      assert.equal(
+        statSync(decoyConfigPath).mtimeMs,
+        decoyMtimeBefore,
+        'the decoy repo must be untouched by the git init call',
+      );
+    } finally {
+      rmSync(decoyDir, { recursive: true, force: true });
+    }
   });
 
   it('Given cli.js is invoked directly, when it runs, then process.exit is called with an integer code (guard ran, block ran)', () => {

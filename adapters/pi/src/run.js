@@ -80,7 +80,7 @@ function runSubprocess(file, args, options, unit, execFileFn) {
       }
       resolve(stdout);
     });
-    child?.stdin?.end();
+    child.stdin.end();
   });
 }
 
@@ -88,9 +88,9 @@ function runSubprocess(file, args, options, unit, execFileFn) {
  * Spawn a pi subprocess. The ONE place `pi` is launched.
  *
  * Pinned discipline:
- * - stdin is closed by ending the child's stdin stream (the `stdio` entry below states
- *   the intent, but the underlying execFile-based runner does not honour it — pi hangs
- *   on an open stdin pipe in -p mode unless the stream is explicitly ended)
+ * - stdin is closed by ending the child's stdin stream — execFile accepts no stdio
+ *   option that closes stdin for us, so the stream must be ended explicitly or pi
+ *   hangs on an open stdin pipe in -p mode
  * - argv array, never a shell string
  * - non-zero exit rejects with { unit: pi-run, reason: <stderr> } blocker
  * - DC-3: does NOT add --model/--provider to argv
@@ -105,7 +105,6 @@ export function spawnPi(argv, opts, execFileFn = _execFile) {
     cwd: opts.cwd,
     env: opts.env,
     encoding: 'utf8',
-    stdio: ['ignore', 'pipe', 'pipe'],
   };
   return runSubprocess('pi', argv, options, 'pi-run', execFileFn);
 }
