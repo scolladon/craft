@@ -36,6 +36,42 @@ validation-tool:
       date: '2026-06-26'
 findings:
   - concern: findings
+    file: engine/src/observability/adapters/claude/telemetry.js
+    severity: high
+    pattern: one assistant response is written as several transcript lines (one per content block) sharing one message.id and repeating the same per-request input and cache_read; emitting per line multi-counts them ~2x, so emission must be keyed on message.id with the last line winning
+    confidence: 0.8
+    provenance:
+      run: usage-miner-subagent-transcripts
+      commit: 5bdbf5a
+      date: '2026-08-07'
+  - concern: findings
+    file: engine/src/observability/usage-aggregate.js
+    severity: high
+    pattern: price entries are per-MTok while token counts are per-unit; the divisor belongs on the summed rate-product at each emitting site, never inside the price table, and one emitter does not inherit the composed conversion
+    confidence: 0.8
+    provenance:
+      run: usage-miner-subagent-transcripts
+      commit: 5bdbf5a
+      date: '2026-08-07'
+  - concern: findings
+    file: engine/src/observability/adapters/claude/telemetry.js
+    severity: medium
+    pattern: map lookups keyed by a transcript- or sidecar-controlled string must gate on Object.hasOwn; an inherited Object.prototype member serializes as a dropped key or an empty object into a committed report whose schema contracts string or null
+    confidence: 0.8
+    provenance:
+      run: usage-miner-subagent-transcripts
+      commit: 5bdbf5a
+      date: '2026-08-07'
+  - concern: findings
+    file: engine/src/observability/usage-aggregate.js
+    severity: medium
+    pattern: spreading a corpus-scaled array into Math.max throws RangeError past ~120k arguments and this module sits outside any try/catch, which would break the advisory exit-0 contract; fold max in a reduce
+    confidence: 0.8
+    provenance:
+      run: usage-miner-subagent-transcripts
+      commit: 5bdbf5a
+      date: '2026-08-07'
+  - concern: findings
     file: skills/integrate/SKILL.md
     severity: low
     pattern: this repo's main branch requires an approving review before merge, so the squash-merge of a craft PR is performed by the operator (repo admin) rather than by the session; teardown proceeds normally once the operator confirms the merge landed
@@ -387,6 +423,22 @@ findings:
       commit: f6639d2
       date: '2026-07-31'
 part-sizing:
+  - concern: part-sizing
+    size: pure-module
+    outcome: pass
+    confidence: 0.8
+    provenance:
+      run: usage-miner-subagent-transcripts
+      commit: 5bdbf5a
+      date: '2026-08-07'
+  - concern: part-sizing
+    size: docs-prose
+    outcome: pass
+    confidence: 0.8
+    provenance:
+      run: usage-miner-subagent-transcripts
+      commit: 5bdbf5a
+      date: '2026-08-07'
   - concern: part-sizing
     size: pure-module
     outcome: pass
