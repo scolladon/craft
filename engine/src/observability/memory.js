@@ -239,9 +239,13 @@ export function load(repoRoot, deps) {
     // the store EXISTS but could not be read right now — treating that as a cold
     // start would let the next save reconcile this run's delta against empty
     // entries and write it as the whole store, erasing every accumulated entry.
+    // A rejected/injected reader is not contractually bound to throw an Error —
+    // it may throw any value. Falling back to String(err) keeps the note
+    // meaningful (e.g. "store unreadable: boom") instead of collapsing every
+    // non-Error throw into the uninformative "store unreadable: undefined".
     return err?.code === 'ENOENT'
       ? emptyView('no store')
-      : degradedView(`store unreadable: ${err?.code ?? err?.message}`);
+      : degradedView(`store unreadable: ${err?.code ?? err?.message ?? String(err)}`);
   }
 
   if (!rawContent) return emptyView('no store');

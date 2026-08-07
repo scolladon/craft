@@ -204,6 +204,15 @@ test('Given readStore throws EACCES (store exists but is unreadable), when load 
   for (const concern of CONCERNS) assert.deepEqual(result.entries[concern], []);
 });
 
+test('Given readStore throws an error with both a code and a different message, when load runs, then the note uses the code, not the message', () => {
+  const sut = load;
+
+  const result = sut('/repo', { readStore: () => { throw makeFsError('EACCES', 'a different message'); }, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.degraded, true);
+  assert.equal(result.loadNote, 'store unreadable: EACCES', 'code must win over message per the ?? fallback order');
+});
+
 test('Given readStore throws an error without a code, when load runs, then the view IS marked degraded using the error message', () => {
   const sut = load;
 
@@ -211,6 +220,37 @@ test('Given readStore throws an error without a code, when load runs, then the v
 
   assert.equal(result.degraded, true);
   assert.ok(result.loadNote?.includes('disk exploded'), 'loadNote should fall back to the error message when no code is present');
+});
+
+// The injected readStore port is not contractually bound to throw an Error —
+// a non-object throw must still be caught, never escape load(), and still
+// produce a note that reflects what was actually thrown.
+
+test('Given readStore throws null, when load runs, then load returns (never throws) a degraded view with a note reflecting the thrown value', () => {
+  const sut = load;
+
+  const result = sut('/repo', { readStore: () => { throw null; }, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.degraded, true);
+  assert.equal(result.loadNote, 'store unreadable: null');
+});
+
+test('Given readStore throws undefined, when load runs, then load returns (never throws) a degraded view with a note reflecting the thrown value', () => {
+  const sut = load;
+
+  const result = sut('/repo', { readStore: () => { throw undefined; }, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.degraded, true);
+  assert.equal(result.loadNote, 'store unreadable: undefined');
+});
+
+test('Given readStore throws a bare string, when load runs, then load returns (never throws) a degraded view with a note reflecting the thrown value', () => {
+  const sut = load;
+
+  const result = sut('/repo', { readStore: () => { throw 'boom'; }, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.degraded, true);
+  assert.equal(result.loadNote, 'store unreadable: boom');
 });
 
 // ─── RED 4 — poisoned store never yields gating value ────────────────────────
