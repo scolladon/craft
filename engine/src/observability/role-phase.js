@@ -15,8 +15,13 @@
 /**
  * Map from the role label (agent name after stripping the vendor-specific
  * craft prefix) to the vendor-neutral phase label.
+ *
+ * Deliberately module-private: `phaseForRole` is the only public surface, so the
+ * inherited-member guard below cannot be bypassed. Exporting the table would let a
+ * future binding write a bare `ROLE_TO_PHASE[role]` keyed by a transcript-controlled
+ * string and reintroduce the defect the guard exists to prevent.
  */
-export const ROLE_TO_PHASE = Object.freeze({
+const ROLE_TO_PHASE = Object.freeze({
   'designer': 'design',
   'planner': 'planning',
   'part-implementer': 'implementation',
