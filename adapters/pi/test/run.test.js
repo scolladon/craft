@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile as realExecFile } from 'node:child_process';
 import { resolveGateCommand, isFloorViolation, spawnPi, runGate, main } from '../src/run.js';
 import { rolelessSteps as _realRolelessSteps } from '../src/roleless.js';
 
@@ -483,6 +484,30 @@ function makeExecFileDouble() {
   };
   return { execFile, captured };
 }
+
+describe('runSubprocess() — stdin discipline', () => {
+  it('Given a real child blocked reading stdin, when runGate runs it, then the child sees EOF and the promise resolves before the timeout', async () => {
+    let child = null;
+    const capturing = (file, args, options, cb) => {
+      child = realExecFile(file, args, options, cb);
+      return child;
+    };
+    const sut = runGate;
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("the child's stdin was never ended")), 2000);
+    });
+
+    try {
+      const result = await Promise.race([sut('cat', { cwd: process.cwd() }, capturing), timeout]);
+
+      assert.equal(result, '');
+    } finally {
+      clearTimeout(timer);
+      child?.kill();
+    }
+  });
+});
 
 describe('spawnPi() — subprocess runner', () => {
   it('Given spawnPi is called, when it launches pi, then stdio[0] is ignore (stdin ignored)', async () => {
