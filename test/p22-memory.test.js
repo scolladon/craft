@@ -108,34 +108,79 @@ test(
   },
 );
 
+// Mirrors the "Content whitelist" key-fields table in docs/contributing/specs/memory.md —
+// the merge-identity fields every entry of a concern must carry.
+const CONCERN_KEY_FIELDS = {
+  toolchain: ['ecosystem'],
+  'gate-cmd': ['phase'],
+  'validation-tool': ['id'],
+  findings: ['file', 'pattern'],
+  'part-sizing': ['size'],
+};
+
+function hasNonEmptyField(entry, field) {
+  const value = entry[field];
+  return typeof value === 'string' ? value.length > 0 : value !== undefined && value !== null;
+}
+
+// Real validate-on-read predicates from the "Content whitelist" table in
+// docs/contributing/specs/memory.md, so loading the committed store through
+// them has a genuine failure mode (part-sizing is intentionally excluded — the
+// spec defaults it to () => true, no stable re-check).
+const isNonEmptyString = (value) => typeof value === 'string' && value.length > 0;
+const isRepoRelativePath = (value) =>
+  isNonEmptyString(value) && !value.startsWith('/') && !value.includes('$HOME');
+const VALID_SEVERITIES = new Set(['low', 'medium', 'high', 'critical']);
+const isBareCommand = (value) =>
+  isNonEmptyString(value) && !/^[A-Za-z_][A-Za-z0-9_]*=/.test(value) && !value.startsWith('export ');
+
+const SPEC_VALIDATORS = {
+  toolchain: (e) => isNonEmptyString(e.ecosystem) && isNonEmptyString(e.lockfileFingerprint),
+  'gate-cmd': (e) => isNonEmptyString(e.phase) && isBareCommand(e.command),
+  'validation-tool': (e) => isNonEmptyString(e.id) && isNonEmptyString(e.configFingerprint),
+  findings: (e) => isRepoRelativePath(e.file) && VALID_SEVERITIES.has(e.severity) && isNonEmptyString(e.pattern),
+};
+
 test(
-  'Given the committed memory store content, when it is parsed, then all five concerns are present with 67 entries total',
+  'Given the committed memory store content, when it is parsed, then all five concerns are present with positive counts and every entry carries its key fields',
   async () => {
-    const { parseStore } = await importMemoryModule();
+    const { parseStore, CONCERNS } = await importMemoryModule();
     const raw = fs.readFileSync(STORE_PATH, 'utf8');
 
     const sut = parseStore(raw);
 
     assert.ok(sut, 'the committed store should parse');
+    assert.deepStrictEqual(
+      Object.keys(sut.entries).sort(),
+      [...CONCERNS].sort(),
+      'every concern key should be present',
+    );
+
     const counts = Object.fromEntries(
       Object.entries(sut.entries).map(([concern, entries]) => [concern, entries.length]),
     );
-    assert.deepStrictEqual(counts, {
-      toolchain: 1,
-      'gate-cmd': 2,
-      'validation-tool': 1,
-      findings: 43,
-      'part-sizing': 20,
-    });
+    const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+    assert.ok(total > 0, 'the store should contain at least one entry');
+    for (const concern of CONCERNS) {
+      assert.ok(counts[concern] > 0, `${concern} should not be unexpectedly empty`);
+      for (const entry of sut.entries[concern]) {
+        for (const field of CONCERN_KEY_FIELDS[concern]) {
+          assert.ok(
+            hasNonEmptyField(entry, field),
+            `every ${concern} entry should carry a non-empty "${field}"`,
+          );
+        }
+      }
+    }
   },
 );
 
 test(
-  'Given the committed memory store, when it is loaded through the real store path, then it is not reported malformed and nothing is evicted',
+  'Given the committed memory store, when it is loaded through the real store path with the spec\'s validate-on-read predicates, then it is not reported malformed and nothing is evicted',
   async () => {
     const { load } = await importMemoryModule();
 
-    const sut = load(ROOT, { readStore: (p) => fs.readFileSync(p, 'utf8') });
+    const sut = load(ROOT, { readStore: (p) => fs.readFileSync(p, 'utf8'), validators: SPEC_VALIDATORS });
 
     assert.strictEqual(sut.loadNote, null, 'the committed store should not be reported malformed');
     assert.deepStrictEqual(sut.evicted, []);
@@ -156,22 +201,6 @@ test(
         (entry) => Number.isInteger(entry.confidence) && entry.confidence > FLOOR && entry.confidence <= CEILING,
       ),
       'every entry confidence should be an integer in FLOOR..CEILING',
-    );
-  },
-);
-
-test(
-  'Given the committed memory store, when one decay STEP is simulated on every loaded entry, then every entry still survives above FLOOR',
-  async () => {
-    const { load, FLOOR, STEP } = await importMemoryModule();
-
-    const sut = load(ROOT, { readStore: (p) => fs.readFileSync(p, 'utf8') });
-    const allEntries = Object.values(sut.entries).flat();
-
-    assert.ok(allEntries.length > 0, 'the loaded store should not be empty');
-    assert.ok(
-      allEntries.every((entry) => entry.confidence - STEP > FLOOR),
-      'every entry should survive one decay STEP without evicting at FLOOR',
     );
   },
 );

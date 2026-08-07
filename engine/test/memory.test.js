@@ -83,6 +83,10 @@ const ALL_FAIL_VALIDATORS = {
   'part-sizing': () => false,
 };
 
+function makeFsError(code, message) {
+  return Object.assign(new Error(message ?? code), { code });
+}
+
 // ─── RED 1 — round-trip ───────────────────────────────────────────────────────
 
 test('Given store with one toolchain entry, when parse then serialize, then frontmatter round-trips', () => {
@@ -181,13 +185,32 @@ test('Given readStore returns null (no store file yet), when load runs, then the
   assert.equal(result.degraded, false);
 });
 
-test('Given readStore throws (no store file yet), when load runs, then the view is NOT marked degraded', () => {
+test('Given readStore throws ENOENT (no store file yet), when load runs, then the view is NOT marked degraded', () => {
   const sut = load;
 
-  const result = sut('/repo', { readStore: () => { throw new Error('ENOENT'); }, validators: ALL_PASS_VALIDATORS });
+  const result = sut('/repo', { readStore: () => { throw makeFsError('ENOENT'); }, validators: ALL_PASS_VALIDATORS });
 
   assert.equal(result.loadNote, 'no store');
   assert.equal(result.degraded, false);
+});
+
+test('Given readStore throws EACCES (store exists but is unreadable), when load runs, then the view IS marked degraded', () => {
+  const sut = load;
+
+  const result = sut('/repo', { readStore: () => { throw makeFsError('EACCES'); }, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.degraded, true);
+  assert.ok(result.loadNote?.includes('EACCES'), 'loadNote should preserve the unreadable-store reason');
+  for (const concern of CONCERNS) assert.deepEqual(result.entries[concern], []);
+});
+
+test('Given readStore throws an error without a code, when load runs, then the view IS marked degraded using the error message', () => {
+  const sut = load;
+
+  const result = sut('/repo', { readStore: () => { throw new Error('disk exploded'); }, validators: ALL_PASS_VALIDATORS });
+
+  assert.equal(result.degraded, true);
+  assert.ok(result.loadNote?.includes('disk exploded'), 'loadNote should fall back to the error message when no code is present');
 });
 
 // ─── RED 4 — poisoned store never yields gating value ────────────────────────
@@ -1045,6 +1068,32 @@ test('Given a view loaded with an escaping ref, when save runs, then the degrade
   assert.equal(result.writeNote, 'save skipped: load was degraded');
 });
 
+test('Given a view loaded from a store that exists but is unreadable (EACCES), when save runs, then it declines the write instead of reconciling this run\'s delta against empty entries', () => {
+  const sut = save;
+  const view = load('/repo', { readStore: () => { throw makeFsError('EACCES'); }, validators: ALL_PASS_VALIDATORS });
+  const delta = [{ concern: 'toolchain', payload: { ecosystem: 'node', lockfileFingerprint: 'abc' } }];
+  let writeCalled = false;
+  const deps = makeSaveDeps({ writeStore: () => { writeCalled = true; } });
+
+  const result = sut('/repo', view, delta, deps);
+
+  assert.equal(writeCalled, false, 'an unreadable-but-existing store must never be overwritten by this run\'s delta alone');
+  assert.equal(result.writeNote, 'save skipped: load was degraded');
+});
+
+test('Given a view loaded from an ENOENT (genuinely absent store), when save runs, then it writes normally', () => {
+  const sut = save;
+  const view = load('/repo', { readStore: () => { throw makeFsError('ENOENT'); }, validators: ALL_PASS_VALIDATORS });
+  const delta = [{ concern: 'toolchain', payload: { ecosystem: 'node', lockfileFingerprint: 'abc' } }];
+  const calls = [];
+  const deps = makeSaveDeps({ writeStore: (path, content) => calls.push({ path, content }) });
+
+  const result = sut('/repo', view, delta, deps);
+
+  assert.equal(calls.length, 1, 'a cold start reached via ENOENT must still save normally');
+  assert.equal(result.writeNote, null);
+});
+
 // ─── over-reach guard: cold start must still save (green before AND after) ───
 // This must pass both before and after the degraded-guard lands — its only
 // job is to fail if the guard ever marks a cold start as degraded too.
@@ -1729,6 +1778,30 @@ test('Given save with entries that were evicted during load, when save runs, the
   assert.strictEqual(capturedView.loadNote, null, 'save finalView.loadNote must always be null');
 });
 
+// ─── KILL: save finalView carries degraded (module header contract) ──────────
+// "Every MemoryView carries `degraded: boolean`" — finalView must not be the
+// one MemoryView-shaped object in the module that silently drops the field.
+
+test('Given a non-degraded view, when save writes successfully, then the returned view carries degraded: false', () => {
+  const view = makeLoadedView([]);
+  const delta = [{ concern: 'toolchain', payload: { ecosystem: 'node', lockfileFingerprint: 'abc' } }];
+  const deps = makeSaveDeps({ writeStore: () => {} });
+
+  const result = save('/repo', view, delta, deps);
+
+  assert.strictEqual(result.view.degraded, false);
+});
+
+test('Given a degraded view, when save declines the write, then the returned view still carries degraded: true', () => {
+  const view = load('/repo', { readStore: () => { throw makeFsError('EACCES'); }, validators: ALL_PASS_VALIDATORS });
+  const delta = [{ concern: 'toolchain', payload: { ecosystem: 'node', lockfileFingerprint: 'abc' } }];
+  const deps = makeSaveDeps({ writeStore: () => {} });
+
+  const result = save('/repo', view, delta, deps);
+
+  assert.strictEqual(result.view.degraded, true);
+});
+
 // ─── KILL: DEFAULT_REF string (L25) ──────────────────────────────────────────
 
 test('Given load called with no ref, when readStore is invoked, then path ends with the default ref ".claude/craft-memory.md"', () => {
@@ -1754,8 +1827,8 @@ test('Given readStore returns null, when load runs, then loadNote is exactly "no
   assert.equal(result.loadNote, 'no store');
 });
 
-test('Given readStore throws (file system error), when load runs, then it returns empty view with "no store" note and never rethrows', () => {
-  const result = load('/repo', { readStore: () => { throw new Error('ENOENT: no such file'); }, validators: ALL_PASS_VALIDATORS });
+test('Given readStore throws ENOENT (file genuinely absent), when load runs, then it returns empty view with "no store" note and never rethrows', () => {
+  const result = load('/repo', { readStore: () => { throw makeFsError('ENOENT', 'ENOENT: no such file'); }, validators: ALL_PASS_VALIDATORS });
   assert.equal(result.loadNote, 'no store');
   for (const concern of CONCERNS) assert.deepEqual(result.entries[concern], []);
 });
@@ -2420,13 +2493,6 @@ test('Given no caps provided in deps, when save runs with two entries, then both
   assert.equal(reparsed.entries.toolchain.length, 1, 'toolchain entry must survive with default caps');
   assert.equal(reparsed.entries['gate-cmd'].length, 1, 'gate-cmd entry must survive with default caps');
 });
-
-// ─── EQUIVALENT: L206 BlockStatement, L207 StringLiteral ──────────────────────
-// L206: catch {} (empty catch) — PROVABLY EQUIVALENT:
-//   When readStore throws, rawContent is never assigned (stays undefined).
-//   The next guard (L210: if (!rawContent)) catches undefined and returns emptyView('no store').
-//   Both the original catch branch and the empty-catch fall-through return identical emptyView('no store').
-// L207: 'no store' StringLiteral — same equivalence argument; only reachable via the equivalent path above.
 
 // ─── EQUIVALENT: L300 EqualityOperator (>= vs >) ──────────────────────────────
 // L300: findings improves >= → always true for same severity.

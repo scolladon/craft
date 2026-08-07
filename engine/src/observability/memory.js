@@ -10,8 +10,9 @@
  * filtered MemoryView. Entries that fail validate-on-read are moved to evicted[].
  *
  * Every MemoryView carries `degraded: boolean`. It is true only when load() never
- * saw the store's real content (unparseable content, or a ref escaping the repo);
- * a cold start (no store file yet) is empty but NOT degraded. save() refuses to
+ * saw the store's real content (unparseable content, a ref escaping the repo, or
+ * a store that exists but could not be read — e.g. EACCES/EISDIR/EIO); a cold
+ * start (no store file yet, ENOENT) is empty but NOT degraded. save() refuses to
  * write a degraded view: a write derived from a view that never saw the store is
  * an erasure, not a write.
  *
@@ -217,9 +218,10 @@ function buildBody(entries) {
  * entries and listed in evicted.
  *
  * The returned view carries `degraded: boolean` — true only when the view never
- * saw the store's real content (an escaping ref, or unparseable content). A cold
- * start (no store file yet) is empty but NOT degraded, since there may simply be
- * nothing to read yet and the next save must still write normally.
+ * saw the store's real content (an escaping ref, unparseable content, or a store
+ * that exists but could not be read). A cold start (no store file yet) is empty
+ * but NOT degraded, since there may simply be nothing to read yet and the next
+ * save must still write normally.
  *
  * @param {string} repoRoot - The resolved worktree/checkout root.
  * @param {{ readStore: (path: string) => string|null, validators: { [concern: string]: (entry: object) => boolean } }} deps
@@ -232,10 +234,14 @@ export function load(repoRoot, deps) {
   let rawContent;
   try {
     rawContent = deps.readStore(storePath);
-  } catch {
-    return emptyView('no store');
-    // equivalent mutant (catch {}): rawContent is never assigned when readStore throws (stays undefined);
-    // the next guard (!rawContent) catches undefined and returns emptyView('no store') — same result
+  } catch (err) {
+    // Only a genuinely absent file is a cold start. EACCES/EISDIR/EIO/ELOOP mean
+    // the store EXISTS but could not be read right now — treating that as a cold
+    // start would let the next save reconcile this run's delta against empty
+    // entries and write it as the whole store, erasing every accumulated entry.
+    return err?.code === 'ENOENT'
+      ? emptyView('no store')
+      : degradedView(`store unreadable: ${err?.code ?? err?.message}`);
   }
 
   if (!rawContent) return emptyView('no store');
@@ -667,7 +673,7 @@ export function save(repoRoot, view, delta, deps) {
   const reconciledEntries = reconcile(view.entries, delta, provenance);
   const evictedEntries = evictToCaps(reconciledEntries, caps);
 
-  const finalView = { entries: evictedEntries, evicted: [], loadNote: null };
+  const finalView = { entries: evictedEntries, evicted: [], loadNote: null, degraded: view.degraded === true };
 
   if (view.degraded) return { writeNote: 'save skipped: load was degraded', view: finalView };
 

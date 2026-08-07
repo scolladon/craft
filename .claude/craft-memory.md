@@ -583,6 +583,126 @@ part-sizing:
       run: scheduled-backlog-sweep
       commit: f6639d2
       date: '2026-07-31'
+  - concern: part-sizing
+    size: pure-aggregate-core
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: p29-usage-telemetry-miner
+      commit: 71d0d40
+      date: '2026-06-29'
+  - concern: part-sizing
+    size: pricing-data-binding
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: p29-usage-telemetry-miner
+      commit: 71d0d40
+      date: '2026-06-29'
+  - concern: part-sizing
+    size: jsonl-parse-binding
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: p29-usage-telemetry-miner
+      commit: 71d0d40
+      date: '2026-06-29'
+  - concern: part-sizing
+    size: cli-streaming-entrypoint
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: p29-usage-telemetry-miner
+      commit: 71d0d40
+      date: '2026-06-29'
+  - concern: part-sizing
+    size: front-door-skill
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: p29-usage-telemetry-miner
+      commit: 71d0d40
+      date: '2026-06-29'
+  - concern: part-sizing
+    size: adapter-port-doc
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: p29-usage-telemetry-miner
+      commit: 71d0d40
+      date: '2026-06-29'
+  - concern: part-sizing
+    size: self-govern-frontmatter
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: harness-hygiene-prune-gates
+      commit: 8501bd2
+      date: '2026-07-04'
+  - concern: part-sizing
+    size: bash-enumerator-single-source
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: harness-hygiene-prune-gates
+      commit: 98e267e
+      date: '2026-07-04'
+  - concern: part-sizing
+    size: lint-bin-port
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: orchestrator-tax-hardening
+      commit: cb873b3
+      date: '2026-07-30'
+  - concern: part-sizing
+    size: boundary-filter-bin
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: orchestrator-tax-hardening
+      commit: cb873b3
+      date: '2026-07-30'
+  - concern: part-sizing
+    size: lint-bin-module
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: harness-hygiene-prune-gates
+      commit: 1a04acc
+      date: '2026-07-04'
+  - concern: part-sizing
+    size: manifest-enum-knob
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: close-hygiene-lint-followups
+      commit: 1cce5cc
+      date: '2026-07-04'
+  - concern: part-sizing
+    size: ci-advisory-wiring
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: close-hygiene-lint-followups
+      commit: 6ebaf71
+      date: '2026-07-04'
+  - concern: part-sizing
+    size: standalone-skill
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: harness-hygiene-prune-gates
+      commit: 19c3379
+      date: '2026-07-04'
+  - concern: part-sizing
+    size: lint-mutation-triage
+    outcome: pass
+    confidence: 2
+    provenance:
+      run: close-hygiene-lint-followups
+      commit: 45b7c5a
+      date: '2026-07-04'
 ---
 
 # craft memory store
@@ -664,3 +784,18 @@ part-sizing:
 - confidence: 2 | provenance: f6639d2 / 2026-07-31
 - confidence: 2 | provenance: f6639d2 / 2026-07-31
 - confidence: 2 | provenance: f6639d2 / 2026-07-31
+- confidence: 2 | provenance: 71d0d40 / 2026-06-29
+- confidence: 2 | provenance: 71d0d40 / 2026-06-29
+- confidence: 2 | provenance: 71d0d40 / 2026-06-29
+- confidence: 2 | provenance: 71d0d40 / 2026-06-29
+- confidence: 2 | provenance: 71d0d40 / 2026-06-29
+- confidence: 2 | provenance: 71d0d40 / 2026-06-29
+- confidence: 2 | provenance: 8501bd2 / 2026-07-04
+- confidence: 2 | provenance: 98e267e / 2026-07-04
+- confidence: 2 | provenance: cb873b3 / 2026-07-30
+- confidence: 2 | provenance: cb873b3 / 2026-07-30
+- confidence: 2 | provenance: 1a04acc / 2026-07-04
+- confidence: 2 | provenance: 1cce5cc / 2026-07-04
+- confidence: 2 | provenance: 6ebaf71 / 2026-07-04
+- confidence: 2 | provenance: 19c3379 / 2026-07-04
+- confidence: 2 | provenance: 45b7c5a / 2026-07-04
