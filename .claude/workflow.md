@@ -14,6 +14,15 @@ phases:
           mode: triage
           run-style: background
           commit-prefix: test
+  architecture:
+    enabled: true
+    harness:
+      techniques:
+        - id: boundaries
+          probe: "test -f test/architecture-boundaries.test.js"
+          run: "node --test test/architecture-boundaries.test.js"
+          mode: gate
+          commit-prefix: fix
 ---
 
 # craft consumer manifest
@@ -33,3 +42,12 @@ Per-hunk scope: emit ONE combined `--mutate "fileA:r1,fileB:r2"` (not separate
 `--mutate` flags per hunk — two separate flags silently drop all but the last,
 faking a clean score). Verify the instrumented mutant count is >= the adjacent-hunk count
 before trusting a green score.
+
+## Architecture boundaries
+
+The `boundaries` technique runs `node --test test/architecture-boundaries.test.js`,
+a plain node:test suite that scans the tracked observability import graph for
+adapter-boundary violations (a pure core reaching into an adapter, one adapter
+reaching into a sibling adapter, or a non-composition-root module wiring an
+adapter directly). It needs no dependency-analysis tool and reports gate
+pass/fail, same as `<validation gate>`.

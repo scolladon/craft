@@ -13,7 +13,15 @@
     validate-on-read predicate are dropped from `entries` and listed in `evicted`; `loadNote`
     records the reason when the view is empty or partial. An absent/empty/malformed store returns
     an **empty view, never an error** (advisory-only invariant — ADR-116). The returned view
-    never contains a gating value; the load path never throws.
+    never contains a gating value; the load path never throws. The view also carries
+    `degraded: boolean`, true only when `load` never saw the store's real content — unparseable
+    content, or a `ref` that escapes the repo root. A **cold start** (no store file yet, or an
+    empty one) is empty but `degraded: false`: there may simply be nothing to read yet, and the
+    next `save` must still write normally. This distinction matters because `save` reconciles
+    `view.entries` against this run's delta and writes the result as the whole store — composing
+    an empty-but-not-degraded view with a save is a normal first write, while composing an
+    empty-and-degraded view with a save would silently discard every entry the malformed read
+    never saw.
 
   Store location: `<repoRoot>/.claude/craft-memory.md`. Metrics live separately in
   `<repoRoot>/.claude/craft-metrics.md` (ADR-119) — they are never loaded or written by this
@@ -27,12 +35,17 @@
     `memory.ref`, default `.claude/craft-memory.md`, joined under `repoRoot` with the same
     traversal containment as `load`), optional `caps`, and optional `run` provenance
     (`{ run, commit, date }`). A `ref` that escapes the root skips the write with a `writeNote`
-    warning — it never writes outside the repo.
-  - **post**: the store reflects the reconciled result of applying the ADDED / REFRESHED /
-    DECAYED / EVICTED transitions plus both-caps eviction; the write is a single
-    `deps.writeStore` call (no half-write); non-re-observed entries are **decayed, not deleted**;
-    a failed `writeStore` is recorded in `writeNote` and `save` returns normally — it never
-    throws and never blocks (ADR-120).
+    warning — it never writes outside the repo. `save` reads `view.degraded`: a view that never
+    saw the store's real content must never be reconciled and flushed, because that composes two
+    individually-correct behaviours into a destructive one — a delta-only rewrite that silently
+    erases every accumulated entry the read never saw.
+  - **post**: when `view.degraded` is true, `save` declines the write before any path resolution
+    or filesystem access and returns `writeNote: 'save skipped: load was degraded'` — same
+    non-throwing, non-blocking posture as every other outcome below. Otherwise, the store reflects
+    the reconciled result of applying the ADDED / REFRESHED / DECAYED / EVICTED transitions plus
+    both-caps eviction; the write is a single `deps.writeStore` call (no half-write);
+    non-re-observed entries are **decayed, not deleted**; a failed `writeStore` is recorded in
+    `writeNote` and `save` returns normally — it never throws and never blocks (ADR-120).
 
 ## Core policy retained (NOT port verbs)
 
@@ -125,6 +138,10 @@ patch the engine. Only `file` (the default, built-in binding above) is currently
   available.
 - A `save` that cannot write (disk full, permission denied) is a **recorded warning**
   (`writeNote` is set on the returned result); `save` never throws and never blocks (ADR-120).
+- A `save` given a **degraded** view (`view.degraded === true`, from a malformed store or an
+  escaping ref) is also a **recorded warning** and nothing more — it declines the write before
+  touching the filesystem so the run's accumulated entries are never overwritten by this run's
+  delta alone; `save` never throws and never blocks here either.
 - There is **no locking**: last-flush-wins across concurrent sessions.
 
 **Config errors** (knowable from the manifest alone, no I/O): an unknown `memory:` sub-key, an

@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { execFile as realExecFile } from 'node:child_process';
 import { resolveGateCommand, isFloorViolation, spawnPi, runGate, main } from '../src/run.js';
 import { rolelessSteps as _realRolelessSteps } from '../src/roleless.js';
 
@@ -475,27 +476,48 @@ describe('isFloorViolation() — code-producing floor classification', () => {
 
 function makeExecFileDouble() {
   const captured = {};
+  const stdin = {
+    endCalls: 0,
+    end() {
+      this.endCalls += 1;
+    },
+  };
+  const child = { stdin };
   const execFile = (file, args, options, cb) => {
     captured.file = file;
     captured.args = args;
     captured.options = options;
     captured.cb = cb;
+    return child;
   };
-  return { execFile, captured };
+  return { execFile, captured, child };
 }
 
-describe('spawnPi() — subprocess runner', () => {
-  it('Given spawnPi is called, when it launches pi, then stdio[0] is ignore (stdin ignored)', async () => {
-    const { execFile, captured } = makeExecFileDouble();
-    const sut = spawnPi;
-    const promise = sut(['--mode', 'json', 'prompt'], { cwd: '/tmp' }, execFile);
-    captured.cb(null, 'OUT', '');
+describe('runSubprocess() — stdin discipline', () => {
+  it('Given a real child blocked reading stdin, when runGate runs it, then the child sees EOF and the promise resolves before the timeout', async () => {
+    let child = null;
+    const capturing = (file, args, options, cb) => {
+      child = realExecFile(file, args, options, cb);
+      return child;
+    };
+    const sut = runGate;
+    let timer;
+    const timeout = new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error("the child's stdin was never ended")), 2000);
+    });
 
-    await promise;
+    try {
+      const result = await Promise.race([sut('cat', { cwd: process.cwd() }, capturing), timeout]);
 
-    assert.equal(captured.options.stdio[0], 'ignore');
+      assert.equal(result, '');
+    } finally {
+      clearTimeout(timer);
+      child?.kill();
+    }
   });
+});
 
+describe('spawnPi() — subprocess runner', () => {
   it('Given spawnPi is called, when it launches pi, then it passes the argv array unchanged and the file is pi', async () => {
     const { execFile, captured } = makeExecFileDouble();
     const sut = spawnPi;
@@ -531,6 +553,17 @@ describe('spawnPi() — subprocess runner', () => {
     const result = await promise;
 
     assert.equal(result, 'OUT');
+  });
+
+  it('Given spawnPi is called, when it launches pi, then the child stdin is closed via end() (hang guard)', async () => {
+    const { execFile, captured, child } = makeExecFileDouble();
+    const sut = spawnPi;
+    const promise = sut(['arg'], { cwd: '/tmp' }, execFile);
+    captured.cb(null, 'OUT', '');
+
+    await promise;
+
+    assert.equal(child.stdin.endCalls, 1, 'child.stdin.end must be called exactly once to avoid the -p mode hang');
   });
 });
 
@@ -568,6 +601,17 @@ describe('runGate() — gate subprocess runner', () => {
     const result = await promise;
 
     assert.equal(result, 'ok');
+  });
+
+  it('Given runGate is called, when it launches the gate, then the child stdin is closed via end() (hang guard)', async () => {
+    const { execFile, captured, child } = makeExecFileDouble();
+    const sut = runGate;
+    const promise = sut('node --test', { cwd: '/tmp' }, execFile);
+    captured.cb(null, 'ok', '');
+
+    await promise;
+
+    assert.equal(child.stdin.endCalls, 1, 'child.stdin.end must be called exactly once to avoid the -p mode hang');
   });
 });
 
@@ -712,17 +756,6 @@ describe('spawnPi() — options contract', () => {
     assert.equal(captured.options.cwd, '/my/repo');
     assert.equal(captured.options.env, env);
     assert.equal(captured.options.encoding, 'utf8');
-  });
-
-  it('Given spawnPi is called, when the execFile is invoked, then stdio is [ignore, pipe, pipe]', async () => {
-    const { execFile, captured } = makeExecFileDouble();
-    const sut = spawnPi;
-    const promise = sut(['arg'], { cwd: '/tmp' }, execFile);
-    captured.cb(null, 'OUT', '');
-
-    await promise;
-
-    assert.deepEqual(captured.options.stdio, ['ignore', 'pipe', 'pipe']);
   });
 });
 

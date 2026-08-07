@@ -207,7 +207,7 @@ test('Given cache-hotspot, review-waste, and drift signals, when planTune runs, 
     runs: [{ run: 'r1', slug: 's', groups: [], reviewCycles: [] }],
     recommendations: [
       { kind: 'cache-hotspot', run: 'r1', phase: 'implementation', model: 'model-a', detail: 'high cache', evidence: {} },
-      { kind: 'review-waste', run: 'r1', phase: 'review', model: 'model-a', detail: 'many cycles', evidence: { role: 'reviewer', cycles: 4 } },
+      { kind: 'review-waste', run: 'r1', phase: 'review', model: 'model-a', detail: 'many turns', evidence: { role: 'reviewer', cycles: 4, billedTurns: 116 } },
     ],
     drift: [{ phase: 'design', dimension: 'tokens-total', delta: 0.9, threshold: 0.25 }],
   };
@@ -222,7 +222,7 @@ test('Given cache-hotspot, review-waste, and drift signals, when planTune runs, 
   });
   assert.deepEqual(bySource['review-waste'], {
     source: 'review-waste', path: null, from: null, to: null,
-    rationale: 'reviewer burned 4 review cycles — consider a cheaper reviewer tier', evidence: { role: 'reviewer', cycles: 4 },
+    rationale: 'reviewer billed 116 turns across review — consider a cheaper reviewer tier', evidence: { role: 'reviewer', cycles: 4, billedTurns: 116 },
   });
   assert.deepEqual(bySource['drift'], {
     source: 'drift', path: null, from: null, to: null,
@@ -232,7 +232,7 @@ test('Given cache-hotspot, review-waste, and drift signals, when planTune runs, 
   assert.deepEqual(patchedFrontmatter, { a: 1 });
 });
 
-test('Given a review-waste rec missing its role and cycles, when planTune runs, then the advisory falls back to reviewer and a placeholder count', () => {
+test('Given a review-waste rec missing its role and billed turns, when planTune runs, then the advisory falls back to reviewer and a placeholder count', () => {
   const sut = planTune;
   const report = {
     schemaVersion: 1, runs: [],
@@ -241,7 +241,7 @@ test('Given a review-waste rec missing its role and cycles, when planTune runs, 
 
   const { proposals } = sut({ report, baseFrontmatter: {} });
 
-  assert.equal(advisory(proposals)[0].rationale, 'reviewer burned ? review cycles — consider a cheaper reviewer tier');
+  assert.equal(advisory(proposals)[0].rationale, 'reviewer billed ? turns across review — consider a cheaper reviewer tier');
 });
 
 test('Given recurring high-confidence memory findings, when planTune runs, then only they become advisory (low-confidence filtered)', () => {
@@ -378,7 +378,7 @@ test('Given a review-waste rec with no evidence object, when planTune runs, then
 
   const { proposals } = sut({ report, baseFrontmatter: {} });
 
-  assert.equal(advisory(proposals)[0].rationale, 'reviewer burned ? review cycles — consider a cheaper reviewer tier');
+  assert.equal(advisory(proposals)[0].rationale, 'reviewer billed ? turns across review — consider a cheaper reviewer tier');
 });
 
 test('Given proposals of several sources, when planTune sorts them, then they come out in ascending source order regardless of build order', () => {

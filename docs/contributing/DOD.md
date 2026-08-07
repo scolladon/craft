@@ -71,9 +71,12 @@ checklist's stated terms. Each checklist line names its criterion id.
 
 ## Architecture boundaries
 
-- [ ] N/A — the `architecture` phase ships `enabled: false` in `pipeline/default.yml` for
-  this repo; the architecture boundary check did not run. The gap is stated here honestly and
-  not claimed as verified. `architecture-gap-honest`
+- [ ] The `boundaries` technique's own test suite runs in `bash scripts/ci.sh` on every
+  change, regardless of whether the `architecture` phase itself executes in a given run
+  (the phase is `autoSkipEligible`, so it may legitimately not run every time). When the
+  phase does execute, the declared technique's `run` exiting 0 is the recorded evidence,
+  and every violation it reports carries a per-violation triage outcome: fixed, or a
+  scoped exception with one line of why. `architecture-gap-honest`
 
 ---
 

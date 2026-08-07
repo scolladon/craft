@@ -1,16 +1,26 @@
-import { describe, it } from 'node:test';
+import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, symlinkSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { join, dirname } from 'node:path';
+import { join, dirname, delimiter } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { tmpdir } from 'node:os';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const PKG_PATH = join(__dir, '..', 'package.json');
 const CLI_PATH = join(__dir, '..', 'src', 'cli.js');
 
-function runCli(...args) {
-  return spawnSync(process.execPath, [CLI_PATH, ...args], { encoding: 'utf8' });
+// Scans the ambient PATH for an executable without throwing, so a missing
+// binary fails the test loudly (assert.ok on the result) instead of being
+// swallowed by a try/catch around accessSync.
+function resolveOnPath(binary) {
+  for (const dir of (process.env.PATH ?? '').split(delimiter)) {
+    if (!dir) continue;
+    const candidate = join(dir, binary);
+    const stat = statSync(candidate, { throwIfNoEntry: false });
+    if (stat?.isFile() && (stat.mode & 0o111) !== 0) return candidate;
+  }
+  return null;
 }
 
 describe('cli.js — thin bin entrypoint', () => {
@@ -43,12 +53,105 @@ describe('cli.js — thin bin entrypoint', () => {
 });
 
 // ─── subprocess execution tests (kill the NoCoverage mutants) ────────────────
-// These run cli.js as a real Node subprocess so the import.meta.url guard fires
-// and process.exit is actually called. The pi binary is not installed in CI so
-// main() always exits 2 — but the exit code and stderr are sufficient to prove
-// the guard ran, the block ran, process.argv was sliced, and io was wired.
+// Each test spawns cli.js as a real Node subprocess, under a synthetic PATH
+// holding only `node` and `git` (symlinked into a throwaway bin dir), with
+// cwd inside a throwaway `git init`-ed repo. `pi` is never placed on that
+// PATH, so run.js's spawn call fails with a genuine OS ENOENT — never a stub
+// returning a rehearsed exit code. That keeps the guard hermetic regardless
+// of whether `pi` happens to be installed on the machine running the suite.
 
 describe('cli.js — subprocess execution guard', () => {
+  let root;
+  let binDir;
+  let repoDir;
+  let gitPath;
+  let PINNED_ENV;
+
+  // Builds the throwaway repo's git identity from an allowlist, never by spreading
+  // process.env — an ambient GIT_DIR/GIT_WORK_TREE or gitconfig knob (this machine's
+  // global diff.external = difft, for one) must never reach the child.
+  function initRepo(dir) {
+    const result = spawnSync(gitPath, ['init', '-q', dir], { env: PINNED_ENV });
+    assert.equal(result.status, 0, `git init must succeed for ${dir}`);
+  }
+
+  before(() => {
+    root = mkdtempSync(join(tmpdir(), 'craft-pi-cli-'));
+    binDir = join(root, 'bin');
+    mkdirSync(binDir);
+    symlinkSync(process.execPath, join(binDir, 'node'));
+
+    gitPath = resolveOnPath('git');
+    assert.ok(gitPath, 'git must resolve on the ambient PATH to build the synthetic bin dir');
+    symlinkSync(gitPath, join(binDir, 'git'));
+
+    PINNED_ENV = Object.freeze({
+      PATH: binDir,
+      HOME: root,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+      GIT_CONFIG_NOSYSTEM: '1',
+    });
+
+    repoDir = join(root, 'repo');
+    mkdirSync(repoDir);
+    initRepo(repoDir);
+  });
+
+  after(() => {
+    rmSync(root, { recursive: true, force: true });
+  });
+
+  function runCli(...args) {
+    return spawnSync(process.execPath, [CLI_PATH, ...args], {
+      cwd: repoDir,
+      env: PINNED_ENV,
+      encoding: 'utf8',
+    });
+  }
+
+  it('Given a synthetic PATH holding only node and git, when pi is spawned directly by name, then the OS reports ENOENT', () => {
+    const result = spawnSync('pi', ['--version'], { env: PINNED_ENV });
+
+    assert.equal(result.error?.code, 'ENOENT', 'pi must be genuinely absent from the synthetic PATH');
+  });
+
+  it('Given a decoy GIT_DIR and GIT_WORK_TREE set on the parent process, when the throwaway repo is git-init-ed with the pinned environment, then the throwaway repo receives its own .git and the decoy is untouched', () => {
+    const decoyDir = mkdtempSync(join(tmpdir(), 'craft-pi-decoy-'));
+    try {
+      // Seeded under the same pinned environment as every other git spawn here: an
+      // ambient GIT_DIR would otherwise redirect this init into an undeclared repo.
+      const decoyInit = spawnSync(gitPath, ['init', '-q', decoyDir], { env: PINNED_ENV });
+      assert.equal(decoyInit.status, 0, 'decoy repo must be seeded to observe whether it gets touched');
+      const decoyConfigPath = join(decoyDir, '.git', 'config');
+      const decoyMtimeBefore = statSync(decoyConfigPath).mtimeMs;
+
+      const throwawayDir = join(root, 'repo-decoy-guard');
+      mkdirSync(throwawayDir);
+
+      process.env.GIT_DIR = join(decoyDir, '.git');
+      process.env.GIT_WORK_TREE = decoyDir;
+      try {
+        initRepo(throwawayDir);
+      } finally {
+        delete process.env.GIT_DIR;
+        delete process.env.GIT_WORK_TREE;
+      }
+
+      assert.ok(
+        statSync(join(throwawayDir, '.git')).isDirectory(),
+        'the throwaway repo must receive its own .git despite the ambient GIT_DIR',
+      );
+      assert.equal(
+        statSync(decoyConfigPath).mtimeMs,
+        decoyMtimeBefore,
+        'the decoy repo must be untouched by the git init call',
+      );
+    } finally {
+      rmSync(decoyDir, { recursive: true, force: true });
+    }
+  });
+
   it('Given cli.js is invoked directly, when it runs, then process.exit is called with an integer code (guard ran, block ran)', () => {
     const result = runCli();
 
@@ -66,7 +169,11 @@ describe('cli.js — subprocess execution guard', () => {
     // write call would be on undefined and would throw — the process would crash
     // rather than exit cleanly.
     assert.equal(result.status, 2, `expected exit 2 (pi not installed), stderr: ${result.stderr}`);
-    assert.ok(result.stderr.includes('pi'), `stderr must mention pi, got: ${result.stderr}`);
+    assert.equal(
+      result.stderr.trim(),
+      '{ unit: pi-run, reason: spawn pi ENOENT }',
+      `stderr must report the exact pi-run blocker, got: ${result.stderr}`,
+    );
   });
 
   it('Given cli.js is invoked directly, when it runs, then argv is sliced (argv[0]=node argv[1]=cli.js are stripped before passing to main)', () => {

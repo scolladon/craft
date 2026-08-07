@@ -1,8 +1,13 @@
 # 050 — `architecture` report/exception home + `<arch gate>` resolution
 
-- **Status:** accepted
+- **Status:** superseded by ADR-348
 - **Date:** 2026-06-18
 - **Design:** docs/DESIGN-P10-default-phases.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-348.** The report and exception decisions below stand, restated
+> tool-independently there; every mention of dependency-cruiser as the gate, the exception
+> home, or the report producer is superseded. `<arch gate>` now resolves to the declared
+> `architecture` technique's own `run` exiting 0, per ADR-149's de-specialization.
 
 ## Context
 

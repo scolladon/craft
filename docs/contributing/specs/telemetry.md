@@ -458,13 +458,13 @@ Three kinds are currently emitted:
 }
 ```
 
-**review-waste** — a review role accumulated more cycles than the configured threshold:
+**review-waste** — a review role billed more turns than the configured threshold:
 
 ```json
 {
-  "detail": "role reviewer has 5 review cycles",
+  "detail": "role reviewer billed 112 turns across review",
   "evidence": {
-    "billedTurns": 11,
+    "billedTurns": 112,
     "cycles": 5,
     "maxCost": { "priced": 0.001, "relative": 3500 },
     "meanCost": { "priced": 0.001, "relative": 3500 },

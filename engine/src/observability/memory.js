@@ -9,6 +9,13 @@
  * MUST never throw and MUST never yield a gating value — it returns an empty-or-
  * filtered MemoryView. Entries that fail validate-on-read are moved to evicted[].
  *
+ * Every MemoryView carries `degraded: boolean`. It is true only when load() never
+ * saw the store's real content (unparseable content, a ref escaping the repo, or
+ * a store that exists but could not be read — e.g. EACCES/EISDIR/EIO); a cold
+ * start (no store file yet, ENOENT) is empty but NOT degraded. save() refuses to
+ * write a degraded view: a write derived from a view that never saw the store is
+ * an erasure, not a write.
+ *
  * part-sizing has no per-use re-check (weak planner hint) — its validator
  * defaults to () => true when absent from the deps.validators map.
  */
@@ -65,13 +72,31 @@ function emptyEntries() {
 }
 
 /**
- * Build an empty MemoryView.
+ * Build an empty MemoryView. NOT degraded — used for a cold start (no store
+ * file yet), which must still let a subsequent save write normally.
  *
  * @param {string} note - Human-readable reason the view is empty.
- * @returns {{ entries: object, evicted: object[], loadNote: string }}
+ * @returns {{ entries: object, evicted: object[], loadNote: string, degraded: false }}
  */
 function emptyView(note) {
-  return { entries: emptyEntries(), evicted: [], loadNote: note };
+  return { entries: emptyEntries(), evicted: [], loadNote: note, degraded: false };
+}
+
+/**
+ * Build an empty MemoryView explicitly marked degraded: the view never saw
+ * the store's real content (malformed content, or a ref escaping the repo).
+ * A save built from a degraded view would compose two individually-correct
+ * behaviours into a destructive one — reconciling this run's delta against
+ * empty entries and writing the result as the whole store, erasing every
+ * accumulated entry. Kept as a separate function rather than a boolean
+ * parameter on emptyView: the two call sites mean genuinely different things,
+ * and a boolean param at the call site would read as noise.
+ *
+ * @param {string} note - Human-readable reason the view is degraded.
+ * @returns {{ entries: object, evicted: object[], loadNote: string, degraded: true }}
+ */
+function degradedView(note) {
+  return { ...emptyView(note), degraded: true };
 }
 
 /**
@@ -192,27 +217,41 @@ function buildBody(entries) {
  * Entries that fail their concern's validate-on-read predicate are dropped from
  * entries and listed in evicted.
  *
+ * The returned view carries `degraded: boolean` — true only when the view never
+ * saw the store's real content (an escaping ref, unparseable content, or a store
+ * that exists but could not be read). A cold start (no store file yet) is empty
+ * but NOT degraded, since there may simply be nothing to read yet and the next
+ * save must still write normally.
+ *
  * @param {string} repoRoot - The resolved worktree/checkout root.
  * @param {{ readStore: (path: string) => string|null, validators: { [concern: string]: (entry: object) => boolean } }} deps
- * @returns {{ entries: object, evicted: object[], loadNote: string|null }}
+ * @returns {{ entries: object, evicted: object[], loadNote: string|null, degraded: boolean }}
  */
 export function load(repoRoot, deps) {
   const storePath = resolveStorePath(repoRoot, deps.ref);
-  if (!storePath) return emptyView('store path outside repo');
+  if (!storePath) return degradedView('store path outside repo');
 
   let rawContent;
   try {
     rawContent = deps.readStore(storePath);
-  } catch {
-    return emptyView('no store');
-    // equivalent mutant (catch {}): rawContent is never assigned when readStore throws (stays undefined);
-    // the next guard (!rawContent) catches undefined and returns emptyView('no store') — same result
+  } catch (err) {
+    // Only a genuinely absent file is a cold start. EACCES/EISDIR/EIO/ELOOP mean
+    // the store EXISTS but could not be read right now — treating that as a cold
+    // start would let the next save reconcile this run's delta against empty
+    // entries and write it as the whole store, erasing every accumulated entry.
+    // A rejected/injected reader is not contractually bound to throw an Error —
+    // it may throw any value. Falling back to String(err) keeps the note
+    // meaningful (e.g. "store unreadable: boom") instead of collapsing every
+    // non-Error throw into the uninformative "store unreadable: undefined".
+    return err?.code === 'ENOENT'
+      ? emptyView('no store')
+      : degradedView(`store unreadable: ${err?.code ?? err?.message ?? String(err)}`);
   }
 
   if (!rawContent) return emptyView('no store');
 
   const parsed = parseStore(rawContent);
-  if (!parsed) return emptyView('malformed store');
+  if (!parsed) return degradedView('malformed store');
 
   return applyValidators(parsed.entries, deps.validators ?? {});
 }
@@ -260,7 +299,7 @@ function dedupeByKey(concern, entries) {
  *
  * @param {{ [concern: string]: object[] }} allEntries
  * @param {{ [concern: string]: (entry: object) => boolean }} validators
- * @returns {{ entries: object, evicted: object[], loadNote: string|null }}
+ * @returns {{ entries: object, evicted: object[], loadNote: string|null, degraded: false }}
  */
 function applyValidators(allEntries, validators) {
   const entries = emptyEntries();
@@ -279,7 +318,7 @@ function applyValidators(allEntries, validators) {
   }
 
   const loadNote = evicted.length > 0 ? 'some entries failed validate-on-read' : null;
-  return { entries, evicted, loadNote };
+  return { entries, evicted, loadNote, degraded: false };
 }
 
 // ─── write path constants ─────────────────────────────────────────────────────
@@ -610,8 +649,13 @@ function evictToCaps(entries, caps) {
  *
  * A failed writeStore is a recorded warning — save never throws or blocks.
  *
+ * A write derived from a view that never saw the store is an erasure, not a
+ * write: when `view.degraded` is true, save declines before touching the
+ * filesystem and returns normally with a `writeNote` — same non-throwing,
+ * non-blocking posture as every other save outcome.
+ *
  * @param {string} repoRoot - resolved worktree/checkout root.
- * @param {{ entries: object, evicted: object[], loadNote: string|null }} view
+ * @param {{ entries: object, evicted: object[], loadNote: string|null, degraded: boolean }} view
  *   The MemoryView returned by load() — already has stale entries removed.
  * @param {Array<{ concern: string, payload: object }>} delta
  *   Buffered observations for this run.
@@ -633,7 +677,9 @@ export function save(repoRoot, view, delta, deps) {
   const reconciledEntries = reconcile(view.entries, delta, provenance);
   const evictedEntries = evictToCaps(reconciledEntries, caps);
 
-  const finalView = { entries: evictedEntries, evicted: [], loadNote: null };
+  const finalView = { entries: evictedEntries, evicted: [], loadNote: null, degraded: view.degraded === true };
+
+  if (view.degraded) return { writeNote: 'save skipped: load was degraded', view: finalView };
 
   const storePath = resolveStorePath(repoRoot, deps.ref);
   if (!storePath) return { writeNote: 'save skipped: store path outside repo', view: finalView };

@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 import {
   aggregate,
@@ -7,12 +10,15 @@ import {
   serializeReport,
   computeDrift,
   CACHE_HOTSPOT_THRESHOLD,
-  REVIEW_WASTE_CYCLES,
+  REVIEW_WASTE_BILLED_TURNS,
   DEFAULT_DRIFT_THRESHOLD,
 } from '../src/observability/usage-aggregate.js';
 import { DEFAULT_PRICES } from '../src/observability/adapters/claude/pricing.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
+
+const __dir = dirname(fileURLToPath(import.meta.url));
+const METRICS_BASELINE_REPORT_PATH = join(__dir, '..', '..', 'docs', 'contributing', 'metrics-baseline.report.json');
 
 const PRICE_TABLE = {
   'model-a': { input: 5, cacheRead: 0.5, cacheCreation5m: 6.25, cacheCreation1h: 10, output: 25 },
@@ -31,6 +37,14 @@ const makeEvent = (overrides = {}) => ({
   durationMs: 1000,
   ...overrides,
 });
+
+// N review events for one reviewer role, spread over `spawnCount` distinct spawns
+// (defaults to N, i.e. every turn its own spawn) — the one shape the review-waste
+// boundary/detail/ordering fixtures below all need, parameterized instead of repeated.
+const reviewCycleEvents = (turnCount, { spawnCount = turnCount, ...overrides } = {}) =>
+  Array.from({ length: turnCount }, (_, i) =>
+    makeEvent({ phase: 'review', role: 'reviewer', spawnId: i % spawnCount, ...overrides })
+  );
 
 // ── 1. Token sums, cacheEfficiency, cost.priced ───────────────────────────────
 
@@ -298,16 +312,16 @@ test('Given a report, when renderMarkdown runs twice, then both strings are byte
   assert.ok(/\d/.test(result1), 'expected numbers in markdown');
 });
 
-// ── 12. CACHE_HOTSPOT_THRESHOLD and REVIEW_WASTE_CYCLES are exported numbers ──
+// ── 12. CACHE_HOTSPOT_THRESHOLD and REVIEW_WASTE_BILLED_TURNS are exported numbers ──
 
 test('Given CACHE_HOTSPOT_THRESHOLD, when inspected, then it is a number between 0 and 1', () => {
   assert.equal(typeof CACHE_HOTSPOT_THRESHOLD, 'number');
   assert.ok(CACHE_HOTSPOT_THRESHOLD > 0 && CACHE_HOTSPOT_THRESHOLD < 1);
 });
 
-test('Given REVIEW_WASTE_CYCLES, when inspected, then it is a positive integer', () => {
-  assert.equal(typeof REVIEW_WASTE_CYCLES, 'number');
-  assert.ok(Number.isInteger(REVIEW_WASTE_CYCLES) && REVIEW_WASTE_CYCLES > 0);
+test('Given REVIEW_WASTE_BILLED_TURNS, when inspected, then it is a positive integer', () => {
+  assert.equal(typeof REVIEW_WASTE_BILLED_TURNS, 'number');
+  assert.ok(Number.isInteger(REVIEW_WASTE_BILLED_TURNS) && REVIEW_WASTE_BILLED_TURNS > 0);
 });
 
 // ── 13. Baseline-delta: tokensDelta/pricedCostDelta/cacheEfficiencyDelta (F2) ─
@@ -389,34 +403,41 @@ test('Given a baseline object with no runs array (a malformed or schema-mismatch
   assert.ok(currentReport.drift.every(d => d.delta === null), 'no baseline activity for the phase');
 });
 
-// ── 14. Review-waste recommendation fires at 3 cycles (F3) ───────────────────
+// ── 13a. reviewWasteRecs: many distinct spawns but few billed turns must not fire ──
 
-test('Given three review events from three distinct spawns in one run, when aggregate runs, then a review-waste recommendation is emitted with cycles=3 and numeric totalCost/meanCost aggregates', () => {
-  // REVIEW_WASTE_CYCLES = 2; >2 means 3+ cycles fire the rec.
-  const reviewEvent = (spawnId) => makeEvent({
-    phase: 'review',
-    role: 'reviewer',
-    model: 'model-a',
-    run: 'run-rev',
-    spawnId,
-    tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 },
-  });
-  // Three reviewer events from three distinct spawns, all in the same run.
-  const event1 = reviewEvent(0);
-  const event2 = reviewEvent(1);
-  const event3 = reviewEvent(2);
+test('Given five review events from five distinct spawns (five spawns over five billed turns), when aggregate runs, then no review-waste recommendation is emitted', () => {
+  const events = reviewCycleEvents(5);
   const sut = aggregate;
 
-  const result = sut([event1, event2, event3], PRICE_TABLE);
+  const result = sut(events, PRICE_TABLE);
+
+  const waste = result.recommendations.filter(r => r.kind === 'review-waste');
+  assert.equal(waste.length, 0, 'five spawns over five billed turns is a cheap review and must not fire review-waste');
+});
+
+// ── 14. Review-waste recommendation fires on billed turns, not spawn count (F3) ──
+
+test('Given many review events from few distinct spawns in one run (low cycles, high billed turns), when aggregate runs, then a review-waste recommendation is emitted with cycles=3 and numeric totalCost/meanCost aggregates', () => {
+  // The exact shape a cycles-only threshold misses: few spawns, many billed turns.
+  const billedTurns = REVIEW_WASTE_BILLED_TURNS + 1;
+  const events = reviewCycleEvents(billedTurns, {
+    spawnCount: 3,
+    run: 'run-rev',
+    model: 'model-a',
+    tokens: { input: 10, cacheRead: 0, cacheCreation: 0, output: 5 },
+  });
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
 
   const wasteRecs = result.recommendations.filter(r => r.kind === 'review-waste');
   assert.ok(wasteRecs.length > 0, 'review-waste recommendation must be emitted');
   const rec = wasteRecs[0];
   assert.equal(rec.evidence.cycles, 3, 'evidence.cycles must equal 3 distinct spawns');
-  assert.equal(rec.evidence.billedTurns, 3, 'evidence.billedTurns must equal the 3 underlying turns');
+  assert.equal(rec.evidence.billedTurns, billedTurns, 'evidence.billedTurns must equal the underlying turn count');
   assert.equal(typeof rec.evidence.totalCost.priced, 'number', 'totalCost.priced must be a number');
   assert.equal(typeof rec.evidence.meanCost.priced, 'number', 'meanCost.priced must be a number');
-  assert.equal(rec.evidence.totalCost.priced, rec.evidence.meanCost.priced * 3, 'totalCost must equal meanCost times the cycle count for equal-cost cycles');
+  assert.ok(Math.abs(rec.evidence.totalCost.priced - rec.evidence.meanCost.priced * billedTurns) < 1e-9, 'totalCost must equal meanCost times the billed-turn count for equal-cost turns');
 });
 
 // ── P29 kill-tests: target survivors from mutation run ────────────────────────
@@ -710,21 +731,17 @@ test('Given two runs each with two models for the same phase, when aggregate run
 
 // ── 31. reviewWaste detail string and phase field ─────────────────────────────
 
-test('Given three review events from three distinct spawns for the same role, when aggregate runs, then the review-waste rec has phase=review and detail naming the role and cycle count', () => {
-  const events = [
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 0 }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 1 }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 2 }) },
-  ];
+test('Given enough review events to cross REVIEW_WASTE_BILLED_TURNS for the same role, when aggregate runs, then the review-waste rec has phase=review and detail naming the role and billed-turn count', () => {
+  const events = reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS + 1, { run: 'r1', role: 'code' });
   const sut = aggregate;
 
   const result = sut(events, PRICE_TABLE);
 
   const rec = result.recommendations.find(r => r.kind === 'review-waste');
-  assert.ok(rec, 'review-waste rec must be emitted for 3 cycles');
+  assert.ok(rec, 'review-waste rec must be emitted past the billed-turns threshold');
   assert.equal(rec.phase, 'review', 'rec phase must be review');
   assert.ok(rec.detail.includes('code'), 'detail must name the role');
-  assert.ok(rec.detail.includes('3'), 'detail must include cycle count');
+  assert.ok(rec.detail.includes(String(REVIEW_WASTE_BILLED_TURNS + 1)), 'detail must include the billed-turn count');
 });
 
 // ── 32. sortedRecs: stable sort by kind then run then phase ──────────────────
@@ -732,10 +749,8 @@ test('Given three review events from three distinct spawns for the same role, wh
 test('Given two recs of different kinds, when aggregate runs, then recommendations are sorted alphabetically by kind', () => {
   // cache-hotspot (c) sorts before model-routing (m) sorts before review-waste (r)
   const events = [
-    // review waste: 3 review events from 3 distinct spawns (r sorts last)
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 0 }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 1 }) },
-    { ...makeEvent({ run: 'r1', phase: 'review', role: 'code', spawnId: 2 }) },
+    // review waste: enough events past REVIEW_WASTE_BILLED_TURNS (r sorts last)
+    ...reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS + 1, { run: 'r1', role: 'code' }),
     // cache hotspot: high creation ratio (c sorts first)
     { ...makeEvent({ run: 'r1', phase: 'design', role: 'designer', tokens: { input: 0, cacheRead: 5, cacheCreation: 500, output: 0 } }) },
   ];
@@ -876,9 +891,7 @@ test('Given a group with a known priced cost, when renderMarkdown runs, then cos
 // ── 42. renderMarkdown: recommendations section present; null model shows n/a ─
 
 test('Given a report with a recommendation whose model is null, when renderMarkdown runs, then the recommendations section exists and shows n/a for model', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, (_, spawnId) =>
-    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
-  );
+  const events = reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS + 1);
   const sut = renderMarkdown;
 
   const result = sut(aggregate(events, PRICE_TABLE));
@@ -902,9 +915,7 @@ test('Given an empty events array, when renderMarkdown runs on the no-data repor
 // ── 44. serializeReport: keys alphabetically sorted and trailing newline ──────
 
 test('Given a report object with a null model recommendation, when serializeReport runs, then JSON keys are alphabetically sorted, null is preserved, and output ends with a newline', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES + 1 }, (_, spawnId) =>
-    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
-  );
+  const events = reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS + 1);
   const report = aggregate(events, PRICE_TABLE);
   const sut = serializeReport;
 
@@ -977,17 +988,57 @@ test('Given two groups in the same run/phase with different priced costs, when a
   assert.equal(routing[0].evidence.candidateModel, 'model-b', 'candidate must be the cheaper model');
 });
 
-// ── 49. reviewWasteRecs: exactly REVIEW_WASTE_CYCLES does not fire ────────────
+// ── 49. reviewWasteRecs: boundary matrix around REVIEW_WASTE_BILLED_TURNS ─────
 
-test('Given review cycles from distinct spawns exactly equal to REVIEW_WASTE_CYCLES, when aggregate runs, then no review-waste recommendation is emitted', () => {
-  const events = Array.from({ length: REVIEW_WASTE_CYCLES }, (_, spawnId) =>
-    makeEvent({ phase: 'review', role: 'reviewer', spawnId })
-  );
+test('Given billed turns one below REVIEW_WASTE_BILLED_TURNS, when aggregate runs, then no review-waste recommendation is emitted', () => {
+  const events = reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS - 1);
 
   const result = aggregate(events, PRICE_TABLE);
 
   const waste = result.recommendations.filter(r => r.kind === 'review-waste');
-  assert.equal(waste.length, 0, `exactly ${REVIEW_WASTE_CYCLES} cycles must not fire review-waste (threshold is >, not >=)`);
+  assert.equal(waste.length, 0, `${REVIEW_WASTE_BILLED_TURNS - 1} billed turns must not fire review-waste`);
+});
+
+test('Given billed turns exactly equal to REVIEW_WASTE_BILLED_TURNS, when aggregate runs, then no review-waste recommendation is emitted', () => {
+  const events = reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS);
+
+  const result = aggregate(events, PRICE_TABLE);
+
+  const waste = result.recommendations.filter(r => r.kind === 'review-waste');
+  assert.equal(waste.length, 0, `exactly ${REVIEW_WASTE_BILLED_TURNS} billed turns must not fire review-waste (threshold is >, not >=)`);
+});
+
+test('Given billed turns one above REVIEW_WASTE_BILLED_TURNS, when aggregate runs, then exactly one review-waste recommendation is emitted', () => {
+  const events = reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS + 1);
+
+  const result = aggregate(events, PRICE_TABLE);
+
+  const waste = result.recommendations.filter(r => r.kind === 'review-waste');
+  assert.equal(waste.length, 1, `${REVIEW_WASTE_BILLED_TURNS + 1} billed turns must fire exactly one review-waste recommendation`);
+});
+
+// ── 49a. reviewWasteRecs: the THRESHOLD VALUE is pinned against the committed
+// metrics baseline, not just its boundary — every test above is expressed
+// relative to REVIEW_WASTE_BILLED_TURNS, so all of them stay green even if the
+// constant were changed to a value that fires on nearly everything. This test
+// hardcodes the expected fire count (never derives it from the imported
+// constant) and runs the real billed-turn counts recorded in
+// docs/contributing/metrics-baseline.report.json through aggregate.
+
+test('Given the billed-turn counts recorded in the committed metrics baseline, when aggregate runs over one synthetic review cycle per recorded count, then exactly 4 of the 16 fire a review-waste recommendation', () => {
+  const baseline = JSON.parse(readFileSync(METRICS_BASELINE_REPORT_PATH, 'utf8'));
+  const billedTurnsByCycle = baseline.runs.flatMap(run => run.reviewCycles.map(rc => rc.billedTurns));
+  assert.equal(billedTurnsByCycle.length, 16, 'expected the committed baseline to carry exactly 16 review cycles');
+
+  const events = billedTurnsByCycle.flatMap((billedTurns, i) =>
+    reviewCycleEvents(billedTurns, { run: `baseline-cycle-${i}` })
+  );
+  const result = aggregate(events, PRICE_TABLE);
+
+  const wasteCount = result.recommendations.filter(r => r.kind === 'review-waste').length;
+  assert.equal(wasteCount, 4,
+    'REVIEW_WASTE_BILLED_TURNS must select exactly 4 of the 16 committed review cycles — a threshold change that ' +
+    'keeps every boundary test above green but shifts this count reproduces the 94%-noise regression this pin exists to catch');
 });
 
 // ── 50. sortedRecs: recommendations are in alphabetical kind order ────────────
