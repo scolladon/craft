@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 
 import {
   aggregate,
@@ -13,6 +16,9 @@ import {
 import { DEFAULT_PRICES } from '../src/observability/adapters/claude/pricing.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
+
+const __dir = dirname(fileURLToPath(import.meta.url));
+const METRICS_BASELINE_REPORT_PATH = join(__dir, '..', '..', 'docs', 'contributing', 'metrics-baseline.report.json');
 
 const PRICE_TABLE = {
   'model-a': { input: 5, cacheRead: 0.5, cacheCreation5m: 6.25, cacheCreation1h: 10, output: 25 },
@@ -1009,6 +1015,30 @@ test('Given billed turns one above REVIEW_WASTE_BILLED_TURNS, when aggregate run
 
   const waste = result.recommendations.filter(r => r.kind === 'review-waste');
   assert.equal(waste.length, 1, `${REVIEW_WASTE_BILLED_TURNS + 1} billed turns must fire exactly one review-waste recommendation`);
+});
+
+// ── 49a. reviewWasteRecs: the THRESHOLD VALUE is pinned against the committed
+// metrics baseline, not just its boundary — every test above is expressed
+// relative to REVIEW_WASTE_BILLED_TURNS, so all of them stay green even if the
+// constant were changed to a value that fires on nearly everything. This test
+// hardcodes the expected fire count (never derives it from the imported
+// constant) and runs the real billed-turn counts recorded in
+// docs/contributing/metrics-baseline.report.json through aggregate.
+
+test('Given the billed-turn counts recorded in the committed metrics baseline, when aggregate runs over one synthetic review cycle per recorded count, then exactly 4 of the 16 fire a review-waste recommendation', () => {
+  const baseline = JSON.parse(readFileSync(METRICS_BASELINE_REPORT_PATH, 'utf8'));
+  const billedTurnsByCycle = baseline.runs.flatMap(run => run.reviewCycles.map(rc => rc.billedTurns));
+  assert.equal(billedTurnsByCycle.length, 16, 'expected the committed baseline to carry exactly 16 review cycles');
+
+  const events = billedTurnsByCycle.flatMap((billedTurns, i) =>
+    reviewCycleEvents(billedTurns, { run: `baseline-cycle-${i}` })
+  );
+  const result = aggregate(events, PRICE_TABLE);
+
+  const wasteCount = result.recommendations.filter(r => r.kind === 'review-waste').length;
+  assert.equal(wasteCount, 4,
+    'REVIEW_WASTE_BILLED_TURNS must select exactly 4 of the 16 committed review cycles — a threshold change that ' +
+    'keeps every boundary test above green but shifts this count reproduces the 94%-noise regression this pin exists to catch');
 });
 
 // ── 50. sortedRecs: recommendations are in alphabetical kind order ────────────

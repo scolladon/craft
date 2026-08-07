@@ -24,30 +24,31 @@ const MIN_DISTINCT_ADAPTER_TELEMETRY_FILES = 2;
 const ADAPTER_TELEMETRY_FILE_PATTERN = /adapters\/([^/]+)\/telemetry\.js$/;
 
 function listTrackedFiles() {
-  let result;
-  try {
-    result = execFileSync('git', ['ls-files', '--', SCAN_ROOT], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-  } catch (err) {
-    result = err.stdout ?? '';
-  }
+  const result = execFileSync('git', ['ls-files', '--', SCAN_ROOT], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
   return result.split('\n').filter((line) => line.endsWith('.js'));
 }
 
-// Bare `from '…'` match, not statement-anchored: a multi-line import clause
-// (e.g. a destructured node:fs import) places `from '…'` several lines below
-// the `import` keyword, so anchoring to a statement start would miss it. If
-// this ever picks up a `from '…'` occurrence inside a comment or a string
-// and manufactures a false offender, tighten it to require an
-// `import`/`export` token opening the statement — never relax a rule to make
-// that go away.
-const FROM_CLAUSE_PATTERN = /from\s+'([^']+)'/g;
+// Three sibling patterns cover the specifier forms a `from`-only regex
+// misses: a statement clause (`from '…'`/`from "…"`, either quote style, not
+// statement-anchored — a multi-line import clause, e.g. a destructured
+// node:fs import, places `from '…'` several lines below the `import`
+// keyword, so anchoring to a statement start would miss it), a side-effect
+// import carrying no `from` token at all (`import '…'`), and a dynamic
+// import (`import('…')`). If any of these ever picks up a match inside a
+// comment or a string and manufactures a false offender, tighten it to
+// require statement position — never relax a rule to make that go away.
+const FROM_CLAUSE_PATTERN = /from\s+['"]([^'"]+)['"]/g;
+const SIDE_EFFECT_IMPORT_PATTERN = /import\s+['"]([^'"]+)['"]/g;
+const DYNAMIC_IMPORT_PATTERN = /import\(\s*['"]([^'"]+)['"]\s*\)/g;
 
 function extractSpecifiers(sourceText) {
-  return [...sourceText.matchAll(FROM_CLAUSE_PATTERN)].map((match) => match[1]);
+  return [FROM_CLAUSE_PATTERN, SIDE_EFFECT_IMPORT_PATTERN, DYNAMIC_IMPORT_PATTERN]
+    .flatMap((pattern) => [...sourceText.matchAll(pattern)])
+    .map((match) => match[1]);
 }
 
 function resolveSpecifier(fromFile, specifier) {
@@ -57,19 +58,33 @@ function resolveSpecifier(fromFile, specifier) {
   return path.posix.join(path.posix.dirname(fromFile), specifier);
 }
 
+// Shared by the real-tree scan and by synthetic-offender tests below, so
+// both exercise the identical specifier→resolved-path code path (two-sided
+// pinning).
+function importsFromSource(fromFile, sourceText) {
+  return extractSpecifiers(sourceText)
+    .map((specifier) => resolveSpecifier(fromFile, specifier))
+    .filter((resolved) => resolved !== null);
+}
+
 function buildImportGraph(filePaths) {
   const graph = {};
   for (const filePath of filePaths) {
     const sourceText = fs.readFileSync(path.join(ROOT, filePath), 'utf8');
-    graph[filePath] = extractSpecifiers(sourceText)
-      .map((specifier) => resolveSpecifier(filePath, specifier))
-      .filter((resolved) => resolved !== null);
+    graph[filePath] = importsFromSource(filePath, sourceText);
   }
   return graph;
 }
 
+// The real tree cannot change mid-run (tracked source is fixed for the
+// suite's duration), so caching the scan across R1/R2/R3's three calls
+// carries no staleness hazard — it only removes redundant `git ls-files`
+// spawns and read+regex passes over the same files.
+let cachedRealGraph;
+
 function realImportGraph() {
-  return buildImportGraph(listTrackedFiles());
+  cachedRealGraph ??= buildImportGraph(listTrackedFiles());
+  return cachedRealGraph;
 }
 
 const ADAPTER_SEGMENT_PATTERN = /engine\/src\/observability\/adapters\/([^/]+)\//;
@@ -124,14 +139,16 @@ function detectCrossAdapterImport(graph, allowlist = ALLOWED_CROSS_LAYER_EDGES) 
     .filter((edge) => !isExcused(edge, allowlist));
 }
 
-// R3 — vendor bindings are wired up in exactly one place: a composition
-// root. Edges originating inside an adapter segment are R2's jurisdiction,
-// not this rule's — this rule only polices the neutral core reaching into
-// adapters/**.
+// R3 — vendor bindings are wired up in exactly one place: the declared
+// composition root (COMPOSITION_ROOT_FILE), excused by exact file identity
+// — not by a `-main.js` naming convention, so a same-named look-alike still
+// gets flagged. Edges originating inside an adapter segment are R2's
+// jurisdiction, not this rule's — this rule only polices the neutral core
+// reaching into adapters/**.
 function detectNonRootImportsAdapter(graph, allowlist = ALLOWED_CROSS_LAYER_EDGES) {
   return adapterTargetEdges(graph)
     .filter((edge) => adapterVendor(edge.from) === null)
-    .filter((edge) => !path.basename(edge.from).endsWith('-main.js'))
+    .filter((edge) => edge.from !== COMPOSITION_ROOT_FILE)
     .filter((edge) => !isExcused(edge, allowlist));
 }
 
@@ -191,6 +208,45 @@ test(
 );
 
 test(
+  'Given a double-quoted from-clause reaching a sibling adapter, when the source is parsed into an import graph and R2 runs, then the offender is flagged',
+  () => {
+    const from = 'engine/src/observability/adapters/pi/telemetry.js';
+    const sourceText = `import { x } from "../claude/telemetry.js";\n`;
+    const graph = { [from]: importsFromSource(from, sourceText) };
+
+    const offenders = detectCrossAdapterImport(graph);
+
+    assert.strictEqual(offenders.length, 1, 'expected the double-quoted specifier to resolve into a flagged edge');
+  },
+);
+
+test(
+  'Given a dynamic import() reaching a sibling adapter, when the source is parsed into an import graph and R2 runs, then the offender is flagged',
+  () => {
+    const from = 'engine/src/observability/adapters/pi/telemetry.js';
+    const sourceText = `async function load() {\n  await import('../claude/telemetry.js');\n}\n`;
+    const graph = { [from]: importsFromSource(from, sourceText) };
+
+    const offenders = detectCrossAdapterImport(graph);
+
+    assert.strictEqual(offenders.length, 1, 'expected the dynamic import() specifier to resolve into a flagged edge');
+  },
+);
+
+test(
+  'Given a side-effect import reaching a sibling adapter, when the source is parsed into an import graph and R2 runs, then the offender is flagged',
+  () => {
+    const from = 'engine/src/observability/adapters/pi/telemetry.js';
+    const sourceText = `import '../claude/telemetry.js';\n`;
+    const graph = { [from]: importsFromSource(from, sourceText) };
+
+    const offenders = detectCrossAdapterImport(graph);
+
+    assert.strictEqual(offenders.length, 1, 'expected the side-effect import specifier to resolve into a flagged edge');
+  },
+);
+
+test(
   'Given a non-root module, when it imports an adapter module, then R3 flags it, the composition root is excused, and the real tree has zero such offenders',
   () => {
     const nonRootGraph = {
@@ -205,6 +261,19 @@ test(
 
     const realOffenders = detectNonRootImportsAdapter(realImportGraph());
     assert.deepStrictEqual(realOffenders, [], `R3 FAIL — a non-root module imports an adapter directly:\n${JSON.stringify(realOffenders)}`);
+  },
+);
+
+test(
+  'Given a file that merely matches the "-main.js" naming convention but is not the declared composition root, when it imports an adapter, then R3 still flags it',
+  () => {
+    const rogueMainGraph = {
+      'engine/src/observability/rogue-main.js': ['engine/src/observability/adapters/pi/telemetry.js'],
+    };
+
+    const offenders = detectNonRootImportsAdapter(rogueMainGraph);
+
+    assert.strictEqual(offenders.length, 1, 'expected a "-main.js" look-alike that is not COMPOSITION_ROOT_FILE to be flagged');
   },
 );
 

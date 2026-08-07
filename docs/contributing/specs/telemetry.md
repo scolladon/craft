@@ -462,9 +462,9 @@ Three kinds are currently emitted:
 
 ```json
 {
-  "detail": "role reviewer billed 11 turns across review",
+  "detail": "role reviewer billed 112 turns across review",
   "evidence": {
-    "billedTurns": 11,
+    "billedTurns": 112,
     "cycles": 5,
     "maxCost": { "priced": 0.001, "relative": 3500 },
     "meanCost": { "priced": 0.001, "relative": 3500 },
