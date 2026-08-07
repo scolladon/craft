@@ -8,7 +8,9 @@ subjects: ['engine/src/observability/**']
 - `collect(opts, deps) → UsageEvent[]` — parse transcript data into a vendor-neutral stream of
   usage events that the pure core can aggregate.
   - **pre**: `opts` carries a `runFilter` (optional, restricts which run IDs to include),
-    `includeInline` flag (opt-in, see [ADR-187 gap](#inline-gap----include-inline-adr-187)); `deps` carries
+    `includeInline` flag (default `true` — main-loop usage is included unless the front door's
+    `--no-inline` opts it back out, see [main-loop inclusion](#main-loop-inclusion----no-inline-adr-329));
+    `deps` carries
     `readTranscripts: () => AsyncIterable<string>` and an optional `sessionId` (the run-identity
     string, see [ADR-186 below](#run-identity-sessionid-adr-186)). The adapter never receives an absolute
     path; the `readTranscripts` provider owns the runtime path.
@@ -47,8 +49,29 @@ The valid bindings are **`{ claude, pi, opencode, copilot, codex, aider }`**.
   the vendor-neutral `UsageEvent` shape.
 - **Path resolution**: the `~/.claude/projects` location and the cwd-to-dashes slug mapping live
   exclusively here; the core never sees an absolute path.
-- **Spawn-rollup shape**: events that represent rolled-up spawn usage are mapped to their logical
-  `phase`/`role` before entering the core stream.
+- **Two-level discovery**: `engine/src/observability/adapters/claude/discovery.js` exports
+  `discover({ listDir, readText }) → { entries, unreadable }`, a pinned two-level walk —
+  `<root>/*.jsonl` (main-loop) plus `<root>/<sessionId>/subagents/agent-*.jsonl` (sub-agent) —
+  that performs no I/O of its own. `listDir`/`readText` are front-door-owned, already
+  realpath-contained ports; `discover` only ever names relative paths, so it holds no
+  path-resolution power of its own and is unit-testable against fakes with zero filesystem.
+- **Sidecar labelling, not rollups** (ADR-328): rollups are never read, for tokens or for
+  labels. Each sub-agent transcript's role/phase comes from the adjacent
+  `agent-<id>.meta.json` sidecar's `agentType` field, read by `discover` and carried as opaque
+  `context` into `parseLines`; every other sidecar field is discarded at the adapter boundary. A
+  missing or malformed sidecar resolves to `role: null` — a counted fallback (see
+  [Failure semantics](#failure-semantics)), never a throw.
+- **Emission keyed on the assistant message, not the line**: Claude Code writes one transcript
+  line per content block of a single assistant response (thinking, text, each `tool_use`), and
+  every such line repeats the same `message.id` and the same request-level `input`/`cache_read`
+  counts. `parseLines` emits exactly one `UsageEvent` per distinct `message.id`: the first
+  usage-bearing line for an id pushes the event; a later line sharing that id replaces its
+  `tokens`/`cacheCreationTtl` in place rather than pushing a duplicate, since `output_tokens` is
+  monotonic across a turn's blocks and the last line carries the complete turn. A line carrying
+  no `message.id` always pushes. `messages` on the resulting group therefore counts billed
+  turns, not transcript lines. A rollup rides on a `user` line's `toolUseResult` and never
+  carries `message.usage`, so it can never satisfy this rule — the two shapes are structurally
+  disjoint.
 - **sessionId injection** (ADR-186): when the caller supplies a `sessionId` the binding attaches
   it as the `run` field on each event, providing stable run identity across re-runs of the same
   session.
@@ -224,6 +247,11 @@ per-source file matcher.
 - A missing, empty, or unreadable transcript source returns an empty `UsageEvent[]`; `aggregate`
   emits `{ schemaVersion: 1, runs: [], note: 'no events provided' }`. No error is thrown.
 - A transcript line that fails to parse is skipped silently; the surrounding lines are unaffected.
+- The claude binding's two-level discovery adds four more counted-fallback branches, each
+  surfaced as its own stderr line and none affecting the exit code: a sub-agent transcript whose
+  `agentType` cannot be resolved from its sidecar (unlabelled), an unreadable `subagents/`
+  directory, a discovered path refused by read containment, and a transcript that failed to open
+  or parse. Every one degrades to a recorded fallback, never a throw.
 - An unpriced model (not in the price table) produces a group with `cost.priced: null`; the
   `relative` cost (total token count) is always present.
 - `baselineDeltas` is omitted when no `--baseline` file is supplied; its presence never affects
@@ -260,18 +288,20 @@ against the same session produces identical `run` values, making report diffing 
 `slug` field (human-readable run label, e.g. `feat/my-feature`) is distinct from `run` and is
 optional.
 
-## Inline gap / --include-inline (ADR-187)
+## Main-loop inclusion / --no-inline (ADR-329)
 
-Phase usage emitted by the orchestrator's inline execution path (phases that run without spawning
-a subprocess) is not captured in transcript rollup records. This is a known gap:
+Main-loop usage is **included by default**. Every main-loop assistant turn is attributed to a
+single `role: 'main-loop'`, `phase: null` group per model — an exact total, deliberately not
+split per phase (ADR-187's stated objection was to an approximate per-phase split, not to the
+total; ADR-329 sidesteps it by never splitting). `messages` on that group counts billed
+main-loop turns; `durationMs` stays `0` on every main-loop event (ADR-340) — the orchestrator's
+wallclock span overlaps every sub-agent span spawned within it, so attributing it would roughly
+double a run-hours figure the README FAQ scopes to role-agent activity alone.
 
-- By default the miner omits inline phase events; the `runs[*].groups` for those phases will be
-  absent.
-- Passing `--include-inline` opts in to experimental inline-event capture. The `UsageEvent[]`
-  stream may then contain additional events tagged with `role: 'inline'`; coverage and accuracy
-  depend on transcript completeness.
-
-Document this gap in any dashboard or report that presents per-phase totals.
+- `--no-inline` drops the `role: 'main-loop'` group and nothing else. `auto-skip:` phase markers
+  are still scanned from main-loop assistant text unconditionally — they carry no cost dimension
+  and the scan runs before the inclusion check.
+- `--include-inline` no longer exists.
 
 ## report.json schema
 
@@ -346,8 +376,9 @@ Keys deep-sorted: `cacheEfficiency`, `cost`, `durationMs`, `messages`, `model`, 
 **tokens** keys deep-sorted: `cacheCreation`, `cacheRead`, `input`, `output`.
 
 **cost** keys deep-sorted: `priced`, `relative`.
-`priced` is `null` when the model is not in the price table; `relative` (sum of all token
-counts) is always present.
+`priced` is the group's cost in **USD dollars** (`Σ(tokenClass × perMTokRate) / 1e6`), `null`
+when the model is not in the price table; `relative` (sum of all token counts) is always
+present.
 
 **cacheEfficiency**: `cacheCreation / (cacheRead + cacheCreation)`, or `0` when the denominator
 is zero.
@@ -516,5 +547,5 @@ deep-sorted: `delta`, `dimension`, `phase`, `threshold`.
 `report.md` renders a matching `## Phases drifted since baseline` section, one line per drifted
 `(phase, dimension)` pair, when `drift` is non-empty.
 
-The default committed baseline snapshot lives at `docs/metrics-baseline.report.json`, refreshed on
-demand as part of a closing chore.
+The default committed baseline snapshot lives at
+`docs/contributing/metrics-baseline.report.json`, refreshed on demand as part of a closing chore.
