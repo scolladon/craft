@@ -97,7 +97,7 @@ function recAdvisories(recs, drift) {
         `phase ${rec.phase} carries high cache-creation — consider a manual checkpoint`, rec.evidence));
     } else if (rec.kind === 'review-waste') {
       out.push(advisoryProposal('review-waste',
-        `${rec.evidence?.role ?? 'reviewer'} burned ${rec.evidence?.cycles ?? '?'} review cycles — consider a cheaper reviewer tier`, rec.evidence));
+        `${rec.evidence?.role ?? 'reviewer'} billed ${rec.evidence?.billedTurns ?? '?'} turns across review — consider a cheaper reviewer tier`, rec.evidence));
     }
   }
   for (const entry of drift) {

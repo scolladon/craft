@@ -8,7 +8,7 @@
 import { phaseSkipRecs } from './skip-signals.js';
 
 export const CACHE_HOTSPOT_THRESHOLD = 0.5;
-export const REVIEW_WASTE_CYCLES = 2;
+export const REVIEW_WASTE_BILLED_TURNS = 85;
 export const DEFAULT_DRIFT_THRESHOLD = 0.25;
 
 // Price tables are per-MTok (per million tokens); token counts are per-unit. One
@@ -302,10 +302,10 @@ function modelRoutingRecs(enrichedGroups, priceTable) {
 function reviewWasteRecs(runs) {
   return runs.flatMap(run =>
     run.reviewCycles
-      .filter(rc => rc.cycles > REVIEW_WASTE_CYCLES)
+      .filter(rc => rc.billedTurns > REVIEW_WASTE_BILLED_TURNS)
       .map(rc => ({
         kind: 'review-waste', run: run.run, phase: 'review', model: null,
-        detail: `role ${rc.role} has ${rc.cycles} review cycles`,
+        detail: `role ${rc.role} billed ${rc.billedTurns} turns across review`,
         evidence: {
           role: rc.role, cycles: rc.cycles, billedTurns: rc.billedTurns,
           totalCost: rc.totalCost, maxCost: rc.maxCost, meanCost: rc.meanCost,
