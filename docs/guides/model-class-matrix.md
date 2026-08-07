@@ -27,8 +27,9 @@ Dimensions (rows) follow the SP5 contract-adherence axes plus a full-pipeline ro
 
 ## Per-phase tokens + wall-clock
 
-Numbers are read from the harness usage block (`subagent_tokens`, `duration_ms`) by the
-orchestrator. No agent self-reports usage.
+Numbers are read by the orchestrator from each phase's own sub-agent transcript, not from the
+usage block a spawn returns — that block carries only the sub-agent's final message and
+undercounts its true cost. No agent self-reports usage.
 
 | Phase | Tier | subagent_tokens | duration_ms |
 |---|---|---|---|
