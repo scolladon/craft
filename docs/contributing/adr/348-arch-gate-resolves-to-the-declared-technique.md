@@ -1,3 +1,9 @@
+---
+supersedes:
+  - adr: "050"
+    scope: "dependency-cruiser as the gate, the exception home, and the report producer"
+---
+
 # 348 — `<arch gate>` resolves to the declared technique's own run
 
 - **Status:** accepted
