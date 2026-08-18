@@ -2486,6 +2486,26 @@ test('Given adr { frozen: "docs/**" } when validateManifest runs, then error con
   assert.ok(result.errors.some(e => e.includes('adr.frozen must be a list of non-empty strings')));
 });
 
+test('Given adr { frozen: ["**"] } when validateManifest runs, then it is rejected as a whole-tree exemption', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['**'] } });
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('exempts the whole tree')),
+    `expected the whole-tree rejection; got: ${result.errors.join('; ')}`,
+  );
+});
+
+test('Given adr { frozen: ["**/archive"] } when validateManifest runs, then a specific glob is still accepted', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['**/archive'] } });
+
+  assert.equal(result.ok, true, `expected a specific glob to pass; got: ${result.errors.join('; ')}`);
+});
+
 test('Given adr { bogus: 1 } when validateManifest runs, then error contains "unknown adr field"', () => {
   const sut = validateManifest;
 

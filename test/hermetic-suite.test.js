@@ -31,7 +31,7 @@ test(
       'bash',
       [
         '-c',
-        'cd "$1" && node --test engine/test/manifest-lint-main.test.js engine/test/contracts-lint-main.test.js',
+        'cd "$1" && node --test engine/test/manifest-lint-main.test.js engine/test/contracts-lint-main.test.js engine/test/adr-lint-main.test.js',
         '_',
         ROOT,
       ],
@@ -67,6 +67,7 @@ test(
           path.join(ROOT, 'engine/test/manifest-lint-main.test.js'),
           path.join(ROOT, 'engine/test/contracts-lint-main.test.js'),
           path.join(ROOT, 'engine/test/pipeline-resolve-main.test.js'),
+          path.join(ROOT, 'engine/test/adr-lint-main.test.js'),
         ],
       );
       assert.strictEqual(r.status, 0, `Hostile-ambient tests failed:\n${r.output}`);

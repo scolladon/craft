@@ -6,8 +6,8 @@
  *
  * C0 — declaration form: a *present* frontmatter fence's `subjects` must be a
  *   list of non-empty strings and each `supersedes` entry must be
- *   `{ adr: <string>, scope: <non-empty string> }`. A missing fence is never a
- *   finding — that is what keeps every legacy ADR green structurally.
+ *   `{ adr: <3-digit id>, scope: <non-empty string> }`. A missing fence is
+ *   never a finding — that is what keeps every legacy ADR green structurally.
  * C1 — target status flip: the file `<adr-dir>` resolves the `adr` id's
  *   filename prefix to must carry `- **Status:** superseded by ADR-<M>`.
  * C2 — scope stated in both directions: *M*'s body carries line-anchored
@@ -15,24 +15,42 @@
  * C3 — live-tier citation sweep: one tracked-tree `git grep` pass for every
  *   superseded id, minus the exempt set derived from the manifest's
  *   `paths.adr`/`paths.design`/`paths.plan` (or `adr.frozen` when present).
+ *
+ * Every path this module reports is repo-relative: absolute paths in gate
+ * output are machine-specific and leak the operator's home directory.
  */
 
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { readdirSync, statSync, existsSync, lstatSync } from 'node:fs';
 import { join, dirname, resolve, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { load } from 'js-yaml';
 import { extractFrontmatter, parseManifestContent } from './frontmatter.js';
-import { collectWaived, escapeRegExp } from './hygiene-lint-core.js';
+import { collectWaived, escapeRegExp, readWithinCap, MAX_FILE_BYTES } from './hygiene-lint-core.js';
+import { containByRealpath } from './contain.js';
 import { matchGlob } from './glob.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
 
-const DEFAULT_MANIFEST_PATH = '.claude/workflow.md';
+const DEFAULT_MANIFEST_REL = '.claude/workflow.md';
 const USAGE = 'adr-lint: usage: adr-lint <adr-dir> [--manifest <path>] [--waiver-source <file>]...\n';
 const WAIVER_PATTERN = /DECISION-CITE-WAIVE\(([^)]+)\)/g;
 const CITE_TOKEN = 'DECISION-CITE-FOUND';
-const HIT_LINE_PATTERN = /^(.+?):(\d+):(.*)$/;
+
+/**
+ * The engine's zero-config path contract, mirroring the probes the phase
+ * skills document (`paths.design`, else `docs/design/`; `paths.plan`, else
+ * `docs/plan/`). These are the ENGINE defaults, deliberately not craft's own
+ * `docs/contributing/*` layout — a consumer on defaults must get the same
+ * frozen tiers a consumer with a manifest gets, or the gate wedges its CI.
+ */
+const DEFAULT_PATHS = Object.freeze({ design: 'docs/design', plan: 'docs/plan' });
+
+/** git grep output can be large on a wide corpus; 1 MiB (Node's default) is not enough. */
+const GIT_GREP_MAX_BUFFER = 64 * 1024 * 1024;
+
+/** The `adr` id is the zero-padded 3-digit string as it appears in filenames and `ADR-NNN` prose. */
+const ADR_ID_PATTERN = /^\d{3}$/;
 
 /**
  * Never-throw directory predicate mirroring the sibling lint mains' own copy.
@@ -48,8 +66,22 @@ function isDirectoryPath(p) {
 }
 
 /**
+ * @param {string} p
+ * @returns {boolean}
+ */
+function isRegularFile(p) {
+  try {
+    return lstatSync(p).isFile();
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Strict argv parse: a flag missing its value, or a surplus positional, is a
+ * usage error rather than a silent degradation at a boundary.
  * @param {string[]} argv
- * @returns {{ adrDir: string|undefined, manifestPath: string|undefined, waiverSources: string[] }}
+ * @returns {{ adrDir?: string, manifestPath?: string, waiverSources: string[], error?: string }}
  */
 function parseArgv(argv) {
   let adrDir;
@@ -57,19 +89,28 @@ function parseArgv(argv) {
   const waiverSources = [];
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i];
-    if (arg === '--manifest') {
-      if (i + 1 >= argv.length) continue;
-      manifestPath = argv[i + 1];
-      i += 1;
-    } else if (arg === '--waiver-source') {
-      if (i + 1 >= argv.length) continue;
-      waiverSources.push(argv[i + 1]);
+    if (arg === '--manifest' || arg === '--waiver-source') {
+      if (i + 1 >= argv.length) return { waiverSources, error: `${arg} requires a value` };
+      if (arg === '--manifest') manifestPath = argv[i + 1];
+      else waiverSources.push(argv[i + 1]);
       i += 1;
     } else if (adrDir === undefined) {
       adrDir = arg;
+    } else {
+      return { waiverSources, error: `unexpected argument: ${arg}` };
     }
   }
   return { adrDir, manifestPath, waiverSources };
+}
+
+/**
+ * js-yaml quotes the offending source lines into its message; a lint that
+ * echoed those to CI stdout would republish content it merely parsed.
+ * @param {string} message
+ * @returns {string}
+ */
+function firstLine(message) {
+  return String(message).split('\n')[0];
 }
 
 /**
@@ -77,38 +118,49 @@ function parseArgv(argv) {
  * malformed manifest degrades to no-config with a loud stderr line, never a
  * crash — mirrors `hygiene-gate-main.js`'s `resolveGate`.
  * @param {string} manifestPath
+ * @param {string} repoRoot
  * @param {{ stderr: { write(s: string): void } }} io
  * @returns {object|null}
  */
-function readManifest(manifestPath, io) {
-  let content;
-  try {
-    content = readFileSync(manifestPath, 'utf8');
-  } catch {
-    return null;
-  }
+function readManifest(manifestPath, repoRoot, io) {
+  const { content, readError } = readWithinCap(manifestPath, io, MAX_FILE_BYTES, `manifest ${manifestPath}`);
+  if (readError || content === undefined) return null;
   try {
     return parseManifestContent(content);
   } catch (e) {
-    io.stderr.write(`adr-lint: cannot parse ${manifestPath}: ${e.message}\n`);
+    io.stderr.write(`adr-lint: cannot parse ${relative(repoRoot, manifestPath) || manifestPath}: ${firstLine(e.message)}\n`);
     return null;
   }
 }
 
 /**
+ * Read the ADR corpus. A committed symlink must never redirect a read out of
+ * the tree, and an unreadable or oversize entry is a finding rather than an
+ * uncaught throw out of a lint whose whole posture is "a finding, not a crash".
  * @param {string} adrDirAbs
- * @returns {Array<{ fileName: string, filePath: string, content: string, id: string|null }>}
+ * @param {string} repoRoot
+ * @param {{ stderr: { write(s: string): void } }} io
+ * @returns {{ files: object[], findings: string[] }}
  */
-function readAdrFiles(adrDirAbs) {
-  return readdirSync(adrDirAbs)
-    .filter((f) => f.endsWith('.md'))
-    .sort()
-    .map((fileName) => {
-      const filePath = join(adrDirAbs, fileName);
-      const content = readFileSync(filePath, 'utf8');
-      const idMatch = fileName.match(/^(\d+)-/);
-      return { fileName, filePath, content, id: idMatch ? idMatch[1] : null };
-    });
+function readAdrFiles(adrDirAbs, repoRoot, io) {
+  const files = [];
+  const findings = [];
+  for (const fileName of readdirSync(adrDirAbs).filter((f) => f.endsWith('.md')).sort()) {
+    const filePath = join(adrDirAbs, fileName);
+    const relPath = relative(repoRoot, filePath);
+    if (containByRealpath(repoRoot, filePath) === null || !isRegularFile(filePath)) {
+      findings.push(`${relPath}: refusing to read — not a regular file inside the repository root`);
+      continue;
+    }
+    const { content, readError } = readWithinCap(filePath, io, MAX_FILE_BYTES, relPath);
+    if (readError || content === undefined) {
+      findings.push(`${relPath}: unreadable, or larger than the ${MAX_FILE_BYTES}-byte cap`);
+      continue;
+    }
+    const idMatch = fileName.match(/^(\d+)-/);
+    files.push({ fileName, filePath, relPath, content, id: idMatch ? idMatch[1] : null });
+  }
+  return { files, findings };
 }
 
 /**
@@ -120,46 +172,46 @@ function isNonEmptyStringListForm(value) {
 }
 
 /**
- * The `adr` id is the zero-padded 3-digit string exactly as it appears in the
- * filename and in `ADR-NNN` prose — never a number, never reformatted.
+ * The `adr` id is constrained at the boundary rather than escaped downstream:
+ * it reaches a `git grep -E` pattern, where a newline would be read as a
+ * pattern separator and an unbalanced fragment makes git exit 128.
  * @param {unknown} entry
  * @returns {boolean}
  */
 function isValidSupersedesEntry(entry) {
   return Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)
-    && typeof entry.adr === 'string' && entry.adr.length > 0
+    && typeof entry.adr === 'string' && ADR_ID_PATTERN.test(entry.adr)
     && typeof entry.scope === 'string' && entry.scope.trim().length > 0;
 }
 
 /**
  * C0 — form only, over a parsed frontmatter declaration.
- * @param {string} filePath
+ * @param {string} relPath
  * @param {Record<string, unknown>} declaration
  * @returns {string[]}
  */
-function checkC0Form(filePath, declaration) {
+function checkC0Form(relPath, declaration) {
   const findings = [];
   if (Object.hasOwn(declaration, 'subjects') && !isNonEmptyStringListForm(declaration.subjects)) {
-    findings.push(`${filePath}: subjects must be a list of non-empty strings`);
+    findings.push(`${relPath}: subjects must be a list of non-empty strings`);
   }
-  if (Object.hasOwn(declaration, 'supersedes')) {
-    if (!Array.isArray(declaration.supersedes)) {
-      findings.push(`${filePath}: supersedes must be a list`);
-    } else {
-      declaration.supersedes.forEach((entry, idx) => {
-        if (!isValidSupersedesEntry(entry)) {
-          findings.push(`${filePath}: supersedes[${idx}] must be { adr: <string>, scope: <non-empty string> }`);
-        }
-      });
+  if (!Object.hasOwn(declaration, 'supersedes')) return findings;
+  if (!Array.isArray(declaration.supersedes)) {
+    findings.push(`${relPath}: supersedes must be a list`);
+    return findings;
+  }
+  declaration.supersedes.forEach((entry, idx) => {
+    if (!isValidSupersedesEntry(entry)) {
+      findings.push(`${relPath}: supersedes[${idx}] must be { adr: <3-digit id>, scope: <non-empty string> }`);
     }
-  }
+  });
   return findings;
 }
 
 /**
  * Parse one ADR's frontmatter declaration. A missing fence is never a
  * finding; malformed YAML in a present fence is.
- * @param {{ filePath: string, content: string }} file
+ * @param {{ relPath: string, content: string }} file
  * @returns {{ declaration: Record<string, unknown>|null, c0Findings: string[] }}
  */
 function parseDeclaration(file) {
@@ -170,18 +222,18 @@ function parseDeclaration(file) {
   try {
     parsed = load(fence);
   } catch (e) {
-    return { declaration: null, c0Findings: [`${file.filePath}: malformed frontmatter YAML — ${e.message}`] };
+    return { declaration: null, c0Findings: [`${file.relPath}: malformed frontmatter YAML — ${firstLine(e.message)}`] };
   }
 
   const declaration = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
-  return { declaration, c0Findings: checkC0Form(file.filePath, declaration) };
+  return { declaration, c0Findings: checkC0Form(file.relPath, declaration) };
 }
 
 /**
  * C1 — the target file (resolved by filename prefix) must carry the status
- * flip line. Zero or two+ matches is a finding, never a crash.
+ * flip line naming THIS superseder. Zero or two+ matches is a finding.
  * @param {object} record - the superseding ADR M's record
- * @param {{ adr: string, scope: string }} entry
+ * @param {{ adr: string }} entry
  * @param {object[]} allRecords
  * @returns {string[]}
  */
@@ -189,29 +241,46 @@ function checkC1(record, entry, allRecords) {
   const targets = allRecords.filter((r) => r.fileName.startsWith(`${entry.adr}-`));
   if (targets.length !== 1) {
     return [
-      `${record.filePath}: supersedes ADR-${entry.adr} but the target file could not be uniquely resolved (${targets.length} match(es))`,
+      `${record.relPath}: supersedes ADR-${entry.adr} but the target file could not be uniquely resolved (${targets.length} match(es))`,
     ];
   }
   const [target] = targets;
   const expectedLine = `- **Status:** superseded by ADR-${record.id}`;
   const hasLine = target.content.split('\n').some((line) => line.trim() === expectedLine);
-  return hasLine ? [] : [`${target.filePath}: missing required line: ${expectedLine}`];
+  return hasLine ? [] : [`${target.relPath}: missing required line: ${expectedLine}`];
 }
 
 /**
  * C2 — both direction anchors, line-anchored prefixes naming the target id.
  * @param {object} record - the superseding ADR M's record
- * @param {{ adr: string, scope: string }} entry
+ * @param {{ adr: string }} entry
  * @returns {string[]}
  */
 function checkC2(record, entry) {
   const n = escapeRegExp(entry.adr);
   const findings = [];
   if (!new RegExp(`^Superseded from ADR-${n}\\b`, 'm').test(record.content)) {
-    findings.push(`${record.filePath}: missing a line starting "Superseded from ADR-${entry.adr}"`);
+    findings.push(`${record.relPath}: missing a line starting "Superseded from ADR-${entry.adr}"`);
   }
   if (!new RegExp(`^Carried forward from ADR-${n}\\b`, 'm').test(record.content)) {
-    findings.push(`${record.filePath}: missing a line starting "Carried forward from ADR-${entry.adr}"`);
+    findings.push(`${record.relPath}: missing a line starting "Carried forward from ADR-${entry.adr}"`);
+  }
+  return findings;
+}
+
+/**
+ * C1 + C2 over every valid declaration.
+ * @param {object[]} declaringRecords
+ * @param {object[]} allRecords
+ * @returns {string[]}
+ */
+function checkSupersessionEntries(declaringRecords, allRecords) {
+  const findings = [];
+  for (const record of declaringRecords) {
+    for (const entry of record.declaration.supersedes) {
+      if (!isValidSupersedesEntry(entry)) continue;
+      findings.push(...checkC1(record, entry, allRecords), ...checkC2(record, entry));
+    }
   }
   return findings;
 }
@@ -234,12 +303,62 @@ function findRepoRoot(startDir) {
 }
 
 /**
+ * `-z` NUL-terminates the pathname AND the line number, so a filename
+ * containing a colon or a newline can never be mis-split; `--text` stops a
+ * file git considers binary from being reported as an unsearched
+ * `Binary file X matches` line that silently leaves the gate blind.
  * @param {string} repoRoot
  * @param {string} pattern
  * @returns {string} git grep stdout
  */
 function defaultRunGitGrep(repoRoot, pattern) {
-  return execFileSync('git', ['-C', repoRoot, 'grep', '-n', '-E', pattern], { encoding: 'utf8' });
+  return execFileSync('git', ['-C', repoRoot, 'grep', '-z', '-n', '--text', '-E', pattern], {
+    encoding: 'utf8',
+    maxBuffer: GIT_GREP_MAX_BUFFER,
+  });
+}
+
+/**
+ * The only failures that may downgrade the sweep to a recorded skip: no git
+ * binary at all, and a tree that is not a repository. Every other failure —
+ * a buffer overrun, a fatal pattern error — must fail the gate, because a
+ * blocking correctness gate with a silent pass path is not a gate.
+ * @param {Error & { code?: string, status?: number, stderr?: unknown }} e
+ * @returns {boolean}
+ */
+function isEnvironmentalGitFailure(e) {
+  if (e.code === 'ENOENT') return true;
+  return e.status === 128 && /not a git repository/i.test(String(e.stderr ?? ''));
+}
+
+/**
+ * Parse `git grep -z -n` output: repeating `path\0lineno\0content\n`.
+ * Anything not matching that shape is counted and surfaced, never dropped —
+ * a silently-skipped output record is indistinguishable from a clean sweep.
+ * @param {string} output
+ * @returns {{ hits: Array<{ relPath: string, lineNo: string, content: string }>, unparsed: number }}
+ */
+function parseGitGrepRecords(output) {
+  const hits = [];
+  let unparsed = 0;
+  let cursor = 0;
+  while (cursor < output.length) {
+    const lineEnd = output.indexOf('\n', cursor);
+    const recordEnd = lineEnd === -1 ? output.length : lineEnd;
+    const pathEnd = output.indexOf('\0', cursor);
+    const lineNoEnd = pathEnd === -1 ? -1 : output.indexOf('\0', pathEnd + 1);
+    if (pathEnd === -1 || lineNoEnd === -1 || lineNoEnd > recordEnd) {
+      if (recordEnd > cursor) unparsed += 1;
+    } else {
+      hits.push({
+        relPath: output.slice(cursor, pathEnd),
+        lineNo: output.slice(pathEnd + 1, lineNoEnd),
+        content: output.slice(lineNoEnd + 1, recordEnd),
+      });
+    }
+    cursor = recordEnd + 1;
+  }
+  return { hits, unparsed };
 }
 
 /**
@@ -260,10 +379,12 @@ function parentSegments(relPath) {
 
 /**
  * The common directory parent of a set of repo-relative directory paths.
+ * An empty input has no common parent — the repository root.
  * @param {string[]} relPaths
  * @returns {string}
  */
 function commonParentRel(relPaths) {
+  if (relPaths.length === 0) return '';
   const segLists = relPaths.map(parentSegments);
   const minLen = Math.min(...segLists.map((s) => s.length));
   const common = [];
@@ -282,7 +403,7 @@ function commonParentRel(relPaths) {
  * exempt unconditionally in both branches — no separate self-flagging rule.
  * @param {string} adrDirRel
  * @param {object|null} manifest
- * @returns {{ mode: 'frozen', globs: string[], adrDirRel: string }|{ mode: 'derived', dirs: string[] }}
+ * @returns {{ mode: string, globs?: string[], dirs?: string[], adrDirRel: string }}
  */
 function resolveExemptSet(adrDirRel, manifest) {
   const frozen = manifest?.adr?.frozen;
@@ -291,23 +412,50 @@ function resolveExemptSet(adrDirRel, manifest) {
   }
 
   const adrPathRel = isNonEmptyString(manifest?.paths?.adr) ? manifest.paths.adr : adrDirRel;
-  const designRel = isNonEmptyString(manifest?.paths?.design) ? manifest.paths.design : null;
-  const planRel = isNonEmptyString(manifest?.paths?.plan) ? manifest.paths.plan : null;
+  const designRel = isNonEmptyString(manifest?.paths?.design) ? manifest.paths.design : DEFAULT_PATHS.design;
+  const planRel = isNonEmptyString(manifest?.paths?.plan) ? manifest.paths.plan : DEFAULT_PATHS.plan;
   const declared = [adrPathRel, designRel, planRel].filter(isNonEmptyString);
   const parent = commonParentRel(declared);
-  const dirs = new Set([...declared, joinRel(parent, 'archive'), joinRel(parent, 'prd'), adrDirRel]);
-  return { mode: 'derived', dirs: [...dirs] };
+  const dirs = new Set([...declared, joinRel(parent, 'archive'), joinRel(parent, 'prd')]);
+  return { mode: 'derived', dirs: [...dirs], adrDirRel };
 }
 
+/**
+ * An empty `dirRel` is the repository root — everything is under it.
+ * @param {string} relPath
+ * @param {string} dirRel
+ * @returns {boolean}
+ */
 function isUnderDirRel(relPath, dirRel) {
+  if (dirRel === '') return true;
   return relPath === dirRel || relPath.startsWith(`${dirRel}/`);
 }
 
+/**
+ * `<adr-dir>` is exempt before either branch is consulted, so no `adr.frozen`
+ * can resurrect self-flagging on the anchors C2 just required.
+ * @param {string} relPath
+ * @param {object} exempt
+ * @returns {boolean}
+ */
 function isExempt(relPath, exempt) {
-  if (exempt.mode === 'frozen') {
-    return isUnderDirRel(relPath, exempt.adrDirRel) || exempt.globs.some((g) => matchGlob(relPath, g));
-  }
+  if (isUnderDirRel(relPath, exempt.adrDirRel)) return true;
+  if (exempt.mode === 'frozen') return exempt.globs.some((g) => matchGlob(relPath, g));
   return exempt.dirs.some((dir) => isUnderDirRel(relPath, dir));
+}
+
+/**
+ * The exempt set decides whether a citation is reported at all, so a run must
+ * never leave it implicit — an over-broad `adr.frozen` would otherwise be a
+ * silent off-switch on a gate that deliberately has no advisory knob.
+ * @param {object} exempt
+ * @param {{ stderr: { write(s: string): void } }} io
+ */
+function announceExemptSet(exempt, io) {
+  const listed = exempt.mode === 'frozen' ? exempt.globs : exempt.dirs;
+  const adrDirShown = exempt.adrDirRel === '' ? '(repository root)' : exempt.adrDirRel;
+  const shown = [...new Set([adrDirShown, ...listed])];
+  io.stderr.write(`adr-lint: citation sweep exempts (${exempt.mode}): ${shown.join(', ')}\n`);
 }
 
 /**
@@ -326,54 +474,57 @@ function collectTargets(declaringRecords) {
 
 /**
  * C3 — one tracked-tree `git grep` pass for every superseded id, minus the
- * exempt set. Zero targets skips the process entirely. A tree with no git,
- * or a `git grep` that genuinely fails, is a recorded stderr skip, not a
- * crash — `git grep` exiting 1 (no matches) is success, distinguished from a
- * real invocation error.
- * @param {object[]} declaringRecords
- * @param {string} adrDirAbs
- * @param {object|null} manifest
- * @param {Set<string>} waived
- * @param {{ stderr: { write(s: string): void } }} io
- * @param {(repoRoot: string, pattern: string) => string} runGitGrep
+ * exempt set. Zero targets skips the process entirely.
+ * @param {object} ctx
  * @returns {string[]}
  */
-function runC3(declaringRecords, adrDirAbs, manifest, waived, io, runGitGrep) {
-  const targets = collectTargets(declaringRecords);
+function runC3(ctx) {
+  const targets = collectTargets(ctx.declaring);
   if (targets.size === 0) return [];
 
   const escaped = [...targets].map(escapeRegExp);
   // No \b: git grep -E is POSIX extended regex, which does not treat \b as a
   // word-boundary token on every platform (it silently fails to match at all
-  // on macOS's system regex engine) — the alternation itself is unambiguous
-  // enough for this corpus's fixed 3-digit ids.
+  // on macOS's system regex engine) — the ids are boundary-constrained to
+  // exactly three digits at the form check instead.
   const pattern = `ADR-(${escaped.join('|')})`;
-  const repoRoot = findRepoRoot(adrDirAbs);
 
   let output;
   try {
-    output = runGitGrep(repoRoot, pattern);
+    output = ctx.runGitGrep(ctx.repoRoot, pattern);
   } catch (e) {
     if (e.status === 1) {
       output = ''; // git grep exit 1: no matches — success, not failure
-    } else {
-      io.stderr.write(`adr-lint: citation sweep skipped (no git, or git grep failed) — ${e.message}\n`);
+    } else if (isEnvironmentalGitFailure(e)) {
+      ctx.io.stderr.write(`adr-lint: citation sweep skipped (no git repository) — ${firstLine(e.message)}\n`);
       return [];
+    } else {
+      return [`citation sweep failed, so the tree is unswept — ${firstLine(e.message)}`];
     }
   }
 
-  const adrDirRel = relative(repoRoot, adrDirAbs);
-  const exempt = resolveExemptSet(adrDirRel, manifest);
-  const hitPattern = new RegExp(`ADR-(${escaped.join('|')})`, 'g');
+  const exempt = resolveExemptSet(ctx.adrDirRel, ctx.manifest);
+  announceExemptSet(exempt, ctx.io);
+  return sweepHits(output, exempt, escaped, ctx);
+}
 
+/**
+ * @param {string} output
+ * @param {object} exempt
+ * @param {string[]} escaped
+ * @param {{ repoRoot: string, waived: Set<string> }} ctx
+ * @returns {string[]}
+ */
+function sweepHits(output, exempt, escaped, ctx) {
+  const hitPattern = new RegExp(`ADR-(${escaped.join('|')})`, 'g');
+  const { hits, unparsed } = parseGitGrepRecords(output);
   const findings = [];
-  for (const line of output.split('\n')) {
-    if (line === '') continue;
-    const match = line.match(HIT_LINE_PATTERN);
-    if (!match) continue;
-    const [, relPath, lineNo, content] = match;
+  if (unparsed > 0) {
+    findings.push(`citation sweep produced ${unparsed} unreadable output record(s), so it is not a pass claim`);
+  }
+  for (const { relPath, lineNo, content } of hits) {
     if (isExempt(relPath, exempt)) continue;
-    if (waived.has(resolve(repoRoot, relPath))) continue;
+    if (ctx.waived.has(resolve(ctx.repoRoot, relPath))) continue;
     for (const hit of content.matchAll(hitPattern)) {
       findings.push(`${CITE_TOKEN}(${relPath}): ADR-${hit[1]}@L${lineNo}`);
     }
@@ -390,34 +541,37 @@ function runC3(declaringRecords, adrDirAbs, manifest, waived, io, runGitGrep) {
  */
 export function main(argv, io, deps = {}) {
   const runGitGrep = deps.runGitGrep ?? defaultRunGitGrep;
-  const { adrDir, manifestPath, waiverSources } = parseArgv(argv);
+  const { adrDir, manifestPath, waiverSources, error } = parseArgv(argv);
 
+  if (error) {
+    io.stderr.write(`adr-lint: ${error}\n${USAGE}`);
+    return EXIT_INVALID;
+  }
   if (!adrDir || !isDirectoryPath(adrDir)) {
     io.stderr.write(USAGE);
     return EXIT_INVALID;
   }
 
-  const manifest = readManifest(manifestPath ?? DEFAULT_MANIFEST_PATH, io);
-  const { waived } = collectWaived(waiverSources, io, WAIVER_PATTERN);
-
   const adrDirAbs = resolve(adrDir);
-  const records = readAdrFiles(adrDirAbs).map((file) => ({ ...file, ...parseDeclaration(file) }));
+  // Every base — manifest, waivers, reported paths, the sweep — is the repo
+  // root the ADR directory lives in. Keying any of them off process.cwd()
+  // would apply a foreign repo's manifest when linting from another tree.
+  const repoRoot = findRepoRoot(adrDirAbs);
+  const manifest = readManifest(manifestPath ?? join(repoRoot, DEFAULT_MANIFEST_REL), repoRoot, io);
+  const { waived } = collectWaived(waiverSources, io, WAIVER_PATTERN, MAX_FILE_BYTES, repoRoot);
 
-  const findings = [];
-  for (const record of records) findings.push(...record.c0Findings);
-
+  const { files, findings: readFindings } = readAdrFiles(adrDirAbs, repoRoot, io);
+  const records = files.map((file) => ({ ...file, ...parseDeclaration(file) }));
   const declaring = records.filter(
     (r) => r.declaration && Array.isArray(r.declaration.supersedes) && r.declaration.supersedes.length > 0,
   );
-  for (const record of declaring) {
-    for (const entry of record.declaration.supersedes) {
-      if (!isValidSupersedesEntry(entry)) continue;
-      findings.push(...checkC1(record, entry, records));
-      findings.push(...checkC2(record, entry));
-    }
-  }
 
-  findings.push(...runC3(declaring, adrDirAbs, manifest, waived, io, runGitGrep));
+  const findings = [
+    ...readFindings,
+    ...records.flatMap((r) => r.c0Findings),
+    ...checkSupersessionEntries(declaring, records),
+    ...runC3({ declaring, repoRoot, adrDirRel: relative(repoRoot, adrDirAbs), manifest, waived, io, runGitGrep }),
+  ];
 
   if (findings.length > 0) {
     for (const finding of findings) io.stdout.write(`${finding}\n`);

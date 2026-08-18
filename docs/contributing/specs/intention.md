@@ -170,6 +170,15 @@ Only the living lane reaches `assert-fresh`: the governing lane exists for `cons
 decision record can declare `subjects` and be surfaced by `consult` without ever becoming a
 freshness-guard input.
 
+The governing enumerator emits **only records carrying a line-1 frontmatter fence**. Without that
+filter the lane's OUTPUT would grow by use while its INPUT was the whole corpus from run one —
+every unfenced record read, classified `no-subjects`, and discarded, which on a mature corpus is
+the overwhelming majority of the read. The filter is on the FENCE, not on `subjects:`, so a
+present-but-broken fence stays in the lane and still reads as broken. Two consequences follow:
+an empty governing lane is the ordinary pre-adoption state and is **not** an error (the opposite
+of the living lane's zero-page rule), and a record joins the lane the first time it is given a
+fence — the lazy-backfill curve, now true of the read as well as the result.
+
 **Zero-config probe.** With no `intention:` configuration key at all, the `file` backend probes
 the conventional corpus: `docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`,
 `docs/contributing/DOD.md`, `docs/guides/customizing.md`, `docs/guides/concepts.md`, plus the

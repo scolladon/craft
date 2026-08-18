@@ -352,9 +352,28 @@ function validateAdr(adr, errors) {
     if (k !== 'frozen') errors.push(`unknown adr field: ${k}`);
   }
   const { frozen } = adr;
-  if (frozen !== undefined && !isListOfNonEmptyStrings(frozen)) {
+  if (frozen === undefined) return;
+  if (!isListOfNonEmptyStrings(frozen)) {
     errors.push('adr.frozen must be a list of non-empty strings');
+    return;
   }
+  for (const glob of frozen) {
+    if (isUniversalGlob(glob)) {
+      errors.push(`adr.frozen entry '${glob}' exempts the whole tree, which disables the citation sweep`);
+    }
+  }
+}
+
+/**
+ * A glob whose every segment is a wildcard matches every path. The citation
+ * sweep is deliberately knob-less, so such an entry would be a silent
+ * off-switch on a gate that is meant to be hard-blocking.
+ * @param {string} glob
+ * @returns {boolean}
+ */
+function isUniversalGlob(glob) {
+  const segments = glob.split('/').filter(segment => segment !== '');
+  return segments.length > 0 && segments.every(segment => segment === '*' || segment === '**');
 }
 
 /**

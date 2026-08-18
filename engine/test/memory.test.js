@@ -754,8 +754,11 @@ test('Given a retracted key, when the flushed store is inspected, then no entry 
   const sut = save;
   const existing = { ...FINDINGS_ENTRY, confidence: 3 };
   const view = makeLoadedView([existing, TOOLCHAIN_ENTRY]);
+  // The retracted key must match NOTHING stored, so the observation actually
+  // reaches the ADDED path. Retracting a stored key is consumed by the drop
+  // branch and never exercises the filter this case exists to guard.
   const delta = [
-    { concern: 'findings', payload: { file: 'engine/src/foo.js', pattern: 'no-unused-vars' }, retract: true },
+    { concern: 'findings', payload: { file: 'engine/src/unstored.js', pattern: 'never-seen' }, retract: true },
     { concern: 'gate-cmd', payload: { phase: 'test', command: 'node --test' } },
   ];
   const captured = [];
@@ -772,6 +775,42 @@ test('Given a retracted key, when the flushed store is inspected, then no entry 
       assert.ok(!('retract' in entry), `entry in ${concern} unexpectedly carries a retract field`);
     }
   }
+});
+
+// ─── Review round: the ADDED path must read the same indexed decision ─────
+
+test('Given a retraction and a plain observation for the SAME unstored key, when save runs, then the entry is not resurrected on the ADDED path', () => {
+  const sut = save;
+  const view = makeLoadedView([TOOLCHAIN_ENTRY]);
+  const key = { file: 'engine/src/unstored.js', pattern: 'never-seen' };
+  const delta = [
+    { concern: 'findings', payload: { ...key }, retract: true },
+    { concern: 'findings', payload: { ...key, severity: 'high' } },
+  ];
+  const captured = [];
+  const deps = makeSaveDeps({ writeStore: (_path, content) => captured.push(content) });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  assert.equal(reparsed.entries.findings.length, 0, 'a retracted key must not be added by a sibling observation');
+});
+
+test('Given the same pair with the retraction LAST, when save runs, then the entry is still not resurrected', () => {
+  const sut = save;
+  const view = makeLoadedView([TOOLCHAIN_ENTRY]);
+  const key = { file: 'engine/src/unstored.js', pattern: 'never-seen' };
+  const delta = [
+    { concern: 'findings', payload: { ...key, severity: 'high' } },
+    { concern: 'findings', payload: { ...key }, retract: true },
+  ];
+  const captured = [];
+  const deps = makeSaveDeps({ writeStore: (_path, content) => captured.push(content) });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  assert.equal(reparsed.entries.findings.length, 0, 'delta order must not decide the outcome');
 });
 
 // ─── RED — RETRACTED 8: property lens over the transition table ────────────

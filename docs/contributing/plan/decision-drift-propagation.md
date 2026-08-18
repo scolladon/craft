@@ -20,7 +20,7 @@
 
 Read this once; no part block repeats it.
 
-**Working tree.** `/Users/scolladon/workspace/perso/craft-decision-drift-propagation`,
+**Working tree.** the `decision-drift-propagation` worktree,
 branch `feat/decision-drift-propagation`, deps installed under `engine/node_modules`.
 There is no root `package.json` — the root suite runs as bare `node --test`.
 

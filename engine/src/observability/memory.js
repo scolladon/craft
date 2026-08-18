@@ -467,10 +467,25 @@ function refreshedEntry(entry, obs, concern, provenance) {
  * @param {{ run: string, commit: string, date: string }} provenance
  * @returns {object[]}
  */
-function addedEntries(concern, delta, refreshedKeys, provenance) {
+function addedEntries(concern, delta, observedMap, refreshedKeys, provenance) {
   return delta
-    .filter(obs => obs.concern === concern && !obs.retract && !refreshedKeys.has(entryKey(concern, obs.payload)))
+    .filter(obs => obs.concern === concern && !isRetractedKey(concern, obs, observedMap)
+      && !refreshedKeys.has(entryKey(concern, obs.payload)))
     .map(obs => ({ concern, ...obs.payload, confidence: FLOOR + STEP, provenance }));
+}
+
+/**
+ * The ADDED path must read the SAME indexed decision the REFRESH path reads.
+ * Filtering the raw delta instead would let a retraction and a plain
+ * observation for one key disagree: the reconciler drops the entry when it is
+ * stored, while ADDED resurrects it at FLOOR + STEP when it is not.
+ * @param {string} concern
+ * @param {{ payload: object, retract?: boolean }} obs
+ * @param {Map<string, object>} observedMap
+ * @returns {boolean}
+ */
+function isRetractedKey(concern, obs, observedMap) {
+  return Boolean(observedMap.get(entryKey(concern, obs.payload))?.retract);
 }
 
 /**
@@ -507,7 +522,7 @@ function reconcileConcern(concern, existing, observedMap, delta, provenance) {
     }
   }
 
-  return [...reconciled, ...addedEntries(concern, delta, refreshedKeys, provenance)];
+  return [...reconciled, ...addedEntries(concern, delta, observedMap, refreshedKeys, provenance)];
 }
 
 /**

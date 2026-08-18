@@ -88,7 +88,10 @@ Input: `$ARGUMENTS`
     the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
     procedure. With no `intention:` manifest key, probe the zero-config corpus — the living pages
     (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`)
-    plus the resolved ADR directory for the governing lane;
+    plus the resolved ADR directory for the governing lane — where
+    `scripts/governing-corpus.sh` emits only the decision records that carry a line-1
+    frontmatter fence, so the lane's READ is bounded to the records that opted in rather
+    than the whole corpus, and an empty governing lane is normal, not an error;
     hold the single `IntentionView` in-session beside the run record for the duration of
     this run. A cold or absent corpus yields an empty view and records a load no-op —
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a

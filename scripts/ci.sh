@@ -83,8 +83,7 @@ shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/
   && bash scripts/docs-structure-lint.sh docs/contributing \
   && bash scripts/docs-structure-lint.sh docs/guides \
   && bash scripts/docs-structure-lint.sh --audience docs \
-  && bash scripts/sync-adapter-agents.sh --check \
-  && bash scripts/adr-lint.sh docs/contributing/adr
+  && bash scripts/sync-adapter-agents.sh --check
 
 # --- hygiene gates (workstream C): touched-diff stub + prose lints ---
 # Posture is the manifest's resolved hygiene.gate (advisory | blocking); flipping
@@ -140,5 +139,23 @@ run_prose_lint() {
   [ "${#docs[@]}" -eq 0 ] && return 0
   node engine/bin/prose-lint.js --gate "$hygiene_gate" ${waivers[@]+"${waivers[@]}"} -- "${docs[@]}"
 }
+# adr-lint is hard-blocking and whole-corpus (it has no hygiene.gate knob: a
+# superseded decision left un-propagated is a correctness fact, not a style
+# smell). It sits here only because it needs the same touched-*.md waiver
+# sources the hygiene gates build — without them DECISION-CITE-WAIVE would be
+# documented but unreachable, leaving adr.frozen as the sole escape, which
+# disables the gate wholesale instead of waiving one line.
+run_adr_lint() {
+  local -a waivers=()
+  local f
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] || continue
+    case "$f" in
+      *.md) waivers+=(--waiver-source "$f") ;;
+    esac
+  done < "$hygiene_touched"
+  bash scripts/adr-lint.sh docs/contributing/adr ${waivers[@]+"${waivers[@]}"}
+}
 run_stub_lint
 run_prose_lint
+run_adr_lint

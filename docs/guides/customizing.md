@@ -177,9 +177,16 @@ Sample: [`hygiene-gate/`](../../examples/hygiene-gate/)
 #### `adr.frozen` — citation-sweep exempt-path override
 
 `adr: { frozen: [<globs>] }` *(Tier 0)* overrides the derived dated-ledger exempt set the
-ADR citation sweep skips. Each entry is a glob matched against ADR-relative paths. An
-absent key falls back to craft's own derived default; an empty list (`frozen: []`) is a
-deliberate "nothing is exempt", not an omission.
+ADR citation sweep skips. Each entry is a **glob matched against repo-relative paths**
+(`docs/contributing/design/**`, not `design/**` and not a bare directory prefix — a
+directory name on its own matches only that literal path). An absent key falls back to the
+derived default; an empty list (`frozen: []`) is a deliberate "nothing else is exempt", not
+an omission. The resolved ADR directory stays exempt either way, so the sweep can never
+flag the decision records it is reading. A glob whose every segment is a wildcard (`**`,
+`*`, `**/*`) is rejected at manifest validation: it would exempt the whole tree, and this
+gate deliberately has no advisory posture to fall back to. The resolved exempt set is
+written to stderr on every run, so an over-broad entry is visible in the log rather than
+silently disabling the sweep.
 
 ### Reshape the spine — skip · required · context · insert · reorder · extends
 

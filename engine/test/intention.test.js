@@ -195,10 +195,16 @@ test('Given a governing ADR body carrying a fence then an H1 of the form "# 348 
 test('Given identical change and deps whose governing lane is populated, when assertFresh runs, then the report deep-equals the report from the same input with an empty governing lane', () => {
   const sut = assertFresh;
   const change = { changed: [OBS_PATH], touched: [], waived: [], covers: [OBS_GLOB] };
-  const populatedDeps = governingOf(
-    { 'docs/adapters/telemetry.md': page([OBS_GLOB]) },
-    { 'docs/contributing/adr/353-example.md': page([OBS_GLOB], '# 353 — Example decision') },
-  );
+  // The governing lane MUST carry a record that classifies as a skip, or the
+  // `skipped` third of the guarantee is unobservable: a lane of only
+  // subjects-carrying records produces an empty `skipped` either way, and a
+  // leak of `governing.skipped` into assertFresh goes unnoticed.
+  const LEGACY_ADR = 'docs/contributing/adr/354-legacy.md';
+  const governingPages = {
+    'docs/contributing/adr/353-example.md': page([OBS_GLOB], '# 353 — Example decision'),
+    [LEGACY_ADR]: '---\nunrelated: true\n---\n# 354 — Legacy decision\n',
+  };
+  const populatedDeps = governingOf({ 'docs/adapters/telemetry.md': page([OBS_GLOB]) }, governingPages);
   const emptyGoverningDeps = governingOf({ 'docs/adapters/telemetry.md': page([OBS_GLOB]) }, {});
 
   const populatedResult = sut(change, populatedDeps);
@@ -208,6 +214,19 @@ test('Given identical change and deps whose governing lane is populated, when as
   assert.ok(!populatedResult.stale.some(row => row.page.startsWith('docs/contributing/adr/')));
   assert.ok(!populatedResult.uncovered.some(row => row.scope.startsWith('docs/contributing/adr/')));
   assert.ok(!populatedResult.skipped.some(row => row.page.startsWith('docs/contributing/adr/')));
+});
+
+test('Given the same legacy governing record, when consult runs, then it IS skip-classified there — so its absence from the freshness report is a lane split, not an empty fixture', () => {
+  const sut = consult;
+  const LEGACY_ADR = 'docs/contributing/adr/354-legacy.md';
+  const deps = governingOf(
+    { 'docs/adapters/telemetry.md': page([OBS_GLOB]) },
+    { [LEGACY_ADR]: '---\nunrelated: true\n---\n# 354 — Legacy decision\n' },
+  );
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.skipped, [{ page: LEGACY_ADR, reason: 'no-subjects' }]);
 });
 
 // assertFresh — pinned scenarios

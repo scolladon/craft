@@ -9,7 +9,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -19,9 +19,15 @@ import { makeCaptureIo } from '../test-helpers/capture-io.js';
 const tmpDirs = [];
 after(() => tmpDirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
+// A bare `.git` marker so `findRepoRoot` resolves to the fixture root rather
+// than walking out to whatever ambient checkout $TMPDIR happens to sit in.
+// That makes reported paths genuinely repo-relative, keeps the default
+// manifest lookup inside the fixture (hermetic), and makes `git grep` fail
+// deterministically as "not a git repository" — the environmental skip.
 function tmpRoot() {
-  const dir = mkdtempSync(join(tmpdir(), 'adrlint-'));
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'adrlint-')));
   tmpDirs.push(dir);
+  mkdirSync(join(dir, '.git'), { recursive: true });
   return dir;
 }
 
@@ -475,7 +481,13 @@ test('Given adr.frozen present in the manifest, when main runs, then it replaces
   writeCleanSupersession(root, '001', '002');
   writeFixture(root, 'frozen/note.md', 'Restates ADR-001.\n');
   writeFixture(root, 'design/note.md', 'Restates ADR-001.\n');
-  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "frozen/**"\n');
+  // paths.design is declared so "replaces" is observable: under the DERIVED
+  // branch design/ would be exempt, so flagging it can only mean frozen won.
+  const manifest = writeFixture(
+    root,
+    'workflow.yml',
+    'paths:\n  design: design\nadr:\n  frozen:\n    - "frozen/**"\n',
+  );
   stageAll(root);
   const io = makeCaptureIo();
 
@@ -485,6 +497,7 @@ test('Given adr.frozen present in the manifest, when main runs, then it replaces
   const out = io.stdout.joined();
   assert.ok(!out.includes('frozen/note.md'), `stdout was: ${out}`);
   assert.ok(out.includes('DECISION-CITE-FOUND(design/note.md)'), `stdout was: ${out}`);
+  assert.ok(!out.includes('DECISION-CITE-FOUND(adr/'), `the ADR dir must stay exempt; stdout was: ${out}`);
 });
 
 test('Given adr.frozen as an empty list, when main runs, then nothing but the ADR dir is exempt', () => {
@@ -505,6 +518,7 @@ test('Given adr.frozen as an empty list, when main runs, then nothing but the AD
   assert.equal(result, 2);
   const out = io.stdout.joined();
   assert.ok(out.includes('DECISION-CITE-FOUND(design/note.md)'), `stdout was: ${out}`);
+  assert.ok(!out.includes('DECISION-CITE-FOUND(adr/'), `the ADR dir must stay exempt; stdout was: ${out}`);
 });
 
 test('Given a tree with no git, when main runs a citation sweep, then it records a skip on stderr and exit stays 0', () => {
@@ -567,4 +581,270 @@ test('Given a clean directory of legacy ADRs, when main runs, then it exits 0 an
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.match(io.stdout.joined(), /^craft-adr: OK — 2 ADR\(s\) checked, 0 declaring supersession\.$/m);
+});
+
+// --- Review round: cases whose absence let a real mutant survive ---
+
+test('Given a target whose Status names a DIFFERENT superseder, when main runs, then C1 still reports it missing', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-target.md', '# 001 — Target\n\n- **Status:** superseded by ADR-999\n');
+  writeFixture(
+    root,
+    'adr/010-superseding.md',
+    [
+      '---', 'supersedes:', '  - adr: "001"', '    scope: "everything"', '---',
+      '# 010 — Superseding', '', ACCEPTED_STATUS, '',
+      'Superseded from ADR-001: everything.', '',
+      'Carried forward from ADR-001: nothing — fully replaced.', '',
+    ].join('\n'),
+  );
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  assert.ok(
+    io.stdout.joined().includes('missing required line: - **Status:** superseded by ADR-010'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+test('Given both C2 anchors present only mid-line, when main runs, then it reports two C2 findings', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-target.md', '# 001 — Target\n\n- **Status:** superseded by ADR-011\n');
+  writeFixture(
+    root,
+    'adr/011-superseding.md',
+    [
+      '---', 'supersedes:', '  - adr: "001"', '    scope: "everything"', '---',
+      '# 011 — Superseding', '', ACCEPTED_STATUS, '',
+      'The rule is Superseded from ADR-001 and Carried forward from ADR-001 as noted above.', '',
+    ].join('\n'),
+  );
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('missing a line starting "Superseded from ADR-001"'), `stdout was: ${out}`);
+  assert.ok(out.includes('missing a line starting "Carried forward from ADR-001"'), `stdout was: ${out}`);
+});
+
+test('Given supersedes written as a bare string rather than a list, when main runs, then it reports the list-form finding', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/007-string.md', '---\nsupersedes: "001"\n---\n# 007 — Test\n');
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('supersedes must be a list'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a supersedes adr id carrying a newline, when main runs, then the form check rejects it before it can reach the sweep pattern', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/012-inject.md', '---\nsupersedes:\n  - adr: "001\\n("\n    scope: "x"\n---\n# 012 — Test\n');
+  let sweeps = 0;
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep: () => { sweeps += 1; return ''; } });
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('supersedes[0] must be'), `stdout was: ${io.stdout.joined()}`);
+  assert.equal(sweeps, 0, 'an invalid id must never reach the git grep pattern');
+});
+
+test('Given an exempt-path fixture, when main runs, then a non-exempt sibling citation still reports — the sweep was live', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  for (const dir of ['design', 'plan', 'archive', 'prd']) {
+    writeFixture(root, `${dir}/note.md`, 'Restates ADR-001.\n');
+  }
+  writeFixture(root, 'live/note.md', 'Restates ADR-001.\n');
+  const manifest = writeFixture(
+    root,
+    'workflow.yml',
+    'paths:\n  adr: adr\n  design: design\n  plan: plan\n',
+  );
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  // The positive control: exit 2 on the ONE live hit proves the exemptions
+  // above are exemptions, not a sweep that saw nothing at all.
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('DECISION-CITE-FOUND(live/note.md): ADR-001@L1'), `stdout was: ${out}`);
+  for (const dir of ['design', 'plan', 'archive', 'prd', 'adr']) {
+    assert.ok(!out.includes(`DECISION-CITE-FOUND(${dir}/`), `${dir}/ must be exempt; stdout was: ${out}`);
+  }
+});
+
+test('Given a git grep that fails for a non-environmental reason, when main runs, then it is a finding rather than a silent pass', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => {
+    throw Object.assign(new Error('spawnSync git ENOBUFS'), { code: 'ENOBUFS', status: null });
+  };
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2, 'a blocking gate must not have a silent pass path');
+  assert.ok(io.stdout.joined().includes('citation sweep failed'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a git grep reporting no matches with exit 1, when main runs, then it exits 0 with no skip recorded', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => {
+    throw Object.assign(new Error('no matches'), { status: 1 });
+  };
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 0);
+  assert.ok(!io.stderr.joined().includes('skipped'), `stderr was: ${io.stderr.joined()}`);
+});
+
+test('Given a tree that is not a git repository, when main runs, then the sweep records a skip and exit stays 0', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => {
+    throw Object.assign(new Error('fatal'), {
+      status: 128,
+      stderr: 'fatal: not a git repository (or any of the parent directories): .git\n',
+    });
+  };
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 0);
+  assert.match(io.stderr.joined(), /citation sweep skipped/);
+});
+
+test('Given git grep output carrying an unparseable record, when main runs, then it is surfaced rather than dropped', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => 'Binary file live/blob.bin matches\n';
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('unreadable output record'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a filename containing a colon, when main runs, then the NUL-delimited record still attributes the hit to the whole path', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  // git grep -z emits path\0lineno\0content — a colon in the path is only safe
+  // because the delimiter is NUL, never the colon a naive parser would split on.
+  const runGitGrep = () => 'weird:name/live.md 1 cites ADR-001 here\n';
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2);
+  assert.ok(
+    io.stdout.joined().includes('DECISION-CITE-FOUND(weird:name/live.md): ADR-001@L1'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+test('Given a committed symlink in the ADR directory, when main runs, then it refuses to read it rather than following it out of the tree', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-legacy.md', `# 001 — Legacy\n\n${ACCEPTED_STATUS}\n`);
+  writeFixture(root, 'outside.md', 'secret-first-line: yes\n');
+  symlinkSync(join(root, 'outside.md'), join(root, 'adr', '900-link.md'));
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('adr/900-link.md: refusing to read'), `stdout was: ${out}`);
+  assert.ok(!out.includes('secret-first-line'), `content must never be echoed; stdout was: ${out}`);
+});
+
+test('Given a malformed manifest, when main runs, then it degrades to no-config with a loud stderr line and never crashes', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-legacy.md', `# 001 — Legacy\n\n${ACCEPTED_STATUS}\n`);
+  const manifest = writeFixture(root, 'workflow.yml', '---\npaths: [unterminated\n---\n# broken\n');
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 0);
+  assert.match(io.stderr.joined(), /cannot parse/);
+});
+
+test('Given a trailing --manifest with no value, when main runs, then it reports a usage error rather than silently ignoring it', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-legacy.md', `# 001 — Legacy\n\n${ACCEPTED_STATUS}\n`);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /--manifest requires a value/);
+});
+
+test('Given a surplus positional argument, when main runs, then it reports a usage error', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-legacy.md', `# 001 — Legacy\n\n${ACCEPTED_STATUS}\n`);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), 'extra'], io);
+
+  assert.equal(result, 2);
+  assert.match(io.stderr.joined(), /unexpected argument: extra/);
+});
+
+test('Given a repo-relative DECISION-CITE-WAIVE, when main runs, then the waiver matches the hit it names', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  writeFixture(root, 'live/note.md', 'Restates ADR-001.\n');
+  const waiverSource = writeFixture(
+    root,
+    'waivers.md',
+    'DECISION-CITE-WAIVE(live/note.md): deliberate historical quote\n',
+  );
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--waiver-source', waiverSource], io);
+
+  assert.equal(result, 0, `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given any citation sweep, when main runs, then the resolved exempt set is announced so an over-broad entry cannot hide', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  sut([join(root, 'adr')], io);
+
+  assert.match(io.stderr.joined(), /citation sweep exempts \(derived\):/);
 });
