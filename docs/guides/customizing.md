@@ -174,6 +174,13 @@ same fixed set as `intention.gate`, fail-closed on anything else.
 
 Sample: [`hygiene-gate/`](../../examples/hygiene-gate/)
 
+#### `adr.frozen` — citation-sweep exempt-path override
+
+`adr: { frozen: [<globs>] }` *(Tier 0)* overrides the derived dated-ledger exempt set the
+ADR citation sweep skips. Each entry is a glob matched against ADR-relative paths. An
+absent key falls back to craft's own derived default; an empty list (`frozen: []`) is a
+deliberate "nothing is exempt", not an omission.
+
 ### Reshape the spine — skip · required · context · insert · reorder · extends
 
 | Point | What it buys | Cost | Sample |

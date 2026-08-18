@@ -339,6 +339,25 @@ function validateHygiene(hygiene, errors) {
 }
 
 /**
+ * Validate the `adr` sub-object.
+ * @param {unknown} adr
+ * @param {string[]} errors
+ */
+function validateAdr(adr, errors) {
+  if (typeof adr !== 'object' || adr === null || Array.isArray(adr)) {
+    errors.push('adr must be an object { frozen }');
+    return;
+  }
+  for (const k of Object.keys(adr)) {
+    if (k !== 'frozen') errors.push(`unknown adr field: ${k}`);
+  }
+  const { frozen } = adr;
+  if (frozen !== undefined && !isListOfNonEmptyStrings(frozen)) {
+    errors.push('adr.frozen must be a list of non-empty strings');
+  }
+}
+
+/**
  * Validate a single phase block.
  * @param {string} phaseName
  * @param {Record<string, unknown>} block
@@ -478,6 +497,9 @@ export function validateManifest(manifest, opts) {
         break;
       case 'memory':
         validateMemory(value, fileExists, errors);
+        break;
+      case 'adr':
+        validateAdr(value, errors);
         break;
       case 'intention':
         validateIntention(value, fileExists, errors);
