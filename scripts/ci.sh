@@ -83,7 +83,8 @@ shellcheck scripts/*.sh hooks/*.sh && node engine/bin/pipeline-lint.js pipeline/
   && bash scripts/docs-structure-lint.sh docs/contributing \
   && bash scripts/docs-structure-lint.sh docs/guides \
   && bash scripts/docs-structure-lint.sh --audience docs \
-  && bash scripts/sync-adapter-agents.sh --check
+  && bash scripts/sync-adapter-agents.sh --check \
+  && bash scripts/adr-lint.sh docs/contributing/adr
 
 # --- hygiene gates (workstream C): touched-diff stub + prose lints ---
 # Posture is the manifest's resolved hygiene.gate (advisory | blocking); flipping
