@@ -27,7 +27,7 @@ import { load } from 'js-yaml';
 import { extractFrontmatter, parseManifestContent } from './frontmatter.js';
 import { collectWaived, escapeRegExp, readWithinCap, MAX_FILE_BYTES } from './hygiene-lint-core.js';
 import { containByRealpath } from './contain.js';
-import { matchGlob } from './glob.js';
+import { matchGlob, matchesEveryPath } from './glob.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -36,6 +36,23 @@ const DEFAULT_MANIFEST_REL = '.claude/workflow.md';
 const USAGE = 'adr-lint: usage: adr-lint <adr-dir> [--manifest <path>] [--waiver-source <file>]...\n';
 const WAIVER_PATTERN = /DECISION-CITE-WAIVE\(([^)]+)\)/g;
 const CITE_TOKEN = 'DECISION-CITE-FOUND';
+
+/** C0 controls + DEL: a tracked filename may carry them; gate output must not. */
+const CONTROL_CHARS_GLOBAL = /[\u0000-\u001f\u007f]/g;
+
+/** A line break inside a pathname makes a git grep record unattributable. */
+const LINE_BREAK = /[\n\r]/;
+
+/**
+ * Every interpolated path or glob is attacker-controlled when linting an
+ * untrusted clone. Republishing raw bytes to stdout is a terminal-spoofing
+ * primitive against whoever reads the CI log.
+ * @param {string} value
+ * @returns {string}
+ */
+function safeLabel(value) {
+  return String(value).replace(CONTROL_CHARS_GLOBAL, (c) => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`);
+}
 
 /**
  * The engine's zero-config path contract, mirroring the probes the phase
@@ -122,14 +139,30 @@ function firstLine(message) {
  * @param {{ stderr: { write(s: string): void } }} io
  * @returns {object|null}
  */
-function readManifest(manifestPath, repoRoot, io) {
-  const { content, readError } = readWithinCap(manifestPath, io, MAX_FILE_BYTES, `manifest ${manifestPath}`);
-  if (readError || content === undefined) return null;
+function readManifest(manifestPath, repoRoot, explicit, io) {
+  const relPath = safeLabel(relative(repoRoot, manifestPath) || manifestPath);
+  // A manifest that is simply absent at the default location is the zero-config
+  // case and stays silent. Anything else — present but unreadable, oversize,
+  // escaping the root, unparsable, or an explicit --manifest that misses — is a
+  // FINDING. Dropping it to `null` would let an attacker-controlled read
+  // failure select the DERIVED exempt set, which is wider than a manifest that
+  // scopes its own frozen tier: a read failure must never widen a gate.
+  if (!existsSync(manifestPath)) {
+    return explicit
+      ? { manifest: null, findings: [`${relPath}: --manifest names a file that does not exist`] }
+      : { manifest: null, findings: [] };
+  }
+  if (containByRealpath(repoRoot, manifestPath) === null) {
+    return { manifest: null, findings: [`${relPath}: refusing to read the manifest — symlink or a path escaping the repository root`] };
+  }
+  const { content, readError } = readWithinCap(manifestPath, io, MAX_FILE_BYTES, `manifest ${relPath}`);
+  if (readError || content === undefined) {
+    return { manifest: null, findings: [`${relPath}: manifest unreadable, or larger than the ${MAX_FILE_BYTES}-byte cap`] };
+  }
   try {
-    return parseManifestContent(content);
+    return { manifest: parseManifestContent(content), findings: [] };
   } catch (e) {
-    io.stderr.write(`adr-lint: cannot parse ${relative(repoRoot, manifestPath) || manifestPath}: ${firstLine(e.message)}\n`);
-    return null;
+    return { manifest: null, findings: [`${relPath}: cannot parse the manifest — ${safeLabel(firstLine(e.message))}`] };
   }
 }
 
@@ -145,7 +178,13 @@ function readManifest(manifestPath, repoRoot, io) {
 function readAdrFiles(adrDirAbs, repoRoot, io) {
   const files = [];
   const findings = [];
-  for (const fileName of readdirSync(adrDirAbs).filter((f) => f.endsWith('.md')).sort()) {
+  let entries;
+  try {
+    entries = readdirSync(adrDirAbs);
+  } catch (e) {
+    return { files, findings: [`${safeLabel(relative(repoRoot, adrDirAbs))}: unreadable ADR directory — ${firstLine(e.message)}`] };
+  }
+  for (const fileName of entries.filter((f) => f.endsWith('.md')).sort()) {
     const filePath = join(adrDirAbs, fileName);
     const relPath = relative(repoRoot, filePath);
     if (containByRealpath(repoRoot, filePath) === null || !isRegularFile(filePath)) {
@@ -343,15 +382,30 @@ function parseGitGrepRecords(output) {
   let unparsed = 0;
   let cursor = 0;
   while (cursor < output.length) {
-    const lineEnd = output.indexOf('\n', cursor);
-    const recordEnd = lineEnd === -1 ? output.length : lineEnd;
+    // Anchor FORWARD on the two NUL delimiters before looking for the record
+    // terminator. Deriving the terminator from the first '\n' would find a
+    // newline *inside the pathname* first, re-opening the mis-split the NUL
+    // format exists to close — and a path whose first byte is '\n' would
+    // re-parse as an attacker-chosen suffix under an exempt prefix.
     const pathEnd = output.indexOf('\0', cursor);
     const lineNoEnd = pathEnd === -1 ? -1 : output.indexOf('\0', pathEnd + 1);
-    if (pathEnd === -1 || lineNoEnd === -1 || lineNoEnd > recordEnd) {
-      if (recordEnd > cursor) unparsed += 1;
+    if (pathEnd === -1 || lineNoEnd === -1) {
+      unparsed += 1; // desynchronised tail — never re-scan it looking for a shape
+      break;
+    }
+    const lineEnd = output.indexOf('\n', lineNoEnd + 1);
+    const recordEnd = lineEnd === -1 ? output.length : lineEnd;
+    const relPath = output.slice(cursor, pathEnd);
+    if (LINE_BREAK.test(relPath)) {
+      // A line break inside the pathname makes the record ambiguous: it is
+      // indistinguishable from an unparseable line followed by a real record.
+      // Resyncing at the break would let a path chosen as `\n<exempt-prefix>/x`
+      // read as exempt and vanish, so the record is refused outright. The count
+      // is itself a blocking finding, so nothing is hidden by refusing it.
+      unparsed += 1;
     } else {
       hits.push({
-        relPath: output.slice(cursor, pathEnd),
+        relPath,
         lineNo: output.slice(pathEnd + 1, lineNoEnd),
         content: output.slice(lineNoEnd + 1, recordEnd),
       });
@@ -379,12 +433,12 @@ function parentSegments(relPath) {
 
 /**
  * The common directory parent of a set of repo-relative directory paths.
- * An empty input has no common parent — the repository root.
+ * Never called with an empty list: the design and plan entries always resolve,
+ * to `DEFAULT_PATHS` when the manifest declares none.
  * @param {string[]} relPaths
  * @returns {string}
  */
 function commonParentRel(relPaths) {
-  if (relPaths.length === 0) return '';
   const segLists = relPaths.map(parentSegments);
   const minLen = Math.min(...segLists.map((s) => s.length));
   const common = [];
@@ -408,7 +462,11 @@ function commonParentRel(relPaths) {
 function resolveExemptSet(adrDirRel, manifest) {
   const frozen = manifest?.adr?.frozen;
   if (Array.isArray(frozen)) {
-    return { mode: 'frozen', globs: frozen, adrDirRel };
+    // Enforced here, not only at manifest validation: adr-lint parses the
+    // manifest directly and ci.sh never runs manifest-lint over it, so a
+    // validator-only rule would leave the off-switch fully open.
+    const universal = frozen.filter((g) => typeof g === 'string' && matchesEveryPath(g));
+    return { mode: 'frozen', globs: frozen, adrDirRel, universal };
   }
 
   const adrPathRel = isNonEmptyString(manifest?.paths?.adr) ? manifest.paths.adr : adrDirRel;
@@ -454,7 +512,7 @@ function isExempt(relPath, exempt) {
 function announceExemptSet(exempt, io) {
   const listed = exempt.mode === 'frozen' ? exempt.globs : exempt.dirs;
   const adrDirShown = exempt.adrDirRel === '' ? '(repository root)' : exempt.adrDirRel;
-  const shown = [...new Set([adrDirShown, ...listed])];
+  const shown = [...new Set([adrDirShown, ...listed])].map(safeLabel);
   io.stderr.write(`adr-lint: citation sweep exempts (${exempt.mode}): ${shown.join(', ')}\n`);
 }
 
@@ -519,6 +577,9 @@ function sweepHits(output, exempt, escaped, ctx) {
   const hitPattern = new RegExp(`ADR-(${escaped.join('|')})`, 'g');
   const { hits, unparsed } = parseGitGrepRecords(output);
   const findings = [];
+  for (const glob of exempt.universal ?? []) {
+    findings.push(`adr.frozen entry '${safeLabel(glob)}' exempts the whole tree, which disables the citation sweep`);
+  }
   if (unparsed > 0) {
     findings.push(`citation sweep produced ${unparsed} unreadable output record(s), so it is not a pass claim`);
   }
@@ -526,10 +587,32 @@ function sweepHits(output, exempt, escaped, ctx) {
     if (isExempt(relPath, exempt)) continue;
     if (ctx.waived.has(resolve(ctx.repoRoot, relPath))) continue;
     for (const hit of content.matchAll(hitPattern)) {
-      findings.push(`${CITE_TOKEN}(${relPath}): ADR-${hit[1]}@L${lineNo}`);
+      findings.push(`${CITE_TOKEN}(${safeLabel(relPath)}): ADR-${hit[1]}@L${lineNo}`);
     }
   }
   return findings;
+}
+
+/**
+ * Every base — manifest, waivers, reported paths, the sweep — is the repo root
+ * the ADR directory lives in. Keying any of them off `process.cwd()` would
+ * apply a foreign repo's manifest when linting from another tree.
+ * @param {{ adrDir: string, manifestPath?: string, waiverSources: string[] }} args
+ * @param {object} io
+ * @returns {object}
+ */
+function resolveRunContext(args, io) {
+  const adrDirAbs = resolve(args.adrDir);
+  const repoRoot = findRepoRoot(adrDirAbs);
+  const explicitManifest = args.manifestPath !== undefined;
+  const manifestPath = explicitManifest ? resolve(repoRoot, args.manifestPath) : join(repoRoot, DEFAULT_MANIFEST_REL);
+  const { manifest, findings: manifestFindings } = readManifest(manifestPath, repoRoot, explicitManifest, io);
+  // Waiver SOURCES resolve against the repo root, exactly like the waived paths
+  // their contents name — otherwise the two disagree whenever the lint is
+  // invoked from anywhere but the root and a waiver quietly stops applying.
+  const sources = args.waiverSources.map((source) => resolve(repoRoot, source));
+  const { waived } = collectWaived(sources, io, WAIVER_PATTERN, MAX_FILE_BYTES, repoRoot);
+  return { adrDirAbs, repoRoot, adrDirRel: relative(repoRoot, adrDirAbs), manifest, manifestFindings, waived, io };
 }
 
 /**
@@ -552,25 +635,19 @@ export function main(argv, io, deps = {}) {
     return EXIT_INVALID;
   }
 
-  const adrDirAbs = resolve(adrDir);
-  // Every base — manifest, waivers, reported paths, the sweep — is the repo
-  // root the ADR directory lives in. Keying any of them off process.cwd()
-  // would apply a foreign repo's manifest when linting from another tree.
-  const repoRoot = findRepoRoot(adrDirAbs);
-  const manifest = readManifest(manifestPath ?? join(repoRoot, DEFAULT_MANIFEST_REL), repoRoot, io);
-  const { waived } = collectWaived(waiverSources, io, WAIVER_PATTERN, MAX_FILE_BYTES, repoRoot);
-
-  const { files, findings: readFindings } = readAdrFiles(adrDirAbs, repoRoot, io);
+  const ctx = resolveRunContext({ adrDir, manifestPath, waiverSources }, io);
+  const { files, findings: readFindings } = readAdrFiles(ctx.adrDirAbs, ctx.repoRoot, io);
   const records = files.map((file) => ({ ...file, ...parseDeclaration(file) }));
   const declaring = records.filter(
     (r) => r.declaration && Array.isArray(r.declaration.supersedes) && r.declaration.supersedes.length > 0,
   );
 
   const findings = [
+    ...ctx.manifestFindings,
     ...readFindings,
     ...records.flatMap((r) => r.c0Findings),
     ...checkSupersessionEntries(declaring, records),
-    ...runC3({ declaring, repoRoot, adrDirRel: relative(repoRoot, adrDirAbs), manifest, waived, io, runGitGrep }),
+    ...runC3({ ...ctx, declaring, runGitGrep }),
   ];
 
   if (findings.length > 0) {

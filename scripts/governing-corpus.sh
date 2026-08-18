@@ -34,14 +34,17 @@ if [ ! -d "$adr_dir" ]; then
   exit 1
 fi
 
+# NUL-delimited end to end: a filename may contain a newline, and splitting
+# find's output on '\n' would fragment it into two entries that both fail the
+# -f test and vanish silently.
 discovered=()
-while IFS= read -r found; do
+while IFS= read -r -d '' found; do
   [ -f "$found" ] || continue
   [ -L "$found" ] && continue
   IFS= read -r first_line < "$found" || first_line=''
   [ "$first_line" = '---' ] || continue
   discovered+=("$found")
-done < <(find "$adr_dir" -maxdepth 1 -name '*.md')
+done < <(find "$adr_dir" -maxdepth 1 -name '*.md' -print0)
 
 if [ "${#discovered[@]}" -eq 0 ]; then
   echo "governing-corpus: no decision record carries a frontmatter fence yet" >&2

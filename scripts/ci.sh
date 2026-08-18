@@ -148,9 +148,21 @@ run_prose_lint() {
 run_adr_lint() {
   local -a waivers=()
   local f
+  # The sweep is WHOLE-CORPUS, so its waiver sources must be whole-corpus too.
+  # Scoping them to the merge-base touched set (what the hygiene gates do, and
+  # correctly, because their SCANNED set is also touched-scoped) would make a
+  # waiver last exactly one PR: on a push to main the touched set is empty, and
+  # every previously waived citation would fail a knob-less blocking gate.
+  # The dated-ledger tier is the stable home for a waiver — it is where the
+  # decision that justifies the citation is already written down.
+  while IFS= read -r -d '' f; do
+    [ -n "$f" ] || continue
+    waivers+=(--waiver-source "$f")
+  done < <(git ls-files -z -- 'docs/contributing/design/*.md' 'docs/contributing/plan/*.md')
   while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     case "$f" in
+      docs/contributing/design/*|docs/contributing/plan/*) ;;  # already collected above
       *.md) waivers+=(--waiver-source "$f") ;;
     esac
   done < "$hygiene_touched"

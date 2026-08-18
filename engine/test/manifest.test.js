@@ -2498,6 +2498,27 @@ test('Given adr { frozen: ["**"] } when validateManifest runs, then it is reject
   );
 });
 
+test('Given adr.frozen globs that match everything without being all-wildcard, when validateManifest runs, then they are still rejected', () => {
+  const sut = validateManifest;
+
+  // A spelling-based check bounds one form at a time; these carry a
+  // non-wildcard segment yet match every path.
+  for (const glob of ['{**,}', '**/?*']) {
+    const result = sut({ adr: { frozen: [glob] } });
+
+    assert.equal(result.ok, false, `expected '${glob}' to be rejected`);
+    assert.ok(result.errors.some(e => e.includes('exempts the whole tree')), `errors: ${result.errors.join('; ')}`);
+  }
+});
+
+test('Given adr { frozen: ["*"] } when validateManifest runs, then it is accepted because it matches only root-level entries', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['*'] } });
+
+  assert.equal(result.ok, true, `expected '*' to pass; got: ${result.errors.join('; ')}`);
+});
+
 test('Given adr { frozen: ["**/archive"] } when validateManifest runs, then a specific glob is still accepted', () => {
   const sut = validateManifest;
 

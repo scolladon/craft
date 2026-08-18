@@ -9,10 +9,17 @@ const path = require('node:path');
 const ROOT = path.join(__dirname, '..');
 
 function runCmd(cmd, args = [], opts = {}) {
+  // node's test runner exports NODE_TEST_CONTEXT to child processes. A nested
+  // `node --test` that inherits it emits NOTHING and exits 0 whether or not its
+  // tests pass — which makes every lane below pass vacuously. Strip it so the
+  // child is a real run.
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
   try {
     const stdout = execFileSync(cmd, args, {
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      env,
       ...opts,
     });
     return { status: 0, output: stdout };
@@ -37,6 +44,7 @@ test(
       ],
     );
     assert.strictEqual(r.status, 0, `Tests failed:\n${r.output}`);
+    assert.match(r.output, /^# pass \d+$/m, `expected a real child test run, got:\n${r.output}`);
   },
 );
 
@@ -60,7 +68,7 @@ test(
         'bash',
         [
           '-c',
-          'cd "$1" && HOME="$2" USERPROFILE="$2" node --test "$3" "$4" "$5"',
+          'cd "$1" && HOME="$2" USERPROFILE="$2" node --test "$3" "$4" "$5" "$6"',
           '_',
           hostileCwd,
           hostileHome,
@@ -71,6 +79,7 @@ test(
         ],
       );
       assert.strictEqual(r.status, 0, `Hostile-ambient tests failed:\n${r.output}`);
+      assert.match(r.output, /^# pass \d+$/m, `expected a real child test run, got:\n${r.output}`);
     } finally {
       fs.rmSync(hostileHome, { recursive: true, force: true });
       fs.rmSync(hostileCwd, { recursive: true, force: true });

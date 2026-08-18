@@ -45,3 +45,28 @@ function literalPrefix(glob) {
   const wildcard = glob.search(/[*?[{]/);
   return wildcard === -1 ? glob : glob.slice(0, wildcard);
 }
+
+/**
+ * Representative repo-relative paths a whole-tree exemption would have to match:
+ * a root file, a root file with no extension, a nested source, a nested doc,
+ * and a deep path.
+ */
+export const PROBE_PATHS = Object.freeze([
+  'README.md',
+  'Makefile',
+  'engine/src/adr-lint-main.js',
+  'docs/contributing/adr/001-example.md',
+  'a/b/c/d/e.txt',
+]);
+
+/**
+ * True when a glob matches every representative path — i.e. it exempts the
+ * whole tree. Tested by SEMANTICS, not by spelling: brace-alternation and
+ * question-mark forms match everything while carrying a non-wildcard segment,
+ * so a spelling-based check bounds one form at a time and leaves the rest open.
+ * @param {string} glob
+ * @returns {boolean}
+ */
+export function matchesEveryPath(glob) {
+  return PROBE_PATHS.every((candidate) => matchGlob(candidate, glob));
+}

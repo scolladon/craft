@@ -2,7 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync } = require('node:fs');
+const { mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync, symlinkSync, mkdirSync } = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
@@ -69,4 +69,40 @@ test('Given an argument that is not a directory, when governing-corpus.sh runs, 
     (result.stderr || '').includes('not a directory'),
     `expected the not-a-directory diagnostic; got: ${result.stderr}`
   );
+});
+
+test('Given a fenced record whose filename contains a newline, when governing-corpus.sh runs, then it is still enumerated', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'governing-corpus-newline-'));
+
+  try {
+    writeFileSync(path.join(dir, '001-ok.md'), '---\ny: 1\n---\n');
+    writeFileSync(path.join(dir, '00\n2-weird.md'), '---\nz: 1\n---\n');
+    const result = spawnSync('bash', [SCRIPT, dir], { cwd: ROOT, encoding: 'utf8' });
+
+    // Splitting find's output on newlines would fragment the weird name into
+    // two entries that both fail the -f test and vanish with no diagnostic.
+    assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(result.stdout.includes('2-weird.md'), `expected the newline-named record; got: ${JSON.stringify(result.stdout)}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Given a symlink and a non-regular entry among the records, when governing-corpus.sh runs, then neither is enumerated', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'governing-corpus-symlink-'));
+
+  try {
+    writeFileSync(path.join(dir, '001-ok.md'), '---\ny: 1\n---\n');
+    writeFileSync(path.join(dir, 'outside.md'), '---\nz: 1\n---\n');
+    symlinkSync(path.join(dir, 'outside.md'), path.join(dir, '002-link.md'));
+    mkdirSync(path.join(dir, '003-dir.md'));
+    const result = spawnSync('bash', [SCRIPT, dir], { cwd: ROOT, encoding: 'utf8' });
+
+    assert.strictEqual(result.status, 0, `stderr: ${result.stderr}`);
+    assert.ok(!result.stdout.includes('002-link.md'), `symlink must not be enumerated; got: ${result.stdout}`);
+    assert.ok(!result.stdout.includes('003-dir.md'), `directory must not be enumerated; got: ${result.stdout}`);
+    assert.ok(result.stdout.includes('001-ok.md'), `expected the real record; got: ${result.stdout}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
