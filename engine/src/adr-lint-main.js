@@ -277,7 +277,8 @@ function commonParentRel(relPaths) {
 
 /**
  * The C3 exempt set — derived from resolved manifest paths, or `adr.frozen`
- * globs when present (which *replace* the derived set). `<adr-dir>` stays
+ * globs when present (which *replace* the derived set — an empty list is a
+ * deliberate "nothing else is exempt", never an omission). `<adr-dir>` stays
  * exempt unconditionally in both branches — no separate self-flagging rule.
  * @param {string} adrDirRel
  * @param {object|null} manifest
@@ -285,7 +286,7 @@ function commonParentRel(relPaths) {
  */
 function resolveExemptSet(adrDirRel, manifest) {
   const frozen = manifest?.adr?.frozen;
-  if (Array.isArray(frozen) && frozen.length > 0) {
+  if (Array.isArray(frozen)) {
     return { mode: 'frozen', globs: frozen, adrDirRel };
   }
 

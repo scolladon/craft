@@ -487,6 +487,26 @@ test('Given adr.frozen present in the manifest, when main runs, then it replaces
   assert.ok(out.includes('DECISION-CITE-FOUND(design/note.md)'), `stdout was: ${out}`);
 });
 
+test('Given adr.frozen as an empty list, when main runs, then nothing but the ADR dir is exempt', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  writeFixture(root, 'design/note.md', 'Restates ADR-001.\n');
+  const manifest = writeFixture(
+    root,
+    'workflow.yml',
+    'paths:\n  design: design\nadr:\n  frozen: []\n',
+  );
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('DECISION-CITE-FOUND(design/note.md)'), `stdout was: ${out}`);
+});
+
 test('Given a tree with no git, when main runs a citation sweep, then it records a skip on stderr and exit stays 0', () => {
   const sut = main;
   const root = tmpRoot();
