@@ -27,12 +27,15 @@ import { parseSubjects } from './intention-subjects.js';
  * is listed in `skipped`.
  *
  * @param {string[]} scope repo-relative paths (the change/phase touched set)
- * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[] }} deps
+ * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[], listGoverning?: () => string[] }} deps
  * @returns {IntentionView}
  */
 export function consult(scope, deps) {
   const entries = [];
-  const { subjectPages, skipped } = readSubjectPages(deps);
+  const living = readSubjectPages(deps.listCorpus(), deps.readPage);
+  const governing = readSubjectPages(deps.listGoverning?.() ?? [], deps.readPage);
+  const subjectPages = mergeLanes(living.subjectPages, governing.subjectPages);
+  const skipped = mergeLanes(living.skipped, governing.skipped);
 
   for (const { page, content, subjects } of subjectPages) {
     if (matchingPaths(scope, subjects).length > 0) {
@@ -58,7 +61,7 @@ export function assertFresh(change, deps) {
   const covers = change.covers ?? [];
 
   const stale = [];
-  const { subjectPages, skipped } = readSubjectPages(deps);
+  const { subjectPages, skipped } = readSubjectPages(deps.listCorpus(), deps.readPage);
 
   for (const { page, subjects } of subjectPages) {
     const staleRow = buildStaleRow(page, subjects, changed, touched, waived);
@@ -111,18 +114,20 @@ function isNonEmptyString(value) {
 }
 
 /**
- * Read the corpus once, classifying each page's subjects. Shared by `consult` and
- * `assertFresh` — both verbs read pages and skip unusable ones identically, diverging
- * only in what they do with a valid subject-page.
+ * Read one corpus lane, classifying each page's subjects. Shared by `consult`'s living
+ * and governing lanes and by `assertFresh`'s single (living) lane — both verbs read
+ * pages and skip unusable ones identically, diverging only in what they do with a
+ * valid subject-page.
  *
- * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[] }} deps
+ * @param {string[]} list repo-relative page paths to walk
+ * @param {(page: string) => string | null} readPage
  * @returns {{ subjectPages: { page: string, content: string, subjects: string[] }[], skipped: SkippedPage[] }}
  */
-function readSubjectPages(deps) {
+function readSubjectPages(list, readPage) {
   const subjectPages = [];
   const skipped = [];
-  for (const page of deps.listCorpus()) {
-    const content = deps.readPage(page);
+  for (const page of list) {
+    const content = readPage(page);
     if (content === null) continue;
 
     const classified = classifySubjects(content);
@@ -133,6 +138,16 @@ function readSubjectPages(deps) {
     subjectPages.push({ page, content, subjects: classified.subjects });
   }
   return { subjectPages, skipped };
+}
+
+/**
+ * Concatenate two corpus-lane result arrays (living + governing) into one.
+ * @param {object[]} a
+ * @param {object[]} b
+ * @returns {object[]}
+ */
+function mergeLanes(a, b) {
+  return [...a, ...b];
 }
 
 /**

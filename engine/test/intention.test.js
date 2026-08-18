@@ -25,6 +25,15 @@ function corpusOf(pages) {
   };
 }
 
+function governingOf(livingPages, governingPages) {
+  const allPages = { ...livingPages, ...governingPages };
+  return {
+    listCorpus: () => Object.keys(livingPages),
+    listGoverning: () => Object.keys(governingPages),
+    readPage: p => (Object.hasOwn(allPages, p) ? allPages[p] : null),
+  };
+}
+
 // consult
 
 test('Given a page whose subjects intersect scope, when consult runs, then it returns an entry with path and purpose', () => {
@@ -109,6 +118,96 @@ test('Given a page whose body contains a `---` thematic break, when consult runs
   assert.deepEqual(result.entries, [
     { path: 'docs/adapters/telemetry.md', purpose: 'Telemetry adapter spec' },
   ]);
+});
+
+// consult — governing lane (ADRs)
+
+test('Given a corpus with one living page and one governing ADR whose subjects both intersect the scope, when consult runs, then entries carries both, sorted by path', () => {
+  const sut = consult;
+  const deps = governingOf(
+    { 'docs/adapters/telemetry.md': page([OBS_GLOB]) },
+    { 'docs/contributing/adr/351-example.md': page([OBS_GLOB], '# 351 — Example decision') },
+  );
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.entries, [
+    { path: 'docs/adapters/telemetry.md', purpose: 'Telemetry adapter spec' },
+    { path: 'docs/contributing/adr/351-example.md', purpose: '351 — Example decision' },
+  ]);
+});
+
+test('Given a governing ADR with a frontmatter fence carrying no subjects key, when consult runs, then it is skipped as no-subjects and never rejected', () => {
+  const sut = consult;
+  const deps = governingOf(
+    {},
+    {
+      'docs/contributing/adr/352-example.md':
+        '---\nsupersedes:\n  - adr: "050"\n    scope: "x"\n---\n\n# 352 — Example\n',
+    },
+  );
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.entries, []);
+  assert.deepEqual(result.skipped, [{ page: 'docs/contributing/adr/352-example.md', reason: 'no-subjects' }]);
+});
+
+test("Given deps with no listGoverning, when consult runs, then the result deep-equals the result from the same deps under today's single-lane read", () => {
+  const sut = consult;
+  const pages = {
+    'docs/adapters/telemetry.md': page([OBS_GLOB]),
+    'docs/DESIGN-history.md': '# History\n\nno frontmatter here\n',
+  };
+  const singleLaneDeps = corpusOf(pages);
+  const noGoverningDeps = { listCorpus: singleLaneDeps.listCorpus, readPage: singleLaneDeps.readPage };
+
+  const singleLaneResult = sut([OBS_PATH], singleLaneDeps);
+  const noGoverningResult = sut([OBS_PATH], noGoverningDeps);
+
+  assert.deepEqual(noGoverningResult, singleLaneResult);
+});
+
+test('Given a governing ADR body carrying a fence then an H1 of the form "# 348 — <title>", when consult runs, then purpose is the H1 with its leading hash stripped and the number still in it', () => {
+  const sut = consult;
+  const deps = governingOf(
+    {},
+    {
+      'docs/contributing/adr/348-arch-gate.md': page(
+        [OBS_GLOB],
+        "# 348 — `<arch gate>` resolves to the declared technique's own run",
+      ),
+    },
+  );
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.entries, [
+    {
+      path: 'docs/contributing/adr/348-arch-gate.md',
+      purpose: "348 — `<arch gate>` resolves to the declared technique's own run",
+    },
+  ]);
+});
+
+// assertFresh — the Req-3 lock (governing lane never leaks into freshness)
+
+test('Given identical change and deps whose governing lane is populated, when assertFresh runs, then the report deep-equals the report from the same input with an empty governing lane', () => {
+  const sut = assertFresh;
+  const change = { changed: [OBS_PATH], touched: [], waived: [], covers: [OBS_GLOB] };
+  const populatedDeps = governingOf(
+    { 'docs/adapters/telemetry.md': page([OBS_GLOB]) },
+    { 'docs/contributing/adr/353-example.md': page([OBS_GLOB], '# 353 — Example decision') },
+  );
+  const emptyGoverningDeps = governingOf({ 'docs/adapters/telemetry.md': page([OBS_GLOB]) }, {});
+
+  const populatedResult = sut(change, populatedDeps);
+  const emptyResult = sut(change, emptyGoverningDeps);
+
+  assert.deepEqual(populatedResult, emptyResult);
+  assert.ok(!populatedResult.stale.some(row => row.page.startsWith('docs/contributing/adr/')));
+  assert.ok(!populatedResult.uncovered.some(row => row.scope.startsWith('docs/contributing/adr/')));
+  assert.ok(!populatedResult.skipped.some(row => row.page.startsWith('docs/contributing/adr/')));
 });
 
 // assertFresh — pinned scenarios

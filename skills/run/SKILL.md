@@ -86,8 +86,9 @@ Input: `$ARGUMENTS`
 
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
     the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
-    procedure. With no `intention:` manifest key, probe the zero-config corpus
-    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`);
+    procedure. With no `intention:` manifest key, probe the zero-config corpus — the living pages
+    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`)
+    plus the resolved ADR directory for the governing lane;
     hold the single `IntentionView` in-session beside the run record for the duration of
     this run. A cold or absent corpus yields an empty view and records a load no-op —
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
@@ -243,7 +244,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    dropped at `load` — if the slice is empty, the phase probes as today. This read is
    purely advisory and never gates. See `docs/contributing/specs/memory.md` Claude binding.
 
-   **Intention hint (advisory).** For the `design` and `planning` phases only, slice the
+   **Intention hint (advisory).** For the `design`, `decisions` and `planning` phases only, slice the
    in-session `IntentionView` for this phase's change scope: the `entries` whose subjects
    intersect the phase's touched set. If the slice is non-empty, prepend it into the SAME
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
