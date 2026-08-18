@@ -419,14 +419,20 @@ function entryKey(concern, payload) {
 
 /**
  * Index a delta array into a Map keyed by entryKey for O(1) lookup.
+ * Last-wins, EXCEPT a retraction (`obs.retract === true`) is sticky: once a
+ * key's indexed observation carries `retract`, a later plain observation for
+ * the same key never overwrites it. This pins "the retraction wins" as
+ * designed rather than as an accident of delta array order.
  *
- * @param {Array<{ concern: string, payload: object }>} delta
- * @returns {Map<string, { concern: string, payload: object }>}
+ * @param {Array<{ concern: string, payload: object, retract?: boolean }>} delta
+ * @returns {Map<string, { concern: string, payload: object, retract?: boolean }>}
  */
 function indexDelta(delta) {
   const observedMap = new Map();
   for (const obs of delta) {
-    observedMap.set(entryKey(obs.concern, obs.payload), obs);
+    const key = entryKey(obs.concern, obs.payload);
+    if (observedMap.get(key)?.retract) continue;
+    observedMap.set(key, obs);
   }
   return observedMap;
 }
@@ -452,28 +458,34 @@ function refreshedEntry(entry, obs, concern, provenance) {
 
 /**
  * Collect ADDED entries for one concern: observations that were not REFRESHED.
+ * Retraction-marked observations are excluded — a retraction whose key matches
+ * nothing stored must never add the entry it meant to kill.
  *
  * @param {string} concern
- * @param {Array<{ concern: string, payload: object }>} delta
+ * @param {Array<{ concern: string, payload: object, retract?: boolean }>} delta
  * @param {Set<string>} refreshedKeys
  * @param {{ run: string, commit: string, date: string }} provenance
  * @returns {object[]}
  */
 function addedEntries(concern, delta, refreshedKeys, provenance) {
   return delta
-    .filter(obs => obs.concern === concern && !refreshedKeys.has(entryKey(concern, obs.payload)))
+    .filter(obs => obs.concern === concern && !obs.retract && !refreshedKeys.has(entryKey(concern, obs.payload)))
     .map(obs => ({ concern, ...obs.payload, confidence: FLOOR + STEP, provenance }));
 }
 
 /**
- * Apply REFRESHED / DECAYED / EVICTED / ADDED transitions for one concern.
- * `refreshedKeys` is local — keys are concern-prefixed so there is no
+ * Apply RETRACTED / REFRESHED / DECAYED / EVICTED / ADDED transitions for one
+ * concern. `refreshedKeys` is local — keys are concern-prefixed so there is no
  * cross-concern collision risk.
+ *
+ * Per-entry branch order: retraction → drop (confidence reaches FLOOR by
+ * omission, never by arithmetic) → observation → REFRESHED → neither →
+ * DECAYED.
  *
  * @param {string} concern
  * @param {object[]} existing
- * @param {Map<string, object>} observedMap
- * @param {Array<{ concern: string, payload: object }>} delta
+ * @param {Map<string, { concern: string, payload: object, retract?: boolean }>} observedMap
+ * @param {Array<{ concern: string, payload: object, retract?: boolean }>} delta
  * @param {{ run: string, commit: string, date: string }} provenance
  * @returns {object[]}
  */
@@ -484,7 +496,9 @@ function reconcileConcern(concern, existing, observedMap, delta, provenance) {
   for (const entry of existing) {
     const k = entryKey(concern, entry);
     const obs = observedMap.get(k);
-    if (obs !== undefined) {
+    if (obs?.retract) {
+      refreshedKeys.add(k);
+    } else if (obs !== undefined) {
       refreshedKeys.add(k);
       reconciled.push(refreshedEntry(entry, obs, concern, provenance));
     } else {
@@ -498,11 +512,11 @@ function reconcileConcern(concern, existing, observedMap, delta, provenance) {
 
 /**
  * Merge a delta observation set into a loaded view's entries.
- * Applies ADDED / REFRESHED / DECAYED / EVICTED transitions.
+ * Applies RETRACTED / REFRESHED / DECAYED / EVICTED / ADDED transitions.
  * Returns a NEW entries map (immutable — does not mutate the input view).
  *
  * @param {{ [concern: string]: object[] }} loadedEntries
- * @param {Array<{ concern: string, payload: object }>} delta
+ * @param {Array<{ concern: string, payload: object, retract?: boolean }>} delta
  * @param {{ run: string, commit: string, date: string }} provenance
  * @returns {{ [concern: string]: object[] }}
  */
@@ -657,8 +671,10 @@ function evictToCaps(entries, caps) {
  * @param {string} repoRoot - resolved worktree/checkout root.
  * @param {{ entries: object, evicted: object[], loadNote: string|null, degraded: boolean }} view
  *   The MemoryView returned by load() — already has stale entries removed.
- * @param {Array<{ concern: string, payload: object }>} delta
- *   Buffered observations for this run.
+ * @param {Array<{ concern: string, payload: object, retract?: boolean }>} delta
+ *   Buffered observations for this run. `retract: true` marks a disproven
+ *   entry: its matching stored entry is dropped rather than refreshed or
+ *   decayed, and a retraction with no matching stored entry adds nothing.
  * @param {{
  *   writeStore: (path: string, content: string) => void,
  *   ref?: string,

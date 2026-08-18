@@ -1,3 +1,7 @@
+---
+subjects:
+  - engine/src/observability/memory.js
+---
 # Memory adapter spec
 
 ## Port interface
@@ -42,10 +46,11 @@
   - **post**: when `view.degraded` is true, `save` declines the write before any path resolution
     or filesystem access and returns `writeNote: 'save skipped: load was degraded'` — same
     non-throwing, non-blocking posture as every other outcome below. Otherwise, the store reflects
-    the reconciled result of applying the ADDED / REFRESHED / DECAYED / EVICTED transitions plus
-    both-caps eviction; the write is a single `deps.writeStore` call (no half-write);
-    non-re-observed entries are **decayed, not deleted**; a failed `writeStore` is recorded in
-    `writeNote` and `save` returns normally — it never throws and never blocks (ADR-120).
+    the reconciled result of applying the ADDED / REFRESHED / DECAYED / RETRACTED / EVICTED
+    transitions plus both-caps eviction; the write is a single `deps.writeStore` call (no
+    half-write); non-re-observed entries are **decayed, not deleted**; a failed `writeStore` is
+    recorded in `writeNote` and `save` returns normally — it never throws and never blocks
+    (ADR-120).
 
 ## Core policy retained (NOT port verbs)
 
@@ -68,8 +73,9 @@ adapter:
   - `WINDOW = 50` — size of the newest-entry candidate window for cap eviction
   - Transitions: ADDED (new observation, starts at `FLOOR + STEP = 1`), REFRESHED (re-observed,
     confidence `+STEP` up to CEILING; payload rewritten only when `improves()` is true), DECAYED
-    (not observed this run, confidence `-STEP`; evicted when it would reach FLOOR), EVICTED
-    (confidence at/below FLOOR or dropped by cap eviction).
+    (not observed this run, confidence `-STEP`; evicted when it would reach FLOOR), RETRACTED (a
+    run proved the stored entry wrong — confidence → FLOOR, dropped this run rather than decayed
+    by one STEP), EVICTED (confidence at/below FLOOR or dropped by cap eviction).
 
 - **Advisory-only bound (ADR-116)**: the store is never a gate. A malformed/unreadable store is
   a recorded load no-op, not a blocker. A failed `save` is a recorded warning (ADR-120), not a
