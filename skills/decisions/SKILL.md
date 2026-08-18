@@ -12,7 +12,11 @@ description: Craft phase 3 - the user decides every load-bearing design choice; 
    `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/adr.md"`; next ADR number = highest existing + 1.
 2. ADR writes route through the intention port's `record` — for the `file` adapter this
    is a thin relabel of today's `docs/adr/` writes byte-for-byte (see
-   `docs/contributing/specs/intention.md`); the authoring below is unchanged.
+   `docs/contributing/specs/intention.md`); the authoring below is unchanged. A write now
+   carries the governance declaration from `templates/adr.md` (the `subjects:` and
+   `supersedes:` frontmatter fence). The `decisions` phase is the **only** ADR backfill
+   writer: it writes the block into a pre-existing ADR it authors or supersedes, never as
+   a read-phase side effect.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
@@ -20,10 +24,12 @@ ENTIRELY session-owned — never delegated.
 
 1. **Triage every candidate (session-owned) into adopt-or-escalate.** A candidate is
    ADOPTED without escalation when its design recommendation is clear AND aligns with
-   an existing ADR or a stated craft principle. A candidate is a GENUINE FORK —
-   escalated — when the recommendation is unclear, the alternatives carry a real
-   user-judgment trade-off, or it deviates from an existing ADR/principle. When in
-   doubt, escalate: adopt only the unambiguous.
+   an existing ADR or a stated craft principle — check "aligns with an existing ADR"
+   against the governing slice arriving on slot 1 (`skills/run/SKILL.md`'s intention
+   hint), an indexed read, never an unindexed wish over the full ADR directory. A
+   candidate is a GENUINE FORK — escalated — when the recommendation is unclear, the
+   alternatives carry a real user-judgment trade-off, or it deviates from an existing
+   ADR/principle. When in doubt, escalate: adopt only the unambiguous.
 2. **Genuine forks → user conversation.** Per escalated candidate: present ≤3 options
    with the design's recommendation; capture the user's decision.
 3. **No genuine forks (zero candidates, or every candidate adopted) → first-class
@@ -46,6 +52,19 @@ ENTIRELY session-owned — never delegated.
    as `docs(adr): NNN <title>`. An adopted choice's ADR marks its Decision section
    **adopted-as-recommended (no user judgment)** so the log stays distinguishable from a
    ratified choice, whose ADR records the user's judgment.
+
+   **Supersession authoring obligations.** When a settled decision supersedes ADR-N, the
+   same commit satisfies `adr-lint`: write the new ADR's `supersedes: [{ adr: "N",
+   scope: "<one-line scope>" }]` frontmatter entry, `adr` zero-padded 3-digit; flip
+   ADR-N's `- **Status:** superseded by ADR-M` line; prepend ADR-N's blockquote note
+   naming ADR-M and the superseded scope; write **both** body anchors in the new ADR's
+   Decision section — `Superseded from ADR-N: …` and `Carried forward from ADR-N: …` —
+   with "nothing survives" stated explicitly (`Carried forward from ADR-N: nothing —
+   <why>`) rather than by omitting the anchor; sweep the live-tier citations, updating
+   every non-exempt `ADR-N` mention in the tracked tree to reflect the supersession.
+   Then emit one `DECISION-REVERSAL(ADR-N): <scope> -> ADR-M` line per `supersedes`
+   entry authored this run, `<scope>` the same string verbatim as the frontmatter's
+   `scope` field so the token and the ADR cannot disagree.
 6. **Scope-fold rule:** if any decision deviates from the design's recommendation,
    spawn a FRESH **craft:designer** to revise — fed the ADR + design-doc PATHS (the
    committed artifacts, read in-place; never your conversation) — committing

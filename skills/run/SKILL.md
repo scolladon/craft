@@ -100,7 +100,14 @@ Input: `$ARGUMENTS`
     see `docs/contributing/specs/intention.md` Token vocabulary; emitted by the `validation` phase's
     `assert-fresh` walk. Four more tokens join the same family from the `ci.sh` hygiene
     cadence: `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`,
-    `SLOP-FOUND(<file>): <entry>`, and `SLOP-WAIVE(<file>): <reason>`.
+    `SLOP-FOUND(<file>): <entry>`, and `SLOP-WAIVE(<file>): <reason>`. Three more join from
+    the decision-drift-propagation family — see `docs/contributing/specs/run-record.md`
+    Token vocabulary: `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM`, emitted by
+    the `decisions` phase, one line per `supersedes` entry authored that run;
+    `DECISION-CITE-WAIVE(<file>): <reason>`, the `adr-lint` C3 waiver, collected from the
+    same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE`; and
+    `MEMORY-RETRACT(<concern>): <merge-key>`, emitted by the phase that owns a concern's
+    write surface on a mechanical re-check that disproves a stored entry.
 
 1d. `Resolution.gateDecisions` is an ARRAY of `{ phaseId, gate, codeProducing }`
     (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose

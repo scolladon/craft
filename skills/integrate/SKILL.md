@@ -29,7 +29,13 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    run's run-id lines from the on-disk ledger
    (`docs/contributing/specs/run-record.md`) into the in-session `delta` and hold it —
    the teardown below removes the worktree and the ledger inside it, so this is the last
-   point at which it can be read. `save` itself still runs once, atomically, at `Done`.
+   point at which it can be read. A `MEMORY-RETRACT(<concern>): <merge-key>` line derives
+   to `{ concern, payload, retract: true }` rather than to a plain observation; for the
+   `findings` concern the `<merge-key>` is the payload split on the first run of
+   whitespace, first field `file`, remainder `pattern` (see
+   `docs/contributing/specs/run-record.md` Token vocabulary). The single-writer rule (R4)
+   is untouched — the phase emits the ledger line, the orchestrator appends it and
+   derives the delta from it here. `save` itself still runs once, atomically, at `Done`.
    Then **consult the `teardown` action** separately before worktree teardown (per-verb
    granularity, ADR-126; see `docs/contributing/specs/policy.md`) and:
    ```bash

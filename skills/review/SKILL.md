@@ -24,6 +24,11 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    (strip the repoRoot prefix) — never an absolute path, which would leak `$HOME`/username
    into the committed store. Per ADR-123 whitelist: no provenance refs, no code snippets,
    no prose explanation body, no PII.
+   RETRACTS: the run retracts a `findings` entry when it re-checked that entry's own
+   `file` + `pattern` at that location and the pattern is absent — a **mechanical**
+   re-check, never a judgment call, and only for the concern this phase owns. Emit
+   `MEMORY-RETRACT(findings): <file> <pattern>`, `file` repo-RELATIVE under the same
+   rule the WRITES clause states above.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
