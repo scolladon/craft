@@ -84,10 +84,15 @@ function isDirectoryPath(p) {
 }
 
 /**
+ * Regular-file predicate that deliberately uses `lstatSync`, NOT `statSync`:
+ * a symlink must be rejected rather than followed, so a committed symlink in
+ * the ADR directory can never redirect a read out of the tree. Must not be
+ * merged with the `statSync`-based `isRegularFile` in `cli-io.js` — that one
+ * follows symlinks, which is the wrong behaviour here.
  * @param {string} p
  * @returns {boolean}
  */
-function isRegularFile(p) {
+function isNonSymlinkFile(p) {
   try {
     return lstatSync(p).isFile();
   } catch {
@@ -188,7 +193,7 @@ function readAdrFiles(adrDirAbs, repoRoot, io) {
   for (const fileName of entries.filter((f) => f.endsWith('.md')).sort()) {
     const filePath = join(adrDirAbs, fileName);
     const relPath = relative(repoRoot, filePath);
-    if (containByRealpath(repoRoot, filePath) === null || !isRegularFile(filePath)) {
+    if (containByRealpath(repoRoot, filePath) === null || !isNonSymlinkFile(filePath)) {
       findings.push(`${relPath}: refusing to read — not a regular file inside the repository root`);
       continue;
     }
