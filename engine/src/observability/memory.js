@@ -485,6 +485,10 @@ function addedEntries(concern, delta, observedMap, refreshedKeys, provenance) {
  * @returns {boolean}
  */
 function isRetractedKey(concern, obs, observedMap) {
+  // equivalent mutant (OptionalChaining): observedMap is always indexDelta(delta) —
+  // built from the SAME array `obs` is drawn from (see reconcile/addedEntries) — so
+  // obs's own key is always present in the map; the `?.` guards a lookup that can
+  // never miss at this call site.
   return Boolean(observedMap.get(entryKey(concern, obs.payload))?.retract);
 }
 
@@ -494,8 +498,8 @@ function isRetractedKey(concern, obs, observedMap) {
  * cross-concern collision risk.
  *
  * Per-entry branch order: retraction → drop (confidence reaches FLOOR by
- * omission, never by arithmetic) → observation → REFRESHED → neither →
- * DECAYED.
+ * omission, never by arithmetic, via an early `continue`) → observation →
+ * REFRESHED → neither → DECAYED.
  *
  * @param {string} concern
  * @param {object[]} existing
@@ -511,9 +515,12 @@ function reconcileConcern(concern, existing, observedMap, delta, provenance) {
   for (const entry of existing) {
     const k = entryKey(concern, entry);
     const obs = observedMap.get(k);
-    if (obs?.retract) {
-      refreshedKeys.add(k);
-    } else if (obs !== undefined) {
+    // Retracted: drop (nothing pushed to reconciled). Not tracked in
+    // refreshedKeys — isRetractedKey already excludes this observation's key
+    // from addedEntries on its own (it reads the same observedMap), so a
+    // second bookkeeping set here was dead weight.
+    if (obs?.retract) continue;
+    if (obs !== undefined) {
       refreshedKeys.add(k);
       reconciled.push(refreshedEntry(entry, obs, concern, provenance));
     } else {

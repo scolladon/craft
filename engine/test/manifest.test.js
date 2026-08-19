@@ -2551,6 +2551,18 @@ test('Given adr as an array when validateManifest runs, then error contains "adr
   assert.ok(result.errors.some(e => e.includes('adr must be an object')));
 });
 
+test('Given adr as a bare string when validateManifest runs, then error contains "adr must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: 'oops' },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('adr must be an object')));
+});
+
 test('Given adr as null when validateManifest runs, then error contains "adr must be an object"', () => {
   const sut = validateManifest;
 

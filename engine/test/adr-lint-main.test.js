@@ -9,7 +9,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync, symlinkSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, realpathSync, symlinkSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -473,6 +473,11 @@ test('Given two ADRs superseding two targets each with a live citation, when mai
   const out = io.stdout.joined();
   assert.ok(out.includes('DECISION-CITE-FOUND(live/one.md): ADR-001@L1'), `stdout was: ${out}`);
   assert.ok(out.includes('DECISION-CITE-FOUND(live/two.md): ADR-002@L1'), `stdout was: ${out}`);
+  // Each record's content must be its OWN slice, not the whole git-grep
+  // buffer — otherwise a citation elsewhere in the output gets cross-attributed
+  // to every path in the sweep.
+  assert.ok(!out.includes('DECISION-CITE-FOUND(live/one.md): ADR-002'), `cross-attributed; stdout was: ${out}`);
+  assert.ok(!out.includes('DECISION-CITE-FOUND(live/two.md): ADR-001'), `cross-attributed; stdout was: ${out}`);
 });
 
 test('Given adr.frozen present in the manifest, when main runs, then it replaces the derived set while the ADR dir stays exempt', () => {
@@ -819,7 +824,10 @@ test('Given an explicit --manifest that names a missing file, when main runs, th
   const result = sut([join(root, 'adr'), '--manifest', join(root, 'nope.yml')], io);
 
   assert.equal(result, 2);
-  assert.ok(io.stdout.joined().includes('does not exist'), `stdout was: ${io.stdout.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('nope.yml: --manifest names a file that does not exist'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
 });
 
 test('Given a manifest whose read fails, when main runs, then it never falls through to the wider derived exempt set', () => {
@@ -930,6 +938,10 @@ test('Given a citation sweep, when the exempt set is announced, then it names th
   for (const expected of ['adr', 'design', 'plan', 'archive', 'prd']) {
     assert.ok(err.includes(expected), `announcement must name ${expected}; stderr was: ${err}`);
   }
+  // A non-root adr-dir must never be mislabelled as the repository root, and
+  // the entries must be joined with ", " — not run together with no separator.
+  assert.ok(!err.includes('(repository root)'), `adr-dir is "adr", not root; stderr was: ${err}`);
+  assert.ok(err.includes('adr, design, plan, archive, prd'), `expected a comma-joined list; stderr was: ${err}`);
 });
 
 test('Given a directory named like an ADR inside the ADR dir, when main runs, then it is refused as not a regular file', () => {
@@ -1023,6 +1035,12 @@ test('Given malformed YAML whose later lines carry content, when main runs, then
   assert.equal(result, 2);
   const all = io.stdout.joined() + io.stderr.joined();
   assert.ok(all.includes('malformed frontmatter YAML'), `stdout was: ${io.stdout.joined()}`);
+  // Pins that the js-yaml message's actual FIRST line survives (not merely a
+  // static prefix, and not collapsed to "undefined" or truncated to one char).
+  assert.ok(
+    all.includes('missed comma between flow collection entries'),
+    `expected the parser's first line, not a stub; stdout was: ${io.stdout.joined()}`,
+  );
   assert.ok(!all.includes('SENSITIVE-SECOND-LINE'), `parser output must not republish file content: ${all}`);
 });
 
@@ -1114,4 +1132,492 @@ test('Given a mixed stream of one unparseable line and one real record, when mai
   // than guessed; the refusal is itself blocking, so nothing is concealed.
   assert.equal(result, 2);
   assert.ok(io.stdout.joined().includes('unreadable output record'), `stdout was: ${io.stdout.joined()}`);
+});
+
+// --- Round 4: mutation-survivor kills ---
+
+test('Given an adr-dir argument that does not exist at all, when main runs, then it prints usage rather than throwing out of statSync', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'nope')], io);
+
+  assert.equal(result, 2);
+  assert.ok(io.stderr.joined().includes('usage'), `stderr was: ${io.stderr.joined()}`);
+});
+
+test('Given an ADR directory with no read permission, when main runs, then it is a finding rather than an uncaught throw', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const adrDir = join(root, 'adr');
+  writeFixture(root, 'adr/001-legacy.md', `# 001 — Legacy\n\n${ACCEPTED_STATUS}\n`);
+  chmodSync(adrDir, 0o000);
+  const io = makeCaptureIo();
+
+  let result;
+  try {
+    result = sut([adrDir], io);
+  } finally {
+    chmodSync(adrDir, 0o755);
+  }
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('adr: unreadable ADR directory'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a raw directory listing that is not already sorted, when main runs, then the ADR corpus is still processed in sorted filename order', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/010-first-created.md', '---\nsubjects:\n  - ""\n---\n# 010 — Test\n');
+  writeFixture(root, 'adr/002-second-created.md', '---\nsubjects:\n  - ""\n---\n# 002 — Test\n');
+  const io = makeCaptureIo();
+  // Deliberately unsorted, unlike readdirSync's own (filesystem-defined) order.
+  const readDir = () => ['010-first-created.md', '002-second-created.md'];
+
+  const result = sut([join(root, 'adr')], io, { readDir });
+
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  const idx002 = out.indexOf('002-second-created.md');
+  const idx010 = out.indexOf('010-first-created.md');
+  assert.ok(idx002 !== -1 && idx010 !== -1, `both findings expected; stdout was: ${out}`);
+  assert.ok(idx002 < idx010, `expected sorted (002 before 010) finding order; stdout was: ${out}`);
+});
+
+test('Given the ADR directory reached via a symlinked ancestor escaping the repo root, when main runs, then a regular leaf file is still refused rather than read', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const outside = realpathSync(mkdtempSync(join(tmpdir(), 'adrlint-outside-')));
+  tmpDirs.push(outside);
+  const realAdrDir = join(outside, 'real-adr-dir');
+  mkdirSync(realAdrDir, { recursive: true });
+  writeFileSync(join(realAdrDir, '001-escaped.md'), 'secret-outside-content\n');
+  symlinkSync(realAdrDir, join(root, 'adr'));
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('001-escaped.md: refusing to read'), `stdout was: ${out}`);
+  assert.ok(!out.includes('secret-outside-content'), `content must never be read; stdout was: ${out}`);
+});
+
+test('Given a superseding ADR filename that does not start with its id digits, when main runs, then the id is not derived from a mid-name digit run', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-target.md', `# 001 — Target\n\n${ACCEPTED_STATUS}\n`);
+  writeFixture(
+    root,
+    'adr/sup-099-superseding.md',
+    ['---', 'supersedes:', '  - adr: "001"', '    scope: "everything"', '---', '# Superseding', '', ACCEPTED_STATUS, ''].join('\n'),
+  );
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  assert.ok(
+    io.stdout.joined().includes('missing required line: - **Status:** superseded by ADR-null'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+test('Given a fence where subjects is a non-empty list of non-empty strings and no supersedes key, when main runs, then it passes cleanly', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/015-subjects.md', '---\nsubjects:\n  - "engine"\n  - "adr-lint"\n---\n# 015 — Test\n');
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 0, `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a fence where subjects contains a non-string entry with a truthy length, when main runs, then it is still rejected as not a string', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/016-subjects-array.md', '---\nsubjects:\n  - ["nested"]\n---\n# 016 — Test\n');
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('subjects must be a list'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a supersedes entry that is null, when main runs, then it exits 2 with a form finding rather than reading properties off it', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/021-null-entry.md', '---\nsupersedes:\n  - null\n---\n# 021 — Test\n');
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('adr/021-null-entry.md: supersedes[0] must be'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a supersedes adr id that is a YAML number rather than a quoted string, when main runs, then the type check rejects it even though it would coerce to a valid pattern', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/020-numeric-adr.md', '---\nsupersedes:\n  - adr: 123\n    scope: "everything"\n---\n# 020 — Test\n');
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('adr/020-numeric-adr.md: supersedes[0] must be'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given the target Status line with trailing whitespace, when main runs, then the C1 check still matches via trim', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-target.md', '# 001 — Target\n\n- **Status:** superseded by ADR-023  \n');
+  writeFixture(
+    root,
+    'adr/023-superseding.md',
+    [
+      '---', 'supersedes:', '  - adr: "001"', '    scope: "everything"', '---',
+      '# 023 — Superseding', '', ACCEPTED_STATUS, '',
+      'Superseded from ADR-001: everything.', '',
+      'Carried forward from ADR-001: nothing — fully replaced.', '',
+    ].join('\n'),
+  );
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+});
+
+test('Given a git grep exit-128 failure with no stderr captured, when main runs, then it is NOT treated as an environmental skip', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => {
+    throw Object.assign(new Error('fatal, no stderr'), { status: 128 });
+  };
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2, 'an exit-128 with no captured stderr must not silently skip the sweep');
+  assert.ok(io.stdout.joined().includes('citation sweep failed'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a git failure with status 2 whose stderr happens to mention "not a git repository", when main runs, then the status code still gates the skip', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => {
+    throw Object.assign(new Error('weird failure'), {
+      status: 2,
+      stderr: 'fatal: not a git repository (or any of the parent directories): .git\n',
+    });
+  };
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2, 'a non-128 status must not be treated as the environmental not-a-repo skip');
+  assert.ok(io.stdout.joined().includes('citation sweep failed'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a git grep record whose path is a single character, when main runs, then the short path still parses rather than being flagged unparseable', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => 'a\x001\x00cites ADR-001 here\n';
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('DECISION-CITE-FOUND(a): ADR-001@L1'), `stdout was: ${out}`);
+  assert.ok(!out.includes('unreadable output record'), `stdout was: ${out}`);
+});
+
+test('Given git grep output with only a single NUL delimiter (missing the second), when main runs, then it is reported as an unreadable record rather than mis-parsed', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => 'onlyonepath\x00rest of content ADR-001 no second nul\n';
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('unreadable output record'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given git grep output whose lineno delimiter falls at byte offset 1, when main runs, then the record still parses rather than misfiring on the offset value', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => '\x00\x00cites ADR-001 here\n';
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('ADR-001@L'), `stdout was: ${io.stdout.joined()}`);
+  assert.ok(!io.stdout.joined().includes('unreadable output record'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a lineno field containing an embedded newline right before its NUL delimiter, when main runs, then the record content is still sliced from after the delimiter, not before it', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => 'live/note.md\x001\n\x00cites ADR-001 here\n';
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2, `a live citation must still be caught; stdout was: ${io.stdout.joined()}`);
+  assert.ok(io.stdout.joined().includes('DECISION-CITE-FOUND(live/note.md)'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given git grep output for the last record with no trailing newline, when main runs, then the record content still reaches the end of the buffer', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => 'live/note.md\x001\x00cites ADR-001';
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('DECISION-CITE-FOUND(live/note.md): ADR-001@L1'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given no --waiver-source flags, when main runs, then no waiver source is read', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-legacy.md', `# 001 — Legacy\n\n${ACCEPTED_STATUS}\n`);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 0);
+  assert.ok(!io.stderr.joined().includes('waiver source'), `stderr was: ${io.stderr.joined()}`);
+});
+
+test('Given a tracked path carrying a single-hex-digit control character, when main reports it, then the byte is padded to two hex digits', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const io = makeCaptureIo();
+  const runGitGrep = () => 'note\x01name.md\x001\x00cites ADR-001 here\n';
+
+  const result = sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(result, 2);
+  assert.ok(io.stdout.joined().includes('\\x01'), `expected a zero-padded escape; stdout was: ${JSON.stringify(io.stdout.joined())}`);
+});
+
+test('Given a manifest larger than the read cap, when main runs, then it is a finding rather than a silent fall-back to the wider derived set', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/001-legacy.md', `# 001 — Legacy\n\n${ACCEPTED_STATUS}\n`);
+  const manifest = writeFixture(root, 'workflow.yml', 'x'.repeat(5_000_001));
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 2);
+  assert.ok(
+    io.stdout.joined().includes('workflow.yml: manifest unreadable, or larger than'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+  assert.ok(io.stderr.joined().includes('skipping manifest workflow.yml'), `stderr was: ${io.stderr.joined()}`);
+});
+
+test('Given a live citation in a FILE whose path exactly equals an exempt directory name, when main runs, then the exact match still counts as exempt', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  writeFixture(root, 'docs/design', 'Restates ADR-001.\n');
+  const manifest = writeFixture(root, 'workflow.yml', 'paths:\n  adr: adr\n  design: docs/design\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+});
+
+test('Given manifest paths.design as a whitespace-only string, when main runs, then it falls back to the default rather than treating whitespace as a real path', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  writeFixture(root, 'docs/design/note.md', 'Restates ADR-001.\n');
+  const manifest = writeFixture(root, 'workflow.yml', 'paths:\n  adr: adr\n  design: "   "\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+});
+
+test('Given a manifest object with no paths key at all, when main runs, then the exempt-set resolution does not crash reading paths.adr/design/plan', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'unrelated: true\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+});
+
+test('Given declared path tiers with an identical shared segment count, when main runs, then the common-parent walk stops exactly at the true minimum depth', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeFixture(root, 'docs/adr/001-target.md', '# 001 — Target\n\n- **Status:** superseded by ADR-002\n');
+  writeFixture(
+    root,
+    'docs/adr/002-superseding.md',
+    [
+      '---', 'supersedes:', '  - adr: "001"', '    scope: "everything"', '---',
+      '# 002 — Superseding', '', ACCEPTED_STATUS, '',
+      'Superseded from ADR-001: everything.', '',
+      'Carried forward from ADR-001: nothing — fully replaced.', '',
+    ].join('\n'),
+  );
+  writeFixture(root, 'docs/archive/note.md', 'Restates ADR-001.\n');
+  writeFixture(root, 'live/note.md', 'Restates ADR-001.\n');
+  const manifest = writeFixture(root, 'workflow.yml', 'paths:\n  adr: docs/adr\n  design: docs/design\n  plan: docs/plan\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'docs/adr'), '--manifest', manifest], io);
+
+  // docs/archive must be exempt (a real "docs/archive" entry, not an empty
+  // string standing in for it, which would exempt every path universally);
+  // live/note.md, genuinely out of scope, proves the sweep is still selective.
+  assert.equal(result, 2, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+  const out = io.stdout.joined();
+  assert.ok(!out.includes('DECISION-CITE-FOUND(docs/archive/'), `docs/archive must be exempt; stdout was: ${out}`);
+  assert.ok(out.includes('DECISION-CITE-FOUND(live/note.md)'), `sweep must still be selective; stdout was: ${out}`);
+});
+
+test('Given declared path tiers three levels deep under a shared root, when main runs, then the common parent keeps every shared segment, not just the first or an extra one', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeFixture(root, 'docs/x/y/adr/001-target.md', '# 001 — Target\n\n- **Status:** superseded by ADR-002\n');
+  writeFixture(
+    root,
+    'docs/x/y/adr/002-superseding.md',
+    [
+      '---', 'supersedes:', '  - adr: "001"', '    scope: "everything"', '---',
+      '# 002 — Superseding', '', ACCEPTED_STATUS, '',
+      'Superseded from ADR-001: everything.', '',
+      'Carried forward from ADR-001: nothing — fully replaced.', '',
+    ].join('\n'),
+  );
+  writeFixture(root, 'docs/x/archive/note.md', 'Restates ADR-001.\n');
+  writeFixture(root, 'live/note.md', 'Restates ADR-001.\n');
+  const manifest = writeFixture(
+    root,
+    'workflow.yml',
+    'paths:\n  adr: docs/x/y/adr\n  design: docs/x/y/design\n  plan: docs/x/y\n',
+  );
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'docs/x/y/adr'), '--manifest', manifest], io);
+
+  // docs/x/archive must be exempt (a real "docs/x/archive" entry, not an
+  // empty string standing in for it, which would exempt every path
+  // universally); live/note.md proves the sweep is still selective.
+  assert.equal(result, 2, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+  const out = io.stdout.joined();
+  assert.ok(!out.includes('DECISION-CITE-FOUND(docs/x/archive/'), `docs/x/archive must be exempt; stdout was: ${out}`);
+  assert.ok(out.includes('DECISION-CITE-FOUND(live/note.md)'), `sweep must still be selective; stdout was: ${out}`);
+});
+
+test('Given declared path tiers under three unrelated top-level roots, when main runs, then the common parent is empty rather than pushing a spurious shared segment', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeFixture(root, 'a/adr/001-target.md', '# 001 — Target\n\n- **Status:** superseded by ADR-002\n');
+  writeFixture(
+    root,
+    'a/adr/002-superseding.md',
+    [
+      '---', 'supersedes:', '  - adr: "001"', '    scope: "everything"', '---',
+      '# 002 — Superseding', '', ACCEPTED_STATUS, '',
+      'Superseded from ADR-001: everything.', '',
+      'Carried forward from ADR-001: nothing — fully replaced.', '',
+    ].join('\n'),
+  );
+  writeFixture(root, 'archive/note.md', 'Restates ADR-001.\n');
+  const manifest = writeFixture(root, 'workflow.yml', 'paths:\n  adr: a/adr\n  design: b/design\n  plan: c/plan\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'a/adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+});
+
+test('Given adr.frozen mixing a whole-tree glob with a scoped one, when main runs, then only the whole-tree glob is flagged as disabling the sweep', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "**"\n    - "frozen/**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  assert.ok(out.includes("adr.frozen entry '**' exempts the whole tree, which disables the citation sweep"), `stdout was: ${out}`);
+  assert.ok(!out.includes("adr.frozen entry 'frozen/**' exempts"), `stdout was: ${out}`);
+});
+
+test('Given multiple superseded ids, when main runs, then the git grep pattern is built from the escaped id alternation', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  writeCleanSupersession(root, '003', '004');
+  const io = makeCaptureIo();
+  let capturedPattern;
+  const runGitGrep = (repoRoot, pattern) => {
+    capturedPattern = pattern;
+    return '';
+  };
+
+  sut([join(root, 'adr')], io, { runGitGrep });
+
+  assert.equal(capturedPattern, 'ADR-(001|003)');
+});
+
+test('Given supersedes declared as an explicit empty list, when main runs, then it is not counted as declaring supersession', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/030-empty-supersedes.md', '---\nsupersedes: []\n---\n# 030 — Test\n');
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 0, `stdout was: ${io.stdout.joined()}`);
+  assert.match(io.stdout.joined(), /^craft-adr: OK — 1 ADR\(s\) checked, 0 declaring supersession\.$/m);
+});
+
+test('Given a frontmatter fence whose YAML body is the null scalar, when main runs, then it degrades to an empty declaration rather than propagating null', () => {
+  const sut = main;
+  const root = tmpRoot();
+  writeFixture(root, 'adr/022-null-body.md', '---\nnull\n---\n# 022 — Test\n');
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr')], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
 });

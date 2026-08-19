@@ -79,6 +79,10 @@ function isDirectoryPath(p) {
   try {
     return statSync(p).isDirectory();
   } catch {
+    // equivalent mutant (BlockStatement, empty catch → implicit `undefined`):
+    // the only caller reads this exclusively through `!isDirectoryPath(...)`
+    // boolean negation, never a strict `=== false` — `!false` and
+    // `!undefined` are both `true`, so an undefined return is unobservable.
     return false;
   }
 }
@@ -96,6 +100,12 @@ function isNonSymlinkFile(p) {
   try {
     return lstatSync(p).isFile();
   } catch {
+    // equivalent mutant (BlockStatement / BooleanLiteral): the only caller
+    // (readAdrFiles) reaches this after containByRealpath(repoRoot, p) already
+    // returned non-null for the SAME path, which requires containByRealpath's
+    // own lstatSync(p) to have succeeded moments earlier — so this lstatSync
+    // cannot throw in that call path short of a filesystem change concurrent
+    // with the read.
     return false;
   }
 }
@@ -179,14 +189,18 @@ function readManifest(manifestPath, repoRoot, explicit, io) {
  * @param {string} adrDirAbs
  * @param {string} repoRoot
  * @param {{ stderr: { write(s: string): void } }} io
+ * @param {(dir: string) => string[]} [readDir] test seam over readdirSync —
+ *   production always uses the real one; a raw directory listing's order is
+ *   filesystem-defined, so the explicit `.sort()` below is the only thing
+ *   that makes findings order reproducible across filesystems/CI runners.
  * @returns {{ files: object[], findings: string[] }}
  */
-function readAdrFiles(adrDirAbs, repoRoot, io) {
+function readAdrFiles(adrDirAbs, repoRoot, io, readDir = readdirSync) {
   const files = [];
   const findings = [];
   let entries;
   try {
-    entries = readdirSync(adrDirAbs);
+    entries = readDir(adrDirAbs);
   } catch (e) {
     return { files, findings: [`${safeLabel(relative(repoRoot, adrDirAbs))}: unreadable ADR directory — ${firstLine(e.message)}`] };
   }
@@ -224,6 +238,13 @@ function isNonEmptyStringListForm(value) {
  * @returns {boolean}
  */
 function isValidSupersedesEntry(entry) {
+  // equivalent mutant (ConditionalExpression on `typeof entry === 'object'` →
+  // `true`): entry is parsed YAML, so the only values this clause alone would
+  // newly admit are primitives (string/number/boolean) — none of which can
+  // carry a `.adr`/`.scope` own property via declarative YAML. The trailing
+  // `typeof entry.adr === 'string'` clause independently rejects every such
+  // primitive (property access on a primitive returns undefined, never throws),
+  // so the final boolean result is unchanged for any YAML-sourced input.
   return Boolean(entry) && typeof entry === 'object' && !Array.isArray(entry)
     && typeof entry.adr === 'string' && ADR_ID_PATTERN.test(entry.adr)
     && typeof entry.scope === 'string' && entry.scope.trim().length > 0;
@@ -261,6 +282,12 @@ function checkC0Form(relPath, declaration) {
  */
 function parseDeclaration(file) {
   const fence = extractFrontmatter(file.content);
+  // equivalent mutant (ConditionalExpression: this guard → `false`): js-yaml's
+  // `load(null)` is a stable `null` return, never a throw, so skipping this
+  // early return falls through to the SAME collapse the ternary below already
+  // performs (a falsy `parsed` degrades to `declaration = {}`) — no consumer of
+  // `declaration` (the `declaring` filter, `checkC0Form`) tells `null` apart
+  // from `{}` for a record with no supersedes.
   if (fence === null) return { declaration: null, c0Findings: [] };
 
   let parsed;
@@ -270,6 +297,13 @@ function parseDeclaration(file) {
     return { declaration: null, c0Findings: [`${file.relPath}: malformed frontmatter YAML — ${firstLine(e.message)}`] };
   }
 
+  // equivalent mutant (ConditionalExpression on `typeof parsed === 'object'` →
+  // `true`): the values this clause alone would newly admit are YAML scalars
+  // (string/number/boolean) — `typeof null === 'object'` already, so `null` is
+  // unaffected. A scalar carries no `subjects`/`supersedes` own property, and
+  // `Object.hasOwn`/property access auto-box a primitive rather than throwing,
+  // so `checkC0Form` and the `declaring` filter see the same empty shape either
+  // way — no parseable input observes the difference.
   const declaration = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
   return { declaration, c0Findings: checkC0Form(file.relPath, declaration) };
 }
@@ -356,6 +390,11 @@ function defaultRunGitGrep(repoRoot, pattern) {
  */
 function isEnvironmentalGitFailure(e) {
   if (e.code === 'ENOENT') return true;
+  // equivalent mutant (StringLiteral default '' → any other non-matching
+  // literal, e.g. a Stryker sentinel): the fallback is only ever read through
+  // the "not a git repository" regex test below. Any default that does not
+  // itself contain that phrase — '' included — produces the same `false`
+  // match, so the specific fallback text is unobservable.
   return e.status === 128 && /not a git repository/i.test(String(e.stderr ?? ''));
 }
 
@@ -377,7 +416,16 @@ function parseGitGrepRecords(output) {
     // format exists to close — and a path whose first byte is '\n' would
     // re-parse as an attacker-chosen suffix under an exempt prefix.
     const pathEnd = output.indexOf('\0', cursor);
+    // equivalent mutant (ConditionalExpression / UnaryOperator on the
+    // `pathEnd === -1` branch here): whatever this ternary computes when
+    // pathEnd is -1 is only ever read through the `pathEnd === -1` disjunct on
+    // the very next line, which is already independently true in that case —
+    // so no value this branch could return changes the guard's outcome.
     const lineNoEnd = pathEnd === -1 ? -1 : output.indexOf('\0', pathEnd + 1);
+    // equivalent mutant (ConditionalExpression: drop the `pathEnd === -1`
+    // disjunct): the ternary above guarantees `pathEnd === -1` implies
+    // `lineNoEnd === -1`, so this disjunct is always implied by the
+    // `lineNoEnd === -1` one that remains — dropping it changes nothing.
     if (pathEnd === -1 || lineNoEnd === -1) {
       unparsed += 1; // desynchronised tail — never re-scan it looking for a shape
       break;
@@ -396,6 +444,13 @@ function parseGitGrepRecords(output) {
       hits.push({
         relPath,
         lineNo: output.slice(pathEnd + 1, lineNoEnd),
+        // equivalent mutant (ArithmeticOperator: `lineNoEnd + 1` → `lineNoEnd
+        // - 1`): shifting the start left by one only ever prepends the
+        // lineno's last character PLUS the NUL delimiter at `lineNoEnd`
+        // itself (always included in the wider slice) — that NUL can never
+        // be part of an `ADR-\d{3}` match, so it always breaks any accidental
+        // contiguity with the real content; the citation regex sees the same
+        // matches either way.
         content: output.slice(lineNoEnd + 1, recordEnd),
       });
     }
@@ -429,6 +484,14 @@ function parentSegments(relPath) {
  */
 function commonParentRel(relPaths) {
   const segLists = relPaths.map(parentSegments);
+  // equivalent mutant (MethodExpression: Math.min → Math.max): the loop below
+  // independently re-checks every list at each index via `.every(s => s[i]
+  // === seg)`. Once `i` passes the TRUE shortest list's length, that list
+  // yields `undefined` for out-of-bounds access while any longer list yields
+  // a real segment string — `===` can never equate the two, so the loop
+  // breaks at (or before) the real minimum regardless of which bound is
+  // used; a larger `minLen` only adds iterations that are guaranteed to fail
+  // the `.every` check and `break` without pushing anything.
   const minLen = Math.min(...segLists.map((s) => s.length));
   const common = [];
   for (let i = 0; i < minLen; i += 1) {
@@ -454,6 +517,13 @@ function resolveExemptSet(adrDirRel, manifest) {
     // Enforced here, not only at manifest validation: adr-lint parses the
     // manifest directly and ci.sh never runs manifest-lint over it, so a
     // validator-only rule would leave the off-switch fully open.
+    // equivalent mutant (ConditionalExpression on `typeof g === 'string'` →
+    // `true`, i.e. drop that clause and keep only `matchesEveryPath(g)`):
+    // matchGlob (and so matchesEveryPath) catches the TypeError node:path's
+    // matchesGlob throws for a non-string pattern and returns `false` — so
+    // matchesEveryPath(g) is already `false` for every non-string g. Dropping
+    // the typeof clause is a no-op: true for strings (already true), false
+    // for everything else (matchesEveryPath already false either way).
     const universal = frozen.filter((g) => typeof g === 'string' && matchesEveryPath(g));
     return { mode: 'frozen', globs: frozen, adrDirRel, universal };
   }
@@ -461,6 +531,14 @@ function resolveExemptSet(adrDirRel, manifest) {
   const adrPathRel = isNonEmptyString(manifest?.paths?.adr) ? manifest.paths.adr : adrDirRel;
   const designRel = isNonEmptyString(manifest?.paths?.design) ? manifest.paths.design : DEFAULT_PATHS.design;
   const planRel = isNonEmptyString(manifest?.paths?.plan) ? manifest.paths.plan : DEFAULT_PATHS.plan;
+  // equivalent mutant (MethodExpression: drop `.filter(isNonEmptyString)`):
+  // designRel/planRel fall back to the frozen, never-empty DEFAULT_PATHS
+  // constants, so the ONLY way any of these three can be `''` is adrPathRel
+  // falling back to an EMPTY adrDirRel — i.e. the ADR dir IS the repo root.
+  // In that exact case `isExempt`'s own `isUnderDirRel(relPath,
+  // exempt.adrDirRel)` check already exempts every path unconditionally,
+  // before `dirs` is even consulted — so an unfiltered `''` riding along in
+  // `declared`/`dirs` never changes what gets reported.
   const declared = [adrPathRel, designRel, planRel].filter(isNonEmptyString);
   const parent = commonParentRel(declared);
   const dirs = new Set([...declared, joinRel(parent, 'archive'), joinRel(parent, 'prd')]);
@@ -608,11 +686,18 @@ function resolveRunContext(args, io) {
  * Main entrypoint for adr-lint logic.
  * @param {string[]} argv
  * @param {{ stdout: { write(s: string): void }, stderr: { write(s: string): void } }} io
- * @param {{ runGitGrep?: (repoRoot: string, pattern: string) => string }} [deps]
+ * @param {{ runGitGrep?: (repoRoot: string, pattern: string) => string,
+ *   readDir?: (dir: string) => string[] }} [deps]
  * @returns {number} exit code
  */
 export function main(argv, io, deps = {}) {
   const runGitGrep = deps.runGitGrep ?? defaultRunGitGrep;
+  // equivalent mutant (LogicalOperator: `??` → `||`): deps.readDir is typed
+  // as `(dir: string) => string[] | undefined` — every conforming caller
+  // passes either a function (always truthy) or omits it (nullish); no
+  // caller can supply a falsy-but-not-nullish value, so `??` and `||`
+  // select the same operand for every reachable input.
+  const readDir = deps.readDir ?? readdirSync;
   const { adrDir, manifestPath, waiverSources, error } = parseArgv(argv);
 
   if (error) {
@@ -625,7 +710,7 @@ export function main(argv, io, deps = {}) {
   }
 
   const ctx = resolveRunContext({ adrDir, manifestPath, waiverSources }, io);
-  const { files, findings: readFindings } = readAdrFiles(ctx.adrDirAbs, ctx.repoRoot, io);
+  const { files, findings: readFindings } = readAdrFiles(ctx.adrDirAbs, ctx.repoRoot, io, readDir);
   const records = files.map((file) => ({ ...file, ...parseDeclaration(file) }));
   const declaring = records.filter(
     (r) => r.declaration && Array.isArray(r.declaration.supersedes) && r.declaration.supersedes.length > 0,
