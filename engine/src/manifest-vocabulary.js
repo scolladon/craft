@@ -7,7 +7,7 @@
 export const TOP_KEYS = Object.freeze(new Set([
   'backlog', 'memory', 'paths', 'context', 'gates', 'phases',
   'pr', 'scripts', 'models', 'pipeline', 'retrieval', 'execution',
-  'extends', 'policy', 'intention', 'hygiene',
+  'extends', 'policy', 'intention', 'hygiene', 'adr',
 ]));
 
 /**

@@ -1,8 +1,8 @@
 ---
 # Injection point (PRD §7): phases.<id>.enabled — turn ON a default-off phase.
-# The architecture phase runs dependency-cruiser over the change and triages violations;
-# its triage gates the PR alongside validation. No-ops with a note if no depcruise config
-# exists yet, so it is safe to enable mid-adoption (ADR-049/ADR-050). All-current.
+# The architecture phase runs the declared technique's own `run` command and triages
+# violations; its triage gates the PR alongside validation. No-ops with a note if the
+# technique's probe fails, so it is safe to enable mid-adoption (ADR-049/ADR-348). All-current.
 phases:
   architecture:
     enabled: true

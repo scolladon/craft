@@ -1,3 +1,7 @@
+---
+subjects:
+  - skills/run/SKILL.md
+---
 # The run-record ledger
 
 ## File shape and header
@@ -29,8 +33,8 @@ orchestrator-tax-hardening validation INTENTION-DRIFT(intention): engine/src/glo
 ```
 
 **One record is one line** — a multi-line no-op justification folds to one line before it
-is appended. The token vocabulary is unchanged; this file only narrows where those tokens
-land.
+is appended. See Token vocabulary below for the tokens this file adds; this file otherwise
+only narrows where tokens land.
 
 ## Field shape
 
@@ -48,6 +52,47 @@ absolute (an absolute path leaks `$HOME` and the username into a committed file)
 command recorded BARE, with a leading env or secret assignment prefix stripped. See
 `docs/contributing/specs/memory.md`; the scrub is the producer's obligation at both hops,
 since `save` performs no validation on the write path.
+
+## Token vocabulary
+
+Three fixed, greppable tokens join the existing run-record family (`NO-OP(<phase>):`,
+`GATE(<phase>):`, `auto-skip:`, `WAIVER:`, `POLICY(...)`, `INTENTION-DRIFT(<page>):`,
+`INTENTION-WAIVE(<page>):`, `STUB-FOUND(<file>):`, `STUB-WAIVE(<file>):`,
+`SLOP-FOUND(<file>):`, `SLOP-WAIVE(<file>):`):
+
+- `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` — `NNN` is the superseded
+  target, `MMM` the superseding ADR, `<what changed>` is the `scope` string from the
+  strict `supersedes` declaration verbatim, so the token and the ADR cannot disagree.
+  Emitted by the `decisions` phase, one line per `supersedes` entry authored that run.
+  The scope string folds to one line before it is appended (the one-record-one-line
+  rule). The token is greppable, never parsed — nothing splits on the ` -> `, so a `->`
+  inside a scope string is a cosmetic wart, not an ambiguity. A refinement emits
+  nothing — only a reversal is a reversal. A supersession authored outside a craft run
+  emits no token at all; that is why `adr-lint` and this token are separate mechanisms,
+  and neither substitutes for the other.
+- `DECISION-CITE-WAIVE(<file>): <reason>` — the `adr-lint` C3 live-tier-citation waiver,
+  collected from `--waiver-source` files (the design doc and the PR body), exactly as
+  for `STUB-WAIVE` and `INTENTION-WAIVE`. It belongs to the `ci.sh` hygiene cadence
+  family, not to a phase procedure. `DECISION-CITE-FOUND(<file>):` is **not** a
+  run-record token and never appears here — under the hard-blocking lint posture a
+  finding stops `ci.sh` and there is no run to fold it into; it is the lint's stdout
+  format only.
+- `MEMORY-RETRACT(<concern>): <merge-key>` — emitted by the phase that owns a concern's
+  write surface, on a mechanical re-check that disproves a stored entry (never a
+  judgment call). Derived at `skills/integrate/SKILL.md` step 3 into
+  `{ concern, payload, retract: true }`. It inherits the ledger's path/secret scrub
+  unmodified.
+
+  **On-ledger rendering.** `keyOf` (`engine/src/observability/memory.js`) joins a
+  concern's key fields with `\x00`, which cannot travel on a ledger line, so the
+  rendering has to be chosen explicitly rather than left to infer. For the `findings`
+  concern the key fields are `file` + `pattern` (`KEY_FIELDS.findings`): the payload is
+  the merge key split on the first run of whitespace, the first field is `file`
+  (repo-RELATIVE, matching every other ledger path), the remainder is `pattern`. This
+  rendering is well-defined only because a repo-relative path in this repo carries no
+  whitespace; it is not a total rendering — a consumer whose paths do contain whitespace
+  would need a different scheme, and any future concern's merge key must state its own
+  rendering rather than assume this split.
 
 ## The absent-file case
 

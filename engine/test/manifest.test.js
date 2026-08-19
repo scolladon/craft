@@ -2429,6 +2429,152 @@ test('Given hygiene as a bare string when validateManifest runs, then error cont
   assert.ok(result.errors.some(e => e.includes('hygiene must be an object')));
 });
 
+test("Given adr { frozen: ['docs/history/**'] } when validateManifest runs, then ok:true", () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: { frozen: ['docs/history/**'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given adr { frozen: [] } when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: { frozen: [] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given adr {} when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: {} },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test("Given adr { frozen: ['', 1] } when validateManifest runs, then error contains \"adr.frozen must be a list of non-empty strings\"", () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: { frozen: ['', 1] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('adr.frozen must be a list of non-empty strings')));
+});
+
+test('Given adr { frozen: "docs/**" } when validateManifest runs, then error contains "adr.frozen must be a list of non-empty strings"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: { frozen: 'docs/**' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('adr.frozen must be a list of non-empty strings')));
+});
+
+test('Given adr { frozen: ["**"] } when validateManifest runs, then it is rejected as a whole-tree exemption', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['**'] } });
+
+  assert.equal(result.ok, false);
+  assert.ok(
+    result.errors.some(e => e.includes('exempts the whole tree')),
+    `expected the whole-tree rejection; got: ${result.errors.join('; ')}`,
+  );
+});
+
+test('Given adr.frozen globs that match everything without being all-wildcard, when validateManifest runs, then they are still rejected', () => {
+  const sut = validateManifest;
+
+  // A spelling-based check bounds one form at a time; these carry a
+  // non-wildcard segment yet match every path.
+  for (const glob of ['{**,}', '**/?*']) {
+    const result = sut({ adr: { frozen: [glob] } });
+
+    assert.equal(result.ok, false, `expected '${glob}' to be rejected`);
+    assert.ok(result.errors.some(e => e.includes('exempts the whole tree')), `errors: ${result.errors.join('; ')}`);
+  }
+});
+
+test('Given adr { frozen: ["*"] } when validateManifest runs, then it is accepted because it matches only root-level entries', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['*'] } });
+
+  assert.equal(result.ok, true, `expected '*' to pass; got: ${result.errors.join('; ')}`);
+});
+
+test('Given adr { frozen: ["**/archive"] } when validateManifest runs, then a specific glob is still accepted', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['**/archive'] } });
+
+  assert.equal(result.ok, true, `expected a specific glob to pass; got: ${result.errors.join('; ')}`);
+});
+
+test('Given adr { bogus: 1 } when validateManifest runs, then error contains "unknown adr field"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: { bogus: 1 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown adr field')));
+});
+
+test('Given adr as an array when validateManifest runs, then error contains "adr must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: [] },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('adr must be an object')));
+});
+
+test('Given adr as a bare string when validateManifest runs, then error contains "adr must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: 'oops' },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('adr must be an object')));
+});
+
+test('Given adr as null when validateManifest runs, then error contains "adr must be an object"', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { adr: null },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('adr must be an object')));
+});
+
 test('Given intention { source: file, covers: ["", 1] } when validateManifest runs, then error contains "intention.covers must be a list of non-empty strings"', () => {
   const sut = validateManifest;
 

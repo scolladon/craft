@@ -175,6 +175,44 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-08-19 — follow-ups surfaced by the decision-drift-propagation run, not yet scheduled)
+
+**A transient model 529 permanently degrades the highest-value phase.** The model-resolution
+invariant in `skills/run/SKILL.md` treats every model-availability error alike: one spawn death
+marks the tier degraded *for the rest of the run* and re-resolves to `models.fallback` (absent a
+declaration, `sonnet`). It does not distinguish a genuine model-down from a transient
+server-side 529, so a single blip at the first spawn costs the whole run its `opus` designer and
+planner. This run hit exactly that on its first design spawn, with zero work produced, and the
+session deviated deliberately — retrying once on the pinned tier — rather than pay it. Either
+the invariant should allow a bounded retry-before-degrade, or the deviation should be written
+into it as the rule. Leaving the engine's stated rule and the practised rule in disagreement is
+the one option that is clearly wrong.
+
+**`stub-lint` flags `scripts/ci.sh`'s own mentions of `stub-lint`.** `STUB-FOUND(scripts/ci.sh)`
+fires on the lines that *invoke* the stub lint, so any change touching `ci.sh` surfaces two
+advisory findings that are pure self-reference. Advisory today (`ci.sh` still exits 0), latent
+until a change makes `ci.sh` part of the touched set — which this one did. The hygiene core
+already has an `isSelf` notion for a lint's own source; `ci.sh` is the analogous case for a
+lint's own call site.
+
+**The lint mains re-implement helpers `cli-io.js` already exports.** `isRegularFile` (the
+`statSync` form) is defined locally in `manifest-lint-main.js`, `intention-lint-main.js` and
+`plan-lint-main.js` even though `cli-io.js` exports an identical one; `isNonEmptyString` and
+`isDirectoryPath` each have several independent copies across the same files. The
+decision-drift run centralised `findRepoRoot` on exactly this reasoning but deliberately stopped
+at the two-consumer case in its own radius. Note one trap for whoever does this: `adr-lint`'s
+`isNonSymlinkFile` looks like a fourth copy and is not — it uses `lstatSync` on purpose so a
+committed symlink is refused rather than followed, and merging it into the `statSync` family
+would silently reintroduce a hole a security review already found once.
+
+**`adr.frozen` can still exempt every citation without tripping the whole-tree guard.** The
+guard rejects a glob that matches every path in a probe corpus, which correctly catches `**`,
+`**/*`, `{**,}` and `**/?*`. It does not catch `**/*.md` — which matches no extensionless probe
+path, yet exempts every markdown file in the tree, and `ADR-NNN` citations live almost entirely
+in markdown. The resolved exempt set is announced on stderr every run, so this is visible rather
+than silent, but visible-and-wrong is not the same as bounded. Either widen the probe corpus to
+make the markdown case fail, or accept it explicitly and say so where the knob is documented.
+
 ### Open (scoped 2026-08-07 — follow-ups surfaced by the harness-hygiene-followups run, not yet scheduled)
 
 **The committed baseline's `review-waste` recommendations are stale against the threshold that

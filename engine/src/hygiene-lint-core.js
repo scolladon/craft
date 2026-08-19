@@ -71,7 +71,7 @@ export function parseArgs(argv) {
  * @returns {{ waived: Set<string>, readError: boolean }} paths resolved to absolute;
  *   readError is true if any requested source was unreadable (gates under blocking)
  */
-export function collectWaived(waiverSources, io, waiverPattern, maxBytes = MAX_FILE_BYTES) {
+export function collectWaived(waiverSources, io, waiverPattern, maxBytes = MAX_FILE_BYTES, base = process.cwd()) {
   const waived = new Set();
   let readError = false;
   for (const source of waiverSources) {
@@ -83,7 +83,7 @@ export function collectWaived(waiverSources, io, waiverPattern, maxBytes = MAX_F
     if (content === undefined) continue; // skipped (too large)
     // Resolve the capture so ./x, absolute, and trailing-slash variants all
     // land on the same key as the resolved scanned path.
-    for (const match of content.matchAll(waiverPattern)) waived.add(resolve(process.cwd(), match[1].trim()));
+    for (const match of content.matchAll(waiverPattern)) waived.add(resolve(base, match[1].trim()));
   }
   return { waived, readError };
 }
@@ -99,7 +99,7 @@ export function collectWaived(waiverSources, io, waiverPattern, maxBytes = MAX_F
  * @returns {{ content?: string, readError?: boolean }} content on success (may be
  *   ''), readError:true on an unreadable path, or {} when skipped (too large)
  */
-function readWithinCap(path, io, maxBytes, label) {
+export function readWithinCap(path, io, maxBytes, label) {
   let stat;
   try {
     stat = statSync(path);

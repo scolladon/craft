@@ -86,8 +86,12 @@ Input: `$ARGUMENTS`
 
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
     the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
-    procedure. With no `intention:` manifest key, probe the zero-config corpus
-    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`);
+    procedure. With no `intention:` manifest key, probe the zero-config corpus — the living pages
+    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`)
+    plus the resolved ADR directory for the governing lane — where
+    `scripts/governing-corpus.sh` emits only the decision records that carry a line-1
+    frontmatter fence, so the lane's READ is bounded to the records that opted in rather
+    than the whole corpus, and an empty governing lane is normal, not an error;
     hold the single `IntentionView` in-session beside the run record for the duration of
     this run. A cold or absent corpus yields an empty view and records a load no-op —
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
@@ -99,7 +103,14 @@ Input: `$ARGUMENTS`
     see `docs/contributing/specs/intention.md` Token vocabulary; emitted by the `validation` phase's
     `assert-fresh` walk. Four more tokens join the same family from the `ci.sh` hygiene
     cadence: `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`,
-    `SLOP-FOUND(<file>): <entry>`, and `SLOP-WAIVE(<file>): <reason>`.
+    `SLOP-FOUND(<file>): <entry>`, and `SLOP-WAIVE(<file>): <reason>`. Three more join from
+    the decision-drift-propagation family — see `docs/contributing/specs/run-record.md`
+    Token vocabulary: `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM`, emitted by
+    the `decisions` phase, one line per `supersedes` entry authored that run;
+    `DECISION-CITE-WAIVE(<file>): <reason>`, the `adr-lint` C3 waiver, collected from the
+    same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE`; and
+    `MEMORY-RETRACT(<concern>): <merge-key>`, emitted by the phase that owns a concern's
+    write surface on a mechanical re-check that disproves a stored entry.
 
 1d. `Resolution.gateDecisions` is an ARRAY of `{ phaseId, gate, codeProducing }`
     (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose
@@ -243,7 +254,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    dropped at `load` — if the slice is empty, the phase probes as today. This read is
    purely advisory and never gates. See `docs/contributing/specs/memory.md` Claude binding.
 
-   **Intention hint (advisory).** For the `design` and `planning` phases only, slice the
+   **Intention hint (advisory).** For the `design`, `decisions` and `planning` phases only, slice the
    in-session `IntentionView` for this phase's change scope: the `entries` whose subjects
    intersect the phase's touched set. If the slice is non-empty, prepend it into the SAME
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice

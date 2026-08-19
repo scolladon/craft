@@ -1,3 +1,10 @@
+---
+subjects:
+  - <repo paths this decision governs, or [] when it governs none>
+# supersedes:
+#   - adr: "<NNN of the superseded ADR, zero-padded 3-digit string>"
+#     scope: "<what specifically is superseded>"
+---
 # NNN — <title>
 
 - **Status:** accepted

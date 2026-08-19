@@ -3,6 +3,11 @@ subjects: ['engine/src/observability/**']
 ---
 # Telemetry adapter spec
 
+`engine/src/observability/memory.js` also falls under this page's `subjects` glob, but it is
+specified by [`docs/contributing/specs/memory.md`](./memory.md), which now declares it
+explicitly. The glob is left as-is rather than narrowed — the same advisory over-flag trade-off
+`docs/contributing/specs/intention.md` documents inline for `engine/src/glob.js`.
+
 ## Port interface
 
 - `collect(opts, deps) → UsageEvent[]` — parse transcript data into a vendor-neutral stream of

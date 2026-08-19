@@ -10,8 +10,10 @@ subjects:
 - `consult(scope, deps) → IntentionView` — return the living pages whose declared subjects
   intersect `scope`, as `{ path, purpose }` pairs.
   - **pre**: `scope` is a set of repo-relative paths — the touched set for the change or phase
-    under consideration; `deps` carries `readPage: (page) => string|null` and
-    `listCorpus: () => string[]`, both injected. The port never touches the filesystem itself.
+    under consideration; `deps` carries `readPage: (page) => string|null`,
+    `listCorpus: () => string[]`, and an optional `listGoverning: () => string[]`, all injected.
+    An absent `listGoverning` yields an empty governing lane — `consult` behaves exactly as it
+    does with the living corpus alone. The port never touches the filesystem itself.
   - **post**: `entries` contains one `{ path, purpose }` pair per page whose subjects intersect
     `scope` — `purpose` is the page's one-line summary (its heading or first summary line). A
     page that carries no usable subjects is omitted from `entries` and listed in `skipped` as
@@ -160,13 +162,30 @@ must be governed by at least one page's subjects; a scope matched by no page is 
 Without a `covers` declaration, the coverage check is a recorded no-op — probing may *propose* a
 covers list, never *impose* one.
 
+**Governing lane.** `consult`'s corpus is two lanes, enumerated separately:
+`scripts/living-corpus.sh` walks the living pages, `scripts/governing-corpus.sh <adr-dir>` walks
+the decision records. Both lanes share the same `subjects:` frontmatter key and the same
+classification rules — a decision record opts into `consult` exactly the way a living page does.
+Only the living lane reaches `assert-fresh`: the governing lane exists for `consult` alone, so a
+decision record can declare `subjects` and be surfaced by `consult` without ever becoming a
+freshness-guard input.
+
+The governing enumerator emits **only records carrying a line-1 frontmatter fence**. Without that
+filter the lane's OUTPUT would grow by use while its INPUT was the whole corpus from run one —
+every unfenced record read, classified `no-subjects`, and discarded, which on a mature corpus is
+the overwhelming majority of the read. The filter is on the FENCE, not on `subjects:`, so a
+present-but-broken fence stays in the lane and still reads as broken. Two consequences follow:
+an empty governing lane is the ordinary pre-adoption state and is **not** an error (the opposite
+of the living lane's zero-page rule), and a record joins the lane the first time it is given a
+fence — the lazy-backfill curve, now true of the read as well as the result.
+
 **Zero-config probe.** With no `intention:` configuration key at all, the `file` backend probes
 the conventional corpus: `docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`,
-`docs/contributing/DOD.md`, `docs/guides/customizing.md`, `docs/guides/concepts.md`. Pages in
-that corpus without `subjects` yield advisory notes only —
-a bare repository runs exactly as it does today. Frozen records (design history, archived docs,
-per-run design docs, decision records) simply carry no `subjects`, so they are never
-freshness-guarded, by construction.
+`docs/contributing/DOD.md`, `docs/guides/customizing.md`, `docs/guides/concepts.md`, plus the
+resolved ADR directory for the governing lane. Pages in that corpus without `subjects` yield
+advisory notes only — a bare repository runs exactly as it does today. A decision record may
+carry `subjects` and still be frozen: no governing-lane path is ever passed to `assert-fresh`, so
+no decision record can appear in `stale[]`, `uncovered[]`, or `skipped[]` of a freshness report.
 
 **`record` for `file`.** ADR writes and living-page refresh/create route through today's existing
 write locations, unchanged — this backend's `record` adds no new write path.

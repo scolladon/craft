@@ -633,6 +633,246 @@ test('Given load whose evicted[] carried a stale entry, when save runs, then tha
   assert.equal(reparsed.entries.toolchain.length, 0);
 });
 
+// ─── RED — RETRACTED 1: matching key is dropped, not refreshed ──────────────
+
+test('Given a stored findings entry at confidence 4 and a delta retracting its key, when save runs, then the entry is absent from the returned view', () => {
+  const sut = save;
+  const existing = { ...FINDINGS_ENTRY, confidence: 4 };
+  const view = makeLoadedView([existing]);
+  const delta = [{ concern: 'findings', payload: { file: 'engine/src/foo.js', pattern: 'no-unused-vars' }, retract: true }];
+  const captured = [];
+  const deps = makeSaveDeps({
+    writeStore: (_path, content) => captured.push(content),
+    caps: { maxEntries: 1000, maxBytes: Infinity },
+  });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  assert.equal(reparsed.entries.findings.length, 0);
+});
+
+// ─── RED — RETRACTED 2: no-match key never adds ─────────────────────────────
+
+test('Given a retraction whose key matches nothing stored, when save runs, then the store is unchanged and no entry is added', () => {
+  const sut = save;
+  const view = makeLoadedView([]);
+  const delta = [{ concern: 'findings', payload: { file: 'engine/src/ghost.js', pattern: 'no-unused-vars' }, retract: true }];
+  const captured = [];
+  const deps = makeSaveDeps({
+    writeStore: (_path, content) => captured.push(content),
+    caps: { maxEntries: 1000, maxBytes: Infinity },
+  });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  assert.equal(reparsed.entries.findings.length, 0);
+});
+
+// ─── RED — RETRACTED 3: both-present edge, retraction first ────────────────
+
+test('Given a delta carrying a retraction and an observation for the same key with the retraction first, when save runs, then the entry is absent', () => {
+  const sut = save;
+  const existing = { ...FINDINGS_ENTRY, confidence: 3 };
+  const view = makeLoadedView([existing]);
+  const delta = [
+    { concern: 'findings', payload: { file: 'engine/src/foo.js', pattern: 'no-unused-vars' }, retract: true },
+    { concern: 'findings', payload: { file: 'engine/src/foo.js', severity: 'high', pattern: 'no-unused-vars' } },
+  ];
+  const captured = [];
+  const deps = makeSaveDeps({
+    writeStore: (_path, content) => captured.push(content),
+    caps: { maxEntries: 1000, maxBytes: Infinity },
+  });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  assert.equal(reparsed.entries.findings.length, 0);
+});
+
+// ─── RED — RETRACTED 4: both-present edge, retraction last ─────────────────
+
+test('Given the same delta with the retraction last, when save runs, then the entry is absent', () => {
+  const sut = save;
+  const existing = { ...FINDINGS_ENTRY, confidence: 3 };
+  const view = makeLoadedView([existing]);
+  const delta = [
+    { concern: 'findings', payload: { file: 'engine/src/foo.js', severity: 'high', pattern: 'no-unused-vars' } },
+    { concern: 'findings', payload: { file: 'engine/src/foo.js', pattern: 'no-unused-vars' }, retract: true },
+  ];
+  const captured = [];
+  const deps = makeSaveDeps({
+    writeStore: (_path, content) => captured.push(content),
+    caps: { maxEntries: 1000, maxBytes: Infinity },
+  });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  assert.equal(reparsed.entries.findings.length, 0);
+});
+
+// ─── RED — RETRACTED 5: degraded guard still fires first ───────────────────
+
+test('Given a degraded view and a delta of retractions, when save runs, then writeNote is "save skipped: load was degraded" and deps.writeStore is never called', () => {
+  const sut = save;
+  const view = load('/repo', { readStore: () => '---\na: b: c\n---\n', validators: ALL_PASS_VALIDATORS });
+  const delta = [{ concern: 'findings', payload: { file: 'engine/src/foo.js', pattern: 'no-unused-vars' }, retract: true }];
+  let writeCalled = false;
+  const deps = makeSaveDeps({ writeStore: () => { writeCalled = true; } });
+
+  const result = sut('/repo', view, delta, deps);
+
+  assert.equal(writeCalled, false);
+  assert.equal(result.writeNote, 'save skipped: load was degraded');
+});
+
+// ─── RED — RETRACTED 6: failed writeStore is a warning, never a throw ──────
+
+test('Given a writeStore that throws and a delta of retractions, when save runs, then it returns a writeNote and does not throw', () => {
+  const sut = save;
+  const existing = { ...FINDINGS_ENTRY, confidence: 3 };
+  const view = makeLoadedView([existing]);
+  const delta = [{ concern: 'findings', payload: { file: 'engine/src/foo.js', pattern: 'no-unused-vars' }, retract: true }];
+  const deps = makeSaveDeps({
+    writeStore: () => { throw new Error('disk full'); },
+    caps: { maxEntries: 1000, maxBytes: Infinity },
+  });
+
+  let result;
+  assert.doesNotThrow(() => {
+    result = sut('/repo', view, delta, deps);
+  });
+  assert.ok(result.writeNote.includes('save failed'), `expected writeNote to include "save failed", got: ${result.writeNote}`);
+});
+
+// ─── RED — RETRACTED 7: the marker never reaches the store ─────────────────
+
+test('Given a retracted key, when the flushed store is inspected, then no entry carries a retract field', () => {
+  const sut = save;
+  const existing = { ...FINDINGS_ENTRY, confidence: 3 };
+  const view = makeLoadedView([existing, TOOLCHAIN_ENTRY]);
+  // The retracted key must match NOTHING stored, so the observation actually
+  // reaches the ADDED path. Retracting a stored key is consumed by the drop
+  // branch and never exercises the filter this case exists to guard.
+  const delta = [
+    { concern: 'findings', payload: { file: 'engine/src/unstored.js', pattern: 'never-seen' }, retract: true },
+    { concern: 'gate-cmd', payload: { phase: 'test', command: 'node --test' } },
+  ];
+  const captured = [];
+  const deps = makeSaveDeps({
+    writeStore: (_path, content) => captured.push(content),
+    caps: { maxEntries: 1000, maxBytes: Infinity },
+  });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  for (const concern of CONCERNS) {
+    for (const entry of reparsed.entries[concern]) {
+      assert.ok(!('retract' in entry), `entry in ${concern} unexpectedly carries a retract field`);
+    }
+  }
+});
+
+// ─── Review round: the ADDED path must read the same indexed decision ─────
+
+test('Given a retraction and a plain observation for the SAME unstored key, when save runs, then the entry is not resurrected on the ADDED path', () => {
+  const sut = save;
+  const view = makeLoadedView([TOOLCHAIN_ENTRY]);
+  const key = { file: 'engine/src/unstored.js', pattern: 'never-seen' };
+  const delta = [
+    { concern: 'findings', payload: { ...key }, retract: true },
+    { concern: 'findings', payload: { ...key, severity: 'high' } },
+  ];
+  const captured = [];
+  const deps = makeSaveDeps({ writeStore: (_path, content) => captured.push(content) });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  assert.equal(reparsed.entries.findings.length, 0, 'a retracted key must not be added by a sibling observation');
+});
+
+test('Given the same pair with the retraction LAST, when save runs, then the entry is still not resurrected', () => {
+  const sut = save;
+  const view = makeLoadedView([TOOLCHAIN_ENTRY]);
+  const key = { file: 'engine/src/unstored.js', pattern: 'never-seen' };
+  const delta = [
+    { concern: 'findings', payload: { ...key, severity: 'high' } },
+    { concern: 'findings', payload: { ...key }, retract: true },
+  ];
+  const captured = [];
+  const deps = makeSaveDeps({ writeStore: (_path, content) => captured.push(content) });
+
+  sut('/repo', view, delta, deps);
+
+  const reparsed = parseStore(captured[0]);
+  assert.equal(reparsed.entries.findings.length, 0, 'delta order must not decide the outcome');
+});
+
+// ─── RED — RETRACTED 8: property lens over the transition table ────────────
+
+test('Given every stored confidence FLOOR..CEILING crossed with {observed, not-observed, retracted}, when save runs, then confidence stays within FLOOR..CEILING and the retracted axis always yields absence', () => {
+  const sut = save;
+
+  for (let confidence = FLOOR; confidence <= CEILING; confidence++) {
+    const ecosystem = `eco-${confidence}`;
+    const seed = { ...TOOLCHAIN_ENTRY, ecosystem, confidence };
+
+    // observed axis — REFRESHED
+    {
+      const view = makeLoadedView([seed]);
+      const delta = [{ concern: 'toolchain', payload: { ecosystem, lockfileFingerprint: 'abc123' } }];
+      const captured = [];
+      const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
+
+      sut('/repo', view, delta, deps);
+
+      const reparsed = parseStore(captured[0]);
+      assert.equal(reparsed.entries.toolchain.length, 1);
+      const refreshed = reparsed.entries.toolchain[0].confidence;
+      assert.ok(refreshed >= FLOOR && refreshed <= CEILING);
+      assert.equal(refreshed, Math.min(confidence + STEP, CEILING));
+    }
+
+    // not-observed axis — DECAYED or EVICTED at FLOOR
+    {
+      const view = makeLoadedView([seed]);
+      const delta = [];
+      const captured = [];
+      const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
+
+      sut('/repo', view, delta, deps);
+
+      const reparsed = parseStore(captured[0]);
+      const decayed = confidence - STEP;
+      if (decayed > FLOOR) {
+        assert.equal(reparsed.entries.toolchain.length, 1);
+        assert.ok(reparsed.entries.toolchain[0].confidence >= FLOOR && reparsed.entries.toolchain[0].confidence <= CEILING);
+        assert.equal(reparsed.entries.toolchain[0].confidence, decayed);
+      } else {
+        assert.equal(reparsed.entries.toolchain.length, 0);
+      }
+    }
+
+    // retracted axis — always absent
+    {
+      const view = makeLoadedView([seed]);
+      const delta = [{ concern: 'toolchain', payload: { ecosystem, lockfileFingerprint: 'abc123' }, retract: true }];
+      const captured = [];
+      const deps = makeSaveDeps({ writeStore: (_p, c) => captured.push(c) });
+
+      sut('/repo', view, delta, deps);
+
+      const reparsed = parseStore(captured[0]);
+      assert.equal(reparsed.entries.toolchain.length, 0);
+    }
+  }
+});
+
 // ─── RED 9 — both caps — entry-count ─────────────────────────────────────────
 
 test('Given store over the entry-count cap, when save runs, then flushed store has maxEntries entries', () => {
