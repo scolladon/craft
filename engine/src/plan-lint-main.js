@@ -19,9 +19,10 @@
  * 2. A missing argv[0] is a clean usage error (exit 2), not a bash `${1:?…}` exit 1.
  */
 
-import { readFileSync, statSync, existsSync } from 'node:fs';
-import { dirname, resolve, relative, join } from 'node:path';
+import { readFileSync, statSync } from 'node:fs';
+import { dirname, resolve, relative } from 'node:path';
 import { containByRealpath } from './contain.js';
+import { findRepoRoot } from './cli-io.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -128,24 +129,6 @@ function contextBlock(lines, part) {
     }
   }
   return lines.slice(contextIdx, blockEnd).join('\n');
-}
-
-/**
- * Walk up from the plan file's directory to the first ancestor containing a
- * `.git` entry (file or directory — a worktree's `.git` is a file), falling
- * back to the plan file's own directory when none is found.
- * @param {string} planPath
- * @returns {string}
- */
-function findRepoRoot(planPath) {
-  const startDir = dirname(resolve(planPath));
-  let dir = startDir;
-  while (true) {
-    if (existsSync(join(dir, '.git'))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return startDir;
-    dir = parent;
-  }
 }
 
 /**
@@ -271,7 +254,7 @@ export function main(argv, io) {
     }
   }
 
-  const repoRoot = findRepoRoot(planPath);
+  const repoRoot = findRepoRoot(dirname(resolve(planPath)));
   const selfPath = resolveDeclaredFile(repoRoot, resolve(planPath));
   for (const warning of overlapWarnings(lines, parts, repoRoot, selfPath)) {
     io.stdout.write(`${warning}\n`);

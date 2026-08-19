@@ -21,11 +21,12 @@
  */
 
 import { readdirSync, statSync, existsSync, lstatSync } from 'node:fs';
-import { join, dirname, resolve, relative } from 'node:path';
+import { join, resolve, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { load } from 'js-yaml';
 import { extractFrontmatter, parseManifestContent } from './frontmatter.js';
 import { collectWaived, escapeRegExp, readWithinCap, MAX_FILE_BYTES } from './hygiene-lint-core.js';
+import { findRepoRoot } from './cli-io.js';
 import { containByRealpath } from './contain.js';
 import { matchGlob, matchesEveryPath } from './glob.js';
 
@@ -322,23 +323,6 @@ function checkSupersessionEntries(declaringRecords, allRecords) {
     }
   }
   return findings;
-}
-
-/**
- * Walk up from startDir to the nearest ancestor carrying a `.git` entry
- * (file or directory — a worktree's `.git` is a file), falling back to
- * startDir when none is found.
- * @param {string} startDir
- * @returns {string}
- */
-function findRepoRoot(startDir) {
-  let dir = startDir;
-  while (true) {
-    if (existsSync(join(dir, '.git'))) return dir;
-    const parent = dirname(dir);
-    if (parent === dir) return startDir;
-    dir = parent;
-  }
 }
 
 /**
