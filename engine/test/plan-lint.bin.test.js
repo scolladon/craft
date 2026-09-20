@@ -71,3 +71,20 @@ test('Given a schema-invalid plan fixture, when the plan-lint bin is spawned, th
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Given a plan whose first part declares seven files, when the plan-lint bin is spawned, then it exits 2 with the "over the ceiling" line', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'planlint-bin-'));
+  try {
+    const body = Array.from({ length: 7 }, (_, i) => `Touches \`src/module-${i + 1}.js\`.`).join('\n');
+    const plan = `# Plan — Test topic\n\n## Part 1 — first thing\n\n### Context\n\n${body}\n\n### TDD steps\n\n1. RED then GREEN.\n\n### Gate\n\necho ok\n\n### Commit\n\nfeat: first thing\n`;
+    const planPath = join(dir, 'over-ceiling.md');
+    writeFileSync(planPath, plan);
+
+    const result = run(planPath);
+
+    assert.equal(result.status, 2);
+    assert.ok(result.stdout.includes('over the ceiling'), `stdout was: ${result.stdout}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

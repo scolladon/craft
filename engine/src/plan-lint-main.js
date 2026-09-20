@@ -2,8 +2,15 @@
  * `plan-lint` — validates a craft plan file against the part schema
  * (`templates/plan.md`): every `## Part` heading must carry its four
  * pre-chewed sections (`### Context`, `### TDD steps`, `### Gate`,
- * `### Commit`), and warns (advisory, never blocking) when two or more
- * parts' `### Context` blocks declare the same repo file.
+ * `### Commit`); warns (advisory, never blocking) when two or more parts'
+ * `### Context` blocks declare the same repo file; and blocks when a single
+ * part's `### Context` block declares more files than the configured ceiling.
+ *
+ * The ceiling blocks and overlap only warns because they measure different
+ * things. Overlap is a property of a PAIR of parts and is sometimes correct
+ * (this repo has shipped a plan where two parts rightly edited one file).
+ * Over-ceiling is a property of ONE part: it is exactly the shape the planner
+ * was told to avoid, and there is no case where it is correct.
  *
  * Moved from `scripts/plan-lint.sh` (awk) to this house bin-shim-over-pure-src
  * archetype so the new cross-part overlap detector — set intersection, awk-hostile —
@@ -38,6 +45,15 @@ const PART_LABEL_PATTERN = /^## Part\s+(\S+)/; // equivalent mutant (leading `^`
 // being an available action. The signal is still reported — only the suggested
 // remedy changes, because the widest overlaps are the ones worth seeing.
 const MERGEABLE_PART_LIMIT = 3;
+// Above this many files, a part is too large for one agent lifecycle to hold
+// in its head. Configurable via `--file-ceiling` for a repo with genuinely
+// large parts.
+const PART_FILE_CEILING = 6;
+// A conservative path charset: rejects a regex literal, a brace glob, an
+// angle-bracket placeholder and a gitignore negation, every one of which
+// otherwise reads as a path once the whitespace check alone is applied.
+const PATH_SHAPE_CHARSET = /^[A-Za-z0-9._/*+@-]+$/;
+const KNOWN_FILE_EXTENSIONS = ['.js', '.md', '.sh', '.json', '.jsonl', '.yml', '.yaml'];
 
 /**
  * Regular-file predicate mirroring the bash `[ -f <path> ]` test.
@@ -188,6 +204,49 @@ function declaredFiles(lines, part, repoRoot, cache) {
 }
 
 /**
+ * Whether a backticked span reads as a repo path even when it resolves to
+ * nothing (the greenfield case: a part that CREATES a module declares a span
+ * `resolveDeclaredFile` can never confirm). Fails toward counting — a false
+ * positive here only over-splits a part, never hides an oversized one.
+ * @param {string} span
+ * @returns {boolean}
+ */
+function isPathShaped(span) {
+  if (/\s/.test(span)) return false; // rejects a fenced code block's cross-line pseudo-span
+  if (!PATH_SHAPE_CHARSET.test(span)) return false;
+  return span.includes('/') || KNOWN_FILE_EXTENSIONS.some((ext) => span.endsWith(ext));
+}
+
+/**
+ * A part's file count for the ceiling check: the UNION of its declared spans
+ * that resolve to an existing file and its spans that are merely path-shaped.
+ * The union is what makes a greenfield part (declaring files that don't exist
+ * yet) count at all — `declaredFiles` alone would report zero for it.
+ * @param {string[]} lines
+ * @param {Part} part
+ * @param {string} repoRoot
+ * @param {Map<string, string|null>} cache — span → resolution, shared across parts
+ * @returns {number}
+ */
+function ceilingCount(lines, part, repoRoot, cache) {
+  const block = contextBlock(lines, part);
+  if (block === null) return 0; // no Context block: missingSections already fails this part
+
+  const counted = new Set();
+  for (const match of block.matchAll(BACKTICK_PATTERN)) {
+    const span = match[1];
+    if (!cache.has(span)) cache.set(span, resolveDeclaredFile(repoRoot, span));
+    const resolved = cache.get(span);
+    if (resolved !== null) {
+      counted.add(resolved);
+    } else if (isPathShaped(span)) {
+      counted.add(span);
+    }
+  }
+  return counted.size;
+}
+
+/**
  * One advisory warning line per file path declared by two or more parts,
  * sorted lexicographically by path for determinism. The plan's own path is
  * excluded: parts citing it are recording provenance, not sharing a unit of work.
@@ -217,18 +276,50 @@ function overlapWarnings(lines, parts, repoRoot, selfPath) {
     );
 }
 
+const USAGE_ERROR = 'plan-lint: usage: plan-lint <plan-file>\n';
+const FILE_CEILING_USAGE_ERROR = 'plan-lint: usage: --file-ceiling requires a positive integer\n';
+
 /**
- * Main entrypoint for plan-lint logic. Carries the schema check, the advisory
- * cross-part overlap warning, and the two deliberate divergences from the
- * retired awk script documented in the module header above.
+ * Parse argv into the plan path (the first non-flag argument, wherever it
+ * falls) and an optional `--file-ceiling <n>` override.
+ * @param {string[]} argv
+ * @returns {{ planPath: string|null, ceiling: number, usageError: string|null }}
+ */
+function parseArgs(argv) {
+  let planPath = null;
+  let ceiling = PART_FILE_CEILING;
+
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] !== '--file-ceiling') {
+      if (!planPath) planPath = argv[i];
+      continue;
+    }
+
+    const parsed = Number(argv[i + 1]);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      return { planPath: null, ceiling, usageError: FILE_CEILING_USAGE_ERROR };
+    }
+    ceiling = parsed;
+    i += 1; // the flag's value is consumed too, or it would be read again as the plan path
+  }
+
+  if (!planPath) return { planPath: null, ceiling, usageError: USAGE_ERROR };
+  return { planPath, ceiling, usageError: null };
+}
+
+/**
+ * Main entrypoint for plan-lint logic. Carries the schema check, the file
+ * ceiling, the advisory cross-part overlap warning, and the two deliberate
+ * divergences from the retired awk script documented in the module header
+ * above.
  * @param {string[]} argv
  * @param {{ stdout: { write(s: string): void }, stderr: { write(s: string): void } }} io
  * @returns {number} exit code
  */
 export function main(argv, io) {
-  const planPath = argv[0];
-  if (!planPath) {
-    io.stderr.write('plan-lint: usage: plan-lint <plan-file>\n');
+  const { planPath, ceiling, usageError } = parseArgs(argv);
+  if (usageError) {
+    io.stderr.write(usageError);
     return EXIT_INVALID;
   }
   if (!isRegularFile(planPath)) {
@@ -245,6 +336,9 @@ export function main(argv, io) {
     return EXIT_INVALID;
   }
 
+  const repoRoot = findRepoRoot(dirname(resolve(planPath)));
+  const ceilingCache = new Map();
+
   let bad = 0;
   for (const part of parts) {
     const missing = missingSections(lines, part);
@@ -252,9 +346,14 @@ export function main(argv, io) {
       io.stdout.write(`plan-lint: part "${part.heading}" missing: ${missing.join(', ')}\n`);
       bad += 1;
     }
+
+    const count = ceilingCount(lines, part, repoRoot, ceilingCache);
+    if (count > ceiling) {
+      io.stdout.write(`plan-lint: part "${part.label}" declares ${count} files — over the ceiling of ${ceiling}. Split it.\n`);
+      bad += 1;
+    }
   }
 
-  const repoRoot = findRepoRoot(dirname(resolve(planPath)));
   const selfPath = resolveDeclaredFile(repoRoot, resolve(planPath));
   for (const warning of overlapWarnings(lines, parts, repoRoot, selfPath)) {
     io.stdout.write(`${warning}\n`);

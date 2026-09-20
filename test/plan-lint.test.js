@@ -8,6 +8,7 @@ const ROOT = path.resolve(__dirname, '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'plan-lint.sh');
 const GOOD_FIXTURE = path.join(__dirname, 'fixtures', 'plan-good.md');
 const MISSING_FIXTURE = path.join(__dirname, 'fixtures', 'plan-missing-section.md');
+const OVER_CEILING_FIXTURE = path.join(__dirname, 'fixtures', 'plan-over-ceiling.md');
 
 test('good plan fixture exits 0 printing "part(s) OK"', () => {
   const stdout = execFileSync('bash', [SCRIPT, GOOD_FIXTURE], { encoding: 'utf8' });
@@ -24,6 +25,18 @@ test('section-missing plan fixture exits 2 printing "plan-lint:"', () => {
   }
   assert.strictEqual(err.status, 2, 'expected exit status 2');
   assert.ok((err.stdout || '').includes('plan-lint:'), `stdout was: ${err.stdout}`);
+});
+
+test('over-ceiling plan fixture exits 2 printing "over the ceiling"', () => {
+  let err;
+  try {
+    execFileSync('bash', [SCRIPT, OVER_CEILING_FIXTURE], { encoding: 'utf8' });
+    assert.fail('expected non-zero exit');
+  } catch (e) {
+    err = e;
+  }
+  assert.strictEqual(err.status, 2, 'expected exit status 2');
+  assert.ok((err.stdout || '').includes('over the ceiling'), `stdout was: ${err.stdout}`);
 });
 
 test('zero-argument invocation exits 2 printing usage on stderr', () => {
