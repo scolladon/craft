@@ -244,6 +244,28 @@ test('Given a review-waste rec missing its role and billed turns, when planTune 
   assert.equal(advisory(proposals)[0].rationale, 'reviewer billed ? turns across review — consider a cheaper reviewer tier');
 });
 
+test('Given a report carrying a turn-budget recommendation, when planTune runs, then it yields an advisory proposal whose path is null and whose rationale names the role, the phase and the turn count', () => {
+  const sut = planTune;
+  const report = {
+    schemaVersion: 1,
+    runs: [],
+    recommendations: [{
+      kind: 'turn-budget', run: 'r1', phase: 'implementation', role: 'part-implementer', model: null,
+      detail: 'role part-implementer billed 291 turns in phase implementation',
+      evidence: { billedTurns: 291, cycles: 3, phase: 'implementation', role: 'part-implementer', threshold: 200, toolCalls: 312 },
+    }],
+  };
+
+  const { proposals } = sut({ report, baseFrontmatter: {} });
+
+  const rec = advisory(proposals).find(p => p.source === 'turn-budget');
+  assert.ok(rec, 'expected a turn-budget advisory proposal');
+  assert.equal(rec.path, null);
+  assert.ok(rec.rationale.includes('part-implementer'), 'rationale must name the role');
+  assert.ok(rec.rationale.includes('implementation'), 'rationale must name the phase');
+  assert.ok(rec.rationale.includes('291'), 'rationale must name the turn count');
+});
+
 test('Given recurring high-confidence memory findings, when planTune runs, then only they become advisory (low-confidence filtered)', () => {
   const sut = planTune;
   const memory = { entries: { findings: [

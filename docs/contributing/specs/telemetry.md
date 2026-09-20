@@ -347,11 +347,12 @@ Empty/advisory report (no events):
 
 ### Per run (`runs[*]`)
 
-Keys deep-sorted: `groups`, `reviewCycles`, `run`, `slug`.
+Keys deep-sorted: `groups`, `phaseTurns`, `reviewCycles`, `run`, `slug`.
 
 ```json
 {
   "groups": [...],
+  "phaseTurns": [...],
   "reviewCycles": [...],
   "run": "session-abc123",
   "slug": "feat/my-feature"
@@ -393,6 +394,44 @@ present.
 **cacheEfficiency**: `cacheCreation / (cacheRead + cacheCreation)`, or `0` when the denominator
 is zero.
 
+### phaseTurns (`runs[*].phaseTurns[*]`)
+
+Keys deep-sorted: `billedTurns`, `cycles`, `maxCost`, `meanCost`, `phase`, `role`, `toolCalls`,
+`totalCost`.
+
+```json
+{
+  "billedTurns": 127,
+  "cycles": 3,
+  "maxCost": { "priced": 0.0015, "relative": 5200 },
+  "meanCost": { "priced": 0.00135, "relative": 4750 },
+  "phase": "implementation",
+  "role": "part-implementer",
+  "toolCalls": 214,
+  "totalCost": { "priced": 0.0027, "relative": 9500 }
+}
+```
+
+One entry per distinct `(phase, role)` pair, over every event whose `phase` is non-`null` —
+a main-loop event (`phase: null`) is not a phase and never contributes an entry. `cycles` is the
+count of **distinct sub-agent spawns**, not billed turns: a single sub-agent can emit many
+billed-turn events (one per assistant `message.id`), and each event carries the opaque `spawnId`
+its transcript file was assigned (see [Spawn identity](#claude-binding) above) — `cycles` is
+`new Set(events.map(e => e.spawnId)).size` over the pair's events. Events sharing no spawn
+identity at all (an `undefined` `spawnId`, e.g. a binding with no per-spawn transcript boundary)
+collapse into a single cycle rather than being assumed distinct. `billedTurns` is the size of the
+underlying event list — a cost/schedule signal kept alongside `cycles` rather than dropped.
+`toolCalls` is `Σ event.toolCalls`, treating a missing field (a non-claude binding) as `0`.
+
+`totalCost`, `maxCost`, and `meanCost` are O(1)-per-pair aggregates over **all** of the pair's
+events (every billed turn, not deduplicated by spawn), computed in the same pass that builds
+`groups` — `phaseTurns` size stays proportional to distinct `(run, phase, role)` triples, never to
+turn/message count. Each mirrors the `cost: { priced, relative }` shape every group already
+carries: `priced` and `relative` are aggregated as two separate dimensions, never collapsed
+together. `priced` is `null` for all three fields the moment any one turn's model lacks pricing —
+a partial sum would misrepresent the pair's true cost, not merely omit a data point; `relative` is
+always present.
+
 ### reviewCycles (`runs[*].reviewCycles[*]`)
 
 Keys deep-sorted: `billedTurns`, `cycles`, `maxCost`, `meanCost`, `role`, `totalCost`.
@@ -408,30 +447,20 @@ Keys deep-sorted: `billedTurns`, `cycles`, `maxCost`, `meanCost`, `role`, `total
 }
 ```
 
-`cycles` is the count of **distinct sub-agent spawns**, not billed turns: a single reviewer
-sub-agent can emit many billed-turn events (one per assistant `message.id`), and each event
-carries the opaque `spawnId` its transcript file was assigned (see
-[Spawn identity](#claude-binding) above) — `cycles` is `new Set(events.map(e => e.spawnId)).size`
-over the role's review-phase events. Events sharing no spawn identity at all (an `undefined`
-`spawnId`, e.g. a binding with no per-spawn transcript boundary) collapse into a single cycle
-rather than being assumed distinct. `billedTurns` keeps the older per-turn count — the size of the
-underlying event list — available alongside `cycles` rather than dropping it; it is what `cycles`
-used to mean before this fix, and grows with corpus size the way `cycles` no longer does.
-
-`totalCost`, `maxCost`, and `meanCost` are O(1)-per-role aggregates over **all** of the role's
-review-cycle events (every billed turn, not deduplicated by spawn), computed in the same pass that
-builds `groups` — `reviewCycles` size stays proportional to distinct `(run, role)` pairs, never to
-turn/message count. Each mirrors the `cost: { priced, relative }` shape every group already
-carries: `priced` and `relative` are aggregated as two separate dimensions, never collapsed
-together. `priced` is `null` for all three fields the moment any one cycle's model lacks pricing —
-a partial sum would misrepresent the role's true cost, not merely omit a data point; `relative` is
-always present.
+`reviewCycles` is the `phase === 'review'` projection of [`phaseTurns`](#phaseturns-runsphaseturns)
+above, with `phase` and `toolCalls` dropped — it predates `phaseTurns` and stays byte-identical to
+what it emitted before `phaseTurns` existed, so the committed baseline snapshot and every consumer
+already reading `reviewCycles` are unaffected. The two exist side by side because `reviewCycles` is
+the narrower, older surface (`review-waste` reads it directly) while `phaseTurns` is the general
+one every phase needs (`turn-budget` reads it). See phaseTurns above for what each field means;
+`cycles` there is `new Set(events.map(e => e.spawnId)).size` over the role's review-phase events.
 
 ### Recommendations (`recommendations[*]`)
 
-Keys deep-sorted: `detail`, `evidence`, `kind`, `model`, `phase`, `run`.
+Keys deep-sorted: `detail`, `evidence`, `kind`, `model`, `phase`, `run`. `model-routing` and
+`turn-budget` additionally carry a top-level `role`.
 
-Three kinds are currently emitted:
+Four kinds are currently emitted:
 
 **cache-hotspot** — phase has high cache-creation ratio relative to total run cost:
 
@@ -490,6 +519,34 @@ Three kinds are currently emitted:
 
 `evidence` mirrors its `reviewCycles` entry exactly, `billedTurns` included — see
 [reviewCycles](#reviewcycles-runsreviewcycles) above for what each field means.
+
+**turn-budget** — a phase/role pair billed more turns than the configured threshold. Unlike the
+other three kinds, its scope is not limited to `review`: it fires for any phase in
+[`phaseTurns`](#phaseturns-runsphaseturns):
+
+```json
+{
+  "detail": "role part-implementer billed 291 turns in phase implementation",
+  "evidence": {
+    "billedTurns": 291,
+    "cycles": 3,
+    "phase": "implementation",
+    "role": "part-implementer",
+    "threshold": 200,
+    "toolCalls": 312
+  },
+  "kind": "turn-budget",
+  "model": null,
+  "phase": "implementation",
+  "role": "part-implementer",
+  "run": "session-abc123"
+}
+```
+
+`role` rides at the top level, the way `model-routing`'s does, so a downstream consumer routes on
+it without reaching into `evidence`. `evidence` mirrors its `phaseTurns` entry plus `threshold`
+(the exact `TURN_BUDGET_BILLED_TURNS` value compared against) — see phaseTurns above for what
+`billedTurns`, `cycles`, and `toolCalls` mean. Comparison is strict `>`, matching `review-waste`.
 
 ### Baseline deltas (`baselineDeltas[*]`)
 

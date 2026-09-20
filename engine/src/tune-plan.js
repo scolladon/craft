@@ -89,22 +89,29 @@ function advisoryProposal(source, rationale, evidence) {
   return { source, path: null, from: null, to: null, rationale, evidence };
 }
 
+// No manifest knob exists for a per-phase turn budget yet (a `turn_budget` PHASE_FIELDS
+// entry is a later addition), so `turn-budget` stays advisory rather than auto-patching,
+// same as `cache-hotspot` and `review-waste`.
+function recAdvisory(rec) {
+  if (rec.kind === 'cache-hotspot') {
+    return advisoryProposal('cache-hotspot',
+      `phase ${rec.phase} carries high cache-creation — consider a manual checkpoint`, rec.evidence);
+  }
+  if (rec.kind === 'review-waste') {
+    return advisoryProposal('review-waste',
+      `${rec.evidence?.role ?? 'reviewer'} billed ${rec.evidence?.billedTurns ?? '?'} turns across review — consider a cheaper reviewer tier`, rec.evidence);
+  }
+  if (rec.kind === 'turn-budget') {
+    return advisoryProposal('turn-budget',
+      `${rec.role} billed ${rec.evidence?.billedTurns ?? '?'} turns in phase ${rec.phase} — consider narrowing scope or raising the budget`, rec.evidence);
+  }
+  return null;
+}
+
 function recAdvisories(recs, drift) {
-  const out = [];
-  for (const rec of recs) {
-    if (rec.kind === 'cache-hotspot') {
-      out.push(advisoryProposal('cache-hotspot',
-        `phase ${rec.phase} carries high cache-creation — consider a manual checkpoint`, rec.evidence));
-    } else if (rec.kind === 'review-waste') {
-      out.push(advisoryProposal('review-waste',
-        `${rec.evidence?.role ?? 'reviewer'} billed ${rec.evidence?.billedTurns ?? '?'} turns across review — consider a cheaper reviewer tier`, rec.evidence));
-    }
-  }
-  for (const entry of drift) {
-    out.push(advisoryProposal('drift',
-      `phase ${entry.phase} drifted on ${entry.dimension} vs baseline — investigate the prompt`, entry));
-  }
-  return out;
+  const driftAdvisories = drift.map(entry => advisoryProposal('drift',
+    `phase ${entry.phase} drifted on ${entry.dimension} vs baseline — investigate the prompt`, entry));
+  return [...recs.map(recAdvisory).filter(Boolean), ...driftAdvisories];
 }
 
 function memoryAdvisories(memory) {
