@@ -616,3 +616,45 @@ deep-sorted: `delta`, `dimension`, `phase`, `threshold`.
 
 The default committed baseline snapshot lives at
 `docs/contributing/metrics-baseline.report.json`, refreshed on demand as part of a closing chore.
+
+## Metrics ledger row
+
+A second, distinct committed artifact from `report.json`: one append-only row per
+agent-spawned phase in `.claude/craft-metrics.md`, written by `engine/bin/metrics-emit.js`
+(invoked via `scripts/emit-metrics.sh`), formatted by the pure
+`formatMetricsRow` (`engine/src/observability/metrics-line.js`). Field order is fixed:
+
+```
+<run-id> <phase-id> turns=<n> tool_calls=<n> tokens=<n> duration_ms=<n> cache_read=<n> cache_creation=<n> output=<n> avg_ctx=<n> equiv=<n>
+```
+
+- `turns` — the phase's billed-turn count (the slice's event count).
+- `tool_calls` — summed `toolCalls` across the slice; `0` for a binding that supplies none.
+- `tokens` — transcript-derived: `input + cache_read + cache_creation + output`, never the
+  spawn's returned final-message usage block.
+- `duration_ms` — summed AGENT time across the phase's spawns, never wall clock.
+- `cache_read` / `cache_creation` — summed across the slice.
+- `output` — summed output tokens.
+- `avg_ctx` — `round((input + cache_read + cache_creation) / turns)`.
+- `equiv` — a **relative unit, never a currency figure**:
+  `input×1 + cache_read×0.1 + cache_creation×1.25 + output×5`, rounded. The weights are
+  fixed constants so rows stay comparable to each other across the append-only ledger
+  regardless of any price-table change.
+
+**Two degraded forms**, never a silent `0`:
+
+- No transcript found for the phase: the whole row collapses to
+  `<run-id> <phase-id> transcript=na`.
+- A transcript exists but at least one event in the slice lacks a cache split: the row
+  keeps `turns`/`tool_calls`/`duration_ms`/`output`, the cache fragment renders
+  `cache=na`, and `tokens`/`avg_ctx`/`equiv` — every field that would otherwise fold in
+  the missing cache counts — cascade to `na` together rather than a misleading `0`.
+
+**Emitter flags** (`engine/bin/metrics-emit.js` / `scripts/emit-metrics.sh`): `--run`
+(required), `--phase` (narrows to one phase; an empty slice still renders, as
+`transcript=na`), `--session`, `--dir`, `--ledger`, and `--since` — **not decoration**.
+One session directory can hold two spawns of the same phase (a revision round, or
+validation and architecture sharing one role); without `--since` as a lower bound on that
+second call, its row re-counts the first spawn's events instead of describing only what
+ran after it. A missing `--run`, an unparseable `--since`, or a `--dir`/`--ledger` that
+escapes its containment root are config errors: exit 1, one stderr line naming the flag.

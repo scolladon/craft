@@ -537,15 +537,15 @@ A failed ledger append (anywhere in the walk) is surfaced to the user in-session
 run continues; it is **not** recorded into the ledger itself (that would be circular) —
 same posture as a failed `save` above.
 
-**Metrics artifact (separate, append-only).** For each agent-spawned phase, append one line to
-`.claude/craft-metrics.md` (ADR-119):
-`<run-id> <phase-id> tokens=<subagent_tokens> duration_ms=<duration_ms> cache_read=<n> cache_creation=<n>` (degrades to `cache=na` only when that phase's transcript is genuinely unavailable).
-Source: that phase's own sub-agent transcript, not the spawn's returned final-message usage
-block — read the `agent-*.jsonl` file under this session's own `subagents/` directory
-(`~/.claude/projects/<cwd → dashes>/<session-id>/subagents/`), matched to the phase by its
-sidecar's `toolUseId`. One file read per phase — no longer zero-cost. Role-less / inline
-phases spawn no sub-agent and have no transcript; omit them. Metrics go to
-`.claude/craft-metrics.md` **only** — never into the learnings store `.claude/craft-memory.md`.
+**Metrics ledger (separate, append-only).** Call
+`bash scripts/emit-metrics.sh --run <run-id>` once from the tree the run is working in; it
+groups this session's sub-agent transcripts by phase, appends one row per agent-spawned
+phase to `.claude/craft-metrics.md`, and prints what it appended. A phase that ran twice in
+one session (a revision round, or validation and architecture sharing one role) needs its
+own call with `--phase <phase-id> --since <iso8601 captured at that phase's entry>`, or its
+row re-counts the first run of that phase. A phase with no transcript records
+`transcript=na`. Never hand-assemble a row; never write metrics into the learnings store
+`.claude/craft-memory.md`.
 
 Final message: the PR URL (or branch name if no remote) + one-line summary + the run
 record.
