@@ -1256,6 +1256,58 @@ test('Given pipeline.skip:[review] and phases.review: false, when validateManife
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
+// ─── phases.<id>.tools field ─────────────────────────────────────────────────
+
+test('Given phases.design.tools: ["Read","Bash"], when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { design: { tools: ['Read', 'Bash'] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.design.tools: "Read" (one-element sugar), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { design: { tools: 'Read' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given each malformed phases.design.tools value in turn, when validateManifest runs, then ok:false naming phases.design.tools', () => {
+  const sut = validateManifest;
+
+  for (const malformed of [[], [42], ['Read!'], ['mcp__x'], 7]) {
+    const result = sut(
+      { phases: { design: { tools: malformed } } },
+      { fileExists: ALWAYS_EXISTS },
+    );
+
+    assert.equal(result.ok, false, `expected '${JSON.stringify(malformed)}' to be rejected`);
+    assert.ok(
+      result.errors.some(e => e.includes('phases.design.tools')),
+      `expected an error naming phases.design.tools, got: ${JSON.stringify(result.errors)}`,
+    );
+  }
+});
+
+test('Given phases.design.tools: ["mcp__server__tool"] (full MCP name), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { design: { tools: ['mcp__server__tool'] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
 // ─── phases.harness shape validation (ADR-030) ───────────────────────────────
 
 test('Given phases.review.harness: "not-an-object", when validateManifest runs, then ok:false', () => {

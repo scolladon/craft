@@ -68,6 +68,24 @@ function extractContext(value) {
 }
 
 /**
+ * Render the declarative "tools declared for this phase" line, or null when
+ * the phase has no `tools` entry. Declarative only: the Agent/Task spawn
+ * surface has no `tools` parameter, so this line documents intent for a
+ * reader — it never widens what the spawned agent can call. Reads only the
+ * manifest, so it resolves identically in agent and inline mode.
+ *
+ * @param {unknown} manifest
+ * @param {string} phaseId
+ * @returns {string|null}
+ */
+function renderPhaseToolsLine(manifest, phaseId) {
+  const tools = manifest?.phases?.[phaseId]?.tools;
+  const list = typeof tools === 'string' ? [tools] : tools;
+  if (!Array.isArray(list) || list.length === 0) return null;
+  return `Tools declared for this phase: ${list.join(', ')} — declarative; the agent definition's allowlist is what binds at spawn.`;
+}
+
+/**
  * Assemble the engine-owned injected contract block for a single phase.
  *
  * Assembly order (fixed):
@@ -76,13 +94,14 @@ function extractContext(value) {
  *   [derived retrieval note]
  *   [manifest global context verbatim]
  *   [manifest per-phase context verbatim]
+ *   [declarative tools line, when phases.<id>.tools is declared]
  *   [dynamics — reserved for the caller; not assembled here]
  *
  * manifest `context` values are injected verbatim — trusted operator input, not
  * untrusted end-user data.
  *
  * @param {{ id: string, contract: string[] }} descriptor
- * @param {{ context?: unknown, phases?: Record<string, { context?: unknown }> }} manifest
+ * @param {{ context?: unknown, phases?: Record<string, { context?: unknown, tools?: unknown }> }} manifest
  * @param {{ core: string, producer: string, construction: string, 'harness-read': string, 'harness-exec': string, delivery: string, refinement: string }} fragments
  * @param {{ execution?: string }} opts
  * @returns {string}
@@ -107,6 +126,9 @@ export function assembleContract(descriptor, manifest, fragments, opts) {
 
   const phaseCtx = extractContext(manifest?.phases?.[descriptor.id]?.context);
   if (phaseCtx) sections.push(phaseCtx);
+
+  const toolsLine = renderPhaseToolsLine(manifest, descriptor.id);
+  if (toolsLine) sections.push(toolsLine);
 
   return sections.join('\n');
 }

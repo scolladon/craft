@@ -30,6 +30,12 @@ import {
 import { validateHarness } from './manifest-harness.js';
 import { validatePipelineKeys } from './manifest-pipeline-edits.js';
 
+/** A plain tool name: an identifier, no MCP dunder-server-tool shape. */
+const PLAIN_TOOL_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/** A full MCP tool name: mcp__<server>__<tool>. */
+const MCP_TOOL_NAME = /^mcp__[A-Za-z0-9_-]+__[A-Za-z0-9_-]+$/;
+
 export { registeredBacklogNames } from './extends-validation.js';
 export { RESERVED_HARNESS_KEYS } from './manifest-harness.js';
 export { insertIdError } from './manifest-pipeline-edits.js';
@@ -367,6 +373,41 @@ function validateAdr(adr, errors) {
 
 
 
+/** Prefix that routes a tool name to the full-MCP shape instead of the plain shape. */
+const MCP_TOOL_PREFIX = 'mcp__';
+
+/**
+ * True when name matches a plain tool identifier or a full MCP tool name.
+ * An `mcp__`-prefixed name is checked against the MCP shape only — it must
+ * carry a server AND a tool segment, not just fall back to passing as a
+ * plain identifier because underscores are otherwise legal there.
+ * @param {unknown} name
+ * @returns {boolean}
+ */
+function isValidToolName(name) {
+  if (typeof name !== 'string') return false;
+  if (name.startsWith(MCP_TOOL_PREFIX)) return MCP_TOOL_NAME.test(name);
+  return PLAIN_TOOL_NAME.test(name);
+}
+
+/**
+ * Validate phases.<id>.tools — declarative only, never applied at spawn (the
+ * Agent/Task spawn surface has no `tools` parameter). A non-empty list of tool
+ * names, each plain or full-MCP-shaped; a bare string is sugar for a
+ * one-element list, mirroring the `contract:` closed-vocabulary rule.
+ * @param {unknown} value
+ * @param {string} phaseName
+ * @param {string[]} errors
+ */
+function validateToolsField(value, phaseName, errors) {
+  const list = typeof value === 'string' ? [value] : value;
+  if (!Array.isArray(list) || list.length === 0 || !list.every(isValidToolName)) {
+    errors.push(
+      `phases.${phaseName}.tools must be a non-empty list of tool names (plain, or mcp__server__tool)`,
+    );
+  }
+}
+
 /**
  * Validate a single phase block.
  * @param {string} phaseName
@@ -405,6 +446,8 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
       errors.push(`phases.${phaseName}.required must be a boolean`);
     } else if (field === 'harness') {
       validateHarness(value, phaseName, errors);
+    } else if (field === 'tools') {
+      validateToolsField(value, phaseName, errors);
     }
   }
 }

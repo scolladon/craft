@@ -297,6 +297,67 @@ test('Given a full descriptor with all sections, when assembleContract runs, the
   assert.ok(globalPos < phasePos,       'global context must precede per-phase context');
 });
 
+// ─── phases.<id>.tools declarative line ──────────────────────────────────────
+
+test('Given a manifest declaring phase tools, when assembleContract runs, then the block ends with the declarative tools line naming each declared tool', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { design: { tools: ['Read', 'Grep', 'Bash'] } } };
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  const lines = result.split('\n');
+  assert.equal(
+    lines[lines.length - 1],
+    "Tools declared for this phase: Read, Grep, Bash — declarative; the agent definition's allowlist is what binds at spawn.",
+  );
+});
+
+test('Given a manifest declaring phase tools as a bare string, when assembleContract runs, then the tools line renders it as a one-element list', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { design: { tools: 'Read' } } };
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(
+    result.endsWith("Tools declared for this phase: Read — declarative; the agent definition's allowlist is what binds at spawn."),
+  );
+});
+
+test('Given a manifest declaring phase tools, when assembleContract runs in agent vs inline mode, then the tools line text is identical', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { design: { tools: ['Read', 'Bash'] } } };
+  const sut = assembleContract;
+
+  const agentResult = sut(descriptor, manifest, FRAGMENTS, {});
+  const inlineResult = sut({ ...descriptor, execution: 'inline' }, manifest, FRAGMENTS, { execution: 'inline' });
+
+  const toolsLine = "Tools declared for this phase: Read, Bash — declarative; the agent definition's allowlist is what binds at spawn.";
+  assert.ok(agentResult.endsWith(toolsLine), 'agent-mode block must end with the tools line');
+  assert.ok(inlineResult.endsWith(toolsLine), 'inline-mode block must end with the same tools line');
+});
+
+test('Given a manifest with no tools declared for the phase, when assembleContract runs, then no tools line appears', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = {};
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(!result.includes('Tools declared for this phase'));
+});
+
+test('Given a manifest declaring tools for a different phase, when assembleContract runs, then no tools line appears for this descriptor', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { review: { tools: ['Read'] } } };
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(!result.includes('Tools declared for this phase'));
+});
+
 // ─── refinement bundle ────────────────────────────────────────────────────────
 
 test('Given a descriptor with contract:[refinement], when assembleContract runs, then refinement fixture content is present in output', () => {
