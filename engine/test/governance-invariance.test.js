@@ -1,8 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { join, dirname } from 'node:path';
 import { assembleContract } from '../src/contract.js';
 import { inferArchetype, inferMissingArchetypes } from '../src/archetype.js';
 import { isExecutingHarness } from '../src/exec-harness.js';
+
+const __dir = dirname(fileURLToPath(import.meta.url));
 
 // ─── governance invariants for archetype inference ────────────────────────────
 // These proofs guard three properties that must hold regardless of how inference
@@ -35,6 +40,16 @@ test('Given a descriptor with contract:[harness-exec] but no harness block, gate
 
   assert.equal(result.archetype, 'harness');
   assert.equal(result.reason, 'fallback — most isolated');
+});
+
+test('Given a descriptor with contract:[] and the real core fragment, when assembleContract runs, then the output-digest line is present', () => {
+  const descriptor = { id: 'x', archetype: 'harness', contract: [] };
+  const realCore = readFileSync(join(__dir, '..', '..', 'contracts', 'core.md'), 'utf8');
+  const fragments = { core: realCore };
+
+  const result = assembleContract(descriptor, null, fragments, { execution: 'agent' });
+
+  assert.ok(result.includes('Output digest:'), `expected output-digest line in core floor; got: ${result}`);
 });
 
 // ─── T3: inference path proof ──────────────────────────────────────────────────

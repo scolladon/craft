@@ -378,3 +378,23 @@ test('Given a descriptor with contract:[refinement], when assembleContract runs,
     'refinement bundle must appear after the U core',
   );
 });
+
+// ─── output-digest core line ─────────────────────────────────────────────────
+
+test('Given the real core fragment, when assembleContract runs in agent and inline mode, then the output-digest line is present and identical in both', () => {
+  const realCore = readFileSync(join(__dir, '..', '..', 'contracts', 'core.md'), 'utf8');
+  const fragments = { ...FRAGMENTS, core: realCore };
+  const descriptor = { id: 'workspace', contract: [], execution: 'agent' };
+  const sut = assembleContract;
+
+  const agentResult = sut(descriptor, {}, fragments, { execution: 'agent' });
+  const inlineResult = sut(descriptor, {}, fragments, { execution: 'inline' });
+
+  const OUTPUT_DIGEST_PREFIX = 'Output digest:';
+  const agentLine = agentResult.split('\n').find(line => line.startsWith(OUTPUT_DIGEST_PREFIX));
+  const inlineLine = inlineResult.split('\n').find(line => line.startsWith(OUTPUT_DIGEST_PREFIX));
+
+  assert.ok(agentLine, 'agent-mode block must contain the output-digest line');
+  assert.ok(inlineLine, 'inline-mode block must contain the output-digest line');
+  assert.equal(agentLine, inlineLine, 'the output-digest line must render identically in both execution modes');
+});

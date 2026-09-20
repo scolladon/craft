@@ -10,6 +10,7 @@ export const CORE_MARKERS = [
   'the agent commit is the handoff',
   'the role model resolved',
   'repo-wide git state',
+  'Output digest',
 ];
 
 /** Case-insensitive substring presence — the marker proves an invariant, not its casing. */
