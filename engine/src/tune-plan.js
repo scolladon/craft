@@ -1,18 +1,20 @@
 /**
  * Pure tuner core: report.json recommendations → a proposed manifest-knob patch.
  *
- * Maps the two signals that have a lint-clean manifest knob:
- *   model-routing → models.<role>   (role rides on the rec, emitted by the miner)
- *   phase-skip     → pipeline.skip   (repeated auto-skip across ≥ SKIP_MIN_RUNS runs)
- * Every other signal (cache-hotspot, review-waste, drift, recurring memory findings)
- * is surfaced as an advisory proposal (path null) that alters no frontmatter — no
- * manifest knob exists for it.
+ * Maps the three signals that have a lint-clean manifest knob:
+ *   model-routing → models.<role>            (role rides on the rec, emitted by the miner)
+ *   phase-skip    → pipeline.skip            (repeated auto-skip across ≥ SKIP_MIN_RUNS runs)
+ *   turn-budget   → phases.<id>.turn_budget  (canonical phase, no budget already declared)
+ * Every other signal (cache-hotspot, review-waste, drift, recurring memory findings) —
+ * plus a turn-budget rec that misses either turn-budget condition — is surfaced as an
+ * advisory proposal (path null) that alters no frontmatter.
  *
  * No I/O, no clock, no random. Immutable: never mutates baseFrontmatter. Proposals
  * are sorted for byte-stable output.
  */
 
 import { MODELS_KEYS, PHASE_NAMES } from './manifest-vocabulary.js';
+import { TURN_BUDGET_BILLED_TURNS } from './observability/usage-aggregate.js';
 
 export const SKIP_MIN_RUNS = 2;
 export const MEMORY_CONFIDENCE_FLOOR = 0.7;
@@ -83,16 +85,45 @@ function pipelineSkipProposals(recs, base) {
   return proposals;
 }
 
+// ── turn-budget → phases.<id>.turn_budget ─────────────────────────────────────
+
+// Shared by turnBudgetProposals and recAdvisory below: the ONE predicate deciding
+// whether a turn-budget rec earns a patch, so the two builders can never disagree and
+// double-count a rec as both a patch and an advisory.
+function turnBudgetPatchEligible(rec, base) {
+  if (rec.kind !== 'turn-budget') return false;
+  if (!PHASE_NAMES.has(rec.phase)) return false;
+  return base.phases?.[rec.phase]?.turn_budget === undefined;
+}
+
+function turnBudgetProposals(recs, base) {
+  const proposals = [];
+  for (const rec of recs) {
+    if (!turnBudgetPatchEligible(rec, base)) continue;
+    const turns = rec.evidence?.billedTurns ?? '?';
+    proposals.push({
+      source: 'turn-budget',
+      path: ['phases', rec.phase, 'turn_budget'],
+      from: null,
+      to: TURN_BUDGET_BILLED_TURNS,
+      rationale: `budget ${TURN_BUDGET_BILLED_TURNS} tool calls for ${rec.phase}: ${rec.role} billed ${turns} turns (threshold ${TURN_BUDGET_BILLED_TURNS})`,
+      evidence: rec.evidence,
+    });
+  }
+  return proposals;
+}
+
 // ── advisories (no lint-clean knob) ───────────────────────────────────────────
 
 function advisoryProposal(source, rationale, evidence) {
   return { source, path: null, from: null, to: null, rationale, evidence };
 }
 
-// No manifest knob exists for a per-phase turn budget yet (a `turn_budget` PHASE_FIELDS
-// entry is a later addition), so `turn-budget` stays advisory rather than auto-patching,
-// same as `cache-hotspot` and `review-waste`.
-function recAdvisory(rec) {
+// cache-hotspot and review-waste have no lint-clean knob and always stay advisory.
+// turn-budget is the exception: it stays advisory only when turnBudgetPatchEligible
+// declines (non-canonical phase, or the manifest already declares a budget) — a rec
+// that would earn a patch must not also surface here.
+function recAdvisory(rec, base) {
   if (rec.kind === 'cache-hotspot') {
     return advisoryProposal('cache-hotspot',
       `phase ${rec.phase} carries high cache-creation — consider a manual checkpoint`, rec.evidence);
@@ -102,16 +133,17 @@ function recAdvisory(rec) {
       `${rec.evidence?.role ?? 'reviewer'} billed ${rec.evidence?.billedTurns ?? '?'} turns across review — consider a cheaper reviewer tier`, rec.evidence);
   }
   if (rec.kind === 'turn-budget') {
+    if (turnBudgetPatchEligible(rec, base)) return null;
     return advisoryProposal('turn-budget',
       `${rec.role} billed ${rec.evidence?.billedTurns ?? '?'} turns in phase ${rec.phase} — consider narrowing scope or raising the budget`, rec.evidence);
   }
   return null;
 }
 
-function recAdvisories(recs, drift) {
+function recAdvisories(recs, drift, base) {
   const driftAdvisories = drift.map(entry => advisoryProposal('drift',
     `phase ${entry.phase} drifted on ${entry.dimension} vs baseline — investigate the prompt`, entry));
-  return [...recs.map(recAdvisory).filter(Boolean), ...driftAdvisories];
+  return [...recs.map(rec => recAdvisory(rec, base)).filter(Boolean), ...driftAdvisories];
 }
 
 function memoryAdvisories(memory) {
@@ -133,11 +165,12 @@ function applyPatch(base, autoProposals) {
   for (const proposal of autoProposals) {
     if (proposal.source === 'model-routing') {
       patched.models = { ...(patched.models ?? {}), [proposal.path[1]]: proposal.to };
-    // equivalent mutant (`=== 'phase-skip'` → true): applyPatch only ever receives the two
-    // auto-patch sources (model-routing handled above), so the else branch already only sees
-    // phase-skip proposals.
     } else if (proposal.source === 'phase-skip') {
       skipAdds.push(proposal.to);
+    } else if (proposal.source === 'turn-budget') {
+      const phase = proposal.path[1];
+      const phaseBlock = { ...(patched.phases?.[phase] ?? {}), turn_budget: proposal.to };
+      patched.phases = { ...(patched.phases ?? {}), [phase]: phaseBlock };
     }
   }
   if (skipAdds.length > 0) {
@@ -172,9 +205,10 @@ export function planTune({ report, memory, baseFrontmatter = {} }) {
   const autoProposals = [
     ...modelRoutingProposals(recs, baseFrontmatter),
     ...pipelineSkipProposals(recs, baseFrontmatter),
+    ...turnBudgetProposals(recs, baseFrontmatter),
   ];
   const advisories = [
-    ...recAdvisories(recs, drift),
+    ...recAdvisories(recs, drift, baseFrontmatter),
     ...memoryAdvisories(memory),
   ];
   const proposals = sortProposals([...autoProposals, ...advisories]);

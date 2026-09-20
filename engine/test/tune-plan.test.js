@@ -244,26 +244,77 @@ test('Given a review-waste rec missing its role and billed turns, when planTune 
   assert.equal(advisory(proposals)[0].rationale, 'reviewer billed ? turns across review — consider a cheaper reviewer tier');
 });
 
-test('Given a report carrying a turn-budget recommendation, when planTune runs, then it yields an advisory proposal whose path is null and whose rationale names the role, the phase and the turn count', () => {
-  const sut = planTune;
-  const report = {
+function turnBudgetReport(overrides = {}) {
+  return {
     schemaVersion: 1,
     runs: [],
     recommendations: [{
       kind: 'turn-budget', run: 'r1', phase: 'implementation', role: 'part-implementer', model: null,
       detail: 'role part-implementer billed 291 turns in phase implementation',
       evidence: { billedTurns: 291, cycles: 3, phase: 'implementation', role: 'part-implementer', threshold: 200, toolCalls: 312 },
+      ...overrides,
     }],
   };
+}
 
-  const { proposals } = sut({ report, baseFrontmatter: {} });
+test('Given a turn-budget rec for a canonical phase with no declared budget, when planTune runs, then it proposes phases.<phase>.turn_budget set to the threshold', () => {
+  const sut = planTune;
 
+  const { proposals, patchedFrontmatter } = sut({ report: turnBudgetReport(), baseFrontmatter: {} });
+
+  const rec = auto(proposals).find(p => p.source === 'turn-budget');
+  assert.deepEqual(rec, {
+    source: 'turn-budget',
+    path: ['phases', 'implementation', 'turn_budget'],
+    from: null,
+    to: 200,
+    rationale: 'budget 200 tool calls for implementation: part-implementer billed 291 turns (threshold 200)',
+    evidence: { billedTurns: 291, cycles: 3, phase: 'implementation', role: 'part-implementer', threshold: 200, toolCalls: 312 },
+  });
+  assert.equal(patchedFrontmatter.phases.implementation.turn_budget, 200);
+});
+
+test('Given a turn-budget rec whose phase already declares a budget, when planTune runs, then no patch is proposed and the advisory is produced instead', () => {
+  const sut = planTune;
+  const base = { phases: { implementation: { turn_budget: 150 } } };
+
+  const { proposals } = sut({ report: turnBudgetReport(), baseFrontmatter: base });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0);
   const rec = advisory(proposals).find(p => p.source === 'turn-budget');
   assert.ok(rec, 'expected a turn-budget advisory proposal');
-  assert.equal(rec.path, null);
   assert.ok(rec.rationale.includes('part-implementer'), 'rationale must name the role');
   assert.ok(rec.rationale.includes('implementation'), 'rationale must name the phase');
   assert.ok(rec.rationale.includes('291'), 'rationale must name the turn count');
+});
+
+test('Given a turn-budget rec whose phase is not canonical, when planTune runs, then no patch is proposed and the advisory is produced instead', () => {
+  const sut = planTune;
+  const report = turnBudgetReport({ phase: 'not-a-phase' });
+
+  const { proposals } = sut({ report, baseFrontmatter: {} });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0);
+  const rec = advisory(proposals).find(p => p.source === 'turn-budget');
+  assert.ok(rec, 'expected a turn-budget advisory proposal');
+});
+
+test('Given a turn-budget rec that yields a patch, when planTune runs, then it produces exactly one proposal for it (never a patch and an advisory)', () => {
+  const sut = planTune;
+
+  const { proposals } = sut({ report: turnBudgetReport(), baseFrontmatter: {} });
+
+  assert.equal(proposals.filter(p => p.source === 'turn-budget').length, 1);
+});
+
+test('Given a report with no turn-budget recs, when planTune runs, then the model-routing and phase-skip proposals are unchanged', () => {
+  const sut = planTune;
+  const report = routingReport();
+  report.recommendations.push(...skipReport(['r1', 'r2']).recommendations);
+
+  const { proposals } = sut({ report, baseFrontmatter: {} });
+
+  assert.deepEqual(proposals.map(p => p.source).sort(), ['model-routing', 'phase-skip']);
 });
 
 test('Given recurring high-confidence memory findings, when planTune runs, then only they become advisory (low-confidence filtered)', () => {
