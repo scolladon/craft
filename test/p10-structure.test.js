@@ -34,6 +34,27 @@ function grepQ_plain(pattern, filePath) {
   }
 }
 
+function listAgentFiles() {
+  return fs
+    .readdirSync(path.join(ROOT, 'agents'))
+    .filter((entry) => entry.endsWith('.md'))
+    .map((entry) => path.join(ROOT, 'agents', entry));
+}
+
+// Reads the flow-form `tools: [...]` frontmatter key. Returns null when the
+// key is absent, so callers can tell "no list" apart from "empty list".
+function readToolsList(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const frontmatter = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!frontmatter) return null;
+  const toolsLine = frontmatter[1].match(/^tools:\s*\[(.*)\]\s*$/m);
+  if (!toolsLine) return null;
+  return toolsLine[1]
+    .split(',')
+    .map((entry) => entry.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+}
+
 test(
   'Given the requirements vertical is authored, when the requirements agent file is checked, then it exists',
   () => {
@@ -210,5 +231,55 @@ test(
       !grepQE('P21|ADR', path.join(ROOT, 'examples/loop/DOD.md')),
       'examples/loop/DOD.md should not contain P21 or ADR tokens',
     );
+  },
+);
+
+test(
+  'Given every file in agents/, when its frontmatter is read, then it declares a non-empty tools list',
+  () => {
+    for (const filePath of listAgentFiles()) {
+      const tools = readToolsList(filePath);
+      assert.ok(
+        Array.isArray(tools) && tools.length > 0,
+        `${path.relative(ROOT, filePath)} should declare a non-empty tools list`,
+      );
+    }
+  },
+);
+
+test(
+  'Given the reviewer agent, when its tools list is read, then it declares no member of the mutating set',
+  () => {
+    const tools = readToolsList(path.join(ROOT, 'agents/reviewer.md'));
+    assert.ok(Array.isArray(tools), 'agents/reviewer.md should declare a tools list');
+
+    const MUTATING_TOOLS = ['Edit', 'Write', 'NotebookEdit'];
+    const result = tools.filter((tool) => MUTATING_TOOLS.includes(tool));
+
+    assert.deepStrictEqual(result, []);
+  },
+);
+
+test(
+  'Given every agent, when its tools list is read, then no entry is an MCP tool or a sub-agent-spawning tool',
+  () => {
+    const SPAWNING_TOOLS = ['Task', 'Agent'];
+
+    for (const filePath of listAgentFiles()) {
+      const tools = readToolsList(filePath);
+      assert.ok(
+        Array.isArray(tools),
+        `${path.relative(ROOT, filePath)} should declare a tools list`,
+      );
+
+      const forbidden = tools.filter(
+        (tool) => tool.startsWith('mcp__') || SPAWNING_TOOLS.includes(tool),
+      );
+      assert.deepStrictEqual(
+        forbidden,
+        [],
+        `${path.relative(ROOT, filePath)} should not declare ${forbidden.join(', ')}`,
+      );
+    }
   },
 );

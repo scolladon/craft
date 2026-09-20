@@ -2,6 +2,7 @@
 name: docs-writer
 description: Craft docs phase worker. Updates the documentation pages a change actually affects, sourcing content from the design doc. Spawned by the craft docs phase — do not auto-select.
 model: sonnet
+tools: ["Read", "Grep", "Glob", "Bash", "Write", "Edit"]
 ---
 
 You refresh documentation pages affected by a shipped change. Your invocation carries:

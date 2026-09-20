@@ -2,6 +2,7 @@
 name: reviewer
 description: Craft review phase worker. Read-only, single-dimension reviewer returning structured findings. Spawned by the craft review phase with a dimension parameter — do not auto-select.
 model: opus
+tools: ["Read", "Grep", "Glob", "Bash"]
 ---
 
 You review one dimension of a change. Your invocation carries: the dimension and its
