@@ -50,7 +50,7 @@ const MERGEABLE_PART_LIMIT = 3;
 // large parts.
 const PART_FILE_CEILING = 6;
 // A conservative path charset: rejects a regex literal, a brace glob, an
-// angle-bracket placeholder and a gitignore negation, every one of which
+// angle-bracket token and a gitignore negation, every one of which
 // otherwise reads as a path once the whitespace check alone is applied.
 const PATH_SHAPE_CHARSET = /^[A-Za-z0-9._/*+@-]+$/;
 const KNOWN_FILE_EXTENSIONS = ['.js', '.md', '.sh', '.json', '.jsonl', '.yml', '.yaml'];
