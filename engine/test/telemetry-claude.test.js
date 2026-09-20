@@ -882,3 +882,52 @@ test('Given a sub-agent stream where one message spans two lines and a second si
   const totalMessages = result.events.reduce((sum, e) => sum + e.messages, 0);
   assert.equal(totalMessages, 2, 'messages sums to the two billed turns, not the three transcript lines');
 });
+
+// ── 36. parseLines — tool_use blocks SUM across the lines of one message, unlike usage ──
+
+test('Given a four-line single-message transcript, when parseLines runs, then one event is emitted whose toolCalls is 2 and whose cacheRead is the per-line value, not its fourfold sum', async () => {
+  const sut = parseLines;
+
+  const result = await sut(
+    asyncLines(fixtureLines('tool-use-multiline.jsonl')),
+    null,
+    { sourceKind: 'subagent', agentType: 'craft:reviewer', spawnId: 0 },
+  );
+
+  assert.equal(result.events.length, 1, 'four lines sharing one message.id fold to one event');
+  assert.equal(result.events[0].toolCalls, 2, 'two of the four lines carry a tool_use block; blocks partition, so they sum');
+  assert.equal(result.events[0].tokens.cacheRead, 40479, 'usage folds last-wins by message.id — never the fourfold per-line sum');
+  assert.equal(result.events[0].tokens.cacheCreation, 14765, 'usage folds last-wins by message.id — never the fourfold per-line sum');
+  assert.equal(result.events[0].tokens.output, 576, 'the last line carries the complete turn');
+});
+
+// ── 37. parseLines — a line with no content array counts zero tool calls ──
+
+test('Given a transcript whose assistant line carries no content array, when parseLines runs, then the event toolCalls is 0', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('subagent-usage.jsonl')));
+
+  assert.equal(result.events[0].toolCalls, 0, 'a string or absent content counts zero tool_use blocks');
+});
+
+// ── 38. parseLines — toolCalls is a count, never a tool id, name, or path ──
+
+test('Given a sub-agent transcript, when parseLines runs, then no emitted event carries a path, a prompt string, or a tool name', async () => {
+  const sut = parseLines;
+
+  const result = await sut(
+    asyncLines(fixtureLines('tool-use-multiline.jsonl')),
+    null,
+    { sourceKind: 'subagent', agentType: 'craft:reviewer', spawnId: 0 },
+  );
+
+  const whitelist = [
+    'cacheCreationTtl', 'durationMs', 'messages', 'model', 'phase',
+    'role', 'run', 'slug', 'spawnId', 'tokens', 'toolCalls',
+  ].sort();
+  assert.deepEqual(Object.keys(result.events[0]).sort(), whitelist, 'toolCalls must join the whitelist, not smuggle a new field alongside it');
+  const serialized = JSON.stringify(result.events[0]);
+  assert.ok(!serialized.includes('toolu_a'), 'the tool_use block id must never leak into the event');
+  assert.ok(!serialized.includes('tool_use'), 'the block type string must never leak into the event');
+});

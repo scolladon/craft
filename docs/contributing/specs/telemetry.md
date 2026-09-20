@@ -21,13 +21,18 @@ explicitly. The glob is left as-is rather than narrowed — the same advisory ov
     path; the `readTranscripts` provider owns the runtime path.
   - **post**: each returned `UsageEvent` is path-free, PII-free, and carries only the fields the
     core expects: `run`, `slug?`, `phase`, `role?`, `model`, `tokens`, `messages`,
-    `durationMs`, `cacheCreationTtl?`, `spawnId?`. The adapter never throws; partial data returns a
-    partial (possibly empty) array, never a rejection.
+    `durationMs`, `cacheCreationTtl?`, `spawnId?`, `toolCalls?`. The adapter never throws; partial
+    data returns a partial (possibly empty) array, never a rejection.
   - `spawnId` is an opaque per-transcript ordinal (never a path, filename, or agent id) that
     identifies which sub-agent spawn an event came from — see
     [reviewCycles](#reviewcycles-runsreviewcycles) below for why the core needs it. Only the
     claude binding populates it (`null` on its main-loop events, since a main-loop transcript is
     not itself a spawn); every other binding omits the field, which the core treats identically to
+    `null`.
+  - `toolCalls` is a count of tool invocations, never a tool name, argument, or path. Tool-use
+    blocks are PARTITIONED across the lines of one assistant message and are summed, the opposite
+    direction from `tokens`/`cacheCreationTtl`, which repeat per line and fold last-wins. Only the
+    claude binding populates it; every other binding omits the field, which the core treats as
     `null`.
 
 - `aggregate(events, priceTable, baselineReport?, threshold?) → report` — pure core function
