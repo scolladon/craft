@@ -11,6 +11,7 @@
   contract:
     - producer
   procedure: craft:requirements
+  turn_budget: 100
   role: craft:requirements-writer
   model: opus
   consumes:
@@ -23,6 +24,7 @@
   contract:
     - producer
   procedure: craft:design
+  turn_budget: 100
   role: craft:designer
   model: opus
   consumes:
@@ -37,6 +39,7 @@
   archetype: specification
   contract: []
   procedure: craft:decisions
+  turn_budget: 100
   consumes:
     - design
   self_supply:
@@ -49,6 +52,7 @@
   contract:
     - producer
   procedure: craft:planning
+  turn_budget: 100
   role: craft:planner
   model: opus
   consumes:
@@ -66,6 +70,7 @@
   contract:
     - construction
   procedure: craft:implementation
+  turn_budget: 150
   role: craft:part-implementer
   model: sonnet
   consumes:
@@ -80,6 +85,7 @@
   contract:
     - harness-read
   procedure: craft:review
+  turn_budget: 60
   role: craft:reviewer
   model: opus
   consumes:
@@ -98,6 +104,7 @@
   contract:
     - refinement
   procedure: craft:refactoring
+  turn_budget: 130
   role: craft:refactor-executor
   model: sonnet
   consumes:
@@ -111,6 +118,7 @@
   contract:
     - harness-exec
   procedure: craft:validation
+  turn_budget: 150
   role: craft:harness-triager
   model: sonnet
   consumes:
@@ -128,6 +136,7 @@
   contract:
     - harness-exec
   procedure: craft:architecture
+  turn_budget: 150
   role: craft:harness-triager
   model: opus
   consumes:
@@ -143,6 +152,7 @@
   contract:
     - delivery
   procedure: craft:documentation
+  turn_budget: 150
   role: craft:docs-writer
   model: sonnet
   consumes:
@@ -156,6 +166,7 @@
   contract:
     - delivery
   procedure: craft:propose
+  turn_budget: 150
   consumes:
     - change
   produces:
@@ -167,5 +178,6 @@
   contract:
     - delivery
   procedure: craft:integrate
+  turn_budget: 150
   consumes:
     - pr
