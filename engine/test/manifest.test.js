@@ -1308,6 +1308,47 @@ test('Given phases.design.tools: ["mcp__server__tool"] (full MCP name), when val
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
+// ─── phases.<id>.turn_budget field ───────────────────────────────────────────
+
+test('Given phases.implementation.turn_budget: 150, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { implementation: { turn_budget: 150 } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given each malformed phases.implementation.turn_budget value in turn, when validateManifest runs, then ok:false naming phases.implementation.turn_budget', () => {
+  const sut = validateManifest;
+
+  for (const malformed of [0, -1, 1.5, '150', true, [150]]) {
+    const result = sut(
+      { phases: { implementation: { turn_budget: malformed } } },
+      { fileExists: ALWAYS_EXISTS },
+    );
+
+    assert.equal(result.ok, false, `expected '${JSON.stringify(malformed)}' to be rejected`);
+    assert.ok(
+      result.errors.some((e) => e.includes('phases.implementation.turn_budget')),
+      `expected an error naming phases.implementation.turn_budget, got: ${JSON.stringify(result.errors)}`,
+    );
+  }
+});
+
+test('Given phases.implementation.turn_budget and tools together, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { implementation: { turn_budget: 150, tools: ['Read'] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
 // ─── phases.harness shape validation (ADR-030) ───────────────────────────────
 
 test('Given phases.review.harness: "not-an-object", when validateManifest runs, then ok:false', () => {

@@ -24,7 +24,7 @@ export const PHASE_NAMES = Object.freeze(new Set([
 export const PHASE_FIELDS = Object.freeze(new Set([
   'context', 'override', 'strategy', 'merge-flags', 'non-blocking-jobs',
   'harness', 'execution', 'enabled', 'role', 'model', 'procedure', 'required',
-  'tools',
+  'tools', 'turn_budget',
 ]));
 
 /** Fields accepted under the `gates` key. */

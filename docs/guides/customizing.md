@@ -141,7 +141,7 @@ Six questions per phase — pick the axes you need:
 
 Tier = effort: **0** = one line in `.claude/workflow.md` · **1** = add a file · **2** = local plugin.
 
-### WHO runs it — model · execution · profile · role · tools
+### WHO runs it — model · execution · profile · role · tools · turn_budget
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
@@ -150,6 +150,7 @@ Tier = effort: **0** = one line in `.claude/workflow.md` · **1** = add a file �
 | **profile** *(Tier 0)* | a whole-flow mode in one word (`solo`/`lean`/`full`) | coarse — a preset, not a scalpel | [`lean-profile/`](../../examples/lean-profile/) |
 | **role** swap (`role:`) *(Tier 1)* | domain-specific agent, contract still injected | your agent must do the job | [`role-swap/`](../../examples/role-swap/) |
 | **tools** declaration (`tools:`) *(Tier 0)* | documents the phase's expected tool surface as a line in the injected contract; manifest-lint validates the names | declarative only — the Agent/Task spawn surface takes no `tools` parameter, so this knob never widens or narrows what the spawned agent can call; only the agent definition's own tool allowlist binds at spawn | — |
+| **turn_budget** per phase (`turn_budget:`) *(Tier 0)* | a per-phase tool-call budget the agent applies to itself, injected into the contract | honest-unreliable by construction — enforcement is self-counted, not a spawn-side hard limit; the metrics ledger's per-phase tool-call counts make an overrun visible and correctable, not silently absorbed | — |
 
 ### WHAT it does — override file · procedure
 

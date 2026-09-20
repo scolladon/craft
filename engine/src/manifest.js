@@ -409,6 +409,21 @@ function validateToolsField(value, phaseName, errors) {
 }
 
 /**
+ * Validate phases.<id>.turn_budget — unlike tools, this one reaches the agent: it
+ * resolves into the injected contract as the per-phase tool-call budget. A numeric
+ * string is rejected on purpose, to stay consistent with the pipeline descriptor's
+ * own turn_budget rule at the other end of the same resolution chain.
+ * @param {unknown} value
+ * @param {string} phaseName
+ * @param {string[]} errors
+ */
+function validateTurnBudgetField(value, phaseName, errors) {
+  if (!Number.isInteger(value) || value <= 0) {
+    errors.push(`phases.${phaseName}.turn_budget must be a positive integer`);
+  }
+}
+
+/**
  * Validate a single phase block.
  * @param {string} phaseName
  * @param {Record<string, unknown>} block
@@ -448,6 +463,8 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
       validateHarness(value, phaseName, errors);
     } else if (field === 'tools') {
       validateToolsField(value, phaseName, errors);
+    } else if (field === 'turn_budget') {
+      validateTurnBudgetField(value, phaseName, errors);
     }
   }
 }
