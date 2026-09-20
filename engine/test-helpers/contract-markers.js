@@ -11,6 +11,7 @@ export const CORE_MARKERS = [
   'the role model resolved',
   'repo-wide git state',
   'Output digest',
+  'Turn budget',
 ];
 
 /** Case-insensitive substring presence — the marker proves an invariant, not its casing. */
