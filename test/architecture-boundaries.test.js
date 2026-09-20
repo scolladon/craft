@@ -19,6 +19,13 @@ const ROOT = path.join(__dirname, '..');
 const SCAN_ROOT = 'engine/src/observability';
 const PURE_CORE_FILE = 'engine/src/observability/usage-aggregate.js';
 const COMPOSITION_ROOT_FILE = 'engine/src/observability/usage-mine-main.js';
+// Two vendor bindings are wired up in two places now — each a legitimate root
+// in its own right, excused by exact file identity, never by the `-main.js`
+// naming convention (see the rogue-main-look-alike case below).
+const COMPOSITION_ROOT_FILES = Object.freeze(new Set([
+  COMPOSITION_ROOT_FILE,
+  'engine/src/observability/metrics-emit-main.js',
+]));
 const MIN_DISTINCT_ADAPTER_TELEMETRY_FILES = 2;
 
 const ADAPTER_TELEMETRY_FILE_PATTERN = /adapters\/([^/]+)\/telemetry\.js$/;
@@ -148,7 +155,7 @@ function detectCrossAdapterImport(graph, allowlist = ALLOWED_CROSS_LAYER_EDGES) 
 function detectNonRootImportsAdapter(graph, allowlist = ALLOWED_CROSS_LAYER_EDGES) {
   return adapterTargetEdges(graph)
     .filter((edge) => adapterVendor(edge.from) === null)
-    .filter((edge) => edge.from !== COMPOSITION_ROOT_FILE)
+    .filter((edge) => !COMPOSITION_ROOT_FILES.has(edge.from))
     .filter((edge) => !isExcused(edge, allowlist));
 }
 
@@ -159,7 +166,9 @@ test(
 
     assert.ok(tracked.length > 0, 'expected at least one tracked .js file under the observability scan root');
     assert.ok(tracked.includes(PURE_CORE_FILE), `expected the tracked set to include ${PURE_CORE_FILE}`);
-    assert.ok(tracked.includes(COMPOSITION_ROOT_FILE), `expected the tracked set to include ${COMPOSITION_ROOT_FILE}`);
+    for (const rootFile of COMPOSITION_ROOT_FILES) {
+      assert.ok(tracked.includes(rootFile), `expected the tracked set to include ${rootFile}`);
+    }
 
     const adapterVendorsWithTelemetry = new Set(
       tracked
@@ -274,6 +283,32 @@ test(
     const offenders = detectNonRootImportsAdapter(rogueMainGraph);
 
     assert.strictEqual(offenders.length, 1, 'expected a "-main.js" look-alike that is not COMPOSITION_ROOT_FILE to be flagged');
+  },
+);
+
+test(
+  'Given the declared composition roots, when the set is inspected, then it holds exactly the two named files',
+  () => {
+    const declaredRoots = [...COMPOSITION_ROOT_FILES].sort();
+
+    assert.deepStrictEqual(declaredRoots, [
+      'engine/src/observability/metrics-emit-main.js',
+      'engine/src/observability/usage-mine-main.js',
+    ].sort());
+  },
+);
+
+test(
+  'Given a second declared composition root, when R3 runs over the real tree, then it reports zero offenders and a third "-main.js" importing an adapter is still flagged',
+  () => {
+    const realOffenders = detectNonRootImportsAdapter(realImportGraph());
+    assert.deepStrictEqual(realOffenders, [], `R3 FAIL — a non-root module imports an adapter directly:\n${JSON.stringify(realOffenders)}`);
+
+    const rogueThirdRootGraph = {
+      'engine/src/observability/another-main.js': ['engine/src/observability/adapters/pi/telemetry.js'],
+    };
+    const offenders = detectNonRootImportsAdapter(rogueThirdRootGraph);
+    assert.strictEqual(offenders.length, 1, 'expected a third "-main.js" look-alike to still be flagged');
   },
 );
 
