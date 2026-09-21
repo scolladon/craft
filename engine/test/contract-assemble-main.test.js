@@ -588,6 +588,42 @@ test('Given --descriptor-json pointing at a single descriptor object (not an arr
   assert.ok(io.stdout.joined().includes('triages findings'), 'harness-exec content must appear in stdout');
 });
 
+// ─── turn-budget: --descriptor-json carries a turn_budget through ───────────
+
+test('Given a descriptor supplied through --descriptor-json on stdin with a turn_budget, when main runs, then the budgeted turn-budget text appears', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const tmpDir = makeTmpDir();
+  const jsonPath = join(tmpDir, 'budgeted.json');
+  writeFileSync(jsonPath, JSON.stringify([
+    { id: 'bench', archetype: 'harness', enabled: true, contract: ['harness-exec'], consumes: [], produces: [], self_supply: [], execution: 'agent', turn_budget: 75 },
+  ]));
+
+  const result = sut(['--descriptor-id', 'bench', '--descriptor-json', jsonPath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('Turn budget: ~75 tool calls for this phase.'),
+    `expected the descriptor-json turn_budget to appear; got: ${io.stdout.joined()}`,
+  );
+});
+
+// ─── turn-budget: --manifest override wins over the descriptor's own value ──
+
+test('Given --descriptor-id design --manifest turn-budget.md (overrides 100 to 40), when main runs, then the manifest turn_budget wins', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+  const manifestPath = join(manifestsDir, 'turn-budget.md');
+
+  const result = sut(['--descriptor-id', 'design', '--manifest', manifestPath], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(
+    io.stdout.joined().includes('Turn budget: ~40 tool calls for this phase.'),
+    `expected the manifest turn_budget (40) to win over the descriptor's own (100); got: ${io.stdout.joined()}`,
+  );
+});
+
 // EQUIVALENT (mutation survivors) — readFileSync encoding `'utf8'` → `''` at
 // contract-assemble-main.js:93:36 (stdin), :94:30 (file), :150:67 (default.yml).
 // `readFileSync(path, '')` returns a Buffer; JSON.parse(Buffer) and js-yaml load(Buffer) both

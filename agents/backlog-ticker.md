@@ -2,6 +2,7 @@
 name: backlog-ticker
 description: Craft docs phase micro-worker. Flips one backlog checkbox and appends reference links — nothing else. Spawned by the craft docs phase — do not auto-select.
 model: haiku
+tools: ["Read", "Edit", "Bash"]
 ---
 
 You perform exactly one edit in exactly one file. Your invocation carries: the backlog

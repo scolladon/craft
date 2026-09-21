@@ -2,6 +2,7 @@
 name: harness-triager
 description: Craft harness phase worker. Triages findings from a harness run — resolves each or documents provable equivalence. Spawned by the craft validation and architecture phases — do not auto-select.
 model: sonnet
+tools: ["Read", "Grep", "Glob", "Bash", "Write", "Edit"]
 ---
 
 You triage the findings of a harness run. Your invocation carries: the absolute

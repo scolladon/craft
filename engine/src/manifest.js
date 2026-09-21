@@ -16,6 +16,7 @@ import {
   TOP_KEYS,
   PHASE_NAMES,
   PHASE_FIELDS,
+  normalizeToolsList,
   GATE_FIELDS,
   PR_FIELDS,
   SCRIPT_FIELDS,
@@ -29,6 +30,12 @@ import {
 } from './manifest-vocabulary.js';
 import { validateHarness } from './manifest-harness.js';
 import { validatePipelineKeys } from './manifest-pipeline-edits.js';
+
+/** A plain tool name: an identifier, no MCP dunder-server-tool shape. */
+const PLAIN_TOOL_NAME = /^[A-Za-z][A-Za-z0-9_]*$/;
+
+/** A full MCP tool name: mcp__<server>__<tool>. */
+const MCP_TOOL_NAME = /^mcp__[A-Za-z0-9_-]+__[A-Za-z0-9_-]+$/;
 
 export { registeredBacklogNames } from './extends-validation.js';
 export { RESERVED_HARNESS_KEYS } from './manifest-harness.js';
@@ -367,6 +374,95 @@ function validateAdr(adr, errors) {
 
 
 
+/** Prefix that routes a tool name to the full-MCP shape instead of the plain shape. */
+const MCP_TOOL_PREFIX = 'mcp__';
+const MAX_TOOL_NAME_LENGTH = 128;
+
+/**
+ * True when name matches a plain tool identifier or a full MCP tool name.
+ * An `mcp__`-prefixed name is checked against the MCP shape only — it must
+ * carry a server AND a tool segment, not just fall back to passing as a
+ * plain identifier because underscores are otherwise legal there.
+ * @param {unknown} name
+ * @returns {boolean}
+ */
+function isValidToolName(name) {
+  if (typeof name !== 'string') return false;
+  // `_` belongs to both segment classes AND is the separator, so a non-matching
+  // `mcp__` + `_`*n input makes the engine try every split point — quadratic,
+  // and reachable from a cloned repo's committed manifest. No real tool name
+  // approaches this bound, so rejecting past it costs nothing and turns a hang
+  // into a lint failure.
+  if (name.length > MAX_TOOL_NAME_LENGTH) return false;
+  if (name.startsWith(MCP_TOOL_PREFIX)) return MCP_TOOL_NAME.test(name);
+  return PLAIN_TOOL_NAME.test(name);
+}
+
+/**
+ * Validate phases.<id>.tools — declarative only, never applied at spawn (the
+ * Agent/Task spawn surface has no `tools` parameter). A non-empty list of tool
+ * names, each plain or full-MCP-shaped; a bare string is sugar for a
+ * one-element list, mirroring the `contract:` closed-vocabulary rule.
+ * @param {unknown} value
+ * @param {string} phaseName
+ * @param {string[]} errors
+ */
+function validateToolsField(value, phaseName, errors) {
+  const list = normalizeToolsList(value);
+  if (!Array.isArray(list) || list.length === 0 || !list.every(isValidToolName)) {
+    errors.push(
+      `phases.${phaseName}.tools must be a non-empty list of tool names (plain, or mcp__server__tool)`,
+    );
+  }
+}
+
+/**
+ * Validate phases.<id>.turn_budget — unlike tools, this one reaches the agent: it
+ * resolves into the injected contract as the per-phase tool-call budget. A numeric
+ * string is rejected on purpose, to stay consistent with the pipeline descriptor's
+ * own turn_budget rule at the other end of the same resolution chain.
+ * @param {unknown} value
+ * @param {string} phaseName
+ * @param {string[]} errors
+ */
+function validateTurnBudgetField(value, phaseName, errors) {
+  if (!Number.isInteger(value) || value <= 0) {
+    errors.push(`phases.${phaseName}.turn_budget must be a positive integer`);
+  }
+}
+
+/**
+ * Per-field value validators, one entry each. A field accepted by PHASE_FIELDS
+ * with no entry here is deliberately unchecked at this layer — `execution` is
+ * value-checked by validateExecutionValues in resolve.js.
+ */
+const PHASE_FIELD_VALIDATORS = Object.freeze({
+  context: (value, phaseName, errors, fileExists) =>
+    checkFileRef(`phases.${phaseName}.context`, value, fileExists, errors),
+  override: (value, phaseName, errors, fileExists) =>
+    checkFileRef(`phases.${phaseName}.override`, value, fileExists, errors),
+  role: (value, phaseName, errors) => requireString(value, `phases.${phaseName}.role`, errors),
+  model: (value, phaseName, errors) => requireString(value, `phases.${phaseName}.model`, errors),
+  procedure: (value, phaseName, errors) => {
+    if (typeof value !== 'string' || value.trim() === '') {
+      errors.push(`phases.${phaseName}.procedure must be a non-empty string`);
+    }
+  },
+  enabled: (value, phaseName, errors) => requireBoolean(value, `phases.${phaseName}.enabled`, errors),
+  required: (value, phaseName, errors) => requireBoolean(value, `phases.${phaseName}.required`, errors),
+  harness: (value, phaseName, errors) => validateHarness(value, phaseName, errors),
+  tools: (value, phaseName, errors) => validateToolsField(value, phaseName, errors),
+  turn_budget: (value, phaseName, errors) => validateTurnBudgetField(value, phaseName, errors),
+});
+
+function requireString(value, label, errors) {
+  if (typeof value !== 'string') errors.push(`${label} must be a string`);
+}
+
+function requireBoolean(value, label, errors) {
+  if (typeof value !== 'boolean') errors.push(`${label} must be a boolean`);
+}
+
 /**
  * Validate a single phase block.
  * @param {string} phaseName
@@ -379,33 +475,14 @@ function validatePhaseBlock(phaseName, block, fileExists, errors) {
   for (const [field, value] of Object.entries(block)) {
     if (field === 'skip') {
       // Per-phase skip is inert — redirect to top-level pipeline.skip
-      errors.push(
-        `per-phase skip: is inert — use top-level pipeline.skip: [${phaseName}]`,
-      );
+      errors.push(`per-phase skip: is inert — use top-level pipeline.skip: [${phaseName}]`);
       continue;
     }
     if (!PHASE_FIELDS.has(field)) {
       errors.push(`unknown field on phase ${phaseName}: ${field}`);
       continue;
     }
-    // execution: accepted by PHASE_FIELDS; value checked by validateExecutionValues in resolve.js — no check here
-    if (field === 'context') {
-      checkFileRef(`phases.${phaseName}.context`, value, fileExists, errors);
-    } else if (field === 'override') {
-      checkFileRef(`phases.${phaseName}.override`, value, fileExists, errors);
-    } else if (field === 'role' && typeof value !== 'string') {
-      errors.push(`phases.${phaseName}.role must be a string`);
-    } else if (field === 'model' && typeof value !== 'string') {
-      errors.push(`phases.${phaseName}.model must be a string`);
-    } else if (field === 'procedure' && (typeof value !== 'string' || value.trim() === '')) {
-      errors.push(`phases.${phaseName}.procedure must be a non-empty string`);
-    } else if (field === 'enabled' && typeof value !== 'boolean') {
-      errors.push(`phases.${phaseName}.enabled must be a boolean`);
-    } else if (field === 'required' && typeof value !== 'boolean') {
-      errors.push(`phases.${phaseName}.required must be a boolean`);
-    } else if (field === 'harness') {
-      validateHarness(value, phaseName, errors);
-    }
+    PHASE_FIELD_VALIDATORS[field]?.(value, phaseName, errors, fileExists);
   }
 }
 

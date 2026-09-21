@@ -7,3 +7,5 @@ No swallowed errors.
 Bounded scope; work only in the given working directory.
 Never change repo-wide git state — the branch, the index, the working tree, or the stash; another agent may be working the same tree. Commit your own files and nothing else. Checkout, switch, restore, reset, clean, stash, rebase, and branch or worktree deletion are examples, not the whole list.
 Model: @@MODEL_RESOLUTION@@
+Output digest: any command whose output may exceed ~100 lines writes to a file; read back only the lines that matter (grep/sed, a symbol range). Never read a whole file when a range answers the question.
+Turn budget: @@TURN_BUDGET@@

@@ -9,6 +9,9 @@ import { phaseSkipRecs } from './skip-signals.js';
 
 export const CACHE_HOTSPOT_THRESHOLD = 0.5;
 export const REVIEW_WASTE_BILLED_TURNS = 85;
+// empty band 155..253 in the committed baseline's per-phase turn distribution, n=82:
+// a threshold placed in the gap between clusters, never at a percentile.
+export const TURN_BUDGET_BILLED_TURNS = 200;
 export const DEFAULT_DRIFT_THRESHOLD = 0.25;
 
 // Price tables are per-MTok (per million tokens); token counts are per-unit. One
@@ -145,7 +148,7 @@ function toReportGroup(enriched) {
   };
 }
 
-// ── Private: review cycles ────────────────────────────────────────────────────
+// ── Private: phase turns (per-phase billed-turn counting) ─────────────────────
 
 // aggregates one cost dimension (all-priced or all-relative values) in
 // isolation — the caller never mixes the two into one array. The moment any
@@ -191,36 +194,63 @@ function distinctSpawnCount(evts) {
   return new Set(evts.map(e => e.spawnId)).size;
 }
 
-// O(1)-per-role aggregate evidence computed in the same single pass, so
-// reviewCycles size stays proportional to distinct (run, role) pairs rather
+// O(1)-per-(phase,role) aggregate evidence computed in the same single pass, so
+// phaseTurns size stays proportional to distinct (run, phase, role) triples rather
 // than to turn count. priced and relative stay in their own { priced, relative }
 // shape at every level — mirroring the shape every group already carries —
 // never collapsed together with `??`. `billedTurns` keeps the pre-fix
 // per-turn count available (cost/schedule signal) alongside the corrected
-// `cycles` (spawn-identity signal) rather than dropping it.
-function buildReviewCycles(events, priceTable) {
-  const byRole = new Map();
+// `cycles` (spawn-identity signal) rather than dropping it. `toolCalls` sums
+// `evt.toolCalls ?? 0` — a non-claude binding omits the field entirely.
+function buildPhaseTurnEntry(phase, role, evts, priceTable) {
+  const costs = evts.map(e => computeCost(e.tokens, e.cacheCreationTtl, e.model, priceTable));
+  const priced = aggregateCostDimension(costs.map(c => c.priced));
+  const relative = aggregateCostDimension(costs.map(c => c.relative));
+  return {
+    phase, role,
+    cycles: distinctSpawnCount(evts),
+    billedTurns: evts.length,
+    toolCalls: evts.reduce((sum, e) => sum + (e.toolCalls ?? 0), 0),
+    totalCost: { priced: priced.total, relative: relative.total },
+    maxCost: { priced: priced.max, relative: relative.max },
+    meanCost: { priced: priced.mean, relative: relative.mean },
+  };
+}
+
+// main-loop events carry `phase: null` and are not a phase — excluding them here
+// is what keeps the `reviewCycles` projection below byte-identical to its pre-fix
+// output, since they never reached `buildReviewCycles` either.
+function groupEventsByPhaseRole(events) {
+  const byKey = new Map();
   for (const evt of events) {
-    if (evt.phase !== 'review') continue;
+    if (evt.phase == null) continue;
     const role = evt.role ?? 'unknown';
-    if (!byRole.has(role)) byRole.set(role, []);
-    byRole.get(role).push(evt);
+    const key = `${evt.phase}\x00${role}`;
+    if (!byKey.has(key)) byKey.set(key, { phase: evt.phase, role, evts: [] });
+    byKey.get(key).evts.push(evt);
   }
-  return [...byRole.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([role, evts]) => {
-      const costs = evts.map(e => computeCost(e.tokens, e.cacheCreationTtl, e.model, priceTable));
-      const priced = aggregateCostDimension(costs.map(c => c.priced));
-      const relative = aggregateCostDimension(costs.map(c => c.relative));
-      return {
-        role,
-        cycles: distinctSpawnCount(evts),
-        billedTurns: evts.length,
-        totalCost: { priced: priced.total, relative: relative.total },
-        maxCost: { priced: priced.max, relative: relative.max },
-        meanCost: { priced: priced.mean, relative: relative.mean },
-      };
-    });
+  return byKey;
+}
+
+// One builder, two views: `reviewCycles` (below) is the `phase === 'review'`
+// slice of this array with `phase` and `toolCalls` dropped.
+function buildPhaseTurns(events, priceTable) {
+  const byKey = groupEventsByPhaseRole(events);
+  return [...byKey.values()]
+    .sort((a, b) => `${a.phase}\x00${a.role}`.localeCompare(`${b.phase}\x00${b.role}`))
+    .map(({ phase, role, evts }) => buildPhaseTurnEntry(phase, role, evts, priceTable));
+}
+
+// Picks exactly the six pre-fix keys rather than deleting `phase`/`toolCalls` from
+// the richer entry, so an accidental future key added to buildPhaseTurnEntry can
+// never leak into this projection and break the committed baseline's byte-identity
+// guarantee.
+function toReviewCycles(phaseTurns) {
+  return phaseTurns
+    .filter(pt => pt.phase === 'review')
+    .map(({ billedTurns, cycles, maxCost, meanCost, role, totalCost }) => ({
+      billedTurns, cycles, maxCost, meanCost, role, totalCost,
+    }));
 }
 
 // ── Private: run builder ──────────────────────────────────────────────────────
@@ -231,8 +261,9 @@ function buildRunData(runId, slug, events, priceTable) {
     .map(raw => buildEnrichedGroup(runId, raw, priceTable))
     .sort((a, b) => buildGroupKey(a).localeCompare(buildGroupKey(b)));
   const groups = enriched.map(toReportGroup);
-  const reviewCycles = buildReviewCycles(events, priceTable);
-  return { run: { run: runId, slug, groups, reviewCycles }, enriched };
+  const phaseTurns = buildPhaseTurns(events, priceTable);
+  const reviewCycles = toReviewCycles(phaseTurns);
+  return { run: { run: runId, slug, groups, reviewCycles, phaseTurns }, enriched };
 }
 
 function groupByRun(events) {
@@ -309,6 +340,23 @@ function reviewWasteRecs(runs) {
         evidence: {
           role: rc.role, cycles: rc.cycles, billedTurns: rc.billedTurns,
           totalCost: rc.totalCost, maxCost: rc.maxCost, meanCost: rc.meanCost,
+        },
+      }))
+  );
+}
+
+// role rides at top level (like model-routing) so a downstream tuner reads it
+// without reaching into evidence.
+function turnBudgetRecs(runs) {
+  return runs.flatMap(run =>
+    run.phaseTurns
+      .filter(pt => pt.billedTurns > TURN_BUDGET_BILLED_TURNS)
+      .map(pt => ({
+        kind: 'turn-budget', run: run.run, phase: pt.phase, role: pt.role, model: null,
+        detail: `role ${pt.role} billed ${pt.billedTurns} turns in phase ${pt.phase}`,
+        evidence: {
+          billedTurns: pt.billedTurns, cycles: pt.cycles, phase: pt.phase,
+          role: pt.role, threshold: TURN_BUDGET_BILLED_TURNS, toolCalls: pt.toolCalls,
         },
       }))
   );
@@ -487,6 +535,7 @@ export function aggregate(events, priceTable, baselineReport, threshold = DEFAUL
     ...cacheHotspotRecs(allEnriched),
     ...modelRoutingRecs(allEnriched, priceTable),
     ...reviewWasteRecs(runs),
+    ...turnBudgetRecs(runs),
     ...phaseSkipRecs(skipMarkers),
   ]);
 
@@ -502,6 +551,22 @@ export function serializeReport(report) {
   return JSON.stringify(sortDeep(report), null, 2) + '\n';
 }
 
+// A signal that exists only in report.json is a signal no human reads — one line
+// per phaseTurns entry across every run, heading omitted entirely rather than
+// emitted alone when no run carries any (an older-schema report, or one whose
+// events are all main-loop phase:null).
+function phaseTurnsLines(report) {
+  const hasEntries = report.runs.some(run => run.phaseTurns?.length);
+  if (!hasEntries) return [];
+  const lines = ['\n## Turns by phase'];
+  for (const run of report.runs) {
+    for (const pt of run.phaseTurns ?? []) {
+      lines.push(`- **${run.run}/${pt.phase}/${pt.role ?? 'n/a'}**: billedTurns=${pt.billedTurns} toolCalls=${pt.toolCalls} cycles=${pt.cycles}`);
+    }
+  }
+  return lines;
+}
+
 export function renderMarkdown(report) {
   if (!report.runs?.length) {
     return `# Usage Report\n\n_No data: ${report.note ?? 'empty'}_\n`;
@@ -515,6 +580,7 @@ export function renderMarkdown(report) {
       lines.push(`- **${g.phase}/${g.role ?? 'n/a'}** [${g.model}]: tokens=${JSON.stringify(g.tokens)} cacheEff=${g.cacheEfficiency.toFixed(3)} cost=${costStr}`);
     }
   }
+  lines.push(...phaseTurnsLines(report));
   if (report.recommendations?.length) {
     lines.push('\n## Recommendations');
     for (const rec of report.recommendations) {

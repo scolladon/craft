@@ -244,6 +244,27 @@ for (const descriptor of DESCRIPTORS) {
   });
 }
 
+// ─── harness-exec cost-rule narrowing ───────────────────────────────────────
+// The token-cost half of harness-exec's old line 4 promoted into core's
+// "Output digest" line; harness-exec must not duplicate it — only the
+// untrusted-DATA and orchestrator hand-off clauses stay bundle-local.
+
+test('Given the validation descriptor, when assembled, then the harness-exec bundle no longer instructs where output is written while core still does', () => {
+  const descriptor = DESCRIPTORS.find(d => d.id === 'validation');
+  const sut = assembleContract;
+
+  const result = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+
+  assert.ok(
+    !result.includes('Technique output goes to a file'),
+    'harness-exec bundle must no longer instruct where technique output is written',
+  );
+  assert.ok(
+    hasCI(result, 'Output digest'),
+    'core "Output digest" marker must still be present in the assembled block',
+  );
+});
+
 // ─── core git-safety invariant: must survive both execution modes ─────────
 // The per-descriptor CORE_MARKERS loop above runs agent mode only. This pin
 // guards against a future carve-out silently dropping the marker from the

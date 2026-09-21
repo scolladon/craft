@@ -882,3 +882,73 @@ test('Given a sub-agent stream where one message spans two lines and a second si
   const totalMessages = result.events.reduce((sum, e) => sum + e.messages, 0);
   assert.equal(totalMessages, 2, 'messages sums to the two billed turns, not the three transcript lines');
 });
+
+// ── 36. parseLines — tool_use blocks SUM across the lines of one message, unlike usage ──
+
+test('Given a four-line single-message transcript, when parseLines runs, then one event is emitted whose toolCalls is 2 and whose cacheRead is the per-line value, not its fourfold sum', async () => {
+  const sut = parseLines;
+
+  const result = await sut(
+    asyncLines(fixtureLines('tool-use-multiline.jsonl')),
+    null,
+    { sourceKind: 'subagent', agentType: 'craft:reviewer', spawnId: 0 },
+  );
+
+  assert.equal(result.events.length, 1, 'four lines sharing one message.id fold to one event');
+  assert.equal(result.events[0].toolCalls, 3, 'one line carries TWO tool_use blocks and another one — blocks partition, so they sum to 3, not to the 2 lines that have any');
+  assert.equal(result.events[0].tokens.cacheRead, 40479, 'usage folds LAST-WINS by message.id — not the per-line sum, and not the max (an earlier line carries 99999)');
+  assert.equal(result.events[0].tokens.cacheCreation, 14765, 'usage folds LAST-WINS by message.id — not the per-line sum, and not the max (an earlier line carries 31111)');
+  assert.equal(result.events[0].tokens.output, 576, 'the last line carries the complete turn');
+});
+
+// ── 37. parseLines — a line with no content array counts zero tool calls ──
+
+test('Given a transcript whose assistant line carries no content array, when parseLines runs, then the event toolCalls is 0', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('subagent-usage.jsonl')));
+
+  assert.equal(result.events[0].toolCalls, 0, 'a string or absent content counts zero tool_use blocks');
+});
+
+// ── 37b. parseLines — a null content-array entry does not crash the count ──
+
+test('Given an assistant line whose content array carries a null entry, when parseLines runs, then it is skipped and only real tool_use blocks are counted', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant',
+    sessionId: 'sess-null-block',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      id: 'msg_null_block',
+      role: 'assistant',
+      content: [null, { type: 'tool_use', id: 'toolu_z', name: 'Bash', input: {} }],
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].toolCalls, 1, 'a null block must not throw and must not be miscounted as tool_use');
+});
+
+// ── 38. parseLines — toolCalls is a count, never a tool id, name, or path ──
+
+test('Given a sub-agent transcript, when parseLines runs, then no emitted event carries a path, a prompt string, or a tool name', async () => {
+  const sut = parseLines;
+
+  const result = await sut(
+    asyncLines(fixtureLines('tool-use-multiline.jsonl')),
+    null,
+    { sourceKind: 'subagent', agentType: 'craft:reviewer', spawnId: 0 },
+  );
+
+  const whitelist = [
+    'cacheCreationTtl', 'durationMs', 'messages', 'model', 'phase',
+    'role', 'run', 'slug', 'spawnId', 'tokens', 'toolCalls',
+  ].sort();
+  assert.deepEqual(Object.keys(result.events[0]).sort(), whitelist, 'toolCalls must join the whitelist, not smuggle a new field alongside it');
+  const serialized = JSON.stringify(result.events[0]);
+  assert.ok(!serialized.includes('toolu_a'), 'the tool_use block id must never leak into the event');
+  assert.ok(!serialized.includes('tool_use'), 'the block type string must never leak into the event');
+});

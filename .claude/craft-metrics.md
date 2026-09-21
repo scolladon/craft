@@ -413,3 +413,4 @@ decision-drift-propagation review tokens=147653 duration_ms=948722 cache_read=0 
 decision-drift-propagation refactoring tokens=97414 duration_ms=251291 cache_read=0 cache_creation=0
 decision-drift-propagation validation tokens=414154 duration_ms=3571466 cache_read=0 cache_creation=0
 decision-drift-propagation documentation tokens=104872 duration_ms=181956 cache_read=0 cache_creation=0
+--- format boundary 2026-09-20: rows below are emitted by the metrics bin and carry turns, tool_calls, output, avg_ctx and equiv. tokens is now transcript-derived (input+cache_read+cache_creation+output) and duration_ms is summed AGENT time across a phase's spawns, not wall clock. Never compare a row above this line to a row below it.

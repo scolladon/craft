@@ -25,6 +25,29 @@ function normalizeStringArray(value) {
 }
 
 /**
+ * Validate an optional turn_budget field. Absent (undefined/null) resolves to
+ * null so the key stays always-present for downstream `?? <default>` chains.
+ * Present, it must be a positive integer.
+ * @param {unknown} value
+ * @param {number} index
+ * @param {unknown} id
+ * @returns {number|null}
+ */
+function normalizeTurnBudget(value, index, id) {
+  if (value === undefined || value === null) return null;
+  // equivalent mutant (typeof value !== 'number' -> false): Number.isInteger only
+  // returns true for number-typed integers, so whenever this check would be true,
+  // !Number.isInteger(value) is already true too — the typeof arm never changes the OR's result.
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
+    throw new Error(
+      `Descriptor at index ${index} (id="${id}"): turn_budget "${value}" is not valid. ` +
+      `Must be a positive integer.`,
+    );
+  }
+  return value;
+}
+
+/**
  * Recursively freeze an object graph so a parsed descriptor is fully immutable.
  * @template T
  * @param {T} value
@@ -78,6 +101,7 @@ function normalizeEntry(raw, index) {
     self_supply: normalizeStringArray(raw.self_supply),
     produces: normalizeStringArray(raw.produces),
     execution,
+    turn_budget: normalizeTurnBudget(raw.turn_budget, index, raw.id),
   };
 
   if (raw.role !== undefined && raw.role !== null) {

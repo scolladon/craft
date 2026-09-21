@@ -311,7 +311,7 @@ export async function streamTranscriptFiles(entries, transcriptDir, createReadSt
 // The ports discover() receives — both absorb their own failures into the
 // documented null and never throw, which is what lets discover() stay a pure
 // walk with containment un-bypassable by adapter code even in principle.
-function makeDiscoveryPorts(readRoot, { readdirSync, readFileSync, containByRealpath }) {
+export function makeDiscoveryPorts(readRoot, { readdirSync, readFileSync, containByRealpath }) {
   const safe = (relPath) => containByRealpath(readRoot, join(readRoot, relPath));
   return {
     listDir(relPath) {

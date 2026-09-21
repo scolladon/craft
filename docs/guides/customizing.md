@@ -141,7 +141,7 @@ Six questions per phase — pick the axes you need:
 
 Tier = effort: **0** = one line in `.claude/workflow.md` · **1** = add a file · **2** = local plugin.
 
-### WHO runs it — model · execution · profile · role
+### WHO runs it — model · execution · profile · role · tools · turn_budget
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
@@ -149,6 +149,16 @@ Tier = effort: **0** = one line in `.claude/workflow.md` · **1** = add a file �
 | **execution** inline/agent *(Tier 0)* | speed / token control per phase | inline loses subagent isolation | [`lean-profile/`](../../examples/lean-profile/) |
 | **profile** *(Tier 0)* | a whole-flow mode in one word (`solo`/`lean`/`full`) | coarse — a preset, not a scalpel | [`lean-profile/`](../../examples/lean-profile/) |
 | **role** swap (`role:`) *(Tier 1)* | domain-specific agent, contract still injected | your agent must do the job | [`role-swap/`](../../examples/role-swap/) |
+| **tools** declaration (`tools:`) *(Tier 0)* | documents the phase's expected tool surface as a line in the injected contract; manifest-lint validates the names | declarative only — the Agent/Task spawn surface takes no `tools` parameter, so this knob never widens or narrows what the spawned agent can call; only the agent definition's own tool allowlist binds at spawn | — |
+| **turn_budget** per phase (`turn_budget:`) *(Tier 0)* | a per-phase tool-call budget the agent applies to itself, injected into the contract | honest-unreliable by construction — enforcement is self-counted, not a spawn-side hard limit; the metrics ledger's per-phase tool-call counts make an overrun visible and correctable, not silently absorbed | — |
+
+Resolution when a phase declares no budget of its own: `phases.<id>.turn_budget` in the
+manifest → the descriptor's own `turn_budget` → the archetype table — first one present
+wins. Archetype defaults (`ARCHETYPE_TURN_BUDGET` / `EXECUTING_HARNESS_TURN_BUDGET` in
+`engine/src/contract.js`): specification 100, construction 150, refinement 130, delivery
+150, harness 60 for a read-only harness phase and 150 for an executing one, setup none
+(runs to completion). The shipped `pipeline/default.yml` declares no `turn_budget`, so
+the archetype table governs every shipped phase unless the manifest overrides.
 
 ### WHAT it does — override file · procedure
 

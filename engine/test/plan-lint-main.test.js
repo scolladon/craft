@@ -182,7 +182,7 @@ test('Given a plan with one schema-violating part, when main runs, then it print
 
   assert.equal(result, 2);
   assert.ok(
-    io.stdout.joined().includes('plan-lint: 1 part(s) violate the schema. The plan phase cannot close.\n'),
+    io.stdout.joined().includes('plan-lint: 1 part(s) violate the schema, 0 over the file ceiling. The plan phase cannot close.\n'),
     `stdout was: ${io.stdout.joined()}`,
   );
 });
@@ -198,7 +198,7 @@ test('Given a schema-valid two-part plan, when main runs, then it prints the OK 
   const result = sut([path], io);
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
-  assert.equal(io.stdout.joined(), 'plan-lint: 2 part(s) OK — every part carries its context block.\n');
+  assert.equal(io.stdout.joined(), 'plan-lint: 2 part(s) OK — every part carries its context block and is within the file ceiling.\n');
 });
 
 // ─── the prefix-match quirk: "## Partition …" is treated as a part heading ───
@@ -342,7 +342,7 @@ test('Given a schema-invalid plan that also overlaps, when main runs, then it st
 
   assert.equal(result, 2);
   assert.ok(
-    io.stdout.joined().includes('plan-lint: 1 part(s) violate the schema. The plan phase cannot close.\n'),
+    io.stdout.joined().includes('plan-lint: 1 part(s) violate the schema, 0 over the file ceiling. The plan phase cannot close.\n'),
     `stdout was: ${io.stdout.joined()}`,
   );
   assert.ok(
@@ -740,4 +740,305 @@ test('Given two parts both backticking the same directory span WITHOUT a trailin
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(!io.stdout.joined().includes('cognitive-locality'), `stdout was: ${io.stdout.joined()}`);
+});
+
+// ─── file ceiling: block a part declaring more files than the ceiling ───────
+
+/** A repo root (see `repoRoot()`) plus `count` existing files under engine/src. */
+function repoRootWithFiles(count) {
+  const root = repoRoot();
+  const paths = [];
+  for (let i = 1; i <= count; i += 1) {
+    const relPath = `engine/src/ceiling-${i}.js`;
+    writeFileSync(join(root, relPath), `// ${i}\n`);
+    paths.push(relPath);
+  }
+  return { root, paths };
+}
+
+function contextListing(paths) {
+  return paths.map((p) => `Touches \`${p}\`.`).join('\n');
+}
+
+test('Given a part whose Context block declares exactly the file ceiling of existing files, when main runs, then it exits 0', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(6);
+  const plan = `# Plan — Test topic\n\n${part('1', contextListing(paths))}`;
+  const path = writePlan(root, plan, 'at-ceiling.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+});
+
+test('Given a part whose Context block declares one more existing file than the ceiling, when main runs, then it exits 2 naming the part label and the count', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(7);
+  const plan = `# Plan — Test topic\n\n${part('1', contextListing(paths))}`;
+  const path = writePlan(root, plan, 'over-ceiling.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 2);
+  assert.ok(
+    io.stdout.joined().includes('part "Part 1" declares 7 files — over the ceiling of 6. Split it.'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+test('Given a part declaring seven files that do not exist yet, when main runs, then it still exits 2 (the greenfield case the resolved-only set would miss)', () => {
+  const sut = main;
+  const root = repoRoot();
+  const paths = Array.from({ length: 7 }, (_, i) => `engine/src/new-module-${i + 1}.js`);
+  const plan = `# Plan — Test topic\n\n${part('1', contextListing(paths))}`;
+  const path = writePlan(root, plan, 'greenfield.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 2);
+  assert.ok(
+    io.stdout.joined().includes('declares 7 files — over the ceiling of 6'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+test('Given a part declaring a bare basename that resolves at the repo root plus six unresolved paths, when main runs, then the ceiling count is the union size of seven (no double count)', () => {
+  const sut = main;
+  const root = repoRoot();
+  writeFileSync(join(root, 'README.md'), '# readme\n');
+  const unresolved = Array.from({ length: 6 }, (_, i) => `engine/src/new-thing-${i + 1}.js`);
+  const body = contextListing(['README.md', ...unresolved]);
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'union.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 2);
+  assert.ok(
+    io.stdout.joined().includes('declares 7 files — over the ceiling of 6'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+// Each rejected shape is asserted at --file-ceiling 1 beside ONE genuine path.
+// At the default ceiling of 6 a handful of wrongly-counted spans still exits 0,
+// so the count has to be made observable or the predicate is unprotected: with
+// the body replaced by `return true;` every case below trips the ceiling.
+test('Given a Context block whose only real path sits beside a rejected shape, when main runs at a ceiling of 1, then the rejected shape is not counted', () => {
+  const sut = main;
+  const cases = [
+    { label: 'prose', span: 'sut' },
+    { label: 'an arrow phrase', span: 'RED→GREEN' },
+    { label: 'a regex literal', span: '^\\d+$' },
+    { label: 'a brace glob', span: '{a,b}.js' },
+    { label: 'an angle-bracket token', span: '<touched-tests>' },
+    { label: 'a gitignore negation', span: '!engine/src/foo.js' },
+    { label: 'a flag', span: '--file-ceiling' },
+  ];
+
+  for (const { label, span } of cases) {
+    const { root, paths } = repoRootWithFiles(1);
+    const body = `Touches \`${paths[0]}\`. Also mentions \`${span}\`.`;
+    const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+    const path = writePlan(root, plan, 'rejected-shape.md');
+    const io = makeCaptureIo();
+
+    const result = sut([path, '--file-ceiling', '1'], io);
+
+    assert.equal(result, 0, `${label} (\`${span}\`) must not count toward the ceiling; stdout: ${io.stdout.joined()}`);
+  }
+});
+
+test('Given a fenced code block that pairs backticks across lines, when main runs at a ceiling of 1, then the cross-line pseudo-span is not counted', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = [
+    `Touches \`${paths[0]}\`.`,
+    '',
+    '```',
+    'node --test foo/bar.js',
+    '```',
+  ].join('\n');
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'fence-pseudo-span.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()}`);
+});
+
+test('Given an unresolved span with a path-shaped prefix but a trailing disallowed character, when main runs at a ceiling of 1 beside one real path, then it does not count toward the ceiling', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also mentions \`engine/src/junk.js!!!\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'trailing-junk.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 0, `a trailing disallowed character must reject the whole span, not just its prefix; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given an unresolved span with a slash but no known extension, when main runs at a ceiling of 1 beside one real path, then it still counts toward the ceiling', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also touches \`docs/contributing\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'slash-no-extension.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 2, `a slash alone must count as path-shaped; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given an unresolved span with a known extension but no slash, when main runs at a ceiling of 1 beside one real path, then it still counts toward the ceiling', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also touches \`notes.md\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'extension-no-slash.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 2, `a known extension alone must count as path-shaped; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given a bare word with no slash and no known extension, when main runs at a ceiling of 1 beside one real path, then it does not count toward the ceiling', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also mentions \`README\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'bare-word.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 0, `a bare word with no slash or extension must not count; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given the same real file declared through two textually different spans, when main runs at a ceiling of 1, then the resolved path is deduplicated (not counted twice by raw span text)', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also touches \`./${paths[0]}\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'dedup-resolved.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 0, `two spans for one real file must dedupe on the resolved path, not the raw text; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given seven unresolved spans that only a whitespace check would accept, when main runs, then a one-conjunct predicate would over-count but the real one exits 0', () => {
+  const sut = main;
+  const root = repoRoot();
+  const spans = ['sut', 'result', 'RED→GREEN', '^\\d+$', '{a,b}.js', '<touched-files>', '--no-ext-diff'];
+  const body = spans.map((span) => `Mentions \`${span}\`.`).join('\n\n');
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'one-conjunct.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0,
+    `seven whitespace-free non-paths must count zero, not seven; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given an over-ceiling part that also overlaps a file declared by another part, when main runs, then the overlap warning is still printed and the exit code stays 2', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(7);
+  const plan = `# Plan — Test topic\n\n${part('1', contextListing(paths))}\n\n${part('2', `Also touches \`${paths[0]}\`.`)}`;
+  const path = writePlan(root, plan, 'over-ceiling-overlap.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 2);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('cognitive-locality warning'), out);
+  assert.ok(out.includes('declares 7 files — over the ceiling of 6'), out);
+});
+
+test('Given two parts that only overlap and stay under the ceiling, when main runs, then the exit code is 0 (the ceiling and overlap postures are independent)', () => {
+  const sut = main;
+  const root = repoRoot();
+  const plan = `# Plan — Test topic\n\n${part('1', 'Edit `engine/src/findings.js` here.')}\n\n${part('2', 'Also edit `engine/src/findings.js` here.')}`;
+  const path = writePlan(root, plan, 'overlap-only.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+});
+
+test('Given a seven-file part and --file-ceiling 8, when main runs, then it exits 0', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(7);
+  const plan = `# Plan — Test topic\n\n${part('1', contextListing(paths))}`;
+  const path = writePlan(root, plan, 'raised-ceiling.md');
+  const io = makeCaptureIo();
+
+  const result = sut(['--file-ceiling', '8', path], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+});
+
+test('Given a six-file part and --file-ceiling 3 placed after the plan path, when main runs, then the lowered ceiling still applies (the flag is accepted anywhere in argv) and it exits 2', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(6);
+  const plan = `# Plan — Test topic\n\n${part('1', contextListing(paths))}`;
+  const path = writePlan(root, plan, 'lowered-ceiling-after.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '3'], io);
+
+  assert.equal(result, 2);
+  assert.ok(
+    io.stdout.joined().includes('declares 6 files — over the ceiling of 3'),
+    `stdout was: ${io.stdout.joined()}`,
+  );
+});
+
+test('Given --file-ceiling 0, when main runs, then it exits 2 with a usage line on stderr', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const path = writePlan(root, GOOD_PLAN, 'zero-ceiling.md');
+  const io = makeCaptureIo();
+
+  const result = sut(['--file-ceiling', '0', path], io);
+
+  assert.equal(result, 2);
+  assert.ok(io.stderr.joined().startsWith('plan-lint: usage:'), `stderr was: ${io.stderr.joined()}`);
+});
+
+test('Given --file-ceiling abc, when main runs, then it exits 2 with a usage line on stderr', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const path = writePlan(root, GOOD_PLAN, 'nan-ceiling.md');
+  const io = makeCaptureIo();
+
+  const result = sut(['--file-ceiling', 'abc', path], io);
+
+  assert.equal(result, 2);
+  assert.ok(io.stderr.joined().startsWith('plan-lint: usage:'), `stderr was: ${io.stderr.joined()}`);
+});
+
+test('Given two non-flag positional arguments, when main runs, then the FIRST one is taken as the plan path (a later one never overwrites it)', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const path = writePlan(root, GOOD_PLAN, 'first-wins.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, 'nonexistent-second.md'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stderr.joined().includes('no such file'), `the second positional must never replace the first: ${io.stderr.joined()}`);
 });

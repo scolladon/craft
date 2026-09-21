@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateManifest, registeredBacklogNames } from '../src/manifest.js';
+import { validateManifest, registeredBacklogNames, validatePhases } from '../src/manifest.js';
 
 const ALWAYS_EXISTS = () => true;
 const NEVER_EXISTS  = () => false;
@@ -664,7 +664,7 @@ test('Given a manifest with phases.implement.skip set to false, when validateMan
 
 // ─── phase context/override file-ref validation ──────────────────────────────
 
-test('Given a manifest with phases.plan.context pointing to a missing file, when validateManifest runs, then it returns an error containing "references missing file"', () => {
+test('Given a manifest with phases.plan.context pointing to a missing file, when validateManifest runs, then it returns an error labelled phases.plan.context', () => {
   const sut = validateManifest;
 
   const result = sut(
@@ -673,7 +673,7 @@ test('Given a manifest with phases.plan.context pointing to a missing file, when
   );
 
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('references missing file')));
+  assert.ok(result.errors.some(e => e === 'phases.plan.context references missing file: missing/file.md'));
 });
 
 test('Given a manifest with phases.plan.context as an array with a missing file, when validateManifest runs, then it returns an error containing "references missing file"', () => {
@@ -688,7 +688,7 @@ test('Given a manifest with phases.plan.context as an array with a missing file,
   assert.ok(result.errors.some(e => e.includes('references missing file')));
 });
 
-test('Given a manifest with phases.plan.override pointing to a missing file, when validateManifest runs, then it returns an error containing "references missing file"', () => {
+test('Given a manifest with phases.plan.override pointing to a missing file, when validateManifest runs, then it returns an error labelled phases.plan.override', () => {
   const sut = validateManifest;
 
   const result = sut(
@@ -697,7 +697,7 @@ test('Given a manifest with phases.plan.override pointing to a missing file, whe
   );
 
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('references missing file')));
+  assert.ok(result.errors.some(e => e === 'phases.plan.override references missing file: missing/override.md'));
 });
 
 test('Given a manifest with phases.plan.context as null, when validateManifest runs, then it returns ok (null path is valid)', () => {
@@ -1250,6 +1250,126 @@ test('Given pipeline.skip:[review] and phases.review: false, when validateManife
   // The leading block && guard must short-circuit before block.required is accessed.
   const result = sut(
     { pipeline: { skip: ['review'] }, phases: { review: false } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+// ─── phases.<id>.tools field ─────────────────────────────────────────────────
+
+test('Given phases.design.tools: ["Read","Bash"], when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { design: { tools: ['Read', 'Bash'] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given phases.design.tools: "Read" (one-element sugar), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { design: { tools: 'Read' } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given each malformed phases.design.tools value in turn, when validateManifest runs, then ok:false naming phases.design.tools', () => {
+  const sut = validateManifest;
+
+  for (const malformed of [
+    [], [42], ['Read!'], ['mcp__x'], 7, ['Read', 'Bad!'],
+    ['1Read'], ['mcp__server__tool!'], ['mcp__!__mcp__server__tool'],
+  ]) {
+    const result = sut(
+      { phases: { design: { tools: malformed } } },
+      { fileExists: ALWAYS_EXISTS },
+    );
+
+    assert.equal(result.ok, false, `expected '${JSON.stringify(malformed)}' to be rejected`);
+    assert.ok(
+      result.errors.some(e => e.includes('phases.design.tools')),
+      `expected an error naming phases.design.tools, got: ${JSON.stringify(result.errors)}`,
+    );
+  }
+});
+
+test('Given phases.design.tools: ["mcp__server__tool"] (full MCP name), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { design: { tools: ['mcp__server__tool'] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given a plain tool name of exactly the max length (128), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+  const nameAtLimit = 'A' + 'a'.repeat(127);
+
+  const result = sut(
+    { phases: { design: { tools: [nameAtLimit] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given a plain tool name one character past the max length (129), when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+  const nameOverLimit = 'A' + 'a'.repeat(128);
+
+  const result = sut(
+    { phases: { design: { tools: [nameOverLimit] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+});
+
+// ─── phases.<id>.turn_budget field ───────────────────────────────────────────
+
+test('Given phases.implementation.turn_budget: 150, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { implementation: { turn_budget: 150 } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given each malformed phases.implementation.turn_budget value in turn, when validateManifest runs, then ok:false naming phases.implementation.turn_budget', () => {
+  const sut = validateManifest;
+
+  for (const malformed of [0, -1, 1.5, '150', true, [150]]) {
+    const result = sut(
+      { phases: { implementation: { turn_budget: malformed } } },
+      { fileExists: ALWAYS_EXISTS },
+    );
+
+    assert.equal(result.ok, false, `expected '${JSON.stringify(malformed)}' to be rejected`);
+    assert.ok(
+      result.errors.some((e) => e.includes('phases.implementation.turn_budget')),
+      `expected an error naming phases.implementation.turn_budget, got: ${JSON.stringify(result.errors)}`,
+    );
+  }
+});
+
+test('Given phases.implementation.turn_budget and tools together, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { implementation: { turn_budget: 150, tools: ['Read'] } } },
     { fileExists: ALWAYS_EXISTS },
   );
 
@@ -3946,4 +4066,49 @@ test('Given paths.dod set but no readFile injected, when validateManifest runs, 
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.errors, []);
+});
+
+// ── tool-name length bound: a pathological name must fail, not hang ──────────
+// `_` is in both MCP segment classes AND is the separator, so a non-matching
+// `mcp__` + `_`*n input makes a bare regex try every split point. The guard is
+// a length bound, and this asserts the SCALING RATIO rather than a wall-clock
+// figure or an error message — a quadratic implementation fails it on any box.
+
+test('Given an adversarially long mcp__ tool name, when validatePhases runs, then it is rejected', () => {
+  const sut = validatePhases;
+  const errors = [];
+
+  sut({ design: { tools: [`mcp__${'_'.repeat(60_000)}`] } }, () => true, errors);
+
+  assert.equal(errors.length > 0, true, 'a name past the length bound is not a valid tool name');
+  assert.match(errors[0], /phases\.design\.tools/);
+});
+
+test('Given tool names 12x apart in length, when validatePhases runs, then the cost does not grow quadratically', () => {
+  const sut = validatePhases;
+  const cost = (n) => {
+    const started = process.hrtime.bigint();
+    sut({ design: { tools: [`mcp__${'_'.repeat(n)}`] } }, () => true, []);
+    return Number(process.hrtime.bigint() - started);
+  };
+
+  cost(5_000);
+  const small = Math.max(cost(5_000), 1);
+  const large = cost(60_000);
+
+  assert.ok(
+    large / small < 100,
+    `12x the input must not cost ~144x the time (quadratic); ratio was ${(large / small).toFixed(1)}`,
+  );
+});
+
+test('Given a tool name at the length bound, when validatePhases runs, then a well-formed name is still accepted', () => {
+  const sut = validatePhases;
+  const errors = [];
+  const server = 'a'.repeat(50);
+  const tool = 'b'.repeat(50);
+
+  sut({ design: { tools: [`mcp__${server}__${tool}`] } }, () => true, errors);
+
+  assert.deepStrictEqual(errors, [], 'the bound must not reject a realistic MCP tool name');
 });

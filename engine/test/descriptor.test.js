@@ -92,6 +92,62 @@ test('Given parsePipeline, when called, then it returns a deeply frozen array', 
   assert.equal(Object.isFrozen(result[0].produces), true);
 });
 
+// --- turn_budget ---
+
+test('Given a pipeline entry declaring turn_budget: 150, when parsePipeline runs, then the normalized descriptor carries turn_budget: 150', () => {
+  const yaml = `
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: craft:workspace
+  turn_budget: 150
+`;
+  const result = parsePipeline(yaml);
+  assert.equal(result[0].turn_budget, 150);
+});
+
+test('Given an entry with no turn_budget, when parsePipeline runs, then the descriptor carries turn_budget: null', () => {
+  const yaml = `
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: craft:workspace
+`;
+  const result = parsePipeline(yaml);
+  assert.equal(Object.hasOwn(result[0], 'turn_budget'), true);
+  assert.equal(result[0].turn_budget, null);
+});
+
+test('Given an entry with turn_budget explicitly null, when parsePipeline runs, then the descriptor carries turn_budget: null', () => {
+  const yaml = `
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: craft:workspace
+  turn_budget: null
+`;
+  const result = parsePipeline(yaml);
+  assert.equal(result[0].turn_budget, null);
+});
+
+test('Given an invalid turn_budget, when parsePipeline runs, then it throws an error naming the index, id, and the positive-integer requirement', () => {
+  const invalidValues = [0, -5, 1.5, '150'];
+  for (const value of invalidValues) {
+    const yaml = `
+- id: planning
+  archetype: specification
+  contract: []
+  procedure: craft:planning
+  turn_budget: ${JSON.stringify(value)}
+`;
+    assert.throws(
+      () => parsePipeline(yaml),
+      /Descriptor at index 0 \(id="planning"\).*turn_budget.*Must be a positive integer\./s,
+      `expected a throw for turn_budget=${JSON.stringify(value)}`,
+    );
+  }
+});
+
 // --- validation errors ---
 
 test('Given an entry missing id, when parsePipeline runs, then it throws a descriptive error', () => {
@@ -159,6 +215,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: [],
     self_supply: [],
     produces: ['workspace'],
+    turn_budget: null,
   },
   {
     id: 'requirements',
@@ -170,6 +227,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['workspace'],
     self_supply: [],
     produces: ['requirements'],
+    turn_budget: null,
   },
   {
     id: 'design',
@@ -181,6 +239,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['workspace', 'requirements'],
     self_supply: ['requirements'],
     produces: ['design'],
+    turn_budget: null,
   },
   {
     id: 'decisions',
@@ -192,6 +251,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['design'],
     self_supply: ['design'],
     produces: ['decisions'],
+    turn_budget: null,
   },
   {
     id: 'planning',
@@ -203,6 +263,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['design', 'decisions'],
     self_supply: ['design', 'decisions'],
     produces: ['plan'],
+    turn_budget: null,
   },
   {
     id: 'implementation',
@@ -214,6 +275,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['workspace', 'plan'],
     self_supply: [],
     produces: ['change'],
+    turn_budget: null,
   },
   {
     id: 'review',
@@ -225,6 +287,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['review-report'],
+    turn_budget: null,
   },
   {
     id: 'refactoring',
@@ -236,6 +299,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['change'],
+    turn_budget: null,
   },
   {
     id: 'validation',
@@ -247,6 +311,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['validation-report'],
+    turn_budget: null,
   },
   {
     id: 'architecture',
@@ -258,6 +323,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['architecture-report'],
+    turn_budget: null,
   },
   {
     id: 'documentation',
@@ -269,6 +335,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['design', 'change'],
     self_supply: [],
     produces: ['docs'],
+    turn_budget: null,
   },
   {
     id: 'propose',
@@ -280,6 +347,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['pr'],
+    turn_budget: null,
   },
   {
     id: 'integrate',
@@ -291,12 +359,13 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['pr'],
     self_supply: [],
     produces: [],
+    turn_budget: null,
   },
 ];
 
 const STRUCTURAL_FIELDS = [
   'id', 'archetype', 'enabled', 'contract', 'procedure',
-  'role', 'consumes', 'self_supply', 'produces',
+  'role', 'consumes', 'self_supply', 'produces', 'turn_budget',
 ];
 
 test('Given default.yml, when parsePipeline runs, then it yields exactly 13 descriptors', () => {

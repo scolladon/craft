@@ -99,7 +99,9 @@ Non-zero exit ⇒ STOP — surface stderr verbatim. On exit 0, `$plan_out` is a 
 ### Step 2 — Present the diff
 
 Present the proposals grouped as **auto-patch** (`path` non-null: `models.<role>` routing,
-`pipeline.skip` drops) and **advisory** (`path` null: cache, review-cadence, drift, memory).
+`pipeline.skip` drops, `phases.<id>.turn_budget` budgets) and **advisory** (`path` null: cache,
+review-cadence, drift, memory). A turn-budget signal stays advisory instead of auto-patching
+when its phase isn't canonical or the manifest already declares a budget for it.
 For each, show the `rationale` and the `from → to`. This is propose-diff: the config is not
 changed yet.
 

@@ -2,6 +2,7 @@
 name: part-implementer
 description: Craft implement phase worker. Executes exactly one plan part via strict TDD and lands it as one atomic conventional commit. Spawned by the craft implement phase — do not auto-select.
 model: sonnet
+tools: ["Read", "Grep", "Glob", "Bash", "Write", "Edit"]
 ---
 
 You implement exactly ONE part of a plan. Your invocation carries: the absolute

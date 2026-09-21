@@ -11,6 +11,7 @@ import {
   computeDrift,
   CACHE_HOTSPOT_THRESHOLD,
   REVIEW_WASTE_BILLED_TURNS,
+  TURN_BUDGET_BILLED_TURNS,
   DEFAULT_DRIFT_THRESHOLD,
 } from '../src/observability/usage-aggregate.js';
 import { DEFAULT_PRICES } from '../src/observability/adapters/claude/pricing.js';
@@ -1668,4 +1669,162 @@ test('Given a group whose cacheEfficiency clears CACHE_HOTSPOT_THRESHOLD, when a
     'pricedCreationCost must equal the standalone computePricedCreation call divided exactly once');
   assert.ok(rec.evidence.shareOfRunCost >= 0 && rec.evidence.shareOfRunCost <= 1,
     'shareOfRunCost must land in [0, 1] once both sides of the ratio share a unit');
+});
+
+// ── phaseTurns: per-phase billed-turn counting (turn-budget) ─────────────────
+
+test('Given events across implementation, review and documentation phases, when aggregate runs, then phaseTurns holds one entry per distinct (phase, role) with billedTurns and toolCalls summed', () => {
+  const events = [
+    makeEvent({ phase: 'implementation', role: 'part-implementer', toolCalls: 3 }),
+    makeEvent({ phase: 'implementation', role: 'part-implementer' }), // a non-claude binding omits toolCalls
+    makeEvent({ phase: 'review', role: 'reviewer', toolCalls: 2 }),
+    makeEvent({ phase: 'documentation', role: 'docs-writer', toolCalls: 1 }),
+  ];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const phaseTurns = result.runs[0].phaseTurns;
+  assert.equal(phaseTurns.length, 3, 'one entry per distinct (phase, role) pair');
+  const implEntry = phaseTurns.find(pt => pt.phase === 'implementation' && pt.role === 'part-implementer');
+  assert.equal(implEntry.billedTurns, 2, 'two implementation events must fold into one billedTurns count');
+  assert.equal(implEntry.toolCalls, 3, 'toolCalls sums Σevt.toolCalls, treating a missing field as 0');
+});
+
+test('Given a phased event with no role, when aggregate runs, then its phaseTurns entry falls back to role "unknown"', () => {
+  const events = [makeEvent({ phase: 'design', role: null })];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  assert.equal(result.runs[0].phaseTurns[0].role, 'unknown', 'a phased event with no role must group under "unknown", not an empty string');
+});
+
+test('Given a main-loop event carrying phase: null, when aggregate runs, then phaseTurns excludes it (main-loop events are not a phase)', () => {
+  const events = [makeEvent({ phase: null, role: null })];
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  assert.deepEqual(result.runs[0].phaseTurns, [], 'a phase:null event must never produce a phaseTurns entry');
+});
+
+test("Given a review-only event set, when aggregate runs, then serializeReport's reviewCycles block is byte-identical to the pre-generalisation output", () => {
+  const events = reviewCycleEvents(3, { spawnCount: 2 });
+  const sut = serializeReport;
+
+  const result = sut(aggregate(events, PRICE_TABLE));
+
+  const pinnedReviewCycles = `      "reviewCycles": [
+        {
+          "billedTurns": 3,
+          "cycles": 2,
+          "maxCost": {
+            "priced": 0.0006225,
+            "relative": 162
+          },
+          "meanCost": {
+            "priced": 0.0006225,
+            "relative": 162
+          },
+          "role": "reviewer",
+          "totalCost": {
+            "priced": 0.0018675,
+            "relative": 486
+          }
+        }
+      ],`;
+  assert.ok(result.includes(pinnedReviewCycles),
+    'reviewCycles serialization must stay byte-identical to the pre-generalisation output — captured before buildReviewCycles became buildPhaseTurns');
+});
+
+test('Given a phase whose billedTurns exceed TURN_BUDGET_BILLED_TURNS, when aggregate runs, then a turn-budget recommendation carries role, phase, toolCalls and the threshold', () => {
+  const events = reviewCycleEvents(TURN_BUDGET_BILLED_TURNS + 1, {
+    phase: 'implementation', role: 'part-implementer', spawnCount: 3, toolCalls: 4,
+  });
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const rec = result.recommendations.find(r => r.kind === 'turn-budget');
+  assert.ok(rec, 'turn-budget recommendation must be emitted past the threshold');
+  assert.equal(rec.role, 'part-implementer');
+  assert.equal(rec.phase, 'implementation');
+  assert.equal(rec.evidence.billedTurns, TURN_BUDGET_BILLED_TURNS + 1);
+  assert.equal(rec.evidence.toolCalls, (TURN_BUDGET_BILLED_TURNS + 1) * 4);
+  assert.equal(rec.evidence.threshold, TURN_BUDGET_BILLED_TURNS);
+  assert.equal(
+    rec.detail,
+    `role part-implementer billed ${TURN_BUDGET_BILLED_TURNS + 1} turns in phase implementation`,
+  );
+});
+
+test('Given billed turns exactly equal to TURN_BUDGET_BILLED_TURNS, when aggregate runs, then no turn-budget recommendation is emitted (boundary is strictly greater-than)', () => {
+  const events = reviewCycleEvents(TURN_BUDGET_BILLED_TURNS, { phase: 'implementation', role: 'part-implementer' });
+  const sut = aggregate;
+
+  const result = sut(events, PRICE_TABLE);
+
+  const recs = result.recommendations.filter(r => r.kind === 'turn-budget');
+  assert.equal(recs.length, 0, `exactly ${TURN_BUDGET_BILLED_TURNS} billed turns must not fire turn-budget`);
+});
+
+test('Given a report with phaseTurns, when renderMarkdown runs, then it emits a ## Turns by phase section', () => {
+  const events = [makeEvent({ phase: 'implementation', role: 'part-implementer' })];
+  const report = aggregate(events, PRICE_TABLE);
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  assert.ok(result.includes('## Turns by phase'), 'a non-empty phaseTurns must produce the section');
+  assert.match(
+    result,
+    /- \*\*[^*]*implementation\/part-implementer\*\*: billedTurns=\d+ toolCalls=\d+ cycles=\d+/,
+    `the section must render the row body, not just the heading — a signal only report.json carries is a signal no human reads: ${result}`,
+  );
+});
+
+test('Given a report whose only event carries phase: null, when renderMarkdown runs, then the ## Turns by phase heading is absent (phaseTurns is empty)', () => {
+  const events = [makeEvent({ phase: null, role: null })];
+  const report = aggregate(events, PRICE_TABLE);
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  assert.equal(report.runs[0].phaseTurns.length, 0, 'sanity: phaseTurns must be empty for a phase:null-only run');
+  assert.ok(!result.includes('## Turns by phase'), 'an empty phaseTurns across every run must never emit a lone heading');
+});
+
+test('Given a report where every run has no phaseTurns entries, when renderMarkdown runs, then the render carries nothing beyond the run headers', () => {
+  const report = { runs: [{ run: 'run-a', slug: null, groups: [], phaseTurns: [] }] };
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  assert.equal(result, '# Usage Report\n\n## Run: run-a\n');
+});
+
+test('Given one run with phaseTurns entries and another run whose phaseTurns key is entirely absent (an older-schema report), when renderMarkdown runs, then the section renders only the populated run without crashing or leaking a placeholder row', () => {
+  const report = {
+    runs: [
+      // run-b comes FIRST: `.some`/`.every` short-circuit, so the absent-key run must
+      // be the one evaluated first or a dropped OptionalChaining guard on it goes untested.
+      { run: 'run-b', slug: null, groups: [] }, // older schema: no phaseTurns key at all
+      {
+        run: 'run-a', slug: null, groups: [],
+        phaseTurns: [
+          { phase: 'design', role: 'planner', billedTurns: 3, toolCalls: 5, cycles: 1 },
+          { phase: 'design', role: null, billedTurns: 1, toolCalls: 0, cycles: 1 },
+        ],
+      },
+    ],
+  };
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  assert.ok(result.includes('## Turns by phase'), 'run-a alone must still surface the section');
+  assert.match(result, /- \*\*run-a\/design\/planner\*\*: billedTurns=3 toolCalls=5 cycles=1/);
+  assert.match(result, /- \*\*run-a\/design\/n\/a\*\*: billedTurns=1 toolCalls=0 cycles=1/, 'a null role must render as "n/a", not an empty label');
+  assert.ok(!result.includes('undefined'), 'the schema-less run must not leak a placeholder row');
 });

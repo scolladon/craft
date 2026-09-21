@@ -8,9 +8,16 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { main } from '../src/tune-plan-main.js';
 import { parseManifestContent } from '../src/frontmatter.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
+
+// Mirrors tune-plan-main.js's own DEFAULT_PIPELINE computation (relative to its
+// source dir) — engine/test and engine/src are sibling dirs one level under
+// engine/, so both resolve to the same repo-root/pipeline/default.yml.
+const DEFAULT_PIPELINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'pipeline', 'default.yml');
 
 const MEMORY_STORE = `---\nfindings:\n  - concern: findings\n    file: skills/x.md\n    pattern: recurring thing\n    confidence: 0.8\n---\n\n# memory\n`;
 
@@ -47,6 +54,37 @@ function fakeFs(map) {
     return map[path];
   };
 }
+
+function turnBudgetReportJson(phase, toolCalls) {
+  return JSON.stringify({
+    schemaVersion: 1,
+    runs: [],
+    recommendations: [{
+      kind: 'turn-budget', run: 'r1', phase, role: 'part-implementer', model: null,
+      detail: `role part-implementer billed 291 turns in phase ${phase}`,
+      evidence: { billedTurns: 291, cycles: 3, phase, role: 'part-implementer', threshold: 200, toolCalls },
+    }],
+  });
+}
+
+// A minimal pipeline: `workspace` binds nothing (archetype "setup" maps to a
+// null budget in the archetype table), `planning` binds an explicit 80, and
+// `documentation` is not declared at all.
+const PIPELINE_YAML = `- id: workspace
+  archetype: setup
+  contract: []
+  procedure: craft:workspace
+- id: planning
+  archetype: specification
+  contract: []
+  procedure: craft:planning
+  turn_budget: 80
+- id: review
+  archetype: setup
+  contract: []
+  procedure: craft:review
+  turn_budget: 42
+`;
 
 // ── STOP semantics ────────────────────────────────────────────────────────────
 
@@ -156,4 +194,80 @@ test('Given a readable memory store with a high-confidence finding, when main ru
 
   const { proposals } = JSON.parse(io.stdout.joined());
   assert.ok(proposals.some(p => p.source === 'memory'), 'a memory advisory must appear when the store has a high-confidence finding');
+});
+
+// ── resolveEffectiveBudgets: pipeline-derived turn-budget eligibility ─────────
+
+test('Given a pipeline phase that binds no budget by descriptor or archetype table, when main runs with an overrun rec for it, then it auto-patches phases.<phase>.turn_budget', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const code = sut([BASE, REPORT], io, {
+    readFileSync: fakeFs({ [BASE]: BASE_CONFIG, [REPORT]: turnBudgetReportJson('workspace', 250), [DEFAULT_PIPELINE]: PIPELINE_YAML }),
+  });
+
+  assert.equal(code, 0, io.stderr.joined());
+  const out = JSON.parse(io.stdout.joined());
+  assert.equal(out.hasPatch, true, 'a phase nothing binds must be patch-eligible');
+  assert.ok(out.proposals.some(p => p.source === 'turn-budget' && p.path !== null));
+  assert.equal(parseManifestContent(out.patchedManifest).phases.workspace.turn_budget, 250);
+});
+
+test('Given a pipeline phase that already declares its own turn_budget, when main runs with an overrun rec for it, then it never auto-patches (the descriptor value already binds)', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const code = sut([BASE, REPORT], io, {
+    readFileSync: fakeFs({ [BASE]: BASE_CONFIG, [REPORT]: turnBudgetReportJson('planning', 250), [DEFAULT_PIPELINE]: PIPELINE_YAML }),
+  });
+
+  assert.equal(code, 0, io.stderr.joined());
+  const out = JSON.parse(io.stdout.joined());
+  assert.equal(out.hasPatch, false, 'a descriptor-bound budget must never be silently raised');
+  assert.ok(out.proposals.some(p => p.source === 'turn-budget' && p.path === null), 'expected an advisory instead');
+});
+
+test('Given a phase the pipeline never declares at all, when main runs with an overrun rec for it, then the missing entry is read as "unknown" and it never auto-patches', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const code = sut([BASE, REPORT], io, {
+    readFileSync: fakeFs({ [BASE]: BASE_CONFIG, [REPORT]: turnBudgetReportJson('documentation', 250), [DEFAULT_PIPELINE]: PIPELINE_YAML }),
+  });
+
+  assert.equal(code, 0, io.stderr.joined());
+  const out = JSON.parse(io.stdout.joined());
+  assert.equal(out.hasPatch, false, 'a phase absent from the pipeline is "unknown", never "nothing binds"');
+  assert.ok(out.proposals.some(p => p.source === 'turn-budget' && p.path === null));
+});
+
+test('Given a pipeline phase whose descriptor turn_budget is explicit but the archetype table would independently resolve null, when main runs with an overrun rec for it, then the explicit value wins and it is never auto-patched', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const code = sut([BASE, REPORT], io, {
+    readFileSync: fakeFs({ [BASE]: BASE_CONFIG, [REPORT]: turnBudgetReportJson('review', 250), [DEFAULT_PIPELINE]: PIPELINE_YAML }),
+  });
+
+  assert.equal(code, 0, io.stderr.joined());
+  const out = JSON.parse(io.stdout.joined());
+  assert.equal(out.hasPatch, false, 'an explicit descriptor turn_budget must win over the archetype-table fallback, never be discarded by it');
+  assert.ok(out.proposals.some(p => p.source === 'turn-budget' && p.path === null));
+});
+
+test('Given an unreadable pipeline file, when main runs with an overrun rec for a phase that would otherwise be patch-eligible, then it still never auto-patches', () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  // DEFAULT_PIPELINE is intentionally absent from the map, so resolveEffectiveBudgets's
+  // read throws and must fall back to {} — never to null/undefined, and never treated
+  // as "nothing binds every phase" (which would auto-patch every overrun).
+  const code = sut([BASE, REPORT], io, {
+    readFileSync: fakeFs({ [BASE]: BASE_CONFIG, [REPORT]: turnBudgetReportJson('workspace', 250) }),
+  });
+
+  assert.equal(code, 0, io.stderr.joined());
+  const out = JSON.parse(io.stdout.joined());
+  assert.equal(out.hasPatch, false, 'an unreadable pipeline must never be read as "nothing binds" for every phase');
+  assert.ok(out.proposals.some(p => p.source === 'turn-budget' && p.path === null));
 });

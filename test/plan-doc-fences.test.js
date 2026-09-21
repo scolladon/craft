@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const PLAN_DIR = path.join(__dirname, '..', 'docs', 'contributing', 'plan');
+const TEMPLATE_PATH = path.join(__dirname, '..', 'templates', 'plan.md');
 
 // A structural (not content-validating) reading of CommonMark fenced code blocks:
 // an opener is a column-0..3 run of 3+ backticks or tildes; a closer is a run of
@@ -54,19 +55,20 @@ function findUnclosedFenceOpenLine(markdown) {
   return openFenceLine;
 }
 
-function listPlanDocs() {
-  return fs
+function listScannedFiles() {
+  const planDocs = fs
     .readdirSync(PLAN_DIR)
     .filter((name) => name.endsWith('.md'))
-    .sort();
+    .sort()
+    .map((name) => ({ label: name, filePath: path.join(PLAN_DIR, name) }));
+  return [...planDocs, { label: 'templates/plan.md', filePath: TEMPLATE_PATH }];
 }
 
-test('Given every plan doc under docs/contributing/plan, when scanned for CommonMark fence balance, then none ends inside an open fence', () => {
-  const offenders = listPlanDocs()
-    .map((name) => {
-      const filePath = path.join(PLAN_DIR, name);
+test('Given every plan doc under docs/contributing/plan and the plan template, when scanned for CommonMark fence balance, then none ends inside an open fence', () => {
+  const offenders = listScannedFiles()
+    .map(({ label, filePath }) => {
       const openLine = findUnclosedFenceOpenLine(fs.readFileSync(filePath, 'utf8'));
-      return openLine === null ? null : `${name} (opened at line ${openLine})`;
+      return openLine === null ? null : `${label} (opened at line ${openLine})`;
     })
     .filter((offender) => offender !== null);
 

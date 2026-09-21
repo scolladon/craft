@@ -189,3 +189,8 @@ reconciles to the same result rather than compounding.
 The two never touch: the ledger flush never calls `save`, and `save` never writes the
 ledger file. The one directional link that does exist — the delta derivation reading
 ledger lines and handing `save` a value — is deliberate and one-way.
+
+Neither is the committed metrics ledger at `.claude/craft-metrics.md` — a third,
+distinct artifact, keyed by run-id and phase like the two above but populated by
+`scripts/emit-metrics.sh`, not by the orchestrator. See
+[`docs/contributing/specs/telemetry.md`'s Metrics ledger row section](./telemetry.md#metrics-ledger-row).

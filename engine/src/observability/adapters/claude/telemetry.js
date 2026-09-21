@@ -15,6 +15,13 @@
  * is nothing to key a dedup against. This message-keying is what makes
  * one-event-per-billed-turn hold.
  *
+ * `tool_use` blocks fold the opposite direction from usage: usage is the same
+ * request-level count repeated on every line of a message, so later lines
+ * replace it; `tool_use` blocks are PARTITIONED one-per-line across that same
+ * message, so later lines' counts are summed into `toolCalls` instead.
+ * Getting this backwards (summing usage or folding tool calls) over-reads
+ * cache figures by roughly 2x on a multi-block message.
+ *
  * A spawn rollup rides on a `user` line's `toolUseResult` and never carries
  * `message.usage`, so rollups are read for neither tokens nor labels — the two
  * shapes are disjoint by construction, which keeps the rollup tier unreachable
@@ -124,6 +131,25 @@ function assistantTextOf(parsed) {
 }
 
 /**
+ * Count the `tool_use` content blocks on a single parsed line. Unlike usage,
+ * which repeats identically across every line of a message, tool_use blocks
+ * are PARTITIONED one-per-line — so the caller sums this count across lines
+ * instead of folding it.
+ *
+ * @param {object} parsed
+ * @returns {number}
+ */
+function toolUseCountOf(parsed) {
+  // equivalent mutant (either OptionalChaining on parsed?.message dropped): the only
+  // caller reaches this line right after `parsed.message?.usage` was dereferenced
+  // without throwing (see the `usage == null` guard above it in parseLines), which is
+  // only possible when `parsed` and `parsed.message` are both already non-nullish.
+  const content = parsed?.message?.content;
+  if (!Array.isArray(content)) return 0;
+  return content.filter(block => block?.type === 'tool_use').length;
+}
+
+/**
  * Fold a Date.parse result into the running [min, max] timestamp span. A
  * non-finite parse (missing/malformed timestamp) leaves the span untouched —
  * it contributes neither a floor nor a ceiling, never a clock read.
@@ -152,7 +178,7 @@ function foldTimestamp(span, timestamp) {
  * @param {Map<string, number>} indexByMessageId - message id → index into events
  * @param {string | null} messageId
  * @param {object} candidateEvent - pushed when this id is new
- * @param {{ tokens: object, cacheCreationTtl: object | null }} replacement - applied when this id already exists
+ * @param {{ tokens: object, cacheCreationTtl: object | null, toolCalls: number }} replacement - applied when this id already exists
  */
 function foldEventByMessageId(events, indexByMessageId, messageId, candidateEvent, replacement) {
   // equivalent mutant (false): the map never holds a `null` key — the only writer
@@ -162,6 +188,9 @@ function foldEventByMessageId(events, indexByMessageId, messageId, candidateEven
   if (existingIndex !== undefined) {
     events[existingIndex].tokens = replacement.tokens;
     events[existingIndex].cacheCreationTtl = replacement.cacheCreationTtl;
+    // tool_use blocks partition across a message's lines (opposite direction from
+    // usage, which repeats) — so a later line's count is added, never replaced.
+    events[existingIndex].toolCalls += replacement.toolCalls;
     return;
   }
   events.push(candidateEvent);
@@ -255,6 +284,7 @@ export async function parseLines(lines, since = null, context = null) {
     if (!isSubagent && context?.includeInline === false) continue;
 
     const { tokens, cacheCreationTtl } = tokensFromClaudeUsage(usage);
+    const toolCalls = toolUseCountOf(parsed);
     // The transcript span belongs to every surviving line, whether or not that
     // line ends up folded into an earlier event by the message-id keying below.
     // equivalent mutant (true): `span` is never returned from parseLines and is
@@ -283,12 +313,13 @@ export async function parseLines(lines, since = null, context = null) {
       model: normalizeModel(parsed.message?.model ?? null),
       tokens,
       cacheCreationTtl,
+      toolCalls,
       messages: 1,
       // Main-loop durationMs stays 0 on every event, including the last — see
       // below. Sub-agent events default to 0 too; the last one is patched with
       // the transcript's span once the stream ends.
       durationMs: 0,
-    }, { tokens, cacheCreationTtl });
+    }, { tokens, cacheCreationTtl, toolCalls });
   }
 
   // The orchestrator's own wallclock span overlaps every sub-agent span spawned

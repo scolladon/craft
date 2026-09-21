@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
-import { assembleContract } from '../src/contract.js';
+import { assembleContract, ARCHETYPE_TURN_BUDGET } from '../src/contract.js';
+import { VALID_ARCHETYPES } from '../src/descriptor.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const contractsDir = join(__dir, 'fixtures', 'contracts');
@@ -297,6 +298,87 @@ test('Given a full descriptor with all sections, when assembleContract runs, the
   assert.ok(globalPos < phasePos,       'global context must precede per-phase context');
 });
 
+// ─── phases.<id>.tools declarative line ──────────────────────────────────────
+
+test('Given a manifest declaring phase tools, when assembleContract runs, then the block ends with the declarative tools line naming each declared tool', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { design: { tools: ['Read', 'Grep', 'Bash'] } } };
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  const lines = result.split('\n');
+  assert.equal(
+    lines[lines.length - 1],
+    "Tools declared for this phase: Read, Grep, Bash — declarative; the agent definition's allowlist is what binds at spawn.",
+  );
+});
+
+test('Given a manifest declaring phase tools as a bare string, when assembleContract runs, then the tools line renders it as a one-element list', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { design: { tools: 'Read' } } };
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(
+    result.endsWith("Tools declared for this phase: Read — declarative; the agent definition's allowlist is what binds at spawn."),
+  );
+});
+
+test('Given a manifest declaring phase tools, when assembleContract runs in agent vs inline mode, then the tools line text is identical', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { design: { tools: ['Read', 'Bash'] } } };
+  const sut = assembleContract;
+
+  const agentResult = sut(descriptor, manifest, FRAGMENTS, {});
+  const inlineResult = sut({ ...descriptor, execution: 'inline' }, manifest, FRAGMENTS, { execution: 'inline' });
+
+  const toolsLine = "Tools declared for this phase: Read, Bash — declarative; the agent definition's allowlist is what binds at spawn.";
+  assert.ok(agentResult.endsWith(toolsLine), 'agent-mode block must end with the tools line');
+  assert.ok(inlineResult.endsWith(toolsLine), 'inline-mode block must end with the same tools line');
+});
+
+test('Given a manifest with no tools declared for the phase, when assembleContract runs, then no tools line appears', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = {};
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(!result.includes('Tools declared for this phase'));
+});
+
+test('Given a manifest declaring tools for a different phase, when assembleContract runs, then no tools line appears for this descriptor', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { review: { tools: ['Read'] } } };
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(!result.includes('Tools declared for this phase'));
+});
+
+test('Given a manifest declaring phases.design.tools: [] (empty list), when assembleContract runs, then no tools line appears', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { design: { tools: [] } } };
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(!result.includes('Tools declared for this phase'));
+});
+
+test('Given a manifest with no tools declared for the phase, when assembleContract runs, then the block carries no trailing blank section', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = {};
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(!result.endsWith('\n'), 'omitted tools line must not leave a joined empty section');
+});
+
 // ─── refinement bundle ────────────────────────────────────────────────────────
 
 test('Given a descriptor with contract:[refinement], when assembleContract runs, then refinement fixture content is present in output', () => {
@@ -315,5 +397,185 @@ test('Given a descriptor with contract:[refinement], when assembleContract runs,
   assert.ok(
     corePos !== -1 && corePos < refinementPos,
     'refinement bundle must appear after the U core',
+  );
+});
+
+// ─── output-digest core line ─────────────────────────────────────────────────
+
+test('Given the real core fragment, when assembleContract runs in agent and inline mode, then the output-digest line is present and identical in both', () => {
+  const realCore = readFileSync(join(__dir, '..', '..', 'contracts', 'core.md'), 'utf8');
+  const fragments = { ...FRAGMENTS, core: realCore };
+  const descriptor = { id: 'workspace', contract: [], execution: 'agent' };
+  const sut = assembleContract;
+
+  const agentResult = sut(descriptor, {}, fragments, { execution: 'agent' });
+  const inlineResult = sut(descriptor, {}, fragments, { execution: 'inline' });
+
+  const OUTPUT_DIGEST_PREFIX = 'Output digest:';
+  const agentLine = agentResult.split('\n').find(line => line.startsWith(OUTPUT_DIGEST_PREFIX));
+  const inlineLine = inlineResult.split('\n').find(line => line.startsWith(OUTPUT_DIGEST_PREFIX));
+
+  assert.ok(agentLine, 'agent-mode block must contain the output-digest line');
+  assert.ok(inlineLine, 'inline-mode block must contain the output-digest line');
+  assert.equal(agentLine, inlineLine, 'the output-digest line must render identically in both execution modes');
+});
+
+// ─── turn-budget core line ────────────────────────────────────────────────────
+
+const REAL_CORE = readFileSync(join(__dir, '..', '..', 'contracts', 'core.md'), 'utf8');
+const REAL_CORE_FRAGMENTS = { ...FRAGMENTS, core: REAL_CORE };
+const TURN_BUDGET_PREFIX = 'Turn budget:';
+
+function turnBudgetLine(text) {
+  return text.split('\n').find(line => line.startsWith(TURN_BUDGET_PREFIX));
+}
+
+test('Given a descriptor carrying turn_budget:150 and an empty manifest, when assembleContract runs, then the block carries the budgeted turn-budget text naming 150 tool calls', () => {
+  const descriptor = { id: 'implementation', archetype: 'construction', contract: [], execution: 'agent', turn_budget: 150 };
+  const manifest = {};
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+
+  assert.equal(
+    turnBudgetLine(result),
+    'Turn budget: ~150 tool calls for this phase. On reaching it, commit what is green, write a handback (done / remains / next RED), and return — never continue past it. The unit of work resumes from the artifact with a fresh context.',
+  );
+});
+
+test('Given the turn-budget resolution chain, when manifest, descriptor and archetype each may supply a value, then manifest wins over descriptor, descriptor wins over the archetype table, and an unresolvable archetype degrades to run-to-completion without throwing', () => {
+  const sut = assembleContract;
+
+  const manifestWins = sut(
+    { id: 'implementation', archetype: 'construction', contract: [], execution: 'agent', turn_budget: 150 },
+    { phases: { implementation: { turn_budget: 40 } } },
+    REAL_CORE_FRAGMENTS,
+    { execution: 'agent' },
+  );
+  assert.ok(
+    turnBudgetLine(manifestWins).startsWith('Turn budget: ~40 tool calls'),
+    `manifest turn_budget must win over descriptor turn_budget; got: ${turnBudgetLine(manifestWins)}`,
+  );
+
+  const archetypeWins = sut(
+    { id: 'design', archetype: 'specification', contract: [], execution: 'agent' },
+    {},
+    REAL_CORE_FRAGMENTS,
+    { execution: 'agent' },
+  );
+  assert.ok(
+    turnBudgetLine(archetypeWins).startsWith('Turn budget: ~100 tool calls'),
+    `archetype table value must be used when neither manifest nor descriptor declares a budget; got: ${turnBudgetLine(archetypeWins)}`,
+  );
+
+  const unknownArchetype = () => sut(
+    { id: 'ghost', archetype: 'ghost-archetype', contract: [], execution: 'agent' },
+    {},
+    REAL_CORE_FRAGMENTS,
+    { execution: 'agent' },
+  );
+  assert.doesNotThrow(unknownArchetype, 'an unknown archetype with no contract array must not throw');
+  assert.equal(
+    turnBudgetLine(unknownArchetype()),
+    'Turn budget: none declared for this phase — run to completion.',
+  );
+
+  // Defensive guard: a descriptor with no `contract` array at all (bypassing
+  // descriptor.js's normalization, e.g. raw --descriptor-json input) must fail
+  // with the bundle loop's own "not iterable" message — never a worse, earlier
+  // message from isExecutingHarness reading .includes on a non-array.
+  assert.throws(
+    () => sut({ id: 'ghost2', archetype: 'construction' }, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' }),
+    /descriptor\.contract is not iterable/,
+    'turn-budget resolution must not throw a different, earlier error than the bundle loop for a missing contract array',
+  );
+});
+
+test('Given one descriptor, when assembled in agent mode and inline mode, then the turn-budget line is byte-identical in both', () => {
+  const descriptor = { id: 'implementation', archetype: 'construction', contract: [], execution: 'agent', turn_budget: 150 };
+  const manifest = {};
+  const sut = assembleContract;
+
+  const agentResult = sut(descriptor, manifest, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+  const inlineResult = sut({ ...descriptor, execution: 'inline' }, manifest, REAL_CORE_FRAGMENTS, { execution: 'inline' });
+
+  assert.ok(turnBudgetLine(agentResult), 'agent-mode block must contain the turn-budget line');
+  assert.ok(turnBudgetLine(inlineResult), 'inline-mode block must contain the turn-budget line');
+  assert.equal(
+    turnBudgetLine(agentResult),
+    turnBudgetLine(inlineResult),
+    'the turn-budget line must render identically in both execution modes — it resolves on the descriptor axis, not the execution-mode axis',
+  );
+});
+
+test('Given ARCHETYPE_TURN_BUDGET, when its key set is compared to VALID_ARCHETYPES, then every archetype is covered, including the explicit setup/none entry', () => {
+  const sut = ARCHETYPE_TURN_BUDGET;
+
+  for (const archetype of VALID_ARCHETYPES) {
+    assert.ok(
+      Object.hasOwn(sut, archetype),
+      `ARCHETYPE_TURN_BUDGET is missing an entry for archetype "${archetype}"`,
+    );
+  }
+  assert.equal(sut.setup, null, 'setup spawns no agent — its turn budget must degrade to null');
+});
+
+// ── archetype budget table: every value and the executing-harness split ──────
+// The key-coverage test above proves each archetype HAS a budget; these prove
+// the budget is the one the keying rule says, so flipping a value or collapsing
+// the harness split cannot pass unnoticed.
+
+test('Given one descriptor per archetype and no declared budget, when assembleContract runs, then each renders its archetype-table value', () => {
+  const cases = [
+    { archetype: 'specification', contract: [], expected: '~100 tool calls' },
+    { archetype: 'construction', contract: [], expected: '~150 tool calls' },
+    { archetype: 'refinement', contract: [], expected: '~130 tool calls' },
+    { archetype: 'delivery', contract: [], expected: '~150 tool calls' },
+  ];
+  const sut = assembleContract;
+
+  for (const { archetype, contract, expected } of cases) {
+    const result = sut({ id: 'x', archetype, contract, execution: 'agent' }, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+
+    assert.ok(
+      turnBudgetLine(result).includes(expected),
+      `archetype "${archetype}" must render ${expected}; got: ${turnBudgetLine(result)}`,
+    );
+  }
+});
+
+test('Given two harness descriptors differing only by bundle, when assembleContract runs, then the executing half budgets 150 and the read half 60', () => {
+  const sut = assembleContract;
+  const exec = { id: 'validation', archetype: 'harness', contract: ['harness-exec'], execution: 'agent' };
+  const read = { id: 'review', archetype: 'harness', contract: ['harness-read'], execution: 'agent' };
+
+  const execResult = sut(exec, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+  const readResult = sut(read, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+
+  assert.ok(turnBudgetLine(execResult).includes('~150 tool calls'), `executing harness: ${turnBudgetLine(execResult)}`);
+  assert.ok(turnBudgetLine(readResult).includes('~60 tool calls'), `read harness: ${turnBudgetLine(readResult)}`);
+  assert.notEqual(
+    turnBudgetLine(execResult),
+    turnBudgetLine(readResult),
+    'collapsing the executing/read split must be observable — both phases share the harness archetype',
+  );
+});
+
+test('Given a setup descriptor, when assembleContract runs, then the budget line states that none is declared rather than a number', () => {
+  const sut = assembleContract;
+
+  const result = sut({ id: 'workspace', archetype: 'setup', contract: [], execution: 'agent' }, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+
+  assert.ok(turnBudgetLine(result).includes('none declared'), `${turnBudgetLine(result)}`);
+  assert.doesNotMatch(turnBudgetLine(result), /~\d+ tool calls/, `${turnBudgetLine(result)}`);
+});
+
+test('Given the committed pipeline, when each descriptor is assembled, then no shipped phase declares a redundant turn_budget', () => {
+  const sut = readFileSync(join(__dir, '..', '..', 'pipeline', 'default.yml'), 'utf8');
+
+  assert.doesNotMatch(
+    sut,
+    /turn_budget:/,
+    'the archetype table is the single live home — a declaration here shadows it silently',
   );
 });

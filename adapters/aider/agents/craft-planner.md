@@ -15,6 +15,10 @@ Contract:
   `src/` delta, which are legitimately standalone (they have no implementation part to
   fold into); a part must earn its agent lifecycle; sequential parts share one
   working tree and build on each other.
+- A part should land in ~100 tool calls. More than ~5 RED→GREEN cycles, or more than 6
+  files in its `### Context` block, is two parts. What counts is a backticked path:
+  backtick the files the part CREATES or EDITS, and write read-only reference paths in
+  plain text.
 - **Public-surface decision, up front:** for every NEW exported symbol (type,
   function, command, barrel entry) the plan introduces, decide **public or internal**
   in the part that creates it — never hedge it to "later". If public, the part's

@@ -12,6 +12,7 @@ const RUN_RECORD_SPEC_PATH = path.join(ROOT, 'docs', 'contributing', 'specs', 'r
 
 const LEDGER_PATH = '.claude/craft-run-record.md';
 const STORE_PATH = '.claude/craft-memory.md';
+const METRICS_LEDGER_PATH = path.join(ROOT, '.claude', 'craft-metrics.md');
 const BUFFERED_FLUSH_SENTENCE =
   'Writes are buffered all run and flushed once here, so a phase that blocked mid-run leaves the store unchanged';
 
@@ -144,4 +145,42 @@ test('Given the run-record spec, when the inherited-edges section is read, then 
   assert.match(result, /collision/iu);
   // Both inherited edges live in this region; the earlier rewrite dropped this one.
   assert.match(result, /decay-merges against the run-start/u);
+});
+
+test('Given skills/run/SKILL.md §Done, when the metrics procedure is read, then it names the emitter wrapper and the run-id flag', () => {
+  const result = sliceRegion(runSkill, /^## Done/, null);
+
+  assert.ok(result.includes('scripts/emit-metrics.sh'), 'expected the emitter wrapper to be named');
+  assert.ok(result.includes('--run'), 'expected the --run flag to be named');
+});
+
+test('Given skills/run/SKILL.md §Done, when the metrics procedure is read, then it carries no instruction to locate, open or fold a sub-agent transcript', () => {
+  const result = sliceRegion(runSkill, /^## Done/, null);
+
+  for (const term of ['subagents/', 'toolUseId', 'message.id']) {
+    assert.ok(!result.includes(term), `expected no "${term}" in the §Done region`);
+  }
+});
+
+test('Given skills/run/SKILL.md §Done, when the metrics procedure is read, then it states the re-run obligation for a phase that ran twice in one session', () => {
+  const result = sliceRegion(runSkill, /^## Done/, null);
+
+  assert.ok(result.includes('--phase'), 'expected the --phase flag to be named');
+  assert.ok(result.includes('--since'), 'expected the --since flag to be named');
+  assert.match(result, /re-counts the first/i);
+});
+
+// The ledger is append-only and a further format change is expected, so the
+// marker COUNT and today's date are not the invariant — a test pinning them
+// fails later for being right. What must hold is that the newest boundary
+// states which columns changed and forbids comparison across itself.
+test('Given the metrics ledger, when its newest format boundary is read, then it names the changed columns and forbids comparison across itself', () => {
+  const ledger = fs.readFileSync(METRICS_LEDGER_PATH, 'utf8');
+  const markers = ledger.split('\n').filter((line) => line.startsWith('--- format boundary'));
+
+  assert.ok(markers.length >= 1, 'a ledger whose row format has changed must carry a boundary marker');
+  const newest = markers[markers.length - 1];
+  assert.match(newest, /\d{4}-\d{2}-\d{2}/, 'the boundary states when the format changed');
+  assert.match(newest, /turns, tool_calls, output, avg_ctx and equiv/);
+  assert.match(newest, /[Nn]ever compare a row above this line to a row below/);
 });

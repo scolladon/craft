@@ -34,6 +34,38 @@ function grepQ_plain(pattern, filePath) {
   }
 }
 
+// The repo ships nine agents. Asserting the floor here rather than in each
+// caller means a filter that stops matching — a renamed extension, agents moved
+// under a subdirectory — fails loudly instead of leaving every roster-wide test
+// iterating an empty list and passing having checked nothing.
+const MIN_AGENT_FILES = 9;
+
+function listAgentFiles() {
+  const files = fs
+    .readdirSync(path.join(ROOT, 'agents'))
+    .filter((entry) => entry.endsWith('.md'))
+    .map((entry) => path.join(ROOT, 'agents', entry));
+  assert.ok(
+    files.length >= MIN_AGENT_FILES,
+    `expected at least ${MIN_AGENT_FILES} agent definitions, found ${files.length} — the roster filter has stopped matching`,
+  );
+  return files;
+}
+
+// Reads the flow-form `tools: [...]` frontmatter key. Returns null when the
+// key is absent, so callers can tell "no list" apart from "empty list".
+function readToolsList(filePath) {
+  const content = fs.readFileSync(filePath, 'utf8');
+  const frontmatter = content.match(/^---\n([\s\S]*?)\n---/);
+  if (!frontmatter) return null;
+  const toolsLine = frontmatter[1].match(/^tools:\s*\[(.*)\]\s*$/m);
+  if (!toolsLine) return null;
+  return toolsLine[1]
+    .split(',')
+    .map((entry) => entry.trim().replace(/^["']|["']$/g, ''))
+    .filter(Boolean);
+}
+
 test(
   'Given the requirements vertical is authored, when the requirements agent file is checked, then it exists',
   () => {
@@ -210,5 +242,77 @@ test(
       !grepQE('P21|ADR', path.join(ROOT, 'examples/loop/DOD.md')),
       'examples/loop/DOD.md should not contain P21 or ADR tokens',
     );
+  },
+);
+
+test(
+  'Given every file in agents/, when its frontmatter is read, then it declares a non-empty tools list',
+  () => {
+    for (const filePath of listAgentFiles()) {
+      const tools = readToolsList(filePath);
+      assert.ok(
+        Array.isArray(tools) && tools.length > 0,
+        `${path.relative(ROOT, filePath)} should declare a non-empty tools list`,
+      );
+    }
+  },
+);
+
+// NOTE on what this can and cannot prove. `Bash` is a full write surface
+// (`sed -i`, `tee`, `git commit`), and the reviewer keeps it because 93.6% of
+// its measured calls are Bash. So the declarative allowlist cannot make the
+// reviewer read-only; the read-only rule in contracts/harness-read.md stays
+// prose-enforced for the one tool that can actually mutate. What this test
+// pins is narrower and worth pinning: no DEDICATED editor tool is declared,
+// and the list does not grow silently.
+test(
+  'Given the reviewer agent, when its tools list is read, then it declares no dedicated editor tool',
+  () => {
+    const tools = readToolsList(path.join(ROOT, 'agents/reviewer.md'));
+    assert.ok(Array.isArray(tools), 'agents/reviewer.md should declare a tools list');
+
+    const EDITOR_TOOLS = ['Edit', 'Write', 'NotebookEdit'];
+    const result = tools.filter((tool) => EDITOR_TOOLS.includes(tool));
+
+    assert.deepStrictEqual(result, []);
+  },
+);
+
+test(
+  'Given the reviewer agent, when its tools list is read, then it is exactly the read-plus-Bash set',
+  () => {
+    const sut = readToolsList(path.join(ROOT, 'agents/reviewer.md'));
+
+    const result = [...sut].sort();
+
+    assert.deepStrictEqual(
+      result,
+      ['Bash', 'Glob', 'Grep', 'Read'],
+      'widening the reviewer beyond read tools plus Bash is a contract change, not a tweak',
+    );
+  },
+);
+
+test(
+  'Given every agent, when its tools list is read, then no entry is an MCP tool or a sub-agent-spawning tool',
+  () => {
+    const SPAWNING_TOOLS = ['Task', 'Agent'];
+
+    for (const filePath of listAgentFiles()) {
+      const tools = readToolsList(filePath);
+      assert.ok(
+        Array.isArray(tools),
+        `${path.relative(ROOT, filePath)} should declare a tools list`,
+      );
+
+      const forbidden = tools.filter(
+        (tool) => tool.startsWith('mcp__') || SPAWNING_TOOLS.includes(tool),
+      );
+      assert.deepStrictEqual(
+        forbidden,
+        [],
+        `${path.relative(ROOT, filePath)} should not declare ${forbidden.join(', ')}`,
+      );
+    }
   },
 );

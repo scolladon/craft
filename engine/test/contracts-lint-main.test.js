@@ -7,7 +7,7 @@
 
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
@@ -139,6 +139,26 @@ test('Given the real contracts/ directory, when main runs, then it returns 0 wit
 
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   assert.ok(result.stdout.includes('bundles OK'), `stdout should report the success line; got: ${result.stdout}`);
+});
+
+// ─── real contracts/ dir → no fragment carries "retrieval" ───────────────────
+// Extends the "bundles OK" check above with a direct per-fragment assertion
+// over the real tree (not a synthetic fixture), so an amended fragment — such
+// as harness-exec after its digest-rule narrowing — stays covered by name.
+
+test('Given the committed contracts directory, when contracts-lint runs, then it passes and no fragment contains "retrieval" in any casing', () => {
+  const sut = runLint;
+
+  const result = sut(REAL_CONTRACTS);
+
+  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
+  for (const name of BUNDLE_NAMES) {
+    const content = readFileSync(join(REAL_CONTRACTS, `${name}.md`), 'utf8');
+    assert.ok(
+      !content.toLowerCase().includes('retrieval'),
+      `bundle "${name}" must not contain "retrieval" (engine derives it); got: ${content}`,
+    );
+  }
 });
 
 // ─── default contracts dir (argv[0] ?? 'contracts') → resolves a default ──────

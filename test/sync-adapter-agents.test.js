@@ -388,6 +388,24 @@ test('Given a mirror with a distinctive file mode, when --write repairs its drif
   });
 });
 
+test('Given a shared agent file carrying a tools key in its frontmatter, when --check runs against a synced fixture tree, then it still exits 0', () => {
+  withFixture(buildCleanFixtureTree, (root) => {
+    // Arrange — the sync script's body comparison strips frontmatter entirely,
+    // so a frontmatter-only addition on the shared side must never drift a mirror.
+    fs.writeFileSync(
+      path.join(root, 'agents', 'alpha.md'),
+      `---\nname: alpha\ntools: ["Read", "Grep", "Glob", "Bash"]\n---\n\n${SHARED_ALPHA_BODY}`,
+    );
+
+    // Act
+    const result = runSync(['--check', '--root', root]);
+
+    // Assert
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, CLEAN_FIXTURE_SUMMARY);
+  });
+});
+
 test('Given scripts/ci.sh, when its content is read, then it wires --check into the lint chain', () => {
   // Arrange
   const sut = fs.readFileSync(path.join(ROOT, 'scripts', 'ci.sh'), 'utf8');
