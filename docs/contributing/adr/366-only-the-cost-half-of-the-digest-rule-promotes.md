@@ -36,6 +36,15 @@ sed over the lines that matter; never read a whole file when a symbol range answ
 question. The untrusted-DATA clause and the orchestrator hand-off clause stay in
 `harness-exec`, where the technique output file they describe actually exists.
 
+### Why a rule, not a fact
+
+The fact ("every tool result is re-read on every later turn; a Read costs ~119x its size over a
+part's life") is true but arrives too late to act on. The whole-file-versus-range choice is made
+while composing the command, before the output exists; a cost fact is actionable only once the
+output is known to be large, by which point it is already in context and paid for on every later
+turn. The rule pre-commits on what can be estimated up front ("may exceed ~100 lines") and names
+the substitute technique, which a fact does not.
+
 ## Consequences
 
 - Every role gets the cost rule; only the two harness phases get the provenance rule.

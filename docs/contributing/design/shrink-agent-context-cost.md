@@ -648,6 +648,30 @@ for it would bind nothing.
 
 ---
 
+### Why two rules and not two facts
+
+This change adds two decision procedures to `contracts/core.md`, and the repo's own principle
+(`docs/guides/concepts.md`, Frame 5) is that stating one missing fact usually beats encoding a
+procedure for finding it. Each rule has to earn the exception.
+
+**Output digest.** The fact would be: every tool result is re-read on every later turn, and a
+Read costs roughly 119 times its own size over a part's life. That fact is true and it is not
+enough, because of *when* the decision is made. An agent chooses between reading a whole file
+and reading a range while it is composing the command — before the output exists and before its
+size is known. A cost fact becomes actionable only once the output is known to be large, and by
+then it is already in context and is being paid for on every later turn. The rule turns the cost
+into a pre-commitment keyed on something the agent can estimate up front ("may exceed ~100
+lines"), and it names the substitute — a file read back by `grep`/`sed`, or a symbol range — which
+a cost fact does not.
+
+**Turn budget.** The fact would be: cost grows as roughly turns^1.4, and past ~150 tool calls a
+part is in the expensive tail. A fact triggers nothing. The budget is the trigger for a
+*protocol* — commit what is green, write a handback naming done / remains / next RED, and return
+— and the orchestrator respawns fresh from that handback's known shape. A fact gives the agent
+no stopping point and gives the orchestrator no handback to respawn from. It is also stated in a
+unit the agent cannot use: an agent cannot observe its own billed turns or its own context size,
+so the rule is denominated in tool calls, the one quantity it can count.
+
 ### Surfaces, one table
 
 | File | Part | Change |

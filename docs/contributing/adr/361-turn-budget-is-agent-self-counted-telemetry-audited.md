@@ -38,6 +38,13 @@ Enforcement is honest-unreliable by construction. What makes it correctable rath
 decorative is the audit: Part D emits per-phase tool-call counts, so an agent that sails
 past its budget shows up in the ledger and in a `turn-budget` recommendation.
 
+### Why a rule, not a fact
+
+Stating the cost fact ("cost grows as roughly turns^1.4") would trigger nothing. The budget is
+the trigger for a protocol whose handback shape the orchestrator respawns from; a fact supplies
+neither the stopping point nor the handback. It would also be stated in a unit the agent cannot
+observe — billed turns — so the rule is denominated in tool calls, which it can count.
+
 ## Consequences
 
 - The handback-respawn path, which today fires only for a DEAD agent, becomes a normal
