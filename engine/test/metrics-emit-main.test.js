@@ -234,11 +234,17 @@ test('Given a --phase carrying a newline, when main runs, then it is a config er
 
 // ── 12. a non-ENOENT ledger read failure must never rewrite the ledger ────
 
-test('Given a ledger whose read fails for a reason other than absence, when main runs, then it refuses to write and every historical row survives', async () => {
+test('Given a ledger whose read fails for a reason other than absence, when main runs, then it refuses the write and the on-disk history is unchanged', async () => {
   const sut = main;
   const { projectsRoot, transcriptDir } = copyProjFixture();
   const repoRoot = makeTmp('metrics-emit-repo-');
   const history = `${LEDGER_HEADER}historic-run design turns=1 tokens=1\nhistoric-run review turns=2 tokens=2\n`;
+  mkdirSync(join(repoRoot, '.claude'), { recursive: true });
+  writeFileSync(ledgerPathFor(repoRoot), history, 'utf8');
+  // The spy COUNTS rather than asserting: production wraps writeFileSync in a
+  // try/catch, so an assert.fail thrown here would be swallowed and rendered as
+  // an advisory line — the assertion has to happen outside the SUT.
+  let writeCalls = 0;
   const io = makeIo({
     projectsRoot,
     repoRoot,
@@ -248,14 +254,19 @@ test('Given a ledger whose read fails for a reason other than absence, when main
       }
       return readFileSync(path, enc);
     },
-    writeFileSync: () => assert.fail('writeFileSync must not be called when the prior ledger content is unknown'),
+    writeFileSync: (...args) => { writeCalls += 1; return writeFileSync(...args); },
   });
 
   const result = await sut(['--run', 'run-x', '--phase', 'design', '--dir', transcriptDir], io);
 
   assert.equal(result, 0, 'a refused append stays advisory');
-  assert.match(io.stderr.joined(), /ledger read failed \(EACCES\), refusing to write/);
-  assert.equal(history.includes('historic-run design'), true, 'guard: the history fixture is well-formed');
+  assert.equal(writeCalls, 0, 'the prior content is unknown, so nothing may be written');
+  assert.equal(readLedger(repoRoot), history, 'every historical row must survive byte-for-byte');
+  assert.equal(
+    io.stderr.writes.filter((w) => w.includes('refusing to write')).length,
+    1,
+    'the refusal is announced exactly once',
+  );
 });
 
 test('Given a ledger that is genuinely absent, when main runs, then the header is written once and the row appended', async () => {
@@ -342,7 +353,12 @@ test('Given a transcript that cannot be opened, when main runs, then the count i
   const result = await sut(['--run', 'run-x', '--phase', 'review', '--dir', transcriptDir], io);
 
   assert.equal(result, 0, 'an unreadable spawn stays advisory');
-  assert.match(io.stderr.joined(), /1 transcript\(s\) unreadable/, 'a failed transcript must not vanish silently');
+  assert.equal(
+    io.stderr.writes.filter((w) => w.includes('transcript(s) unreadable')).length,
+    1,
+    'the advisory is announced exactly once, not once per bad transcript',
+  );
+  assert.match(io.stderr.joined(), /1 transcript\(s\) unreadable, 0 refused by containment/);
 });
 
 // ── 16. a ledger write failure is advisory, and it says so ────────────────
@@ -361,4 +377,29 @@ test('Given a ledger write that throws, when main runs, then one stderr line nam
 
   assert.equal(result, 0);
   assert.match(io.stderr.joined(), /ledger write failed \(EROFS\)/);
+});
+
+// ── 17. a transcript refused by containment is counted, not silently dropped ─
+
+test('Given a transcript the containment check refuses, when main runs, then the refusal is counted on stderr', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  addReviewerSpawn(join(transcriptDir, 'sess-a', 'subagents'), 'refused', '2026-01-01T00:07:00.000Z');
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({
+    projectsRoot,
+    repoRoot,
+    containByRealpath: (root, candidate) => (
+      String(candidate).includes('agent-review-refused') ? null : containByRealpath(root, candidate)
+    ),
+  });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'review', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, 'a refused transcript stays advisory');
+  assert.match(
+    io.stderr.joined(),
+    /0 transcript\(s\) unreadable, 1 refused by containment/,
+    'the refused disjunct must be observable, not just the failed one',
+  );
 });

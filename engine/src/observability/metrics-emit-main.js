@@ -160,11 +160,15 @@ function resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath 
 // destroying every historical row. Refuse the write instead.
 function readExistingLedger(ledgerPath, readFileSync, stderr) {
   try {
-    return { existing: readFileSync(ledgerPath, 'utf8'), absent: false, refused: false };
+    return { ok: true, existing: readFileSync(ledgerPath, 'utf8'), absent: false };
   } catch (e) {
-    if (e.code === 'ENOENT') return { existing: '', absent: true, refused: false };
+    if (e.code === 'ENOENT') return { ok: true, existing: '', absent: true };
     stderr.write(`metrics-emit: ledger read failed (${e.code ?? 'unknown'}), refusing to write\n`);
-    return { existing: '', absent: false, refused: true };
+    // `{ ok: false }` and nothing else: a refusal that also carried an
+    // `existing: ''` would be indistinguishable from a legitimately empty
+    // ledger, so a caller that forgot the check would write header-plus-rows
+    // over the history. Same shape resolveConfig uses, for the same reason.
+    return { ok: false };
   }
 }
 
@@ -172,8 +176,9 @@ function readExistingLedger(ledgerPath, readFileSync, stderr) {
 // appended row to stdout so the caller needs no second read. A failed write
 // is advisory: one stderr line, exit 0 (the caller already returns EXIT_OK).
 function appendLedgerRows(ledgerPath, rows, { readFileSync, writeFileSync, mkdirSync, stdout, stderr }) {
-  const { existing, absent, refused } = readExistingLedger(ledgerPath, readFileSync, stderr);
-  if (refused) return;
+  const read = readExistingLedger(ledgerPath, readFileSync, stderr);
+  if (!read.ok) return;
+  const { existing, absent } = read;
   const body = rows.map((row) => `${row}\n`).join('');
   try {
     mkdirSync(dirname(ledgerPath), { recursive: true });
@@ -185,8 +190,8 @@ function appendLedgerRows(ledgerPath, rows, { readFileSync, writeFileSync, mkdir
   for (const row of rows) stdout.write(`${row}\n`);
 }
 
-// Node defaults resolved once so every downstream helper takes the concrete
-// port bundle instead of re-deriving it from partial `io`.
+// Resolved once per invocation so `process.cwd()` is sampled a single time —
+// two calls could straddle a chdir and root the read and the write differently.
 function resolveDeps(io) {
   const {
     stdout,
@@ -208,9 +213,9 @@ function resolveDeps(io) {
   };
 }
 
-// Discovery, sub-agent narrowing, the stream parse, and the failed/refused
-// advisory line, collapsed to the one thing main() needs next: phase-labelled
-// events (a main-loop event carries `phase: null` and is dropped here).
+// Returns phase-labelled events only. The unlabelled ones are not an error
+// worth failing on: a spawn whose sidecar is missing or malformed is an
+// expected steady state, and dropping it here keeps one row per phase.
 async function collectPhasedEvents(parsed, transcriptDir, deps) {
   const { readdirSync, readFileSync, containByRealpath, createReadStream, createInterface, stderr } = deps;
   const { entries } = discover(makeDiscoveryPorts(transcriptDir, { readdirSync, readFileSync, containByRealpath }));
@@ -239,20 +244,22 @@ async function collectPhasedEvents(parsed, transcriptDir, deps) {
  */
 export async function main(argv, io) {
   const deps = resolveDeps(io);
-  const { stdout, stderr, readFileSync, writeFileSync, mkdirSync, projectsRoot, repoRoot, cwd, containByRealpath } = deps;
+  const { stderr } = deps;
   const parsed = parseArgs(argv);
-  const config = resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath });
+
+  const config = resolveConfig(parsed, deps);
   if (!config.ok) {
     stderr.write(config.message);
     return EXIT_CONFIG_ERROR;
   }
-  const { transcriptDir, ledgerPath } = config;
-  const phasedEvents = await collectPhasedEvents(parsed, transcriptDir, deps);
+
+  const phasedEvents = await collectPhasedEvents(parsed, config.transcriptDir, deps);
   const rows = buildRows(parsed.run, parsed.phase, phasedEvents);
   if (rows.length === 0) {
     stderr.write(`metrics-emit: no events found for run '${parsed.run}'\n`);
     return EXIT_OK;
   }
-  appendLedgerRows(ledgerPath, rows, { readFileSync, writeFileSync, mkdirSync, stdout, stderr });
+
+  appendLedgerRows(config.ledgerPath, rows, deps);
   return EXIT_OK;
 }

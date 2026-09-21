@@ -81,9 +81,11 @@ function buildDerivedTotals(numeric, cacheSums) {
   };
 }
 
-// The field-to-string join, isolated from the sums/derivation above it so
-// each stays independently readable.
-function renderRow(runId, phaseId, { numeric, derived, cacheFragment }) {
+// The row's field order and separator, in one flat literal. It stays inline
+// rather than behind a helper: this list IS what a reader opens the function
+// to see, and the ledger is append-only, so the order is a compatibility
+// surface rather than an implementation detail.
+function rowFields(runId, phaseId, numeric, derived, cacheFragment) {
   return [
     runId, phaseId,
     `turns=${numeric.turns}`,
@@ -94,7 +96,7 @@ function renderRow(runId, phaseId, { numeric, derived, cacheFragment }) {
     `output=${numeric.output}`,
     `avg_ctx=${derived.avgCtx}`,
     `equiv=${derived.equiv}`,
-  ].join(' ');
+  ];
 }
 
 /**
@@ -113,5 +115,5 @@ export function formatMetricsRow(runId, phaseId, events, renderCacheSplit) {
   const cacheFragment = renderCacheSplit(cacheSums);
   const derived = splitPresent ? buildDerivedTotals(numeric, cacheSums) : { tokens: NA, avgCtx: NA, equiv: NA };
 
-  return renderRow(runId, phaseId, { numeric, derived, cacheFragment });
+  return rowFields(runId, phaseId, numeric, derived, cacheFragment).join(' ');
 }
