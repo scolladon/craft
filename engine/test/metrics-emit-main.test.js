@@ -13,6 +13,7 @@ import {
   readFileSync,
   createReadStream,
   rmSync,
+  mkdirSync,
   cpSync,
 } from 'node:fs';
 import { createInterface } from 'node:readline';
@@ -203,4 +204,161 @@ test('Given an absent ledger file, when main runs, then the header is written on
   assert.equal(headerOccurrences, 1, `expected the header exactly once; got:\n${ledger}`);
   assert.ok(ledger.includes('run-1 design transcript=na'));
   assert.ok(ledger.includes('run-2 design transcript=na'));
+});
+
+// ── 11. --run and --phase are shape-checked before any row is built ────────
+
+test('Given a --run carrying a newline, when main runs, then it is a config error and no ledger is written', async () => {
+  const sut = main;
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot: makeTmp('metrics-emit-parent-'), repoRoot });
+
+  const result = await sut(['--run', 'ok\nFAKE-RUN design turns=9999 equiv=1'], io);
+
+  assert.equal(result, 1);
+  assert.match(io.stderr.joined(), /invalid --run/);
+  assert.throws(() => readLedger(repoRoot), 'expected no ledger file to be created at all');
+});
+
+test('Given a --phase carrying a newline, when main runs, then it is a config error and no ledger is written', async () => {
+  const sut = main;
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot: makeTmp('metrics-emit-parent-'), repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'zzz transcript=na\nFAKE2 review turns=1'], io);
+
+  assert.equal(result, 1);
+  assert.match(io.stderr.joined(), /invalid --phase/);
+  assert.throws(() => readLedger(repoRoot), 'expected no ledger file to be created at all');
+});
+
+// ── 12. a non-ENOENT ledger read failure must never rewrite the ledger ────
+
+test('Given a ledger whose read fails for a reason other than absence, when main runs, then it refuses to write and every historical row survives', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const history = `${LEDGER_HEADER}historic-run design turns=1 tokens=1\nhistoric-run review turns=2 tokens=2\n`;
+  const io = makeIo({
+    projectsRoot,
+    repoRoot,
+    readFileSync: (path, enc) => {
+      if (String(path).endsWith('craft-metrics.md')) {
+        const err = new Error('EACCES'); err.code = 'EACCES'; throw err;
+      }
+      return readFileSync(path, enc);
+    },
+    writeFileSync: () => assert.fail('writeFileSync must not be called when the prior ledger content is unknown'),
+  });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'design', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, 'a refused append stays advisory');
+  assert.match(io.stderr.joined(), /ledger read failed \(EACCES\), refusing to write/);
+  assert.equal(history.includes('historic-run design'), true, 'guard: the history fixture is well-formed');
+});
+
+test('Given a ledger that is genuinely absent, when main runs, then the header is written once and the row appended', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'design', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(readLedger(repoRoot).startsWith(LEDGER_HEADER), 'ENOENT is still the create-new-ledger path');
+});
+
+// ── 13. --since bounds a re-run so the second row never re-counts the first ─
+
+test('Given two spawns of one phase, when --since falls between them, then only the later spawn is counted', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const subagentsDir = join(transcriptDir, 'sess-a', 'subagents');
+  addReviewerSpawn(subagentsDir, 'early', '2026-01-01T00:01:00.000Z');
+  addReviewerSpawn(subagentsDir, 'late', '2026-01-01T00:09:00.000Z');
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(
+    ['--run', 'run-x', '--phase', 'review', '--dir', transcriptDir, '--since', '2026-01-01T00:05:00.000Z'],
+    io,
+  );
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.match(runRows(repoRoot)[0], /\bturns=1\b/, 'the pre-since spawn must not be re-counted');
+});
+
+test('Given two spawns of one phase, when --since is omitted, then both are counted', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const subagentsDir = join(transcriptDir, 'sess-a', 'subagents');
+  addReviewerSpawn(subagentsDir, 'early', '2026-01-01T00:01:00.000Z');
+  addReviewerSpawn(subagentsDir, 'late', '2026-01-01T00:09:00.000Z');
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'review', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.match(runRows(repoRoot)[0], /\bturns=2\b/, 'no lower bound means the whole phase');
+});
+
+// ── 14. --session narrows to one session directory ────────────────────────
+
+test('Given two session directories holding the same phase, when --session names one, then only that session contributes', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  addReviewerSpawn(join(transcriptDir, 'sess-a', 'subagents'), 'a1', '2026-01-01T00:07:00.000Z');
+  const otherSubagents = join(transcriptDir, 'sess-c', 'subagents');
+  mkdirSync(otherSubagents, { recursive: true });
+  addReviewerSpawn(otherSubagents, 'c1', '2026-01-01T00:08:00.000Z');
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'review', '--dir', transcriptDir, '--session', 'sess-a'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.match(runRows(repoRoot)[0], /\bturns=1\b/, 'only the named session may contribute');
+});
+
+// ── 15. an unreadable transcript is counted and surfaced, never swallowed ──
+
+test('Given a transcript that cannot be opened, when main runs, then the count is surfaced on stderr and the run still returns 0', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  addReviewerSpawn(join(transcriptDir, 'sess-a', 'subagents'), 'boom', '2026-01-01T00:07:00.000Z');
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({
+    projectsRoot,
+    repoRoot,
+    createReadStream: (path) => {
+      if (String(path).includes('agent-review-boom')) throw new Error('EIO');
+      return createReadStream(path);
+    },
+  });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'review', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, 'an unreadable spawn stays advisory');
+  assert.match(io.stderr.joined(), /1 transcript\(s\) unreadable/, 'a failed transcript must not vanish silently');
+});
+
+// ── 16. a ledger write failure is advisory, and it says so ────────────────
+
+test('Given a ledger write that throws, when main runs, then one stderr line names it and the exit stays 0', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({
+    projectsRoot,
+    repoRoot,
+    writeFileSync: () => { const err = new Error('EROFS'); err.code = 'EROFS'; throw err; },
+  });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'design', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0);
+  assert.match(io.stderr.joined(), /ledger write failed \(EROFS\)/);
 });

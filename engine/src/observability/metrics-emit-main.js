@@ -8,8 +8,11 @@
  * telemetry, and cache-split adapters directly. Routing those imports through
  * usage-mine-main.js instead would couple this bin to that one's composition
  * (its --source table, its report-writing shape) for no benefit; declaring a
- * second root is the honest boundary. Only `resolveDefaultTranscriptDir` is
- * imported from that module — a pure unit-test seam, not its composition.
+ * second root is the honest boundary. Three helpers are imported from that
+ * module — `resolveDefaultTranscriptDir`, `makeDiscoveryPorts` and
+ * `streamTranscriptFiles`. None is composition: each takes every port it uses
+ * as a parameter, so importing them shares the streaming contract (including
+ * its failed/refused counters) instead of forking a second copy that drifts.
  *
  * Two containment roots (fail-closed):
  *   READ  root — the Claude projects root; the resolved transcript dir must
@@ -26,6 +29,13 @@
  * zero events) are unchanged from the miner's posture: each names a real,
  * expected steady state (a phase that has not run yet, an unlabelled spawn)
  * rather than a caller mistake.
+ *
+ * Only sub-agent transcripts are parsed. A main-loop transcript yields no
+ * event here twice over — `parseLines` bails on `includeInline: false`, and a
+ * main-loop event carries `phase: null` and is filtered out downstream — so
+ * narrowing before the parse makes the one-row-per-agent-spawned-phase
+ * contract structural rather than incidental, and drops the realpath chain and
+ * full stream-parse each discarded entry would otherwise cost.
  *
  * Grouping: one parse of the discovered transcripts, then a group-by on the
  * `phase` the claude adapter already stamped from each sidecar's agentType.
@@ -53,7 +63,11 @@ import { discover } from './adapters/claude/discovery.js';
 import { parseLines, CACHE_READ_FIELD, CACHE_CREATION_FIELD } from './adapters/claude/telemetry.js';
 import { formatCacheSplit } from './adapters/claude/metrics-split.js';
 import { formatMetricsRow, LEDGER_HEADER } from './metrics-line.js';
-import { resolveDefaultTranscriptDir } from './usage-mine-main.js';
+import {
+  resolveDefaultTranscriptDir,
+  makeDiscoveryPorts,
+  streamTranscriptFiles,
+} from './usage-mine-main.js';
 
 const EXIT_OK = 0;
 // The four config errors below are the only non-zero exits — every other
@@ -62,6 +76,13 @@ const EXIT_CONFIG_ERROR = 1;
 const CLAUDE_SOURCE = 'claude';
 const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 const DEFAULT_LEDGER_RELPATH = join('.claude', 'craft-metrics.md');
+// --run and --phase are the only caller-supplied strings that reach the
+// committed ledger. The run-id originates in a free-text brief and is relayed
+// onto a command line, so an unchecked newline in either would append forged
+// rows to an append-only artifact that later feeds cost decisions. Shape is
+// checked at the front door, never in the pure formatter.
+const ROW_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
+const SUBAGENT_SOURCE_KIND = 'subagent';
 
 function parseArgs(argv) {
   const parsed = { run: null, phase: null, session: null, dir: null, since: null, ledger: null };
@@ -78,50 +99,8 @@ function parseArgs(argv) {
   return parsed;
 }
 
-// Mirrors usage-mine-main.js's own discovery-port adapter — duplicated
-// rather than imported, since this root imports nothing from that module
-// beyond the one named unit-test seam (see the module header).
-function makeDiscoveryPorts(readRoot, { readdirSync, readFileSync, containByRealpath }) {
-  const safe = (relPath) => containByRealpath(readRoot, join(readRoot, relPath));
-  return {
-    listDir(relPath) {
-      const p = safe(relPath);
-      if (!p) return null;
-      try { return readdirSync(p); } catch { return null; }
-    },
-    readText(relPath) {
-      const p = safe(relPath);
-      if (!p) return null;
-      try { return readFileSync(p, 'utf8'); } catch { return null; }
-    },
-  };
-}
-
 function sessionFilter(sessionId) {
   return sessionId ? (entry) => entry.relPath.startsWith(`${sessionId}/`) : () => true;
-}
-
-// One UsageEvent per emitted transcript line, streamed (never readFileSync)
-// — same rationale as usage-mine-main.js's own streaming loop. A transcript
-// that fails to open or parse is skipped rather than aborting the run: one
-// bad spawn must not blank out every other phase's row.
-async function collectEvents(entries, transcriptDir, ports, since) {
-  const { createReadStream, createInterface, containByRealpath } = ports;
-  const events = [];
-  for (const [spawnId, entry] of entries.entries()) {
-    const safeFile = containByRealpath(transcriptDir, join(transcriptDir, entry.relPath));
-    if (!safeFile) continue;
-    try {
-      const stream = createReadStream(safeFile);
-      const lines = createInterface({ input: stream, crlfDelay: Infinity });
-      const context = { ...(entry.context ?? {}), includeInline: false, spawnId };
-      const { events: parsed } = await parseLines(lines, since, context);
-      for (const event of parsed) events.push(event);
-    } catch {
-      continue;
-    }
-  }
-  return events;
 }
 
 function groupByPhase(events) {
@@ -157,6 +136,12 @@ function buildRows(runId, requestedPhase, phasedEvents) {
 // has to know which check produced the message it forwards to stderr.
 function resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath }) {
   if (!parsed.run) return { ok: false, message: 'metrics-emit: missing required --run\n' };
+  if (!ROW_TOKEN.test(parsed.run)) {
+    return { ok: false, message: `metrics-emit: invalid --run '${parsed.run}'\n` };
+  }
+  if (parsed.phase !== null && !ROW_TOKEN.test(parsed.phase)) {
+    return { ok: false, message: `metrics-emit: invalid --phase '${parsed.phase}'\n` };
+  }
   if (parsed.since !== null && !Number.isFinite(Date.parse(parsed.since))) {
     return { ok: false, message: `metrics-emit: unparseable --since '${parsed.since}'\n` };
   }
@@ -177,7 +162,15 @@ function appendLedgerRows(ledgerPath, rows, { readFileSync, writeFileSync, mkdir
   let absent = false;
   try {
     existing = readFileSync(ledgerPath, 'utf8');
-  } catch {
+  } catch (e) {
+    // Only a genuinely absent file may be treated as "start a new ledger".
+    // Any other read failure leaves the prior content unknown, and writing
+    // then would replace an append-only artifact with header-plus-new-rows,
+    // destroying every historical row. Refuse the write instead.
+    if (e.code !== 'ENOENT') {
+      stderr.write(`metrics-emit: ledger read failed (${e.code ?? 'unknown'}), refusing to write\n`);
+      return;
+    }
     absent = true;
   }
   const body = rows.map((row) => `${row}\n`).join('');
@@ -227,8 +220,15 @@ export async function main(argv, io) {
   const { transcriptDir, ledgerPath } = config;
 
   const { entries } = discover(makeDiscoveryPorts(transcriptDir, { readdirSync, readFileSync, containByRealpath }));
-  const scoped = entries.filter(sessionFilter(parsed.session));
-  const events = await collectEvents(scoped, transcriptDir, { createReadStream, createInterface, containByRealpath }, parsed.since);
+  const scoped = entries
+    .filter((entry) => entry.context?.sourceKind === SUBAGENT_SOURCE_KIND)
+    .filter(sessionFilter(parsed.session));
+  const { events, failed, refused } = await streamTranscriptFiles(
+    scoped, transcriptDir, createReadStream, createInterface, containByRealpath, parseLines, parsed.since, false,
+  );
+  if (failed > 0 || refused > 0) {
+    stderr.write(`metrics-emit: ${failed} transcript(s) unreadable, ${refused} refused by containment\n`);
+  }
   const phasedEvents = events.filter((event) => event.phase !== null);
 
   const rows = buildRows(parsed.run, parsed.phase, phasedEvents);
