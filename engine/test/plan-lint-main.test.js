@@ -182,7 +182,7 @@ test('Given a plan with one schema-violating part, when main runs, then it print
 
   assert.equal(result, 2);
   assert.ok(
-    io.stdout.joined().includes('plan-lint: 1 part(s) violate the schema. The plan phase cannot close.\n'),
+    io.stdout.joined().includes('plan-lint: 1 part(s) violate the schema, 0 over the file ceiling. The plan phase cannot close.\n'),
     `stdout was: ${io.stdout.joined()}`,
   );
 });
@@ -198,7 +198,7 @@ test('Given a schema-valid two-part plan, when main runs, then it prints the OK 
   const result = sut([path], io);
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
-  assert.equal(io.stdout.joined(), 'plan-lint: 2 part(s) OK — every part carries its context block.\n');
+  assert.equal(io.stdout.joined(), 'plan-lint: 2 part(s) OK — every part carries its context block and is within the file ceiling.\n');
 });
 
 // ─── the prefix-match quirk: "## Partition …" is treated as a part heading ───
@@ -342,7 +342,7 @@ test('Given a schema-invalid plan that also overlaps, when main runs, then it st
 
   assert.equal(result, 2);
   assert.ok(
-    io.stdout.joined().includes('plan-lint: 1 part(s) violate the schema. The plan phase cannot close.\n'),
+    io.stdout.joined().includes('plan-lint: 1 part(s) violate the schema, 0 over the file ceiling. The plan phase cannot close.\n'),
     `stdout was: ${io.stdout.joined()}`,
   );
   assert.ok(
@@ -824,27 +824,67 @@ test('Given a part declaring a bare basename that resolves at the repo root plus
   );
 });
 
-test('Given a Context block containing only non-path spans (prose, a regex literal, a brace glob, and a fenced code block that pairs backticks across lines), when main runs, then the ceiling count is zero and it exits 0', () => {
+// Each rejected shape is asserted at --file-ceiling 1 beside ONE genuine path.
+// At the default ceiling of 6 a handful of wrongly-counted spans still exits 0,
+// so the count has to be made observable or the predicate is unprotected: with
+// the body replaced by `return true;` every case below trips the ceiling.
+test('Given a Context block whose only real path sits beside a rejected shape, when main runs at a ceiling of 1, then the rejected shape is not counted', () => {
   const sut = main;
-  const root = repoRoot();
+  const cases = [
+    { label: 'prose', span: 'sut' },
+    { label: 'an arrow phrase', span: 'RED→GREEN' },
+    { label: 'a regex literal', span: '^\\d+$' },
+    { label: 'a brace glob', span: '{a,b}.js' },
+    { label: 'an angle-bracket token', span: '<touched-tests>' },
+    { label: 'a gitignore negation', span: '!engine/src/foo.js' },
+    { label: 'a flag', span: '--file-ceiling' },
+  ];
+
+  for (const { label, span } of cases) {
+    const { root, paths } = repoRootWithFiles(1);
+    const body = `Touches \`${paths[0]}\`. Also mentions \`${span}\`.`;
+    const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+    const path = writePlan(root, plan, 'rejected-shape.md');
+    const io = makeCaptureIo();
+
+    const result = sut([path, '--file-ceiling', '1'], io);
+
+    assert.equal(result, 0, `${label} (\`${span}\`) must not count toward the ceiling; stdout: ${io.stdout.joined()}`);
+  }
+});
+
+test('Given a fenced code block that pairs backticks across lines, when main runs at a ceiling of 1, then the cross-line pseudo-span is not counted', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
   const body = [
-    'Style: `sut`, `RED→GREEN`.',
-    '',
-    'Pattern: `^\\d+$`.',
-    '',
-    'Glob: `{a,b}.js`.',
+    `Touches \`${paths[0]}\`.`,
     '',
     '```',
     'node --test foo/bar.js',
     '```',
   ].join('\n');
   const plan = `# Plan — Test topic\n\n${part('1', body)}`;
-  const path = writePlan(root, plan, 'false-positives.md');
+  const path = writePlan(root, plan, 'fence-pseudo-span.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()}`);
+});
+
+test('Given seven unresolved spans that only a whitespace check would accept, when main runs, then a one-conjunct predicate would over-count but the real one exits 0', () => {
+  const sut = main;
+  const root = repoRoot();
+  const spans = ['sut', 'result', 'RED→GREEN', '^\\d+$', '{a,b}.js', '<touched-files>', '--no-ext-diff'];
+  const body = spans.map((span) => `Mentions \`${span}\`.`).join('\n\n');
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'one-conjunct.md');
   const io = makeCaptureIo();
 
   const result = sut([path], io);
 
-  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+  assert.equal(result, 0,
+    `seven whitespace-free non-paths must count zero, not seven; stdout: ${io.stdout.joined()}`);
 });
 
 test('Given an over-ceiling part that also overlaps a file declared by another part, when main runs, then the overlap warning is still printed and the exit code stays 2', () => {

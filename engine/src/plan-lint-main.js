@@ -212,7 +212,10 @@ function declaredFiles(lines, part, repoRoot, cache) {
  * @returns {boolean}
  */
 function isPathShaped(span) {
-  if (/\s/.test(span)) return false; // rejects a fenced code block's cross-line pseudo-span
+  // The charset also carries the whitespace rejection: it admits no space,
+  // tab or newline, so a fenced code block's cross-line pseudo-span fails
+  // here. A separate whitespace guard ahead of this one could never change a
+  // result, so there isn't one.
   if (!PATH_SHAPE_CHARSET.test(span)) return false;
   return span.includes('/') || KNOWN_FILE_EXTENSIONS.some((ext) => span.endsWith(ext));
 }
@@ -339,18 +342,23 @@ export function main(argv, io) {
   const repoRoot = findRepoRoot(dirname(resolve(planPath)));
   const ceilingCache = new Map();
 
-  let bad = 0;
+  // Two distinct rules, counted separately: a part can break both, and a part
+  // over the ceiling violates a SIZE rule, not the part schema. Counting
+  // violations into one `bad` would report more failing parts than the plan
+  // contains and would name the size failure a schema failure.
+  let schemaFailures = 0;
+  let ceilingFailures = 0;
   for (const part of parts) {
     const missing = missingSections(lines, part);
     if (missing.length > 0) {
       io.stdout.write(`plan-lint: part "${part.heading}" missing: ${missing.join(', ')}\n`);
-      bad += 1;
+      schemaFailures += 1;
     }
 
     const count = ceilingCount(lines, part, repoRoot, ceilingCache);
     if (count > ceiling) {
       io.stdout.write(`plan-lint: part "${part.label}" declares ${count} files — over the ceiling of ${ceiling}. Split it.\n`);
-      bad += 1;
+      ceilingFailures += 1;
     }
   }
 
@@ -359,11 +367,13 @@ export function main(argv, io) {
     io.stdout.write(`${warning}\n`);
   }
 
-  if (bad > 0) {
-    io.stdout.write(`plan-lint: ${bad} part(s) violate the schema. The plan phase cannot close.\n`);
+  if (schemaFailures > 0 || ceilingFailures > 0) {
+    io.stdout.write(
+      `plan-lint: ${schemaFailures} part(s) violate the schema, ${ceilingFailures} over the file ceiling. The plan phase cannot close.\n`,
+    );
     return EXIT_INVALID;
   }
 
-  io.stdout.write(`plan-lint: ${parts.length} part(s) OK — every part carries its context block.\n`);
+  io.stdout.write(`plan-lint: ${parts.length} part(s) OK — every part carries its context block and is within the file ceiling.\n`);
   return EXIT_OK;
 }
