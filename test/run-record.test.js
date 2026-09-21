@@ -170,11 +170,17 @@ test('Given skills/run/SKILL.md §Done, when the metrics procedure is read, then
   assert.match(result, /re-counts the first/i);
 });
 
-test('Given the metrics ledger, when its last lines are read, then exactly one format boundary marker is present naming the date and the changed columns', () => {
+// The ledger is append-only and a further format change is expected, so the
+// marker COUNT and today's date are not the invariant — a test pinning them
+// fails later for being right. What must hold is that the newest boundary
+// states which columns changed and forbids comparison across itself.
+test('Given the metrics ledger, when its newest format boundary is read, then it names the changed columns and forbids comparison across itself', () => {
   const ledger = fs.readFileSync(METRICS_LEDGER_PATH, 'utf8');
   const markers = ledger.split('\n').filter((line) => line.startsWith('--- format boundary'));
 
-  assert.strictEqual(markers.length, 1, 'expected exactly one format boundary marker');
-  assert.match(markers[0], /2026-09-20/);
-  assert.match(markers[0], /turns, tool_calls, output, avg_ctx and equiv/);
+  assert.ok(markers.length >= 1, 'a ledger whose row format has changed must carry a boundary marker');
+  const newest = markers[markers.length - 1];
+  assert.match(newest, /\d{4}-\d{2}-\d{2}/, 'the boundary states when the format changed');
+  assert.match(newest, /turns, tool_calls, output, avg_ctx and equiv/);
+  assert.match(newest, /[Nn]ever compare a row above this line to a row below/);
 });

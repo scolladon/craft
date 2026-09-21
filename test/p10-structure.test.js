@@ -34,11 +34,22 @@ function grepQ_plain(pattern, filePath) {
   }
 }
 
+// The repo ships nine agents. Asserting the floor here rather than in each
+// caller means a filter that stops matching — a renamed extension, agents moved
+// under a subdirectory — fails loudly instead of leaving every roster-wide test
+// iterating an empty list and passing having checked nothing.
+const MIN_AGENT_FILES = 9;
+
 function listAgentFiles() {
-  return fs
+  const files = fs
     .readdirSync(path.join(ROOT, 'agents'))
     .filter((entry) => entry.endsWith('.md'))
     .map((entry) => path.join(ROOT, 'agents', entry));
+  assert.ok(
+    files.length >= MIN_AGENT_FILES,
+    `expected at least ${MIN_AGENT_FILES} agent definitions, found ${files.length} — the roster filter has stopped matching`,
+  );
+  return files;
 }
 
 // Reads the flow-form `tools: [...]` frontmatter key. Returns null when the
@@ -247,16 +258,38 @@ test(
   },
 );
 
+// NOTE on what this can and cannot prove. `Bash` is a full write surface
+// (`sed -i`, `tee`, `git commit`), and the reviewer keeps it because 93.6% of
+// its measured calls are Bash. So the declarative allowlist cannot make the
+// reviewer read-only; the read-only rule in contracts/harness-read.md stays
+// prose-enforced for the one tool that can actually mutate. What this test
+// pins is narrower and worth pinning: no DEDICATED editor tool is declared,
+// and the list does not grow silently.
 test(
-  'Given the reviewer agent, when its tools list is read, then it declares no member of the mutating set',
+  'Given the reviewer agent, when its tools list is read, then it declares no dedicated editor tool',
   () => {
     const tools = readToolsList(path.join(ROOT, 'agents/reviewer.md'));
     assert.ok(Array.isArray(tools), 'agents/reviewer.md should declare a tools list');
 
-    const MUTATING_TOOLS = ['Edit', 'Write', 'NotebookEdit'];
-    const result = tools.filter((tool) => MUTATING_TOOLS.includes(tool));
+    const EDITOR_TOOLS = ['Edit', 'Write', 'NotebookEdit'];
+    const result = tools.filter((tool) => EDITOR_TOOLS.includes(tool));
 
     assert.deepStrictEqual(result, []);
+  },
+);
+
+test(
+  'Given the reviewer agent, when its tools list is read, then it is exactly the read-plus-Bash set',
+  () => {
+    const sut = readToolsList(path.join(ROOT, 'agents/reviewer.md'));
+
+    const result = [...sut].sort();
+
+    assert.deepStrictEqual(
+      result,
+      ['Bash', 'Glob', 'Grep', 'Read'],
+      'widening the reviewer beyond read tools plus Bash is a contract change, not a tweak',
+    );
   },
 );
 

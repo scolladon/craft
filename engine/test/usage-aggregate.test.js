@@ -1764,6 +1764,11 @@ test('Given a report with phaseTurns, when renderMarkdown runs, then it emits a 
   const result = sut(report);
 
   assert.ok(result.includes('## Turns by phase'), 'a non-empty phaseTurns must produce the section');
+  assert.match(
+    result,
+    /- \*\*[^*]*implementation\/part-implementer\*\*: billedTurns=\d+ toolCalls=\d+ cycles=\d+/,
+    `the section must render the row body, not just the heading — a signal only report.json carries is a signal no human reads: ${result}`,
+  );
 });
 
 test('Given a report whose only event carries phase: null, when renderMarkdown runs, then the ## Turns by phase heading is absent (phaseTurns is empty)', () => {
