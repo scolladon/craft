@@ -140,6 +140,10 @@ function assistantTextOf(parsed) {
  * @returns {number}
  */
 function toolUseCountOf(parsed) {
+  // equivalent mutant (either OptionalChaining on parsed?.message dropped): the only
+  // caller reaches this line right after `parsed.message?.usage` was dereferenced
+  // without throwing (see the `usage == null` guard above it in parseLines), which is
+  // only possible when `parsed` and `parsed.message` are both already non-nullish.
   const content = parsed?.message?.content;
   if (!Array.isArray(content)) return 0;
   return content.filter(block => block?.type === 'tool_use').length;

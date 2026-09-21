@@ -73,6 +73,8 @@ function buildDerivedTotals(numeric, cacheSums) {
     tokens: context + numeric.output,
     avgCtx: Math.round(context / numeric.turns),
     equiv: Math.round(
+      // equivalent mutant (* -> /): EQUIV_WEIGHT_INPUT is the fixed constant 1, and
+      // x*1 === x/1 for every finite x, so the operator choice here is unobservable.
       numeric.inputSum * EQUIV_WEIGHT_INPUT
       + cacheSums.cacheRead * EQUIV_WEIGHT_CACHE_READ
       + cacheSums.cacheCreation * EQUIV_WEIGHT_CACHE_CREATION

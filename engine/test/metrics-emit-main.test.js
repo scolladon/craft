@@ -24,6 +24,7 @@ import { main } from '../src/observability/metrics-emit-main.js';
 import { LEDGER_HEADER } from '../src/observability/metrics-line.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 import { containByRealpath } from '../src/contain.js';
+import { dashedCwd } from '../src/observability/usage-mine-main.js';
 
 const PROJ_FIXTURE = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'telemetry', 'projects', 'proj');
 
@@ -188,6 +189,26 @@ test('Given a transcript whose sidecar is unreadable, when main runs, then the r
   assert.match(rows[0], /\bturns=1\b/, `only agent-good carries a valid label; got: ${rows[0]}`);
 });
 
+// ── omitting --phase: every distinct phase found, in SORTED order ─────────
+
+test('Given no --phase flag and two distinct labelled phases discovered out of alphabetical order, when main runs, then the rows come out sorted by phase name (not discovery order)', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const subagentsDir = join(transcriptDir, 'sess-a', 'subagents');
+  // 'agent-a' sorts (and so is discovered/inserted) BEFORE 'agent-good' — a
+  // review-then-design insertion order that only a real sort reverses.
+  writeFileSync(join(subagentsDir, 'agent-a.jsonl'), `${reviewerLine('2026-01-01T00:07:00.000Z', 1, 1)}\n`, 'utf8');
+  writeFileSync(join(subagentsDir, 'agent-a.meta.json'), JSON.stringify({ agentType: 'craft:reviewer' }), 'utf8');
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const rows = runRows(repoRoot);
+  assert.deepEqual(rows.map((r) => r.split(' ')[1]), ['design', 'review'], `expected alphabetical order regardless of discovery order; got:\n${readLedger(repoRoot)}`);
+});
+
 // ── 5. the ledger header is written once, then only appended to ───────────
 
 test('Given an absent ledger file, when main runs, then the header is written once and a second run appends without repeating it', async () => {
@@ -203,7 +224,8 @@ test('Given an absent ledger file, when main runs, then the header is written on
   const headerOccurrences = ledger.split(LEDGER_HEADER).length - 1;
   assert.equal(headerOccurrences, 1, `expected the header exactly once; got:\n${ledger}`);
   assert.ok(ledger.includes('run-1 design transcript=na'));
-  assert.ok(ledger.includes('run-2 design transcript=na'));
+  const lines = ledger.split('\n');
+  assert.ok(lines.includes('run-2 design transcript=na'), `the append to an EXISTING ledger must insert nothing before the new row; got:\n${ledger}`);
 });
 
 // ── 11. --run and --phase are shape-checked before any row is built ────────
@@ -262,11 +284,36 @@ test('Given a ledger whose read fails for a reason other than absence, when main
   assert.equal(result, 0, 'a refused append stays advisory');
   assert.equal(writeCalls, 0, 'the prior content is unknown, so nothing may be written');
   assert.equal(readLedger(repoRoot), history, 'every historical row must survive byte-for-byte');
+  assert.ok(
+    io.stderr.joined().includes('ledger read failed (EACCES)'),
+    `expected the real error code, not a placeholder, in: ${io.stderr.joined()}`,
+  );
   assert.equal(
     io.stderr.writes.filter((w) => w.includes('refusing to write')).length,
     1,
     'the refusal is announced exactly once',
   );
+});
+
+test('Given a ledger read failure whose error carries no .code, when main runs, then the refusal names it "unknown", not a blank', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  mkdirSync(join(repoRoot, '.claude'), { recursive: true });
+  writeFileSync(ledgerPathFor(repoRoot), `${LEDGER_HEADER}historic-run design turns=1 tokens=1\n`, 'utf8');
+  const io = makeIo({
+    projectsRoot,
+    repoRoot,
+    readFileSync: (path, enc) => {
+      if (String(path).endsWith('craft-metrics.md')) throw new Error('boom'); // no .code
+      return readFileSync(path, enc);
+    },
+  });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'design', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0);
+  assert.ok(io.stderr.joined().includes('ledger read failed (unknown)'), `stderr: ${io.stderr.joined()}`);
 });
 
 test('Given a ledger that is genuinely absent, when main runs, then the header is written once and the row appended', async () => {
@@ -279,6 +326,26 @@ test('Given a ledger that is genuinely absent, when main runs, then the header i
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.ok(readLedger(repoRoot).startsWith(LEDGER_HEADER), 'ENOENT is still the create-new-ledger path');
+  assert.ok(io.stdout.joined().includes('run-x design'), `every appended row must also echo to stdout; got: ${io.stdout.joined()}`);
+});
+
+// ── no --dir: the claude-source default resolves root/<dashed-cwd> ─────────
+
+test('Given no --dir flag, when main runs, then the default transcript dir is the projects root scoped to the dashed cwd (the claude-source resolver, not the bare root)', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('metrics-emit-projects-');
+  const cwd = '/repo/checkout';
+  const transcriptDir = join(projectsRoot, dashedCwd(cwd));
+  cpSync(PROJ_FIXTURE, transcriptDir, { recursive: true });
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot, cwd });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'design'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const ledger = readLedger(repoRoot);
+  assert.ok(!ledger.includes('transcript=na'), `a "na" row means the wrong dir was scanned (the bare root, not root/dashed-cwd); got:\n${ledger}`);
+  assert.match(ledger, /run-x design turns=1\b/, `expected the labelled design row with real data; got:\n${ledger}`);
 });
 
 // ── 13. --since bounds a re-run so the second row never re-counts the first ─
@@ -361,6 +428,18 @@ test('Given a transcript that cannot be opened, when main runs, then the count i
   assert.match(io.stderr.joined(), /1 transcript\(s\) unreadable, 0 refused by containment/);
 });
 
+test('Given a clean run with no unreadable or refused transcripts, when main runs, then the advisory line never fires', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'design', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stderr.joined().includes('transcript(s) unreadable'), `a clean run must never print the advisory; got: ${io.stderr.joined()}`);
+});
+
 // ── 16. a ledger write failure is advisory, and it says so ────────────────
 
 test('Given a ledger write that throws, when main runs, then one stderr line names it and the exit stays 0', async () => {
@@ -377,6 +456,22 @@ test('Given a ledger write that throws, when main runs, then one stderr line nam
 
   assert.equal(result, 0);
   assert.match(io.stderr.joined(), /ledger write failed \(EROFS\)/);
+});
+
+test('Given a ledger write failure whose error carries no .code, when main runs, then the message names it "unknown", not a blank', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({
+    projectsRoot,
+    repoRoot,
+    writeFileSync: () => { throw new Error('boom'); }, // no .code
+  });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'design', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0);
+  assert.match(io.stderr.joined(), /ledger write failed \(unknown\)/);
 });
 
 // ── 17. a transcript refused by containment is counted, not silently dropped ─
@@ -402,4 +497,20 @@ test('Given a transcript the containment check refuses, when main runs, then the
     /0 transcript\(s\) unreadable, 1 refused by containment/,
     'the refused disjunct must be observable, not just the failed one',
   );
+});
+
+// ── 18. no --phase and zero phased events found: an advisory no-op ────────
+
+test('Given no --phase flag and a transcript dir with no labelled events at all, when main runs, then it writes no ledger and prints a named advisory, exiting 0', async () => {
+  const sut = main;
+  const projectsRoot = makeTmp('metrics-emit-projects-');
+  const transcriptDir = join(projectsRoot, 'empty-proj');
+  mkdirSync(transcriptDir, { recursive: true });
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.equal(io.stderr.joined(), "metrics-emit: no events found for run 'run-x'\n");
 });

@@ -238,6 +238,9 @@ function ceilingCount(lines, part, repoRoot, cache) {
   const counted = new Set();
   for (const match of block.matchAll(BACKTICK_PATTERN)) {
     const span = match[1];
+    // equivalent mutant (guard forced true): resolveDeclaredFile is a pure filesystem
+    // read with no side effects, so re-running it for an already-cached span recomputes
+    // the identical value — the guard only saves work across parts, it never changes it.
     if (!cache.has(span)) cache.set(span, resolveDeclaredFile(repoRoot, span));
     const resolved = cache.get(span);
     if (resolved !== null) {
@@ -292,6 +295,10 @@ function parseArgs(argv) {
   let planPath = null;
   let ceiling = PART_FILE_CEILING;
 
+  // equivalent mutant (< -> <=): one extra pass reads argv[argv.length], always
+  // `undefined` for a real array. It can only ever set planPath when planPath is
+  // still falsy, and the function's own `if (!planPath)` result branch below
+  // normalizes any falsy planPath (undefined or null) back to `null` regardless.
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] !== '--file-ceiling') {
       if (!planPath) planPath = argv[i];

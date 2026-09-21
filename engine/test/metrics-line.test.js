@@ -129,6 +129,19 @@ test('Given a slice where only some events carry the cache split, when formatMet
   assert.match(result, /\bturns=2\b/, `the countable fields still measure: ${result}`);
 });
 
+test('Given an event carrying only ONE of the two cache keys, when formatMetricsRow runs, then the whole slice degrades rather than summing an undefined key as NaN', () => {
+  const sut = formatMetricsRow;
+  const oneKeyOnly = [
+    buildEvent({ input: 10, cacheRead: 100, cacheCreation: 50, output: 5, toolCalls: 1, durationMs: 10 }),
+    { tokens: { input: 20, cacheRead: 30, output: 16 }, toolCalls: 2, durationMs: 0 },
+  ];
+
+  const result = sut('run-x', 'design', oneKeyOnly, () => 'cache=na');
+
+  assert.ok(result.includes('cache=na'), `a single-key event cannot be summed honestly: ${result}`);
+  assert.doesNotMatch(result, /NaN/, `${result}`);
+});
+
 // ── 5. LEDGER_HEADER — names the duration unit and the equiv weights ───────────
 
 test('Given a fresh ledger, when LEDGER_HEADER is read, then it names the duration unit and the equiv weights', () => {
@@ -136,4 +149,10 @@ test('Given a fresh ledger, when LEDGER_HEADER is read, then it names the durati
 
   assert.match(sut, /duration_ms is summed AGENT time/);
   assert.match(sut, /equiv is a relative unit: input \+ 0\.1\*cache_read \+ 1\.25\*cache_creation \+ 5\*output/);
+});
+
+test('Given a fresh ledger, when LEDGER_HEADER is read, then its first line marks the file as an append-only per-phase metrics ledger', () => {
+  const sut = LEDGER_HEADER;
+
+  assert.equal(sut.split('\n')[0], '# craft per-phase metrics (append-only)');
 });

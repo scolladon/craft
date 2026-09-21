@@ -911,6 +911,27 @@ test('Given a transcript whose assistant line carries no content array, when par
   assert.equal(result.events[0].toolCalls, 0, 'a string or absent content counts zero tool_use blocks');
 });
 
+// ── 37b. parseLines — a null content-array entry does not crash the count ──
+
+test('Given an assistant line whose content array carries a null entry, when parseLines runs, then it is skipped and only real tool_use blocks are counted', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant',
+    sessionId: 'sess-null-block',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    message: {
+      id: 'msg_null_block',
+      role: 'assistant',
+      content: [null, { type: 'tool_use', id: 'toolu_z', name: 'Bash', input: {} }],
+      usage: { input_tokens: 1, cache_read_input_tokens: 0, cache_creation_input_tokens: 0, output_tokens: 1 },
+    },
+  });
+
+  const result = await sut(asyncLines([line]));
+
+  assert.equal(result.events[0].toolCalls, 1, 'a null block must not throw and must not be miscounted as tool_use');
+});
+
 // ── 38. parseLines — toolCalls is a count, never a tool id, name, or path ──
 
 test('Given a sub-agent transcript, when parseLines runs, then no emitted event carries a path, a prompt string, or a tool name', async () => {

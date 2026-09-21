@@ -276,6 +276,8 @@ test('Given a turn-budget rec for a phase where nothing binds a budget, when pla
     evidence: { billedTurns: 291, cycles: 3, phase: 'implementation', role: 'part-implementer', threshold: 200, toolCalls: 312 },
   });
   assert.equal(patchedFrontmatter.phases.implementation.turn_budget, 312);
+  assert.equal(advisory(proposals).filter(p => p.source === 'turn-budget').length, 0,
+    'a rec that earns a patch must never also surface as an advisory (no double-counting)');
 });
 
 test('Given a turn-budget rec for a phase an archetype budget already binds, when planTune runs, then it never patches and never relaxes the limit', () => {
@@ -338,6 +340,129 @@ test('Given a turn-budget rec whose phase is not canonical, when planTune runs, 
   assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0);
   const rec = advisory(proposals).find(p => p.source === 'turn-budget');
   assert.ok(rec, 'expected a turn-budget advisory proposal');
+});
+
+test('Given a turn-budget rec for a non-canonical phase that the effective-budget map nonetheless maps to null, when planTune runs, then it is still never patch-eligible', () => {
+  const sut = planTune;
+  const report = turnBudgetReport({ phase: 'bogus-phase' });
+
+  const { proposals } = sut({ report, baseFrontmatter: {}, effectiveBudgets: { 'bogus-phase': null } });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0,
+    'a non-canonical phase name must never earn a turn-budget patch, even if the effective-budget map has an entry for it');
+});
+
+test('Given a non-turn-budget rec whose phase and evidence would otherwise satisfy every turn-budget eligibility check, when planTune runs, then it is never patched as a turn-budget (the kind guard is not bypassable)', () => {
+  const sut = planTune;
+  const report = {
+    schemaVersion: 1, runs: [],
+    recommendations: [{
+      kind: 'cache-hotspot', run: 'r1', phase: 'design', role: 'planner', model: null,
+      detail: 'x', evidence: { toolCalls: 50 },
+    }],
+  };
+
+  const { proposals } = sut({ report, baseFrontmatter: {}, effectiveBudgets: { design: null } });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0,
+    'a non-turn-budget rec must never be treated as turn-budget-eligible');
+});
+
+test('Given a turn-budget rec for a phase whose base manifest already declares an explicit turn_budget, when planTune runs, then it is never patch-eligible even when the effective-budget map says nothing else binds', () => {
+  const sut = planTune;
+  const base = { phases: { implementation: { turn_budget: 150 } } };
+
+  const { proposals } = sut({
+    report: turnBudgetReport(),
+    baseFrontmatter: base,
+    effectiveBudgets: { implementation: null },
+  });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0,
+    'an already-declared manifest budget must never be silently overridden');
+});
+
+test('Given a turn-budget rec for a phase absent from a non-empty phases block, when planTune runs, then eligibility resolves without crashing (an unrelated phase entry is not mistaken for this one)', () => {
+  const sut = planTune;
+  const base = { phases: { design: { turn_budget: 99 } } };
+
+  const { proposals } = sut({
+    report: turnBudgetReport(),
+    baseFrontmatter: base,
+    effectiveBudgets: { implementation: null },
+  });
+
+  const rec = auto(proposals).find(p => p.source === 'turn-budget');
+  assert.ok(rec, 'an unrelated phase entry in base.phases must not block eligibility for this phase');
+  assert.equal(rec.to, 312);
+});
+
+test('Given effectiveBudgets is null (the caller could not resolve any budget), when planTune runs, then it declines to patch without crashing', () => {
+  const sut = planTune;
+
+  const { proposals } = sut({ report: turnBudgetReport(), baseFrontmatter: {}, effectiveBudgets: null });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0);
+  assert.ok(advisory(proposals).some(p => p.source === 'turn-budget'));
+});
+
+test('Given a turn-budget rec with no evidence object at all, when planTune runs, then it declines to invent a budget without crashing', () => {
+  const sut = planTune;
+  const report = turnBudgetReport({ evidence: undefined });
+
+  const { proposals } = sut({ report, baseFrontmatter: {}, effectiveBudgets: { implementation: null } });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0);
+});
+
+test('Given a turn-budget rec whose observed tool-call count is exactly zero, when planTune runs, then it declines to propose a zero-turn budget', () => {
+  const sut = planTune;
+  const report = turnBudgetReport({
+    evidence: { billedTurns: 291, cycles: 3, phase: 'implementation', role: 'part-implementer', threshold: 200, toolCalls: 0 },
+  });
+
+  const { proposals } = sut({ report, baseFrontmatter: {}, effectiveBudgets: { implementation: null } });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0,
+    'a zero-tool-call observation must never propose a zero-turn budget');
+});
+
+test('Given a turn-budget advisory rec with no evidence object at all, when planTune runs, then its rationale falls back to "?" without crashing', () => {
+  const sut = planTune;
+  const report = turnBudgetReport({ phase: 'bogus-phase', evidence: undefined });
+
+  const { proposals } = sut({ report, baseFrontmatter: {}, effectiveBudgets: {} });
+
+  const rec = advisory(proposals).find(p => p.source === 'turn-budget');
+  assert.ok(rec, 'expected a turn-budget advisory proposal');
+  assert.ok(rec.rationale.includes('billed ? turns'), rec.rationale);
+});
+
+test('Given a phase that already declares other fields but no turn_budget, when planTune patches in a turn-budget proposal, then the existing fields survive alongside the new turn_budget', () => {
+  const sut = planTune;
+  const base = { phases: { implementation: { context: 'plan.md' } } };
+
+  const { patchedFrontmatter } = sut({
+    report: turnBudgetReport(),
+    baseFrontmatter: base,
+    effectiveBudgets: { implementation: null },
+  });
+
+  assert.deepEqual(patchedFrontmatter.phases.implementation, { context: 'plan.md', turn_budget: 312 });
+});
+
+test('Given multiple phases already declared, when planTune patches a turn-budget into one of them, then the OTHER declared phases survive untouched', () => {
+  const sut = planTune;
+  const base = { phases: { design: { context: 'x.md' }, implementation: {} } };
+
+  const { patchedFrontmatter } = sut({
+    report: turnBudgetReport(),
+    baseFrontmatter: base,
+    effectiveBudgets: { implementation: null },
+  });
+
+  assert.deepEqual(patchedFrontmatter.phases.design, { context: 'x.md' });
+  assert.deepEqual(patchedFrontmatter.phases.implementation, { turn_budget: 312 });
 });
 
 test('Given a turn-budget rec that yields a patch, when planTune runs, then it produces exactly one proposal for it (never a patch and an advisory)', () => {

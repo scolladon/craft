@@ -664,7 +664,7 @@ test('Given a manifest with phases.implement.skip set to false, when validateMan
 
 // ─── phase context/override file-ref validation ──────────────────────────────
 
-test('Given a manifest with phases.plan.context pointing to a missing file, when validateManifest runs, then it returns an error containing "references missing file"', () => {
+test('Given a manifest with phases.plan.context pointing to a missing file, when validateManifest runs, then it returns an error labelled phases.plan.context', () => {
   const sut = validateManifest;
 
   const result = sut(
@@ -673,7 +673,7 @@ test('Given a manifest with phases.plan.context pointing to a missing file, when
   );
 
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('references missing file')));
+  assert.ok(result.errors.some(e => e === 'phases.plan.context references missing file: missing/file.md'));
 });
 
 test('Given a manifest with phases.plan.context as an array with a missing file, when validateManifest runs, then it returns an error containing "references missing file"', () => {
@@ -688,7 +688,7 @@ test('Given a manifest with phases.plan.context as an array with a missing file,
   assert.ok(result.errors.some(e => e.includes('references missing file')));
 });
 
-test('Given a manifest with phases.plan.override pointing to a missing file, when validateManifest runs, then it returns an error containing "references missing file"', () => {
+test('Given a manifest with phases.plan.override pointing to a missing file, when validateManifest runs, then it returns an error labelled phases.plan.override', () => {
   const sut = validateManifest;
 
   const result = sut(
@@ -697,7 +697,7 @@ test('Given a manifest with phases.plan.override pointing to a missing file, whe
   );
 
   assert.equal(result.ok, false);
-  assert.ok(result.errors.some(e => e.includes('references missing file')));
+  assert.ok(result.errors.some(e => e === 'phases.plan.override references missing file: missing/override.md'));
 });
 
 test('Given a manifest with phases.plan.context as null, when validateManifest runs, then it returns ok (null path is valid)', () => {
@@ -1283,7 +1283,10 @@ test('Given phases.design.tools: "Read" (one-element sugar), when validateManife
 test('Given each malformed phases.design.tools value in turn, when validateManifest runs, then ok:false naming phases.design.tools', () => {
   const sut = validateManifest;
 
-  for (const malformed of [[], [42], ['Read!'], ['mcp__x'], 7]) {
+  for (const malformed of [
+    [], [42], ['Read!'], ['mcp__x'], 7, ['Read', 'Bad!'],
+    ['1Read'], ['mcp__server__tool!'], ['mcp__!__mcp__server__tool'],
+  ]) {
     const result = sut(
       { phases: { design: { tools: malformed } } },
       { fileExists: ALWAYS_EXISTS },
@@ -1306,6 +1309,30 @@ test('Given phases.design.tools: ["mcp__server__tool"] (full MCP name), when val
   );
 
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given a plain tool name of exactly the max length (128), when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+  const nameAtLimit = 'A' + 'a'.repeat(127);
+
+  const result = sut(
+    { phases: { design: { tools: [nameAtLimit] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given a plain tool name one character past the max length (129), when validateManifest runs, then ok:false', () => {
+  const sut = validateManifest;
+  const nameOverLimit = 'A' + 'a'.repeat(128);
+
+  const result = sut(
+    { phases: { design: { tools: [nameOverLimit] } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
 });
 
 // ─── phases.<id>.turn_budget field ───────────────────────────────────────────

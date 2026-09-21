@@ -118,7 +118,19 @@ test('Given an entry with no turn_budget, when parsePipeline runs, then the desc
   assert.equal(result[0].turn_budget, null);
 });
 
-test('Given an invalid turn_budget, when parsePipeline runs, then it throws an error naming the index and id', () => {
+test('Given an entry with turn_budget explicitly null, when parsePipeline runs, then the descriptor carries turn_budget: null', () => {
+  const yaml = `
+- id: workspace
+  archetype: setup
+  contract: []
+  procedure: craft:workspace
+  turn_budget: null
+`;
+  const result = parsePipeline(yaml);
+  assert.equal(result[0].turn_budget, null);
+});
+
+test('Given an invalid turn_budget, when parsePipeline runs, then it throws an error naming the index, id, and the positive-integer requirement', () => {
   const invalidValues = [0, -5, 1.5, '150'];
   for (const value of invalidValues) {
     const yaml = `
@@ -130,7 +142,7 @@ test('Given an invalid turn_budget, when parsePipeline runs, then it throws an e
 `;
     assert.throws(
       () => parsePipeline(yaml),
-      /Descriptor at index 0 \(id="planning"\).*turn_budget/,
+      /Descriptor at index 0 \(id="planning"\).*turn_budget.*Must be a positive integer\./s,
       `expected a throw for turn_budget=${JSON.stringify(value)}`,
     );
   }

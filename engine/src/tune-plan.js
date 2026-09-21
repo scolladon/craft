@@ -190,6 +190,10 @@ function applyPatch(base, autoProposals) {
       patched.models = { ...(patched.models ?? {}), [proposal.path[1]]: proposal.to };
     } else if (proposal.source === 'phase-skip') {
       skipAdds.push(proposal.to);
+    // equivalent mutant (this condition forced true): autoProposals is built by
+    // concatenating exactly modelRoutingProposals/pipelineSkipProposals/turnBudgetProposals,
+    // each hardcoding its own `.source` literal — by the time the first two branches above
+    // have both missed, the closed set leaves only 'turn-budget', so this check is redundant.
     } else if (proposal.source === 'turn-budget') {
       const phase = proposal.path[1];
       const phaseBlock = { ...(patched.phases?.[phase] ?? {}), turn_budget: proposal.to };

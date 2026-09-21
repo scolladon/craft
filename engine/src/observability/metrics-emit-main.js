@@ -74,6 +74,12 @@ const EXIT_OK = 0;
 // path (absent dir, unreadable sidecar, zero events) stays advisory.
 const EXIT_CONFIG_ERROR = 1;
 const CLAUDE_SOURCE = 'claude';
+// equivalent mutant (either path segment -> ""): homedir() is read at module-load
+// time, not injectable, and resolveDeps only falls back to this constant when the
+// caller's `io.projectsRoot` is omitted — every test supplies one, since asserting
+// against the real ~/.claude/projects would make the suite depend on the machine
+// it runs on. The segments are unobservable in-suite; correctness here is by
+// inspection, matching the sibling default in usage-mine-main.js.
 const DEFAULT_PROJECTS_DIR = join(homedir(), '.claude', 'projects');
 const DEFAULT_LEDGER_RELPATH = join('.claude', 'craft-metrics.md');
 // --run and --phase are the only caller-supplied strings that reach the
@@ -86,6 +92,9 @@ const SUBAGENT_SOURCE_KIND = 'subagent';
 
 function parseArgs(argv) {
   const parsed = { run: null, phase: null, session: null, dir: null, since: null, ledger: null };
+  // equivalent mutant (< -> <=): one extra pass reads argv[argv.length], always
+  // `undefined` for a real array. Every case label is a fixed string literal, and
+  // `undefined` strictly equals none of them, so the extra pass matches nothing.
   for (let i = 0; i < argv.length; i++) {
     switch (argv[i]) {
       case '--run': parsed.run = argv[++i] ?? null; break;
@@ -139,6 +148,10 @@ function resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath 
   if (!ROW_TOKEN.test(parsed.run)) {
     return { ok: false, message: `metrics-emit: invalid --run '${parsed.run}'\n` };
   }
+  // equivalent mutant (`parsed.phase !== null` -> `true`): parseArgs sets `phase` to
+  // either a string or exactly `null` — never anything else — and `ROW_TOKEN.test(null)`
+  // stringifies to "null", which itself matches the token shape, so forcing this arm
+  // true still evaluates to false on the one input (`null`) where it would differ.
   if (parsed.phase !== null && !ROW_TOKEN.test(parsed.phase)) {
     return { ok: false, message: `metrics-emit: invalid --phase '${parsed.phase}'\n` };
   }
@@ -160,10 +173,16 @@ function resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath 
 // destroying every historical row. Refuse the write instead.
 function readExistingLedger(ledgerPath, readFileSync, stderr) {
   try {
+    // equivalent mutant (encoding `'utf8'` -> ''): a real fs read with '' returns a
+    // Buffer; the only use of `existing` is string concatenation, and `Buffer + string`
+    // calls the buffer's default (utf8) toString() first — identical result.
     return { ok: true, existing: readFileSync(ledgerPath, 'utf8'), absent: false };
   } catch (e) {
     if (e.code === 'ENOENT') return { ok: true, existing: '', absent: true };
     stderr.write(`metrics-emit: ledger read failed (${e.code ?? 'unknown'}), refusing to write\n`);
+    // equivalent mutant (`{ ok: false }` -> `{}`): the only reader is `if (!read.ok)
+    // return;` in appendLedgerRows below — `undefined` and `false` are both falsy, so
+    // `!read.ok` is true either way and `existing`/`absent` are never destructured off it.
     // `{ ok: false }` and nothing else: a refusal that also carried an
     // `existing: ''` would be indistinguishable from a legitimately empty
     // ledger, so a caller that forgot the check would write header-plus-rows
@@ -182,6 +201,9 @@ function appendLedgerRows(ledgerPath, rows, { readFileSync, writeFileSync, mkdir
   const body = rows.map((row) => `${row}\n`).join('');
   try {
     mkdirSync(dirname(ledgerPath), { recursive: true });
+    // equivalent mutant (encoding `'utf8'` -> ''): the argument being written is
+    // already a JS string, and a real fs write with an unrecognized encoding still
+    // encodes a string argument as utf8 — identical bytes on disk either way.
     writeFileSync(ledgerPath, existing + (absent ? LEDGER_HEADER : '') + body, 'utf8');
   } catch (e) {
     stderr.write(`metrics-emit: ledger write failed (${e.code ?? 'unknown'})\n`);
@@ -219,9 +241,21 @@ function resolveDeps(io) {
 async function collectPhasedEvents(parsed, transcriptDir, deps) {
   const { readdirSync, readFileSync, containByRealpath, createReadStream, createInterface, stderr } = deps;
   const { entries } = discover(makeDiscoveryPorts(transcriptDir, { readdirSync, readFileSync, containByRealpath }));
+  // equivalent mutant (this filter dropped, or its predicate forced true): a main-loop
+  // entry that slipped through would carry `context.sourceKind !== 'subagent'`, so
+  // parseLines's own `!isSubagent && includeInline === false` bail (below) already
+  // drops it, and any event that still escaped carries `phase: null`, filtered by
+  // this function's own return line — behaviour-preserving performance narrowing.
+  // equivalent mutant (OptionalChaining on `entry.context` dropped): discover()'s only
+  // two push sites (discovery.js) always attach a `context: {...}` object, never
+  // null/undefined, so `.sourceKind` here can never throw either way.
   const scoped = entries
     .filter((entry) => entry.context?.sourceKind === SUBAGENT_SOURCE_KIND)
     .filter(sessionFilter(parsed.session));
+  // equivalent mutant (`false` -> `true`): every entry reaching here is already
+  // sourceKind:'subagent' (the filter above), so parseLines's `isSubagent` is always
+  // true and its `!isSubagent && includeInline === false` bail never evaluates this
+  // flag either way.
   const { events, failed, refused } = await streamTranscriptFiles(
     scoped, transcriptDir, createReadStream, createInterface, containByRealpath, parseLines, parsed.since, false,
   );

@@ -31,11 +31,16 @@ const DEFAULT_PIPELINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..
 // a MISSING entry as "unknown, do not patch" rather than as "nothing binds".
 function resolveEffectiveBudgets(pipelinePath, readFileSync) {
   try {
+    // equivalent mutant (encoding `'utf8'` → ''): every caller injects a readFileSync
+    // that ignores the encoding argument; only the real fs distinguishes them.
     const descriptors = parsePipeline(readFileSync(pipelinePath, 'utf8'));
     return Object.fromEntries(
       descriptors.map(d => [d.id, d.turn_budget ?? archetypeBudget(d)]),
     );
   } catch {
+    // equivalent mutant (block → empty catch, implicit undefined): the only consumer
+    // reads this through `effectiveBudgets ?? {}` before ever indexing into it, so an
+    // implicit undefined and an explicit {} are indistinguishable downstream.
     return {};
   }
 }

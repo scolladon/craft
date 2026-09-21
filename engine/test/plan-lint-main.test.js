@@ -872,6 +872,71 @@ test('Given a fenced code block that pairs backticks across lines, when main run
   assert.equal(result, 0, `stdout: ${io.stdout.joined()}`);
 });
 
+test('Given an unresolved span with a path-shaped prefix but a trailing disallowed character, when main runs at a ceiling of 1 beside one real path, then it does not count toward the ceiling', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also mentions \`engine/src/junk.js!!!\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'trailing-junk.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 0, `a trailing disallowed character must reject the whole span, not just its prefix; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given an unresolved span with a slash but no known extension, when main runs at a ceiling of 1 beside one real path, then it still counts toward the ceiling', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also touches \`docs/contributing\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'slash-no-extension.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 2, `a slash alone must count as path-shaped; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given an unresolved span with a known extension but no slash, when main runs at a ceiling of 1 beside one real path, then it still counts toward the ceiling', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also touches \`notes.md\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'extension-no-slash.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 2, `a known extension alone must count as path-shaped; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given a bare word with no slash and no known extension, when main runs at a ceiling of 1 beside one real path, then it does not count toward the ceiling', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also mentions \`README\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'bare-word.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 0, `a bare word with no slash or extension must not count; stdout: ${io.stdout.joined()}`);
+});
+
+test('Given the same real file declared through two textually different spans, when main runs at a ceiling of 1, then the resolved path is deduplicated (not counted twice by raw span text)', () => {
+  const sut = main;
+  const { root, paths } = repoRootWithFiles(1);
+  const body = `Touches \`${paths[0]}\`. Also touches \`./${paths[0]}\`.`;
+  const plan = `# Plan — Test topic\n\n${part('1', body)}`;
+  const path = writePlan(root, plan, 'dedup-resolved.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, '--file-ceiling', '1'], io);
+
+  assert.equal(result, 0, `two spans for one real file must dedupe on the resolved path, not the raw text; stdout: ${io.stdout.joined()}`);
+});
+
 test('Given seven unresolved spans that only a whitespace check would accept, when main runs, then a one-conjunct predicate would over-count but the real one exits 0', () => {
   const sut = main;
   const root = repoRoot();
@@ -964,4 +1029,16 @@ test('Given --file-ceiling abc, when main runs, then it exits 2 with a usage lin
 
   assert.equal(result, 2);
   assert.ok(io.stderr.joined().startsWith('plan-lint: usage:'), `stderr was: ${io.stderr.joined()}`);
+});
+
+test('Given two non-flag positional arguments, when main runs, then the FIRST one is taken as the plan path (a later one never overwrites it)', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const path = writePlan(root, GOOD_PLAN, 'first-wins.md');
+  const io = makeCaptureIo();
+
+  const result = sut([path, 'nonexistent-second.md'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.ok(!io.stderr.joined().includes('no such file'), `the second positional must never replace the first: ${io.stderr.joined()}`);
 });

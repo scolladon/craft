@@ -359,6 +359,26 @@ test('Given a manifest declaring tools for a different phase, when assembleContr
   assert.ok(!result.includes('Tools declared for this phase'));
 });
 
+test('Given a manifest declaring phases.design.tools: [] (empty list), when assembleContract runs, then no tools line appears', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = { phases: { design: { tools: [] } } };
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(!result.includes('Tools declared for this phase'));
+});
+
+test('Given a manifest with no tools declared for the phase, when assembleContract runs, then the block carries no trailing blank section', () => {
+  const descriptor = { id: 'design', contract: [], execution: 'agent' };
+  const manifest = {};
+  const sut = assembleContract;
+
+  const result = sut(descriptor, manifest, FRAGMENTS, {});
+
+  assert.ok(!result.endsWith('\n'), 'omitted tools line must not leave a joined empty section');
+});
+
 // ─── refinement bundle ────────────────────────────────────────────────────────
 
 test('Given a descriptor with contract:[refinement], when assembleContract runs, then refinement fixture content is present in output', () => {

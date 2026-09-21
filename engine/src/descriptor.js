@@ -35,6 +35,9 @@ function normalizeStringArray(value) {
  */
 function normalizeTurnBudget(value, index, id) {
   if (value === undefined || value === null) return null;
+  // equivalent mutant (typeof value !== 'number' -> false): Number.isInteger only
+  // returns true for number-typed integers, so whenever this check would be true,
+  // !Number.isInteger(value) is already true too — the typeof arm never changes the OR's result.
   if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) {
     throw new Error(
       `Descriptor at index ${index} (id="${id}"): turn_budget "${value}" is not valid. ` +
