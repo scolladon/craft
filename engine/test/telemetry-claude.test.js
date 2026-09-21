@@ -895,9 +895,9 @@ test('Given a four-line single-message transcript, when parseLines runs, then on
   );
 
   assert.equal(result.events.length, 1, 'four lines sharing one message.id fold to one event');
-  assert.equal(result.events[0].toolCalls, 2, 'two of the four lines carry a tool_use block; blocks partition, so they sum');
-  assert.equal(result.events[0].tokens.cacheRead, 40479, 'usage folds last-wins by message.id — never the fourfold per-line sum');
-  assert.equal(result.events[0].tokens.cacheCreation, 14765, 'usage folds last-wins by message.id — never the fourfold per-line sum');
+  assert.equal(result.events[0].toolCalls, 3, 'one line carries TWO tool_use blocks and another one — blocks partition, so they sum to 3, not to the 2 lines that have any');
+  assert.equal(result.events[0].tokens.cacheRead, 40479, 'usage folds LAST-WINS by message.id — not the per-line sum, and not the max (an earlier line carries 99999)');
+  assert.equal(result.events[0].tokens.cacheCreation, 14765, 'usage folds LAST-WINS by message.id — not the per-line sum, and not the max (an earlier line carries 31111)');
   assert.equal(result.events[0].tokens.output, 576, 'the last line carries the complete turn');
 });
 
