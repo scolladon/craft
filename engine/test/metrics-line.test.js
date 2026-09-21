@@ -82,21 +82,51 @@ test('Given a slice whose events carry no cache split, when formatMetricsRow run
   );
 });
 
-// ── 4. formatMetricsRow — never renders 0 for an input the slice does not carry ─
+// ── 4. formatMetricsRow — a measured zero renders 0; an unavailable input renders na ─
 
-test('Given any slice, when formatMetricsRow runs, then no field is ever the literal 0 for an input the slice does not carry', () => {
-  const cases = [
-    { runId: 'run-x', phaseId: 'review', events: pinnedVectorEvents(), renderCacheSplit: renderRawSplit },
-    { runId: 'run-x', phaseId: 'design', events: [], renderCacheSplit: rejectRenderCall },
-    { runId: 'run-x', phaseId: 'design', events: noCacheSplitEvents(), renderCacheSplit: () => 'cache=na' },
-  ];
+test('Given a slice that genuinely measures zero tool calls, when formatMetricsRow runs, then tool_calls renders as 0 rather than na', () => {
+  const sut = formatMetricsRow;
+  const events = [buildEvent({ input: 5, cacheRead: 100, cacheCreation: 50, output: 20 })];
+
+  const result = sut('run-x', 'design', events, renderRawSplit);
+
+  assert.match(result, /\btool_calls=0\b/, `a measured zero is a measurement, not an unknown: ${result}`);
+  assert.doesNotMatch(result, /tool_calls=na/, `${result}`);
+});
+
+test('Given a slice whose cache split is unavailable, when formatMetricsRow runs, then every field derived from it renders na', () => {
   const sut = formatMetricsRow;
 
-  const results = cases.map(({ runId, phaseId, events, renderCacheSplit }) => sut(runId, phaseId, events, renderCacheSplit));
+  const result = sut('run-x', 'design', noCacheSplitEvents(), () => 'cache=na');
 
-  for (const result of results) {
-    assert.equal(result.includes('=0'), false, `expected no absent field to render as 0 in "${result}"`);
+  for (const field of ['cache=na', 'tokens=na', 'avg_ctx=na', 'equiv=na']) {
+    assert.ok(result.includes(field), `expected ${field} in "${result}"`);
   }
+  assert.doesNotMatch(result, /NaN/, `an unavailable input must never reach the ledger as NaN: ${result}`);
+});
+
+test('Given an event whose binding omits toolCalls entirely, when formatMetricsRow runs, then tool_calls is 0 and no field is NaN', () => {
+  const sut = formatMetricsRow;
+  const events = [{ tokens: { input: 10, cacheRead: 1, cacheCreation: 2, output: 5 }, durationMs: 100 }];
+
+  const result = sut('run-x', 'review', events, renderRawSplit);
+
+  assert.match(result, /\btool_calls=0\b/, `${result}`);
+  assert.doesNotMatch(result, /NaN/, `an optional field a binding omits must never render NaN: ${result}`);
+});
+
+test('Given a slice where only some events carry the cache split, when formatMetricsRow runs, then the whole slice degrades rather than summing a partial split', () => {
+  const sut = formatMetricsRow;
+  const mixed = [
+    buildEvent({ input: 10, cacheRead: 100, cacheCreation: 50, output: 5, toolCalls: 1, durationMs: 10 }),
+    { tokens: { input: 20, output: 16 }, toolCalls: 2, durationMs: 0 },
+  ];
+
+  const result = sut('run-x', 'design', mixed, () => 'cache=na');
+
+  assert.ok(result.includes('cache=na'), `a partial split cannot be summed honestly: ${result}`);
+  assert.doesNotMatch(result, /NaN/, `${result}`);
+  assert.match(result, /\bturns=2\b/, `the countable fields still measure: ${result}`);
 });
 
 // ── 5. LEDGER_HEADER — names the duration unit and the equiv weights ───────────

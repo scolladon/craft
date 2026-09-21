@@ -46,7 +46,11 @@ function hasCacheSplit(events) {
 function buildNumericFields(events) {
   return {
     turns: events.length,
-    toolCalls: sumBy(events, e => e.toolCalls),
+    // toolCalls is optional on the port's event shape — only the claude
+    // binding populates it. A binding that omits it measures zero tool
+    // calls, which is a real measurement; without the coalesce the whole
+    // row renders NaN into an append-only artifact.
+    toolCalls: sumBy(events, e => e.toolCalls ?? 0),
     durationMs: sumBy(events, e => e.durationMs),
     output: sumBy(events, e => e.tokens.output),
     inputSum: sumBy(events, e => e.tokens.input),
