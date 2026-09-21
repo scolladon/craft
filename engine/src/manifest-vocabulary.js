@@ -65,3 +65,15 @@ export const INTENTION_GATES = Object.freeze(new Set(['advisory', 'blocking']));
 
 /** Valid gate values for the `hygiene` key. */
 export const HYGIENE_GATES = Object.freeze(new Set(['advisory', 'blocking']));
+
+/**
+ * The `tools:` knob accepts a bare string as sugar for a one-element list.
+ * Both the validator and the contract renderer need that rule, and two
+ * independent copies would let the accepted shape drift apart between what
+ * lints clean and what renders.
+ * @param {unknown} value
+ * @returns {unknown}
+ */
+export function normalizeToolsList(value) {
+  return typeof value === 'string' ? [value] : value;
+}

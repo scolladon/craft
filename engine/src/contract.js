@@ -1,4 +1,5 @@
 import { isExecutingHarness } from './exec-harness.js';
+import { normalizeToolsList } from './manifest-vocabulary.js';
 
 /**
  * Marker embedded in the core bundle for the artifact-handoff carve-out.
@@ -172,7 +173,7 @@ function extractContext(value) {
  */
 function renderPhaseToolsLine(manifest, phaseId) {
   const tools = manifest?.phases?.[phaseId]?.tools;
-  const list = typeof tools === 'string' ? [tools] : tools;
+  const list = normalizeToolsList(tools);
   if (!Array.isArray(list) || list.length === 0) return null;
   return `Tools declared for this phase: ${list.join(', ')} — declarative; the agent definition's allowlist is what binds at spawn.`;
 }

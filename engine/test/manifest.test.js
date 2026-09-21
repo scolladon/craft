@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateManifest, registeredBacklogNames } from '../src/manifest.js';
+import { validateManifest, registeredBacklogNames, validatePhases } from '../src/manifest.js';
 
 const ALWAYS_EXISTS = () => true;
 const NEVER_EXISTS  = () => false;
@@ -4039,4 +4039,49 @@ test('Given paths.dod set but no readFile injected, when validateManifest runs, 
 
   assert.equal(result.ok, true);
   assert.deepEqual(result.errors, []);
+});
+
+// ── tool-name length bound: a pathological name must fail, not hang ──────────
+// `_` is in both MCP segment classes AND is the separator, so a non-matching
+// `mcp__` + `_`*n input makes a bare regex try every split point. The guard is
+// a length bound, and this asserts the SCALING RATIO rather than a wall-clock
+// figure or an error message — a quadratic implementation fails it on any box.
+
+test('Given an adversarially long mcp__ tool name, when validatePhases runs, then it is rejected', () => {
+  const sut = validatePhases;
+  const errors = [];
+
+  sut({ design: { tools: [`mcp__${'_'.repeat(60_000)}`] } }, () => true, errors);
+
+  assert.equal(errors.length > 0, true, 'a name past the length bound is not a valid tool name');
+  assert.match(errors[0], /phases\.design\.tools/);
+});
+
+test('Given tool names 12x apart in length, when validatePhases runs, then the cost does not grow quadratically', () => {
+  const sut = validatePhases;
+  const cost = (n) => {
+    const started = process.hrtime.bigint();
+    sut({ design: { tools: [`mcp__${'_'.repeat(n)}`] } }, () => true, []);
+    return Number(process.hrtime.bigint() - started);
+  };
+
+  cost(5_000);
+  const small = Math.max(cost(5_000), 1);
+  const large = cost(60_000);
+
+  assert.ok(
+    large / small < 100,
+    `12x the input must not cost ~144x the time (quadratic); ratio was ${(large / small).toFixed(1)}`,
+  );
+});
+
+test('Given a tool name at the length bound, when validatePhases runs, then a well-formed name is still accepted', () => {
+  const sut = validatePhases;
+  const errors = [];
+  const server = 'a'.repeat(50);
+  const tool = 'b'.repeat(50);
+
+  sut({ design: { tools: [`mcp__${server}__${tool}`] } }, () => true, errors);
+
+  assert.deepStrictEqual(errors, [], 'the bound must not reject a realistic MCP tool name');
 });
