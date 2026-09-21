@@ -257,21 +257,62 @@ function turnBudgetReport(overrides = {}) {
   };
 }
 
-test('Given a turn-budget rec for a canonical phase with no declared budget, when planTune runs, then it proposes phases.<phase>.turn_budget set to the threshold', () => {
+test('Given a turn-budget rec for a phase where nothing binds a budget, when planTune runs, then it proposes one in tool calls', () => {
   const sut = planTune;
 
-  const { proposals, patchedFrontmatter } = sut({ report: turnBudgetReport(), baseFrontmatter: {} });
+  const { proposals, patchedFrontmatter } = sut({
+    report: turnBudgetReport(),
+    baseFrontmatter: {},
+    effectiveBudgets: { implementation: null },
+  });
 
   const rec = auto(proposals).find(p => p.source === 'turn-budget');
   assert.deepEqual(rec, {
     source: 'turn-budget',
     path: ['phases', 'implementation', 'turn_budget'],
     from: null,
-    to: 200,
-    rationale: 'budget 200 tool calls for implementation: part-implementer billed 291 turns (threshold 200)',
+    to: 312,
+    rationale: 'budget 312 tool calls for implementation: part-implementer ran unbudgeted and used 312 tool calls',
     evidence: { billedTurns: 291, cycles: 3, phase: 'implementation', role: 'part-implementer', threshold: 200, toolCalls: 312 },
   });
-  assert.equal(patchedFrontmatter.phases.implementation.turn_budget, 200);
+  assert.equal(patchedFrontmatter.phases.implementation.turn_budget, 312);
+});
+
+test('Given a turn-budget rec for a phase an archetype budget already binds, when planTune runs, then it never patches and never relaxes the limit', () => {
+  const sut = planTune;
+
+  const { proposals, patchedFrontmatter } = sut({
+    report: turnBudgetReport(),
+    baseFrontmatter: {},
+    effectiveBudgets: { implementation: 150 },
+  });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0,
+    'an overrun of an existing budget is not evidence the budget should be raised');
+  assert.ok(advisory(proposals).some(p => p.source === 'turn-budget'), 'it becomes an advisory instead');
+  assert.equal(patchedFrontmatter.phases?.implementation?.turn_budget, undefined,
+    'the effective 150 must not be silently replaced by a larger number');
+});
+
+test('Given a turn-budget rec for a phase whose effective budget could not be resolved, when planTune runs, then it declines to patch', () => {
+  const sut = planTune;
+
+  const { proposals } = sut({ report: turnBudgetReport(), baseFrontmatter: {}, effectiveBudgets: {} });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0,
+    'unknown must never be read as "nothing binds"');
+  assert.ok(advisory(proposals).some(p => p.source === 'turn-budget'));
+});
+
+test('Given a turn-budget rec carrying no tool-call count, when planTune runs, then it declines to invent a budget', () => {
+  const sut = planTune;
+  const report = turnBudgetReport({
+    evidence: { billedTurns: 291, cycles: 3, phase: 'implementation', role: 'part-implementer', threshold: 200 },
+  });
+
+  const { proposals } = sut({ report, baseFrontmatter: {}, effectiveBudgets: { implementation: null } });
+
+  assert.equal(auto(proposals).filter(p => p.source === 'turn-budget').length, 0);
 });
 
 test('Given a turn-budget rec whose phase already declares a budget, when planTune runs, then no patch is proposed and the advisory is produced instead', () => {

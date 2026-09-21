@@ -499,3 +499,63 @@ test('Given ARCHETYPE_TURN_BUDGET, when its key set is compared to VALID_ARCHETY
   }
   assert.equal(sut.setup, null, 'setup spawns no agent — its turn budget must degrade to null');
 });
+
+// ── archetype budget table: every value and the executing-harness split ──────
+// The key-coverage test above proves each archetype HAS a budget; these prove
+// the budget is the one the keying rule says, so flipping a value or collapsing
+// the harness split cannot pass unnoticed.
+
+test('Given one descriptor per archetype and no declared budget, when assembleContract runs, then each renders its archetype-table value', () => {
+  const cases = [
+    { archetype: 'specification', contract: [], expected: '~100 tool calls' },
+    { archetype: 'construction', contract: [], expected: '~150 tool calls' },
+    { archetype: 'refinement', contract: [], expected: '~130 tool calls' },
+    { archetype: 'delivery', contract: [], expected: '~150 tool calls' },
+  ];
+  const sut = assembleContract;
+
+  for (const { archetype, contract, expected } of cases) {
+    const result = sut({ id: 'x', archetype, contract, execution: 'agent' }, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+
+    assert.ok(
+      turnBudgetLine(result).includes(expected),
+      `archetype "${archetype}" must render ${expected}; got: ${turnBudgetLine(result)}`,
+    );
+  }
+});
+
+test('Given two harness descriptors differing only by bundle, when assembleContract runs, then the executing half budgets 150 and the read half 60', () => {
+  const sut = assembleContract;
+  const exec = { id: 'validation', archetype: 'harness', contract: ['harness-exec'], execution: 'agent' };
+  const read = { id: 'review', archetype: 'harness', contract: ['harness-read'], execution: 'agent' };
+
+  const execResult = sut(exec, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+  const readResult = sut(read, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+
+  assert.ok(turnBudgetLine(execResult).includes('~150 tool calls'), `executing harness: ${turnBudgetLine(execResult)}`);
+  assert.ok(turnBudgetLine(readResult).includes('~60 tool calls'), `read harness: ${turnBudgetLine(readResult)}`);
+  assert.notEqual(
+    turnBudgetLine(execResult),
+    turnBudgetLine(readResult),
+    'collapsing the executing/read split must be observable — both phases share the harness archetype',
+  );
+});
+
+test('Given a setup descriptor, when assembleContract runs, then the budget line states that none is declared rather than a number', () => {
+  const sut = assembleContract;
+
+  const result = sut({ id: 'workspace', archetype: 'setup', contract: [], execution: 'agent' }, {}, REAL_CORE_FRAGMENTS, { execution: 'agent' });
+
+  assert.ok(turnBudgetLine(result).includes('none declared'), `${turnBudgetLine(result)}`);
+  assert.doesNotMatch(turnBudgetLine(result), /~\d+ tool calls/, `${turnBudgetLine(result)}`);
+});
+
+test('Given the committed pipeline, when each descriptor is assembled, then no shipped phase declares a redundant turn_budget', () => {
+  const sut = readFileSync(join(__dir, '..', '..', 'pipeline', 'default.yml'), 'utf8');
+
+  assert.doesNotMatch(
+    sut,
+    /turn_budget:/,
+    'the archetype table is the single live home — a declaration here shadows it silently',
+  );
+});

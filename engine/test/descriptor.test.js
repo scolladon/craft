@@ -215,7 +215,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['workspace'],
     self_supply: [],
     produces: ['requirements'],
-    turn_budget: 100,
+    turn_budget: null,
   },
   {
     id: 'design',
@@ -227,7 +227,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['workspace', 'requirements'],
     self_supply: ['requirements'],
     produces: ['design'],
-    turn_budget: 100,
+    turn_budget: null,
   },
   {
     id: 'decisions',
@@ -239,7 +239,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['design'],
     self_supply: ['design'],
     produces: ['decisions'],
-    turn_budget: 100,
+    turn_budget: null,
   },
   {
     id: 'planning',
@@ -251,7 +251,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['design', 'decisions'],
     self_supply: ['design', 'decisions'],
     produces: ['plan'],
-    turn_budget: 100,
+    turn_budget: null,
   },
   {
     id: 'implementation',
@@ -263,7 +263,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['workspace', 'plan'],
     self_supply: [],
     produces: ['change'],
-    turn_budget: 150,
+    turn_budget: null,
   },
   {
     id: 'review',
@@ -275,7 +275,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['review-report'],
-    turn_budget: 60,
+    turn_budget: null,
   },
   {
     id: 'refactoring',
@@ -287,7 +287,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['change'],
-    turn_budget: 130,
+    turn_budget: null,
   },
   {
     id: 'validation',
@@ -299,7 +299,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['validation-report'],
-    turn_budget: 150,
+    turn_budget: null,
   },
   {
     id: 'architecture',
@@ -311,7 +311,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['architecture-report'],
-    turn_budget: 150,
+    turn_budget: null,
   },
   {
     id: 'documentation',
@@ -323,7 +323,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['design', 'change'],
     self_supply: [],
     produces: ['docs'],
-    turn_budget: 150,
+    turn_budget: null,
   },
   {
     id: 'propose',
@@ -335,7 +335,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['change'],
     self_supply: [],
     produces: ['pr'],
-    turn_budget: 150,
+    turn_budget: null,
   },
   {
     id: 'integrate',
@@ -347,7 +347,7 @@ const EXPECTED_DESCRIPTORS = [
     consumes: ['pr'],
     self_supply: [],
     produces: [],
-    turn_budget: 150,
+    turn_budget: null,
   },
 ];
 

@@ -11,13 +11,34 @@
  */
 
 import { readFileSync as nodeReadFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
 import { parseManifestContent } from './frontmatter.js';
 import { joinManifest } from './init-emit.js';
 import { parseStore } from './observability/memory.js';
 import { planTune } from './tune-plan.js';
+import { parsePipeline } from './descriptor.js';
+import { archetypeBudget } from './contract.js';
 import { fail, EXIT_OK } from './cli-io.js';
 
 const USAGE = 'tune-plan: usage: tune-plan <base-config-path> <report-path> [--memory <path>]\n';
+const DEFAULT_PIPELINE = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'pipeline', 'default.yml');
+
+// The budget that would bind each shipped phase if the manifest declared none —
+// descriptor value first, then the archetype table. A phase whose entry is null
+// has nothing binding it at all, which is the one case a turn-budget rec may
+// auto-patch. An unreadable pipeline yields an empty map, and the predicate reads
+// a MISSING entry as "unknown, do not patch" rather than as "nothing binds".
+function resolveEffectiveBudgets(pipelinePath, readFileSync) {
+  try {
+    const descriptors = parsePipeline(readFileSync(pipelinePath, 'utf8'));
+    return Object.fromEntries(
+      descriptors.map(d => [d.id, d.turn_budget ?? archetypeBudget(d)]),
+    );
+  } catch {
+    return {};
+  }
+}
 const TUNED_NOTE = '\n## Tuned\n\nPatched by `craft:tune` from machine-derived usage signals — review the diff before landing.\n';
 
 function parseArgs(argv) {
@@ -94,7 +115,8 @@ export function main(argv, io, deps = {}) {
   const baseFrontmatter = parseManifestContent(baseContent) ?? {};
   const prose = proseAfterFrontmatter(baseContent);
 
-  const { proposals, patchedFrontmatter } = planTune({ report, memory, baseFrontmatter });
+  const effectiveBudgets = resolveEffectiveBudgets(DEFAULT_PIPELINE, readFileSync);
+  const { proposals, patchedFrontmatter } = planTune({ report, memory, baseFrontmatter, effectiveBudgets });
   const patchedManifest = joinManifest({ frontmatter: patchedFrontmatter, prose: `${prose}${TUNED_NOTE}` });
   const hasPatch = proposals.some(proposal => proposal.path !== null);
 

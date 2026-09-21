@@ -36,7 +36,10 @@ const INLINE_VARIANTS = Object.freeze({
  * descriptor declares one. `setup` spawns no agent, so it degrades to `null` (no
  * budget, run to completion) rather than a number. Exported so a test can assert
  * it covers every member of VALID_ARCHETYPES — a new archetype must not be
- * addable without a budget decision.
+ * addable without a budget decision. This table is the SINGLE live home for
+ * the defaults: pipeline/default.yml declares no turn_budget, so editing a
+ * value here changes real behaviour for every shipped phase. A descriptor may
+ * still declare one to deviate, and a manifest still wins over both.
  */
 export const ARCHETYPE_TURN_BUDGET = Object.freeze({
   setup: null,
@@ -64,7 +67,7 @@ const EXECUTING_HARNESS_TURN_BUDGET = 150;
  * @param {{ archetype?: string, contract?: unknown }} descriptor
  * @returns {number|null}
  */
-function archetypeBudget(descriptor) {
+export function archetypeBudget(descriptor) {
   if (Array.isArray(descriptor.contract) && isExecutingHarness(descriptor)) {
     return EXECUTING_HARNESS_TURN_BUDGET;
   }
