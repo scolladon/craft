@@ -127,6 +127,15 @@ instrument Part D builds.
     floor.
 15. `pipeline/default.yml` descriptors carry a `turn_budget` field that survives
     `normalizeEntry` and reaches `assembleContract`.
+
+    > **Revised in review.** As first built, all twelve agent-bearing descriptors
+    > *declared* a `turn_budget` identical to what the archetype table would produce.
+    > Because a descriptor value wins the resolution chain, that silently shadowed the
+    > table and its executing/read-harness split for every shipped phase — deleting the
+    > split left the whole suite green. The declarations were removed so the archetype
+    > table in `engine/src/contract.js` is the single live home, which is what ADR-365's
+    > chosen option actually specified. The field still survives `normalizeEntry` and a
+    > descriptor may still declare one to deviate; the shipped pipeline declares none.
 16. `scripts/ci.sh` is green, including `contracts-lint`, `design-lint`,
     `sync-adapter-agents.sh --check`, and `test/architecture-boundaries.test.js`.
 
@@ -694,8 +703,9 @@ so the rule is denominated in tool calls, the one quantity it can count.
 | `engine/src/plan-lint-main.js` | E | `PART_FILE_CEILING`, blocking check |
 | `templates/plan.md`, `agents/planner.md` | E | ceiling prose |
 | `engine/src/contract.js` | B | variants map, `@@TURN_BUDGET@@` |
-| `engine/src/descriptor.js` | B | `turn_budget` threading, archetype table |
-| `pipeline/default.yml` | B | `turn_budget` per descriptor |
+| `engine/src/descriptor.js` | B | `turn_budget` threading |
+| `engine/src/contract.js` (table) | B | `ARCHETYPE_TURN_BUDGET` — the archetype table lives here, not in `descriptor.js` as first drafted |
+| `pipeline/default.yml` | B | no `turn_budget` declarations — see the revision note on requirement 15 |
 
 ## Decision candidates
 
