@@ -81,6 +81,22 @@ function buildDerivedTotals(numeric, cacheSums) {
   };
 }
 
+// The field-to-string join, isolated from the sums/derivation above it so
+// each stays independently readable.
+function renderRow(runId, phaseId, { numeric, derived, cacheFragment }) {
+  return [
+    runId, phaseId,
+    `turns=${numeric.turns}`,
+    `tool_calls=${numeric.toolCalls}`,
+    `tokens=${derived.tokens}`,
+    `duration_ms=${numeric.durationMs}`,
+    cacheFragment,
+    `output=${numeric.output}`,
+    `avg_ctx=${derived.avgCtx}`,
+    `equiv=${derived.equiv}`,
+  ].join(' ');
+}
+
 /**
  * @param {string} runId
  * @param {string} phaseId
@@ -97,15 +113,5 @@ export function formatMetricsRow(runId, phaseId, events, renderCacheSplit) {
   const cacheFragment = renderCacheSplit(cacheSums);
   const derived = splitPresent ? buildDerivedTotals(numeric, cacheSums) : { tokens: NA, avgCtx: NA, equiv: NA };
 
-  return [
-    runId, phaseId,
-    `turns=${numeric.turns}`,
-    `tool_calls=${numeric.toolCalls}`,
-    `tokens=${derived.tokens}`,
-    `duration_ms=${numeric.durationMs}`,
-    cacheFragment,
-    `output=${numeric.output}`,
-    `avg_ctx=${derived.avgCtx}`,
-    `equiv=${derived.equiv}`,
-  ].join(' ');
+  return renderRow(runId, phaseId, { numeric, derived, cacheFragment });
 }

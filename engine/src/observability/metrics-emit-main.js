@@ -154,25 +154,26 @@ function resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath 
   return { ok: true, transcriptDir, ledgerPath };
 }
 
+// Only a genuinely absent file may be treated as "start a new ledger". Any
+// other read failure leaves the prior content unknown, and writing then
+// would replace an append-only artifact with header-plus-new-rows,
+// destroying every historical row. Refuse the write instead.
+function readExistingLedger(ledgerPath, readFileSync, stderr) {
+  try {
+    return { existing: readFileSync(ledgerPath, 'utf8'), absent: false, refused: false };
+  } catch (e) {
+    if (e.code === 'ENOENT') return { existing: '', absent: true, refused: false };
+    stderr.write(`metrics-emit: ledger read failed (${e.code ?? 'unknown'}), refusing to write\n`);
+    return { existing: '', absent: false, refused: true };
+  }
+}
+
 // Append (`>>` semantics: read-if-exists, concat, write), printing every
 // appended row to stdout so the caller needs no second read. A failed write
 // is advisory: one stderr line, exit 0 (the caller already returns EXIT_OK).
 function appendLedgerRows(ledgerPath, rows, { readFileSync, writeFileSync, mkdirSync, stdout, stderr }) {
-  let existing = '';
-  let absent = false;
-  try {
-    existing = readFileSync(ledgerPath, 'utf8');
-  } catch (e) {
-    // Only a genuinely absent file may be treated as "start a new ledger".
-    // Any other read failure leaves the prior content unknown, and writing
-    // then would replace an append-only artifact with header-plus-new-rows,
-    // destroying every historical row. Refuse the write instead.
-    if (e.code !== 'ENOENT') {
-      stderr.write(`metrics-emit: ledger read failed (${e.code ?? 'unknown'}), refusing to write\n`);
-      return;
-    }
-    absent = true;
-  }
+  const { existing, absent, refused } = readExistingLedger(ledgerPath, readFileSync, stderr);
+  if (refused) return;
   const body = rows.map((row) => `${row}\n`).join('');
   try {
     mkdirSync(dirname(ledgerPath), { recursive: true });
@@ -184,18 +185,9 @@ function appendLedgerRows(ledgerPath, rows, { readFileSync, writeFileSync, mkdir
   for (const row of rows) stdout.write(`${row}\n`);
 }
 
-/**
- * @param {string[]} argv
- * @param {{ stdout: {write(s:string):void}, stderr: {write(s:string):void},
- *   readFileSync?: Function, writeFileSync?: Function, mkdirSync?: Function,
- *   createReadStream?: Function, createInterface?: Function,
- *   readdirSync?: Function, containByRealpath?: Function,
- *   projectsRoot?: string, repoRoot?: string, cwd?: string }} io
- * @returns {Promise<number>} 0 on every advisory path; 1 for the four config
- *   errors caught before any I/O (missing --run, unparseable --since, an
- *   out-of-bounds --dir or --ledger).
- */
-export async function main(argv, io) {
+// Node defaults resolved once so every downstream helper takes the concrete
+// port bundle instead of re-deriving it from partial `io`.
+function resolveDeps(io) {
   const {
     stdout,
     stderr,
@@ -210,15 +202,17 @@ export async function main(argv, io) {
     repoRoot = process.cwd(),
     cwd = process.cwd(),
   } = io;
+  return {
+    stdout, stderr, readFileSync, writeFileSync, mkdirSync, createReadStream,
+    createInterface, readdirSync, containByRealpath, projectsRoot, repoRoot, cwd,
+  };
+}
 
-  const parsed = parseArgs(argv);
-  const config = resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath });
-  if (!config.ok) {
-    stderr.write(config.message);
-    return EXIT_CONFIG_ERROR;
-  }
-  const { transcriptDir, ledgerPath } = config;
-
+// Discovery, sub-agent narrowing, the stream parse, and the failed/refused
+// advisory line, collapsed to the one thing main() needs next: phase-labelled
+// events (a main-loop event carries `phase: null` and is dropped here).
+async function collectPhasedEvents(parsed, transcriptDir, deps) {
+  const { readdirSync, readFileSync, containByRealpath, createReadStream, createInterface, stderr } = deps;
   const { entries } = discover(makeDiscoveryPorts(transcriptDir, { readdirSync, readFileSync, containByRealpath }));
   const scoped = entries
     .filter((entry) => entry.context?.sourceKind === SUBAGENT_SOURCE_KIND)
@@ -229,14 +223,36 @@ export async function main(argv, io) {
   if (failed > 0 || refused > 0) {
     stderr.write(`metrics-emit: ${failed} transcript(s) unreadable, ${refused} refused by containment\n`);
   }
-  const phasedEvents = events.filter((event) => event.phase !== null);
+  return events.filter((event) => event.phase !== null);
+}
 
+/**
+ * @param {string[]} argv
+ * @param {{ stdout: {write(s:string):void}, stderr: {write(s:string):void},
+ *   readFileSync?: Function, writeFileSync?: Function, mkdirSync?: Function,
+ *   createReadStream?: Function, createInterface?: Function,
+ *   readdirSync?: Function, containByRealpath?: Function,
+ *   projectsRoot?: string, repoRoot?: string, cwd?: string }} io
+ * @returns {Promise<number>} 0 on every advisory path; 1 for the four config
+ *   errors caught before any I/O (missing --run, unparseable --since, an
+ *   out-of-bounds --dir or --ledger).
+ */
+export async function main(argv, io) {
+  const deps = resolveDeps(io);
+  const { stdout, stderr, readFileSync, writeFileSync, mkdirSync, projectsRoot, repoRoot, cwd, containByRealpath } = deps;
+  const parsed = parseArgs(argv);
+  const config = resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath });
+  if (!config.ok) {
+    stderr.write(config.message);
+    return EXIT_CONFIG_ERROR;
+  }
+  const { transcriptDir, ledgerPath } = config;
+  const phasedEvents = await collectPhasedEvents(parsed, transcriptDir, deps);
   const rows = buildRows(parsed.run, parsed.phase, phasedEvents);
   if (rows.length === 0) {
     stderr.write(`metrics-emit: no events found for run '${parsed.run}'\n`);
     return EXIT_OK;
   }
-
   appendLedgerRows(ledgerPath, rows, { readFileSync, writeFileSync, mkdirSync, stdout, stderr });
   return EXIT_OK;
 }
