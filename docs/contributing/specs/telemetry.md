@@ -656,5 +656,23 @@ agent-spawned phase in `.claude/craft-metrics.md`, written by `engine/bin/metric
 One session directory can hold two spawns of the same phase (a revision round, or
 validation and architecture sharing one role); without `--since` as a lower bound on that
 second call, its row re-counts the first spawn's events instead of describing only what
-ran after it. A missing `--run`, an unparseable `--since`, or a `--dir`/`--ledger` that
-escapes its containment root are config errors: exit 1, one stderr line naming the flag.
+ran after it. Only sub-agent transcripts are parsed — a main-loop transcript is narrowed
+out before the parse, since it carries no phase label and would be filtered out
+downstream anyway.
+
+Config errors (exit 1, one stderr line naming the flag): a missing `--run`; a `--run` or
+`--phase` that fails `ROW_TOKEN` (`/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/`) — these are the
+only caller-supplied strings that reach the committed ledger, the run-id originates in a
+free-text brief relayed onto a command line, and an unchecked newline would append forged
+rows to an append-only artifact; an unparseable `--since`; or a `--dir`/`--ledger` that
+escapes its containment root.
+
+A ledger read failure that is anything other than absent (`ENOENT`) refuses to write:
+one stderr line (`ledger read failed (<code>), refusing to write`), exit 0 (advisory),
+nothing written. Only a genuinely absent ledger starts a new one — any other read
+failure leaves the prior content unknown, and writing would replace the append-only
+history with header-plus-new-rows.
+
+Unreadable transcripts and transcripts refused by containment are counted, not dropped:
+when either count is non-zero the emitter writes one advisory line (`<n>
+transcript(s) unreadable, <m> refused by containment`), exit unchanged.
