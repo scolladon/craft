@@ -414,3 +414,10 @@ decision-drift-propagation refactoring tokens=97414 duration_ms=251291 cache_rea
 decision-drift-propagation validation tokens=414154 duration_ms=3571466 cache_read=0 cache_creation=0
 decision-drift-propagation documentation tokens=104872 duration_ms=181956 cache_read=0 cache_creation=0
 --- format boundary 2026-09-20: rows below are emitted by the metrics bin and carry turns, tool_calls, output, avg_ctx and equiv. tokens is now transcript-derived (input+cache_read+cache_creation+output) and duration_ms is summed AGENT time across a phase's spawns, not wall clock. Never compare a row above this line to a row below it.
+shrink-agent-context-cost design turns=71 tool_calls=84 tokens=9888664 duration_ms=1232060 cache_read=9603607 cache_creation=198332 output=86583 avg_ctx=138057 equiv=1641333
+shrink-agent-context-cost documentation turns=19 tool_calls=20 tokens=1338555 duration_ms=151672 cache_read=1249983 cache_creation=78492 output=10042 avg_ctx=69922 equiv=273361
+shrink-agent-context-cost implementation turns=754 tool_calls=809 tokens=83396792 duration_ms=7332450 cache_read=81317564 cache_creation=1600300 output=477420 avg_ctx=109973 equiv=12520739
+shrink-agent-context-cost planning turns=75 tool_calls=112 tokens=16798139 duration_ms=1694772 cache_read=16127277 cache_creation=542036 output=128676 avg_ctx=222260 equiv=2933803
+shrink-agent-context-cost refactoring turns=22 tool_calls=23 tokens=1723582 duration_ms=244607 cache_read=1613337 cache_creation=90236 output=19965 avg_ctx=77437 equiv=373998
+shrink-agent-context-cost review turns=154 tool_calls=189 tokens=14368366 duration_ms=2253831 cache_read=13589625 cache_creation=631455 output=146978 avg_ctx=92347 equiv=2883479
+shrink-agent-context-cost validation turns=360 tool_calls=365 tokens=90150882 duration_ms=4002362 cache_read=89488044 cache_creation=439183 output=222935 avg_ctx=249800 equiv=10613178
