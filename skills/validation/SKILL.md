@@ -64,9 +64,9 @@ description: Craft phase 8 - run the repo's engineering harness over the change,
    config-file presence** (the config-file presence check still runs; the hint only saves
    the technique-name probe, never the existence check). A miss falls through to the full
    discovery below. This read is purely advisory — it does not entangle the gating probe.
-   WRITES (buffered to run record, flushed at run end): the technique id + config
-   fingerprint discovered this run. Keep distinct from and non-interfering with the
-   gating probe's "phase ends here" exit below.
+   WRITES (appended to the run record as produced; saved to the store once at `Done`):
+   the technique id + config fingerprint discovered this run. Keep distinct from and
+   non-interfering with the gating probe's "phase ends here" exit below.
 4. **Resolve the active technique set** from `phase.harness` (the resolved descriptor),
    using ADR-149 discovery precedence:
    - **Declared** — `phase.harness.techniquePlan` (engine-emitted, binding, same way
@@ -123,10 +123,20 @@ sub-concern also no-op'd.
      Do NOT consolidate across unchanged gaps regardless of mode. Loose/merged ranges
      inflate the run AND surface out-of-scope findings the triage must filter — a tight
      per-hunk list is faster and cleaner.
-   - **`run-style: background`** — start the technique in the background; write the
-     run-lock (`<root>/.craft-validation.lock` ← `<pid> <iso-timestamp>`); clear the
+   - **`run-style: background`** — create the out-of-tree `$out` and `$specfile` (the
+     `mode: triage` bullet's two `mktemp` files, below) in a foreground call that prints
+     their paths: shell variables do not survive between Bash calls, so the background
+     call needs those literal paths. Then start the technique in the background; write
+     the run-lock (`<root>/.craft-validation.lock` ← `<pid> <iso-timestamp>`); clear the
      lock when the run lands. The documentation phase may proceed in parallel while it
      grinds.
+
+     The backgrounded command's first statement, before the technique starts, appends
+     `HARNESS-BG(<phase>:<technique-id>): pid=<pid> out=<path> spec=<path>` via
+     `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh" append <run-id>
+     <phase>`. `<pid>` is the same pid written to the run-lock. `spec=none` when the
+     technique builds no scope-spec file (gate mode). Write no technique name into this
+     token — `sample-technique`-style ids stay confined to tests.
    - **`mode: gate`** — run the technique's `run` command; the exit code decides
      pass/fail. Green → record pass; red → escalate as a blocker.
    - **`mode: triage`** — redirect the technique's `run` output to a `mktemp` file

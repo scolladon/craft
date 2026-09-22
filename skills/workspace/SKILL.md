@@ -14,24 +14,28 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
    READS: last `toolchain` entry for this repo (ecosystem + lockfile fingerprint). If the
    fingerprint matches the current lockfile, skip re-detection for the already-known
    ecosystem — still re-detect on a miss or a changed fingerprint.
-   WRITES (buffered to run record, flushed at run end): the detected ecosystem + lockfile
-   fingerprint produced by `scripts/worktree-setup.sh` lockfile detection. The hint never
-   gates — a miss falls through to full detection as today.
+   WRITES (appended to the run record as produced; saved to the store once at `Done`):
+   the detected ecosystem + lockfile fingerprint produced by `scripts/worktree-setup.sh`
+   lockfile detection. The hint never gates — a miss falls through to full detection as
+   today.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
 1. Infer the branch type from the brief (`feat`/`fix`/`chore`, default `feat`).
 2. **Consult `isolate` action** (default `always`, ADR-127 — proceeds silently unless
    policy forbids it; see `docs/contributing/specs/policy.md` for surface semantics). Then,
-   strategy `worktree` (default):
+   strategy `worktree` (default), as **one** Bash call — a compaction cannot split the
+   three:
    ```bash
-   git worktree add ../<repo>-<slug> -b <type>/<slug>
-   "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-setup.sh" <abs-worktree-path> [manifest scripts.post-setup]
+   git worktree add ../<repo>-<slug> -b <type>/<slug> && \
+   "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-setup.sh" <abs-worktree-path> [manifest scripts.post-setup] && \
+   "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh" move <run-id> <abs-worktree-path>
    ```
    Strategy `in-place` (manifest `workspace: { strategy: in-place }`): create the branch
    in the current checkout (`git switch -c <type>/<slug>`); deps assumed present or
    installed in place; later phases use the checkout root wherever they'd use the
-   worktree (run-lock location included).
+   worktree (run-lock location included). No `move` runs here — §0 already opened the
+   ledger in place with `--in-place`.
 3. Branch or worktree path collision → STOP and ask; never reuse silently.
 4. Apply the manifest's global/workspace `context:` file now: perform any tooling
    activation it declares (the session does this — agents will receive the same file

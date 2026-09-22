@@ -1,6 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
+const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -27,6 +28,25 @@ const NEW_TOKENS = [
   'HARNESS-BG(',
 ];
 const RUN_SKILL_TOKENS = NEW_TOKENS.slice(0, 4);
+
+const WORKSPACE_SKILL_PATH = path.join(ROOT, 'skills', 'workspace', 'SKILL.md');
+const IMPLEMENTATION_SKILL_PATH = path.join(ROOT, 'skills', 'implementation', 'SKILL.md');
+const REVIEW_SKILL_PATH = path.join(ROOT, 'skills', 'review', 'SKILL.md');
+const VALIDATION_SKILL_PATH = path.join(ROOT, 'skills', 'validation', 'SKILL.md');
+
+const PREAMBLE_OLD_WORDING = 'buffered to run record, flushed at run end';
+const PREAMBLE_NEW_WORDING = 'appended to the run record as produced';
+const PREAMBLE_SKILL_FILES = [
+  'skills/workspace/SKILL.md',
+  'skills/implementation/SKILL.md',
+  'skills/review/SKILL.md',
+  'skills/validation/SKILL.md',
+];
+const EMITTER_TOKENS = [
+  ['PART(', 'skills/implementation/SKILL.md'],
+  ['FINDINGS(', 'skills/review/SKILL.md'],
+  ['HARNESS-BG(', 'skills/validation/SKILL.md'],
+];
 
 // Slices skills/run/SKILL.md between two `^## ` headings, so a mention in an
 // unrelated section cannot satisfy a region-specific assertion. Lines are
@@ -282,4 +302,72 @@ test('Given the metrics ledger, when its newest format boundary is read, then it
   assert.match(newest, /\d{4}-\d{2}-\d{2}/, 'the boundary states when the format changed');
   assert.match(newest, /turns, tool_calls, output, avg_ctx and equiv/);
   assert.match(newest, /[Nn]ever compare a row above this line to a row below/);
+});
+
+for (const file of PREAMBLE_SKILL_FILES) {
+  test(`Given ${file}, when the memory read/write preamble is read, then WRITES is stated as appended-as-produced, not buffered-to-run-end`, () => {
+    const content = fs.readFileSync(path.join(ROOT, file), 'utf8');
+
+    assert.ok(!content.includes(PREAMBLE_OLD_WORDING), `expected no buffered-to-run-end wording in ${file}`);
+    assert.ok(content.includes(PREAMBLE_NEW_WORDING), `expected the appended-as-produced wording in ${file}`);
+  });
+}
+
+test('Given skills/workspace/SKILL.md procedure step 2, when the worktree-strategy region is read, then worktree-setup runs before the ledger move inside one fenced block', () => {
+  const workspaceSkill = fs.readFileSync(WORKSPACE_SKILL_PATH, 'utf8');
+  const result = sliceRegion(workspaceSkill, /^2\. \*\*Consult `isolate` action\*\*/, /^3\. /);
+
+  const fenceStart = result.indexOf('```');
+  const fenceEnd = result.indexOf('```', fenceStart + 3);
+  assert.notStrictEqual(fenceStart, -1, 'expected a fenced code block in step 2');
+  assert.notStrictEqual(fenceEnd, -1, 'expected the fenced code block to close');
+  const fenced = result.slice(fenceStart, fenceEnd);
+
+  assert.ok(fenced.includes('worktree-setup.sh'), 'expected worktree-setup.sh inside the fenced block');
+  assert.ok(fenced.includes('run-ledger.sh" move <run-id>'), 'expected the ledger move inside the fenced block');
+  assert.ok(
+    fenced.indexOf('worktree-setup.sh') < fenced.indexOf('run-ledger.sh" move <run-id>'),
+    'worktree-setup.sh must precede the ledger move',
+  );
+});
+
+test('Given skills/implementation/SKILL.md, when scanned for the PART ledger token, then it names the full literal shape', () => {
+  const content = fs.readFileSync(IMPLEMENTATION_SKILL_PATH, 'utf8');
+
+  assert.ok(content.includes('PART(<n>): <sha> size=<size> outcome=<pass|blocked>'));
+});
+
+test('Given skills/review/SKILL.md, when scanned for the FINDINGS ledger token, then it names the full literal shape plus the out-of-tree dir and the respawn rule', () => {
+  const content = fs.readFileSync(REVIEW_SKILL_PATH, 'utf8');
+
+  assert.ok(content.includes('FINDINGS(<dimension>): c<cycle> <path> n=<count>'));
+  assert.ok(content.includes('mktemp -d'));
+  assert.ok(content.includes('re-spawned'));
+});
+
+test('Given skills/validation/SKILL.md, when scanned for the HARNESS-BG ledger token, then it names the pid shape', () => {
+  const content = fs.readFileSync(VALIDATION_SKILL_PATH, 'utf8');
+
+  assert.ok(content.includes('HARNESS-BG(<phase>:<technique-id>): pid=<pid>'));
+});
+
+for (const [tokenPrefix, file] of EMITTER_TOKENS) {
+  test(`Given ${file}, when scanned for its ledger-token emitter prefix, then ${tokenPrefix} appears`, () => {
+    const content = fs.readFileSync(path.join(ROOT, file), 'utf8');
+
+    assert.ok(content.includes(tokenPrefix), `expected ${tokenPrefix} in ${file}`);
+  });
+}
+
+test('Given skills/*/SKILL.md, when scanned for the retired flushed-at-run-end wording, then none remain', () => {
+  let result;
+  try {
+    result = execFileSync('grep', ['-rl', 'flushed at run end', path.join(ROOT, 'skills')], {
+      encoding: 'utf8',
+    });
+  } catch (err) {
+    result = err.stdout ?? '';
+  }
+
+  assert.strictEqual(result.trim(), '', `expected no file to carry 'flushed at run end':\n${result}`);
 });
