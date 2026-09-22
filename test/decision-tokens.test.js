@@ -2,6 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -10,7 +11,6 @@ const RUN_SKILL_PATH = path.join('skills', 'run', 'SKILL.md');
 const RUN_RECORD_SPEC_PATH = path.join('docs', 'contributing', 'specs', 'run-record.md');
 const DECISIONS_SKILL_PATH = path.join('skills', 'decisions', 'SKILL.md');
 const REVIEW_SKILL_PATH = path.join('skills', 'review', 'SKILL.md');
-const INTEGRATE_SKILL_PATH = path.join('skills', 'integrate', 'SKILL.md');
 const ADR_LINT_MAIN_PATH = path.join('engine', 'src', 'adr-lint-main.js');
 
 const NEW_TOKENS = ['DECISION-REVERSAL(', 'DECISION-CITE-WAIVE(', 'MEMORY-RETRACT('];
@@ -47,9 +47,10 @@ test('Given skills/review/SKILL.md, when scanned, then it pins MEMORY-RETRACT(',
   assert.ok(count > 0, 'Expected literal MEMORY-RETRACT( in skills/review/SKILL.md');
 });
 
-test('Given skills/integrate/SKILL.md, when scanned, then it pins MEMORY-RETRACT(', () => {
-  const count = grepCount('MEMORY-RETRACT(', INTEGRATE_SKILL_PATH);
-  assert.ok(count > 0, 'Expected literal MEMORY-RETRACT( in skills/integrate/SKILL.md');
+test('Given skills/run/SKILL.md, when its Done section is read, then it carries the MEMORY-RETRACT derivation rule', () => {
+  const content = fs.readFileSync(RUN_SKILL_PATH, 'utf8');
+  const done = content.slice(content.indexOf('\n## Done'));
+  assert.ok(done.includes('MEMORY-RETRACT(') && done.includes('retract:'), 'Expected the MEMORY-RETRACT derivation rule in the Done section');
 });
 
 test('Given engine/src/adr-lint-main.js, when scanned, then it pins DECISION-CITE-WAIVE', () => {

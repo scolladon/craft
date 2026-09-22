@@ -1,8 +1,12 @@
 # 302 — The orchestrator is the ledger's only writer, one append per phase boundary
 
-- **Status:** accepted
+- **Status:** superseded by ADR-372
 - **Date:** 2026-07-30
 - **Design:** docs/contributing/design/orchestrator-tax-hardening.md · **Supersedes/Refines:** refines 300
+
+> **Superseded by ADR-372.** The single-writer rule below stands: only the orchestrator writes the
+> ledger and role agents never do. The write cadence is superseded: the ledger is appended per line
+> as each line is produced, not once per phase boundary, so resume granularity is the line.
 
 ## Context
 

@@ -175,6 +175,34 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-09-22 — follow-ups surfaced by the auto-compaction-safety run, not yet scheduled)
+
+**Live smoke for the plugin-registered compaction hooks.** The design pinned every hook
+behaviour against settings-registered hooks in throwaway sessions. Two assumptions stay
+unpinned: that a plugin-registered `SessionStart[compact]` / `PreCompact` hook behaves
+exactly like the settings hook the spike used, and that the run-key `open` prints lands
+verbatim in a real orchestrator transcript. The on-demand smoke is written up in
+`docs/contributing/plan/auto-compaction-safety.md` (post-merge manual item): a throwaway
+session with `--settings '{"autoCompactWindow":100000}'` and the plugin installed, which
+opens a run and fills context until compaction. Record the result in
+`docs/contributing/specs/auto-compaction-poc-record.md`.
+
+**The hooks' `LC_ALL=C` guard runs only on macOS awk.** The multibyte-locale hook tests catch
+a regression only under BSD awk, which aborts on invalid UTF-8. CI runs on `ubuntu-latest`,
+where mawk/gawk never abort, so there the guard is checked vacuously. A `macos-latest` job,
+for the hooks suite at least, would make the guard CI-checked.
+
+**`open` on a live run-id discards that run's ledger.** The run-id is the topic slug; a
+second `/craft:run` of the same topic runs `run-ledger.sh open` at §0 step 4, before the
+workspace collision rule can stop it, and replaces the live run's ledger with a fresh one.
+Only one stderr line warns. Refusing would need a liveness signal that tells a live run from
+a crashed one; the pointer has none today.
+
+**Surface the compaction estimate at `Done`.** The miner reports `compactionEstimate` per
+run, but `emit-metrics` prints nothing about it, so a run's compaction cost is visible only
+to someone who mines by hand. One advisory line at `Done` was the cheap later add the
+decision left open.
+
 ### Open (scoped 2026-08-19 — follow-ups surfaced by the decision-drift-propagation run, not yet scheduled)
 
 **A transient model 529 permanently degrades the highest-value phase.** The model-resolution

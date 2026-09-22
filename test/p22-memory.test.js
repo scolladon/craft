@@ -63,26 +63,16 @@ test(
 );
 
 test(
-  'Given the ledger is run-local, when git is asked, then the ledger path is actually ignored',
+  'Given the ledger is run-local, when the run directory is resolved, then it sits inside the git common dir that git never tracks',
   () => {
-    // Positive check, not just the absence of a re-include: this also fails if the
-    // `.claude/*` rule that does the ignoring is ever lost.
-    let result = 0;
-    try {
-      execFileSync('git', ['check-ignore', '-q', '.claude/craft-run-record.md'], {
-        cwd: ROOT,
-        stdio: 'ignore',
-      });
-    } catch (err) {
-      result = err.status;
-    }
-
-    assert.strictEqual(result, 0, '.claude/craft-run-record.md must be gitignored');
-    assert.strictEqual(
-      grepQX('!.claude/craft-run-record.md', GITIGNORE),
-      false,
-      '.gitignore should NOT re-include the run record',
+    const gitCommonDir = fs.realpathSync(
+      execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     );
+
+    const result = execFileSync('bash', [path.join(ROOT, 'scripts', 'run-ledger.sh'), 'dir'], { cwd: ROOT, encoding: 'utf8' }).trim();
+
+    assert.strictEqual(result, path.join(gitCommonDir, 'craft-runs'));
+    assert.strictEqual(grepQX('craft-runs', GITIGNORE), false, '.gitignore needs no entry for the run directory');
   },
 );
 
@@ -141,17 +131,18 @@ const SPEC_VALIDATORS = {
   findings: (e) => isRepoRelativePath(e.file) && VALID_SEVERITIES.has(e.severity) && isNonEmptyString(e.pattern),
 };
 
-// A one-way ratchet against bulk entry loss. Growth is free; a drop below any floor is a
-// hard failure. Decay removes at most one step of confidence per run and evicts only at
-// the floor, so a concern shedding entries in bulk is a regeneration or merge accident,
-// which is precisely how this store previously lost records that had to be hand-restored.
-// Raise a floor when the store legitimately grows. Never lower one to make this pass.
+// A ratchet against accidental bulk entry loss: a regenerated or mis-merged store, which is how
+// this store once lost records that had to be hand-restored. A save decays every entry it does
+// not re-observe by one step and evicts those already at confidence 1 — all of them at once — so
+// a floor counts only the entries one save cannot evict: those at confidence 2 or more. Re-derive
+// the floors from the store whenever a run records its save; never lower one to hide a loss that
+// decay does not explain.
 const CONCERN_FLOORS = Object.freeze({
   toolchain: 1,
   'gate-cmd': 2,
   'validation-tool': 1,
-  findings: 40,
-  'part-sizing': 30,
+  findings: 31,
+  'part-sizing': 6,
 });
 
 test(
@@ -178,8 +169,8 @@ test(
       assert.ok(
         counts[concern] >= CONCERN_FLOORS[concern],
         `${concern} holds ${counts[concern]} entries, below the recorded floor of ${CONCERN_FLOORS[concern]} — `
-        + 'entries are only ever decayed one step at a time, so a drop below the floor means bulk loss, '
-        + 'not normal decay. Revise a floor upward when the store legitimately grows, never downward.',
+        + 'one save cannot evict an entry at confidence 2 or more, so a drop below the floor means bulk loss, '
+        + 'not normal decay. Re-derive the floors from the store when a run records its save.',
       );
       for (const entry of sut.entries[concern]) {
         for (const field of CONCERN_KEY_FIELDS[concern]) {

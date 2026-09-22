@@ -210,7 +210,7 @@ not to produce, so it blocks.
 
 | External concept | craft mechanism (real) | Owning doc / key |
 |---|---|---|
-| Protect the orchestrator's own memory across a reset | the run record's on-disk ledger — an append-only `.claude/craft-run-record.md`, orchestrator-only writer, one append per phase boundary, run-local and never committed | [../contributing/specs/run-record.md](../contributing/specs/run-record.md); [../../skills/run](../../skills/run) |
+| Protect the orchestrator's own memory across a reset | the run record's on-disk ledger — an append-only `craft-runs/<run-id>.md` in the git common dir, orchestrator-only writer, appended per line as produced, run-local and never committed | [../contributing/specs/run-record.md](../contributing/specs/run-record.md); [../../skills/run](../../skills/run) |
 | Pollution taxes every later turn, even with room to spare | the digest at the validation boundary — `engine/bin/filter-findings.js` (`parseScopeSpec` / `filterFindings` in `engine/src/findings.js`), piped from the normalizer so only the change-scoped, structured slice ever reaches the triager's context | [../../contracts/harness-exec.md](../../contracts/harness-exec.md); [../../skills/validation](../../skills/validation) |
 | State the one missing fact, don't make the reader re-derive it | the plan-lint cognitive-locality advisory — one warning line when the same backticked path is declared across two parts, so the duplication is named instead of left for a human to notice — plus a hard block when one part's own `### Context` block declares more files than its ceiling, since that part was already told not to be that size | [../../engine/bin/plan-lint.js](../../engine/bin/plan-lint.js); [customizing.md](customizing.md) |
 
@@ -236,7 +236,7 @@ skim it first, then open the frame section above for the full mapping and its ow
 | The floor | the invariant core | [customizing.md](customizing.md) §2 |
 | Inner loop / outer loop | phase work vs. manifest/gates/policy | [../contributing/specs/policy.md](../contributing/specs/policy.md) |
 | The Verdict | Policy `always` / `ask` / `never` | [../contributing/specs/policy.md](../contributing/specs/policy.md) |
-| The orchestrator's tax | on-disk run-record ledger + validation boundary digest + plan-lint locality advisory + file ceiling | `.claude/craft-run-record.md`; [../../skills/validation](../../skills/validation); `engine/bin/plan-lint.js` |
+| The orchestrator's tax | on-disk run-record ledger + validation boundary digest + plan-lint locality advisory + file ceiling | `craft-runs/<run-id>.md`; [../../skills/validation](../../skills/validation); `engine/bin/plan-lint.js` |
 
 ## Sources
 

@@ -438,6 +438,28 @@ precondition that makes `exit 0 ⇒ met` sound. Both forms are bounded and loud:
 spin; non-convergence is surfaced, never swallowed. See the recipe for the full stop-condition tables
 and the engine-native-loop rejection: [examples/loop/](../../examples/loop/).
 
+### Long sessions — auto-compaction (Claude Code)
+
+Claude Code auto-compacts a session's context once it crosses a threshold computed from
+`autoCompactWindow`: compaction fires at `autoCompactWindow − 33000` (the 1M-context default
+fires at 967000). Recommended for a craft run: `autoCompactWindow: 233000`, which fires at
+200000 — comfortably inside every phase's working context.
+
+Set it per session with `claude --settings '{"autoCompactWindow":233000}'`, or once in your
+user settings to apply it everywhere. The value is read at launch only and inherited
+unchanged by every spawn for the life of the process — a sub-agent spawned above the
+threshold will compact mid-task exactly like the orchestrator would.
+
+craft ships two hooks that fire on an automatic compaction and are silent outside a craft
+run: `reorient-after-compact.sh` (`SessionStart`, matcher `compact`) prints the run ledger's
+path and the rebuild procedure back into context, and `steer-compact-summary.sh`
+(`PreCompact`) steers the summariser to keep the run-id, ledger path and in-flight phase.
+Both no-op when no run is active.
+
+craft never writes the user's settings — no script and no orchestrator instruction edits
+`autoCompactWindow`. Raising the window is a one-time choice you make in your own
+configuration.
+
 ---
 
 ## 5. Tailor in one sitting

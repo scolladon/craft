@@ -95,7 +95,7 @@ test('Given Frame 5 ships, then its mapping rows name only mechanisms that exist
   const section = sliceFrom(concepts, /^## Frame 5/, /^## /);
 
   assert.ok(section.length > 0, 'expected a "## Frame 5" section');
-  assert.ok(section.includes('.claude/craft-run-record.md'));
+  assert.ok(section.includes('craft-runs/<run-id>.md'));
   assert.ok(section.includes('engine/bin/filter-findings.js'));
   assert.ok(section.includes('engine/bin/plan-lint.js'));
 
@@ -106,7 +106,7 @@ test('Given Frame 5 ships, then its mapping rows name only mechanisms that exist
   const specPath = path.join(ROOT, 'docs', 'contributing', 'specs', 'run-record.md');
   assert.ok(fs.existsSync(specPath));
   assert.ok(
-    fs.readFileSync(specPath, 'utf8').includes('.claude/craft-run-record.md'),
+    fs.readFileSync(specPath, 'utf8').includes('craft-runs/<run-id>.md'),
     'the spec page must name the same ledger path the Frame 5 row names'
   );
   assert.ok(fs.existsSync(path.join(ROOT, 'engine', 'bin', 'filter-findings.js')));

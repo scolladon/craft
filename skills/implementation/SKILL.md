@@ -18,11 +18,11 @@ description: Craft phase 5 - execute the plan part by part, one part-implementer
    previously recorded, skip re-discovery but **still run it** (the gate is sacred; the
    hint only saves the probe, never the execution). A miss falls through to full gate
    probe as today.
-   WRITES (buffered to run record, flushed at run end): the gate/test command discovered
-   this run — stored as the BARE command only, with any leading env/secret assignment
-   prefix stripped (never `TOKEN=… npm test` or a command carrying a credential), since
-   the store is committed; per-part `size` + pass/blocked `outcome` for each implemented
-   part.
+   WRITES (appended to the run record as produced; saved to the store once at `Done`):
+   the gate/test command discovered this run — stored as the BARE command only, with any
+   leading env/secret assignment prefix stripped (never `TOKEN=… npm test` or a command
+   carrying a credential), since the store is committed; per-part `size` + pass/blocked
+   `outcome` for each implemented part.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
@@ -34,10 +34,15 @@ description: Craft phase 5 - execute the plan part by part, one part-implementer
    part; the design doc path; the resolved part gate; the commit message from the
    plan; global + implementation-phase `context:` files verbatim.
 2. **After each agent returns, verify before launching the next**: the commit exists
-   and matches the part promise (`git log`, `git show --stat`); spot-check
-   conventions on the diff. Failed/blocked part → fix in-session or escalate with
-   the agent's options; dead agent → fresh respawn from the plan part (artifact
-   handoff); never relaunch blindly.
+   and matches the part promise (`git log`, `git show --stat`). Once verified, in that
+   same verification's Bash call or the very next one, append
+   `PART(<n>): <sha> size=<size> outcome=<pass|blocked>` via
+   `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh" append <run-id>
+   implementation` — `<size>` is one kebab-case shape label for the part (e.g.
+   `pure-module`, `docs-prose`), `?` when unknown; a label with a space breaks the token. A landed commit found without a `PART` line on resume is verified
+   first, then gets its line. Spot-check conventions on the diff. Failed/blocked part →
+   fix in-session or escalate with the agent's options; dead agent → fresh respawn from
+   the plan part (artifact handoff); never relaunch blindly.
 3. **Phase-boundary gate:** after the LAST part, run `gates.phase` once in-session.
    It MUST be green before the review phase — fix and commit anything it surfaces
    (`fix(<scope>): close gate gap after part N`).

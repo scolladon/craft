@@ -22,10 +22,10 @@
 
 const NA = 'na';
 
-const EQUIV_WEIGHT_INPUT = 1;
-const EQUIV_WEIGHT_CACHE_READ = 0.1;
-const EQUIV_WEIGHT_CACHE_CREATION = 1.25;
-const EQUIV_WEIGHT_OUTPUT = 5;
+export const EQUIV_WEIGHT_INPUT = 1;
+export const EQUIV_WEIGHT_CACHE_READ = 0.1;
+export const EQUIV_WEIGHT_CACHE_CREATION = 1.25;
+export const EQUIV_WEIGHT_OUTPUT = 5;
 
 export const LEDGER_HEADER =
   '# craft per-phase metrics (append-only)\n'

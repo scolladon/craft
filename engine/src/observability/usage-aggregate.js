@@ -6,6 +6,7 @@
  */
 
 import { phaseSkipRecs } from './skip-signals.js';
+import { EQUIV_WEIGHT_INPUT, EQUIV_WEIGHT_CACHE_READ, EQUIV_WEIGHT_OUTPUT } from './metrics-line.js';
 
 export const CACHE_HOTSPOT_THRESHOLD = 0.5;
 export const REVIEW_WASTE_BILLED_TURNS = 85;
@@ -19,6 +20,9 @@ export const DEFAULT_DRIFT_THRESHOLD = 0.25;
 // emitted cost value, never folded into the price table itself (pricing.js keeps
 // --prices overrides comparable to DEFAULT_PRICES only if both stay per-MTok).
 const TOKENS_PER_MTOK = 1_000_000;
+// compactionEstimate.equiv is reported in raw units; the Markdown line rounds
+// it to thousands for a human-scannable "11k-20k" figure.
+const THOUSAND = 1000;
 
 // ── Private: pure math helpers ────────────────────────────────────────────────
 
@@ -277,6 +281,50 @@ function groupByRun(events) {
   return byRun;
 }
 
+// ── Private: compaction estimate (advisory; never read by groups/totals/cost/drift) ──
+
+function sumCompactionBand(a, b) {
+  return [a[0] + b[0], a[1] + b[1]];
+}
+
+function foldCompaction(totals, c) {
+  return {
+    count: totals.count + 1,
+    main: totals.main + (c.sourceKind === 'main' ? 1 : 0),
+    subagent: totals.subagent + (c.sourceKind === 'subagent' ? 1 : 0),
+    input: sumCompactionBand(totals.input, c.input),
+    cacheRead: totals.cacheRead + c.cacheRead,
+    output: sumCompactionBand(totals.output, c.output),
+  };
+}
+
+function computeEquivBand(input, cacheRead, output) {
+  return [0, 1].map((i) =>
+    // equivalent mutant (* -> /): EQUIV_WEIGHT_INPUT is the fixed constant 1, and
+    // x*1 === x/1 for every finite x, so the operator choice here is unobservable.
+    Math.round(input[i] * EQUIV_WEIGHT_INPUT + cacheRead * EQUIV_WEIGHT_CACHE_READ + output[i] * EQUIV_WEIGHT_OUTPUT)
+  );
+}
+
+// Omitted (not merely zeroed) when a run has no compaction — the key's
+// absence is what keeps every byte-identical baseline report fixture
+// untouched at count 0.
+function buildCompactionEstimate(compactions) {
+  if (!compactions.length) return null;
+  const zero = { count: 0, main: 0, subagent: 0, input: [0, 0], cacheRead: 0, output: [0, 0] };
+  const totals = compactions.reduce(foldCompaction, zero);
+  return { ...totals, equiv: computeEquivBand(totals.input, totals.cacheRead, totals.output), basis: 'estimate' };
+}
+
+function groupCompactionsByRun(compactions) {
+  const byRun = new Map();
+  for (const c of compactions) {
+    if (!byRun.has(c.run)) byRun.set(c.run, []);
+    byRun.get(c.run).push(c);
+  }
+  return byRun;
+}
+
 // ── Private: recommendation builders ─────────────────────────────────────────
 
 function cacheHotspotRecs(enrichedGroups) {
@@ -518,16 +566,18 @@ function sortDeep(value) {
 
 // ── Public exports ────────────────────────────────────────────────────────────
 
-export function aggregate(events, priceTable, baselineReport, threshold = DEFAULT_DRIFT_THRESHOLD, skipMarkers = []) {
+export function aggregate(events, priceTable, baselineReport, threshold = DEFAULT_DRIFT_THRESHOLD, skipMarkers = [], compactions = []) {
   if (!events.length) return { schemaVersion: 1, runs: [], note: 'no events provided' };
 
   const byRun = groupByRun(events);
+  const compactionsByRun = groupCompactionsByRun(compactions);
   const allEnriched = [];
   const runs = [];
   // C5: explicit loop instead of map-with-side-effects (CQS).
   for (const [runId, { slug, events: runEvents }] of [...byRun.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     const { run, enriched } = buildRunData(runId, slug, runEvents, priceTable);
-    runs.push(run);
+    const compactionEstimate = buildCompactionEstimate(compactionsByRun.get(runId) ?? []);
+    runs.push(compactionEstimate ? { ...run, compactionEstimate } : run);
     allEnriched.push(...enriched);
   }
 
@@ -567,6 +617,15 @@ function phaseTurnsLines(report) {
   return lines;
 }
 
+// compactionEstimate is advisory and excluded from every totals/cost/drift
+// computation above — this is its one surface, a single line right after the
+// run's own group lines, wording the contract "estimate; not in totals" caveat.
+function formatCompactionsLine({ count, main, subagent, equiv }) {
+  const lo = Math.round(equiv[0] / THOUSAND);
+  const hi = Math.round(equiv[1] / THOUSAND);
+  return `Compactions: ${count} (main ${main}, sub-agent ${subagent}) — estimated summary-call cost ${lo}k–${hi}k equiv (estimate; not in totals)`;
+}
+
 export function renderMarkdown(report) {
   if (!report.runs?.length) {
     return `# Usage Report\n\n_No data: ${report.note ?? 'empty'}_\n`;
@@ -579,6 +638,7 @@ export function renderMarkdown(report) {
         ? `$${g.cost.priced.toFixed(4)}` : `${g.cost.relative} rel`;
       lines.push(`- **${g.phase}/${g.role ?? 'n/a'}** [${g.model}]: tokens=${JSON.stringify(g.tokens)} cacheEff=${g.cacheEfficiency.toFixed(3)} cost=${costStr}`);
     }
+    if (run.compactionEstimate) lines.push(formatCompactionsLine(run.compactionEstimate));
   }
   lines.push(...phaseTurnsLines(report));
   if (report.recommendations?.length) {

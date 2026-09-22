@@ -10,24 +10,24 @@ const ROOT = path.join(__dirname, '..');
 const SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/';
 const BARE_INVOCATION_PATTERN = /\$\{CLAUDE_PLUGIN_ROOT\}\//;
 
-// Pinned counts (grep -rc '\${CLAUDE_PLUGIN_ROOT}/' before rewrite) — 34 total
-// across 15 files. Kept per-file so a miscount on any single file fails loud
-// instead of averaging out against the total.
+// Per-file pinned counts of shimmed invocations — kept per-file so a miscount
+// on any single file fails loud instead of averaging out against the total.
 const TARGET_FILES = [
-  { file: 'hooks/hooks.json', count: 1 },
+  { file: 'hooks/hooks.json', count: 3 },
   { file: 'skills/decisions/SKILL.md', count: 1 },
   { file: 'skills/design/SKILL.md', count: 1 },
   { file: 'skills/documentation/SKILL.md', count: 1 },
+  { file: 'skills/implementation/SKILL.md', count: 1 },
   { file: 'skills/init/SKILL.md', count: 5 },
   { file: 'skills/integrate/SKILL.md', count: 1 },
   { file: 'skills/metrics/SKILL.md', count: 2 },
   { file: 'skills/planning/SKILL.md', count: 2 },
   { file: 'skills/promote-config/SKILL.md', count: 4 },
   { file: 'skills/requirements/SKILL.md', count: 1 },
-  { file: 'skills/review/SKILL.md', count: 1 },
-  { file: 'skills/run/SKILL.md', count: 6 },
+  { file: 'skills/review/SKILL.md', count: 2 },
+  { file: 'skills/run/SKILL.md', count: 8 },
   { file: 'skills/tune/SKILL.md', count: 5 },
-  { file: 'skills/validation/SKILL.md', count: 3 },
+  { file: 'skills/validation/SKILL.md', count: 4 },
   { file: 'skills/workspace/SKILL.md', count: 2 },
 ];
 

@@ -29,7 +29,9 @@ description: Craft architecture phase - run the repo's boundary-check harness ov
    For each resolved technique, run its `probe` (config-file presence / binary
    resolvable). A failed probe declines the technique by absence:
    `NO-OP(architecture:<technique-id>): declined — probe absent`. When every technique
-   is declined: the phase ends here.
+   is declined: the phase ends here and also appends the exact
+   `NO-OP(architecture): all techniques declined — <ids>` line, the one a rebuild reads
+   as the `propose`-gate release (per-technique lines never release it).
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

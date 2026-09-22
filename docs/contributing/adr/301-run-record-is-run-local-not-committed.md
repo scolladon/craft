@@ -1,8 +1,11 @@
 # 301 — The run-record ledger is run-local, not committed
 
-- **Status:** accepted
+- **Status:** superseded by ADR-384
 - **Date:** 2026-07-30
 - **Design:** docs/contributing/design/orchestrator-tax-hardening.md · **Supersedes/Refines:** refines 300 (ledger file shape); departs from the committed-artifact posture of 118/119
+
+> **Superseded by ADR-384** for lifetime: the ledger lives in the git common dir and outlives
+> the worktree, so the delta is derived at `Done`. Run-local and never committed still stand.
 
 ## Context
 
