@@ -47,6 +47,18 @@ const reviewCycleEvents = (turnCount, { spawnCount = turnCount, ...overrides } =
     makeEvent({ phase: 'review', role: 'reviewer', spawnId: i % spawnCount, ...overrides })
   );
 
+// The claude binding's CompactionEstimate shape (see the adapter's telemetry
+// tests for the source vectors this default mirrors).
+const makeCompaction = (overrides = {}) => ({
+  run: 'run-1',
+  sourceKind: 'main',
+  cacheRead: 24715,
+  input: [3000, 5500],
+  output: [1014, 2366],
+  summaryMissing: false,
+  ...overrides,
+});
+
 // ── 1. Token sums, cacheEfficiency, cost.priced ───────────────────────────────
 
 test('Given a single designer UsageEvent and a fixed price table, when aggregate runs, then the group carries summed token classes, the right cacheEfficiency, and cost.priced = Σ class×rate ÷ 1 MTok', () => {
@@ -1827,4 +1839,131 @@ test('Given one run with phaseTurns entries and another run whose phaseTurns key
   assert.match(result, /- \*\*run-a\/design\/planner\*\*: billedTurns=3 toolCalls=5 cycles=1/);
   assert.match(result, /- \*\*run-a\/design\/n\/a\*\*: billedTurns=1 toolCalls=0 cycles=1/, 'a null role must render as "n/a", not an empty label');
   assert.ok(!result.includes('undefined'), 'the schema-less run must not leak a placeholder row');
+});
+
+// ── 68. compactionEstimate — the first worked check ───────────────────────────
+
+test('Given one run-1 event and one main compaction for run-1, when aggregate runs, then runs[0].compactionEstimate matches the first worked check and 12400 lies inside its equiv band', () => {
+  const event = makeEvent();
+  const compaction = makeCompaction();
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE, undefined, undefined, undefined, [compaction]);
+
+  assert.deepEqual(result.runs[0].compactionEstimate, {
+    count: 1, main: 1, subagent: 0,
+    input: [3000, 5500], cacheRead: 24715, output: [1014, 2366],
+    equiv: [10542, 19802], basis: 'estimate',
+  });
+  const [lo, hi] = result.runs[0].compactionEstimate.equiv;
+  assert.ok(lo <= 12400 && 12400 <= hi, `expected 12400 inside [${lo}, ${hi}]`);
+});
+
+// ── 69. compactionEstimate — the second worked check ──────────────────────────
+
+test('Given one run-1 event and one main compaction with the second worked check\'s vector, when aggregate runs, then runs[0].compactionEstimate matches it and 18100 lies inside its equiv band', () => {
+  const event = makeEvent();
+  const compaction = makeCompaction({ cacheRead: 24707, output: [1472, 3436] });
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE, undefined, undefined, undefined, [compaction]);
+
+  assert.deepEqual(result.runs[0].compactionEstimate, {
+    count: 1, main: 1, subagent: 0,
+    input: [3000, 5500], cacheRead: 24707, output: [1472, 3436],
+    equiv: [12831, 25151], basis: 'estimate',
+  });
+  const [lo, hi] = result.runs[0].compactionEstimate.equiv;
+  assert.ok(lo <= 18100 && 18100 <= hi, `expected 18100 inside [${lo}, ${hi}]`);
+});
+
+// ── 70. compactionEstimate — two compactions on one run sum every band ────────
+
+test('Given both worked-check compactions on run-1, the second attributed to a subagent, when aggregate runs, then compactionEstimate.count is 2, main 1, subagent 1, and every band is the sum of the two', () => {
+  const event = makeEvent();
+  const first = makeCompaction();
+  const second = makeCompaction({ sourceKind: 'subagent', cacheRead: 24707, output: [1472, 3436] });
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE, undefined, undefined, undefined, [first, second]);
+
+  const ce = result.runs[0].compactionEstimate;
+  assert.equal(ce.count, 2);
+  assert.equal(ce.main, 1);
+  assert.equal(ce.subagent, 1);
+  assert.deepEqual(ce.input, [6000, 11000]);
+  assert.equal(ce.cacheRead, 49422);
+  assert.deepEqual(ce.output, [2486, 5802]);
+});
+
+// ── 71. compactionEstimate — omitted when there are no compactions ────────────
+
+test('Given no compactions, when aggregate runs, then no run carries a compactionEstimate key', () => {
+  const event = makeEvent();
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE);
+
+  assert.equal('compactionEstimate' in result.runs[0], false);
+});
+
+// ── 72. compactionEstimate — a compaction for an unrelated run is ignored ─────
+
+test('Given a compaction attributed only to run-9, when aggregate runs over a run-1 event, then run-1 carries no compactionEstimate', () => {
+  const event = makeEvent();
+  const compaction = makeCompaction({ run: 'run-9' });
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE, undefined, undefined, undefined, [compaction]);
+
+  assert.equal('compactionEstimate' in result.runs[0], false);
+});
+
+// ── 73. compactionEstimate never perturbs groups, recommendations or drift ────
+
+test('Given the same events with and without compactions and a baseline supplied, when aggregate runs, then the two reports are deep-equal once compactionEstimate is stripped from each run', () => {
+  const events = [makeEvent()];
+  const baselineReport = aggregate(events, PRICE_TABLE);
+  const compaction = makeCompaction();
+  const sut = aggregate;
+  const stripCompactionEstimate = (report) => ({
+    ...report,
+    runs: report.runs.map(({ compactionEstimate: _omit, ...run }) => run),
+  });
+
+  const withoutCompactions = sut(events, PRICE_TABLE, baselineReport);
+  const withCompactions = sut(events, PRICE_TABLE, baselineReport, undefined, undefined, [compaction]);
+
+  assert.deepEqual(stripCompactionEstimate(withCompactions), stripCompactionEstimate(withoutCompactions));
+});
+
+// ── 74. renderMarkdown — the Compactions line follows the run's group lines ───
+
+test('Given the first worked check\'s report, when renderMarkdown runs, then the exact Compactions line follows run-1\'s group line', () => {
+  const event = makeEvent();
+  const compaction = makeCompaction();
+  const report = aggregate([event], PRICE_TABLE, undefined, undefined, undefined, [compaction]);
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  const lines = result.split('\n');
+  const groupLineIndex = lines.findIndex((line) => line.startsWith('- **design/designer**'));
+  assert.ok(groupLineIndex >= 0, `expected a design/designer group line in:\n${result}`);
+  assert.equal(
+    lines[groupLineIndex + 1],
+    'Compactions: 1 (main 1, sub-agent 0) — estimated summary-call cost 11k–20k equiv (estimate; not in totals)'
+  );
+});
+
+// ── 75. renderMarkdown — no Compactions line when the run has no compactionEstimate ──
+
+test('Given a report whose run carries no compactionEstimate, when renderMarkdown runs, then no Compactions: line appears', () => {
+  const event = makeEvent();
+  const report = aggregate([event], PRICE_TABLE);
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  assert.ok(!result.includes('Compactions:'), `unexpected Compactions line in:\n${result}`);
 });

@@ -1,7 +1,14 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { formatMetricsRow, LEDGER_HEADER } from '../src/observability/metrics-line.js';
+import {
+  formatMetricsRow,
+  LEDGER_HEADER,
+  EQUIV_WEIGHT_INPUT,
+  EQUIV_WEIGHT_CACHE_READ,
+  EQUIV_WEIGHT_CACHE_CREATION,
+  EQUIV_WEIGHT_OUTPUT,
+} from '../src/observability/metrics-line.js';
 
 // Shared fixtures — the vector and its expected row are pinned by the plan,
 // so both the exact-row tests and the na-invariant table reuse them.
@@ -155,4 +162,14 @@ test('Given a fresh ledger, when LEDGER_HEADER is read, then its first line mark
   const sut = LEDGER_HEADER;
 
   assert.equal(sut.split('\n')[0], '# craft per-phase metrics (append-only)');
+});
+
+// ── 6. equiv weights are exported so another module can share the same unit ────
+
+test('Given the exported equiv weights, when read, then they match the header\'s stated formula', () => {
+  const sut = { EQUIV_WEIGHT_INPUT, EQUIV_WEIGHT_CACHE_READ, EQUIV_WEIGHT_CACHE_CREATION, EQUIV_WEIGHT_OUTPUT };
+
+  assert.deepEqual(sut, {
+    EQUIV_WEIGHT_INPUT: 1, EQUIV_WEIGHT_CACHE_READ: 0.1, EQUIV_WEIGHT_CACHE_CREATION: 1.25, EQUIV_WEIGHT_OUTPUT: 5,
+  });
 });

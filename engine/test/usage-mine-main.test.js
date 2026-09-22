@@ -112,6 +112,21 @@ const INLINE_LINE = JSON.stringify({
   },
 });
 
+// A compact_boundary line + its summary, on MAIN_USAGE_LINE's session — the
+// minimal pair the claude binding needs to close one CompactionEstimate.
+const COMPACTION_BOUNDARY_LINE = JSON.stringify({
+  type: 'system', subtype: 'compact_boundary', sessionId: 'sess-aaa',
+  timestamp: '2026-01-01T00:02:00.000Z',
+  compactMetadata: {
+    trigger: 'auto', preTokens: 24715, postTokens: 4100, cumulativeDroppedTokens: 0,
+    durationMs: 31000, preservedMessages: 0, preservedSegment: null,
+  },
+});
+const COMPACTION_SUMMARY_LINE = JSON.stringify({
+  type: 'user', sessionId: 'sess-aaa', timestamp: '2026-01-01T00:02:05.000Z',
+  isCompactSummary: true, message: { role: 'user', content: 'x'.repeat(3380) },
+});
+
 const tmpDirs = [];
 after(() => tmpDirs.forEach(d => rmSync(d, { recursive: true, force: true })));
 
@@ -226,6 +241,29 @@ test('Given entries with no includeInline argument, when streamTranscriptFiles r
   const result = await sut(entries, transcriptDir, createReadStream, createInterface, containByRealpath, parseLines);
 
   assert.equal(result.events.length, 1, 'includeInline must default to true when the caller omits it — main-loop inclusion is default-on');
+});
+
+// ─── 1c. streamTranscriptFiles — compactions are collected and returned ──────
+
+test('Given a parser stub returning no compactions field, when streamTranscriptFiles runs, then result.compactions deep-equals []', async () => {
+  const sut = streamTranscriptFiles;
+  const { transcriptDir } = makeFixture({ lines: [MAIN_USAGE_LINE] });
+  const entries = [{ relPath: 'transcript.jsonl', context: null }];
+  const stubParseLines = async () => ({ events: [], skipped: 0, markers: [], unlabelled: 0 });
+
+  const result = await sut(entries, transcriptDir, createReadStream, createInterface, containByRealpath, stubParseLines);
+
+  assert.deepEqual(result.compactions, []);
+});
+
+test('Given the real Claude parseLines over a transcript holding a compaction boundary and its summary, when streamTranscriptFiles runs, then result.compactions has one entry', async () => {
+  const sut = streamTranscriptFiles;
+  const { transcriptDir } = makeFixture({ lines: [COMPACTION_BOUNDARY_LINE, COMPACTION_SUMMARY_LINE] });
+  const entries = [{ relPath: 'transcript.jsonl', context: null }];
+
+  const result = await sut(entries, transcriptDir, createReadStream, createInterface, containByRealpath, parseLines);
+
+  assert.equal(result.compactions.length, 1);
 });
 
 // ─── 2. Read containment rejection → no-op report, exit 0 ────────────────────
@@ -1908,4 +1946,23 @@ test('Given a mixed transcript dir with both the aider history file and a stray 
     tokens.some(t => t.input === 781 && t.output === 19),
     `report must still reflect the aider history file's tokens; got: ${JSON.stringify(tokens)}`,
   );
+});
+
+// ─── compactions thread end to end into report.json and report.md ────────────
+
+test('Given MAIN_USAGE_LINE plus a sess-aaa compaction boundary and its summary, when main runs, then report.json\'s run carries compactionEstimate.count 1 and report.md notes the estimate is not in totals', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = makeFixture({
+    lines: [MAIN_USAGE_LINE, COMPACTION_BOUNDARY_LINE, COMPACTION_SUMMARY_LINE],
+  });
+  const repoRoot = makeTmp('repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  const report = JSON.parse(readFileSync(join(repoRoot, 'report.json'), 'utf8'));
+  assert.equal(report.runs[0].compactionEstimate.count, 1);
+  const md = readFileSync(join(repoRoot, 'report.md'), 'utf8');
+  assert.ok(md.includes('(estimate; not in totals)'), `expected the estimate caveat in:\n${md}`);
 });

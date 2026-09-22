@@ -34,14 +34,22 @@ explicitly. The glob is left as-is rather than narrowed — the same advisory ov
     direction from `tokens`/`cacheCreationTtl`, which repeat per line and fold last-wins. Only the
     claude binding populates it; every other binding omits the field, which the core treats as
     `null`.
+  - `collect` also returns `compactions: CompactionEstimate[]` alongside the `UsageEvent[]` stream
+    — path-free, text-free estimates of a compaction boundary's summary-call cost (see
+    [Claude binding](#claude-binding) below for the shape and formula). Only the claude binding
+    populates it; every other binding returns none. The front door defaults an absent or omitted
+    array to `[]` before calling `aggregate`.
 
-- `aggregate(events, priceTable, baselineReport?, threshold?) → report` — pure core function
-  consuming the `UsageEvent[]` stream produced by `collect`; emits the structured `report` object
-  documented in the [report.json schema](#reportjson-schema) section. Lives in
-  `engine/src/observability/usage-aggregate.js` and is fully deterministic: no clock, no random,
-  no runtime paths. `threshold` (default `DEFAULT_DRIFT_THRESHOLD`, `0.25`) only matters when
-  `baselineReport` is supplied — it feeds the advisory [drift](#drift-drift) signal and has no
-  effect on `groups`, `reviewCycles`, `recommendations`, or `baselineDeltas`.
+- `aggregate(events, priceTable, baselineReport?, threshold?, skipMarkers?, compactions?) → report`
+  — pure core function consuming the `UsageEvent[]` stream produced by `collect`; emits the
+  structured `report` object documented in the [report.json schema](#reportjson-schema) section.
+  Lives in `engine/src/observability/usage-aggregate.js` and is fully deterministic: no clock, no
+  random, no runtime paths. `threshold` (default `DEFAULT_DRIFT_THRESHOLD`, `0.25`) only matters
+  when `baselineReport` is supplied — it feeds the advisory [drift](#drift-drift) signal and has no
+  effect on `groups`, `reviewCycles`, `recommendations`, or `baselineDeltas`. `compactions`
+  (default `[]`) feeds only the advisory `compactionEstimate` key on its matching run (see
+  [Per run](#per-run-runs) below) — it is never read by `groups`, `recommendations`, `drift`, or
+  `baselineDeltas`.
 
 - `serializeReport(report) → string` — stable serialization: `JSON.stringify(sortDeep(report), null, 2) + '\n'`.
   All object keys deep-sorted alphabetically; 2-space indent; single trailing newline. The serialized
@@ -91,6 +99,18 @@ The valid bindings are **`{ claude, pi, opencode, copilot, codex, aider }`**.
   invoked exactly once per sub-agent transcript, and one sub-agent transcript IS one spawn, every
   event a single call emits carries that call's `spawnId`, however many billed turns the
   transcript contains. Main-loop events always carry `spawnId: null`.
+- **Compaction-cost estimate**: a `system` line whose `subtype` is `compact_boundary` opens a
+  pending compaction keyed on the line's `sessionId` (the `run`) and its `sourceKind` (`'main'` or
+  `'subagent'`, from the parse context); `cacheRead` is the boundary's `compactMetadata.preTokens`
+  (a non-finite value coerces to `0`). The next `user` line carrying `isCompactSummary: true`
+  closes it: `input` is the fixed band `[3000, 5500]`; `t = Math.ceil(summaryChars / 4)` from the
+  summary message's character count; `output = [Math.round(1.2 * t), Math.round(2.8 * t)]`;
+  `summaryMissing: false`. A pending compaction that never gets its summary line — the stream ends,
+  or a second boundary opens first — closes instead with the fallback band `output = [1300, 2600]`
+  and `summaryMissing: true`. Every `CompactionEstimate` this binding emits has the shape
+  `{ run, sourceKind, cacheRead, input, output, summaryMissing }`; it carries no path and no
+  summary text. Boundary and summary lines contribute no `UsageEvent` — they carry no
+  `message.usage`.
 
 The binding is called once per invocation by the CLI front-door (`engine/src/observability/usage-mine-main.js`),
 which resolves flags, injects deps, and passes the resulting `UsageEvent[]` to `aggregate`.
@@ -360,6 +380,38 @@ Keys deep-sorted: `groups`, `phaseTurns`, `reviewCycles`, `run`, `slug`.
 ```
 
 `slug` is `null` when no slug was recorded.
+
+`compactionEstimate` is optional: present only when at least one `CompactionEstimate` (see
+[Claude binding](#claude-binding) above) was attributed to this run (`count > 0`); omitted
+entirely otherwise, so every byte-identical baseline report fixture stays untouched at count `0`.
+Its own keys are deep-sorted too:
+
+```json
+{
+  "basis": "estimate",
+  "cacheRead": 24715,
+  "count": 1,
+  "equiv": [10542, 19802],
+  "input": [3000, 5500],
+  "main": 1,
+  "output": [1014, 2366],
+  "subagent": 0
+}
+```
+
+`count`/`main`/`subagent` count the compactions folded into this run, split by
+`CompactionEstimate.sourceKind`. `input`, `cacheRead`, and `output` are each summed across those
+compactions. `equiv[i] = Math.round(input[i] * EQUIV_WEIGHT_INPUT + cacheRead *
+EQUIV_WEIGHT_CACHE_READ + output[i] * EQUIV_WEIGHT_OUTPUT)`, the same three weights the
+[metrics ledger row](#metrics-ledger-row) below shares from `metrics-line.js` (`1`, `0.1`, `5`).
+`basis: 'estimate'` marks the whole key as advisory — it is never read by `groups`,
+`recommendations`, `baselineDeltas`, or `drift`, and its presence leaves `schemaVersion` at `1`
+(additive).
+
+`report.md` renders one line right after the run's group lines when this key is present:
+`Compactions: <count> (main <main>, sub-agent <subagent>) — estimated summary-call cost
+<lo>k–<hi>k equiv (estimate; not in totals)`, with `<lo>`/`<hi>` = `Math.round(equiv[i] / 1000)`. A
+run with no `compactionEstimate` renders no `Compactions:` line.
 
 ### Per group (`runs[*].groups[*]`)
 

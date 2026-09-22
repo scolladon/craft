@@ -267,6 +267,7 @@ function loadJson(filePath, readFileSync, stderr, kind) {
 export async function streamTranscriptFiles(entries, transcriptDir, createReadStream, createInterface, containByRealpath, parseTranscriptLines, since = null, includeInline = true) {
   const allEvents = [];
   const allMarkers = [];
+  const allCompactions = [];
   let totalSkipped = 0;
   let totalUnlabelled = 0;
   let refused = 0;
@@ -291,10 +292,11 @@ export async function streamTranscriptFiles(entries, transcriptDir, createReadSt
       const stream = createReadStream(safeFile);
       const lines = createInterface({ input: stream, crlfDelay: Infinity });
       const parseContext = { ...(entry.context ?? {}), includeInline, spawnId };
-      const { events, skipped, markers, unlabelled } = await parseTranscriptLines(lines, since, parseContext);
+      const { events, skipped, markers, unlabelled, compactions } = await parseTranscriptLines(lines, since, parseContext);
       // G2: for-of avoids spread-on-large-array stack overflow.
       for (const e of events) allEvents.push(e);
       for (const m of markers) allMarkers.push(m);
+      for (const c of compactions ?? []) allCompactions.push(c);
       totalSkipped += skipped;
       totalUnlabelled += unlabelled ?? 0;
     } catch {
@@ -302,10 +304,13 @@ export async function streamTranscriptFiles(entries, transcriptDir, createReadSt
       continue;
     }
   }
-  // C4: propagate total skipped/unlabelled/refused/failed counts and the
-  // phase-skip markers so callers can surface them — every one advisory,
-  // never gating.
-  return { events: allEvents, skipped: totalSkipped, markers: allMarkers, unlabelled: totalUnlabelled, refused, failed };
+  // C4: propagate total skipped/unlabelled/refused/failed counts, the
+  // phase-skip markers, and the compaction estimates so callers can surface
+  // them — every one advisory, never gating.
+  return {
+    events: allEvents, skipped: totalSkipped, markers: allMarkers,
+    unlabelled: totalUnlabelled, refused, failed, compactions: allCompactions,
+  };
 }
 
 // The ports discover() receives — both absorb their own failures into the
@@ -453,7 +458,7 @@ export async function main(argv, io) {
   if (!entries.length) { writeNoOp(noFilesNote(source)); return EXIT_OK; }
 
   // Stream-parse all transcript entries (never readFileSync — see module header).
-  const { events, skipped, markers, unlabelled, refused, failed } = await streamTranscriptFiles(
+  const { events, skipped, markers, unlabelled, refused, failed, compactions } = await streamTranscriptFiles(
     entries,
     safeTranscriptDir,
     createReadStream,
@@ -478,7 +483,7 @@ export async function main(argv, io) {
   const priceTable = loadPriceTable(loadJson(parsed.pricesFile, readFileSync, stderr, '--prices'));
   const baselineReport = loadJson(parsed.baseline, readFileSync, stderr, '--baseline') ?? undefined;
   const threshold = resolveThreshold(parsed.threshold);
-  const report = aggregate(events, priceTable, baselineReport, threshold, markers);
+  const report = aggregate(events, priceTable, baselineReport, threshold, markers, compactions);
 
   attemptWriteReports(repoRoot, report, writeFileSync, containByRealpath, stderr);
   return EXIT_OK;
