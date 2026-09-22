@@ -7,6 +7,14 @@
           { "type": "command", "command": "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/git-no-ext-diff.sh" }
         ]
       }
+    ],
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          { "type": "command", "command": "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/reorient-after-compact.sh" }
+        ]
+      }
     ]
   }
 }
