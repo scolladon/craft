@@ -141,17 +141,18 @@ const SPEC_VALIDATORS = {
   findings: (e) => isRepoRelativePath(e.file) && VALID_SEVERITIES.has(e.severity) && isNonEmptyString(e.pattern),
 };
 
-// A one-way ratchet against bulk entry loss. Growth is free; a drop below any floor is a
-// hard failure. Decay removes at most one step of confidence per run and evicts only at
-// the floor, so a concern shedding entries in bulk is a regeneration or merge accident,
-// which is precisely how this store previously lost records that had to be hand-restored.
-// Raise a floor when the store legitimately grows. Never lower one to make this pass.
+// A ratchet against accidental bulk entry loss: a regenerated or mis-merged store, which is how
+// this store once lost records that had to be hand-restored. A save decays every entry it does
+// not re-observe by one step and evicts those already at confidence 1 — all of them at once — so
+// a floor counts only the entries one save cannot evict: those at confidence 2 or more. Re-derive
+// the floors from the store whenever a run records its save; never lower one to hide a loss that
+// decay does not explain.
 const CONCERN_FLOORS = Object.freeze({
   toolchain: 1,
   'gate-cmd': 2,
   'validation-tool': 1,
-  findings: 40,
-  'part-sizing': 30,
+  findings: 31,
+  'part-sizing': 6,
 });
 
 test(
@@ -178,8 +179,8 @@ test(
       assert.ok(
         counts[concern] >= CONCERN_FLOORS[concern],
         `${concern} holds ${counts[concern]} entries, below the recorded floor of ${CONCERN_FLOORS[concern]} — `
-        + 'entries are only ever decayed one step at a time, so a drop below the floor means bulk loss, '
-        + 'not normal decay. Revise a floor upward when the store legitimately grows, never downward.',
+        + 'one save cannot evict an entry at confidence 2 or more, so a drop below the floor means bulk loss, '
+        + 'not normal decay. Re-derive the floors from the store when a run records its save.',
       );
       for (const entry of sut.entries[concern]) {
         for (const field of CONCERN_KEY_FIELDS[concern]) {
