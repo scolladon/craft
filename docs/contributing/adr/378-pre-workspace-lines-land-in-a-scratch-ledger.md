@@ -5,9 +5,12 @@ subjects:
 ---
 # 378 — Pre-workspace lines land in a scratch ledger under `.claude/craft-runs/`
 
-- **Status:** accepted
+- **Status:** superseded by ADR-383
 - **Date:** 2026-09-22
 - **Design:** docs/contributing/design/auto-compaction-safety.md · **Supersedes/Refines:** refines ADR-300 and ADR-301
+
+> **Superseded by ADR-383** for location only: the run files live under the git common dir,
+> where no commit can write, not under `<main>/.claude/craft-runs/`. Everything else below stands.
 
 ## Context
 
