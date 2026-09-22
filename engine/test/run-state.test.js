@@ -114,6 +114,22 @@ test('Given a ledger awaiting validation and a resolution awaiting validation an
   assert.deepEqual(result, { kind: 'awaiting-mismatch', ledger: ['validation'], resolution: ['validation', 'architecture'] });
 });
 
+test('Given a ledger awaiting two harnesses and a resolution awaiting a one-element subset of them, when deriveRunState runs, then it is still a mismatch', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    ['demo resolve AWAITING(propose): validation,architecture'],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, ['validation']),
+  );
+
+  assert.deepEqual(result, {
+    kind: 'awaiting-mismatch',
+    ledger: ['validation', 'architecture'],
+    resolution: ['validation'],
+  });
+});
+
 test('Given a ledger and a resolution awaiting the same ids in a different order, when deriveRunState runs, then kind is state', () => {
   const sut = deriveRunState;
 
@@ -134,13 +150,14 @@ test('Given no AWAITING line and a non-empty resolved set, when deriveRunState r
   assert.deepEqual(result, { kind: 'awaiting-mismatch', ledger: null, resolution: ['validation'] });
 });
 
-test('Given no AWAITING line and an empty resolved set, when deriveRunState runs, then kind is state with a missing-AWAITING warning', () => {
+test('Given no AWAITING line and an empty resolved set, when deriveRunState runs, then kind is state with a missing-AWAITING warning and no awaiting harnesses', () => {
   const sut = deriveRunState;
 
   const result = sut([], RUN_ID, makeResolution(DEFAULT_IDS, []));
 
   assert.equal(result.kind, 'state');
   assert.deepEqual(result.state.warnings, ['no AWAITING(propose) line for run demo']);
+  assert.deepEqual(result.state.awaitingHarnesses, []);
 });
 
 test('Given mixed-runs.md, when deriveRunState runs for demo, then only demo lines count', () => {
@@ -190,7 +207,7 @@ test('Given a FINDINGS record whose path contains a space, when deriveRunState r
   );
 
   assert.deepEqual(result.state.findings, []);
-  assert.equal(result.state.warnings.length, 1);
+  assert.deepEqual(result.state.warnings, ['malformed FINDINGS record: FINDINGS(code): c1 /tmp/a b.json n=2']);
 });
 
 test('Given a PHASE-START for a phase absent from effective, when deriveRunState runs, then it adds a warning and the phase is not in flight', () => {
@@ -203,7 +220,7 @@ test('Given a PHASE-START for a phase absent from effective, when deriveRunState
   );
 
   assert.deepEqual(result.state.inFlight, []);
-  assert.equal(result.state.warnings.length, 1);
+  assert.deepEqual(result.state.warnings, ['phase bench is not in the effective pipeline']);
 });
 
 test('Given mid-validation.md and the enable-architecture resolution, when deriveRunState runs for demo, then next is propose, awaitingHarnesses is validation, and background holds the harness pid as a number', () => {
@@ -282,4 +299,176 @@ test('Given an AWAITING list with a trailing comma, when deriveRunState runs, th
 
   assert.equal(result.kind, 'state');
   assert.deepEqual(result.state.awaitingHarnesses, ['validation']);
+});
+
+// ── LINE_RE anchoring: a line reaching parseRecord's regex must match in full ──
+
+test('Given a ledger line with leading whitespace before the run id, when deriveRunState runs, then the line is rejected, not parsed from its first non-space token', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    ['demo resolve AWAITING(propose): none', ' demo workspace PHASE-START(workspace): 2026-09-22T10:00:00Z'],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, []),
+  );
+
+  assert.deepEqual(result.state.inFlight, []);
+  assert.deepEqual(result.state.completed, []);
+});
+
+test('Given a ledger line carrying an embedded newline after its record, when deriveRunState runs, then the whole line is rejected, not matched up to the newline', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    ['demo resolve AWAITING(propose): none', 'demo workspace PHASE-START(workspace): 2026-09-22T10:00:00Z\nEXTRA'],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, []),
+  );
+
+  assert.deepEqual(result.state.inFlight, []);
+  assert.deepEqual(result.state.completed, []);
+});
+
+// ── AWAITING_RE anchoring: the token must open the record, not merely appear in it ──
+
+test('Given an AWAITING(propose) token that is not at the start of its record, when deriveRunState runs, then it is not recognized as the run\'s awaiting line', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    ['demo resolve junk AWAITING(propose): validation'],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, ['validation']),
+  );
+
+  assert.deepEqual(result, { kind: 'awaiting-mismatch', ledger: null, resolution: ['validation'] });
+});
+
+// ── PART_RE anchoring and digit width ──
+
+test('Given a PART record with trailing content after its outcome, when deriveRunState runs, then it is rejected as malformed, not matched up to the outcome', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    ['demo resolve AWAITING(propose): none', 'demo implementation PART(1): abc1234 size=pure-module outcome=pass extra'],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, []),
+  );
+
+  assert.deepEqual(result.state.parts, []);
+  assert.deepEqual(result.state.warnings, [
+    'malformed PART record: PART(1): abc1234 size=pure-module outcome=pass extra',
+  ]);
+});
+
+test('Given a malformed PART prefix followed by a well-formed PART record later in the same string, when deriveRunState runs, then the whole record is rejected, not salvaged from its later match', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    [
+      'demo resolve AWAITING(propose): none',
+      'demo implementation PART(x): abc1234 size=pure-module outcome=pass PART(1): def5678 size=pure-module outcome=pass',
+    ],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, []),
+  );
+
+  assert.deepEqual(result.state.parts, []);
+  assert.equal(result.state.warnings.length, 1);
+});
+
+test('Given a PART record with a two-digit part number, when deriveRunState runs, then parts[0].n is the full number, not just its first digit', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    ['demo resolve AWAITING(propose): none', 'demo implementation PART(12): abc1234 size=pure-module outcome=pass'],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, []),
+  );
+
+  assert.deepEqual(result.state.parts, [{ n: 12, sha: 'abc1234', size: 'pure-module', outcome: 'pass' }]);
+});
+
+// ── lastPartPerNumber sorts ascending, not just deduplicates ──
+
+test('Given PART records for three different part numbers submitted out of order, when deriveRunState runs, then parts sort ascending by number', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    [
+      'demo implementation PART(3): abc1234 size=pure-module outcome=pass',
+      'demo implementation PART(1): def5678 size=pure-module outcome=pass',
+      'demo implementation PART(2): fed4321 size=pure-module outcome=pass',
+    ],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, []),
+  );
+
+  assert.deepEqual(result.state.parts.map((part) => part.n), [1, 2, 3]);
+});
+
+// ── checkMalformedPrefixes: the AWAITING(propose) prefix check itself ──
+
+test('Given a malformed AWAITING(propose) record whose paren content is not "propose", when deriveRunState runs, then it adds a malformed AWAITING(propose) warning', () => {
+  const sut = deriveRunState;
+
+  const result = sut(['demo resolve AWAITING(something): x'], RUN_ID, makeResolution(DEFAULT_IDS, []));
+
+  assert.equal(result.kind, 'state');
+  assert.ok(
+    result.state.warnings.includes('malformed AWAITING(propose) record: AWAITING(something): x'),
+    `expected a malformed AWAITING(propose) warning, got: ${JSON.stringify(result.state.warnings)}`,
+  );
+});
+
+// ── resolvedAwaiting: gateDecisions lookup edge cases ──
+
+test('Given a resolution with no gateDecisions field, when deriveRunState runs, then it resolves to no awaiting harnesses without throwing', () => {
+  const sut = deriveRunState;
+  const resolution = { effective: DEFAULT_IDS.map((id) => ({ id })) };
+
+  const result = sut([], RUN_ID, resolution);
+
+  assert.equal(result.kind, 'state');
+  assert.deepEqual(result.state.awaitingHarnesses, []);
+});
+
+test('Given gateDecisions with no propose entry, when deriveRunState runs, then it resolves to no awaiting harnesses without throwing', () => {
+  const sut = deriveRunState;
+  const resolution = {
+    effective: DEFAULT_IDS.map((id) => ({ id })),
+    gateDecisions: [{ phaseId: 'review', awaitingHarnesses: ['decoy'] }],
+  };
+
+  const result = sut([], RUN_ID, resolution);
+
+  assert.equal(result.kind, 'state');
+  assert.deepEqual(result.state.awaitingHarnesses, []);
+});
+
+test('Given gateDecisions with a non-propose entry listed before the propose entry, when deriveRunState runs, then only the propose entry\'s awaitingHarnesses is used', () => {
+  const sut = deriveRunState;
+  const resolution = {
+    effective: DEFAULT_IDS.map((id) => ({ id })),
+    gateDecisions: [
+      { phaseId: 'review', awaitingHarnesses: ['decoy'] },
+      { phaseId: 'propose', awaitingHarnesses: ['validation'] },
+    ],
+  };
+
+  const result = sut(['demo resolve AWAITING(propose): validation'], RUN_ID, resolution);
+
+  assert.equal(result.kind, 'state');
+});
+
+test('Given a propose gate decision with no awaitingHarnesses field, when deriveRunState runs against a ledger with no AWAITING line, then it resolves to no awaiting harnesses, not a mismatch', () => {
+  const sut = deriveRunState;
+  const resolution = {
+    effective: DEFAULT_IDS.map((id) => ({ id })),
+    gateDecisions: [{ phaseId: 'propose' }],
+  };
+
+  const result = sut([], RUN_ID, resolution);
+
+  assert.equal(result.kind, 'state');
+  assert.deepEqual(result.state.warnings, ['no AWAITING(propose) line for run demo']);
 });

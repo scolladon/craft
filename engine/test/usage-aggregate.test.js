@@ -1974,3 +1974,14 @@ test('Given a report whose run carries no compactionEstimate, when renderMarkdow
 
   assert.ok(!result.includes('Compactions:'), `unexpected Compactions line in:\n${result}`);
 });
+
+// ── 76. aggregate's compactions default stays empty when the argument is omitted ──
+
+test('Given a run whose events carry no compactions argument, when aggregate runs, then no compactionEstimate is attached and the call does not throw', () => {
+  const event = makeEvent({ run: undefined });
+  const sut = aggregate;
+
+  const result = sut([event], PRICE_TABLE);
+
+  assert.equal('compactionEstimate' in result.runs[0], false);
+});

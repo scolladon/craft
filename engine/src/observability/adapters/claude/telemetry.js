@@ -216,6 +216,17 @@ function foldEventByMessageId(events, indexByMessageId, messageId, candidateEven
  * @returns {boolean}
  */
 function isCompactBoundary(parsed) {
+  // equivalent mutant (OptionalChaining dropped on `parsed?.subtype`): this
+  // operand is only ever reached once the `&&`'s first operand is true, which
+  // requires `parsed?.type === 'system'` — a nullish `parsed` makes that
+  // `undefined === 'system'`, always false, so `parsed?.subtype` never runs
+  // against a nullish `parsed` in the first place.
+  // equivalent mutant (OptionalChaining dropped on `parsed?.type`): parseLines
+  // calls this first, with no non-optional `parsed.X` access ahead of it — but
+  // every path that falls through both boundary/summary checks then hits an
+  // unguarded `parsed.sessionId` or `parsed.message` right after (see
+  // parseLines), so a nullish `parsed` crashes there regardless; guarding this
+  // chain only moves the crash site, never whether it crashes.
   return parsed?.type === 'system' && parsed?.subtype === 'compact_boundary';
 }
 
@@ -226,6 +237,11 @@ function isCompactBoundary(parsed) {
  * @returns {boolean}
  */
 function isCompactSummary(parsed) {
+  // equivalent mutant (OptionalChaining dropped): same downstream-crash proof
+  // as isCompactBoundary above — parseLines calls this right after
+  // isCompactBoundary(parsed) returned false, still ahead of the unguarded
+  // `parsed.sessionId` / `parsed.message` access every fall-through line
+  // reaches next, so a nullish `parsed` crashes there either way.
   return parsed?.isCompactSummary === true;
 }
 

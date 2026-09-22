@@ -117,6 +117,21 @@ test('Given a ledger with no AWAITING line and a non-empty resolved set, when ma
   );
 });
 
+test('Given a ledger awaiting two harnesses and a resolution awaiting only one of them, when main runs, then the ledger side of the mismatch is comma-joined', () => {
+  const sut = main;
+  const io = makeIo(makeResolutionJson(DEFAULT_IDS, ['validation']));
+  const ledgerPath = writeTmp('multi-awaiting.md', '# craft run record (append-only)\ndemo resolve AWAITING(propose): validation,architecture\n');
+
+  const result = sut([ledgerPath, '--run', 'demo'], io);
+
+  assert.equal(result, 1);
+  assert.equal(io.stdout.joined(), '');
+  assert.equal(
+    io.stderr.joined(),
+    'run-state: AWAITING(propose) mismatch — ledger: validation,architecture; resolution: validation\n',
+  );
+});
+
 // ─── exit 2: one stderr line, empty stdout, per invalid-input case ──────────
 
 test('Given a missing ledger file, when main runs, then it returns 2 with one stderr line and empty stdout', () => {
@@ -131,7 +146,7 @@ test('Given a missing ledger file, when main runs, then it returns 2 with one st
   assert.match(io.stderr.joined(), /^run-state: /);
 });
 
-test('Given stdin that is not JSON, when main runs, then it returns 2 with one stderr line and empty stdout', () => {
+test('Given stdin that is not JSON, when main runs, then it returns 2 with one stderr line carrying the real parse error, not the fallback effective-array message', () => {
   const sut = main;
   const io = makeIo('not json');
   const ledgerPath = join(FIXTURES_DIR, 'mid-review.md');
@@ -142,9 +157,13 @@ test('Given stdin that is not JSON, when main runs, then it returns 2 with one s
   assert.equal(io.stdout.joined(), '');
   assert.equal(io.stderr.joined().split('\n').filter(Boolean).length, 1);
   assert.match(io.stderr.joined(), /^run-state: /);
+  assert.ok(
+    !io.stderr.joined().includes('effective array'),
+    `expected the JSON.parse error, not the effective-array fallback, got: ${io.stderr.joined()}`,
+  );
 });
 
-test('Given stdin {} with no effective array, when main runs, then it returns 2 with one stderr line and empty stdout', () => {
+test('Given stdin {} with no effective array, when main runs, then it returns 2 with the effective-array stderr message', () => {
   const sut = main;
   const io = makeIo('{}');
   const ledgerPath = join(FIXTURES_DIR, 'mid-review.md');
@@ -153,8 +172,7 @@ test('Given stdin {} with no effective array, when main runs, then it returns 2 
 
   assert.equal(result, 2);
   assert.equal(io.stdout.joined(), '');
-  assert.equal(io.stderr.joined().split('\n').filter(Boolean).length, 1);
-  assert.match(io.stderr.joined(), /^run-state: /);
+  assert.equal(io.stderr.joined(), 'run-state: resolution JSON must have an effective array\n');
 });
 
 test('Given no --run flag, when main runs, then it returns 2 with one stderr line and empty stdout', () => {
@@ -204,7 +222,7 @@ test('Given an unknown flag, when main runs, then it returns 2 naming the flag',
   assert.match(io.stderr.joined(), /unknown option --x/);
 });
 
-test('Given a surplus positional argument, when main runs, then it returns 2 with one stderr line and empty stdout', () => {
+test('Given a surplus positional argument, when main runs, then it returns 2 naming the surplus argument on stderr', () => {
   const sut = main;
   const io = makeIo(DEFAULT_RESOLUTION_JSON);
   const ledgerPath = join(FIXTURES_DIR, 'mid-review.md');
@@ -213,8 +231,7 @@ test('Given a surplus positional argument, when main runs, then it returns 2 wit
 
   assert.equal(result, 2);
   assert.equal(io.stdout.joined(), '');
-  assert.equal(io.stderr.joined().split('\n').filter(Boolean).length, 1);
-  assert.match(io.stderr.joined(), /^run-state: /);
+  assert.equal(io.stderr.joined(), 'run-state: unexpected argument extra\n');
 });
 
 test('Given stdin null, when main runs, then it returns 2 with one stderr line and empty stdout', () => {

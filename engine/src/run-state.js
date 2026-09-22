@@ -12,6 +12,14 @@ const PHASE_ID = '[a-z][a-z0-9-]*';
 // token can carry unambiguously: no parentheses, colon or whitespace.
 const TOKEN_ID = '[^():\\s]+';
 
+// equivalent mutant (trailing `$` dropped): this regex only ever runs against
+// `record`, which is always LINE_RE's own third capture group — and LINE_RE's
+// `(.*)$` can only match a line with no embedded newline (`.` never crosses
+// one), so `record` is always newline-free here. A greedy `(.+)` on a
+// newline-free string already extends to the string's true end on its own,
+// making the trailing `$` redundant — unlike PART_RE's own trailing `$`,
+// whose last group is a fixed `(pass|blocked)` alternation that does NOT
+// self-extend, so dropping it there is observable.
 const AWAITING_RE = /^AWAITING\(propose\): (.+)$/;
 const PHASE_START_RE = new RegExp(`^PHASE-START\\((${PHASE_ID})\\): (\\S+)$`);
 const PHASE_DONE_RE = new RegExp(`^PHASE-DONE\\((${PHASE_ID})\\): (.*)$`);

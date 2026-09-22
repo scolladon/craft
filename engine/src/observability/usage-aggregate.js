@@ -300,6 +300,8 @@ function foldCompaction(totals, c) {
 
 function computeEquivBand(input, cacheRead, output) {
   return [0, 1].map((i) =>
+    // equivalent mutant (* -> /): EQUIV_WEIGHT_INPUT is the fixed constant 1, and
+    // x*1 === x/1 for every finite x, so the operator choice here is unobservable.
     Math.round(input[i] * EQUIV_WEIGHT_INPUT + cacheRead * EQUIV_WEIGHT_CACHE_READ + output[i] * EQUIV_WEIGHT_OUTPUT)
   );
 }

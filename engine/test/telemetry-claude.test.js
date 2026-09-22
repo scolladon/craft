@@ -1129,3 +1129,55 @@ test('Given a compaction summary with no open boundary before it, when parseLine
   assert.deepEqual(result.compactions, []);
   assert.deepEqual(result.events, []);
 });
+
+// ── parseLines — isCompactBoundary requires both type AND subtype, never either alone ──
+
+test('Given a line whose subtype is compact_boundary but whose type is not system, when parseLines runs, then no compaction is opened', async () => {
+  const sut = parseLines;
+  const lines = [
+    JSON.stringify({ type: 'user', subtype: 'compact_boundary', sessionId: 'sess-wrong-type', timestamp: '2026-03-01T10:00:00.000Z', compactMetadata: { preTokens: 7000 } }),
+  ];
+
+  const result = await sut(asyncLines(lines));
+
+  assert.deepEqual(result.compactions, []);
+});
+
+test('Given a system line whose subtype is not compact_boundary, when parseLines runs, then no compaction is opened', async () => {
+  const sut = parseLines;
+  const lines = [
+    JSON.stringify({ type: 'system', subtype: 'other', sessionId: 'sess-wrong-subtype', timestamp: '2026-03-01T10:00:00.000Z', compactMetadata: { preTokens: 7000 } }),
+  ];
+
+  const result = await sut(asyncLines(lines));
+
+  assert.deepEqual(result.compactions, []);
+});
+
+// ── parseLines — openCompaction and closePendingCompaction tolerate missing fields ──
+
+test('Given a compact boundary with no compactMetadata field, when parseLines runs, then the estimate closes with cacheRead 0', async () => {
+  const sut = parseLines;
+  const lines = [
+    JSON.stringify({ type: 'system', subtype: 'compact_boundary', sessionId: 'sess-no-metadata', timestamp: '2026-03-01T10:00:00.000Z' }),
+  ];
+
+  const result = await sut(asyncLines(lines));
+
+  assert.equal(result.compactions.length, 1);
+  assert.equal(result.compactions[0].cacheRead, 0);
+});
+
+test('Given a compaction summary line with no message field, when parseLines runs, then the estimate falls back to the summary-missing band', async () => {
+  const sut = parseLines;
+  const lines = [
+    JSON.stringify({ type: 'system', subtype: 'compact_boundary', sessionId: 'sess-no-message', timestamp: '2026-03-01T10:00:00.000Z', compactMetadata: { preTokens: 7000 } }),
+    JSON.stringify({ type: 'user', isCompactSummary: true, sessionId: 'sess-no-message', timestamp: '2026-03-01T10:00:05.000Z' }),
+  ];
+
+  const result = await sut(asyncLines(lines));
+
+  assert.equal(result.compactions.length, 1);
+  assert.equal(result.compactions[0].summaryMissing, true);
+  assert.deepEqual(result.compactions[0].output, [1300, 2600]);
+});
