@@ -571,7 +571,7 @@ instead of trusting the summary it just produced.
    | In-flight phase | Resume from |
    |---|---|
    | any agent phase except review | the phase's committed artifact (design doc, plan, ADRs, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
-   | `workspace` | the pointer still names the scratch and `../<repo>-<slug>` exists on `<type>/<slug>`: the one-call setup failed part-way — re-run `worktree-setup.sh <worktree>`, then `move`; escalate if setup fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
+   | `workspace` | the pointer still names the scratch and `../<repo>-<slug>` exists on `<type>/<slug>`: the one-call setup or move failed part-way — re-run `worktree-setup.sh <abs-worktree-path> [manifest scripts.post-setup]`, then `move`; escalate if either fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
    | `decisions` | ADRs are committed one at a time; the user's answers survive as verbatim user messages. |
    | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. |
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |

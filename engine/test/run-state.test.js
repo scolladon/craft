@@ -226,17 +226,25 @@ test('Given mid-validation.md and the enable-architecture resolution, when deriv
 });
 
 const MALFORMED_TIMELINE_RECORDS = [
-  { label: 'a PHASE-START whose timestamp holds a space', line: 'demo design PHASE-START(design): 2026-09-22 10:05:00' },
-  { label: 'a PHASE-DONE with no outcome separator', line: 'demo review PHASE-DONE(review):' },
+  {
+    label: 'a PHASE-START whose timestamp holds a space',
+    line: 'demo design PHASE-START(design): 2026-09-22 10:05:00',
+    warning: 'malformed PHASE-START record: PHASE-START(design): 2026-09-22 10:05:00',
+  },
+  {
+    label: 'a PHASE-DONE with no outcome separator',
+    line: 'demo review PHASE-DONE(review):',
+    warning: 'malformed PHASE-DONE record: PHASE-DONE(review):',
+  },
 ];
 
-for (const { label, line } of MALFORMED_TIMELINE_RECORDS) {
+for (const { label, line, warning } of MALFORMED_TIMELINE_RECORDS) {
   test(`Given ${label}, when deriveRunState runs, then it adds exactly one malformed-record warning`, () => {
     const sut = deriveRunState;
 
     const result = sut(['demo resolve AWAITING(propose): none', line], RUN_ID, makeResolution(DEFAULT_IDS, []));
 
-    assert.deepEqual(result.state.warnings, [`malformed ${line.split(' ')[2].split('(')[0]} record: ${line.split(' ').slice(2).join(' ')}`]);
+    assert.deepEqual(result.state.warnings, [warning]);
   });
 }
 

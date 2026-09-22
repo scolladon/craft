@@ -38,18 +38,19 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    `docs/contributing/specs/run-record.md` Token vocabulary). The single-writer rule (R4)
    is untouched — the phase emits the ledger line, the orchestrator appends it and
    derives the delta from it here. `save` itself still runs once, atomically, at `Done`.
-   Still before teardown, append `PHASE-DONE(integrate): <outcome>`, then run
-   `run-ledger.sh snapshot <run-id>`: it keeps this run's own lines — the `PHASE-START`
-   isos `Done` passes to `--since` included — in `<run-id>.final.md` beside the pointer.
-   After teardown no ledger line can land.
    Then **consult the `teardown` action** separately before worktree teardown (per-verb
-   granularity, ADR-126; see `docs/contributing/specs/policy.md`) and:
+   granularity, ADR-126; see `docs/contributing/specs/policy.md`). Append its `POLICY(...)`
+   line together with `PHASE-DONE(integrate): <outcome>` in one `run-ledger.sh append`,
+   then run `run-ledger.sh snapshot <run-id>`: it keeps this run's own lines — the
+   `PHASE-START` isos `Done` passes to `--since` included — in `<run-id>.final.md` beside
+   the pointer. After teardown no ledger line can land. Then:
    ```bash
    "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \
      [--pre-teardown <manifest scripts.pre-teardown>]
    ```
    The script refuses while the validation run-lock is alive (dead-PID locks
-   auto-clear; a live lock needs `--force`, which is recorded in the run record).
+   auto-clear; a live lock needs `--force`: append that line to the run record and re-run
+   `run-ledger.sh snapshot <run-id>` before the forced call).
    The pre-teardown script is the matched pair of workspace-phase tooling activation —
    every activation gets its prune.
 4. **Drift-baseline refresh offer:** when the merged change touched `skills/` or

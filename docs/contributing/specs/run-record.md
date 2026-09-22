@@ -13,10 +13,10 @@ That tree changes exactly once per run, so the root is stated per write point ra
 once for the file. `workspace` creates the worktree; lines produced **before** it go to a
 scratch ledger — `<run-id>.pre.md` under `run-ledger.sh dir` (see Run directory below) —
 and `workspace` moves that scratch into the **worktree** ledger in one call, after which
-every write goes to the worktree root. Only `.claude/craft-runs/` is ever written in the
-checkout, answering the old worry one reason at a time: the scratch is moved, never
-split; `close` removes the run's files; residue stays confined to one directory and
-`open` sweeps stale pointers. Under `workspace: { strategy: in-place }` there is no
+every write goes to the worktree root. Nothing but the ledger is ever written in a
+working tree — the run's other files live in the git common dir — answering the old
+worry one reason at a time: the scratch is moved, never split; `close` removes the run's
+files; residue stays confined to one directory and `open` sweeps stale pointers. Under `workspace: { strategy: in-place }` there is no
 second tree, so the checkout root is the only root and the file opens at resolve time.
 `skills/run/SKILL.md` §0 step 4 is the binding statement of this rule.
 
@@ -57,10 +57,12 @@ since `save` performs no validation on the write path.
 
 ## Run directory
 
-Every run-scoped file besides the ledger itself lives under one directory:
+Every run-scoped file besides the ledger itself lives under one directory, inside the git
+common dir, where no commit can write — so a cloned repository can never plant a pointer,
+a scratch or a snapshot (ADR-383):
 
 ```
-<main>/.claude/craft-runs/                 <main> = parent dir of `git rev-parse --path-format=absolute --git-common-dir`; gitignored
+<git-common-dir>/craft-runs/              <git-common-dir> = `git rev-parse --path-format=absolute --git-common-dir`; shared by every worktree
   <run-id>.pointer    "<run-key> <abs-ledger-path>"   written by open, retargeted by move, removed by close
   <run-id>.pre.md     scratch ledger, worktree strategy only, from §0 step 4 until `workspace`
   <run-id>.delta.json memory delta, written at integrate step 3, read at Done
@@ -73,9 +75,11 @@ $TMPDIR/craft-review.XXXXXX/<dim>.c<N>.json normalised review findings, out of t
 in it needs JSON escaping, so it greps literally in a transcript. The pointer is one
 line, `<run-key> <abs-ledger-path>`, the path being everything after the first space.
 With `workspace: { strategy: in-place }` the pointer names
-`<main>/.claude/craft-run-record.md` directly and there is no scratch file. Everything
-under `.claude/craft-runs/` inherits the ledger's ignore posture (see Lifetime below); no
-`.gitignore` change ships for it.
+`<main>/.claude/craft-run-record.md` directly — `<main>` being the main worktree's root —
+and there is no scratch file. A pointer binds only when its key names its own run-id with
+a past timestamp and it names that run's own scratch or a registered worktree's ledger
+that is neither symlinked nor git-tracked (checked case-insensitively from the worktree
+root).
 
 ## Token vocabulary
 
@@ -87,12 +91,12 @@ Seven more fixed, greppable tokens join the existing run-record family (`NO-OP(<
 | Token | Regex over `<record>` | Emitted by |
 |---|---|---|
 | `RESOLVE: <craft flags verbatim, or none>` | `^RESOLVE: (.*)$` (not consumed by `run-state`) | run skill §0 step 4 |
-| `AWAITING(propose): <ids comma-joined, or none>` | `^AWAITING\(propose\): (.+)$` — `none` → `[]`, else split on `,` and trim | run skill §0 step 1d, appended at step 4 |
+| `AWAITING(propose): <ids comma-joined, or none>` | `^AWAITING\(propose\): (.+)$` — trimmed; `none` → `[]`, else split on `,`, each id trimmed, empty ids dropped | run skill §0 step 1d, appended at step 4 |
 | `PHASE-START(<phase>): <iso8601>` | `^PHASE-START\(([a-z][a-z0-9-]*)\): (\S+)$` | run skill walk step 4 |
 | `PHASE-DONE(<phase>): <one-line outcome>` | `^PHASE-DONE\(([a-z][a-z0-9-]*)\): (.*)$` | run skill walk step 7 |
 | `PART(<n>): <sha> size=<size> outcome=<pass\|blocked>` | `^PART\((\d+)\): ([0-9a-f]{7,40}) size=(\S+) outcome=(pass\|blocked)$` | implementation procedure 2 |
-| `FINDINGS(<dimension>): c<cycle> <path> n=<count>` | `^FINDINGS\(([a-z][a-z0-9-]*)\): c(\d+) (\S+) n=(\d+)$` | review procedure 2 |
-| `HARNESS-BG(<phase>:<technique-id>): pid=<pid> out=<path> spec=<path\|none>` | `^HARNESS-BG\(([a-z][a-z0-9-]*):([a-z0-9][a-z0-9-]*)\): pid=(\d+) out=(\S+) spec=(\S+)$` | validation procedure 1 (background) |
+| `FINDINGS(<dimension>): c<cycle> <path> n=<count>` | `^FINDINGS\(([^():\s]+)\): c(\d+) (\S+) n=(\d+)$` | review procedure 2 |
+| `HARNESS-BG(<phase>:<technique-id>): pid=<pid> out=<path> spec=<path\|none>` | `^HARNESS-BG\(([a-z][a-z0-9-]*):([^():\s]+)\): pid=(\d+) out=(\S+) spec=(\S+)$` | validation procedure 1 (background) |
 
 A record that starts with a new token's literal prefix but fails that token's full regex
 adds a `warnings[]` entry (`run-state`) instead of parsing.
@@ -191,9 +195,9 @@ executing-harness). The compaction hooks only read.
 ## Lifetime — run-local, not committed
 
 The ledger is gitignored by the existing `.claude/*` rule — it is not one of the three
-re-included names (`craft-memory.md`, `craft-metrics.md`, `workflow.md`). Everything
-under `.claude/craft-runs/` inherits the same posture. No `.gitignore` change ships for
-either, in this part or any other (ADR-301).
+re-included names (`craft-memory.md`, `craft-metrics.md`, `workflow.md`). The run
+directory sits inside the git common dir, which git never tracks. No `.gitignore` change
+ships for either, in this part or any other (ADR-301).
 
 The ledger survives a context reset for exactly as long as the worktree does. It does not
 survive `scripts/worktree-teardown.sh` (the `integrate` phase's step 3), which removes
@@ -203,7 +207,7 @@ to read.
 
 The run directory's own files — the pointer, the scratch (if any), the delta file and the
 snapshot —
-live in the checkout, not the worktree, so they outlive teardown until `run-ledger.sh
+live in the git common dir, not the worktree, so they outlive teardown until `run-ledger.sh
 close <run-id>` removes them: the last action of `skills/run/SKILL.md` §Done.
 
 ## Derivation precedes teardown
@@ -227,7 +231,7 @@ Two live cases at `Done`:
 - **Teardown ran.** The ledger's on-disk tail is `integrate`'s `PHASE-DONE`, appended
   just before it. Anything `Done` appends exists in-session only — where it already
   ships, in the final summary and the PR body — while `<run-id>.delta.json` and
-  `<run-id>.final.md` survive teardown (they live in the checkout, not the worktree) for
+  `<run-id>.final.md` survive teardown (they live in the git common dir, not the worktree) for
   `Done` to read.
 
 ## Failure posture

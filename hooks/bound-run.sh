@@ -6,10 +6,12 @@
 
 readonly BOUND_RUN_JQ_MISSING_MESSAGE='craft: jq is required to bind a run'
 
-# C0 controls except tab and newline, plus DEL: ledger bytes reach hook stdout,
-# and an escape sequence must never ride along to the terminal or the model.
+# C0 controls except tab and newline, DEL, the UTF-8 C1 controls and the bidi
+# overrides: ledger bytes reach hook stdout, and an escape sequence must never
+# ride along to the terminal or the model. Byte-level, so every awk pass using
+# it runs under LC_ALL=C — a multibyte locale also aborts awk on invalid UTF-8.
 craft_control_chars_ere() {
-  printf '%s' '[\001-\010\013-\037\177]'
+  printf '%s' '[\001-\010\013-\037\177]|\302[\200-\237]|\342\200[\252-\256]|\342\201[\246-\251]'
 }
 
 # Resolves the directory this file lives in with pure parameter expansion and

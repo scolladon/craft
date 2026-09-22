@@ -235,10 +235,9 @@ test(
 );
 
 test('Given hooks/hooks.json, when parsed, then PreToolUse is unchanged', () => {
-  const raw = fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8');
-  const sut = JSON.parse;
+  const sut = JSON.parse(fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8'));
 
-  const result = sut(raw).hooks.PreToolUse;
+  const result = sut.hooks.PreToolUse;
 
   assert.deepStrictEqual(result, [
     {
@@ -264,7 +263,7 @@ for (const hookName of COMPACTION_HOOKS) {
     }
   });
 
-  test(`Given a git repo with no .claude/craft-runs/, when ${hookName} runs, then it prints nothing and exits 0`, () => {
+  test(`Given a git repo with no run directory, when ${hookName} runs, then it prints nothing and exits 0`, () => {
     const { main, cleanup } = createRunRepo();
     try {
       const transcriptPath = writeTranscript(main, ['unrelated']);
@@ -664,6 +663,49 @@ for (const hookName of COMPACTION_HOOKS) {
 
       assert.strictEqual(result.status, 0);
       assert.strictEqual(result.stdout, '');
+      assert.strictEqual(result.stderr, '', 'an unbound cwd is a silent no-op, not a caught failure');
+    } finally {
+      bound.cleanup();
+    }
+  });
+}
+
+const C1_AND_BIDI = /\u009b|\u009d|\u0085|‮|⁦/;
+
+test(
+  'Given a ledger line carrying UTF-8 C1 controls and bidi overrides, when reorient-after-compact runs, then its output carries none of them',
+  () => {
+    const bound = bindRun({ ledgerLines: ['demo design note \u009b31m csi \u009d osc ‮ rtl ⁦ isolate end'] });
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut('reorient-after-compact.sh', compactionPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+
+      assert.strictEqual(result.status, 0);
+      assert.match(result.stdout, /demo design note 31m csi {2}osc {2}rtl {2}isolate end/);
+      assert.doesNotMatch(result.stdout, C1_AND_BIDI);
+    } finally {
+      bound.cleanup();
+    }
+  },
+);
+
+for (const hookName of COMPACTION_HOOKS) {
+  test(`Given a UTF-8 locale and a ledger line holding a byte that is not valid UTF-8, when ${hookName} runs, then it still prints its block`, () => {
+    const bound = bindRun({ ledgerLines: ['demo implementation PHASE-START(implementation): 2026-09-22T10:00:00Z'] });
+    try {
+      fs.appendFileSync(bound.ledgerPath, Buffer.from('demo design PHASE-START(caf\xe9): 2026-09-22T10:05:00Z\n', 'latin1'));
+      const sut = runHookWithPayload;
+
+      const result = sut(
+        hookName,
+        payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }),
+        { LC_ALL: 'en_US.UTF-8', LANG: 'en_US.UTF-8' },
+      );
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stderr, '');
+      assert.ok(result.stdout.includes('demo'), `expected the block, got: ${JSON.stringify(result.stdout)}`);
     } finally {
       bound.cleanup();
     }

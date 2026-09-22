@@ -124,7 +124,7 @@ test('Given skills/run/SKILL.md, when scanned whole, then it carries every run-s
 });
 
 test('Given the run-record spec, when read, then it names the run directory and the compaction-survival hooks', () => {
-  assert.ok(runRecordSpec.includes('.claude/craft-runs/'), 'expected the run directory path');
+  assert.ok(runRecordSpec.includes('<git-common-dir>/craft-runs/'), 'expected the run directory inside the git common dir');
 
   const result = sliceRegion(runRecordSpec, /^## Compaction survival/, /^## /);
   assert.ok(result.includes('hooks/reorient-after-compact.sh'));
@@ -367,13 +367,18 @@ test('Given skills/*/SKILL.md, when scanned for the retired flushed-at-run-end w
   assert.strictEqual(result.trim(), '', `expected no file to carry 'flushed at run end':\n${result}`);
 });
 
-test('Given skills/integrate/SKILL.md step 3, when read, then PHASE-DONE(integrate) and the snapshot both land before worktree-teardown.sh runs', () => {
+test('Given skills/integrate/SKILL.md step 3, when read, then the teardown consult, PHASE-DONE(integrate), the snapshot and the teardown run in that order', () => {
   const content = fs.readFileSync(INTEGRATE_SKILL_PATH, 'utf8');
-  const teardownAt = content.indexOf('worktree-teardown.sh" <main-repo-dir>');
+  const result = sliceRegion(content, /^3\. \*\*Derive the `Done`-bound memory delta/, /^4\. /);
 
-  assert.notStrictEqual(teardownAt, -1, 'expected the teardown invocation');
-  assert.ok(content.indexOf('PHASE-DONE(integrate)') !== -1 && content.indexOf('PHASE-DONE(integrate)') < teardownAt);
-  assert.ok(content.indexOf('run-ledger.sh snapshot <run-id>') !== -1 && content.indexOf('run-ledger.sh snapshot <run-id>') < teardownAt);
+  const order = [
+    result.indexOf('consult the `teardown` action'),
+    result.indexOf('PHASE-DONE(integrate)'),
+    result.indexOf('run-ledger.sh snapshot <run-id>'),
+    result.indexOf('worktree-teardown.sh" <main-repo-dir>'),
+  ];
+  assert.ok(order.every((at) => at !== -1), `expected every step in the region: ${order}`);
+  assert.deepStrictEqual([...order].sort((a, b) => a - b), order, 'consult, then PHASE-DONE, then snapshot, then teardown');
 });
 
 test('Given skills/integrate/SKILL.md step 5, when read, then it no longer closes the run record and defers close to Done', () => {

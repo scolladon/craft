@@ -130,8 +130,13 @@ re-derivable (idempotent re-run) or re-producible (respawn from artifact, the ex
 
 ### On-disk layout
 
+> Revised in review (ADR-383): the run directory moved from `<main>/.claude/craft-runs/` to
+> `<git-common-dir>/craft-runs/`, where no commit can write; a case-insensitive filesystem
+> let a committed case-variant pointer pass the in-tree trust check. The layout below reads
+> with that root.
+
 ```
-<main>/.claude/craft-runs/                 <main> = dirname of git-common-dir (P1); gitignored
+<git-common-dir>/craft-runs/              shared by every worktree; never tracked
   <run-id>.pointer    "<run-key> <abs-ledger-path>"   open → move → close (ADR-377)
   <run-id>.pre.md     scratch ledger, worktree strategy only, §0 step 4 → workspace (ADR-378)
   <run-id>.delta.json memory delta, integrate step 3 → Done (ADR-378)

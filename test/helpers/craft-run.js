@@ -32,6 +32,11 @@ function createRunRepo() {
   return { parent, main, cleanup };
 }
 
+// Run files live in the git common dir, where no commit can write.
+function runsDirOf(main) {
+  return path.join(main, '.git', 'craft-runs');
+}
+
 function addWorktree(main, dirName = 'repo-demo', branch = 'feat/demo') {
   const worktreePath = path.join(path.dirname(main), dirName);
   git(main, ['worktree', 'add', '-q', '-b', branch, worktreePath]);
@@ -89,6 +94,8 @@ function bindRun({ runId = 'demo', ledgerLines = [], worktree = true } = {}) {
 module.exports = {
   LEDGER_SCRIPT,
   LEDGER_HEADER,
+  git,
+  runsDirOf,
   createRunRepo,
   addWorktree,
   runLedger,

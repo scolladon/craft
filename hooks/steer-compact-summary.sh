@@ -61,7 +61,7 @@ readonly STEER_IN_FLIGHT_AWK_PROGRAM="
 # report as the single stderr reason line, not duplicated here.
 in_flight_phases() {
   local run_id="$1" ledger="$2"
-  awk -v id="$run_id" -v max_chars="$STEER_LIST_MAX_CHARS" -v control_chars="$(craft_control_chars_ere)" \
+  LC_ALL=C awk -v id="$run_id" -v max_chars="$STEER_LIST_MAX_CHARS" -v control_chars="$(craft_control_chars_ere)" \
     "$STEER_IN_FLIGHT_AWK_PROGRAM" "$ledger" 2>/dev/null
 }
 

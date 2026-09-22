@@ -13,7 +13,7 @@ set -euo pipefail
 export LC_ALL=C
 
 readonly LEDGER_HEADER='# craft run record (append-only)'
-readonly RUNS_SUBDIR='.claude/craft-runs'
+readonly RUNS_SUBDIR='craft-runs'
 readonly RECORD_FILENAME='craft-run-record.md'
 readonly POINTER_SUFFIX='.pointer'
 readonly SCRATCH_SUFFIX='.pre.md'
@@ -44,12 +44,22 @@ die() {
   exit "$code"
 }
 
-# MAIN is physical so every path built from it compares byte-for-byte with
-# the physical worktree roots.
+# GIT_COMMON holds the run files: no commit can write inside it. MAIN is the
+# main worktree's root, taken from git rather than from the git dir's parent
+# (a submodule or a separate git dir has no worktree there). Both are
+# physical, so every path built from them compares byte-for-byte.
 resolve_main() {
   local common_dir
   common_dir="$(git rev-parse --path-format=absolute --git-common-dir)" || return 1
-  MAIN="$(cd "$(dirname "$common_dir")" && pwd -P)"
+  GIT_COMMON="$(cd "$common_dir" && pwd -P)"
+  MAIN="$(main_worktree_root)"
+  [ -n "$MAIN" ]
+}
+
+main_worktree_root() {
+  local root
+  root="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
+  if [ -d "$root" ]; then (cd "$root" && pwd -P); fi
 }
 
 # Whole-string matches: a value carrying a newline never passes on the
@@ -76,7 +86,7 @@ utc_now() {
 }
 
 runs_dir() {
-  printf '%s/%s' "$MAIN" "$RUNS_SUBDIR"
+  printf '%s/%s' "$GIT_COMMON" "$RUNS_SUBDIR"
 }
 
 pointer_path() {
@@ -123,15 +133,22 @@ has_symlink_below() {
   return 1
 }
 
+# Asked from <root> with a case-insensitive pathspec: on a case-insensitive
+# filesystem a committed `.Claude/Craft-Run-Record.md` is this very file.
 is_git_tracked() {
-  local path="$1"
-  git -C "$(dirname "$path")" ls-files --error-unmatch -- "$(basename "$path")" >/dev/null 2>&1
+  local path="$1" root="$2"
+  git -C "$root" ls-files --error-unmatch -- ":(top,icase)${path#"$root"/}" >/dev/null 2>&1
+}
+
+refuse_symlinked() {
+  local path="$1" root="$2"
+  ! has_symlink_below "$path" "$root" || die "refusing a symlinked ledger path: $path"
 }
 
 refuse_unsafe_target() {
   local path="$1" root="$2"
-  ! has_symlink_below "$path" "$root" || die "refusing a symlinked ledger path: $path"
-  ! is_git_tracked "$path" || die "refusing a git-tracked ledger: $path"
+  refuse_symlinked "$path" "$root"
+  ! is_git_tracked "$path" "$root" || die "refusing a git-tracked ledger: $path"
 }
 
 worktree_roots() {
@@ -154,18 +171,18 @@ is_worktree_root() {
 is_run_ledger_path() {
   local run_id="$1" path="$2" root
   if [ "$path" = "$(scratch_path "$run_id")" ]; then
-    has_symlink_below "$path" "$MAIN" && return 1
+    has_symlink_below "$path" "$GIT_COMMON" && return 1
     return 0
   fi
   root="${path%/.claude/"$RECORD_FILENAME"}"
   [ "$path" = "$(record_path_under "$root")" ] && is_worktree_root "$root" || return 1
   has_symlink_below "$path" "$root" && return 1
-  ! is_git_tracked "$path"
+  ! is_git_tracked "$path" "$root"
 }
 
-# Sets `key` and `ledger` only for a pointer nothing about which a cloned
-# repository could have planted: an untracked regular file whose key names
-# its own run-id with a past timestamp, and which names that run's ledger.
+# Sets `key` and `ledger` only for a well-formed pointer: a regular file whose
+# key names its own run-id with a past timestamp, and which names that run's
+# own ledger — never an arbitrary path.
 load_trusted_pointer() {
   local run_id="$1" ptr
   ptr="$(pointer_path "$run_id")"
@@ -173,8 +190,7 @@ load_trusted_pointer() {
   read_pointer "$run_id" || return 1
   is_valid_run_key "$key" && [ "${key%%@*}" = "$run_id" ] || return 1
   [[ ! "${key#*@}" > "$(utc_now)" ]] || return 1
-  is_run_ledger_path "$run_id" "$ledger" || return 1
-  ! is_git_tracked "$ptr"
+  is_run_ledger_path "$run_id" "$ledger"
 }
 
 require_trusted_pointer() {
@@ -209,14 +225,13 @@ replace_with_header() {
   mv "$tmp" "$target"
 }
 
-# Removes every untracked pointer whose line is malformed or whose ledger is
-# gone — run before each open so a dead run never lingers in a lookup. A
-# tracked or symlinked pointer is never touched: it is not this script's file.
+# Removes every pointer whose line is malformed or whose ledger is gone — run
+# before each open so a dead run never lingers in a lookup. A symlinked
+# pointer is never touched: it is not this script's file.
 sweep_stale_pointers() {
   local ptr run_id
   for ptr in "$(runs_dir)"/*"$POINTER_SUFFIX"; do
     [ -f "$ptr" ] && [ ! -L "$ptr" ] || continue
-    ! is_git_tracked "$ptr" || continue
     run_id="$(basename "$ptr" "$POINTER_SUFFIX")"
     if ! read_pointer "$run_id" || [ ! -f "$ledger" ]; then
       rm -f "$ptr"
@@ -225,7 +240,7 @@ sweep_stale_pointers() {
 }
 
 prepare_runs_dir() {
-  ! has_symlink_below "$(runs_dir)" "$MAIN" || die "refusing a symlinked run directory: $(runs_dir)"
+  ! has_symlink_below "$(runs_dir)" "$GIT_COMMON" || die "refusing a symlinked run directory: $(runs_dir)"
   mkdir -p "$(runs_dir)"
 }
 
@@ -242,11 +257,12 @@ open_target() {
 # content; a scratch always starts fresh.
 start_ledger() {
   local target="$1" flag="$2"
-  refuse_unsafe_target "$target" "$MAIN"
   if [ "$flag" = "$IN_PLACE_FLAG" ]; then
+    refuse_unsafe_target "$target" "$MAIN"
     ensure_header "$target"
     return
   fi
+  refuse_symlinked "$target" "$GIT_COMMON"
   replace_with_header "$target"
 }
 
@@ -362,7 +378,7 @@ cmd_snapshot() {
   require_trusted_pointer "$run_id"
   [ -f "$ledger" ] || die "ledger is missing: $ledger"
   target="$(final_path "$run_id")"
-  refuse_unsafe_target "$target" "$MAIN"
+  refuse_symlinked "$target" "$GIT_COMMON"
   tmp="$(mktemp "$(runs_dir)/.craft-run-ledger.XXXXXX")"
   awk -v id="$run_id" '$1 == id' "$ledger" > "$tmp"
   mv "$tmp" "$target"
