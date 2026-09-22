@@ -142,8 +142,9 @@ Input: `$ARGUMENTS`
 3. Derive a kebab-case topic slug (≤6 words). Print:
    `Resolved → topic: <slug>, brief: <one line>` for user confirmation.
 4. Open the **run record** — an append-only on-disk ledger at
-   `.claude/craft-run-record.md` (never under `${CLAUDE_PLUGIN_ROOT}`; run-local,
-   gitignored by the existing `.claude/*` rule — see `docs/contributing/specs/run-record.md`).
+   `<git-common-dir>/craft-runs/<run-id>.md`, the directory `run-ledger.sh dir` prints:
+   inside the git common dir, where no commit can write, outside every working tree and
+   never under `${CLAUDE_PLUGIN_ROOT}` — see `docs/contributing/specs/run-record.md`.
    Below, `run-ledger.sh` means that shimmed path, assigned once as `$ledger` in the code
    block below; shell variables do not survive between Bash calls, so the orchestrator
    expands the shim itself in every call that follows — never a bare `${CLAUDE_PLUGIN_ROOT}`
@@ -154,7 +155,7 @@ Input: `$ARGUMENTS`
 
    ```
    ledger="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh"
-   "$ledger" open <run-id> [--in-place] && "$ledger" append <run-id> resolve <<'EOF'
+   "$ledger" open <run-id> && "$ledger" append <run-id> resolve <<'EOF'
    RESOLVE: <craft flags verbatim, or none>
    <Resolution.record[] lines>
    <config/load notes from steps 0b and 1c-mem/1c-int>
@@ -163,18 +164,14 @@ Input: `$ARGUMENTS`
    EOF
    ```
 
-   Pass `--in-place` under `workspace: { strategy: in-place }` (no scratch, no second
-   tree — see below). Never silence `open`'s stdout: the run-key it prints into this
-   session's transcript is what binds the compaction hooks to this run.
+   Never silence `open`'s stdout: the run-key it prints into this session's transcript
+   is what binds the compaction hooks to this run.
 
    **Flush-per-line.** Every ledger line is appended in the tool call that produces it or in the orchestrator's very next tool call — never held longer than that.
 
-   **The scratch ledger.** Before `workspace`, the ledger is the scratch file
-   `<run-id>.pre.md` under `run-ledger.sh dir` — not the checkout. `workspace` moves it
-   into the worktree ledger in one `run-ledger.sh move <run-id> <worktree>` call, so the
-   worktree ledger ends up holding the whole run in order. Under
-   `workspace: { strategy: in-place }` there is no second tree and no scratch — the
-   checkout root is the only root, and the ledger opens at this step directly.
+   **One ledger, one place, the whole run.** The ledger stays at
+   `craft-runs/<run-id>.md` from `open` to `close`, whatever the workspace strategy:
+   `workspace` never moves it and teardown never removes it.
 
    The §0 lines produced before the run-id exists — steps 0b–1e, which all run before
    step 3 derives the topic slug — are the only in-session hold: bounded to §0 itself,
@@ -335,11 +332,10 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
 7. **Record outcome** in the run record (appended to the seeded entries): append
    `PHASE-DONE(<phase.id>): <one-line outcome>` for every phase that ran (NO-OP phases
    included), together with the existing `GATE`/`NO-OP`/`inline:` lines, in one
-   `run-ledger.sh append` call to `.claude/craft-run-record.md`. That call must still
+   `run-ledger.sh append` call to `craft-runs/<run-id>.md`. That call must still
    fall within the flush-per-line window: the call that produced the line, or the
    orchestrator's very next tool call. A gate's `GATE` line may instead land in the
-   gate's own call. A phase that tears the ledger down (`integrate`) appends its
-   `PHASE-DONE` before the teardown, never after. An
+   gate's own call. An
    inline-executed phase is noted: `inline: <phase.id> — ran in-session`. At each
    phase boundary where a gate ran, append the fixed greppable token
    `GATE(<phase.id>): green` or `GATE(<phase.id>): red` to the run record — one
@@ -571,31 +567,31 @@ instead of trusting the summary it just produced.
    | In-flight phase | Resume from |
    |---|---|
    | any agent phase except review | the phase's committed artifact (design doc, plan, ADRs, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
-   | `workspace` | the pointer still names the scratch and `../<repo>-<slug>` exists on `<type>/<slug>`: the one-call setup or move failed part-way — re-run `worktree-setup.sh <abs-worktree-path> [manifest scripts.post-setup]`, then `move`; escalate if either fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
+   | `workspace` | `../<repo>-<slug>` exists on `<type>/<slug>` but setup may have failed part-way: re-run `worktree-setup.sh <abs-worktree-path> [manifest scripts.post-setup]`; escalate if it fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
    | `decisions` | ADRs are committed one at a time; the user's answers survive as verbatim user messages. |
    | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. |
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
    | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |
-   | `integrate` (after teardown) | the ledger is gone and the hook stays silent. `Done` reads `<run-id>.delta.json` and `<run-id>.final.md`, never a summarised delta or summarised isos. |
+   | `integrate` (after teardown) | the ledger outlives the worktree, so resume from it like any phase; `Done` derives the delta and the `--since` isos from it, never from a summary. |
 6. **Walk from `next`.**
 
 ## Done
 
-Once `integrate` has run `worktree-teardown.sh`, the tree — and `.claude/craft-run-record.md`
-inside it — are already gone: stop appending, and any later lines stay in-session only,
-where they already ship: in the final summary and the PR body.
+The ledger at `craft-runs/<run-id>.md` outlives `integrate`'s `worktree-teardown.sh`:
+appends continue after teardown until `close` ends the run.
 
 **Memory save (once per run).** `delta` is derived from the ledger's lines carrying this
 run's run-id, **as concern-keyed facts** — the store's per-concern schema and its
 leak guardrails still bind (`docs/contributing/specs/memory.md`): paths repo-RELATIVE
 never absolute, gate commands stored BARE with any env/secret assignment prefix
 stripped. The ledger is run-local, but the store it feeds is committed, so the scrub
-happens here on the way in. `skills/integrate/SKILL.md` step 3 performs the derivation
-itself, before it invokes `worktree-teardown.sh` — teardown removes the worktree and the
-ledger inside it (`docs/contributing/specs/run-record.md`). Read the `delta` from
-`<run-id>.delta.json` under `run-ledger.sh dir` (written by `integrate` step 3) — never
-a summarised delta. Resolve the store path from `memory.ref` (default
+happens here on the way in. Derive the `delta` here, from the ledger file itself — it
+outlives the worktree (`docs/contributing/specs/run-record.md`) — never from a summary.
+A `MEMORY-RETRACT(<concern>): <merge-key>` line derives to `{ concern, payload, retract:
+true }` rather than to a plain observation; for the `findings` concern the `<merge-key>`
+is the payload split on the first run of whitespace, first field `file`, remainder
+`pattern` (see the spec's Token vocabulary). Resolve the store path from `memory.ref` (default
 `.claude/craft-memory.md`) rooted at the repo ROOT, same as `load` (the engine joins
 `ref` under the repo root and refuses a path that escapes it). Call
 `save(repoRoot, view, delta, deps)` **once**, atomically — `view` is the run-start
@@ -615,15 +611,13 @@ groups this session's sub-agent transcripts by phase, appends one row per agent-
 phase to `.claude/craft-metrics.md`, and prints what it appended. A phase that ran twice in
 one session (a revision round, or validation and architecture sharing one role) needs its
 own call with `--phase <phase-id> --since <iso8601>`, where `--since` is the iso on that
-phase's latest `PHASE-START(<phase>):` line — read from `<run-id>.final.md` under
-`run-ledger.sh dir` once teardown ran (integrate snapshots it first), from the ledger
-otherwise — or its
+phase's latest `PHASE-START(<phase>):` line in the ledger, or its
 row re-counts the first run of that phase. A phase with no transcript records
 `transcript=na`. Never hand-assemble a row; never write metrics into the learnings store
 `.claude/craft-memory.md`.
 
-`run-ledger.sh close <run-id>` — the last action, removing the pointer, the scratch (if
-any), the delta file and the snapshot — before the final message.
+`run-ledger.sh close <run-id>` — the last action, once the run record has been read for
+the final message: it removes the pointer and the ledger.
 
 Final message: the PR URL (or branch name if no remote) + one-line summary + the run
 record.

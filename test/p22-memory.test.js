@@ -63,26 +63,16 @@ test(
 );
 
 test(
-  'Given the ledger is run-local, when git is asked, then the ledger path is actually ignored',
+  'Given the ledger is run-local, when the run directory is resolved, then it sits inside the git common dir that git never tracks',
   () => {
-    // Positive check, not just the absence of a re-include: this also fails if the
-    // `.claude/*` rule that does the ignoring is ever lost.
-    let result = 0;
-    try {
-      execFileSync('git', ['check-ignore', '-q', '.claude/craft-run-record.md'], {
-        cwd: ROOT,
-        stdio: 'ignore',
-      });
-    } catch (err) {
-      result = err.status;
-    }
-
-    assert.strictEqual(result, 0, '.claude/craft-run-record.md must be gitignored');
-    assert.strictEqual(
-      grepQX('!.claude/craft-run-record.md', GITIGNORE),
-      false,
-      '.gitignore should NOT re-include the run record',
+    const gitCommonDir = fs.realpathSync(
+      execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], { cwd: ROOT, encoding: 'utf8' }).trim(),
     );
+
+    const result = execFileSync('bash', [path.join(ROOT, 'scripts', 'run-ledger.sh'), 'dir'], { cwd: ROOT, encoding: 'utf8' }).trim();
+
+    assert.strictEqual(result, path.join(gitCommonDir, 'craft-runs'));
+    assert.strictEqual(grepQX('craft-runs', GITIGNORE), false, '.gitignore needs no entry for the run directory');
   },
 );
 

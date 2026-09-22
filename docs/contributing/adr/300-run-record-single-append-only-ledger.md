@@ -1,8 +1,12 @@
 # 300 — The run record is a single append-only ledger file
 
-- **Status:** accepted
+- **Status:** superseded by ADR-384
 - **Date:** 2026-07-30
 - **Design:** docs/contributing/design/orchestrator-tax-hardening.md · **Supersedes/Refines:** refines 119 (metrics artifact kept separate from the memory store)
+
+> **Superseded by ADR-384** for location and lifetime: each run now has its own ledger,
+> `<git-common-dir>/craft-runs/<run-id>.md`, outside every working tree. The append-only,
+> run-id-prefixed shape below stands.
 
 ## Context
 

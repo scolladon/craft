@@ -10,9 +10,12 @@ supersedes:
 ---
 # 383 — Run state lives under the git common dir, where no commit can write
 
-- **Status:** accepted
+- **Status:** superseded by ADR-384
 - **Date:** 2026-09-22
 - **Design:** docs/contributing/design/auto-compaction-safety.md · **Supersedes/Refines:** supersedes ADR-377 and ADR-378 (location only)
+
+> **Superseded by ADR-384** for the in-tree ledgers: the ledger joined the other run files in
+> the git common dir, so no tracked check and no scratch-then-move remain.
 
 ## Context
 

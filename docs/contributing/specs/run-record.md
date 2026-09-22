@@ -6,21 +6,15 @@ subjects:
 
 ## File shape and header
 
-One append-only markdown file at `.claude/craft-run-record.md`, rooted at the root of the
-tree the run is working in — never `${CLAUDE_PLUGIN_ROOT}`.
+One append-only markdown file per run, `<git-common-dir>/craft-runs/<run-id>.md` — the
+directory `run-ledger.sh dir` prints — never `${CLAUDE_PLUGIN_ROOT}` and never inside a
+working tree (ADR-384). The git common dir is shared by every worktree of the repository
+and no commit can write inside it, so the ledger has one root for the whole run, whatever
+the workspace strategy: `open` creates it at §0 step 4, every later write goes to it, and
+nothing moves it. A cloned repository can never plant or seed it. `skills/run/SKILL.md`
+§0 step 4 is the binding statement of this rule.
 
-That tree changes exactly once per run, so the root is stated per write point rather than
-once for the file. `workspace` creates the worktree; lines produced **before** it go to a
-scratch ledger — `<run-id>.pre.md` under `run-ledger.sh dir` (see Run directory below) —
-and `workspace` moves that scratch into the **worktree** ledger in one call, after which
-every write goes to the worktree root. Nothing but the ledger is ever written in a
-working tree — the run's other files live in the git common dir — answering the old
-worry one reason at a time: the scratch is moved, never split; `close` removes the run's
-files; residue stays confined to one directory and `open` sweeps stale pointers. Under `workspace: { strategy: in-place }` there is no
-second tree, so the checkout root is the only root and the file opens at resolve time.
-`skills/run/SKILL.md` §0 step 4 is the binding statement of this rule.
-
-A header line opens the file when it is absent:
+A header line opens the file:
 
 ```
 # craft run record (append-only)
@@ -57,29 +51,24 @@ since `save` performs no validation on the write path.
 
 ## Run directory
 
-Every run-scoped file besides the ledger itself lives under one directory, inside the git
-common dir, where no commit can write — so a cloned repository can never plant a pointer,
-a scratch or a snapshot (ADR-383):
+Every run-scoped file lives under one directory, inside the git common dir, where no
+commit can write — so a cloned repository can never plant a pointer or a ledger
+(ADR-384):
 
 ```
 <git-common-dir>/craft-runs/              <git-common-dir> = `git rev-parse --path-format=absolute --git-common-dir`; shared by every worktree
-  <run-id>.pointer    "<run-key> <abs-ledger-path>"   written by open, retargeted by move, removed by close
-  <run-id>.pre.md     scratch ledger, worktree strategy only, from §0 step 4 until `workspace`
-  <run-id>.delta.json memory delta, written at integrate step 3, read at Done
-  <run-id>.final.md   this run's own ledger lines, snapshotted at integrate step 3, read at Done
-<worktree>/.claude/craft-run-record.md      the ledger — path and line format unchanged
+  <run-id>.md         the run's ledger, from `open` at §0 step 4 until `close` at Done
+  <run-id>.pointer    "<run-key> <abs-ledger-path>"   written by open, removed by close
 $TMPDIR/craft-review.XXXXXX/<dim>.c<N>.json normalised review findings, out of tree
 ```
 
 `<run-key>` is `<run-id>@<UTC ISO-8601 seconds>`, charset `[a-z0-9-]@[0-9TZ:-]` — nothing
 in it needs JSON escaping, so it greps literally in a transcript. The pointer is one
-line, `<run-key> <abs-ledger-path>`, the path being everything after the first space.
-With `workspace: { strategy: in-place }` the pointer names
-`<main>/.claude/craft-run-record.md` directly — `<main>` being the main worktree's root —
-and there is no scratch file. A pointer binds only when its key names its own run-id with
-a past timestamp and it names that run's own scratch or a registered worktree's ledger
-that is neither symlinked nor git-tracked (checked case-insensitively from the worktree
-root).
+line, `<run-key> <abs-ledger-path>`, the path being everything after the first space. A
+pointer binds only when its key names its own run-id with a past timestamp and it names
+that run's own ledger, `craft-runs/<run-id>.md`, with no symlink on the way.
+`run-ledger.sh` refuses to run outside a git work tree, so a committed directory laid out
+like a bare repository is never taken for the git dir.
 
 ## Token vocabulary
 
@@ -154,38 +143,30 @@ A rebuild reads the ledger and re-runs `run-state` (see `skills/run/SKILL.md`
 
 ## The absent-file case
 
-The header is written by `run-ledger.sh open` — to the scratch ledger, or to the
-in-place ledger under `workspace: { strategy: in-place }` — when the target is absent or
-empty; the header line is appended first, then the seeded `Resolution.record[]` entries
-from §1c. `run-ledger.sh move` writes it again, under the same rule, to the worktree
-ledger if that file is itself absent or empty when the scratch is moved in.
+`run-ledger.sh open` writes the ledger fresh — the header line is appended first, then
+the seeded `Resolution.record[]` entries from §1c — through a temp file and a rename, so a
+leftover from a crashed attempt of the same topic never leaks into the new run.
 
 ## The present-file case
 
-When the ledger already exists (a resume, or a second run in the same worktree), no
-header is re-written; new lines are appended (`>>` semantics) after whatever is already
-there.
+Once the ledger exists, no header is re-written; new lines are appended (`>>` semantics)
+after whatever is already there.
 
 ## Write cadence and the single-writer rule
 
-`run-ledger.sh` is the one write surface — `open`/`append`/`move`/`snapshot`/`close` — and also the
+`run-ledger.sh` is the one write surface — `open`/`append`/`close` — and also the
 locate surface (`locate --transcript`/`locate --run`) the compaction hooks read through.
 Every ledger line is appended in the tool call that produces it or in the orchestrator's
 very next tool call — never held longer than that.
 
-1. **`open`, realized at `workspace`.** §0 step 4 opens the scratch ledger (or the
-   in-place ledger) and appends the seeded `Resolution.record[]` lines in the same call;
-   `workspace` then `move`s the scratch into the worktree ledger, in one call, so the
-   worktree ledger ends up holding the whole run in order. Under the in-place strategy
-   there is no scratch and no second write.
+1. **`open`, at §0 step 4.** Creates the ledger and the pointer and appends the seeded
+   `Resolution.record[]` lines in the same call.
 2. **`append`, at every phase boundary and whenever a line is produced.** Phase walk
    step 4 appends `PHASE-START(<phase.id>):` at phase entry; step 7 appends
    `PHASE-DONE(<phase.id>):` together with the phase's `GATE`/`NO-OP`/`inline:` lines,
    within the same flush-per-line window.
-3. **`snapshot`, at integrate step 3.** Copies this run's own lines to `<run-id>.final.md`
-   before teardown, after `integrate` appended its `PHASE-DONE`.
-4. **`close`, at `Done`.** Removes the pointer, the scratch (if any), the delta file and
-   the snapshot.
+3. **`close`, at `Done`.** Removes the pointer and the ledger, once the run record has
+   been read for the final message.
 
 **R4 — one writer.** Only the orchestrator appends to the ledger — through its own tool
 calls, foreground or background. No role agent writes it, in any phase, including phases
@@ -194,45 +175,21 @@ executing-harness). The compaction hooks only read.
 
 ## Lifetime — run-local, not committed
 
-The ledger is gitignored by the existing `.claude/*` rule — it is not one of the three
-re-included names (`craft-memory.md`, `craft-metrics.md`, `workflow.md`). The run
-directory sits inside the git common dir, which git never tracks. No `.gitignore` change
-ships for either, in this part or any other (ADR-301).
+The ledger lives inside the git common dir, which git never tracks, so it is never
+committed and no `.gitignore` change ships for it (ADR-384). It is run-local: `close`
+removes it at `Done`.
 
-The ledger survives a context reset for exactly as long as the worktree does. It does not
-survive `scripts/worktree-teardown.sh` (the `integrate` phase's step 3), which removes
-the tree and the ledger inside it. **R1 is durability against context loss, never
-against worktree loss** — a run whose tree has been torn down is back to having nothing
-to read.
+It survives a context reset and `scripts/worktree-teardown.sh` alike — teardown removes
+the worktree, and the ledger was never in it. **R1 is durability against context loss
+and against worktree loss**: `Done` reads the whole run from the ledger after
+`integrate`'s teardown.
 
-The run directory's own files — the pointer, the scratch (if any), the delta file and the
-snapshot —
-live in the git common dir, not the worktree, so they outlive teardown until `run-ledger.sh
-close <run-id>` removes them: the last action of `skills/run/SKILL.md` §Done.
+## Derivation at Done
 
-## Derivation precedes teardown
-
-`Done` runs after the whole phase walk, and the walk's last phase (`integrate`) is the
-one that tears the worktree down. By the time `Done`'s own step runs, if teardown ran,
-the ledger file is already gone. The memory `delta`
-(`docs/contributing/adr/303-memory-delta-derives-from-the-ledger.md`) is therefore
-derived — read — from the ledger's run-id lines and **written to `<run-id>.delta.json`**
-(under `run-ledger.sh dir`) at the last point the worktree is still alive, i.e. before
-`integrate` invokes `worktree-teardown.sh`; `skills/integrate/SKILL.md` step 3 carries
-the matching pointer. `Done` then reads that same `<run-id>.delta.json` back — never a
-summarised delta — and calls `save` exactly once, unweakened (R3) — query and command
-separate; the read/write pair moves earlier, the save does not.
-
-Two live cases at `Done`:
-
-- **Teardown did not run** (the run stopped at `propose`, or `teardown` was declined).
-  The tree is alive, the ledger holds the whole run, and `<run-id>.delta.json` already
-  carries the same delta `integrate` step 3 wrote.
-- **Teardown ran.** The ledger's on-disk tail is `integrate`'s `PHASE-DONE`, appended
-  just before it. Anything `Done` appends exists in-session only — where it already
-  ships, in the final summary and the PR body — while `<run-id>.delta.json` and
-  `<run-id>.final.md` survive teardown (they live in the git common dir, not the worktree) for
-  `Done` to read.
+The memory `delta` (`docs/contributing/adr/303-memory-delta-derives-from-the-ledger.md`)
+is derived — read — from the ledger's run-id lines at `Done`, after the whole phase walk,
+teardown included: the ledger outlives the worktree, so the derivation reads the file,
+never a summary, and `save` runs exactly once, unweakened (R3).
 
 ## Failure posture
 
@@ -245,9 +202,9 @@ failed `save` (ADR-120): a write failure never blocks delivery work.
 **Run-id collision.** The run-id is the topic slug, so a genuine re-run of the same
 feature reuses it; a resume then reads the earlier run's lines as its own. This is
 inherited, not introduced — `.claude/craft-metrics.md` already keys on the same slug and
-already carries repeat records for one id. The run-local ruling narrows it further: it
-can only bite when one worktree hosts two runs of the same topic, since a fresh tree
-starts empty.
+already carries repeat records for one id. `open` narrows it further: it starts the
+run's ledger fresh, so a second run of the same topic never inherits the first one's
+lines.
 
 **Resume double-`Done`.** A run that reaches `Done` twice (once before a reset, once
 after) calls `save` twice. This is convergent, not corrupting: `save` decay-merges
@@ -261,14 +218,14 @@ resume.
 
 ## Ledger vs. store
 
-| Property | Ledger (`.claude/craft-run-record.md`) | Store (`.claude/craft-memory.md`) |
+| Property | Ledger (`craft-runs/<run-id>.md`) | Store (`.claude/craft-memory.md`) |
 |---|---|---|
-| Lifetime | run-local, gitignored, dies with the worktree | committed, travels with the repo |
+| Lifetime | run-local, in the git common dir, removed by `close` at `Done` | committed, travels with the repo |
 | Write cadence | per line, as produced (`run-ledger.sh append`) | buffered all run, flushed once at `Done` |
 | Write mode | append-only, never rewritten | whole-file temp-write + rename |
 | Decay / eviction | none — history is the point | decay-merged, size-capped |
 | Failure posture | warning in-session, run continues | recorded warning, never a blocker |
-| Concurrency | single writer; one run per worktree | no locking, last-flush-wins |
+| Concurrency | single writer; one ledger per run | no locking, last-flush-wins |
 
 The two never touch: `run-ledger.sh append` never calls `save`, and `save` never writes
 the ledger file. The one directional link that does exist — the delta derivation reading

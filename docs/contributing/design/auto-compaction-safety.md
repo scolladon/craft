@@ -130,10 +130,12 @@ re-derivable (idempotent re-run) or re-producible (respawn from artifact, the ex
 
 ### On-disk layout
 
-> Revised in review (ADR-383): the run directory moved from `<main>/.claude/craft-runs/` to
-> `<git-common-dir>/craft-runs/`, where no commit can write; a case-insensitive filesystem
-> let a committed case-variant pointer pass the in-tree trust check. The layout below reads
-> with that root.
+> Revised in review (ADR-383, then ADR-384): every run file — the ledger included — lives in
+> `<git-common-dir>/craft-runs/`, where no commit can write: the ledger is
+> `craft-runs/<run-id>.md` from `open` to `close`. Three review cycles each found a new way a
+> clone controls an in-tree path (a committed file, a case variant, a submodule at
+> `.claude`), so the scratch, `move`, `snapshot`, `--in-place` and the delta file below are
+> gone; `Done` derives the delta from the ledger, which outlives teardown.
 
 ```
 <git-common-dir>/craft-runs/              shared by every worktree; never tracked

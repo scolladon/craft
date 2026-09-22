@@ -11,7 +11,7 @@ const INTEGRATE_SKILL_PATH = path.join(ROOT, 'skills', 'integrate', 'SKILL.md');
 const TEARDOWN_SCRIPT_PATH = path.join(ROOT, 'scripts', 'worktree-teardown.sh');
 const RUN_RECORD_SPEC_PATH = path.join(ROOT, 'docs', 'contributing', 'specs', 'run-record.md');
 
-const LEDGER_PATH = '.claude/craft-run-record.md';
+const LEDGER_PATH = 'craft-runs/<run-id>.md';
 const STORE_PATH = '.claude/craft-memory.md';
 const METRICS_LEDGER_PATH = path.join(ROOT, '.claude', 'craft-metrics.md');
 const BUFFERED_FLUSH_SENTENCE =
@@ -156,10 +156,10 @@ test('Given skills/run/SKILL.md, when the Rebuild-after-compaction section is re
   assert.match(result, /\|\s*`review`/);
 });
 
-test('Given skills/run/SKILL.md §Done, when read, then it reads the delta from the on-disk delta file, closes the run ledger and drops the residual-flush wording', () => {
+test('Given skills/run/SKILL.md §Done, when read, then it derives the delta from the ledger, closes the run ledger and drops the residual-flush wording', () => {
   const result = sliceRegion(runSkill, /^## Done/, null);
 
-  assert.ok(result.includes('.delta.json'));
+  assert.ok(!result.includes('.delta.json'), 'no delta file: Done reads the ledger itself');
   assert.ok(result.includes('run-ledger.sh close'));
   assert.ok(result.includes('PHASE-START('));
   assert.ok(!result.includes('residual flush'));
@@ -189,10 +189,10 @@ test("Given skills/run/SKILL.md §Done, when read, then the delta is derived fro
   assert.ok(/this run's run-id/i.test(result));
 });
 
-test('Given skills/run/SKILL.md §Done, when read, then the derivation is stated to happen before integrate runs the teardown script', () => {
+test('Given skills/run/SKILL.md §Done, when read, then the delta is derived there because the ledger outlives the worktree teardown', () => {
   const result = sliceRegion(runSkill, /^## Done/, null);
 
-  assert.ok(/before/i.test(result));
+  assert.match(result, /outlives/i);
   assert.ok(result.includes('worktree-teardown.sh'));
 });
 
@@ -212,22 +212,15 @@ test('Given the run-local ruling adds no ledger-preservation step, when scripts/
   assert.ok(!result.includes('ledger'));
 });
 
-test('Given skills/integrate/SKILL.md step 3, when the step region is read, then it assigns the delta derivation as an action ahead of teardown', () => {
+test('Given skills/integrate/SKILL.md step 3, when the step region is read, then it tears down without deriving or saving anything first, citing the ledger spec', () => {
   const integrateSkill = fs.readFileSync(INTEGRATE_SKILL_PATH, 'utf8');
 
-  const result = sliceRegion(integrateSkill, /^3\. \*\*Derive the /u, /^4\. /u);
+  const result = sliceRegion(integrateSkill, /^3\. \*\*Consult `teardown`/u, /^4\. /u);
 
-  // Imperative, not a stated precondition: an orchestrator reading only this step
-  // must know to perform the read, not merely that it should already have happened.
-  assert.match(result, /read this\s+run's run-id lines from the on-disk ledger/u);
-  assert.match(result, /write it[^.]*<run-id>\.delta\.json/u);
+  assert.ok(result.includes('worktree-teardown.sh'));
+  assert.ok(!result.includes('.delta.json'), 'no delta file is written before teardown');
+  assert.ok(!result.includes('snapshot'), 'no snapshot is taken before teardown');
   assert.ok(result.includes('run-record.md'), 'step 3 must cite the ledger spec');
-  // The read, the delta write and the teardown invocation must stay in that order.
-  assert.ok(
-    result.indexOf('read this') < result.indexOf('.delta.json') &&
-      result.indexOf('.delta.json') < result.indexOf('worktree-teardown.sh'),
-    'the read, the delta write and the teardown invocation must stay in that order',
-  );
 });
 
 test('Given the run-record spec, when the absent-file section is read, then it pins the header line the orchestrator writes', () => {
@@ -308,7 +301,7 @@ for (const file of PREAMBLE_SKILL_FILES) {
   });
 }
 
-test('Given skills/workspace/SKILL.md procedure step 2, when the worktree-strategy region is read, then worktree add, worktree-setup and the ledger move run in that order inside one fenced block', () => {
+test('Given skills/workspace/SKILL.md procedure step 2, when the worktree-strategy region is read, then worktree add precedes worktree-setup inside one fenced block and nothing moves the ledger', () => {
   const workspaceSkill = fs.readFileSync(WORKSPACE_SKILL_PATH, 'utf8');
   const result = sliceRegion(workspaceSkill, /^2\. \*\*Consult `isolate` action\*\*/, /^3\. /);
 
@@ -320,15 +313,8 @@ test('Given skills/workspace/SKILL.md procedure step 2, when the worktree-strate
 
   assert.ok(fenced.includes('git worktree add'), 'expected git worktree add inside the fenced block');
   assert.ok(fenced.includes('worktree-setup.sh'), 'expected worktree-setup.sh inside the fenced block');
-  assert.ok(
-    fenced.indexOf('git worktree add') < fenced.indexOf('worktree-setup.sh'),
-    'git worktree add must precede worktree-setup.sh',
-  );
-  assert.ok(fenced.includes('run-ledger.sh" move <run-id>'), 'expected the ledger move inside the fenced block');
-  assert.ok(
-    fenced.indexOf('worktree-setup.sh') < fenced.indexOf('run-ledger.sh" move <run-id>'),
-    'worktree-setup.sh must precede the ledger move',
-  );
+  assert.ok(fenced.indexOf('git worktree add') < fenced.indexOf('worktree-setup.sh'), 'git worktree add must precede worktree-setup.sh');
+  assert.ok(!result.includes('run-ledger.sh" move'), 'the ledger never moves');
 });
 
 test('Given skills/implementation/SKILL.md, when scanned for the PART ledger token, then it names the full literal shape', () => {
@@ -367,18 +353,13 @@ test('Given skills/*/SKILL.md, when scanned for the retired flushed-at-run-end w
   assert.strictEqual(result.trim(), '', `expected no file to carry 'flushed at run end':\n${result}`);
 });
 
-test('Given skills/integrate/SKILL.md step 3, when read, then the teardown consult, PHASE-DONE(integrate), the snapshot and the teardown run in that order', () => {
+test('Given skills/integrate/SKILL.md step 3, when read, then the teardown consult precedes the teardown invocation', () => {
   const content = fs.readFileSync(INTEGRATE_SKILL_PATH, 'utf8');
-  const result = sliceRegion(content, /^3\. \*\*Derive the `Done`-bound memory delta/, /^4\. /);
+  const result = sliceRegion(content, /^3\. \*\*Consult `teardown`/, /^4\. /);
 
-  const order = [
-    result.indexOf('consult the `teardown` action'),
-    result.indexOf('PHASE-DONE(integrate)'),
-    result.indexOf('run-ledger.sh snapshot <run-id>'),
-    result.indexOf('worktree-teardown.sh" <main-repo-dir>'),
-  ];
-  assert.ok(order.every((at) => at !== -1), `expected every step in the region: ${order}`);
-  assert.deepStrictEqual([...order].sort((a, b) => a - b), order, 'consult, then PHASE-DONE, then snapshot, then teardown');
+  const consultAt = result.indexOf('Consult the `teardown` action');
+  const teardownAt = result.indexOf('worktree-teardown.sh" <main-repo-dir>');
+  assert.ok(consultAt !== -1 && teardownAt !== -1 && consultAt < teardownAt);
 });
 
 test('Given skills/integrate/SKILL.md step 5, when read, then it no longer closes the run record and defers close to Done', () => {
@@ -386,16 +367,17 @@ test('Given skills/integrate/SKILL.md step 5, when read, then it no longer close
   const result = content.slice(content.indexOf('\n5. '));
 
   assert.ok(!result.includes('Close the run record'), 'step 5 must not read as run-ledger.sh close');
-  assert.match(result, /`run-ledger\.sh close`\s+does not run here/);
+  assert.match(result, /`run-ledger\.sh close`\s+does\s+not\s+run\s+here/);
 });
 
-test('Given the run skill Done and the run-record spec, when read, then both name the snapshot file Done reads after teardown', () => {
-  const runSkill = fs.readFileSync(RUN_SKILL_PATH, 'utf8');
+test('Given the run skill and the run-record spec, when read, then both place the ledger in the git common dir and the spec lists only the verbs the script has', () => {
+  const runSkillText = fs.readFileSync(RUN_SKILL_PATH, 'utf8');
   const spec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
 
-  assert.ok(runSkill.includes('<run-id>.final.md'));
-  assert.ok(spec.includes('<run-id>.final.md'));
-  assert.ok(spec.includes('`open`/`append`/`move`/`snapshot`/`close`'));
+  assert.ok(runSkillText.includes('<git-common-dir>/craft-runs/<run-id>.md'));
+  assert.ok(spec.includes('<git-common-dir>/craft-runs/<run-id>.md'));
+  assert.ok(spec.includes('`open`/`append`/`close`'));
+  assert.ok(!spec.includes('snapshot') && !spec.includes('.delta.json'));
 });
 
 for (const [file, phase] of [['skills/validation/SKILL.md', 'validation'], ['skills/architecture/SKILL.md', 'architecture']]) {

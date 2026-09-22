@@ -34,7 +34,7 @@ reorient_tail() {
     $1 == id {
       n++
       line = $0
-      gsub(control_chars, "", line)
+      while (gsub(control_chars, "", line)) {}
       buf[n] = substr(line, 1, max_chars)
     }
     END {

@@ -19,7 +19,7 @@ const TARGET_FILES = [
   { file: 'skills/documentation/SKILL.md', count: 1 },
   { file: 'skills/implementation/SKILL.md', count: 1 },
   { file: 'skills/init/SKILL.md', count: 5 },
-  { file: 'skills/integrate/SKILL.md', count: 2 },
+  { file: 'skills/integrate/SKILL.md', count: 1 },
   { file: 'skills/metrics/SKILL.md', count: 2 },
   { file: 'skills/planning/SKILL.md', count: 2 },
   { file: 'skills/promote-config/SKILL.md', count: 4 },
@@ -28,7 +28,7 @@ const TARGET_FILES = [
   { file: 'skills/run/SKILL.md', count: 8 },
   { file: 'skills/tune/SKILL.md', count: 5 },
   { file: 'skills/validation/SKILL.md', count: 4 },
-  { file: 'skills/workspace/SKILL.md', count: 3 },
+  { file: 'skills/workspace/SKILL.md', count: 2 },
 ];
 
 // Non-path prose mentions of CLAUDE_PLUGIN_ROOT that must survive the rewrite

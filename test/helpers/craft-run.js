@@ -1,6 +1,6 @@
 'use strict';
 // Shared setup for run-ledger.sh specs: a throwaway git checkout plus (optionally)
-// a linked worktree, wired through the script's own open/move verbs — never by
+// a linked worktree, wired through the script's own verbs — never by
 // hand-crafting pointer/ledger files, so the fixture stays honest to the CLI it
 // is testing.
 const fs = require('node:fs');
@@ -60,27 +60,17 @@ function writeTranscript(dir, texts) {
   return transcriptPath;
 }
 
-// Binds a run end to end through the script's own verbs (open, then move when
-// a worktree is requested) so every fixture ledger is one the script itself
-// produced. `ledgerLines` emulates an already-running session's prior records
-// via a direct append — test setup, not the production write path (that path
-// is `append`, exercised on its own).
+// Binds a run end to end through the script's own verbs, so every fixture
+// ledger is one the script itself produced; a worktree is added when asked,
+// since the ledger lives in the git common dir whatever the tree. `ledgerLines`
+// emulates an already-running session's prior records via a direct append —
+// test setup, not the production write path (that path is `append`, exercised
+// on its own).
 function bindRun({ runId = 'demo', ledgerLines = [], worktree = true } = {}) {
   const { parent, main, cleanup } = createRunRepo();
-  const openArgs = worktree ? ['open', runId] : ['open', runId, '--in-place'];
-  const openResult = runLedger(main, openArgs);
-  const [openKey, openTarget] = openResult.stdout.trim().split(' ');
-
-  let worktreePath = null;
-  let ledgerPath = openTarget;
-  let runKey = openKey;
-  if (worktree) {
-    worktreePath = addWorktree(main);
-    const moveResult = runLedger(main, ['move', runId, worktreePath]);
-    const [movedKey, movedTarget] = moveResult.stdout.trim().split(' ');
-    ledgerPath = movedTarget;
-    runKey = movedKey;
-  }
+  const openResult = runLedger(main, ['open', runId]);
+  const [runKey, ledgerPath] = openResult.stdout.trim().split(' ');
+  const worktreePath = worktree ? addWorktree(main) : null;
 
   for (const line of ledgerLines) {
     fs.appendFileSync(ledgerPath, `${line}\n`);

@@ -25,17 +25,16 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
 2. **Consult `isolate` action** (default `always`, ADR-127 — proceeds silently unless
    policy forbids it; see `docs/contributing/specs/policy.md` for surface semantics). Then,
    strategy `worktree` (default), as **one** Bash call — a compaction cannot split the
-   three:
+   two:
    ```bash
    git worktree add ../<repo>-<slug> -b <type>/<slug> && \
-   "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-setup.sh" <abs-worktree-path> [manifest scripts.post-setup] && \
-   "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh" move <run-id> <abs-worktree-path>
+   "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-setup.sh" <abs-worktree-path> [manifest scripts.post-setup]
    ```
+   The run ledger stays where §0 opened it, in the git common dir: nothing moves.
    Strategy `in-place` (manifest `workspace: { strategy: in-place }`): create the branch
    in the current checkout (`git switch -c <type>/<slug>`); deps assumed present or
    installed in place; later phases use the checkout root wherever they'd use the
-   worktree (run-lock location included). No `move` runs here — §0 already opened the
-   ledger in place with `--in-place`.
+   worktree (run-lock location included).
 3. Branch or worktree path collision → STOP and ask; never reuse silently.
 4. Apply the manifest's global/workspace `context:` file now: perform any tooling
    activation it declares (the session does this — agents will receive the same file

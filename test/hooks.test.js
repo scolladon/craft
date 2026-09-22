@@ -5,7 +5,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { bindRun, createRunRepo, runLedger, writeTranscript } = require('./helpers/craft-run');
+const { bindRun, createRunRepo, writeTranscript } = require('./helpers/craft-run');
 
 const ROOT = path.join(__dirname, '..');
 const HOOKS_DIR = path.join(ROOT, 'hooks');
@@ -623,24 +623,7 @@ test(
 );
 
 for (const hookName of COMPACTION_HOOKS) {
-  test(`Given a run still in its scratch before workspace, when ${hookName} runs from the main checkout, then it names the scratch ledger`, () => {
-    const { parent, main, cleanup } = createRunRepo();
-    try {
-      const openResult = runLedger(main, ['open', 'demo']);
-      const [, scratch] = openResult.stdout.trim().split(' ');
-      const transcriptPath = writeTranscript(parent, [openResult.stdout]);
-      const sut = runHookWithPayload;
-
-      const result = sut(hookName, payloadFor(hookName)({ transcriptPath, cwd: main }));
-
-      assert.strictEqual(result.status, 0);
-      assert.ok(result.stdout.includes(scratch), `expected the scratch path in: ${result.stdout}`);
-    } finally {
-      cleanup();
-    }
-  });
-
-  test(`Given an in-place run, when ${hookName} runs from the checkout, then it names the in-place ledger`, () => {
+  test(`Given a run with no worktree yet, when ${hookName} runs from the main checkout, then it names the run ledger`, () => {
     const bound = bindRun({ worktree: false });
     try {
       const sut = runHookWithPayload;
@@ -648,7 +631,7 @@ for (const hookName of COMPACTION_HOOKS) {
       const result = sut(hookName, payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: bound.main }));
 
       assert.strictEqual(result.status, 0);
-      assert.ok(result.stdout.includes(path.join(bound.main, '.claude', 'craft-run-record.md')));
+      assert.ok(result.stdout.includes(bound.ledgerPath), `expected the ledger path in: ${result.stdout}`);
     } finally {
       bound.cleanup();
     }
@@ -670,19 +653,24 @@ for (const hookName of COMPACTION_HOOKS) {
   });
 }
 
-const C1_AND_BIDI = /\u009b|\u009d|\u0085|‮|⁦/;
+// Every C1 control and bidi override the strip names, both range endpoints
+// included, plus C0 bytes spliced inside sequences so a single pass would
+// reassemble what it removed.
+const STRIPPED_SEQUENCES = ['\u0080', '\u0085', '\u009b', '\u009d', '\u009f', '‪', '‮', '⁦', '⁩'];
+const C1_AND_BIDI = new RegExp(STRIPPED_SEQUENCES.join('|'));
+const SPLICED_BYTES = Buffer.from([0x41, 0xc2, 0x01, 0x9b, 0x42, 0xe2, 0x80, 0x01, 0xae, 0x43, 0xc2, 0xc2, 0x9b, 0x9b, 0x44]);
 
 test(
-  'Given a ledger line carrying UTF-8 C1 controls and bidi overrides, when reorient-after-compact runs, then its output carries none of them',
+  'Given a ledger line carrying every stripped C1 control and bidi override, when reorient-after-compact runs, then its output carries none of them',
   () => {
-    const bound = bindRun({ ledgerLines: ['demo design note \u009b31m csi \u009d osc ‮ rtl ⁦ isolate end'] });
+    const bound = bindRun({ ledgerLines: [`demo design note ${STRIPPED_SEQUENCES.join('x')} end`] });
     try {
       const sut = runHookWithPayload;
 
       const result = sut('reorient-after-compact.sh', compactionPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
 
       assert.strictEqual(result.status, 0);
-      assert.match(result.stdout, /demo design note 31m csi {2}osc {2}rtl {2}isolate end/);
+      assert.match(result.stdout, /demo design note x{8} end/);
       assert.doesNotMatch(result.stdout, C1_AND_BIDI);
     } finally {
       bound.cleanup();
@@ -691,7 +679,52 @@ test(
 );
 
 for (const hookName of COMPACTION_HOOKS) {
-  test(`Given a UTF-8 locale and a ledger line holding a byte that is not valid UTF-8, when ${hookName} runs, then it still prints its block`, () => {
+  test(`Given C0 bytes spliced inside C1 and bidi sequences in a phase token, when ${hookName} runs, then no sequence is reassembled in its output`, () => {
+    const bound = bindRun();
+    try {
+      fs.appendFileSync(bound.ledgerPath, Buffer.concat([Buffer.from('demo design PHASE-START('), SPLICED_BYTES, Buffer.from('): 2026-09-22T10:05:00Z\n')]));
+      const sut = runHookWithPayload;
+
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+
+      assert.strictEqual(result.status, 0);
+      assert.match(result.stdout, /ABCD/);
+      assert.doesNotMatch(result.stdout, C1_AND_BIDI);
+    } finally {
+      bound.cleanup();
+    }
+  });
+}
+
+// The hooks must keep working under whatever multibyte locale the session
+// runs in; this pins that with one the host actually provides.
+const UTF8_LOCALE = ['en_US.UTF-8', 'C.UTF-8', 'en_US.utf8', 'C.utf8'].find((name) =>
+  spawnSync('locale', ['-a'], { encoding: 'utf8' }).stdout.split('\n').includes(name),
+);
+
+for (const hookName of COMPACTION_HOOKS) {
+  test(`Given a multibyte UTF-8 locale and a clean ledger, when ${hookName} runs, then it prints its block with no stderr`, () => {
+    assert.ok(UTF8_LOCALE, 'expected the host to provide a UTF-8 locale');
+    const bound = bindRun({ ledgerLines: ['demo implementation PHASE-START(implementation): 2026-09-22T10:00:00Z'] });
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut(
+        hookName,
+        payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }),
+        { LC_ALL: UTF8_LOCALE, LANG: UTF8_LOCALE },
+      );
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stderr, '');
+      assert.ok(result.stdout.includes('implementation'), `expected the block, got: ${JSON.stringify(result.stdout)}`);
+    } finally {
+      bound.cleanup();
+    }
+  });
+
+  test(`Given a multibyte UTF-8 locale and a phase token holding a byte that is not valid UTF-8, when ${hookName} runs, then it still prints its block`, () => {
+    assert.ok(UTF8_LOCALE, 'expected the host to provide a UTF-8 locale');
     const bound = bindRun({ ledgerLines: ['demo implementation PHASE-START(implementation): 2026-09-22T10:00:00Z'] });
     try {
       fs.appendFileSync(bound.ledgerPath, Buffer.from('demo design PHASE-START(caf\xe9): 2026-09-22T10:05:00Z\n', 'latin1'));
@@ -700,12 +733,12 @@ for (const hookName of COMPACTION_HOOKS) {
       const result = sut(
         hookName,
         payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }),
-        { LC_ALL: 'en_US.UTF-8', LANG: 'en_US.UTF-8' },
+        { LC_ALL: UTF8_LOCALE, LANG: UTF8_LOCALE },
       );
 
       assert.strictEqual(result.status, 0);
       assert.strictEqual(result.stderr, '');
-      assert.ok(result.stdout.includes('demo'), `expected the block, got: ${JSON.stringify(result.stdout)}`);
+      assert.ok(result.stdout.includes('implementation'), `expected the block, got: ${JSON.stringify(result.stdout)}`);
     } finally {
       bound.cleanup();
     }

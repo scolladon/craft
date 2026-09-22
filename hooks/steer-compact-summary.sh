@@ -50,7 +50,7 @@ readonly STEER_IN_FLIGHT_AWK_PROGRAM="
       if (last[p] != \"START\") continue
       list = (list == \"\") ? p : list \", \" p
     }
-    gsub(control_chars, \"\", list)
+    while (gsub(control_chars, \"\", list)) {}
     if (list == \"\") list = \"none recorded\"
     print substr(list, 1, max_chars)
   }

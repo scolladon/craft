@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # craft — the run ledger's one write and locate surface.
 #
-# Usage: run-ledger.sh open <run-id> [--in-place]
+# Every run file lives in the git common dir, which no commit can write:
+#   <git-common-dir>/craft-runs/<run-id>.md       the run's append-only ledger
+#   <git-common-dir>/craft-runs/<run-id>.pointer  "<run-key> <ledger-path>"
+#
+# Usage: run-ledger.sh open <run-id>
 #        run-ledger.sh append <run-id> <phase>
-#        run-ledger.sh move <run-id> <worktree>
 #        run-ledger.sh locate --transcript <path>
 #        run-ledger.sh locate --run <run-id>
-#        run-ledger.sh snapshot <run-id>
 #        run-ledger.sh close <run-id>
 #        run-ledger.sh dir
 set -euo pipefail
@@ -14,12 +16,8 @@ export LC_ALL=C
 
 readonly LEDGER_HEADER='# craft run record (append-only)'
 readonly RUNS_SUBDIR='craft-runs'
-readonly RECORD_FILENAME='craft-run-record.md'
 readonly POINTER_SUFFIX='.pointer'
-readonly SCRATCH_SUFFIX='.pre.md'
-readonly DELTA_SUFFIX='.delta.json'
-readonly FINAL_SUFFIX='.final.md'
-readonly IN_PLACE_FLAG='--in-place'
+readonly LEDGER_SUFFIX='.md'
 readonly RUN_ID_PATTERN='^[a-z0-9][a-z0-9-]*$'
 readonly PHASE_PATTERN='^[a-z][a-z0-9-]*$'
 readonly RUN_KEY_PATTERN='^[a-z0-9][a-z0-9-]*@[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
@@ -27,11 +25,9 @@ readonly UTC_STAMP_FORMAT='+%Y-%m-%dT%H:%M:%SZ'
 
 usage_exit() {
   cat >&2 <<'EOF'
-usage: run-ledger.sh open <run-id> [--in-place]
+usage: run-ledger.sh open <run-id>
        run-ledger.sh append <run-id> <phase>
-       run-ledger.sh move <run-id> <worktree>
        run-ledger.sh locate --transcript <path> | --run <run-id>
-       run-ledger.sh snapshot <run-id>
        run-ledger.sh close <run-id>
        run-ledger.sh dir
 EOF
@@ -44,22 +40,15 @@ die() {
   exit "$code"
 }
 
-# GIT_COMMON holds the run files: no commit can write inside it. MAIN is the
-# main worktree's root, taken from git rather than from the git dir's parent
-# (a submodule or a separate git dir has no worktree there). Both are
-# physical, so every path built from them compares byte-for-byte.
-resolve_main() {
+# GIT_COMMON is physical, so every path built from it compares byte-for-byte.
+# Only a work tree qualifies: a committed directory laid out like a bare
+# repository would otherwise be discovered as the git dir, handing the run
+# files to whoever committed it.
+resolve_git_common() {
   local common_dir
+  [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 1
   common_dir="$(git rev-parse --path-format=absolute --git-common-dir)" || return 1
   GIT_COMMON="$(cd "$common_dir" && pwd -P)"
-  MAIN="$(main_worktree_root)"
-  [ -n "$MAIN" ]
-}
-
-main_worktree_root() {
-  local root
-  root="$(git worktree list --porcelain | sed -n '1s/^worktree //p')"
-  if [ -d "$root" ]; then (cd "$root" && pwd -P); fi
 }
 
 # Whole-string matches: a value carrying a newline never passes on the
@@ -93,20 +82,8 @@ pointer_path() {
   printf '%s/%s%s' "$(runs_dir)" "$1" "$POINTER_SUFFIX"
 }
 
-scratch_path() {
-  printf '%s/%s%s' "$(runs_dir)" "$1" "$SCRATCH_SUFFIX"
-}
-
-delta_path() {
-  printf '%s/%s%s' "$(runs_dir)" "$1" "$DELTA_SUFFIX"
-}
-
-final_path() {
-  printf '%s/%s%s' "$(runs_dir)" "$1" "$FINAL_SUFFIX"
-}
-
-record_path_under() {
-  printf '%s/.claude/%s' "$1" "$RECORD_FILENAME"
+ledger_path() {
+  printf '%s/%s%s' "$(runs_dir)" "$1" "$LEDGER_SUFFIX"
 }
 
 # Sets `key` and `ledger` (script-scoped, deliberately not `local`) from the
@@ -122,62 +99,8 @@ read_pointer() {
   [ -n "$key" ] && [ -n "$ledger" ] && [ "$ledger" != "$line" ]
 }
 
-# True when <path> or any directory between it and <root> is a symlink. A
-# cloned repository can commit a link, so no ledger write may follow one.
-has_symlink_below() {
-  local path="$1" root="$2"
-  while [ "$path" != "$root" ] && [ "$path" != "/" ]; do
-    [ -L "$path" ] && return 0
-    path="$(dirname "$path")"
-  done
-  return 1
-}
-
-# Asked from <root> with a case-insensitive pathspec: on a case-insensitive
-# filesystem a committed `.Claude/Craft-Run-Record.md` is this very file.
-is_git_tracked() {
-  local path="$1" root="$2"
-  git -C "$root" ls-files --error-unmatch -- ":(top,icase)${path#"$root"/}" >/dev/null 2>&1
-}
-
-refuse_symlinked() {
-  local path="$1" root="$2"
-  ! has_symlink_below "$path" "$root" || die "refusing a symlinked ledger path: $path"
-}
-
-refuse_unsafe_target() {
-  local path="$1" root="$2"
-  refuse_symlinked "$path" "$root"
-  ! is_git_tracked "$path" "$root" || die "refusing a git-tracked ledger: $path"
-}
-
-worktree_roots() {
-  local root
-  git worktree list --porcelain | sed -n 's/^worktree //p' | while IFS= read -r root; do
-    if [ -d "$root" ]; then (cd "$root" && pwd -P); fi
-  done
-}
-
-is_worktree_root() {
-  local candidate="$1" root
-  while IFS= read -r root; do
-    [ "$root" = "$candidate" ] && return 0
-  done < <(worktree_roots)
-  return 1
-}
-
-# A run's ledger is its own scratch or the record file of one of this
-# repository's worktrees — never an arbitrary path a pointer names.
-is_run_ledger_path() {
-  local run_id="$1" path="$2" root
-  if [ "$path" = "$(scratch_path "$run_id")" ]; then
-    has_symlink_below "$path" "$GIT_COMMON" && return 1
-    return 0
-  fi
-  root="${path%/.claude/"$RECORD_FILENAME"}"
-  [ "$path" = "$(record_path_under "$root")" ] && is_worktree_root "$root" || return 1
-  has_symlink_below "$path" "$root" && return 1
-  ! is_git_tracked "$path" "$root"
+is_symlinked() {
+  [ -L "$(runs_dir)" ] || [ -L "$1" ]
 }
 
 # Sets `key` and `ledger` only for a well-formed pointer: a regular file whose
@@ -186,11 +109,11 @@ is_run_ledger_path() {
 load_trusted_pointer() {
   local run_id="$1" ptr
   ptr="$(pointer_path "$run_id")"
-  [ -f "$ptr" ] && [ ! -L "$ptr" ] || return 1
+  [ -f "$ptr" ] && ! is_symlinked "$ptr" || return 1
   read_pointer "$run_id" || return 1
   is_valid_run_key "$key" && [ "${key%%@*}" = "$run_id" ] || return 1
   [[ ! "${key#*@}" > "$(utc_now)" ]] || return 1
-  is_run_ledger_path "$run_id" "$ledger"
+  [ "$ledger" = "$(ledger_path "$run_id")" ] && ! is_symlinked "$ledger"
 }
 
 require_trusted_pointer() {
@@ -199,35 +122,18 @@ require_trusted_pointer() {
   load_trusted_pointer "$run_id" || die "refusing an untrusted pointer for run-id: $run_id"
 }
 
-# Written to a temp file inside <dir> then `mv`d over so a reader never sees a
-# partially written pointer.
-write_pointer() {
-  local run_id="$1" line="$2" ptr tmp
-  ptr="$(pointer_path "$run_id")"
+# Written to a temp file inside the run directory then `mv`d over, so a reader
+# never sees a partial file and a leftover from a crashed attempt of the same
+# topic never leaks its lines into the new run.
+write_atomically() {
+  local target="$1" content="$2" tmp
   tmp="$(mktemp "$(runs_dir)/.craft-run-ledger.XXXXXX")"
-  printf '%s\n' "$line" > "$tmp"
-  mv "$tmp" "$ptr"
-}
-
-ensure_header() {
-  local target="$1"
-  mkdir -p "$(dirname "$target")"
-  [ -s "$target" ] && return 0
-  printf '%s\n' "$LEDGER_HEADER" > "$target"
-}
-
-# Through a temp file and `mv`, so a leftover scratch from a crashed attempt
-# of the same topic never leaks its lines into the new run.
-replace_with_header() {
-  local target="$1" tmp
-  tmp="$(mktemp "$(dirname "$target")/.craft-run-ledger.XXXXXX")"
-  printf '%s\n' "$LEDGER_HEADER" > "$tmp"
+  printf '%s\n' "$content" > "$tmp"
   mv "$tmp" "$target"
 }
 
 # Removes every pointer whose line is malformed or whose ledger is gone — run
-# before each open so a dead run never lingers in a lookup. A symlinked
-# pointer is never touched: it is not this script's file.
+# before each open so a dead run never lingers in a lookup.
 sweep_stale_pointers() {
   local ptr run_id
   for ptr in "$(runs_dir)"/*"$POINTER_SUFFIX"; do
@@ -240,30 +146,8 @@ sweep_stale_pointers() {
 }
 
 prepare_runs_dir() {
-  ! has_symlink_below "$(runs_dir)" "$GIT_COMMON" || die "refusing a symlinked run directory: $(runs_dir)"
+  [ ! -L "$(runs_dir)" ] || die "refusing a symlinked run directory: $(runs_dir)"
   mkdir -p "$(runs_dir)"
-}
-
-open_target() {
-  local run_id="$1" flag="$2"
-  if [ "$flag" = "$IN_PLACE_FLAG" ]; then
-    record_path_under "$MAIN"
-    return
-  fi
-  scratch_path "$run_id"
-}
-
-# An in-place ledger is the checkout's own append-only history and keeps its
-# content; a scratch always starts fresh.
-start_ledger() {
-  local target="$1" flag="$2"
-  if [ "$flag" = "$IN_PLACE_FLAG" ]; then
-    refuse_unsafe_target "$target" "$MAIN"
-    ensure_header "$target"
-    return
-  fi
-  refuse_symlinked "$target" "$GIT_COMMON"
-  replace_with_header "$target"
 }
 
 warn_if_replacing() {
@@ -273,18 +157,17 @@ warn_if_replacing() {
 }
 
 cmd_open() {
-  local run_id="${1:-}" flag="${2:-}"
-  if [ $# -gt 2 ] || { [ -n "$flag" ] && [ "$flag" != "$IN_PLACE_FLAG" ]; }; then usage_exit; fi
+  [ $# -le 1 ] || usage_exit
+  local run_id="${1:-}" target run_key
   require_run_id "$run_id"
-  resolve_main || exit 1
+  resolve_git_common || die "not inside a git work tree"
   prepare_runs_dir
   sweep_stale_pointers
-  local target run_key
-  target="$(open_target "$run_id" "$flag")"
-  start_ledger "$target" "$flag"
+  target="$(ledger_path "$run_id")"
+  write_atomically "$target" "$LEDGER_HEADER"
   warn_if_replacing "$run_id"
   run_key="$run_id@$(utc_now)"
-  write_pointer "$run_id" "$run_key $target"
+  write_atomically "$(pointer_path "$run_id")" "$run_key $target"
   printf '%s %s\n' "$run_key" "$target"
 }
 
@@ -293,7 +176,7 @@ cmd_append() {
   [ -n "$phase" ] || usage_exit
   require_run_id "$run_id"
   is_valid_phase "$phase" || die "invalid phase: $phase" 2
-  resolve_main || exit 1
+  resolve_git_common || die "not inside a git work tree"
   require_trusted_pointer "$run_id"
   [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
   local wrote=0 line
@@ -303,26 +186,6 @@ cmd_append() {
     wrote=1
   done
   [ "$wrote" -eq 1 ] || die "no non-blank input for $run_id $phase"
-}
-
-cmd_move() {
-  local run_id="${1:-}" worktree="${2:-}"
-  [ -n "$worktree" ] || usage_exit
-  require_run_id "$run_id"
-  resolve_main || exit 1
-  require_trusted_pointer "$run_id"
-  [ "$ledger" = "$(scratch_path "$run_id")" ] || die "run-id $run_id is not an open scratch run"
-  [ -d "$worktree" ] || die "no such worktree directory: $worktree"
-  local root target
-  root="$(cd "$worktree" && pwd -P)"
-  is_worktree_root "$root" || die "not a worktree of this repository: $worktree"
-  target="$(record_path_under "$root")"
-  refuse_unsafe_target "$target" "$root"
-  ensure_header "$target"
-  tail -n +2 "$ledger" >> "$target"
-  write_pointer "$run_id" "$key $target"
-  rm -f "$ledger"
-  printf '%s %s\n' "$key" "$target"
 }
 
 # One line per trusted pointer whose ledger still exists, `<key> <ledger>`,
@@ -341,7 +204,7 @@ trusted_candidates() {
 # bound session reads the transcript once whatever the pointer count.
 locate_by_transcript() {
   local path="$1" cand_key cand_ledger
-  resolve_main 2>/dev/null || return 0
+  resolve_git_common || return 0
   [ -d "$(runs_dir)" ] || return 0
   [ -n "$path" ] && [ -f "$path" ] && [ -r "$path" ] || return 0
   while IFS=' ' read -r cand_key cand_ledger; do
@@ -354,8 +217,8 @@ locate_by_transcript() {
 locate_by_run() {
   local run_id="$1"
   is_valid_run_id "$run_id" || die "invalid run-id: $run_id" 2
-  resolve_main 2>/dev/null || return 0
-  load_trusted_pointer "$run_id" 2>/dev/null || return 0
+  resolve_git_common || return 0
+  load_trusted_pointer "$run_id" || return 0
   [ -f "$ledger" ] || return 0
   printf '%s %s\n' "$run_id" "$ledger"
 }
@@ -369,40 +232,22 @@ cmd_locate() {
   esac
 }
 
-# Keeps this run's own lines beside the pointer, so what `Done` reads after
-# the worktree — and the ledger inside it — is torn down is never a summary.
-cmd_snapshot() {
-  local run_id="${1:-}" target tmp
-  require_run_id "$run_id"
-  resolve_main || exit 1
-  require_trusted_pointer "$run_id"
-  [ -f "$ledger" ] || die "ledger is missing: $ledger"
-  target="$(final_path "$run_id")"
-  refuse_symlinked "$target" "$GIT_COMMON"
-  tmp="$(mktemp "$(runs_dir)/.craft-run-ledger.XXXXXX")"
-  awk -v id="$run_id" '$1 == id' "$ledger" > "$tmp"
-  mv "$tmp" "$target"
-  printf '%s\n' "$target"
-}
-
 cmd_close() {
   local run_id="${1:-}"
   require_run_id "$run_id"
-  resolve_main || exit 1
-  rm -f "$(pointer_path "$run_id")" "$(scratch_path "$run_id")" "$(delta_path "$run_id")" "$(final_path "$run_id")"
+  resolve_git_common || die "not inside a git work tree"
+  rm -f "$(pointer_path "$run_id")" "$(ledger_path "$run_id")"
 }
 
 cmd_dir() {
-  resolve_main || exit 1
+  resolve_git_common || die "not inside a git work tree"
   printf '%s\n' "$(runs_dir)"
 }
 
 case "${1:-}" in
   open) shift; cmd_open "$@" ;;
   append) shift; cmd_append "$@" ;;
-  move) shift; cmd_move "$@" ;;
   locate) shift; cmd_locate "$@" ;;
-  snapshot) shift; cmd_snapshot "$@" ;;
   close) shift; cmd_close "$@" ;;
   dir) cmd_dir ;;
   '') usage_exit ;;
