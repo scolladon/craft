@@ -29,10 +29,13 @@ readonly REORIENT_TAIL_MAX_CHARS=200
 # the single stderr reason line, not duplicated here.
 reorient_tail() {
   local run_id="$1" ledger="$2"
-  awk -v id="$run_id" -v max_lines="$REORIENT_TAIL_MAX_LINES" -v max_chars="$REORIENT_TAIL_MAX_CHARS" '
+  awk -v id="$run_id" -v max_lines="$REORIENT_TAIL_MAX_LINES" -v max_chars="$REORIENT_TAIL_MAX_CHARS" \
+    -v control_chars="$(craft_control_chars_ere)" '
     $1 == id {
       n++
-      buf[n] = substr($0, 1, max_chars)
+      line = $0
+      gsub(control_chars, "", line)
+      buf[n] = substr(line, 1, max_chars)
     }
     END {
       k = n

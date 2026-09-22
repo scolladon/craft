@@ -5,7 +5,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { bindRun, createRunRepo, writeTranscript } = require('./helpers/craft-run');
+const { bindRun, createRunRepo, runLedger, writeTranscript } = require('./helpers/craft-run');
 
 const ROOT = path.join(__dirname, '..');
 const HOOKS_DIR = path.join(ROOT, 'hooks');
@@ -193,6 +193,11 @@ function steerPayload({ transcriptPath, cwd } = {}) {
   };
 }
 
+// Each hook is fed the payload of the event it is registered on.
+function payloadFor(hookName) {
+  return hookName === 'steer-compact-summary.sh' ? steerPayload : compactionPayload;
+}
+
 function ledgerFixtureLines(name) {
   const fixturePath = path.join(__dirname, '..', 'engine', 'test', 'fixtures', 'run-ledger', name);
   const [, ...rest] = fs.readFileSync(fixturePath, 'utf8').split('\n');
@@ -248,7 +253,7 @@ for (const hookName of COMPACTION_HOOKS) {
       const transcriptPath = writeTranscript(dir, ['unrelated']);
       const sut = runHookWithPayload;
 
-      const result = sut(hookName, compactionPayload({ transcriptPath, cwd: dir }));
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath, cwd: dir }));
 
       assert.strictEqual(result.stdout, '');
       assert.strictEqual(result.status, 0);
@@ -263,7 +268,7 @@ for (const hookName of COMPACTION_HOOKS) {
       const transcriptPath = writeTranscript(main, ['unrelated']);
       const sut = runHookWithPayload;
 
-      const result = sut(hookName, compactionPayload({ transcriptPath, cwd: main }));
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath, cwd: main }));
 
       assert.strictEqual(result.stdout, '');
       assert.strictEqual(result.status, 0);
@@ -278,7 +283,7 @@ for (const hookName of COMPACTION_HOOKS) {
       const staleTranscript = writeTranscript(bound.parent, ['no matching run-key in here']);
       const sut = runHookWithPayload;
 
-      const result = sut(hookName, compactionPayload({ transcriptPath: staleTranscript, cwd: bound.worktree }));
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath: staleTranscript, cwd: bound.worktree }));
 
       assert.strictEqual(result.stdout, '');
       assert.strictEqual(result.status, 0);
@@ -293,7 +298,7 @@ for (const hookName of COMPACTION_HOOKS) {
       fs.rmSync(bound.ledgerPath);
       const sut = runHookWithPayload;
 
-      const result = sut(hookName, compactionPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
 
       assert.strictEqual(result.stdout, '');
       assert.strictEqual(result.status, 0);
@@ -307,7 +312,7 @@ for (const hookName of COMPACTION_HOOKS) {
     try {
       const sut = runHookWithPayload;
 
-      const result = sut(hookName, compactionPayload({ cwd: bound.worktree }));
+      const result = sut(hookName, payloadFor(hookName)({ cwd: bound.worktree }));
 
       assert.strictEqual(result.stdout, '');
       assert.strictEqual(result.status, 0);
@@ -322,7 +327,7 @@ for (const hookName of COMPACTION_HOOKS) {
       const missingTranscript = path.join(bound.parent, 'does-not-exist.jsonl');
       const sut = runHookWithPayload;
 
-      const result = sut(hookName, compactionPayload({ transcriptPath: missingTranscript, cwd: bound.worktree }));
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath: missingTranscript, cwd: bound.worktree }));
 
       assert.strictEqual(result.stdout, '');
       assert.strictEqual(result.status, 0);
@@ -338,7 +343,7 @@ for (const hookName of COMPACTION_HOOKS) {
 
       const result = sut(
         hookName,
-        compactionPayload({ transcriptPath: '/nonexistent-transcript.jsonl', cwd: '/tmp' }),
+        payloadFor(hookName)({ transcriptPath: '/nonexistent-transcript.jsonl', cwd: '/tmp' }),
         { PATH: emptyPath },
       );
 
@@ -362,7 +367,7 @@ for (const hookName of COMPACTION_HOOKS) {
         const sut = runHookWithPayload;
         const hookLabel = hookName.replace(/\.sh$/, '');
 
-        const result = sut(hookName, compactionPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+        const result = sut(hookName, payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
 
         assert.strictEqual(result.stdout, '');
         assert.strictEqual(result.status, 0);
@@ -460,7 +465,9 @@ test(
       assert.ok(result.stdout.length <= 8000, `expected output <= 8000 chars, got ${result.stdout.length}`);
       assert.notStrictEqual(headerIndex, -1);
       assert.strictEqual(tailLines.length, 30);
-      assert.ok(tailLines.every((line) => line.length <= 200));
+      assert.ok(tailLines[0].startsWith('demo phase-470 '), 'the tail starts at the 30th line from the end');
+      assert.ok(tailLines[29].startsWith('demo phase-499 '), 'the tail ends at the last line');
+      assert.ok(tailLines.every((line) => line.length === 200));
     } finally {
       bound.cleanup();
     }
@@ -555,3 +562,108 @@ test(
     }
   },
 );
+
+test(
+  'Given a PHASE-START(implementation) followed by 40 records of the same run, when steer-compact-summary runs, then implementation is still reported in flight',
+  () => {
+    const partLines = Array.from({ length: 40 }, (_, i) => `demo implementation PART(${i + 1}): abc${i} size=pure-module outcome=pass`);
+    const bound = bindRun({
+      ledgerLines: ['demo implementation PHASE-START(implementation): 2026-09-22T10:00:00Z', ...partLines],
+    });
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut('steer-compact-summary.sh', steerPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+
+      assert.strictEqual(result.status, 0);
+      assert.match(result.stdout, /phase\(s\) in flight: implementation;/);
+    } finally {
+      bound.cleanup();
+    }
+  },
+);
+
+const CONTROL_CHARS = /[\x01-\x08\x0b-\x1f\x7f]/;
+
+test(
+  'Given a ledger line carrying an escape sequence and a control character, when reorient-after-compact runs, then its output carries neither',
+  () => {
+    const bound = bindRun({ ledgerLines: ['demo design note \x1b[31mred\x1b[0m and \x01 bell'] });
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut('reorient-after-compact.sh', compactionPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+
+      assert.strictEqual(result.status, 0);
+      assert.match(result.stdout, /demo design note \[31mred\[0m and {2}bell/);
+      assert.doesNotMatch(result.stdout, CONTROL_CHARS);
+    } finally {
+      bound.cleanup();
+    }
+  },
+);
+
+test(
+  'Given an in-flight phase name carrying an escape sequence, when steer-compact-summary runs, then its output carries no control character',
+  () => {
+    const bound = bindRun({ ledgerLines: ['demo design PHASE-START(de\x1bsign): 2026-09-22T10:00:00Z'] });
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut('steer-compact-summary.sh', steerPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+
+      assert.strictEqual(result.status, 0);
+      assert.match(result.stdout, /phase\(s\) in flight: design;/);
+      assert.doesNotMatch(result.stdout, CONTROL_CHARS);
+    } finally {
+      bound.cleanup();
+    }
+  },
+);
+
+for (const hookName of COMPACTION_HOOKS) {
+  test(`Given a run still in its scratch before workspace, when ${hookName} runs from the main checkout, then it names the scratch ledger`, () => {
+    const { parent, main, cleanup } = createRunRepo();
+    try {
+      const openResult = runLedger(main, ['open', 'demo']);
+      const [, scratch] = openResult.stdout.trim().split(' ');
+      const transcriptPath = writeTranscript(parent, [openResult.stdout]);
+      const sut = runHookWithPayload;
+
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath, cwd: main }));
+
+      assert.strictEqual(result.status, 0);
+      assert.ok(result.stdout.includes(scratch), `expected the scratch path in: ${result.stdout}`);
+    } finally {
+      cleanup();
+    }
+  });
+
+  test(`Given an in-place run, when ${hookName} runs from the checkout, then it names the in-place ledger`, () => {
+    const bound = bindRun({ worktree: false });
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: bound.main }));
+
+      assert.strictEqual(result.status, 0);
+      assert.ok(result.stdout.includes(path.join(bound.main, '.claude', 'craft-run-record.md')));
+    } finally {
+      bound.cleanup();
+    }
+  });
+
+  test(`Given a payload cwd that does not exist, when ${hookName} runs, then it prints nothing and exits 0`, () => {
+    const bound = bindRun();
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut(hookName, payloadFor(hookName)({ transcriptPath: bound.transcriptPath, cwd: path.join(bound.parent, 'gone') }));
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stdout, '');
+    } finally {
+      bound.cleanup();
+    }
+  });
+}

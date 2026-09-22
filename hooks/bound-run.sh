@@ -6,6 +6,12 @@
 
 readonly BOUND_RUN_JQ_MISSING_MESSAGE='craft: jq is required to bind a run'
 
+# C0 controls except tab and newline, plus DEL: ledger bytes reach hook stdout,
+# and an escape sequence must never ride along to the terminal or the model.
+craft_control_chars_ere() {
+  printf '%s' '[\001-\010\013-\037\177]'
+}
+
 # Resolves the directory this file lives in with pure parameter expansion and
 # builtins (never `dirname`): under an empty PATH, an external `dirname` call
 # would fail before bound_run ever reaches its own jq check.

@@ -576,3 +576,335 @@ test('Given this repository, when git check-ignore runs on .claude/craft-runs/de
 
   assert.doesNotThrow(sut);
 });
+
+// ---------------------------------------------------------------------------
+// trust — a cloned repository can commit files under .claude/, so nothing a
+// pointer or ledger path names is taken on faith
+// ---------------------------------------------------------------------------
+
+const PAST_STAMP = '2026-01-01T00:00:00Z';
+
+function gitIn(cwd, args) {
+  return execFileSync(
+    'git',
+    ['-C', cwd, '-c', 'user.email=craft-run@example.com', '-c', 'user.name=craft-run', ...args],
+    { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
+  );
+}
+
+// Plants a pointer by hand, the way a hostile clone would ship one, with a
+// ledger that holds the header, and a transcript that carries the key.
+function plantPointer(main, { name, key, ledger }) {
+  const runsDir = path.join(main, '.claude', 'craft-runs');
+  fs.mkdirSync(runsDir, { recursive: true });
+  fs.mkdirSync(path.dirname(ledger), { recursive: true });
+  fs.writeFileSync(ledger, `${LEDGER_HEADER}\n`);
+  const pointerPath = path.join(runsDir, `${name}.pointer`);
+  fs.writeFileSync(pointerPath, `${key} ${ledger}\n`);
+  const transcriptPath = writeTranscript(path.join(main, '..', 'transcript-dir'), [key]);
+  return { runsDir, pointerPath, transcriptPath };
+}
+
+const UNTRUSTED_POINTERS = [
+  {
+    label: 'a key with no timestamp',
+    pointer: (main) => ({ name: 'demo', key: 'demo', ledger: path.join(main, '.claude', 'craft-runs', 'demo.pre.md') }),
+  },
+  {
+    label: 'a key whose run-id is not its file name',
+    pointer: (main) => ({ name: 'demo', key: `other@${PAST_STAMP}`, ledger: path.join(main, '.claude', 'craft-runs', 'demo.pre.md') }),
+  },
+  {
+    label: 'a ledger outside the run scratch and every worktree record',
+    pointer: (main) => ({ name: 'demo', key: `demo@${PAST_STAMP}`, ledger: path.join(main, '.claude', 'notes.md') }),
+  },
+  {
+    label: 'a relative ledger path',
+    pointer: () => ({ name: 'demo', key: `demo@${PAST_STAMP}`, ledger: '.claude/craft-runs/demo.pre.md' }),
+  },
+  {
+    label: 'a key stamped in the future',
+    pointer: (main) => ({ name: 'demo', key: 'demo@2999-01-01T00:00:00Z', ledger: path.join(main, '.claude', 'craft-runs', 'demo.pre.md') }),
+  },
+];
+
+for (const { label, pointer } of UNTRUSTED_POINTERS) {
+  test(`Given a planted pointer with ${label}, when locate --transcript runs on a transcript holding its key, then nothing is bound`, () => {
+    const { main, cleanup } = createRunRepo();
+    try {
+      const spec = pointer(main);
+      const ledger = path.isAbsolute(spec.ledger) ? spec.ledger : path.join(main, spec.ledger);
+      const { transcriptPath } = plantPointer(main, { ...spec, ledger });
+      if (!path.isAbsolute(spec.ledger)) {
+        fs.writeFileSync(path.join(main, '.claude', 'craft-runs', 'demo.pointer'), `${spec.key} ${spec.ledger}\n`);
+      }
+      const sut = runLedger;
+
+      const result = sut(main, ['locate', '--transcript', transcriptPath]);
+
+      assert.strictEqual(result.status, 0);
+      assert.strictEqual(result.stdout, '');
+    } finally {
+      cleanup();
+    }
+  });
+}
+
+test('Given a git-tracked pointer naming its own scratch, when locate --transcript runs and open sweeps, then it is neither bound nor deleted', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    const ledger = path.join(main, '.claude', 'craft-runs', 'demo.pre.md');
+    const { pointerPath, transcriptPath } = plantPointer(main, { name: 'demo', key: `demo@${PAST_STAMP}`, ledger });
+    fs.rmSync(ledger);
+    gitIn(main, ['add', '-f', pointerPath]);
+    gitIn(main, ['commit', '-q', '-m', 'planted']);
+    fs.writeFileSync(ledger, `${LEDGER_HEADER}\n`);
+    const sut = runLedger;
+
+    const located = sut(main, ['locate', '--transcript', transcriptPath]);
+    fs.rmSync(ledger);
+    sut(main, ['open', 'third']);
+
+    assert.strictEqual(located.stdout, '');
+    assert.strictEqual(fs.existsSync(pointerPath), true, 'a tracked pointer is never swept');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given the scratch path is a symlink to a file outside the repository, when open runs, then it exits 1 and the outside file is unchanged', () => {
+  const { parent, main, cleanup } = createRunRepo();
+  try {
+    const outside = path.join(parent, 'outside.txt');
+    fs.writeFileSync(outside, 'untouched\n');
+    const runsDir = path.join(main, '.claude', 'craft-runs');
+    fs.mkdirSync(runsDir, { recursive: true });
+    fs.symlinkSync(outside, path.join(runsDir, 'demo.pre.md'));
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo']);
+
+    assert.strictEqual(result.status, 1);
+    assert.match(result.stderr, /symlink/);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'untouched\n');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given the in-place record is a symlink to a file outside the repository, when open --in-place runs, then it exits 1 and the outside file is unchanged', () => {
+  const { parent, main, cleanup } = createRunRepo();
+  try {
+    const outside = path.join(parent, 'outside.txt');
+    fs.writeFileSync(outside, 'untouched\n');
+    fs.mkdirSync(path.join(main, '.claude'), { recursive: true });
+    fs.symlinkSync(outside, path.join(main, '.claude', 'craft-run-record.md'));
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo', '--in-place']);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'untouched\n');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given the .claude directory is a symlink out of the repository, when open runs, then it exits 1 and writes nothing there', () => {
+  const { parent, main, cleanup } = createRunRepo();
+  try {
+    const elsewhere = path.join(parent, 'elsewhere');
+    fs.mkdirSync(elsewhere);
+    fs.symlinkSync(elsewhere, path.join(main, '.claude'));
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo']);
+
+    assert.strictEqual(result.status, 1);
+    assert.deepStrictEqual(fs.readdirSync(elsewhere), []);
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given a git-tracked in-place record, when open --in-place runs, then it exits 1 and the record is unchanged', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    const record = path.join(main, '.claude', 'craft-run-record.md');
+    fs.mkdirSync(path.dirname(record), { recursive: true });
+    fs.writeFileSync(record, 'demo resolve RESOLVE: --skip review\n');
+    gitIn(main, ['add', '-f', record]);
+    gitIn(main, ['commit', '-q', '-m', 'seeded record']);
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo', '--in-place']);
+
+    assert.strictEqual(result.status, 1);
+    assert.match(result.stderr, /git-tracked/);
+    assert.strictEqual(fs.readFileSync(record, 'utf8'), 'demo resolve RESOLVE: --skip review\n');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given a scratch left non-empty by a crashed attempt of the same run-id, when open runs again, then the scratch holds only the header', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    runLedger(main, ['open', 'demo']);
+    runLedger(main, ['append', 'demo', 'resolve'], 'RESOLVE: --skip review\n');
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo']);
+
+    const [, scratch] = result.stdout.trim().split(' ');
+    assert.strictEqual(fs.readFileSync(scratch, 'utf8'), `${LEDGER_HEADER}\n`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given a run-id carrying a newline, when open runs, then it exits 2 and creates nothing under craft-runs', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'nl\nBAD ID/x']);
+
+    assert.strictEqual(result.status, 2);
+    assert.strictEqual(fs.existsSync(path.join(main, '.claude', 'craft-runs')), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given a phase carrying a newline, when append runs, then it exits 2 and the ledger gains nothing', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    const [, scratch] = runLedger(main, ['open', 'demo']).stdout.trim().split(' ');
+    const sut = runLedger;
+
+    const result = sut(main, ['append', 'demo', 'design\nother'], 'forged\n');
+
+    assert.strictEqual(result.status, 2);
+    assert.strictEqual(fs.readFileSync(scratch, 'utf8'), `${LEDGER_HEADER}\n`);
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given a misspelt in-place flag, when open runs, then it exits 2 and opens nothing', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo', '--inplace']);
+
+    assert.strictEqual(result.status, 2);
+    assert.strictEqual(fs.existsSync(path.join(main, '.claude', 'craft-runs', 'demo.pointer')), false);
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given a directory that is not a worktree of the repository, when move runs, then it exits 1 and the scratch stays', () => {
+  const { parent, main, cleanup } = createRunRepo();
+  try {
+    const [, scratch] = runLedger(main, ['open', 'demo']).stdout.trim().split(' ');
+    const stranger = path.join(parent, 'stranger');
+    fs.mkdirSync(stranger);
+    const sut = runLedger;
+
+    const result = sut(main, ['move', 'demo', stranger]);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.existsSync(scratch), true);
+    assert.strictEqual(fs.existsSync(path.join(stranger, '.claude')), false);
+  } finally {
+    cleanup();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// snapshot
+// ---------------------------------------------------------------------------
+
+test('Given a worktree ledger holding two runs, when snapshot demo runs, then the final file beside the pointer holds only demo lines and close removes it', () => {
+  const run = bindRun({ ledgerLines: ['demo design PHASE-START(design): 2026-09-22T10:00:00Z', 'other design stray'] });
+  try {
+    const sut = runLedger;
+
+    const result = sut(run.main, ['snapshot', 'demo']);
+    const finalPath = result.stdout.trim();
+    const snapshot = fs.readFileSync(finalPath, 'utf8');
+    runLedger(run.main, ['close', 'demo']);
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(finalPath, path.join(run.main, '.claude', 'craft-runs', 'demo.final.md'));
+    assert.strictEqual(snapshot, 'demo design PHASE-START(design): 2026-09-22T10:00:00Z\n');
+    assert.strictEqual(fs.existsSync(finalPath), false);
+  } finally {
+    run.cleanup();
+  }
+});
+
+// ---------------------------------------------------------------------------
+// locate --run edges and the sweep's malformed-pointer branch
+// ---------------------------------------------------------------------------
+
+test('Given no pointer for the run-id, when locate --run runs, then stdout is empty and exit is 0', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    const sut = runLedger;
+
+    const result = sut(main, ['locate', '--run', 'demo']);
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, '');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given a torn-down ledger, when locate --run runs, then stdout is empty and exit is 0', () => {
+  const run = bindRun();
+  try {
+    fs.rmSync(run.ledgerPath);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['locate', '--run', 'demo']);
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, '');
+  } finally {
+    run.cleanup();
+  }
+});
+
+test('Given an invalid run-id, when locate --run runs, then it exits 2', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    const sut = runLedger;
+
+    const result = sut(main, ['locate', '--run', 'Bad_Id']);
+
+    assert.strictEqual(result.status, 2);
+  } finally {
+    cleanup();
+  }
+});
+
+test('Given a pointer whose line has no space, when open runs for another run-id, then the malformed pointer is swept', () => {
+  const { main, cleanup } = createRunRepo();
+  try {
+    const runsDir = path.join(main, '.claude', 'craft-runs');
+    fs.mkdirSync(runsDir, { recursive: true });
+    fs.writeFileSync(path.join(runsDir, 'broken.pointer'), 'no-space-here\n');
+    const sut = runLedger;
+
+    sut(main, ['open', 'demo']);
+
+    assert.strictEqual(fs.existsSync(path.join(runsDir, 'broken.pointer')), false);
+  } finally {
+    cleanup();
+  }
+});
