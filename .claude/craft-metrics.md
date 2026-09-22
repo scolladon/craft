@@ -421,3 +421,8 @@ shrink-agent-context-cost planning turns=75 tool_calls=112 tokens=16798139 durat
 shrink-agent-context-cost refactoring turns=22 tool_calls=23 tokens=1723582 duration_ms=244607 cache_read=1613337 cache_creation=90236 output=19965 avg_ctx=77437 equiv=373998
 shrink-agent-context-cost review turns=154 tool_calls=189 tokens=14368366 duration_ms=2253831 cache_read=13589625 cache_creation=631455 output=146978 avg_ctx=92347 equiv=2883479
 shrink-agent-context-cost validation turns=360 tool_calls=365 tokens=90150882 duration_ms=4002362 cache_read=89488044 cache_creation=439183 output=222935 avg_ctx=249800 equiv=10613178
+auto-compaction-safety design turns=141 tool_calls=181 tokens=21390687 duration_ms=2222858 cache_read=20704873 cache_creation=489039 output=196493 avg_ctx=150313 equiv=3664533
+auto-compaction-safety implementation turns=695 tool_calls=761 tokens=68218513 duration_ms=7093549 cache_read=66335483 cache_creation=1330674 output=550966 avg_ctx=97363 equiv=11053111
+auto-compaction-safety planning turns=113 tool_calls=115 tokens=20367187 duration_ms=1840982 cache_read=19812595 cache_creation=370684 output=183682 avg_ctx=178615 equiv=3363251
+auto-compaction-safety review turns=377 tool_calls=382 tokens=26433215 duration_ms=5205472 cache_read=24739662 cache_creation=1222541 output=470258 avg_ctx=68867 equiv=6354186
+auto-compaction-safety validation turns=85 tool_calls=99 tokens=11484449 duration_ms=1146150 cache_read=11168351 cache_creation=216725 output=99203 avg_ctx=133944 equiv=1883926
