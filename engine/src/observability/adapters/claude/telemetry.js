@@ -48,6 +48,14 @@ const SYNTHETIC_MODEL = '<synthetic>';
 export const CACHE_READ_FIELD = 'cache_read_input_tokens';
 export const CACHE_CREATION_FIELD = 'cache_creation_input_tokens';
 
+// Compaction-estimate constants are vendor-specific: the core never reads a
+// boundary's preTokens or a summary's character count, only the estimate
+// this adapter derives from them below.
+const SUMMARY_INPUT_TOKENS = [3000, 5500];
+const SUMMARY_OUTPUT_MULTIPLIERS = [1.2, 2.8];
+const SUMMARY_OUTPUT_FALLBACK = [1300, 2600];
+const CHARS_PER_TOKEN = 4;
+
 // F6: coerce non-finite values (string, NaN, null) to 0 so they can't poison cost math.
 const numOrZero = (v) => (Number.isFinite(v) ? v : 0);
 
@@ -202,6 +210,74 @@ function foldEventByMessageId(events, indexByMessageId, messageId, candidateEven
 }
 
 /**
+ * True when a parsed line opens a compaction boundary.
+ *
+ * @param {object} parsed
+ * @returns {boolean}
+ */
+function isCompactBoundary(parsed) {
+  return parsed?.type === 'system' && parsed?.subtype === 'compact_boundary';
+}
+
+/**
+ * True when a parsed line carries the post-compaction summary.
+ *
+ * @param {object} parsed
+ * @returns {boolean}
+ */
+function isCompactSummary(parsed) {
+  return parsed?.isCompactSummary === true;
+}
+
+/**
+ * Open a pending compaction from a boundary line's preTokens.
+ *
+ * @param {object} parsed
+ * @param {'main' | 'subagent'} sourceKind
+ * @returns {{ run: string | null, sourceKind: 'main' | 'subagent', cacheRead: number }}
+ */
+function openCompaction(parsed, sourceKind) {
+  return {
+    run: parsed.sessionId ?? null,
+    sourceKind,
+    cacheRead: numOrZero(parsed.compactMetadata?.preTokens),
+  };
+}
+
+/**
+ * Close a pending compaction against its summary's character count.
+ *
+ * @param {{ run: string | null, sourceKind: string, cacheRead: number }} pending
+ * @param {number} summaryChars
+ * @returns {object} CompactionEstimate
+ */
+function estimateCompaction(pending, summaryChars) {
+  const t = Math.ceil(summaryChars / CHARS_PER_TOKEN);
+  return {
+    ...pending,
+    input: SUMMARY_INPUT_TOKENS,
+    output: SUMMARY_OUTPUT_MULTIPLIERS.map((multiplier) => Math.round(multiplier * t)),
+    summaryMissing: false,
+  };
+}
+
+/**
+ * Close a pending compaction that never got its summary line, whether the
+ * stream ended first or a second boundary opened before one arrived.
+ *
+ * @param {{ run: string | null, sourceKind: string, cacheRead: number }} pending
+ * @returns {object} CompactionEstimate
+ */
+function estimateWithoutSummary(pending) {
+  return {
+    ...pending,
+    input: SUMMARY_INPUT_TOKENS,
+    output: SUMMARY_OUTPUT_FALLBACK,
+    summaryMissing: true,
+  };
+}
+
+/**
  * Parse an async iterable of raw JSONL lines into UsageEvents.
  *
  * Emission rule: one UsageEvent per distinct assistant `message.id` (or per
@@ -229,16 +305,27 @@ function foldEventByMessageId(events, indexByMessageId, messageId, candidateEven
  * events never reach `phase: 'review'` in the first place (phase is always
  * null on the main-loop path below).
  *
+ * A `compact_boundary` system line opens a pending compaction (keyed on the
+ * boundary's own `preTokens`); the next `isCompactSummary` line closes it
+ * with an estimate derived from the summary's character count. A boundary
+ * reopening before a summary arrives, or the stream ending first, closes the
+ * pending compaction as summary-missing instead. Detection runs right after
+ * the `since` filter, ahead of the marker scan and the `includeInline` skip,
+ * so `--since` gates on the boundary's own timestamp and `--no-inline` never
+ * touches compactions — they are never billed main-loop turns.
+ *
  * @param {AsyncIterable<string>} lines - Line stream
  * @param {string | null} [since] - ISO timestamp cutoff (inclusive lower bound)
  * @param {{ sourceKind?: string, agentType?: string | null, includeInline?: boolean, spawnId?: number } | null} [context]
- * @returns {Promise<{ events: object[], skipped: number, markers: object[], unlabelled: number }>}
+ * @returns {Promise<{ events: object[], skipped: number, markers: object[], unlabelled: number, compactions: object[] }>}
  */
 export async function parseLines(lines, since = null, context = null) {
   const isSubagent = context?.sourceKind === 'subagent';
   const events = [];
   const indexByMessageId = new Map();
   const markers = [];
+  const compactions = [];
+  let pending = null;
   let skipped = 0;
   let sawUnlabelledEvent = false;
   let span = { first: null, last: null };
@@ -257,6 +344,27 @@ export async function parseLines(lines, since = null, context = null) {
     if (since) {
       const ts = parsed.timestamp ?? null;
       if (ts !== null && ts < since) continue;
+    }
+
+    // Compaction boundaries and their summaries are administrative lines, not
+    // billed turns — detected and consumed before the marker scan and the
+    // includeInline skip so neither touches them (see the JSDoc above).
+    if (isCompactBoundary(parsed)) {
+      if (pending) compactions.push(estimateWithoutSummary(pending));
+      pending = openCompaction(parsed, isSubagent ? 'subagent' : 'main');
+      continue;
+    }
+    if (isCompactSummary(parsed)) {
+      if (pending) {
+        const content = parsed.message?.content;
+        compactions.push(
+          typeof content === 'string'
+            ? estimateCompaction(pending, content.length)
+            : estimateWithoutSummary(pending),
+        );
+        pending = null;
+      }
+      continue;
     }
 
     // Run-record `auto-skip:` tokens ride in orchestrator assistant text. A
@@ -353,5 +461,8 @@ export async function parseLines(lines, since = null, context = null) {
     events[events.length - 1].durationMs = span.last - span.first;
   }
 
-  return { events, skipped, markers, unlabelled: sawUnlabelledEvent ? 1 : 0 };
+  // A compaction still open once the stream ends never got its summary line.
+  if (pending) compactions.push(estimateWithoutSummary(pending));
+
+  return { events, skipped, markers, unlabelled: sawUnlabelledEvent ? 1 : 0, compactions };
 }

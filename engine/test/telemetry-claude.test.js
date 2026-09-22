@@ -952,3 +952,142 @@ test('Given a sub-agent transcript, when parseLines runs, then no emitted event 
   assert.ok(!serialized.includes('toolu_a'), 'the tool_use block id must never leak into the event');
   assert.ok(!serialized.includes('tool_use'), 'the block type string must never leak into the event');
 });
+
+// ── 39. parseLines — compaction boundaries become summary-cost estimates ──
+
+test('Given compaction-main.jsonl, when parseLines runs, then compactions holds two main estimates with cacheRead 24715 and 24707, input [3000, 5500] each, outputs [1014, 2366] and [1472, 3436], and summaryMissing false', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('compaction-main.jsonl')));
+
+  assert.equal(result.compactions.length, 2);
+  assert.deepEqual(result.compactions[0], {
+    run: 'sess-compact', sourceKind: 'main',
+    cacheRead: 24715, input: [3000, 5500], output: [1014, 2366], summaryMissing: false,
+  });
+  assert.deepEqual(result.compactions[1], {
+    run: 'sess-compact', sourceKind: 'main',
+    cacheRead: 24707, input: [3000, 5500], output: [1472, 3436], summaryMissing: false,
+  });
+});
+
+// ── 40. parseLines — compaction lines leak no usage into events ──
+
+test('Given compaction-main.jsonl parsed whole and parsed with its boundary, attachment and summary lines stripped, when parseLines runs, then the two events arrays are deep-equal and hold three events', async () => {
+  const sut = parseLines;
+  const wholeLines = fixtureLines('compaction-main.jsonl');
+  const strippedLines = wholeLines.filter((line) => {
+    if (!line.trim()) return true;
+    return JSON.parse(line).type === 'assistant';
+  });
+
+  const wholeResult = await sut(asyncLines(wholeLines));
+  const strippedResult = await sut(asyncLines(strippedLines));
+
+  assert.equal(wholeResult.events.length, 3);
+  assert.deepEqual(wholeResult.events, strippedResult.events);
+});
+
+// ── 41. parseLines — a boundary with no trailing summary closes summary-missing ──
+
+test('Given a boundary with no summary after it, when parseLines runs, then one estimate has summaryMissing true and output [1300, 2600]', async () => {
+  const sut = parseLines;
+  const boundaryLine = JSON.stringify({
+    type: 'system', subtype: 'compact_boundary', sessionId: 'sess-missing',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    compactMetadata: {
+      trigger: 'auto', preTokens: 10000, postTokens: 2000, cumulativeDroppedTokens: 0,
+      durationMs: 5000, preservedMessages: 0, preservedSegment: null,
+    },
+  });
+
+  const result = await sut(asyncLines([boundaryLine]));
+
+  assert.equal(result.compactions.length, 1);
+  assert.deepEqual(result.compactions[0], {
+    run: 'sess-missing', sourceKind: 'main',
+    cacheRead: 10000, input: [3000, 5500], output: [1300, 2600], summaryMissing: true,
+  });
+});
+
+// ── 42. parseLines — a reopened boundary closes the prior one summary-missing ──
+
+test('Given two boundaries before one summary, when parseLines runs, then the first closes as summary-missing and the second takes the summary', async () => {
+  const sut = parseLines;
+  const firstBoundary = JSON.stringify({
+    type: 'system', subtype: 'compact_boundary', sessionId: 'sess-reopen',
+    timestamp: '2026-01-01T00:00:00.000Z',
+    compactMetadata: {
+      trigger: 'auto', preTokens: 8000, postTokens: 1000, cumulativeDroppedTokens: 0,
+      durationMs: 4000, preservedMessages: 0, preservedSegment: null,
+    },
+  });
+  const secondBoundary = JSON.stringify({
+    type: 'system', subtype: 'compact_boundary', sessionId: 'sess-reopen',
+    timestamp: '2026-01-01T00:01:00.000Z',
+    compactMetadata: {
+      trigger: 'auto', preTokens: 9000, postTokens: 1200, cumulativeDroppedTokens: 0,
+      durationMs: 4200, preservedMessages: 0, preservedSegment: null,
+    },
+  });
+  const summaryLine = JSON.stringify({
+    type: 'user', sessionId: 'sess-reopen', timestamp: '2026-01-01T00:02:00.000Z',
+    isCompactSummary: true, message: { role: 'user', content: 'x'.repeat(400) },
+  });
+
+  const result = await sut(asyncLines([firstBoundary, secondBoundary, summaryLine]));
+
+  assert.equal(result.compactions.length, 2);
+  assert.deepEqual(result.compactions[0], {
+    run: 'sess-reopen', sourceKind: 'main',
+    cacheRead: 8000, input: [3000, 5500], output: [1300, 2600], summaryMissing: true,
+  });
+  assert.deepEqual(result.compactions[1], {
+    run: 'sess-reopen', sourceKind: 'main',
+    cacheRead: 9000, input: [3000, 5500], output: [120, 280], summaryMissing: false,
+  });
+});
+
+// ── 43. parseLines — --since gates on the boundary's own timestamp ──
+
+test('Given compaction-main.jsonl parsed with a since cutoff between the two boundaries, when parseLines runs, then only the second boundary\'s estimate remains', async () => {
+  const sut = parseLines;
+  const since = '2026-03-01T10:30:00.000Z';
+
+  const result = await sut(asyncLines(fixtureLines('compaction-main.jsonl')), since);
+
+  assert.equal(result.compactions.length, 1);
+  assert.deepEqual(result.compactions[0], {
+    run: 'sess-compact', sourceKind: 'main',
+    cacheRead: 24707, input: [3000, 5500], output: [1472, 3436], summaryMissing: false,
+  });
+});
+
+// ── 44. parseLines — a sub-agent transcript's compaction carries sourceKind subagent ──
+
+test('Given compaction-subagent.jsonl with a sub-agent context, when parseLines runs, then sourceKind is subagent and output is [600, 1400]', async () => {
+  const sut = parseLines;
+
+  const result = await sut(
+    asyncLines(fixtureLines('compaction-subagent.jsonl')),
+    null,
+    { sourceKind: 'subagent', agentType: 'craft:planner', spawnId: 0 },
+  );
+
+  assert.equal(result.compactions.length, 1);
+  assert.deepEqual(result.compactions[0], {
+    run: 'sess-compact', sourceKind: 'subagent',
+    cacheRead: 30000, input: [3000, 5500], output: [600, 1400], summaryMissing: false,
+  });
+});
+
+// ── 45. parseLines — includeInline false still reports compactions ──
+
+test('Given compaction-main.jsonl with includeInline false, when parseLines runs, then events drop the main-loop usage but compactions still holds both', async () => {
+  const sut = parseLines;
+
+  const result = await sut(asyncLines(fixtureLines('compaction-main.jsonl')), null, { includeInline: false });
+
+  assert.equal(result.events.length, 0);
+  assert.equal(result.compactions.length, 2);
+});
