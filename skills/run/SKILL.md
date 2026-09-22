@@ -116,7 +116,8 @@ Input: `$ARGUMENTS`
     (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose
     `phaseId === "propose"` and store its `awaitingHarnesses[]` in-session as the
     executing-harness ids that must land before `propose` starts `pr create`
-    (a missing entry or absent field = the empty set).
+    (a missing entry or absent field = the empty set); also emit
+    `AWAITING(propose): <ids comma-joined, or none>` (appended at step 4).
 
 1e. Surface `Resolution.waivers[]` in the run record. The engine pre-formats a
     `WAIVER: …` line into `record[]` **only for executing-harness skips**
@@ -143,27 +144,48 @@ Input: `$ARGUMENTS`
 4. Open the **run record** — an append-only on-disk ledger at
    `.claude/craft-run-record.md` (never under `${CLAUDE_PLUGIN_ROOT}`; run-local,
    gitignored by the existing `.claude/*` rule — see `docs/contributing/specs/run-record.md`).
+   Below, `run-ledger.sh` means that shimmed path, assigned once as `$ledger` in the code
+   block below; shell variables do not survive between Bash calls, so the orchestrator
+   expands the shim itself in every call that follows — never a bare `${CLAUDE_PLUGIN_ROOT}`
+   path.
 
-   **Which root, and when.** The ledger lives at the root of the tree the run works in,
-   and that tree changes once: `workspace` (walk step 1) creates the worktree, after
-   which all work happens there. Every write point must therefore name its root:
-   - **Before `workspace`** (this step, and the step-1c seeded lines): buffer the lines
-     in-session. Do NOT write them to the current checkout — that file would outlive
-     the run, uncommitted and never swept, and would split the run across two ledgers.
-   - **From `workspace` onward** (every phase-boundary flush at walk step 7, and the
-     `Done` residual flush): the **worktree** root. At `workspace`, open the ledger
-     there, write the header line `# craft run record (append-only)` if absent, then
-     flush the buffered pre-worktree lines first, so the worktree ledger holds the
-     whole run in order.
+   Open the ledger by running `run-ledger.sh open <run-id>` — spelled below as
+   `"$ledger" open` — and append the seeded §0 lines in the **same** Bash call:
 
-   Under `workspace: { strategy: in-place }` there is no second tree and no split — the
+   ```
+   ledger="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh"
+   "$ledger" open <run-id> [--in-place] && "$ledger" append <run-id> resolve <<'EOF'
+   RESOLVE: <craft flags verbatim, or none>
+   <Resolution.record[] lines>
+   <config/load notes from steps 0b and 1c-mem/1c-int>
+   <waivers from step 1e>
+   AWAITING(propose): <ids comma-joined, or none>
+   EOF
+   ```
+
+   Pass `--in-place` under `workspace: { strategy: in-place }` (no scratch, no second
+   tree — see below). Never silence `open`'s stdout: the run-key it prints into this
+   session's transcript is what binds the compaction hooks to this run.
+
+   **Flush-per-line.** Every ledger line is appended in the tool call that produces it or in the orchestrator's very next tool call — never held longer than that.
+
+   **The scratch ledger.** Before `workspace`, the ledger is the scratch file
+   `<run-id>.pre.md` under `run-ledger.sh dir` — not the checkout. `workspace` moves it
+   into the worktree ledger in one `run-ledger.sh move <run-id> <worktree>` call, so the
+   worktree ledger ends up holding the whole run in order. Under
+   `workspace: { strategy: in-place }` there is no second tree and no scratch — the
    checkout root is the only root, and the ledger opens at this step directly.
+
+   The §0 lines produced before the run-id exists — steps 0b–1e, which all run before
+   step 3 derives the topic slug — are the only in-session hold: bounded to §0 itself,
+   and re-derivable by simply re-running §0.
 
    Each line is one run-id-prefixed record. Every subsequent phase outcome, skip reason,
    no-op justification, probe result, and forced action is appended the same way.
-   **Only the orchestrator ever appends to this file** — no role agent writes it, in any
-   phase, including phases that run in parallel. The final summary and the PR body take
-   only the lines whose run-id prefix is this run's.
+   **Only the orchestrator ever appends to this file** — through its own tool calls,
+   foreground or background; the compaction hooks only read. No role agent writes it, in
+   any phase, including phases that run in parallel. The final summary and the PR body
+   take only the lines whose run-id prefix is this run's.
 
 ## Phase walk (driven by Resolution.effective[])
 
@@ -260,6 +282,12 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
    means the phase probes as today. See `docs/contributing/specs/intention.md`.
 
+   **Phase-start marker.** At phase entry, in the same Bash call as the
+   contract-assemble invocation above, append `PHASE-START(<phase.id>): <iso8601>`
+   (`date -u +%Y-%m-%dT%H:%M:%SZ`) via `run-ledger.sh append <run-id> <phase.id>`. Skip
+   this append when the phase is already in flight — a resumed phase keeps its first
+   `PHASE-START`, so a later `--since` derivation stays right.
+
 5. **Execute** via the resolved execution mode (`phase.execution`).
 
    **`agent`** (default): spawn `craft:<role>` (or the manifest-swapped role) as a Task,
@@ -304,14 +332,20 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    If `codeProducing: false` and gate non-empty: run gate once at phase boundary.
    If gate is empty string: no gate check.
 
-7. **Record outcome** in the run record (appended to the seeded entries), flushing this
-   phase's lines to the on-disk ledger (`.claude/craft-run-record.md`) before moving to
-   the next descriptor — the phase-boundary flush. An
+7. **Record outcome** in the run record (appended to the seeded entries): append
+   `PHASE-DONE(<phase.id>): <one-line outcome>` for every phase that ran (NO-OP phases
+   included), together with the existing `GATE`/`NO-OP`/`inline:` lines, in one
+   `run-ledger.sh append` call to `.claude/craft-run-record.md`. That call must still
+   fall within the flush-per-line window: the call that produced the line, or the
+   orchestrator's very next tool call. A gate's `GATE` line may instead land in the
+   gate's own call. An
    inline-executed phase is noted: `inline: <phase.id> — ran in-session`. At each
    phase boundary where a gate ran, append the fixed greppable token
    `GATE(<phase.id>): green` or `GATE(<phase.id>): red` to the run record — one
    line per phase gate result. An auto-skipped or waived executing-harness records
-   no `GATE(...)` line (the phase did not produce a recorded gate result). A judgment
+   no `GATE(...)` line (the phase did not produce a recorded gate result); an
+   auto-skipped phase records only its `auto-skip:` line (step 1) — no
+   `PHASE-START`/`PHASE-DONE`. A judgment
    phase (`decisions`/`refactoring`) that records a `NO-OP(<phase>):` line — e.g.
    `NO-OP(decisions): no user-judgment decisions — …` or `NO-OP(refactoring): nothing
    cleared the bar — …` — has produced its outcome; it is NOT a missing artifact and
@@ -352,6 +386,9 @@ bring their own `procedure`, dispatched verbatim (step 2).
   `phaseId === "propose"`, captured in §0 step 1d) has landed its run and its gate is
   green. `documentation` (archetype: `delivery`) may parallel a
   background executing-harness; `propose` may not.
+  On the ledger, that awaited set is the `AWAITING(propose):` set minus recorded
+  releases — `auto-skip: <id>`, exact `NO-OP(<id>):`, or the last `GATE(<id>)` green —
+  today's release rules, stated as ledger facts.
   If an executing-harness was waived (skipped via `pipeline.skip`), its gate is
   released — the waiver is in `Resolution.waivers[]` and pre-formatted in
   `Resolution.record[]` — and `propose` may proceed without waiting for it.
@@ -504,16 +541,49 @@ invariant. A first-class per-part review cadence (multi-reviewer fan-out, `passe
 numeric convergence enforcement) is deferred to the later walk/parallelism pass, which is
 its home.
 
+## Rebuild after compaction
+
+A compaction can land mid-walk; this is how the orchestrator rebuilds from the ledger
+instead of trusting the summary it just produced.
+
+1. **The ledger outranks the summary.** Locate the ledger from the reorient block's
+   `Ledger:` line. Without a block (non-Claude harness, the hook absent), run
+   `run-ledger.sh locate --run <run-id>`, where the run-id is the topic slug
+   re-derivable from the `/craft:run` message the summary keeps verbatim.
+2. **Re-derive the Resolution.** Re-run §0 steps 0b, 1 and 1b with the flags on the
+   ledger's `RESOLVE:` line; re-`load()` the memory store (1c-mem) and re-`consult()`
+   the intention view (1c-int).
+3. **Pipe that Resolution into `run-state`:**
+   ```
+   node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/run-state.js" <ledger-path> --run <run-id>
+   ```
+   Exit 1 (an `AWAITING(propose):` mismatch — the manifest or flags changed mid-run) or
+   exit 2 → blocker `{ rebuild, reason, ≤3 options }`, never a guess. On exit 0, restore
+   `completed`/`inFlight`/`next`/`awaitingHarnesses`/`parts`/`findings`/`background` from
+   the printed state, and surface its `warnings`.
+4. **Only a background run survives.** A foreground spawn blocks the orchestrator, so a
+   compaction can never land mid-spawn; only a background Bash run — recorded as
+   `HARNESS-BG` — can outlive an orchestrator compaction.
+5. **Resume.** Re-enter each `inFlight` phase at walk steps 2–4 (idempotent; step 4
+   skips a second `PHASE-START`), then resume per:
+
+   | In-flight phase | Resume from |
+   |---|---|
+   | any agent phase except review | the phase's committed artifact (design doc, plan, ADRs, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
+   | `workspace` | the pointer still names the scratch and `../<repo>-<slug>` exists on `<type>/<slug>`: run `move` and continue. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
+   | `decisions` | ADRs are committed one at a time; the user's answers survive as verbatim user messages. |
+   | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. |
+   | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
+   | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
+   | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |
+   | `integrate` (after teardown) | the ledger is gone and the hook stays silent. `Done` reads `<run-id>.delta.json`, never a summarised delta. |
+6. **Walk from `next`.**
+
 ## Done
 
-**Ledger residual flush (only if the worktree still exists).** If `integrate`'s
-`teardown` action was declined, or the run stopped short of `integrate`, the tree is
-alive: append any remaining run-record lines to `.claude/craft-run-record.md` — the
-ledger ends up holding the whole run. When `integrate` already ran
-`worktree-teardown.sh`, the tree — and the ledger inside it — are already gone; the
-ledger's on-disk tail is the last phase boundary before teardown, and the `integrate`
-outcome line plus anything `Done` appends exist in-session only, where they already
-ship: in the final summary and the PR body.
+Once `integrate` has run `worktree-teardown.sh`, the tree — and `.claude/craft-run-record.md`
+inside it — are already gone: stop appending, and any later lines stay in-session only,
+where they already ship: in the final summary and the PR body.
 
 **Memory save (once per run).** `delta` is derived from the ledger's lines carrying this
 run's run-id, **as concern-keyed facts** — the store's per-concern schema and its
@@ -522,8 +592,9 @@ never absolute, gate commands stored BARE with any env/secret assignment prefix
 stripped. The ledger is run-local, but the store it feeds is committed, so the scrub
 happens here on the way in. `skills/integrate/SKILL.md` step 3 performs the derivation
 itself, before it invokes `worktree-teardown.sh` — teardown removes the worktree and the
-ledger inside it (`docs/contributing/specs/run-record.md`). Hold the derived `delta`
-in-session across the rest of the walk. Resolve the store path from `memory.ref` (default
+ledger inside it (`docs/contributing/specs/run-record.md`). Read the `delta` from
+`<run-id>.delta.json` under `run-ledger.sh dir` (written by `integrate` step 3) — never
+a summarised delta. Resolve the store path from `memory.ref` (default
 `.claude/craft-memory.md`) rooted at the repo ROOT, same as `load` (the engine joins
 `ref` under the repo root and refuses a path that escapes it). Call
 `save(repoRoot, view, delta, deps)` **once**, atomically — `view` is the run-start
@@ -542,10 +613,14 @@ same posture as a failed `save` above.
 groups this session's sub-agent transcripts by phase, appends one row per agent-spawned
 phase to `.claude/craft-metrics.md`, and prints what it appended. A phase that ran twice in
 one session (a revision round, or validation and architecture sharing one role) needs its
-own call with `--phase <phase-id> --since <iso8601 captured at that phase's entry>`, or its
+own call with `--phase <phase-id> --since <iso8601>`, where `--since` is the iso on that
+phase's latest `PHASE-START(<phase>):` line, or its
 row re-counts the first run of that phase. A phase with no transcript records
 `transcript=na`. Never hand-assemble a row; never write metrics into the learnings store
 `.claude/craft-memory.md`.
+
+`run-ledger.sh close <run-id>` — the last action, removing the pointer, the scratch (if
+any) and the delta file — before the final message.
 
 Final message: the PR URL (or branch name if no remote) + one-line summary + the run
 record.

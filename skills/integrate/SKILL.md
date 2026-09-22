@@ -27,7 +27,9 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    the adapter binding. Always delete-branch: no merged branch lingers on the remote.
 3. **Derive the `Done`-bound memory delta, then consult `teardown`.** First, read this
    run's run-id lines from the on-disk ledger
-   (`docs/contributing/specs/run-record.md`) into the in-session `delta` and hold it —
+   (`docs/contributing/specs/run-record.md`) and derive the `delta`; write it, in the
+   same Bash call, straight to `<run-id>.delta.json` — spelled in full as
+   `"$("${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh" dir)/<run-id>.delta.json"` —
    the teardown below removes the worktree and the ledger inside it, so this is the last
    point at which it can be read. A `MEMORY-RETRACT(<concern>): <merge-key>` line derives
    to `{ concern, payload, retract: true }` rather than to a plain observation; for the

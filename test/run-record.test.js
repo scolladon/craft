@@ -15,6 +15,18 @@ const STORE_PATH = '.claude/craft-memory.md';
 const METRICS_LEDGER_PATH = path.join(ROOT, '.claude', 'craft-metrics.md');
 const BUFFERED_FLUSH_SENTENCE =
   'Writes are buffered all run and flushed once here, so a phase that blocked mid-run leaves the store unchanged';
+const FLUSH_PER_LINE =
+  "appended in the tool call that produces it or in the orchestrator's very next tool call";
+const NEW_TOKENS = [
+  'RESOLVE:',
+  'AWAITING(propose):',
+  'PHASE-START(',
+  'PHASE-DONE(',
+  'PART(',
+  'FINDINGS(',
+  'HARNESS-BG(',
+];
+const RUN_SKILL_TOKENS = NEW_TOKENS.slice(0, 4);
 
 // Slices skills/run/SKILL.md between two `^## ` headings, so a mention in an
 // unrelated section cannot satisfy a region-specific assertion. Lines are
@@ -37,11 +49,30 @@ function sliceRegion(content, startPattern, endPattern) {
 }
 
 const runSkill = fs.readFileSync(RUN_SKILL_PATH, 'utf8');
+const runRecordSpec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
 
 test('Given skills/run/SKILL.md §0, when the resolve region up to Phase walk is read, then it names the on-disk ledger path', () => {
   const result = sliceRegion(runSkill, null, /^## Phase walk/);
 
   assert.ok(result.includes(LEDGER_PATH), `expected ${LEDGER_PATH} in the §0 region`);
+});
+
+test('Given skills/run/SKILL.md §0 step 4, when the open-record region is read, then it opens the ledger, flushes per line and seeds RESOLVE/AWAITING', () => {
+  const result = sliceRegion(runSkill, /^4\. Open the \*\*run record\*\*/, /^## Phase walk/);
+
+  assert.match(result, /run-ledger\.sh"? open <run-id>/);
+  assert.ok(result.includes(FLUSH_PER_LINE), 'expected the flush-per-line sentence');
+  assert.ok(result.includes('RESOLVE:'), 'expected the RESOLVE: token');
+  assert.ok(result.includes('AWAITING(propose):'), 'expected the AWAITING(propose): token');
+  assert.ok(!result.includes('buffer the lines in-session'), 'the pre-worktree buffer wording must be gone');
+});
+
+test('Given the run-record spec, when normalised, then it states the flush-per-line rule and drops the buffered/phase-boundary wording', () => {
+  const normalised = runRecordSpec.replace(/\s+/g, ' ');
+
+  assert.ok(normalised.includes(FLUSH_PER_LINE), 'expected the flush-per-line sentence');
+  assert.ok(!normalised.includes('buffered in-session'), 'the buffered-in-session wording must be gone');
+  assert.ok(!normalised.includes('once per phase boundary'), 'the phase-boundary cadence wording must be gone');
 });
 
 test('Given skills/run/SKILL.md phase walk step 7, when the record-outcome region is read, then it names the on-disk ledger path', () => {
@@ -50,10 +81,77 @@ test('Given skills/run/SKILL.md phase walk step 7, when the record-outcome regio
   assert.ok(result.includes(LEDGER_PATH), `expected ${LEDGER_PATH} in the phase-walk region`);
 });
 
+test('Given skills/run/SKILL.md phase walk step 4, when the assemble region is read, then it appends a PHASE-START marker at phase entry', () => {
+  const result = sliceRegion(runSkill, /^4\. \*\*Assemble the injected block\*\*/, /^5\. \*\*Execute\*\*/);
+
+  assert.ok(result.includes('PHASE-START(<phase.id>):'));
+});
+
+test('Given skills/run/SKILL.md phase walk step 7, when the record-outcome region is read, then it appends a PHASE-DONE marker and drops the phase-boundary-flush wording', () => {
+  const result = sliceRegion(runSkill, /^7\. \*\*Record outcome\*\*/, /^8\. \*\*On blocker\*\*/);
+
+  assert.ok(result.includes('PHASE-DONE(<phase.id>):'));
+  assert.ok(!result.includes('phase-boundary flush'));
+});
+
+test('Given the run-record spec, when the token-vocabulary region is read, then it names every new ledger token', () => {
+  const result = sliceRegion(runRecordSpec, /^## Token vocabulary/, /^## /);
+
+  for (const token of NEW_TOKENS) {
+    assert.ok(result.includes(token), `expected ${token} in the Token vocabulary region`);
+  }
+});
+
+test('Given skills/run/SKILL.md, when scanned whole, then it carries every run-skill-emitted ledger token', () => {
+  for (const token of RUN_SKILL_TOKENS) {
+    assert.ok(runSkill.includes(token), `expected ${token} in skills/run/SKILL.md`);
+  }
+});
+
+test('Given the run-record spec, when read, then it names the run directory and the compaction-survival hooks', () => {
+  assert.ok(runRecordSpec.includes('.claude/craft-runs/'), 'expected the run directory path');
+
+  const result = sliceRegion(runRecordSpec, /^## Compaction survival/, /^## /);
+  assert.ok(result.includes('hooks/reorient-after-compact.sh'));
+  assert.ok(result.includes('hooks/steer-compact-summary.sh'));
+});
+
 test('Given skills/run/SKILL.md §Done, when the done region is read, then it names the on-disk ledger path', () => {
   const result = sliceRegion(runSkill, /^## Done/, null);
 
   assert.ok(result.includes(LEDGER_PATH), `expected ${LEDGER_PATH} in the §Done region`);
+});
+
+test('Given skills/run/SKILL.md, when scanned for section order, then Rebuild after compaction sits between Review cadence and Done', () => {
+  const reviewIdx = runSkill.indexOf('## Review cadence — engine vs working-style');
+  const rebuildIdx = runSkill.indexOf('## Rebuild after compaction');
+  const doneIdx = runSkill.indexOf('## Done');
+
+  assert.ok(reviewIdx !== -1 && rebuildIdx !== -1 && doneIdx !== -1, 'all three headings must exist');
+  assert.ok(reviewIdx < rebuildIdx && rebuildIdx < doneIdx, 'Rebuild after compaction must sit between the other two');
+});
+
+test('Given skills/run/SKILL.md, when the Rebuild-after-compaction section is read, then it names the run-state derivation, the locate fallback and the resume table', () => {
+  const result = sliceRegion(runSkill, /^## Rebuild after compaction/, /^## Done/);
+
+  assert.ok(result.includes('run-state.js'));
+  assert.ok(result.includes('locate --run'));
+  assert.ok(result.includes('RESOLVE:'));
+  assert.ok(result.includes('inFlight'));
+  assert.match(result, /\|\s*`review`/);
+});
+
+test('Given skills/run/SKILL.md §Done, when read, then it reads the delta from the on-disk delta file, closes the run ledger and drops the residual-flush wording', () => {
+  const result = sliceRegion(runSkill, /^## Done/, null);
+
+  assert.ok(result.includes('.delta.json'));
+  assert.ok(result.includes('run-ledger.sh close'));
+  assert.ok(result.includes('PHASE-START('));
+  assert.ok(!result.includes('residual flush'));
+});
+
+test('Given the run-record spec, when read, then it carries no residual-flush wording', () => {
+  assert.ok(!runRecordSpec.includes('residual flush'));
 });
 
 test('Given skills/run/SKILL.md §Done, when read, then save(repoRoot, view, delta, deps) is still called exactly once, atomically', () => {
@@ -107,12 +205,13 @@ test('Given skills/integrate/SKILL.md step 3, when the step region is read, then
   // Imperative, not a stated precondition: an orchestrator reading only this step
   // must know to perform the read, not merely that it should already have happened.
   assert.match(result, /read this\s+run's run-id lines from the on-disk ledger/u);
-  assert.match(result, /into the in-session `delta` and hold it/u);
+  assert.match(result, /write it[^.]*<run-id>\.delta\.json/u);
   assert.ok(result.includes('run-record.md'), 'step 3 must cite the ledger spec');
-  // The derivation must precede the teardown invocation within this same region.
+  // The read, the delta write and the teardown invocation must stay in that order.
   assert.ok(
-    result.indexOf('read this') < result.indexOf('worktree-teardown.sh'),
-    'the imperative read must be stated before the teardown invocation',
+    result.indexOf('read this') < result.indexOf('.delta.json') &&
+      result.indexOf('.delta.json') < result.indexOf('worktree-teardown.sh'),
+    'the read, the delta write and the teardown invocation must stay in that order',
   );
 });
 
