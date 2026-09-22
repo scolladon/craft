@@ -155,7 +155,7 @@ test(
 // compaction hooks — SessionStart(compact) registration and bound-run lookup
 // ---------------------------------------------------------------------------
 
-const COMPACTION_HOOKS = ['reorient-after-compact.sh'];
+const COMPACTION_HOOKS = ['reorient-after-compact.sh', 'steer-compact-summary.sh'];
 
 function runHookWithPayload(hookName, payload, envOverrides = {}) {
   const hookPath = path.join(HOOKS_DIR, hookName);
@@ -182,6 +182,23 @@ function compactionPayload({ transcriptPath, cwd } = {}) {
   };
 }
 
+function steerPayload({ transcriptPath, cwd } = {}) {
+  return {
+    session_id: 'sess-fixture',
+    transcript_path: transcriptPath,
+    cwd,
+    hook_event_name: 'PreCompact',
+    trigger: 'auto',
+    custom_instructions: null,
+  };
+}
+
+function ledgerFixtureLines(name) {
+  const fixturePath = path.join(__dirname, '..', 'engine', 'test', 'fixtures', 'run-ledger', name);
+  const [, ...rest] = fs.readFileSync(fixturePath, 'utf8').split('\n');
+  return rest.filter((line) => line.trim() !== '');
+}
+
 test(
   'Given hooks/hooks.json, when parsed, then SessionStart binds "compact" to an existing, executable reorient hook',
   () => {
@@ -192,6 +209,21 @@ test(
     const stats = fs.statSync(hookPath);
 
     assert.strictEqual(sut.matcher, 'compact');
+    assert.ok(stats.isFile(), `expected ${hookPath} to be a regular file`);
+    assert.notStrictEqual(stats.mode & fs.constants.S_IXUSR, 0, `expected ${hookPath} to be executable`);
+  },
+);
+
+test(
+  'Given hooks/hooks.json, when parsed, then PreCompact binds an empty matcher to an existing, executable steer hook',
+  () => {
+    const hooksConfig = JSON.parse(fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8'));
+    const sut = hooksConfig.hooks.PreCompact[0];
+
+    const hookPath = sut.hooks[0].command.replace('${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}', ROOT);
+    const stats = fs.statSync(hookPath);
+
+    assert.strictEqual(sut.matcher, '');
     assert.ok(stats.isFile(), `expected ${hookPath} to be a regular file`);
     assert.notStrictEqual(stats.mode & fs.constants.S_IXUSR, 0, `expected ${hookPath} to be executable`);
   },
@@ -319,30 +351,28 @@ for (const hookName of COMPACTION_HOOKS) {
       fs.rmSync(emptyPath, { recursive: true, force: true });
     }
   });
+
+  test(
+    `Given a bound run whose ledger is unreadable, when ${hookName} runs, then it never blocks and reports the failure on stderr`,
+    { skip: process.getuid && process.getuid() === 0 },
+    () => {
+      const bound = bindRun();
+      try {
+        fs.chmodSync(bound.ledgerPath, 0o000);
+        const sut = runHookWithPayload;
+        const hookLabel = hookName.replace(/\.sh$/, '');
+
+        const result = sut(hookName, compactionPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+
+        assert.strictEqual(result.stdout, '');
+        assert.strictEqual(result.status, 0);
+        assert.match(result.stderr.trim(), new RegExp(`^craft ${hookLabel}: failed \\(exit \\d+\\)$`));
+      } finally {
+        bound.cleanup();
+      }
+    },
+  );
 }
-
-test(
-  'Given a bound run whose ledger is unreadable, when reorient-after-compact runs, then it never blocks and reports the failure on stderr',
-  { skip: process.getuid && process.getuid() === 0 },
-  () => {
-    const bound = bindRun();
-    try {
-      fs.chmodSync(bound.ledgerPath, 0o000);
-      const sut = runHookWithPayload;
-
-      const result = sut(
-        'reorient-after-compact.sh',
-        compactionPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }),
-      );
-
-      assert.strictEqual(result.stdout, '');
-      assert.strictEqual(result.status, 0);
-      assert.match(result.stderr.trim(), /^craft reorient-after-compact: failed \(exit \d+\)$/);
-    } finally {
-      bound.cleanup();
-    }
-  },
-);
 
 test(
   "Given a bound run's ledger lines from this run and from another, when reorient-after-compact runs, then it prints the reorient block scoped to this run's tail",
@@ -431,6 +461,95 @@ test(
       assert.notStrictEqual(headerIndex, -1);
       assert.strictEqual(tailLines.length, 30);
       assert.ok(tailLines.every((line) => line.length <= 200));
+    } finally {
+      bound.cleanup();
+    }
+  },
+);
+
+test(
+  "Given the mid-review ledger fixture, when steer-compact-summary runs from a worktree cwd, then it prints the compaction note with the review phase in flight",
+  () => {
+    const bound = bindRun({ ledgerLines: ledgerFixtureLines('mid-review.md') });
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut(
+        'steer-compact-summary.sh',
+        steerPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }),
+      );
+      const lines = result.stdout.split('\n').filter((line) => line.length > 0);
+      const orchestratorIndex = lines.findIndex((line) => line.startsWith("If it is the craft orchestrator's"));
+      const subAgentIndex = lines.findIndex((line) => line.startsWith('If it is a craft sub-agent'));
+
+      assert.strictEqual(result.status, 0);
+      assert.match(lines[0], /^craft compaction note: craft run demo\b/);
+      assert.ok(orchestratorIndex !== -1 && subAgentIndex !== -1 && orchestratorIndex < subAgentIndex);
+      assert.ok(lines[orchestratorIndex].includes('run-id demo;'));
+      assert.ok(lines[orchestratorIndex].includes(`ledger ${bound.ledgerPath};`));
+      assert.ok(lines[orchestratorIndex].includes('phase(s) in flight: review;'));
+      assert.ok(!lines[subAgentIndex].includes(bound.ledgerPath));
+      assert.strictEqual(lines[lines.length - 1], 'If neither, ignore this note.');
+    } finally {
+      bound.cleanup();
+    }
+  },
+);
+
+const STEER_IN_FLIGHT_FIXTURES = [
+  { fixture: 'design-revision.md', inFlight: 'design' },
+  { fixture: 'parallel.md', inFlight: 'validation, documentation' },
+  { fixture: 'resolve-only.md', inFlight: 'none recorded' },
+  { fixture: 'mixed-runs.md', inFlight: 'decisions' },
+];
+
+for (const { fixture, inFlight } of STEER_IN_FLIGHT_FIXTURES) {
+  test(
+    `Given the ${fixture} ledger fixture, when steer-compact-summary runs, then phase(s) in flight reads "${inFlight}"`,
+    () => {
+      const bound = bindRun({ ledgerLines: ledgerFixtureLines(fixture) });
+      try {
+        const sut = runHookWithPayload;
+
+        const result = sut(
+          'steer-compact-summary.sh',
+          steerPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }),
+        );
+
+        assert.strictEqual(result.status, 0);
+        assert.ok(result.stdout.includes(`phase(s) in flight: ${inFlight};`));
+      } finally {
+        bound.cleanup();
+      }
+    },
+  );
+}
+
+test(
+  'Given 500 demo lines of 1,000 characters plus 40 demo PHASE-START lines with 30-character phase names, when steer-compact-summary runs, then output length is bounded and the in-flight list is cut to 200 characters',
+  () => {
+    const noiseLines = Array.from({ length: 500 }, (_, i) => `demo noise-${i} ${'x'.repeat(1000)}`);
+    const phaseLines = Array.from({ length: 40 }, (_, i) => {
+      const phase = `p${String(i).padStart(2, '0')}${'a'.repeat(27)}`;
+      return `demo ${phase} PHASE-START(${phase}): 2026-09-22T11:00:00Z`;
+    });
+    const bound = bindRun({ ledgerLines: [...noiseLines, ...phaseLines] });
+    try {
+      const sut = runHookWithPayload;
+
+      const result = sut(
+        'steer-compact-summary.sh',
+        steerPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }),
+      );
+      const orchestratorLine = result.stdout
+        .split('\n')
+        .find((line) => line.startsWith("If it is the craft orchestrator's"));
+      const match = orchestratorLine && orchestratorLine.match(/phase\(s\) in flight: (.*?);/);
+
+      assert.strictEqual(result.status, 0);
+      assert.ok(result.stdout.length <= 2000, `expected output <= 2000 chars, got ${result.stdout.length}`);
+      assert.ok(match, 'expected a phase(s) in flight segment in output');
+      assert.strictEqual(match[1].length, 200);
     } finally {
       bound.cleanup();
     }
