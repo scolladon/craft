@@ -42,11 +42,6 @@ const PREAMBLE_SKILL_FILES = [
   'skills/review/SKILL.md',
   'skills/validation/SKILL.md',
 ];
-const EMITTER_TOKENS = [
-  ['PART(', 'skills/implementation/SKILL.md'],
-  ['FINDINGS(', 'skills/review/SKILL.md'],
-  ['HARNESS-BG(', 'skills/validation/SKILL.md'],
-];
 
 // Slices skills/run/SKILL.md between two `^## ` headings, so a mention in an
 // unrelated section cannot satisfy a region-specific assertion. Lines are
@@ -313,7 +308,7 @@ for (const file of PREAMBLE_SKILL_FILES) {
   });
 }
 
-test('Given skills/workspace/SKILL.md procedure step 2, when the worktree-strategy region is read, then worktree-setup runs before the ledger move inside one fenced block', () => {
+test('Given skills/workspace/SKILL.md procedure step 2, when the worktree-strategy region is read, then worktree add, worktree-setup and the ledger move run in that order inside one fenced block', () => {
   const workspaceSkill = fs.readFileSync(WORKSPACE_SKILL_PATH, 'utf8');
   const result = sliceRegion(workspaceSkill, /^2\. \*\*Consult `isolate` action\*\*/, /^3\. /);
 
@@ -323,7 +318,12 @@ test('Given skills/workspace/SKILL.md procedure step 2, when the worktree-strate
   assert.notStrictEqual(fenceEnd, -1, 'expected the fenced code block to close');
   const fenced = result.slice(fenceStart, fenceEnd);
 
+  assert.ok(fenced.includes('git worktree add'), 'expected git worktree add inside the fenced block');
   assert.ok(fenced.includes('worktree-setup.sh'), 'expected worktree-setup.sh inside the fenced block');
+  assert.ok(
+    fenced.indexOf('git worktree add') < fenced.indexOf('worktree-setup.sh'),
+    'git worktree add must precede worktree-setup.sh',
+  );
   assert.ok(fenced.includes('run-ledger.sh" move <run-id>'), 'expected the ledger move inside the fenced block');
   assert.ok(
     fenced.indexOf('worktree-setup.sh') < fenced.indexOf('run-ledger.sh" move <run-id>'),
@@ -351,13 +351,6 @@ test('Given skills/validation/SKILL.md, when scanned for the HARNESS-BG ledger t
   assert.ok(content.includes('HARNESS-BG(<phase>:<technique-id>): pid=<pid>'));
 });
 
-for (const [tokenPrefix, file] of EMITTER_TOKENS) {
-  test(`Given ${file}, when scanned for its ledger-token emitter prefix, then ${tokenPrefix} appears`, () => {
-    const content = fs.readFileSync(path.join(ROOT, file), 'utf8');
-
-    assert.ok(content.includes(tokenPrefix), `expected ${tokenPrefix} in ${file}`);
-  });
-}
 
 test('Given skills/*/SKILL.md, when scanned for the retired flushed-at-run-end wording, then none remain', () => {
   let result;
@@ -366,8 +359,50 @@ test('Given skills/*/SKILL.md, when scanned for the retired flushed-at-run-end w
       encoding: 'utf8',
     });
   } catch (err) {
-    result = err.stdout ?? '';
+    // grep exits 1 for "no match"; any other failure (a missing path, no grep) must fail the test.
+    if (err.status !== 1) throw err;
+    result = '';
   }
 
   assert.strictEqual(result.trim(), '', `expected no file to carry 'flushed at run end':\n${result}`);
+});
+
+test('Given skills/integrate/SKILL.md step 3, when read, then PHASE-DONE(integrate) and the snapshot both land before worktree-teardown.sh runs', () => {
+  const content = fs.readFileSync(INTEGRATE_SKILL_PATH, 'utf8');
+  const teardownAt = content.indexOf('worktree-teardown.sh" <main-repo-dir>');
+
+  assert.notStrictEqual(teardownAt, -1, 'expected the teardown invocation');
+  assert.ok(content.indexOf('PHASE-DONE(integrate)') !== -1 && content.indexOf('PHASE-DONE(integrate)') < teardownAt);
+  assert.ok(content.indexOf('run-ledger.sh snapshot <run-id>') !== -1 && content.indexOf('run-ledger.sh snapshot <run-id>') < teardownAt);
+});
+
+test('Given skills/integrate/SKILL.md step 5, when read, then it no longer closes the run record and defers close to Done', () => {
+  const content = fs.readFileSync(INTEGRATE_SKILL_PATH, 'utf8');
+  const result = content.slice(content.indexOf('\n5. '));
+
+  assert.ok(!result.includes('Close the run record'), 'step 5 must not read as run-ledger.sh close');
+  assert.match(result, /`run-ledger\.sh close`\s+does not run here/);
+});
+
+test('Given the run skill Done and the run-record spec, when read, then both name the snapshot file Done reads after teardown', () => {
+  const runSkill = fs.readFileSync(RUN_SKILL_PATH, 'utf8');
+  const spec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
+
+  assert.ok(runSkill.includes('<run-id>.final.md'));
+  assert.ok(spec.includes('<run-id>.final.md'));
+  assert.ok(spec.includes('`open`/`append`/`move`/`snapshot`/`close`'));
+});
+
+for (const [file, phase] of [['skills/validation/SKILL.md', 'validation'], ['skills/architecture/SKILL.md', 'architecture']]) {
+  test(`Given ${file}, when every technique is declined, then the phase appends the exact NO-OP(${phase}): release line`, () => {
+    const content = fs.readFileSync(path.join(ROOT, file), 'utf8');
+
+    assert.ok(content.includes(`NO-OP(${phase}): all techniques declined`));
+  });
+}
+
+test('Given skills/review/SKILL.md, when the findings file is described, then it holds the merged Finding[] of every pass', () => {
+  const content = fs.readFileSync(REVIEW_SKILL_PATH, 'utf8');
+
+  assert.match(content, /merged canonical `Finding\[\]` — all its passes/);
 });

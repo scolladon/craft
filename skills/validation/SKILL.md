@@ -91,7 +91,9 @@ description: Craft phase 8 - run the repo's engineering harness over the change,
    For each resolved technique, run its `probe` (config-file presence / binary
    resolvable). A failed probe declines the technique by absence:
    `NO-OP(validation:<technique-id>): declined — probe absent`. When every technique is
-   declined: the phase ends here (equivalent to the no-op terminal above).
+   declined: the phase ends here (equivalent to the no-op terminal above) and also
+   appends the exact `NO-OP(validation): all techniques declined — <ids>` line, the one
+   a rebuild reads as the `propose`-gate release (per-technique lines never release it).
 
 5. **Intention freshness (advisory).** Run `assert-fresh(change)` — see
    `docs/contributing/specs/intention.md`. The returned `report.stale[]` array carries **one row
@@ -135,8 +137,8 @@ sub-concern also no-op'd.
      `HARNESS-BG(<phase>:<technique-id>): pid=<pid> out=<path> spec=<path>` via
      `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh" append <run-id>
      <phase>`. `<pid>` is the same pid written to the run-lock. `spec=none` when the
-     technique builds no scope-spec file (gate mode). Write no technique name into this
-     token — `sample-technique`-style ids stay confined to tests.
+     technique builds no scope-spec file (gate mode). The token carries the resolved
+     technique id at runtime; this skill text itself names no concrete technique.
    - **`mode: gate`** — run the technique's `run` command; the exit code decides
      pass/fail. Green → record pass; red → escalate as a blocker.
    - **`mode: triage`** — redirect the technique's `run` output to a `mktemp` file

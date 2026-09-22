@@ -48,8 +48,9 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/normalize-findings.js"` to obtain a
    canonical `Finding[]` (`{file, line, severity, finding, fix?, status?}`). Key on these
    fields — never on whether the reviewer emitted a JSON array or a per-line list.
-   - In the same Bash call, write the canonical `Finding[]` to
-     `<dir>/<dimension>.c<cycle>.json`. `<dir>` is one
+   - Once every pass of a dimension has returned for the cycle, write that dimension's
+     merged canonical `Finding[]` — all its passes — in one Bash call to
+     `<dir>/<dimension>.c<cycle>.json`, so a second pass never overwrites the first. `<dir>` is one
      `mktemp -d "${TMPDIR:-/tmp}/craft-review.XXXXXX"` per review phase, reused across
      cycles: out of tree, the same throwaway discipline as validation's `$out`.
    - Append `FINDINGS(<dimension>): c<cycle> <path> n=<count>` via

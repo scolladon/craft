@@ -64,6 +64,7 @@ Every run-scoped file besides the ledger itself lives under one directory:
   <run-id>.pointer    "<run-key> <abs-ledger-path>"   written by open, retargeted by move, removed by close
   <run-id>.pre.md     scratch ledger, worktree strategy only, from §0 step 4 until `workspace`
   <run-id>.delta.json memory delta, written at integrate step 3, read at Done
+  <run-id>.final.md   this run's own ledger lines, snapshotted at integrate step 3, read at Done
 <worktree>/.claude/craft-run-record.md      the ledger — path and line format unchanged
 $TMPDIR/craft-review.XXXXXX/<dim>.c<N>.json normalised review findings, out of tree
 ```
@@ -163,7 +164,7 @@ there.
 
 ## Write cadence and the single-writer rule
 
-`run-ledger.sh` is the one write surface — `open`/`append`/`move`/`close` — and also the
+`run-ledger.sh` is the one write surface — `open`/`append`/`move`/`snapshot`/`close` — and also the
 locate surface (`locate --transcript`/`locate --run`) the compaction hooks read through.
 Every ledger line is appended in the tool call that produces it or in the orchestrator's
 very next tool call — never held longer than that.
@@ -177,7 +178,10 @@ very next tool call — never held longer than that.
    step 4 appends `PHASE-START(<phase.id>):` at phase entry; step 7 appends
    `PHASE-DONE(<phase.id>):` together with the phase's `GATE`/`NO-OP`/`inline:` lines,
    within the same flush-per-line window.
-3. **`close`, at `Done`.** Removes the pointer, the scratch (if any) and the delta file.
+3. **`snapshot`, at integrate step 3.** Copies this run's own lines to `<run-id>.final.md`
+   before teardown, after `integrate` appended its `PHASE-DONE`.
+4. **`close`, at `Done`.** Removes the pointer, the scratch (if any), the delta file and
+   the snapshot.
 
 **R4 — one writer.** Only the orchestrator appends to the ledger — through its own tool
 calls, foreground or background. No role agent writes it, in any phase, including phases
@@ -197,7 +201,8 @@ the tree and the ledger inside it. **R1 is durability against context loss, neve
 against worktree loss** — a run whose tree has been torn down is back to having nothing
 to read.
 
-The run directory's own files — the pointer, the scratch (if any) and the delta file —
+The run directory's own files — the pointer, the scratch (if any), the delta file and the
+snapshot —
 live in the checkout, not the worktree, so they outlive teardown until `run-ledger.sh
 close <run-id>` removes them: the last action of `skills/run/SKILL.md` §Done.
 
@@ -219,10 +224,11 @@ Two live cases at `Done`:
 - **Teardown did not run** (the run stopped at `propose`, or `teardown` was declined).
   The tree is alive, the ledger holds the whole run, and `<run-id>.delta.json` already
   carries the same delta `integrate` step 3 wrote.
-- **Teardown ran.** The ledger's on-disk tail is the last phase boundary before it. The
-  `integrate` outcome line, and anything `Done` appends, exist in-session only — where
-  they already ship, in the final summary and the PR body — while `<run-id>.delta.json`
-  survives teardown (it lives in the checkout, not the worktree) for `Done` to read.
+- **Teardown ran.** The ledger's on-disk tail is `integrate`'s `PHASE-DONE`, appended
+  just before it. Anything `Done` appends exists in-session only — where it already
+  ships, in the final summary and the PR body — while `<run-id>.delta.json` and
+  `<run-id>.final.md` survive teardown (they live in the checkout, not the worktree) for
+  `Done` to read.
 
 ## Failure posture
 

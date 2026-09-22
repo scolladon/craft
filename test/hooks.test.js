@@ -235,8 +235,10 @@ test(
 );
 
 test('Given hooks/hooks.json, when parsed, then PreToolUse is unchanged', () => {
-  const hooksConfig = JSON.parse(fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8'));
-  const result = hooksConfig.hooks.PreToolUse;
+  const raw = fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8');
+  const sut = JSON.parse;
+
+  const result = sut(raw).hooks.PreToolUse;
 
   assert.deepStrictEqual(result, [
     {

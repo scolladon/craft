@@ -38,6 +38,10 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    `docs/contributing/specs/run-record.md` Token vocabulary). The single-writer rule (R4)
    is untouched — the phase emits the ledger line, the orchestrator appends it and
    derives the delta from it here. `save` itself still runs once, atomically, at `Done`.
+   Still before teardown, append `PHASE-DONE(integrate): <outcome>`, then run
+   `run-ledger.sh snapshot <run-id>`: it keeps this run's own lines — the `PHASE-START`
+   isos `Done` passes to `--since` included — in `<run-id>.final.md` beside the pointer.
+   After teardown no ledger line can land.
    Then **consult the `teardown` action** separately before worktree teardown (per-verb
    granularity, ADR-126; see `docs/contributing/specs/policy.md`) and:
    ```bash
@@ -55,4 +59,7 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    `docs/contributing/metrics-baseline.report.json` would flag the intended shift as drift forever.
    Declining is fine (the offer is advisory, like the signal itself); never refresh
    silently.
-5. Close the run record; deliver the final summary (PR URL, what shipped, record).
+5. Stop appending — the ledger went with the worktree — and deliver the final summary
+   (PR URL, what shipped, record read from `<run-id>.final.md`). `run-ledger.sh close`
+   does not run here: it is the last action of the run skill's `Done`, after `save` and
+   metrics have read the delta and snapshot files.

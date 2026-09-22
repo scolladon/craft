@@ -338,7 +338,8 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    `run-ledger.sh append` call to `.claude/craft-run-record.md`. That call must still
    fall within the flush-per-line window: the call that produced the line, or the
    orchestrator's very next tool call. A gate's `GATE` line may instead land in the
-   gate's own call. An
+   gate's own call. A phase that tears the ledger down (`integrate`) appends its
+   `PHASE-DONE` before the teardown, never after. An
    inline-executed phase is noted: `inline: <phase.id> — ran in-session`. At each
    phase boundary where a gate ran, append the fixed greppable token
    `GATE(<phase.id>): green` or `GATE(<phase.id>): red` to the run record — one
@@ -570,13 +571,13 @@ instead of trusting the summary it just produced.
    | In-flight phase | Resume from |
    |---|---|
    | any agent phase except review | the phase's committed artifact (design doc, plan, ADRs, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
-   | `workspace` | the pointer still names the scratch and `../<repo>-<slug>` exists on `<type>/<slug>`: run `move` and continue. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
+   | `workspace` | the pointer still names the scratch and `../<repo>-<slug>` exists on `<type>/<slug>`: the one-call setup failed part-way — re-run `worktree-setup.sh <worktree>`, then `move`; escalate if setup fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
    | `decisions` | ADRs are committed one at a time; the user's answers survive as verbatim user messages. |
    | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. |
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
    | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |
-   | `integrate` (after teardown) | the ledger is gone and the hook stays silent. `Done` reads `<run-id>.delta.json`, never a summarised delta. |
+   | `integrate` (after teardown) | the ledger is gone and the hook stays silent. `Done` reads `<run-id>.delta.json` and `<run-id>.final.md`, never a summarised delta or summarised isos. |
 6. **Walk from `next`.**
 
 ## Done
@@ -614,13 +615,15 @@ groups this session's sub-agent transcripts by phase, appends one row per agent-
 phase to `.claude/craft-metrics.md`, and prints what it appended. A phase that ran twice in
 one session (a revision round, or validation and architecture sharing one role) needs its
 own call with `--phase <phase-id> --since <iso8601>`, where `--since` is the iso on that
-phase's latest `PHASE-START(<phase>):` line, or its
+phase's latest `PHASE-START(<phase>):` line — read from `<run-id>.final.md` under
+`run-ledger.sh dir` once teardown ran (integrate snapshots it first), from the ledger
+otherwise — or its
 row re-counts the first run of that phase. A phase with no transcript records
 `transcript=na`. Never hand-assemble a row; never write metrics into the learnings store
 `.claude/craft-memory.md`.
 
 `run-ledger.sh close <run-id>` — the last action, removing the pointer, the scratch (if
-any) and the delta file — before the final message.
+any), the delta file and the snapshot — before the final message.
 
 Final message: the PR URL (or branch name if no remote) + one-line summary + the run
 record.

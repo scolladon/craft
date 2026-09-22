@@ -303,11 +303,13 @@ test('Given a transcript with the run-key, when locate --transcript runs, then s
   }
 });
 
-test('Given locate --transcript run from the main checkout and from the worktree, then both return the same answer', () => {
+test('Given a bound run, when locate --transcript runs from the main checkout and from the worktree, then both return the same answer', () => {
   const run = bindRun();
   try {
-    const fromMain = runLedger(run.main, ['locate', '--transcript', run.transcriptPath]);
-    const fromWorktree = runLedger(run.worktree, ['locate', '--transcript', run.transcriptPath]);
+    const sut = runLedger;
+
+    const fromMain = sut(run.main, ['locate', '--transcript', run.transcriptPath]);
+    const fromWorktree = sut(run.worktree, ['locate', '--transcript', run.transcriptPath]);
 
     assert.strictEqual(fromMain.stdout, fromWorktree.stdout);
     assert.strictEqual(fromMain.stdout.trim(), `demo ${run.ledgerPath}`);
@@ -438,8 +440,9 @@ test('Given one pointer whose ledger is missing and one live pointer, when open 
     runLedger(main, ['open', 'alive']);
     const runsDir = path.join(main, '.claude', 'craft-runs');
     fs.writeFileSync(path.join(runsDir, 'stale.pointer'), `stale@2026-01-01T00:00:00Z ${path.join(runsDir, 'missing.pre.md')}\n`);
+    const sut = runLedger;
 
-    runLedger(main, ['open', 'third']);
+    sut(main, ['open', 'third']);
 
     const pointers = fs.readdirSync(runsDir).filter((f) => f.endsWith('.pointer')).sort();
     assert.deepStrictEqual(pointers, ['alive.pointer', 'third.pointer']);
@@ -481,8 +484,10 @@ test('Given an open run with a delta file, when close demo runs, then the pointe
 test('Given a run opened normally, when dir runs from the checkout and from the worktree, then both print the same craft-runs directory', () => {
   const run = bindRun();
   try {
-    const fromMain = runLedger(run.main, ['dir']);
-    const fromWorktree = runLedger(run.worktree, ['dir']);
+    const sut = runLedger;
+
+    const fromMain = sut(run.main, ['dir']);
+    const fromWorktree = sut(run.worktree, ['dir']);
 
     const expected = path.join(run.main, '.claude', 'craft-runs');
     assert.strictEqual(fromMain.stdout.trim(), expected);

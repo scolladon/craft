@@ -38,8 +38,8 @@ description: Craft phase 5 - execute the plan part by part, one part-implementer
    same verification's Bash call or the very next one, append
    `PART(<n>): <sha> size=<size> outcome=<pass|blocked>` via
    `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh" append <run-id>
-   implementation` — `<size>` is the part's shape label from the plan's shape table,
-   `?` when unknown. A landed commit found without a `PART` line on resume is verified
+   implementation` — `<size>` is one kebab-case shape label for the part (e.g.
+   `pure-module`, `docs-prose`), `?` when unknown; a label with a space breaks the token. A landed commit found without a `PART` line on resume is verified
    first, then gets its line. Spot-check conventions on the diff. Failed/blocked part →
    fix in-session or escalate with the agent's options; dead agent → fresh respawn from
    the plan part (artifact handoff); never relaunch blindly.
