@@ -126,7 +126,7 @@ A rebuild reads the ledger and re-runs `run-state` (see `skills/run/SKILL.md`
   format only.
 - `MEMORY-RETRACT(<concern>): <merge-key>` — emitted by the phase that owns a concern's
   write surface, on a mechanical re-check that disproves a stored entry (never a
-  judgment call). Derived at `skills/integrate/SKILL.md` step 3 into
+  judgment call). Derived at `skills/run/SKILL.md` `## Done` into
   `{ concern, payload, retract: true }`. It inherits the ledger's path/secret scrub
   unmodified.
 
@@ -200,11 +200,11 @@ failed `save` (ADR-120): a write failure never blocks delivery work.
 ## Inherited edges
 
 **Run-id collision.** The run-id is the topic slug, so a genuine re-run of the same
-feature reuses it; a resume then reads the earlier run's lines as its own. This is
-inherited, not introduced — `.claude/craft-metrics.md` already keys on the same slug and
-already carries repeat records for one id. `open` narrows it further: it starts the
-run's ledger fresh, so a second run of the same topic never inherits the first one's
-lines.
+feature reuses it — inherited, not introduced: `.claude/craft-metrics.md` already keys on
+the same slug and already carries repeat records for one id. `open` on an id already in
+use discards that id's ledger, whether its run is live or crashed, and starts a fresh
+one; the stderr replacement line is the only signal. A second run of the same topic
+never inherits the first one's lines, and a live run of that topic loses its ledger.
 
 **Resume double-`Done`.** A run that reaches `Done` twice (once before a reset, once
 after) calls `save` twice. This is convergent, not corrupting: `save` decay-merges

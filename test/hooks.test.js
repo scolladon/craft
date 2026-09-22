@@ -698,9 +698,8 @@ for (const hookName of COMPACTION_HOOKS) {
 
 // The hooks must keep working under whatever multibyte locale the session
 // runs in; this pins that with one the host actually provides.
-const UTF8_LOCALE = ['en_US.UTF-8', 'C.UTF-8', 'en_US.utf8', 'C.utf8'].find((name) =>
-  spawnSync('locale', ['-a'], { encoding: 'utf8' }).stdout.split('\n').includes(name),
-);
+const AVAILABLE_LOCALES = (spawnSync('locale', ['-a'], { encoding: 'utf8' }).stdout ?? '').split('\n');
+const UTF8_LOCALE = ['en_US.UTF-8', 'C.UTF-8', 'en_US.utf8', 'C.utf8'].find((name) => AVAILABLE_LOCALES.includes(name));
 
 for (const hookName of COMPACTION_HOOKS) {
   test(`Given a multibyte UTF-8 locale and a clean ledger, when ${hookName} runs, then it prints its block with no stderr`, () => {

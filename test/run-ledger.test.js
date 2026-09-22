@@ -4,7 +4,9 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { spawnSync } = require('node:child_process');
 const {
+  LEDGER_SCRIPT,
   LEDGER_HEADER,
   git,
   runsDirOf,
@@ -66,13 +68,14 @@ test('Given a fresh repo, when open demo runs from the checkout, then stdout car
   });
 });
 
-test('Given a run opened and a worktree added, when git status runs in both trees, then neither shows any run file', () => {
+test('Given a run opened and a worktree added, when git status runs in both trees with ignored files shown, then neither holds any run file', () => {
   withRun({}, (run) => {
-    const sut = (cwd) => git(cwd, ['status', '--porcelain', '--untracked-files=all']);
+    const sut = (cwd) => git(cwd, ['status', '--porcelain', '--untracked-files=all', '--ignored']);
 
     const fromMain = sut(run.main);
     const fromWorktree = sut(run.worktree);
 
+    assert.ok(fs.existsSync(pointerOf(run.main)) && fs.existsSync(run.ledgerPath), 'the run files exist');
     assert.strictEqual(fromMain, '');
     assert.strictEqual(fromWorktree, '');
   });
@@ -120,7 +123,7 @@ test('Given a cwd inside a committed directory laid out like a bare repository, 
     const result = sut(bare, ['open', 'demo']);
 
     assert.strictEqual(result.status, 1);
-    assert.match(result.stderr, /not inside a git work tree/);
+    assert.match(result.stderr, /not inside a git repository's work tree/);
     assert.strictEqual(fs.existsSync(path.join(bare, 'craft-runs')), false);
   });
 });
@@ -137,6 +140,73 @@ test('Given the run directory is a symlink out of the git dir, when open runs, t
     assert.strictEqual(result.status, 1);
     assert.match(result.stderr, /symlinked run directory/);
     assert.deepStrictEqual(fs.readdirSync(elsewhere), []);
+  });
+});
+
+// A committed directory laid out like a bare repository whose own config claims
+// the enclosing tree as its work tree, and optionally forwards its common dir.
+function plantBareLayout(main, { worktree = true, commondir = null } = {}) {
+  const layout = (dir, config) => {
+    for (const sub of ['objects', 'refs']) fs.mkdirSync(path.join(dir, sub), { recursive: true });
+    fs.writeFileSync(path.join(dir, 'HEAD'), 'ref: refs/heads/main\n');
+    fs.writeFileSync(path.join(dir, 'config'), config);
+  };
+  const bare = path.join(main, 'vendor', 'x');
+  layout(bare, `[core]\n\trepositoryformatversion = 0\n\tbare = false\n${worktree ? '\tworktree = ..\n' : ''}`);
+  if (commondir) {
+    layout(path.join(bare, commondir), '[core]\n\tbare = true\n');
+    fs.writeFileSync(path.join(bare, 'commondir'), `${commondir}\n`);
+  }
+  return bare;
+}
+
+for (const [label, options] of [
+  ['whose config claims a work tree', { worktree: true }],
+  ['whose commondir forwards to another committed directory', { worktree: true, commondir: '../y' }],
+]) {
+  test(`Given a cwd inside a committed bare-repository layout ${label}, when open runs, then no run file lands anywhere in the working tree`, () => {
+    withRepo(({ main }) => {
+      const bare = plantBareLayout(main, options);
+      const sut = runLedger;
+
+      sut(bare, ['open', 'demo']);
+
+      const status = git(main, ['status', '--porcelain', '--untracked-files=all', '--ignored']);
+      assert.strictEqual(status.includes('craft-runs'), false, status);
+      assert.strictEqual(fs.existsSync(path.join(main, 'vendor', 'x', 'craft-runs')), false);
+    });
+  });
+}
+
+test('Given a bare repository holding its worktrees in one container, when open runs from the container, then the ledger lands in the bare git dir', () => {
+  withRepo(({ parent, main }) => {
+    const container = path.join(parent, 'proj');
+    fs.mkdirSync(container);
+    git(parent, ['clone', '-q', '--bare', main, path.join(container, '.bare')]);
+    fs.writeFileSync(path.join(container, '.git'), 'gitdir: ./.bare\n');
+    const sut = runLedger;
+
+    const result = sut(container, ['open', 'demo']);
+
+    assert.strictEqual(result.status, 0, result.stderr);
+    assert.strictEqual(result.stdout.trim().split(' ')[1], path.join(container, '.bare', 'craft-runs', 'demo.md'));
+  });
+});
+
+test('Given the run ledger path is a symlink to a file outside the git dir, when open runs, then it exits 1 and the outside file is unchanged', () => {
+  withRepo(({ parent, main }) => {
+    const outside = path.join(parent, 'outside.md');
+    fs.writeFileSync(outside, '');
+    fs.mkdirSync(runsDirOf(main), { recursive: true });
+    fs.symlinkSync(outside, ledgerOf(main));
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo']);
+
+    assert.strictEqual(result.status, 1);
+    assert.match(result.stderr, /symlinked or directory run file/);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), '');
+    assert.deepStrictEqual(fs.readdirSync(parent).filter((f) => f.startsWith('.craft-run-ledger')), []);
   });
 });
 
@@ -375,11 +445,12 @@ test('Given the repository reached through a symlinked parent, when a run opens 
     try {
       fs.symlinkSync(parent, link);
       const viaLink = path.join(link, 'repo');
-      const openResult = runLedger(viaLink, ['open', 'demo']);
+      const logicalEnv = { ...process.env, PWD: viaLink };
+      const openResult = spawnSync('bash', [LEDGER_SCRIPT, 'open', 'demo'], { cwd: viaLink, env: logicalEnv, encoding: 'utf8' });
       const transcriptPath = writeTranscript(parent, [openResult.stdout]);
-      const sut = runLedger;
+      const sut = (args) => spawnSync('bash', [LEDGER_SCRIPT, ...args], { cwd: viaLink, env: logicalEnv, encoding: 'utf8' });
 
-      const result = sut(viaLink, ['locate', '--transcript', transcriptPath]);
+      const result = sut(['locate', '--transcript', transcriptPath]);
 
       assert.strictEqual(result.stdout, `demo ${ledgerOf(path.join(parent, 'repo'))}\n`);
     } finally {
@@ -470,6 +541,65 @@ for (const entry of UNTRUSTED_POINTERS) {
     });
   });
 }
+
+const SYMLINKED_READ_PATHS = [
+  {
+    label: 'a pointer that is a symlink to a valid pointer file outside the run directory',
+    arrange: (main) => {
+      fs.mkdirSync(runsDirOf(main), { recursive: true });
+      fs.writeFileSync(ledgerOf(main), `${LEDGER_HEADER}\n`);
+      const outside = path.join(main, '..', 'outside.pointer');
+      fs.writeFileSync(outside, `demo@${PAST_STAMP} ${ledgerOf(main)}\n`);
+      fs.symlinkSync(outside, pointerOf(main));
+      return ledgerOf(main);
+    },
+  },
+  {
+    label: 'a run directory that is a symlink holding a valid pointer and ledger',
+    arrange: (main) => {
+      const elsewhere = path.join(main, '..', 'elsewhere-runs');
+      fs.mkdirSync(elsewhere, { recursive: true });
+      fs.symlinkSync(elsewhere, runsDirOf(main));
+      fs.writeFileSync(ledgerOf(main), `${LEDGER_HEADER}\n`);
+      fs.writeFileSync(pointerOf(main), `demo@${PAST_STAMP} ${ledgerOf(main)}\n`);
+      return ledgerOf(main);
+    },
+  },
+];
+
+for (const { label, arrange } of SYMLINKED_READ_PATHS) {
+  test(`Given ${label}, when locate --transcript, locate --run and append run, then none binds and append writes nothing`, () => {
+    withRepo(({ main }) => {
+      const ledger = arrange(main);
+      const transcriptPath = writeTranscript(path.join(main, '..', 'transcript-dir'), [`demo@${PAST_STAMP}`]);
+      const sut = runLedger;
+
+      const located = sut(main, ['locate', '--transcript', transcriptPath]);
+      const byRun = sut(main, ['locate', '--run', 'demo']);
+      const appended = sut(main, ['append', 'demo', 'design'], 'forged\n');
+
+      assert.strictEqual(located.stdout, '');
+      assert.strictEqual(byRun.stdout, '');
+      assert.strictEqual(appended.status, 1);
+      assert.strictEqual(fs.readFileSync(ledger, 'utf8'), `${LEDGER_HEADER}\n`);
+    });
+  });
+}
+
+test('Given a pointer that is a symlink, when open sweeps for another run-id, then the link is neither followed nor removed', () => {
+  withRepo(({ parent, main }) => {
+    fs.mkdirSync(runsDirOf(main), { recursive: true });
+    const outside = path.join(parent, 'outside.pointer');
+    fs.writeFileSync(outside, 'no-space-here\n');
+    fs.symlinkSync(outside, pointerOf(main, 'linked'));
+    const sut = runLedger;
+
+    sut(main, ['open', 'demo']);
+
+    assert.strictEqual(fs.lstatSync(pointerOf(main, 'linked')).isSymbolicLink(), true);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'no-space-here\n');
+  });
+});
 
 // ---------------------------------------------------------------------------
 // sweep, close, dir, usage

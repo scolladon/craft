@@ -8,6 +8,9 @@ subjects:
 - **Date:** 2026-09-22
 - **Design:** docs/contributing/design/auto-compaction-safety.md · **Supersedes/Refines:** none
 
+> **Refined by ADR-384:** the verbs are now `open`/`append`/`locate`/`close`/`dir` — `move`
+> is gone, since the ledger never leaves the git common dir.
+
 ## Context
 
 The orchestrator now writes the ledger from several places and two roots (the scratch, then the

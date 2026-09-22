@@ -573,13 +573,15 @@ instead of trusting the summary it just produced.
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
    | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |
-   | `integrate` (after teardown) | the ledger outlives the worktree, so resume from it like any phase; `Done` derives the delta and the `--since` isos from it, never from a summary. |
+   | `integrate` (after teardown) | check `git worktree list` from `<main-repo-dir>`: when the worktree is gone, teardown already ran — skip step 3 and continue at step 4. The ledger outlives the worktree; `Done` derives the delta and the `--since` isos from it, never from a summary. |
 6. **Walk from `next`.**
 
 ## Done
 
 The ledger at `craft-runs/<run-id>.md` outlives `integrate`'s `worktree-teardown.sh`:
-appends continue after teardown until `close` ends the run.
+appends continue after teardown until `close` ends the run. Every call after teardown —
+`run-ledger.sh`, `emit-metrics.sh` — runs from `<main-repo-dir>`, since the worktree it
+would otherwise run from is gone.
 
 **Memory save (once per run).** `delta` is derived from the ledger's lines carrying this
 run's run-id, **as concern-keyed facts** — the store's per-concern schema and its
@@ -606,7 +608,7 @@ run continues; it is **not** recorded into the ledger itself (that would be circ
 same posture as a failed `save` above.
 
 **Metrics ledger (separate, append-only).** Call
-`bash scripts/emit-metrics.sh --run <run-id>` once from the tree the run is working in; it
+`bash scripts/emit-metrics.sh --run <run-id>` once from `<main-repo-dir>`; it
 groups this session's sub-agent transcripts by phase, appends one row per agent-spawned
 phase to `.claude/craft-metrics.md`, and prints what it appended. A phase that ran twice in
 one session (a revision round, or validation and architecture sharing one role) needs its

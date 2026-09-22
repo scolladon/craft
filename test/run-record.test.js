@@ -393,3 +393,20 @@ test('Given skills/review/SKILL.md, when the findings file is described, then it
 
   assert.match(content, /merged canonical `Finding\[\]` — all its passes/);
 });
+
+test('Given every run-ledger.sh invocation the skills, the spec and the hooks name, when compared with the verbs the script dispatches, then each is one the script has', () => {
+  const script = fs.readFileSync(path.join(ROOT, 'scripts', 'run-ledger.sh'), 'utf8');
+  const verbs = new Set([...script.matchAll(/^ {2}([a-z]+)\) (?:shift; )?cmd_/gm)].map((match) => match[1]));
+  const skillFiles = fs.readdirSync(path.join(ROOT, 'skills')).map((dir) => path.join(ROOT, 'skills', dir, 'SKILL.md')).filter((file) => fs.existsSync(file));
+  const hookFiles = fs.readdirSync(path.join(ROOT, 'hooks')).filter((file) => file.endsWith('.sh')).map((file) => path.join(ROOT, 'hooks', file));
+  const surfaces = [...skillFiles, RUN_RECORD_SPEC_PATH, ...hookFiles];
+
+  const named = surfaces.flatMap((file) =>
+    [...fs.readFileSync(file, 'utf8').matchAll(/run-ledger\.sh"?\)?"? ([a-z]+)\b/g)].map((match) => ({ file: path.relative(ROOT, file), verb: match[1] })),
+  );
+
+  assert.deepStrictEqual([...verbs].sort(), ['append', 'close', 'dir', 'locate', 'open']);
+  assert.ok(named.length > 0, 'expected run-ledger.sh invocations in the prose');
+  const unknown = named.filter(({ verb }) => !verbs.has(verb));
+  assert.deepStrictEqual(unknown, [], `unknown run-ledger.sh verbs: ${JSON.stringify(unknown)}`);
+});

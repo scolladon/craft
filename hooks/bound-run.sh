@@ -12,6 +12,13 @@ readonly BOUND_RUN_JQ_MISSING_MESSAGE='craft: jq is required to bind a run'
 # it runs under LC_ALL=C — a multibyte locale also aborts awk on invalid UTF-8 —
 # and strips to a fixpoint, since removing one match can splice its neighbours
 # into another.
+# How much of a line, as a multiple of what is printed, is stripped: stripping
+# to a fixpoint is quadratic on nested invalid sequences, so the input is cut
+# first, with room left for the bytes the strip removes.
+craft_strip_headroom() {
+  printf '%s' 4
+}
+
 craft_control_chars_ere() {
   printf '%s' '[\001-\010\013-\037\177]|\302[\200-\237]|\342\200[\252-\256]|\342\201[\246-\251]'
 }

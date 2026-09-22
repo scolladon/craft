@@ -2,6 +2,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -46,9 +47,10 @@ test('Given skills/review/SKILL.md, when scanned, then it pins MEMORY-RETRACT(',
   assert.ok(count > 0, 'Expected literal MEMORY-RETRACT( in skills/review/SKILL.md');
 });
 
-test('Given skills/run/SKILL.md, where Done derives the memory delta, when scanned, then it pins MEMORY-RETRACT(', () => {
-  const count = grepCount('MEMORY-RETRACT(', RUN_SKILL_PATH);
-  assert.ok(count > 0, 'Expected literal MEMORY-RETRACT( in skills/run/SKILL.md');
+test('Given skills/run/SKILL.md, when its Done section is read, then it carries the MEMORY-RETRACT derivation rule', () => {
+  const content = fs.readFileSync(RUN_SKILL_PATH, 'utf8');
+  const done = content.slice(content.indexOf('\n## Done'));
+  assert.ok(done.includes('MEMORY-RETRACT(') && done.includes('retract:'), 'Expected the MEMORY-RETRACT derivation rule in the Done section');
 });
 
 test('Given engine/src/adr-lint-main.js, when scanned, then it pins DECISION-CITE-WAIVE', () => {

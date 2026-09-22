@@ -30,19 +30,21 @@ readonly REORIENT_TAIL_MAX_CHARS=200
 reorient_tail() {
   local run_id="$1" ledger="$2"
   LC_ALL=C awk -v id="$run_id" -v max_lines="$REORIENT_TAIL_MAX_LINES" -v max_chars="$REORIENT_TAIL_MAX_CHARS" \
-    -v control_chars="$(craft_control_chars_ere)" '
+    -v control_chars="$(craft_control_chars_ere)" -v strip_headroom="$(craft_strip_headroom)" '
     $1 == id {
       n++
-      line = $0
-      while (gsub(control_chars, "", line)) {}
-      buf[n] = substr(line, 1, max_chars)
+      buf[n] = substr($0, 1, max_chars * strip_headroom)
     }
     END {
       k = n
       if (k > max_lines) k = max_lines
       printf "Ledger tail (last %d of %d lines of run %s):\n", k, n, id
       start = n - k + 1
-      for (i = start; i <= n; i++) print buf[i]
+      for (i = start; i <= n; i++) {
+        line = buf[i]
+        while (gsub(control_chars, "", line)) {}
+        print substr(line, 1, max_chars)
+      }
     }
   ' "$ledger" 2>/dev/null
 }

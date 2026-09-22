@@ -41,13 +41,15 @@ die() {
 }
 
 # GIT_COMMON is physical, so every path built from it compares byte-for-byte.
-# Only a work tree qualifies: a committed directory laid out like a bare
-# repository would otherwise be discovered as the git dir, handing the run
-# files to whoever committed it.
+# Git is asked with safe.bareRepository=explicit: a committed directory laid out
+# like a bare repository (its own config may even claim a work tree) would
+# otherwise be discovered as the git dir, handing the run files to whoever
+# committed it. A `-c` setting is protected configuration, so no repository can
+# override it; a real repository is still reached through its `.git`.
 resolve_git_common() {
   local common_dir
-  [ "$(git rev-parse --is-inside-work-tree 2>/dev/null)" = true ] || return 1
-  common_dir="$(git rev-parse --path-format=absolute --git-common-dir)" || return 1
+  common_dir="$(git -c safe.bareRepository=explicit rev-parse --path-format=absolute --git-common-dir 2>/dev/null)" || return 1
+  [ "$(git -c safe.bareRepository=explicit rev-parse --is-inside-git-dir)" = false ] || return 1
   GIT_COMMON="$(cd "$common_dir" && pwd -P)"
 }
 
@@ -127,6 +129,7 @@ require_trusted_pointer() {
 # topic never leaks its lines into the new run.
 write_atomically() {
   local target="$1" content="$2" tmp
+  [ ! -L "$target" ] && [ ! -d "$target" ] || die "refusing a symlinked or directory run file: $target"
   tmp="$(mktemp "$(runs_dir)/.craft-run-ledger.XXXXXX")"
   printf '%s\n' "$content" > "$tmp"
   mv "$tmp" "$target"
@@ -160,7 +163,7 @@ cmd_open() {
   [ $# -le 1 ] || usage_exit
   local run_id="${1:-}" target run_key
   require_run_id "$run_id"
-  resolve_git_common || die "not inside a git work tree"
+  resolve_git_common || die "not inside a git repository's work tree"
   prepare_runs_dir
   sweep_stale_pointers
   target="$(ledger_path "$run_id")"
@@ -176,7 +179,7 @@ cmd_append() {
   [ -n "$phase" ] || usage_exit
   require_run_id "$run_id"
   is_valid_phase "$phase" || die "invalid phase: $phase" 2
-  resolve_git_common || die "not inside a git work tree"
+  resolve_git_common || die "not inside a git repository's work tree"
   require_trusted_pointer "$run_id"
   [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
   local wrote=0 line
@@ -235,12 +238,12 @@ cmd_locate() {
 cmd_close() {
   local run_id="${1:-}"
   require_run_id "$run_id"
-  resolve_git_common || die "not inside a git work tree"
+  resolve_git_common || die "not inside a git repository's work tree"
   rm -f "$(pointer_path "$run_id")" "$(ledger_path "$run_id")"
 }
 
 cmd_dir() {
-  resolve_git_common || die "not inside a git work tree"
+  resolve_git_common || die "not inside a git repository's work tree"
   printf '%s\n' "$(runs_dir)"
 }
 

@@ -10,7 +10,10 @@ subjects:
 - **Design:** docs/contributing/design/auto-compaction-safety.md · **Supersedes/Refines:** refines ADR-300 and ADR-301
 
 > **Superseded by ADR-383** for location only: the run files live under the git common dir,
-> where no commit can write, not under `<main>/.claude/craft-runs/`. Everything else below stands.
+> where no commit can write, not under `<main>/.claude/craft-runs/`.
+>
+> **Superseded by ADR-384** for the scratch ledger and the `move` hand-off: each run's ledger
+> is created in the git common dir at `open` and never moves.
 
 ## Context
 
