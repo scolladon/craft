@@ -224,3 +224,54 @@ test('Given mid-validation.md and the enable-architecture resolution, when deriv
     },
   ]);
 });
+
+const MALFORMED_TIMELINE_RECORDS = [
+  { label: 'a PHASE-START whose timestamp holds a space', line: 'demo design PHASE-START(design): 2026-09-22 10:05:00' },
+  { label: 'a PHASE-DONE with no outcome separator', line: 'demo review PHASE-DONE(review):' },
+];
+
+for (const { label, line } of MALFORMED_TIMELINE_RECORDS) {
+  test(`Given ${label}, when deriveRunState runs, then it adds exactly one malformed-record warning`, () => {
+    const sut = deriveRunState;
+
+    const result = sut(['demo resolve AWAITING(propose): none', line], RUN_ID, makeResolution(DEFAULT_IDS, []));
+
+    assert.deepEqual(result.state.warnings, [`malformed ${line.split(' ')[2].split('(')[0]} record: ${line.split(' ').slice(2).join(' ')}`]);
+  });
+}
+
+test('Given FINDINGS and HARNESS-BG ids outside the lowercase slug charset, when deriveRunState runs, then both are collected without a warning', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    [
+      'demo resolve AWAITING(propose): none',
+      'demo review FINDINGS(Code_Style): c1 /tmp/code.c1.json n=2',
+      'demo validation HARNESS-BG(validation:sample_technique): pid=42 out=/tmp/out.log spec=none',
+    ],
+    RUN_ID,
+    makeResolution(DEFAULT_IDS, []),
+  );
+
+  assert.equal(result.state.findings.length, 1);
+  assert.equal(result.state.findings[0].dimension, 'Code_Style');
+  assert.equal(result.state.background.length, 1);
+  assert.deepEqual(result.state.warnings, []);
+});
+
+test('Given an AWAITING line of "none" with a trailing space, when deriveRunState runs against an empty resolved set, then it is not a mismatch', () => {
+  const sut = deriveRunState;
+
+  const result = sut(['demo resolve AWAITING(propose): none '], RUN_ID, makeResolution(DEFAULT_IDS, []));
+
+  assert.equal(result.kind, 'state');
+});
+
+test('Given an AWAITING list with a trailing comma, when deriveRunState runs, then the empty id is dropped', () => {
+  const sut = deriveRunState;
+
+  const result = sut(['demo resolve AWAITING(propose): validation,'], RUN_ID, makeResolution(DEFAULT_IDS, ['validation']));
+
+  assert.equal(result.kind, 'state');
+  assert.deepEqual(result.state.awaitingHarnesses, ['validation']);
+});

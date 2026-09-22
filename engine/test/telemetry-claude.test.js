@@ -1091,3 +1091,41 @@ test('Given compaction-main.jsonl with includeInline false, when parseLines runs
   assert.equal(result.events.length, 0);
   assert.equal(result.compactions.length, 2);
 });
+
+// ── parseLines — compaction edges: the since cutoff between a boundary and its summary, non-string summary content, an orphan summary ──
+
+test('Given a since cutoff after the first boundary but before its summary, when parseLines runs, then the first compaction is dropped with its boundary', async () => {
+  const sut = parseLines;
+  const since = '2026-03-01T10:00:02.000Z';
+
+  const result = await sut(asyncLines(fixtureLines('compaction-main.jsonl')), since);
+
+  assert.equal(result.compactions.length, 1);
+  assert.equal(result.compactions[0].cacheRead, 24707);
+});
+
+test('Given a compaction summary whose content is an array, when parseLines runs, then the estimate falls back to the summary-missing band', async () => {
+  const sut = parseLines;
+  const lines = [
+    JSON.stringify({ type: 'system', subtype: 'compact_boundary', sessionId: 'sess-array', timestamp: '2026-03-01T10:00:00.000Z', compactMetadata: { preTokens: 7000 } }),
+    JSON.stringify({ type: 'user', isCompactSummary: true, sessionId: 'sess-array', timestamp: '2026-03-01T10:00:05.000Z', message: { content: [{ type: 'text', text: 'summary' }] } }),
+  ];
+
+  const result = await sut(asyncLines(lines));
+
+  assert.equal(result.compactions.length, 1);
+  assert.equal(result.compactions[0].summaryMissing, true);
+  assert.deepEqual(result.compactions[0].output, [1300, 2600]);
+});
+
+test('Given a compaction summary with no open boundary before it, when parseLines runs, then no estimate is produced', async () => {
+  const sut = parseLines;
+  const lines = [
+    JSON.stringify({ type: 'user', isCompactSummary: true, sessionId: 'sess-orphan', timestamp: '2026-03-01T10:00:05.000Z', message: { content: 'orphan summary' } }),
+  ];
+
+  const result = await sut(asyncLines(lines));
+
+  assert.deepEqual(result.compactions, []);
+  assert.deepEqual(result.events, []);
+});

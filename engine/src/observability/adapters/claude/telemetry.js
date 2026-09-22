@@ -262,6 +262,21 @@ function estimateCompaction(pending, summaryChars) {
 }
 
 /**
+ * Close a pending compaction against the summary line that follows it; a
+ * summary whose content is not a string cannot be sized, so it takes the
+ * summary-missing band.
+ * @param {object} pending
+ * @param {object} parsed
+ * @returns {object} CompactionEstimate
+ */
+function closePendingCompaction(pending, parsed) {
+  const content = parsed.message?.content;
+  return typeof content === 'string'
+    ? estimateCompaction(pending, content.length)
+    : estimateWithoutSummary(pending);
+}
+
+/**
  * Close a pending compaction that never got its summary line, whether the
  * stream ended first or a second boundary opened before one arrived.
  *
@@ -355,15 +370,8 @@ export async function parseLines(lines, since = null, context = null) {
       continue;
     }
     if (isCompactSummary(parsed)) {
-      if (pending) {
-        const content = parsed.message?.content;
-        compactions.push(
-          typeof content === 'string'
-            ? estimateCompaction(pending, content.length)
-            : estimateWithoutSummary(pending),
-        );
-        pending = null;
-      }
+      if (pending) compactions.push(closePendingCompaction(pending, parsed));
+      pending = null;
       continue;
     }
 

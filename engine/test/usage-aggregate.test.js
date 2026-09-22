@@ -1841,9 +1841,14 @@ test('Given one run with phaseTurns entries and another run whose phaseTurns key
   assert.ok(!result.includes('undefined'), 'the schema-less run must not leak a placeholder row');
 });
 
-// ── 68. compactionEstimate — the first worked check ───────────────────────────
+// Summary-call costs measured on two real compactions at ~25k pre-context: an
+// estimate band that excluded either would be miscalibrated.
+const MEASURED_SUMMARY_CALL_EQUIV_SHORT_SUMMARY = 12400;
+const MEASURED_SUMMARY_CALL_EQUIV_LONG_SUMMARY = 18100;
 
-test('Given one run-1 event and one main compaction for run-1, when aggregate runs, then runs[0].compactionEstimate matches the first worked check and 12400 lies inside its equiv band', () => {
+// ── 68. compactionEstimate — a short summary's band holds its measured cost ───
+
+test('Given one run-1 event and one main compaction with a short summary, when aggregate runs, then runs[0].compactionEstimate carries the band and the measured summary-call cost lies inside it', () => {
   const event = makeEvent();
   const compaction = makeCompaction();
   const sut = aggregate;
@@ -1856,12 +1861,13 @@ test('Given one run-1 event and one main compaction for run-1, when aggregate ru
     equiv: [10542, 19802], basis: 'estimate',
   });
   const [lo, hi] = result.runs[0].compactionEstimate.equiv;
-  assert.ok(lo <= 12400 && 12400 <= hi, `expected 12400 inside [${lo}, ${hi}]`);
+  const measured = MEASURED_SUMMARY_CALL_EQUIV_SHORT_SUMMARY;
+  assert.ok(lo <= measured && measured <= hi, `expected ${measured} inside [${lo}, ${hi}]`);
 });
 
-// ── 69. compactionEstimate — the second worked check ──────────────────────────
+// ── 69. compactionEstimate — a long summary's band holds its measured cost ────
 
-test('Given one run-1 event and one main compaction with the second worked check\'s vector, when aggregate runs, then runs[0].compactionEstimate matches it and 18100 lies inside its equiv band', () => {
+test('Given one run-1 event and one main compaction with a long summary, when aggregate runs, then runs[0].compactionEstimate carries the band and the measured summary-call cost lies inside it', () => {
   const event = makeEvent();
   const compaction = makeCompaction({ cacheRead: 24707, output: [1472, 3436] });
   const sut = aggregate;
@@ -1874,7 +1880,8 @@ test('Given one run-1 event and one main compaction with the second worked check
     equiv: [12831, 25151], basis: 'estimate',
   });
   const [lo, hi] = result.runs[0].compactionEstimate.equiv;
-  assert.ok(lo <= 18100 && 18100 <= hi, `expected 18100 inside [${lo}, ${hi}]`);
+  const measured = MEASURED_SUMMARY_CALL_EQUIV_LONG_SUMMARY;
+  assert.ok(lo <= measured && measured <= hi, `expected ${measured} inside [${lo}, ${hi}]`);
 });
 
 // ── 70. compactionEstimate — two compactions on one run sum every band ────────
@@ -1939,7 +1946,7 @@ test('Given the same events with and without compactions and a baseline supplied
 
 // ── 74. renderMarkdown — the Compactions line follows the run's group lines ───
 
-test('Given the first worked check\'s report, when renderMarkdown runs, then the exact Compactions line follows run-1\'s group line', () => {
+test('Given a report holding one short-summary compaction, when renderMarkdown runs, then the exact Compactions line follows run-1\'s group line', () => {
   const event = makeEvent();
   const compaction = makeCompaction();
   const report = aggregate([event], PRICE_TABLE, undefined, undefined, undefined, [compaction]);

@@ -167,9 +167,15 @@ test('Given a fresh ledger, when LEDGER_HEADER is read, then its first line mark
 // ── 6. equiv weights are exported so another module can share the same unit ────
 
 test('Given the exported equiv weights, when read, then they match the header\'s stated formula', () => {
+  const formula = /equiv is a relative unit: input \+ ([\d.]+)\*cache_read \+ ([\d.]+)\*cache_creation \+ ([\d.]+)\*output/
+    .exec(LEDGER_HEADER);
   const sut = { EQUIV_WEIGHT_INPUT, EQUIV_WEIGHT_CACHE_READ, EQUIV_WEIGHT_CACHE_CREATION, EQUIV_WEIGHT_OUTPUT };
 
+  assert.ok(formula, 'the header states the equiv formula');
   assert.deepEqual(sut, {
-    EQUIV_WEIGHT_INPUT: 1, EQUIV_WEIGHT_CACHE_READ: 0.1, EQUIV_WEIGHT_CACHE_CREATION: 1.25, EQUIV_WEIGHT_OUTPUT: 5,
+    EQUIV_WEIGHT_INPUT: 1,
+    EQUIV_WEIGHT_CACHE_READ: Number(formula[1]),
+    EQUIV_WEIGHT_CACHE_CREATION: Number(formula[2]),
+    EQUIV_WEIGHT_OUTPUT: Number(formula[3]),
   });
 });

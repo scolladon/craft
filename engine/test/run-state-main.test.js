@@ -216,3 +216,16 @@ test('Given a surplus positional argument, when main runs, then it returns 2 wit
   assert.equal(io.stderr.joined().split('\n').filter(Boolean).length, 1);
   assert.match(io.stderr.joined(), /^run-state: /);
 });
+
+test('Given stdin null, when main runs, then it returns 2 with one stderr line and empty stdout', () => {
+  const sut = main;
+  const io = makeIo('null');
+  const ledgerPath = join(FIXTURES_DIR, 'mid-review.md');
+
+  const result = sut([ledgerPath, '--run', 'demo'], io);
+
+  assert.equal(result, 2);
+  assert.equal(io.stdout.joined(), '');
+  assert.equal(io.stderr.joined().split('\n').filter(Boolean).length, 1);
+  assert.match(io.stderr.joined(), /^run-state: /);
+});

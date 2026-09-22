@@ -245,15 +245,20 @@ test('Given entries with no includeInline argument, when streamTranscriptFiles r
 
 // ─── 1c. streamTranscriptFiles — compactions are collected and returned ──────
 
-test('Given a parser stub returning no compactions field, when streamTranscriptFiles runs, then result.compactions deep-equals []', async () => {
+test('Given a parser stub returning no compactions field, when streamTranscriptFiles runs, then result.compactions deep-equals [] and the stub\'s events and counts still propagate', async () => {
   const sut = streamTranscriptFiles;
   const { transcriptDir } = makeFixture({ lines: [MAIN_USAGE_LINE] });
   const entries = [{ relPath: 'transcript.jsonl', context: null }];
-  const stubParseLines = async () => ({ events: [], skipped: 0, markers: [], unlabelled: 0 });
+  const stubEvent = { run: 'stub-run' };
+  const stubParseLines = async () => ({ events: [stubEvent], skipped: 2, markers: [], unlabelled: 1 });
 
   const result = await sut(entries, transcriptDir, createReadStream, createInterface, containByRealpath, stubParseLines);
 
   assert.deepEqual(result.compactions, []);
+  assert.equal(result.failed, 0, 'a parser without a compactions field must not count as a failed transcript');
+  assert.deepEqual(result.events, [stubEvent]);
+  assert.equal(result.skipped, 2);
+  assert.equal(result.unlabelled, 1);
 });
 
 test('Given the real Claude parseLines over a transcript holding a compaction boundary and its summary, when streamTranscriptFiles runs, then result.compactions has one entry', async () => {

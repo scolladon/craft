@@ -74,7 +74,7 @@ function readInputs(ledgerPath, io) {
   } catch (err) {
     return { error: err.message };
   }
-  if (!Array.isArray(resolution.effective)) {
+  if (!Array.isArray(resolution?.effective)) {
     return { error: 'resolution JSON must have an effective array' };
   }
 

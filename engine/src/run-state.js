@@ -8,13 +8,16 @@ import { autoSkipPhasesInText } from './observability/skip-signals.js';
 
 const LINE_RE = /^(\S+) (\S+) (.*)$/;
 const PHASE_ID = '[a-z][a-z0-9-]*';
+// Dimension and technique ids come from a manifest, which accepts any label a
+// token can carry unambiguously: no parentheses, colon or whitespace.
+const TOKEN_ID = '[^():\\s]+';
 
 const AWAITING_RE = /^AWAITING\(propose\): (.+)$/;
 const PHASE_START_RE = new RegExp(`^PHASE-START\\((${PHASE_ID})\\): (\\S+)$`);
 const PHASE_DONE_RE = new RegExp(`^PHASE-DONE\\((${PHASE_ID})\\): (.*)$`);
 const PART_RE = /^PART\((\d+)\): ([0-9a-f]{7,40}) size=(\S+) outcome=(pass|blocked)$/;
-const FINDINGS_RE = new RegExp(`^FINDINGS\\((${PHASE_ID})\\): c(\\d+) (\\S+) n=(\\d+)$`);
-const HARNESS_BG_RE = new RegExp(`^HARNESS-BG\\((${PHASE_ID}):([a-z0-9][a-z0-9-]*)\\): pid=(\\d+) out=(\\S+) spec=(\\S+)$`);
+const FINDINGS_RE = new RegExp(`^FINDINGS\\((${TOKEN_ID})\\): c(\\d+) (\\S+) n=(\\d+)$`);
+const HARNESS_BG_RE = new RegExp(`^HARNESS-BG\\((${PHASE_ID}):(${TOKEN_ID})\\): pid=(\\d+) out=(\\S+) spec=(\\S+)$`);
 const GATE_RE = new RegExp(`^GATE\\((${PHASE_ID})\\): (green|red)$`);
 const NO_OP_RELEASE_RE = new RegExp(`^NO-OP\\((${PHASE_ID})\\):`);
 
@@ -52,7 +55,9 @@ function lastAwaiting(records) {
     if (match) found = match[1];
   }
   if (found === null) return null;
-  return found === 'none' ? [] : found.split(',').map((id) => id.trim());
+  const list = found.trim();
+  if (list === 'none') return [];
+  return list.split(',').map((id) => id.trim()).filter((id) => id !== '');
 }
 
 /**
@@ -232,14 +237,22 @@ function foldCollections(records, warnings) {
   };
 }
 
+/** Tokens folded outside COLLECTORS whose malformed shape must still surface as a warning. */
+const PREFIX_CHECKS = [
+  { name: 'AWAITING(propose)', prefix: 'AWAITING(', regex: AWAITING_RE },
+  { name: 'PHASE-START', prefix: 'PHASE-START(', regex: PHASE_START_RE },
+  { name: 'PHASE-DONE', prefix: 'PHASE-DONE(', regex: PHASE_DONE_RE },
+];
+
 /**
  * @param {{ record: string }[]} records
  * @param {string[]} warnings
  */
-function checkAwaitingPrefix(records, warnings) {
+function checkMalformedPrefixes(records, warnings) {
   for (const { record } of records) {
-    if (record.startsWith('AWAITING(') && !AWAITING_RE.test(record)) {
-      warnings.push(`malformed AWAITING(propose) record: ${record}`);
+    const check = PREFIX_CHECKS.find((entry) => record.startsWith(entry.prefix));
+    if (check && !check.regex.test(record)) {
+      warnings.push(`malformed ${check.name} record: ${record}`);
     }
   }
 }
@@ -280,7 +293,7 @@ function checkAwaitingMismatch(ledgerAwaiting, resolved) {
  * @returns {object}
  */
 function buildState(records, runId, effectiveIds, ledgerAwaiting, warnings) {
-  checkAwaitingPrefix(records, warnings);
+  checkMalformedPrefixes(records, warnings);
   const timeline = foldTimeline(records, new Set(effectiveIds), warnings);
   const { completed, inFlight, next } = projectTimeline(effectiveIds, timeline);
   const released = releasedPhases(records, timeline.autoSkipped);
