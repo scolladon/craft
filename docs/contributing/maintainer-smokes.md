@@ -1,6 +1,7 @@
 # Maintainer smokes
 
-On-demand checks a maintainer runs by hand with `/craft:run`; none is CI-gated.
+On-demand checks a maintainer runs by hand — the pipeline smokes with `/craft:run`, the
+behavioural eval suite with `claude plugin eval`; none is CI-gated.
 
 ## Manual acceptance check (inline fidelity) — not CI-gated
 
@@ -10,6 +11,94 @@ real brief, confirm the inline phases commit artifacts in the same shape as the 
 `engine/test/contract-equivalence.test.js` proves that bound per descriptor), and record
 the result in the run record under `inline-fidelity-check`. Rationale:
 `docs/contributing/archive/DESIGN-P6-execution-topology.md`.
+
+## Behavioural eval suite — not CI-gated
+
+craft's behavioural cases live under `evals/` and run with `claude plugin eval` (Claude Code
+2.1.291 or later): by hand, on demand, never in CI. Every case runs twice, with craft loaded and
+without it. Results land in `evals/results/<timestamp>/`, which is gitignored. Rationale:
+`docs/contributing/design/plugin-eval-suite.md`.
+
+**First run in this checkout** — the three cheap trigger cases, one run each:
+
+```bash
+claude plugin eval . --tag trigger --runs 1 --no-publish --max-cost-usd 5
+```
+
+- The CLI asks once whether you trust the plugin. Answer it interactively: `--trust-plugin`
+  answers it for CI, and craft never runs evals in CI.
+- `--max-cost-usd 5` is the fixed cap for the very first pilot; every later ceiling derives
+  from a measured cost.
+- Open `evals/results/<timestamp>/aggregate-result.json`. `suite.plugins` must list craft with
+  no `problem` (`manifest_invalid`, `disabled_by_default`, `will_not_load`). If one is present,
+  stop: the with-craft arm never loaded craft and the run means nothing.
+- The run must not print `⚠ case … cannot pass with the granted tools`.
+- Note the top-level `costUsd`: it is the pilot cost the ceilings below derive from.
+
+**Full suite:**
+
+```bash
+claude plugin eval . --no-publish --scaffold --allow-tools Write Bash \
+  --judge-model claude-sonnet-5-5 --max-cost-usd <ceiling>
+```
+
+- `--no-publish`: the CLI publishes the HTML report to claude.ai by default; the report stays
+  on this machine.
+- `--scaffold`: each fixture case copies its files into the sandbox through its own
+  `scaffold.sh`, at most 10 lines, written and reviewed in this repo. Without the flag the CLI
+  notes that the case runs against an unstaged workspace, and the fixture cases score 0 in both
+  arms.
+- `--allow-tools Write Bash`: the runner ignores a skill's own tool grants, and the fixture
+  cases write files and run git and craft's lint scripts.
+- `--judge-model claude-sonnet-5-5`: the default judge is haiku, below the sonnet-tier floor for
+  rubric graders. The judge is never the model under test.
+- `--max-cost-usd <ceiling>`: ceiling = pilot `costUsd` × runs × 1.5.
+- `--runs` stays at the default 3, the CLI's floor; `--runs 1` is only for piloting a new or
+  edited case. `-j` stays at 1: every run shares one subscription rate limit.
+
+**One case.** Add `--case <name>` to either command.
+
+**Reading results.**
+
+- The headline per case is Δ = with − without.
+- `with-only` graders match craft-only tokens. They report whether craft fired and sit outside
+  the score.
+- A Δ near 0 with a high without-craft score means the bare model already does the job. That is
+  the evidence a prune candidate needs.
+- Exit 1: a case scored below `--threshold` (1.0 by default); informational for a local run.
+  Exit 2: the ceiling was hit and the results are partial. Re-pilot that case and recompute the
+  ceiling rather than raising the cap blindly.
+- An implausible jump is judge-gaming until you have read the judge's reasoning. Before the
+  first full run, read each grade and ask whether you would have scored it differently.
+
+**Evidence, not gate.** Before enacting an approved `craft:prune` candidate, or a prompt-surface
+audit edit under `skills/` or `agents/`, run the case(s) that drive the touched unit on the tree
+before and after the change. Compare Δ and the with-craft score.
+
+| Unit | Case(s) |
+|---|---|
+| `skills/run` | `run-fires-craft-this`, `run-fires-default-workflow`, `run-quiet-unrelated` |
+| `skills/planning`, `agents/planner.md` | `planning-plan-lints` |
+| `agents/reviewer.md` | `reviewer-tests-findings` |
+| `skills/decisions` | `decisions-noop-when-clear`, `decisions-escalates-fork` |
+| `skills/prune`, `contracts/core.md` | `prune-refuses-core` |
+
+A unit missing from this table has no behavioural evidence. Say so in the proposal rather than
+implying coverage.
+
+**Tags and cost.** `trigger`: the three run cases, on the session model, the cheapest
+meaningful run. `phase`: the two decisions cases and prune. `agent`: planning and reviewer, the
+opus-pinned roles and the dearest. Cheap to dear: `run-quiet-unrelated`, the two `run-fires-*`,
+the two `decisions-*`, `prune-refuses-core`, `reviewer-tests-findings`, `planning-plan-lints`.
+
+**Hand-kept pairing.** The `findings-shape` grader of `reviewer-tests-findings` mirrors
+`LINE_HEAD_PATTERN` in `engine/src/findings.js` by hand. A change to that line grammar makes the
+grader stale: update both together. No CI test couples them.
+
+**Unconfirmed until the first pilots.** Read from the CLI's source, not yet observed: whether
+craft's agents and hooks load in the eval child; whether a scaffold can read its own case
+directory and the plugin directory; whether `CLAUDE_CODE_SUBAGENT_MODEL` reaches the spawned
+agents (see the eval sweep below).
 
 ## Model-class matrix (cross-tier) — not CI-gated
 
@@ -29,6 +118,30 @@ not zero-cost. No agent is asked to report its own usage.
 **Where results land:** fill `docs/guides/model-class-matrix.md` (the committed, diffable
 artifact template) and append a one-line entry to the run record under
 `model-class-matrix`. Rationale: `docs/contributing/archive/DESIGN-P13-nfr-hardening.md`.
+
+**Eval sweep (planner and structured-review rows).** The planner and structured-review cells can
+be filled from the behavioural eval suite instead: the `agent`-tagged cases
+(`planning-plan-lints` fills planner, `reviewer-tests-findings` fills structured-review), three
+runs per tier. For each tier `<id>`:
+
+```bash
+CLAUDE_CODE_SUBAGENT_MODEL=<id> claude plugin eval . --tag agent --model <id> \
+  --no-publish --scaffold --allow-tools Write Bash \
+  --judge-model <judge> --max-cost-usd <ceiling>
+```
+
+- `<judge>` is `claude-sonnet-5-5` for the opus and haiku columns and `claude-opus-5-5` for the
+  sonnet column, so the judge is never the model under test.
+- `--model` alone moves only the session tier: `agents/planner.md` and `agents/reviewer.md` pin
+  `model: opus`. The exported `CLAUDE_CODE_SUBAGENT_MODEL` carries the tier to the spawned
+  agents. If the pin still wins, also export `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`. Record which
+  form was needed. If neither reaches the agents, the agent rows ran at the pinned tier: say so
+  in the note under the matrix table.
+- Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
+- The trigger, decisions and prune results go in a one-line note under the matrix table, not in
+  new rows; the template's shape does not change.
+- part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
+  full-pipeline run above; no eval case reaches them.
 
 ## Registered-phase dispatch smoke — not CI-gated
 
