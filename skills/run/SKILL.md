@@ -45,8 +45,7 @@ Input: `$ARGUMENTS`
      neither-found diagnostic (names both `./.claude/craft-<name>.md` and
      `~/.claude/craft-<name>.md`) or a bad-name/traversal diagnostic. Never silently
      fall back to `.claude/workflow.md`.
-   When `--config` is absent: use `.claude/workflow.md` as `<manifest-path>` (today's
-   behaviour, unchanged).
+   When `--config` is absent: use `.claude/workflow.md` as `<manifest-path>`.
 
 1. Run `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/manifest-lint.sh" <manifest-path>` (passing the
    resolved path from step 0b). It must pass — on INVALID, STOP and surface the errors.
@@ -81,7 +80,7 @@ Input: `$ARGUMENTS`
     constraint). Call `load(repoRoot, deps)` — see `docs/contributing/specs/memory.md` Claude
     binding. Hold the single `MemoryView` in-session beside the run record for the
     duration of this run. A cold, absent, or malformed store yields an empty view and
-    records a load no-op — the run proceeds exactly as today (advisory-only, never a
+    records a load no-op — the run proceeds without hints (advisory-only, never a
     blocker; ADR-116/120). `load` is called **once per run, not per phase**.
 
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
@@ -207,7 +206,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    and `NO-OP(<phase>):`; (b) if the phase is an executing-harness, release its `awaitingHarnesses`
    entry (see Cross-phase invariants); (c) continue WITHOUT running the phase — no contract
    assembled, no agent spawned, no commit. When the probe is non-empty, or the phase is not
-   `autoSkipEligible`, the phase runs exactly as today. When emptiness cannot be proven, RUN the
+   `autoSkipEligible`, the phase runs (steps 2–7). When emptiness cannot be proven, RUN the
    phase (doubt runs; never auto-skip on an unprovable judgment).
 
 2. **Resolve the skill** — invoke `phase.procedure` **verbatim** (the descriptor's
@@ -215,7 +214,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    `acme:bench`). For every craft-native phase the procedure is `craft:<phase.id>` and the
    skill dir name equals `phase.id`, so default phases are unaffected. An **inserted** phase
    carries its own `procedure:` and may name a craft-local skill or a namespaced one — the walk
-   dispatches the string as-is; cross-plugin dispatch is SP2-proven, and the derived-plugin
+   dispatches the string as-is, across plugins too; the derived-plugin
    *registration* surface (`craft.extends:`) registers the phases/agents the walk dispatches —
    a registered or inserted phase resolves, carries its contract bundle, and executes under the
    engine-owned contract.
@@ -235,7 +234,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    non-zero-exit error-path row — before the walk dispatches anything, uniformly for agent and
    inline. The bin wires a live install-probe for craft-native `craft:<role>` refs (a typo'd role
    fails closed); external `my:`/`acme:` refs fail closed unless the ref is registered via
-   `extends` (`extends.agents` ∪ the `role:` of every registered/inserted phase). **Inserted/registered-phase contract execution ships:** the walk passes the resolved descriptor to
+   `extends` (`extends.agents` ∪ the `role:` of every registered/inserted phase). **Inserted/registered-phase contract execution:** the walk passes the resolved descriptor to
    `contract-assemble` via `--descriptor-json` (step 4), so a novel/registered `id` EXECUTEs
    under the engine-owned contract — the same core + declared bundles that wrap any default phase.
 
@@ -258,7 +257,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    the literal `-` for stdin) — the bin reads the content with `readFileSync(path)` / reads
    stdin; passing JSON text inline as the arg value does not work. The bin resolves
    `phase.id` against the loaded descriptor set so the registered id EXECUTEs; the
-   default-phase path (no flag) is unchanged.
+   default-phase path passes no flag.
    Via Bash, capturing stdout as the **injected contract block**. On non-zero
    exit: STOP; surface stderr; refuse to proceed. On **agent** execution the
    block is PREPENDED to the Task spawn prompt. On **inline** execution the
@@ -270,14 +269,14 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    as part of the pre-chewed context** — this is slot 1 of the **Agent spawns**
    invariant below (the same slot whether the phase is agent-spawned or inline; no
    second injection surface is added). A hint that failed validate-on-read was already
-   dropped at `load` — if the slice is empty, the phase probes as today. This read is
+   dropped at `load` — if the slice is empty, the phase runs its own probes. This read is
    purely advisory and never gates. See `docs/contributing/specs/memory.md` Claude binding.
 
    **Intention hint (advisory).** For the `design`, `decisions` and `planning` phases only, slice the
    in-session `IntentionView` for this phase's change scope: the `entries` whose subjects
    intersect the phase's touched set. If the slice is non-empty, prepend it into the SAME
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
-   means the phase probes as today. See `docs/contributing/specs/intention.md`.
+   means the phase runs its own probes. See `docs/contributing/specs/intention.md`.
 
    **Phase-start marker.** At phase entry, in the same Bash call as the
    contract-assemble invocation above, append `PHASE-START(<phase.id>): <iso8601>`
@@ -358,7 +357,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    fallback; respawn from artifact. Record degradation in run record.
 
 `design` and `review` are already concern-named (no alias); every other craft-native phase
-id maps to a `skills/<id>/` dir of the same name after the P4 rename, so its `procedure` is
+id maps to a `skills/<id>/` dir of the same name, so its `procedure` is
 `craft:<phase.id>` and the walk dispatches it with no translation table. Inserted phases
 bring their own `procedure`, dispatched verbatim (step 2).
 
@@ -372,7 +371,7 @@ bring their own `procedure`, dispatched verbatim (step 2).
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
 | `waivers[]` is non-empty | Executing-harness waivers are pre-formatted in `record[]`; surface every other waiver (review/refactoring) to the run record yourself per §1e; continue |
 | A skip strands a consumer | `ok: false` already; covered by the stop-on-error path |
-| manifest-lint exits 2 (invalid) | Stop; surface errors (existing behavior; unchanged) |
+| manifest-lint exits 2 (invalid) | Stop; surface errors |
 
 ## Cross-phase invariants (non-overridable)
 
@@ -385,7 +384,7 @@ bring their own `procedure`, dispatched verbatim (step 2).
   background executing-harness; `propose` may not.
   On the ledger, that awaited set is the `AWAITING(propose):` set minus recorded
   releases — `auto-skip: <id>`, exact `NO-OP(<id>):`, or the last `GATE(<id>)` green —
-  today's release rules, stated as ledger facts.
+  the release rules below, stated as ledger facts.
   If an executing-harness was waived (skipped via `pipeline.skip`), its gate is
   released — the waiver is in `Resolution.waivers[]` and pre-formatted in
   `Resolution.record[]` — and `propose` may proceed without waiting for it.
@@ -484,9 +483,7 @@ not part of a run; run one only when a maintainer asks for it by name.
 The engine cadence is the single `review` phase over the whole change (per-dimension
 convergence, owned by `craft:review`). The "4-dimension review after every code part"
 is a **session working-style** — a discipline the orchestrator may apply, not an engine
-invariant. A first-class per-part review cadence (multi-reviewer fan-out, `passes>1`,
-numeric convergence enforcement) is deferred to the later walk/parallelism pass, which is
-its home.
+invariant.
 
 ## Rebuild after compaction
 

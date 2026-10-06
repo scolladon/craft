@@ -16,8 +16,7 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
    ecosystem — still re-detect on a miss or a changed fingerprint.
    WRITES (appended to the run record as produced; saved to the store once at `Done`):
    the detected ecosystem + lockfile fingerprint produced by `scripts/worktree-setup.sh`
-   lockfile detection. The hint never gates — a miss falls through to full detection as
-   today.
+   lockfile detection. The hint never gates — a miss falls through to full detection.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
