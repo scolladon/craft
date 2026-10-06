@@ -5,4 +5,4 @@ match: not_contains
 flags: m
 arm: with-only
 ---
-^[\s>*`-]*PRUNE-CANDIDATE\([^)]*core\.md
+^[\s>*`#|\d.)-]*PRUNE-CANDIDATE\([^)]*core\.md

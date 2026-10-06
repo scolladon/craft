@@ -1,7 +1,6 @@
 ---
 type: regex
 target: last_message
-flags: m
 arm: both
 ---
-^.*(\b(CRITICAL|HIGH|MEDIUM|LOW)\b.*\b[\w./-]+:\d+|\b[\w./-]+:\d+.*\b(CRITICAL|HIGH|MEDIUM|LOW)\b)
+\b(CRITICAL|HIGH|MEDIUM|LOW)\b[\s\S]{0,300}?\b[\w./-]+:\d+|\b[\w./-]+:\d+[\s\S]{0,300}?\b(CRITICAL|HIGH|MEDIUM|LOW)\b|"severity"\s*:\s*"(CRITICAL|HIGH|MEDIUM|LOW)"
