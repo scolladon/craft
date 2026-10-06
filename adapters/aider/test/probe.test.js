@@ -7,7 +7,7 @@ const THROWAWAY = '/tmp/probe-throwaway';
 function greenTrace(extra = {}) {
   return {
     aiderVersion: '0.86.1',
-    model: 'anthropic/claude-sonnet-4-6',
+    model: 'anthropic/claude-sonnet-5-5',
     gateOutcome: 'green',
     gateRanBeforeCommit: true,
     committedArtifact: 'src/thing.js',
@@ -41,7 +41,7 @@ describe('runAcceptanceProbe — drives the shared harness with aider launch arg
 
     await runAcceptanceProbe({ aiderRunner, fsOps });
 
-    assert.equal(seenArgs[seenArgs.indexOf('--model') + 1], 'anthropic/claude-sonnet-4-6');
+    assert.equal(seenArgs[seenArgs.indexOf('--model') + 1], 'anthropic/claude-sonnet-5-5');
     assert.ok(seenArgs.includes('--auto-commits'));
     assert.ok(seenArgs.includes('--no-attribute-co-authored-by'));
     assert.equal(seenArgs.includes('--workspace'), false);

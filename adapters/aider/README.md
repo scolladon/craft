@@ -65,6 +65,6 @@ not transfer).
 ## Model tiers
 
 `src/model-tier-map.js` maps craft tiers to the live-pinned `aider --list-models`
-catalogue: `opus → anthropic/claude-opus-4-6`, `sonnet → anthropic/claude-sonnet-4-6`,
+catalogue: `opus → anthropic/claude-opus-5-5`, `sonnet → anthropic/claude-sonnet-5-5`,
 `haiku → anthropic/claude-haiku-4-5`. Aider bakes no effort into the model id — reasoning
 effort is the separate `--reasoning-effort` flag.

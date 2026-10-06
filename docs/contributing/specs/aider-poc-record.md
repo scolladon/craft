@@ -122,6 +122,9 @@ satisfied. Aider bakes no effort into the id (unlike Cursor) — reasoning effor
 | sonnet | `anthropic/claude-sonnet-4-6` | CONFIRMED in catalogue |
 | haiku | `anthropic/claude-haiku-4-5` | CONFIRMED in catalogue |
 
+Re-pinned 2026-10-06 against the live catalogue of Aider 0.86.2: `opus → anthropic/claude-opus-5-5`,
+`sonnet → anthropic/claude-sonnet-5-5` (both catalogue-present); `haiku` unchanged.
+
 | Auth question | Answer | Status |
 |---|---|---|
 | Where does the key live? | Process **env var** (`ANTHROPIC_API_KEY`), `--anthropic-api-key`, `--api-key anthropic=<key>`, `.env`, or `.aider.conf.yml`. **No keychain.** | CONFIRMED |
