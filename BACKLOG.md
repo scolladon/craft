@@ -175,6 +175,29 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-06 — follow-ups surfaced by the plugin-eval-suite run, not yet scheduled)
+
+**First paid pilot and grader calibration for the behavioural eval suite.** The eight cases
+under `evals/` were built and reviewed statically; no `claude plugin eval` run has happened.
+Run the procedure in `docs/contributing/maintainer-smokes.md` § Behavioural eval suite: the
+trigger pilot, then the suite pilot, each under its cap, with `--no-publish`. Then read every
+grade and judge verdict and adjust any grader you would have scored differently. The same runs
+settle the items listed there as unconfirmed: craft's agents and hooks load in the eval child,
+scaffolds can read their case dir, `CLAUDE_CODE_SUBAGENT_MODEL` reaches spawned agents, skill
+bodies appear in the regex `trace`, `prune-refuses-core` stays inside the copied `contracts/`,
+and the trigger cases name two workflow stages before their first stop. Record the costs that
+set the full-suite ceiling.
+
+**Fill the model-class matrix from the eval sweep.** Once the pilot passes, run the per-tier
+sweep in the same doc's Model-class matrix section and fill the planner and structured-review
+cells of `docs/guides/model-class-matrix.md`. If the sub-agent model override does not reach
+the agents, record that the agent rows ran at the pinned tier.
+
+**Behavioural cases for the units no case drives.** The eval suite's unit table names what is
+covered (`run`, `planning`/planner, reviewer, `decisions`, `prune`/core contract). Prune
+candidates in any other skill or agent carry no behavioural evidence. Add a case for a unit
+the next time a prune or prompt audit targets it, not speculatively.
+
 ### Open (scoped 2026-09-22 — follow-ups surfaced by the auto-compaction-safety run, not yet scheduled)
 
 **Live smoke for the plugin-registered compaction hooks.** The design pinned every hook
