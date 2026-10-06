@@ -32,6 +32,6 @@ read: [CONVENTIONS.md]
 # --list-models catalogue). Aider bakes no effort into the id; reasoning effort is the
 # separate --reasoning-effort flag.
 models:
-  opus: anthropic/claude-opus-4-6
-  sonnet: anthropic/claude-sonnet-4-6
+  opus: anthropic/claude-opus-5-5
+  sonnet: anthropic/claude-sonnet-5-5
   haiku: anthropic/claude-haiku-4-5

@@ -201,8 +201,8 @@ sub-concern also no-op'd.
      notes — already bounded, structured, and normalized upstream, so it passes through
      untouched); the gates; the commit message `<commit-prefix>(validation):
      <technique-id> <scope>`; global + validation-phase `context:` files verbatim; the
-     technique's `triage-procedure` ref (if declared). Remove the fix vocabulary
-     specific to any one technique — the triager decides whether to kill with a test or
+     technique's `triage-procedure` ref (if declared). Name no technique-specific
+     fix in the spawn — the triager decides whether to kill with a test or
      document a provable benign result.
 2. **The PR waits for triage** (orchestrator invariant): when each triage-mode run
    lands and its triager commits, verify the triager's commit; run `gates.phase`; record

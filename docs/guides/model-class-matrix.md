@@ -1,7 +1,7 @@
 # Model-class matrix — cross-tier quality record
 
-> Template: fill cells on a real run. See `skills/run/SKILL.md` §"Model-class matrix
-> (cross-tier) — not CI-gated" for the procedure.
+> Template: fill cells on a real run. See `docs/contributing/maintainer-smokes.md` §"Model-class
+> matrix (cross-tier) — not CI-gated" for the procedure.
 
 ## How to refresh
 
@@ -15,7 +15,7 @@ into the tables. Commit the result so the artifact is diffable across runs.
 
 Dimensions (rows) follow the SP5 contract-adherence axes plus a full-pipeline row.
 
-| Dimension | opus (`claude-opus-4-8`) | sonnet (`claude-sonnet-4-6`) | haiku (`claude-haiku-4-5-20251001`) |
+| Dimension | opus (`claude-opus-5-5`) | sonnet (`claude-sonnet-5-5`) | haiku (`claude-haiku-4-5`) |
 |---|---|---|---|
 | planner | — (not yet run) | — (not yet run) | — (not yet run) |
 | part-TDD | — (not yet run) | — (not yet run) | — (not yet run) |

@@ -20,7 +20,7 @@ description: Craft phase 4 - produce the parted TDD implementation plan via the 
 4. **Intention consult surface (advisory).** The phase receives the intention consult
    slice on slot 1 — the `IntentionView` entries whose subjects intersect this phase's
    change scope, prepended into the same injected contract block as the memory hint (see
-   `skills/run/SKILL.md` step 4). An empty slice means the phase probes as today.
+   `skills/run/SKILL.md` step 4). An empty slice means the phase runs its own probes.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

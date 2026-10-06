@@ -11,8 +11,8 @@ description: Craft phase 3 - the user decides every load-bearing design choice; 
    `docs/adr/`, create if absent); repo ADR template, else
    `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/adr.md"`; next ADR number = highest existing + 1.
 2. ADR writes route through the intention port's `record` — for the `file` adapter this
-   is a thin relabel of today's `docs/adr/` writes byte-for-byte (see
-   `docs/contributing/specs/intention.md`); the authoring below is unchanged. A write now
+   is a plain write into the ADR directory (see
+   `docs/contributing/specs/intention.md`). A write
    carries the governance declaration from `templates/adr.md` (the `subjects:` and
    `supersedes:` frontmatter fence). The `decisions` phase is the **only** ADR backfill
    writer: it writes the block into a pre-existing ADR it authors or supersedes, never as

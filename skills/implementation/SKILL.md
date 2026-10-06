@@ -16,8 +16,8 @@ description: Craft phase 5 - execute the plan part by part, one part-implementer
 3. **Memory read/write surface (advisory).**
    READS: `gate-cmd` entry for this repo as an advisory hint — if a gate command was
    previously recorded, skip re-discovery but **still run it** (the gate is sacred; the
-   hint only saves the probe, never the execution). A miss falls through to full gate
-   probe as today.
+   hint only saves the probe, never the execution). A miss falls through to the full gate
+   probe.
    WRITES (appended to the run record as produced; saved to the store once at `Done`):
    the gate/test command discovered this run — stored as the BARE command only, with any
    leading env/secret assignment prefix stripped (never `TOKEN=… npm test` or a command

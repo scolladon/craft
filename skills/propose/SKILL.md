@@ -30,9 +30,9 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
 
    **Prose-lint the drafted body (advisory).** Before invoking the port, write the
    drafted body to a temp file and scan it under the same posture the ci.sh cadence
-   uses: resolve the gate via `node engine/bin/hygiene-gate.js <manifest-path>`
+   uses: resolve the gate via `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/hygiene-gate.js" <manifest-path>`
    (default `advisory`), then run
-   `node engine/bin/prose-lint.js --gate <gate> --waiver-source <body-file> -- <body-file>`.
+   `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/prose-lint.js" --gate <gate> --waiver-source <body-file> -- <body-file>`.
    Fold any `SLOP-FOUND(<file>): …` lines into the run record and a hygiene note in the
    PR body; the `hygiene.gate` knob and the `SLOP-WAIVE(<file>)` waiver are honored (the
    body is its own waiver source, so a deliberate ban-list word can be waived in-body).

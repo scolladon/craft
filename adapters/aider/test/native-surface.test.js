@@ -149,8 +149,8 @@ describe('config.template.yml — plain-text .aider.conf.yml template posture', 
     const sut = readFileSync(CONFIG_TEMPLATE_PATH, 'utf8');
 
     assert.match(sut, /models:/);
-    assert.match(sut, /anthropic\/claude-opus-4-6/);
-    assert.match(sut, /anthropic\/claude-sonnet-4-6/);
+    assert.match(sut, /anthropic\/claude-opus-5-5/);
+    assert.match(sut, /anthropic\/claude-sonnet-5-5/);
     assert.match(sut, /anthropic\/claude-haiku-4-5/);
   });
 });

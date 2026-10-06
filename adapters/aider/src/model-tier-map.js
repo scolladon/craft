@@ -7,8 +7,8 @@
  * map is a plain tier→id, unlike Cursor's effort-suffixed ids.
  */
 export const AIDER_TIER_MODELS = Object.freeze({
-  opus: 'anthropic/claude-opus-4-6',
-  sonnet: 'anthropic/claude-sonnet-4-6',
+  opus: 'anthropic/claude-opus-5-5',
+  sonnet: 'anthropic/claude-sonnet-5-5',
   haiku: 'anthropic/claude-haiku-4-5',
 });
 

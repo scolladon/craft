@@ -59,7 +59,7 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
      re-spawned, because its reviewer output may have been lost before it was persisted.
    - Standalone (no craft run): skip the append; the file still lands.
 3. **Fixes — session-owned:** the **actionable set** is `status ∈ {absent, VERIFIED,
-   SUSPECT, PROBE}` — engage each of these exactly as today (apply the fix, or
+   SUSPECT, PROBE}` — engage each of these (apply the fix, or
    investigate and either fix it or record it as RULED-OUT). **`RULED-OUT` is
    record-only:** write it to the run record as "examined, not a defect" and drop it
    from the fix set. Apply every accepted actionable finding yourself, batched per

@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { resolveAiderModel, AIDER_TIER_MODELS } from '../src/model-tier-map.js';
 
 describe('resolveAiderModel — tier → live-pinned Aider model id', () => {
-  it('Given tier opus, when resolved, then it is anthropic/claude-opus-4-6', () => {
-    assert.equal(resolveAiderModel('opus'), 'anthropic/claude-opus-4-6');
+  it('Given tier opus, when resolved, then it is anthropic/claude-opus-5-5', () => {
+    assert.equal(resolveAiderModel('opus'), 'anthropic/claude-opus-5-5');
   });
 
-  it('Given tier sonnet, when resolved, then it is anthropic/claude-sonnet-4-6', () => {
-    assert.equal(resolveAiderModel('sonnet'), 'anthropic/claude-sonnet-4-6');
+  it('Given tier sonnet, when resolved, then it is anthropic/claude-sonnet-5-5', () => {
+    assert.equal(resolveAiderModel('sonnet'), 'anthropic/claude-sonnet-5-5');
   });
 
   it('Given tier haiku, when resolved, then it is anthropic/claude-haiku-4-5', () => {

@@ -17,7 +17,7 @@ description: Craft phase 2 - produce the feature design doc via the designer age
 4. **Intention consult surface (advisory).** The phase receives the intention consult
    slice on slot 1 — the `IntentionView` entries whose subjects intersect this phase's
    change scope, prepended into the injected contract block alongside the memory hint
-   (see `skills/run/SKILL.md` step 4). An empty slice means the phase probes as today.
+   (see `skills/run/SKILL.md` step 4). An empty slice means the phase runs its own probes.
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 

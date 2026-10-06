@@ -28,8 +28,7 @@ phases:
 # craft consumer manifest
 
 Declares craft's own validation technique so `/craft:validation` runs mutation
-coverage rather than silently no-opping after de-specialization (requirement 11,
-design §9 DECLARED tier).
+coverage instead of no-opping for lack of a declared technique.
 
 The `mutation` technique runs Stryker via the `engine` package script, which
 invokes `cd .. && stryker run engine/stryker.conf.json`. Surviving mutants are
