@@ -1,0 +1,8 @@
+{
+  "name": "greet-fixture",
+  "private": true,
+  "scripts": {
+    "test": "bash test/greet.test.sh",
+    "mutation": "stryker run"
+  }
+}
