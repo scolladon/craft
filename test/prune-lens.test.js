@@ -104,6 +104,7 @@ test(
     assert.ok(sut.includes('behavioural eval case'));
     assert.ok(sut.includes('docs/contributing/maintainer-smokes.md'));
     assert.ok(sut.includes('advice, not a gate'));
+    assert.ok(sut.includes('by hand'));
     assert.ok(sut.includes('craft never runs'));
   },
 );

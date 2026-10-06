@@ -23,6 +23,10 @@ const WORKFLOW_FILE_PATTERN = /\.ya?ml$/;
 const SHELL_SCRIPT_PATTERN = /\.sh$/;
 const TEST_FILE_PATTERN = /\.test\.js$/;
 const TEST_DIRS = [path.join(ROOT, 'test'), path.join(ROOT, 'engine', 'test')];
+const ADAPTERS_DIR = path.join(ROOT, 'adapters');
+const ADAPTER_TEST_PATTERN = /^[^/]+\/test\/.*\.test\.js$/;
+const MIN_AGENT_FACING_SURFACES = 4;
+const MIN_CI_SURFACES = 10;
 const AGENT_FACING_GLOBS = [
   { dir: path.join(ROOT, 'skills'), pattern: /(^|\/)SKILL\.md$/ },
   { dir: path.join(ROOT, 'agents'), pattern: /^[^/]+\.md$/ },
@@ -62,7 +66,7 @@ function joinContinuations(lines) {
   for (const line of lines) {
     const trimmed = line.trimEnd();
     const continued = trimmed.endsWith('\\');
-    const text = continued ? trimmed.slice(0, -1) : trimmed;
+    const text = continued ? trimmed.slice(0, -1).trimEnd() : trimmed;
     pending = pending === '' ? text : `${pending} ${text.trimStart()}`;
     if (!continued) {
       joined.push(pending);
@@ -96,8 +100,11 @@ function surfaces(files) {
 function ciSurfaces() {
   const workflows = filesUnder(WORKFLOWS_DIR, WORKFLOW_FILE_PATTERN);
   const scripts = filesUnder(path.join(ROOT, 'scripts'), SHELL_SCRIPT_PATTERN);
-  const tests = TEST_DIRS.flatMap(dir => filesUnder(dir, TEST_FILE_PATTERN)).filter(f => f !== SELF);
-  return surfaces([CI_SCRIPT, ...workflows, ...scripts, ...tests]);
+  const tests = [
+    ...TEST_DIRS.flatMap(dir => filesUnder(dir, TEST_FILE_PATTERN)),
+    ...filesUnder(ADAPTERS_DIR, ADAPTER_TEST_PATTERN),
+  ].filter(f => f !== SELF);
+  return surfaces([...new Set([CI_SCRIPT, ...workflows, ...scripts, ...tests])]);
 }
 
 function agentFacingSurfaces() {
@@ -140,8 +147,10 @@ test('Given a synthetic maintainer doc, when eval run commands are collected, th
 
   const result = evalRunCommands(markdown);
 
-  assert.strictEqual(result.length, 2);
-  assert.ok(carriesFlag(result[0], '--tag'));
+  assert.deepStrictEqual(result, [
+    'claude plugin eval . --tag trigger --no-publish --max-cost-usd 5',
+    '    claude plugin eval . --case x --no-publish --max-cost-usd 1',
+  ]);
 });
 
 test('Given synthetic commands, when checked for required flags, then a command lacking --no-publish or --max-cost-usd is reported', () => {
@@ -186,7 +195,7 @@ test('Given README.md, the guides, skills and agents, when their fenced claude p
 
   const result = sut.flatMap(s => evalRunCommands(s.content));
 
-  assert.ok(sut.length >= 4);
+  assert.ok(sut.length >= MIN_AGENT_FACING_SURFACES);
   assert.deepStrictEqual([...missingRequiredFlags(result), ...carryingForbiddenFlags(result)], []);
 });
 
@@ -198,12 +207,12 @@ test('Given synthetic content, when checked for eval references, then the CLI an
   assert.deepStrictEqual(result, [true, true, false]);
 });
 
-test('Given scripts/ci.sh, every script, test file and .github/workflows file, when scanned, then none invokes the eval CLI or names an evals path', () => {
+test('Given scripts/ci.sh, every script, test file and .github/workflows file, when scanned, then none invokes the eval CLI or names an evals path, adapter suites included', () => {
   const sut = ciSurfaces();
 
   const result = sut.filter(s => referencesEvals(s.content)).map(s => s.label);
 
-  assert.ok(sut.length >= 10);
+  assert.ok(sut.length >= MIN_CI_SURFACES);
   assert.ok(sut.every(s => s.content.length > 0));
   assert.deepStrictEqual(result, []);
 });

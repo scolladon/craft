@@ -45,8 +45,9 @@ claude plugin eval . --runs 1 --no-publish --scaffold --allow-tools Write Bash \
 
 - Same flags as the full suite below, one run per case, under the same fixed USD 5 cap as the
   first run.
-- If it exits 2, pilot the cases it did not reach by tag (`--tag phase`, then `--tag agent`),
-  each under the same cap, and sum their `costUsd`.
+- If it exits 2, pilot each case it did not reach by name (`--case <name>`), each under the
+  same cap, and add their `costUsd` to the partial run's. A case that alone hits the cap needs
+  its own larger cap for its pilot; say so in the run record.
 - Read each case's duration too: a case that ran into its `timeout_seconds` scored 0 in both arms
   and needs a larger budget before a full run.
 
@@ -79,8 +80,8 @@ Only the `run-*` cases work with the first-run command, which carries neither `-
 `--allow-tools`.
 
 **Debugging a scaffold.** Pass `--keep-temp` to keep the sandbox. Each `scaffold.sh` refuses to
-run in a repository that already has a commit, so running one by hand in this checkout stops
-before it copies or commits anything.
+run outside a git repository or in one that already has a commit, so running one by hand in this
+checkout, or in any other directory, stops before it copies or commits anything.
 
 **Reading results.**
 
@@ -125,7 +126,9 @@ craft's agents and hooks load in the eval child; whether a scaffold can read its
 directory and the plugin directory; whether `CLAUDE_CODE_SUBAGENT_MODEL` reaches the spawned
 agents (see the eval sweep below); whether a loaded skill's body appears in the `trace` a regex
 grader reads (the decisions graders exclude the skill's own template line for that reason);
-whether `prune-refuses-core` reads files under the plugin root beyond the copied `contracts/`.
+whether `prune-refuses-core` reads files under the plugin root beyond the copied `contracts/`;
+whether the `run-fires-*` cases, with craft loaded, name two workflow stages before stopping at
+their first precondition, as `workflow-engaged` requires.
 
 ## Model-class matrix (cross-tier) — not CI-gated
 
