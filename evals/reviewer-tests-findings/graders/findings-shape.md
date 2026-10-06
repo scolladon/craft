@@ -4,4 +4,4 @@ target: last_message
 flags: m
 arm: both
 ---
-^(\S+\s+\S+:\d+\s+[—–-]\s+\S|\s*\[\s*\{)
+^.*(\b(CRITICAL|HIGH|MEDIUM|LOW)\b.*\b[\w./-]+:\d+|\b[\w./-]+:\d+.*\b(CRITICAL|HIGH|MEDIUM|LOW)\b)

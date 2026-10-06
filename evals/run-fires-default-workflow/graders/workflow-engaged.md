@@ -2,4 +2,4 @@
 type: llm
 arm: both
 ---
-The final reply treats the request as input to a multi-phase delivery workflow: it resolves a brief or a manifest, names workflow phases, or stops on a workflow precondition. It does not present a finished implementation of the --shout flag as its answer.
+The final reply treats the request as input to a multi-phase delivery workflow and names at least two of its stages (brief, design, decisions or ADRs, plan, implementation parts, review). It does not present a finished implementation of the --shout flag as its answer, and a bare "greet.sh not found" reply does not satisfy this.
