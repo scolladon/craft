@@ -107,6 +107,12 @@ feature run (design through validation), where the harness's existing gates —
 already wired into `ci.sh` — protect the core exactly as they would for any other change.
 This skill itself never deletes or edits a harness file.
 
+Before it is enacted, an approved candidate *should* be checked against the behavioural eval case
+(or cases) that drive its unit (`evals/`, procedure in `docs/contributing/maintainer-smokes.md`).
+A with-craft score that holds once the unit is removed, or a delta near zero, is evidence the
+model no longer needs it. A unit no case drives carries no such evidence; say so in the
+proposal. This is advice, not a gate.
+
 ## Trigger
 
 Manual and documented here — the ratified floor. There is no auto-detection of a model

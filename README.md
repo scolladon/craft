@@ -267,6 +267,8 @@ session resumes from the last artifact — the plan's context blocks, not scroll
 
 Contributing to craft itself? Dev loop: `claude --plugin-dir /path/to/craft`.
 
+Behavioural evals (local, on demand, never CI): `docs/contributing/maintainer-smokes.md`.
+
 ## License
 
 [MIT](LICENSE) © Sébastien Colladon

@@ -7,7 +7,9 @@
 
 Run the full pipeline across the three Claude tiers on a representative brief, record
 each dimension below, and capture the harness-surfaced per-phase tokens + wall-clock
-into the tables. Commit the result so the artifact is diffable across runs.
+into the tables. Commit the result so the artifact is diffable across runs. The planner and
+structured-review cells can be filled more cheaply by the eval sweep: see the Behavioural eval
+suite and Model-class matrix sections of `docs/contributing/maintainer-smokes.md`.
 
 ---
 
