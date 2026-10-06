@@ -121,14 +121,26 @@ the review phase, so the agent receives no per-line output contract. Its `findin
 therefore accepts a severity word and a `file:line` on one line, in either order, rather than
 mirroring the normalizer's line grammar.
 
-**Unconfirmed until the first pilots.** Read from the CLI's source, not yet observed: whether
-craft's agents and hooks load in the eval child; whether a scaffold can read its own case
-directory and the plugin directory; whether `CLAUDE_CODE_SUBAGENT_MODEL` reaches the spawned
-agents (see the eval sweep below); whether a loaded skill's body appears in the `trace` a regex
-grader reads (the decisions graders exclude the skill's own template line for that reason);
-whether `prune-refuses-core` reads files under the plugin root beyond the copied `contracts/`;
-whether the `run-fires-*` cases, with craft loaded, name two workflow stages before stopping at
-their first precondition, as `workflow-engaged` requires.
+**Observed in the first pilots.** craft's skills load in the with-craft arm (`suite.plugins`
+lists craft with no `problem`, and the skill fires). A scaffold reads its own case directory and
+commits its fixture. A loaded skill's body reaches the `trace` a regex grader reads: the
+decisions skill's template line appears there, which is why the decisions graders exclude it.
+
+**Unconfirmed until a later pilot.** Read from the CLI's source, not yet observed: whether
+craft's agents and hooks load in the eval child; whether a scaffold can read the plugin
+directory (`prune-refuses-core` copies `contracts/` from it); whether
+`CLAUDE_CODE_SUBAGENT_MODEL` reaches the spawned agents (see the eval sweep below); whether
+`prune-refuses-core` reads files under the plugin root beyond the copied `contracts/`; whether
+the `run-fires-*` cases, with craft loaded, name two workflow stages before stopping at their
+first precondition, as `workflow-engaged` requires.
+
+**Troubleshooting: every Bash-granting case is refused.** An error starting "the Docker
+(~/.docker, DOCKER_CONFIG) credential store on this machine holds a symbolic link inside it"
+means the CLI found a link inside `~/.docker`; it scans that directory even when
+`DOCKER_CONFIG` points elsewhere. Docker Desktop's per-user CLI install puts links in
+`~/.docker/bin`. Switch Docker Desktop to the System CLI install (Settings → Advanced), move
+`~/.docker/bin` out of `~/.docker`, and drop it from your `PATH`. Moving it removes Docker
+Model Runner's inference engine until Docker reinstalls it, which brings the links back.
 
 ## Model-class matrix (cross-tier) — not CI-gated
 
