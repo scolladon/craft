@@ -33,9 +33,9 @@ const contractsDir = join(repoRoot, 'contracts');
 // ── Model-class pins documented in the live cross-tier procedure ──────────────
 
 const MODEL_PINS = [
-  'claude-opus-4-8',
-  'claude-sonnet-4-6',
-  'claude-haiku-4-5-20251001',
+  'claude-opus-5-5',
+  'claude-sonnet-5-5',
+  'claude-haiku-4-5',
 ];
 
 // Bare tier names that must also be absent (belt-and-suspenders).

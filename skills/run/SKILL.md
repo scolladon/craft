@@ -485,8 +485,8 @@ the result in the run record under `inline-fidelity-check`. Rationale:
 ## Model-class matrix (cross-tier) — not CI-gated
 
 On demand / when a maintainer wants the full-pipeline + output-quality matrix: run the
-full pipeline across the Claude class — opus (`claude-opus-4-8`), sonnet
-(`claude-sonnet-4-6`), haiku (`claude-haiku-4-5-20251001`) — on a representative brief,
+full pipeline across the Claude class — opus (`claude-opus-5-5`), sonnet
+(`claude-sonnet-5-5`), haiku (`claude-haiku-4-5`) — on a representative brief,
 record a tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / part-TDD /
 structured-review / blocker / full-pipeline-completion), and capture the per-phase
 tokens + wall-clock into the committed artifact and the run record.
