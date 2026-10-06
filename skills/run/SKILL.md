@@ -608,7 +608,7 @@ run continues; it is **not** recorded into the ledger itself (that would be circ
 same posture as a failed `save` above.
 
 **Metrics ledger (separate, append-only).** Call
-`bash scripts/emit-metrics.sh --run <run-id>` once from `<main-repo-dir>`; it
+`bash "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/emit-metrics.sh" --run <run-id>` once from `<main-repo-dir>`; it
 groups this session's sub-agent transcripts by phase, appends one row per agent-spawned
 phase to `.claude/craft-metrics.md`, and prints what it appended. A phase that ran twice in
 one session (a revision round, or validation and architecture sharing one role) needs its
