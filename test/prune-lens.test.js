@@ -93,7 +93,7 @@ test(
 );
 
 test(
-  'Given skills/prune/SKILL.md, when the enacting section is read, then it advises checking the candidate against the behavioural eval cases and names docs/contributing/maintainer-smokes.md',
+  'Given skills/prune/SKILL.md, when the enacting section is read, then it advises the maintainer to check the candidate against the behavioural eval cases by hand and names docs/contributing/maintainer-smokes.md',
   () => {
     const content = fs.readFileSync(PRUNE_SKILL, 'utf8');
     const start = content.indexOf('### Enacting an approved prune');
@@ -104,5 +104,6 @@ test(
     assert.ok(sut.includes('behavioural eval case'));
     assert.ok(sut.includes('docs/contributing/maintainer-smokes.md'));
     assert.ok(sut.includes('advice, not a gate'));
+    assert.ok(sut.includes('craft never runs'));
   },
 );

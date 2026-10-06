@@ -33,7 +33,22 @@ claude plugin eval . --tag trigger --runs 1 --no-publish --max-cost-usd 5
   no `problem` (`manifest_invalid`, `disabled_by_default`, `will_not_load`). If one is present,
   stop: the with-craft arm never loaded craft and the run means nothing.
 - The run must not print `⚠ case … cannot pass with the granted tools`.
-- Note the top-level `costUsd`: it is the pilot cost the ceilings below derive from.
+- The top-level `costUsd` prices the three trigger cases only. It says nothing about the
+  fixture and agent cases, so no full-suite ceiling derives from it.
+
+**Suite pilot** — every case once, before the first full run:
+
+```bash
+claude plugin eval . --runs 1 --no-publish --scaffold --allow-tools Write Bash \
+  --judge-model claude-sonnet-5-5 --max-cost-usd 5
+```
+
+- Same flags as the full suite below, one run per case, under the same fixed USD 5 cap as the
+  first run.
+- If it exits 2, pilot the cases it did not reach by tag (`--tag phase`, then `--tag agent`),
+  each under the same cap, and sum their `costUsd`.
+- Read each case's duration too: a case that ran into its `timeout_seconds` scored 0 in both arms
+  and needs a larger budget before a full run.
 
 **Full suite:**
 
@@ -49,14 +64,23 @@ claude plugin eval . --no-publish --scaffold --allow-tools Write Bash \
   notes that the case runs against an unstaged workspace, and the fixture cases score 0 in both
   arms.
 - `--allow-tools Write Bash`: the runner ignores a skill's own tool grants, and the fixture
-  cases write files and run git and craft's lint scripts.
+  cases write files and run git and craft's lint scripts. Bash stays unscoped because craft's
+  skills call their scripts by absolute plugin path, which no `Bash(<prefix>:*)` scope in a case
+  file can name. The grant reaches only the cases that list Bash, and the child's shell runs
+  inside the CLI's OS sandbox.
 - `--judge-model claude-sonnet-5-5`: the default judge is haiku, below the sonnet-tier floor for
   rubric graders. The judge is never the model under test.
-- `--max-cost-usd <ceiling>`: ceiling = pilot `costUsd` × runs × 1.5.
+- `--max-cost-usd <ceiling>`: ceiling = suite-pilot `costUsd` × runs × 1.5.
 - `--runs` stays at the default 3, the CLI's floor; `--runs 1` is only for piloting a new or
   edited case. `-j` stays at 1: every run shares one subscription rate limit.
 
-**One case.** Add `--case <name>` to either command.
+**One case.** Add `--case <name>` to the full-suite command, with `--runs 1` while iterating.
+Only the `run-*` cases work with the first-run command, which carries neither `--scaffold` nor
+`--allow-tools`.
+
+**Debugging a scaffold.** Pass `--keep-temp` to keep the sandbox. Each `scaffold.sh` refuses to
+run in a repository that already has a commit, so running one by hand in this checkout stops
+before it copies or commits anything.
 
 **Reading results.**
 
@@ -91,14 +115,17 @@ meaningful run. `phase`: the two decisions cases and prune. `agent`: planning an
 opus-pinned roles and the dearest. Cheap to dear: `run-quiet-unrelated`, the two `run-fires-*`,
 the two `decisions-*`, `prune-refuses-core`, `reviewer-tests-findings`, `planning-plan-lints`.
 
-**Hand-kept pairing.** The `findings-shape` grader of `reviewer-tests-findings` mirrors
-`LINE_HEAD_PATTERN` in `engine/src/findings.js` by hand. A change to that line grammar makes the
-grader stale: update both together. No CI test couples them.
+**Reviewer output shape.** `reviewer-tests-findings` spawns `craft:reviewer` directly, outside
+the review phase, so the agent receives no per-line output contract. Its `findings-shape` grader
+therefore accepts a severity word and a `file:line` on one line, in either order, rather than
+mirroring the normalizer's line grammar.
 
 **Unconfirmed until the first pilots.** Read from the CLI's source, not yet observed: whether
 craft's agents and hooks load in the eval child; whether a scaffold can read its own case
 directory and the plugin directory; whether `CLAUDE_CODE_SUBAGENT_MODEL` reaches the spawned
-agents (see the eval sweep below).
+agents (see the eval sweep below); whether a loaded skill's body appears in the `trace` a regex
+grader reads (the decisions graders exclude the skill's own template line for that reason);
+whether `prune-refuses-core` reads files under the plugin root beyond the copied `contracts/`.
 
 ## Model-class matrix (cross-tier) — not CI-gated
 
@@ -130,6 +157,8 @@ CLAUDE_CODE_SUBAGENT_MODEL=<id> claude plugin eval . --tag agent --model <id> \
   --judge-model <judge> --max-cost-usd <ceiling>
 ```
 
+- `<ceiling>`: pilot each tier first with `--runs 1` under the fixed USD 5 cap; ceiling = that
+  tier's `costUsd` × 3 × 1.5. Prices differ per tier, and the sonnet column pays an opus judge.
 - `<judge>` is `claude-sonnet-5-5` for the opus and haiku columns and `claude-opus-5-5` for the
   sonnet column, so the judge is never the model under test.
 - `--model` alone moves only the session tier: `agents/planner.md` and `agents/reviewer.md` pin
@@ -138,8 +167,8 @@ CLAUDE_CODE_SUBAGENT_MODEL=<id> claude plugin eval . --tag agent --model <id> \
   form was needed. If neither reaches the agents, the agent rows ran at the pinned tier: say so
   in the note under the matrix table.
 - Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
-- The trigger, decisions and prune results go in a one-line note under the matrix table, not in
-  new rows; the template's shape does not change.
+- The trigger, decisions and prune results, and each tier's Δ for the two agent cases, go in a
+  one-line note under the matrix table, not in new rows; the template's shape does not change.
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
 
