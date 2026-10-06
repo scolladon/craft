@@ -172,7 +172,7 @@ config moved the flagged economics.
 | Absent `report.json` | STOP: direct the user to run `/craft:metrics` first — the tuner acts on the miner's output |
 | No named config at either scope | STOP; `config-resolve.js` names both scopes it looked in; nothing touched |
 | `tune-plan.js` non-zero | STOP; surface stderr; nothing staged |
-| No auto-patch proposal (`hasPatch` false) | Record `NO-OP(tune)`; surface any advisory items; exit 0 |
+| No auto-patch proposal (`hasPatch` false) | Record `TUNE(<name>): no-op — …`; surface any advisory items; exit 0 |
 | User declines at the confirm gate | Leave repo unchanged; nothing landed |
 | Patched manifest fails lint | STOP; surface the `manifest-lint` diagnostic; remove `$manifest_tmp`; prior config untouched |
 | Plugin root missing (`tune-plan.js` or `init-land.js` absent) | STOP; surface which entrypoint is missing; do not invoke either bin |
