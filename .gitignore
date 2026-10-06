@@ -22,3 +22,6 @@
 # G1: advisory miner outputs — generated in-repo, never committed
 /report.json
 /report.md
+
+# claude plugin eval results (local runs only, never committed)
+/evals/results/

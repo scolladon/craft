@@ -91,3 +91,20 @@ test(
     );
   },
 );
+
+test(
+  'Given skills/prune/SKILL.md, when the enacting section is read, then it advises the maintainer to check the candidate against the behavioural eval cases by hand and names docs/contributing/maintainer-smokes.md',
+  () => {
+    const content = fs.readFileSync(PRUNE_SKILL, 'utf8');
+    const start = content.indexOf('### Enacting an approved prune');
+    const end = content.indexOf('\n## ', start);
+    assert.ok(start >= 0 && end > start, 'enacting section must be found');
+    const sut = content.slice(start, end);
+
+    assert.ok(sut.includes('behavioural eval case'));
+    assert.ok(sut.includes('docs/contributing/maintainer-smokes.md'));
+    assert.ok(sut.includes('advice, not a gate'));
+    assert.ok(sut.includes('by hand'));
+    assert.ok(sut.includes('craft never runs'));
+  },
+);

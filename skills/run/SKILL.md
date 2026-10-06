@@ -476,8 +476,9 @@ bring their own `procedure`, dispatched verbatim (step 2).
 ## Maintainer smokes — not CI-gated
 
 On-demand release checks — inline fidelity, the model-class matrix, registered-phase
-dispatch, second-instantiation — live in `docs/contributing/maintainer-smokes.md`. They are
-not part of a run; run one only when a maintainer asks for it by name.
+dispatch, second-instantiation, the behavioural eval suite — live in
+`docs/contributing/maintainer-smokes.md`. They are not part of a run; run one only when a
+maintainer asks for it by name.
 
 ## Review cadence — engine vs working-style
 
