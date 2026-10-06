@@ -12,6 +12,7 @@ and where a craft run writes its own artifacts.
 | [`archive/`](archive/) | closed, dated program docs |
 | [`prd/`](prd/) | legacy product/design/plan docs absorbed from craft's early history |
 | [`DOD.md`](DOD.md) | craft's own Definition of Done |
+| [`maintainer-smokes.md`](maintainer-smokes.md) | on-demand, non-CI release smokes run by hand |
 | [`metrics-baseline.report.json`](metrics-baseline.report.json) | committed telemetry baseline compared against on each run |
 
 `.claude/workflow.md` declares `paths.design`, `paths.adr`, `paths.plan`, and `paths.dod`

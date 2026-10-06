@@ -1,7 +1,7 @@
 # Model-class matrix — cross-tier quality record
 
-> Template: fill cells on a real run. See `skills/run/SKILL.md` §"Model-class matrix
-> (cross-tier) — not CI-gated" for the procedure.
+> Template: fill cells on a real run. See `docs/contributing/maintainer-smokes.md` §"Model-class
+> matrix (cross-tier) — not CI-gated" for the procedure.
 
 ## How to refresh
 
