@@ -214,5 +214,6 @@ test('Given scripts/ci.sh, every script, test file and .github/workflows file, w
 
   assert.ok(sut.length >= MIN_CI_SURFACES);
   assert.ok(sut.every(s => s.content.length > 0));
+  assert.ok(sut.some(s => s.label.startsWith(`adapters${path.sep}`)));
   assert.deepStrictEqual(result, []);
 });
