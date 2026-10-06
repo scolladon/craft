@@ -2,4 +2,4 @@
 type: llm
 arm: both
 ---
-The final reply treats the request as input to a multi-phase delivery workflow and names at least two of its stages (brief, design, decisions or ADRs, plan, implementation parts, review). It does not present a finished implementation of the --shout flag as its answer, and a bare "greet.sh not found" reply does not satisfy this.
+The final reply does not present the --shout change to greet.sh: no edited script, diff or code for the flag, and no claim that it is done. Instead it defers the change to a multi-phase delivery workflow: it stops at a step of that workflow (its setup scripts, config, run log, branch or worktree, or a stage such as brief, design, decisions, plan, implementation or review), or it names what that workflow does next.

@@ -177,16 +177,31 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-10-06 — follow-ups surfaced by the plugin-eval-suite run, not yet scheduled)
 
-**Suite pilot and grader calibration for the behavioural eval suite.** Two one-run smokes
-passed when the suite landed (`run-quiet-unrelated`, `decisions-noop-when-clear`); the other six
-cases have not run. Run the procedure in `docs/contributing/maintainer-smokes.md` § Behavioural eval suite: the
-trigger pilot, then the suite pilot, each under its cap, with `--no-publish`. Then read every
-grade and judge verdict and adjust any grader you would have scored differently. The same runs
-settle the items listed there as unconfirmed: craft's agents and hooks load in the eval child,
-a scaffold can read the plugin directory, `CLAUDE_CODE_SUBAGENT_MODEL` reaches spawned agents,
-`prune-refuses-core` stays inside the copied `contracts/`, and the trigger cases name two
-workflow stages before their first stop. Record the costs that
-set the full-suite ceiling.
+**Suite pilot and grader calibration for the behavioural eval suite — delivered 2026-10-06**
+(fix/eval-grader-calibration). Every case ran once in both arms; the costs, Δ values and
+settled observations are in `docs/contributing/maintainer-smokes.md` § Behavioural eval suite
+(trigger invocation USD 0.81, phase and agent invocation USD 1.96). Three graders scored a
+correct craft output as a failure and were recalibrated. `workflow-engaged` demanded two named
+stages, but without a shell the run skill stops at its first step: it now accepts a stop at a
+workflow step, and the `run-fires-*` cases seed a `greet.sh` so the bare model's ad-hoc edit is
+visible (Δ 0.00 → +1.00). `findings-shape` demanded a `file:line` and an upper-case severity,
+which a missing-test finding cannot cite and the agent does not always write. `tdd-parts`
+failed a valid plan on a two-clause criterion and was split into one grader per clause
+(Δ −0.50 → 0.00). Two procedure corrections: `--allow-tools` reaches every case in an
+invocation, so the trigger cases now run in their own invocation without it; a fresh worktree
+needs `npm ci` in `engine/` before any run. Still unconfirmed: whether craft's hooks load in
+the eval child.
+
+**Harder fixture for `decisions-escalates-fork`.** Δ is 0.00 because the bare model escalates
+the fork too, but the fixture's design doc says "a product call no ADR covers", which hands it
+the answer. Drop that phrase so the case measures whether the decisions skill spots an
+uncovered fork on its own; re-pilot before reading its Δ as prune evidence.
+
+**The planner labels an already-passing test as RED.** In both pilot plans, `craft:planner`
+added steps marked RED or characterization whose tests pass on first run, then "temporarily
+remove the `shift`" to prove they can fail. Strict TDD would make every RED step fail against
+the current code. Take it into the next prompt audit of `agents/planner.md`, with
+`planning-plan-lints` run before and after.
 
 **Fill the model-class matrix from the eval sweep.** Once the pilot passes, run the per-tier
 sweep in the same doc's Model-class matrix section and fill the planner and structured-review

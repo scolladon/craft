@@ -19,14 +19,21 @@ craft's behavioural cases live under `evals/` and run with `claude plugin eval` 
 without it. Results land in `evals/results/<timestamp>/`, which is gitignored. Rationale:
 `docs/contributing/design/plugin-eval-suite.md`.
 
+**Before any run.** Install the engine's dependencies in the checkout under test
+(`npm ci` in `engine/`). A fresh worktree has none, and craft's pipeline resolver then fails at
+its first step with `Cannot find package 'js-yaml'`.
+
 **First run in this checkout** — the three cheap trigger cases, one run each:
 
 ```bash
-claude plugin eval . --tag trigger --runs 1 --no-publish --max-cost-usd 5
+claude plugin eval . --tag trigger --runs 1 --scaffold --no-publish --max-cost-usd 5
 ```
 
 - The CLI asks once whether you trust the plugin. Answer it interactively: `--trust-plugin`
   answers it for CI, and craft never runs evals in CI.
+- `--scaffold`: the two `run-fires-*` cases seed a `greet.sh`, so the bare model has a script
+  to change ad hoc. The trigger cases never take `--allow-tools`: without a shell, craft stops at
+  its first precondition and the bare model can only show its edit.
 - `--max-cost-usd 5` is the fixed cap for the very first pilot; every later ceiling derives
   from a measured cost.
 - Open `evals/results/<timestamp>/aggregate-result.json`. `suite.plugins` must list craft with
@@ -36,10 +43,12 @@ claude plugin eval . --tag trigger --runs 1 --no-publish --max-cost-usd 5
 - The top-level `costUsd` prices the three trigger cases only. It says nothing about the
   fixture and agent cases, so no full-suite ceiling derives from it.
 
-**Suite pilot** — every case once, before the first full run:
+**Suite pilot** — every case once, before the first full run, in two invocations:
 
 ```bash
-claude plugin eval . --runs 1 --no-publish --scaffold --allow-tools Write Bash \
+claude plugin eval . --tag trigger --runs 1 --no-publish --scaffold \
+  --judge-model claude-sonnet-5-5 --max-cost-usd 5
+claude plugin eval . --tag phase agent --runs 1 --no-publish --scaffold --allow-tools Write Bash \
   --judge-model claude-sonnet-5-5 --max-cost-usd 5
 ```
 
@@ -51,11 +60,13 @@ claude plugin eval . --runs 1 --no-publish --scaffold --allow-tools Write Bash \
 - Read each case's duration too: a case that ran into its `timeout_seconds` scored 0 in both arms
   and needs a larger budget before a full run.
 
-**Full suite:**
+**Full suite** — the same two invocations, each under its own ceiling:
 
 ```bash
-claude plugin eval . --no-publish --scaffold --allow-tools Write Bash \
-  --judge-model claude-sonnet-5-5 --max-cost-usd <ceiling>
+claude plugin eval . --tag trigger --no-publish --scaffold \
+  --judge-model claude-sonnet-5-5 --max-cost-usd <trigger-ceiling>
+claude plugin eval . --tag phase agent --no-publish --scaffold --allow-tools Write Bash \
+  --judge-model claude-sonnet-5-5 --max-cost-usd <phase-agent-ceiling>
 ```
 
 - `--no-publish`: the CLI publishes the HTML report to claude.ai by default; the report stays
@@ -67,21 +78,26 @@ claude plugin eval . --no-publish --scaffold --allow-tools Write Bash \
 - `--allow-tools Write Bash`: the runner ignores a skill's own tool grants, and the fixture
   cases write files and run git and craft's lint scripts. Bash stays unscoped because craft's
   skills call their scripts by absolute plugin path, which no `Bash(<prefix>:*)` scope in a case
-  file can name. The grant reaches only the cases that list Bash, and the child's shell runs
-  inside the CLI's OS sandbox.
+  file can name. The grant reaches every case in the invocation, whatever its `allowed_tools`
+  lists: a case listing only `Read, Glob, Grep, Skill` was handed Bash, Edit and Write. Hence
+  the separate trigger invocation. The child's shell runs inside the CLI's OS sandbox.
 - `--judge-model claude-sonnet-5-5`: the default judge is haiku, below the sonnet-tier floor for
   rubric graders. The judge is never the model under test.
-- `--max-cost-usd <ceiling>`: ceiling = suite-pilot `costUsd` × runs × 1.5.
+- `--max-cost-usd <ceiling>`: ceiling = that invocation's suite-pilot `costUsd` × runs × 1.5.
 - `--runs` stays at the default 3, the CLI's floor; `--runs 1` is only for piloting a new or
   edited case. `-j` stays at 1: every run shares one subscription rate limit.
 
-**One case.** Add `--case <name>` to the full-suite command, with `--runs 1` while iterating.
-Only the `run-*` cases work with the first-run command, which carries neither `--scaffold` nor
-`--allow-tools`.
+**One case.** Add `--case <name>` to the full-suite invocation for its tag, with `--runs 1`
+while iterating.
 
 **Debugging a scaffold.** Pass `--keep-temp` to keep the sandbox. Each `scaffold.sh` refuses to
 run outside a git repository or in one that already has a commit, so running one by hand in this
 checkout, or in any other directory, stops before it copies or commits anything.
+
+**Git inside the sandbox (macOS).** `/usr/bin/git` is the Xcode shim, and inside the eval
+sandbox it fails: `couldn't create cache file '…/T/xcrun_db-…'`, then `Failed to locate 'git'`.
+Children work around it with `/opt/homebrew/bin/git` when they think to. No grader depends on a
+commit today; a case whose outcome needs git scores 0 on such a machine.
 
 **Reading results.**
 
@@ -93,8 +109,13 @@ checkout, or in any other directory, stops before it copies or commits anything.
 - Exit 1: a case scored below `--threshold` (1.0 by default); informational for a local run.
   Exit 2: the ceiling was hit and the results are partial. Re-pilot that case and recompute the
   ceiling rather than raising the cap blindly.
-- An implausible jump is judge-gaming until you have read the judge's reasoning. Before the
-  first full run, read each grade and ask whether you would have scored it differently.
+- An implausible jump is judge-gaming until you have read what the judge graded. The judge
+  answers one word per vote and records no reasoning; the `evidence` field holds the text it
+  saw. Before the first full run, read each grade and ask whether you would have scored it
+  differently.
+- Keep one clause per `llm` grader. A FAIL on a multi-clause criterion does not say which clause
+  failed: `tdd-parts` once failed a valid plan three votes out of three, and the same plan passed
+  both halves once split.
 
 **Evidence, not gate.** Before enacting an approved `craft:prune` candidate, or a prompt-surface
 audit edit under `skills/` or `agents/`, run the case(s) that drive the touched unit on the tree
@@ -111,28 +132,53 @@ before and after the change. Compare Δ and the with-craft score.
 A unit missing from this table has no behavioural evidence. Say so in the proposal rather than
 implying coverage.
 
-**Tags and cost.** `trigger`: the three run cases, on the session model, the cheapest
-meaningful run. `phase`: the two decisions cases and prune. `agent`: planning and reviewer, the
-opus-pinned roles and the dearest. Cheap to dear: `run-quiet-unrelated`, the two `run-fires-*`,
-the two `decisions-*`, `prune-refuses-core`, `reviewer-tests-findings`, `planning-plan-lints`.
+**Tags and cost.** `trigger`: the three run cases, on the session model, run without a tool
+grant. `phase`: the two decisions cases and prune. `agent`: planning and reviewer, the
+opus-pinned roles. Measured `costUsd` per case, one run in each arm (suite pilot, 2026-10-06):
+
+| Case | Tag | `costUsd` | Δ |
+|---|---|---|---|
+| `run-quiet-unrelated` | trigger | 0.11 | 0.00 |
+| `run-fires-craft-this` | trigger | 0.39 | +1.00 |
+| `run-fires-default-workflow` | trigger | 0.31 | +1.00 |
+| `decisions-noop-when-clear` | phase | 0.33 | +0.50 |
+| `decisions-escalates-fork` | phase | 0.29 | 0.00 |
+| `prune-refuses-core` | phase | 0.32 | +1.00 |
+| `reviewer-tests-findings` | agent | 0.38 | +0.67 |
+| `planning-plan-lints` | agent | 0.64 | 0.00 |
+
+Trigger invocation: USD 0.81, ceiling USD 4 at three runs. Phase and agent invocation:
+USD 1.96, ceiling USD 9.
 
 **Reviewer output shape.** `reviewer-tests-findings` spawns `craft:reviewer` directly, outside
 the review phase, so the agent receives no per-line output contract. Its `findings-shape` grader
-therefore accepts a severity word and a `file:line` on one line, in either order, rather than
-mirroring the normalizer's line grammar.
+therefore accepts a severity word, in any case, within 300 characters of a fixture file name,
+in either order, rather than mirroring the normalizer's line grammar. A finding about a missing
+test has no line to cite, and the agent writes `HIGH` in one run and `Severity: high` in the
+next.
 
-**Observed in the first pilots.** craft's skills load in the with-craft arm (`suite.plugins`
-lists craft with no `problem`, and the skill fires). A scaffold reads its own case directory and
-commits its fixture. A loaded skill's body reaches the `trace` a regex grader reads: the
-decisions skill's template line appears there, which is why the decisions graders exclude it.
+**Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
+craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
+lists every `craft:*` agent, and the reviewer and planner cases spawn theirs. A scaffold reads its
+own case directory and the plugin directory (`prune-refuses-core` copies `contracts/` from it),
+and commits its fixture. Spawned agents read plugin files by absolute path (the planner read
+`templates/plan.md` and ran `scripts/plan-lint.sh`). `prune-refuses-core` reads nothing outside
+the sandbox: it looks for `skills/` and `agents/` in the sandbox, finds only the copied
+`contracts/`, and says so. Without a shell, the `run-fires-*` cases stop at the run skill's
+first step and name no workflow stage, which is why `workflow-engaged` accepts a stop at a
+workflow step. A loaded skill's body reaches the `trace` a regex grader reads: the decisions
+skill's template line appears there, which is why the decisions graders exclude it.
 
-**Unconfirmed until a later pilot.** Read from the CLI's source, not yet observed: whether
-craft's agents and hooks load in the eval child; whether a scaffold can read the plugin
-directory (`prune-refuses-core` copies `contracts/` from it); whether
-`CLAUDE_CODE_SUBAGENT_MODEL` reaches the spawned agents (see the eval sweep below); whether
-`prune-refuses-core` reads files under the plugin root beyond the copied `contracts/`; whether
-the `run-fires-*` cases, with craft loaded, name two workflow stages before stopping at their
-first precondition, as `workflow-engaged` requires.
+**What the Δ column says.** `decisions-escalates-fork` 0.00: the bare model escalates the fork
+as well, but the fixture's design doc calls it "a product call no ADR covers", which hands it
+the answer. `prune-refuses-core` +1.00 measures the denylist firing; the bare model also keeps
+the rule, on its own reasoning. `planning-plan-lints` 0.00: the bare plan passes both TDD
+clauses; craft's evidence there is the with-only `plan-lint-ok` and `part-sections`.
+
+**Unconfirmed until a later pilot.** Whether craft's hooks load in the eval child: no pilot
+command triggered the `git diff` guard, and the trace carries no hook events. Whether
+`CLAUDE_CODE_SUBAGENT_MODEL` reaches the spawned agents (see the eval sweep below): the pilots
+set no override, and the agents ran at the session model.
 
 **Troubleshooting: every Bash-granting case is refused.** An error starting "the Docker
 (~/.docker, DOCKER_CONFIG) credential store on this machine holds a symbolic link inside it"
