@@ -218,7 +218,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    dispatches the string as-is; cross-plugin dispatch is SP2-proven, and the derived-plugin
    *registration* surface (`craft.extends:`) registers the phases/agents the walk dispatches —
    a registered or inserted phase resolves, carries its contract bundle, and executes under the
-   engine-owned contract. `requirements` and `architecture` are default-off and have no skill dir until P10.
+   engine-owned contract.
    If the skill or plugin a `procedure` names is not installed (no `skills/<id>/` dir for a
    craft-native procedure; no installed plugin for a namespaced one) → the loud STOP
    "procedure `<phase.procedure>` resolves to no installed skill" — the intended guard, not a
@@ -368,7 +368,7 @@ bring their own `procedure`, dispatched verbatim (step 2).
 |---|---|
 | Non-zero exit from `pipeline-resolve` (incl. resolver `ok: false` — a swapped `role:` the `roleExists` probe rejects, or a stranded consumer — whose `errors[]` are written to stderr, never stdout JSON) | Stop; surface stderr; refuse to proceed |
 | `effective[]` is empty | Stop; surface "no enabled phases in resolution" |
-| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for a craft-native procedure, e.g. an enabled requirements/architecture pre-P10; no installed plugin for a namespaced one; **incl. a swapped default-phase `procedure:`**) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
+| A phase's `procedure` resolves to no installed skill (no `skills/<id>/` dir for a craft-native procedure; no installed plugin for a namespaced one; **incl. a swapped default-phase `procedure:`**) | Stop; surface "procedure `<phase.procedure>` resolves to no installed skill" |
 | `awaitingHarnesses` on `propose` is empty | Propose is not gated on any harness; proceed normally |
 | `waivers[]` is non-empty | Executing-harness waivers are pre-formatted in `record[]`; surface every other waiver (review/refactoring) to the run record yourself per §1e; continue |
 | A skip strands a consumer | `ok: false` already; covered by the stop-on-error path |

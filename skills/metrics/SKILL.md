@@ -74,7 +74,7 @@ signal only — advisory, never a gate (see error semantics below).
 
 The bin writes two artefacts inside the repo and exits 0 in all handled cases:
 
-- `report.json` — machine-readable usage summary (consumed by `craft:init` and by
+- `report.json` — machine-readable usage summary (consumed by `craft:tune` and by
   the workflow-improvement loop)
 - `report.md` — human-readable narrative (cache performance, cost breakdown,
   model-routing recommendations)
@@ -112,8 +112,8 @@ After the bin exits 0, report:
 
 1. **Workflow improvement** — review the cache and cost breakdown to tune phase ordering,
    checkpoint placement, and model-routing hints across the craft pipeline.
-2. **`craft:init`** — the initialiser reads `report.json` to pre-fill model-routing
-   suggestions and gate recommendations in a new named manifest.
+2. **`craft:tune`** — the tuner reads `report.json` to propose model-routing, skip, and
+   turn-budget patches to an existing named manifest.
 
 ---
 
