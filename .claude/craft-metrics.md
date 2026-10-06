@@ -426,3 +426,7 @@ auto-compaction-safety implementation turns=695 tool_calls=761 tokens=68218513 d
 auto-compaction-safety planning turns=113 tool_calls=115 tokens=20367187 duration_ms=1840982 cache_read=19812595 cache_creation=370684 output=183682 avg_ctx=178615 equiv=3363251
 auto-compaction-safety review turns=377 tool_calls=382 tokens=26433215 duration_ms=5205472 cache_read=24739662 cache_creation=1222541 output=470258 avg_ctx=68867 equiv=6354186
 auto-compaction-safety validation turns=85 tool_calls=99 tokens=11484449 duration_ms=1146150 cache_read=11168351 cache_creation=216725 output=99203 avg_ctx=133944 equiv=1883926
+plugin-eval-suite design turns=68 tool_calls=71 tokens=6116466 duration_ms=1043290 cache_read=5958556 cache_creation=157089 output=685 avg_ctx=89938 equiv=795778
+plugin-eval-suite implementation turns=39 tool_calls=42 tokens=911910 duration_ms=505192 cache_read=782798 cache_creation=127227 output=1805 avg_ctx=23336 equiv=246419
+plugin-eval-suite planning turns=44 tool_calls=47 tokens=3787098 duration_ms=930782 cache_read=3620914 cache_creation=157244 output=8852 avg_ctx=85869 equiv=602994
+plugin-eval-suite review turns=187 tool_calls=193 tokens=8953239 duration_ms=2098718 cache_read=8405691 cache_creation=541882 output=5292 avg_ctx=47850 equiv=1544756
