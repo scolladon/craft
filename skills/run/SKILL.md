@@ -96,20 +96,6 @@ Input: `$ARGUMENTS`
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
     genuine parallel mechanism, loaded once here exactly like the memory store above but
     kept in its own in-session slot. `consult` is called **once per run, not per phase**.
-    Two fixed, greppable run-record tokens join the existing family
-    (`NO-OP(<phase>):`, `GATE(<phase>):`, `auto-skip:`, `WAIVER:`, `POLICY(...)`):
-    `INTENTION-DRIFT(<page>): <changed-path>` and `INTENTION-WAIVE(<page>): <reason>` —
-    see `docs/contributing/specs/intention.md` Token vocabulary; emitted by the `validation` phase's
-    `assert-fresh` walk. Four more tokens join the same family from the `ci.sh` hygiene
-    cadence: `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`,
-    `SLOP-FOUND(<file>): <entry>`, and `SLOP-WAIVE(<file>): <reason>`. Three more join from
-    the decision-drift-propagation family — see `docs/contributing/specs/run-record.md`
-    Token vocabulary: `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM`, emitted by
-    the `decisions` phase, one line per `supersedes` entry authored that run;
-    `DECISION-CITE-WAIVE(<file>): <reason>`, the `adr-lint` C3 waiver, collected from the
-    same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE`; and
-    `MEMORY-RETRACT(<concern>): <merge-key>`, emitted by the phase that owns a concern's
-    write surface on a mechanical re-check that disproves a stored entry.
 
 1d. `Resolution.gateDecisions` is an ARRAY of `{ phaseId, gate, codeProducing }`
     (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose
@@ -182,6 +168,21 @@ Input: `$ARGUMENTS`
    foreground or background; the compaction hooks only read. No role agent writes it, in
    any phase, including phases that run in parallel. The final summary and the PR body
    take only the lines whose run-id prefix is this run's.
+
+### Run-record tokens
+
+Every ledger line opens with a fixed, greppable token. Besides the walk's own
+(`PHASE-START`, `PHASE-DONE`, `NO-OP(<phase>):`, `GATE(<phase>):`, `auto-skip:`, `WAIVER:`,
+`POLICY(...)`, `AWAITING(propose):`), these are emitted elsewhere — full definitions in
+`docs/contributing/specs/run-record.md` Token vocabulary:
+
+| Token | Emitted by |
+|---|---|
+| `INTENTION-DRIFT(<page>): <changed-path>`, `INTENTION-WAIVE(<page>): <reason>` | the `validation` phase's `assert-fresh` walk (`docs/contributing/specs/intention.md`) |
+| `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`, `SLOP-FOUND(<file>): <entry>`, `SLOP-WAIVE(<file>): <reason>` | the `ci.sh` hygiene cadence |
+| `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` | the `decisions` phase, one line per `supersedes` entry authored that run |
+| `DECISION-CITE-WAIVE(<file>): <reason>` | the `adr-lint` C3 waiver, collected from the same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE` |
+| `MEMORY-RETRACT(<concern>): <merge-key>` | the phase that owns a concern's write surface, on a mechanical re-check that disproves a stored entry |
 
 ## Phase walk (driven by Resolution.effective[])
 
