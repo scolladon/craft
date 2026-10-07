@@ -299,9 +299,12 @@ const HARNESS_READ_CONTRACT = path.join(ROOT, 'contracts/harness-read.md');
 // A directly spawned reviewer sees only its own body; the review phase also injects the
 // contract. Each set is written in both places, so the two copies must stay equal.
 function agentSetFor(text, key) {
-  const match = text.match(new RegExp(`${key}[^{]*\\{([^}]+)\\}`, 'i'));
+  const match = text.match(new RegExp(`${key} over\\s*\\{([^}]+)\\}`, 'i'));
   if (!match) return [];
-  return match[1].split(',').map((entry) => entry.trim());
+  return match[1]
+    .split(',')
+    .map((entry) => entry.trim())
+    .filter((entry) => entry !== '');
 }
 
 function contractSetFor(text, key) {
@@ -311,18 +314,15 @@ function contractSetFor(text, key) {
 }
 
 test(
-  "Given the reviewer agent and the harness-read contract, when each one's severity scale is read, then both name the same non-empty scale",
+  "Given the reviewer agent and the harness-read contract, when each one's severity scale is read, then both name the same non-empty scale in the same order",
   () => {
     const sut = fs.readFileSync(REVIEWER_AGENT, 'utf8');
-    const contract = fs.readFileSync(HARNESS_READ_CONTRACT, 'utf8');
+    const expected = contractSetFor(fs.readFileSync(HARNESS_READ_CONTRACT, 'utf8'), 'severity');
 
     const result = agentSetFor(sut, 'severity');
 
     assert.ok(result.length > 0, 'agents/reviewer.md should name a severity set');
-    assert.deepStrictEqual(
-      [...result].sort(),
-      [...contractSetFor(contract, 'severity')].sort(),
-    );
+    assert.deepStrictEqual(result, expected);
   },
 );
 
@@ -330,15 +330,12 @@ test(
   "Given the reviewer agent and the harness-read contract, when each one's claim-status set is read, then both name the same non-empty set",
   () => {
     const sut = fs.readFileSync(REVIEWER_AGENT, 'utf8');
-    const contract = fs.readFileSync(HARNESS_READ_CONTRACT, 'utf8');
+    const expected = contractSetFor(fs.readFileSync(HARNESS_READ_CONTRACT, 'utf8'), 'status');
 
     const result = agentSetFor(sut, 'claim status');
 
     assert.ok(result.length > 0, 'agents/reviewer.md should name a claim-status set');
-    assert.deepStrictEqual(
-      [...result].sort(),
-      [...contractSetFor(contract, 'status')].sort(),
-    );
+    assert.deepStrictEqual([...result].sort(), [...expected].sort());
   },
 );
 
