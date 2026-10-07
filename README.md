@@ -248,6 +248,12 @@ your own history.
 discoverable test command. Phases whose tools are absent no-op with a note;
 `propose`/`integrate` no-op without a git remote.
 
+**Which model should run the session?** opus or sonnet. The session model runs `/craft:run`,
+the phase skills, and every phase set to `execution: inline`. A haiku session is not
+supported: in the behavioural eval sweep it loaded the planning skill and ended its turn
+without spawning the planner. haiku stays routable per agent through `models.<agent>` and
+`models.fallback`.
+
 **What happens when a gate goes red?** Nothing gets committed — the invariant is
 orchestrator-enforced. The phase enters its fix loop; if it can't reach green, the
 blocker protocol escalates to you rather than papering over it.

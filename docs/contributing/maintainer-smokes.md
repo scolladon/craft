@@ -96,8 +96,13 @@ checkout, or in any other directory, stops before it copies or commits anything.
 
 **Git inside the sandbox (macOS).** `/usr/bin/git` is the Xcode shim, and inside the eval
 sandbox it fails: `couldn't create cache file '…/T/xcrun_db-…'`, then `Failed to locate 'git'`.
-Children work around it with `/opt/homebrew/bin/git` when they think to. No grader depends on a
-commit today; a case whose outcome needs git scores 0 on such a machine.
+`PATH` cannot route around it: a probe child (2026-10-07) kept the operator's `PATH` order,
+with a Homebrew git directory ahead of `/usr/bin`, yet `type -a git` listed only
+`/usr/bin/git`, and a `PATH` prepend inside the command still resolved `/usr/bin/git`. A
+scaffold runs outside the sandbox, where git works, so `reviewer-tests-findings` writes the
+reviewed range's diff to `.git/review-range.diff` after its last commit, and its prompt names
+that file; both arms get it. `planning-plan-lints` keeps the failure: no grader depends on the
+planner's commit. A case whose outcome needs git inside the child scores 0 on such a machine.
 
 **Reading results.**
 
@@ -189,11 +194,14 @@ Model Runner's inference engine until Docker reinstalls it, which brings the lin
 ## Model-class matrix (cross-tier) — not CI-gated
 
 On demand / when a maintainer wants the full-pipeline + output-quality matrix: run the
-full pipeline across the Claude class — opus (`claude-opus-5-5`), sonnet
-(`claude-sonnet-5-5`), haiku (`claude-haiku-4-5`) — on a representative brief,
-record a tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / part-TDD /
-structured-review / blocker / full-pipeline-completion), and capture the per-phase
-tokens + wall-clock into the committed artifact and the run record.
+full pipeline on a representative brief once per agent tier of the Claude class — opus
+(`claude-opus-5-5`), sonnet (`claude-sonnet-5-5`), haiku (`claude-haiku-4-5`) — record a
+tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / part-TDD / structured-review /
+blocker / full-pipeline-completion), and capture the per-phase tokens + wall-clock into the
+committed artifact and the run record. A column names the tier the craft agents run at. The
+session runs at opus or sonnet, since craft does not support a haiku session; the haiku
+column routes the agents to haiku through the manifest's `models.*` keys or the sub-agent
+override below.
 
 **Numbers are harness-sourced.** The orchestrator reads `subagent_tokens` and `duration_ms`
 from that phase's own sub-agent transcript, not from the spawn's returned final-message usage
@@ -208,28 +216,35 @@ artifact template) and append a one-line entry to the run record under
 **Eval sweep (planner and structured-review rows).** The planner and structured-review cells can
 be filled from the behavioural eval suite instead: the `agent`-tagged cases
 (`planning-plan-lints` fills planner, `reviewer-tests-findings` fills structured-review), three
-runs per tier. For each tier `<id>`:
+runs per tier. The session stays at sonnet in every column; only the agent tier `<agent-id>` moves:
 
 ```bash
-CLAUDE_CODE_SUBAGENT_MODEL=<id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
-  claude plugin eval . --tag agent --model <id> \
+CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
+  claude plugin eval . --tag agent --model claude-sonnet-5-5 \
   --no-publish --scaffold --keep-temp --allow-tools Write Bash \
   --judge-model <judge> --max-cost-usd <ceiling>
 ```
 
+- Session tier: `claude-sonnet-5-5` in every column. A haiku session
+  is not supported, and a fixed session leaves the agent tier as the one variable per column.
+  The sonnet column (session and agents at sonnet) repeats the 2026-10-07 configuration and
+  is the control against it; the opus and haiku columns are not comparable with 2026-10-07,
+  whose session ran at the column tier.
 - `<ceiling>`: pilot each tier first with `--runs 1` under the fixed USD 5 cap; ceiling = that
   tier's `costUsd` × 3 × 1.5. Prices differ per tier, and the sonnet column pays an opus judge.
   Measured on 2026-10-07, pilot then sweep: opus USD 1.00 / 3.07, sonnet 0.56 / 1.61, haiku
-  0.53 / 1.49. A haiku pilot can read cheap because haiku sometimes stops before planning.
+  0.53 / 1.49.
 - `<judge>` is `claude-sonnet-5-5` for the opus and haiku columns and `claude-opus-5-5` for the
-  sonnet column, so the judge is never the model under test.
-- `--model` alone moves only the session tier: `agents/planner.md` and `agents/reviewer.md` pin
-  `model: opus`. Both variables are needed (sweep of 2026-10-07, Claude Code 2.1.292): with
-  `CLAUDE_CODE_SUBAGENT_MODEL` alone the pin won and a sonnet session spawned opus agents;
-  adding `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` moved them to the session tier. Check it on every
-  sweep: in the kept `out/trace.jsonl`, assistant events with a `parent_tool_use_id` are the
-  agent's, and their `message.model` must name the tier under test. If it does not, the agent
-  rows ran at the pinned tier: say so in the note under the matrix table.
+  sonnet column, so the judge
+  is never at the agent tier under test; it may share the session's tier.
+- `--model` moves only the session.
+  `agents/planner.md` and `agents/reviewer.md` pin `model: opus`, so the agents need both
+  variables (sweep of 2026-10-07, Claude Code 2.1.292): with `CLAUDE_CODE_SUBAGENT_MODEL`
+  alone the pin won and a sonnet session spawned opus agents; adding
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` moved them to the override's tier, which equalled the
+  session's in that sweep. The override also reaches agents the bare arm spawns, so both
+  arms run their agents at the column tier. The trace check below verifies the tiers on
+  every run.
 - `--keep-temp` keeps each run's sandbox and its trace; the result JSON's `tracePath` points
   at it. The opus column cannot show whether the override works, because the pin is opus.
 - Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
@@ -237,6 +252,36 @@ CLAUDE_CODE_SUBAGENT_MODEL=<id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   one-line note under the matrix table, not in new rows; the template's shape does not change.
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
+
+**Trace check, every run.** Run it on each `aggregate-result.json`. It reads only the kept traces: a kept sandbox is sealed, so never
+run git inside it.
+
+```bash
+f=evals/results/<ts>/aggregate-result.json; root=$(jq -r .suite.root "$f")
+jq -r '.cases[] | .name as $n | .arms | to_entries[] | .key as $a | .value[] | "\($n)\t\($a)\t\(.tracePath)"' "$f" |
+while IFS=$'\t' read -r name arm trace; do
+  sandbox=$(dirname "$(dirname "$trace")")
+  cmds=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Bash") | .input.command' "$trace")
+  tiers=$(jq -r 'select(.type=="assistant") | "\(if .parent_tool_use_id then "agent" else "session" end)=\(.message.model)"' "$trace" | sort -u | tr '\n' ' ')
+  gitfail=$(grep -c "Failed to locate 'git'" "$trace")
+  left=$(printf '%s\n' "$cmds" | grep -E '(cd|git +-C) +"?/' | grep -cvF "$sandbox")
+  [ "$name" = reviewer-tests-findings ] && left=$(( left + $(printf '%s\n' "$cmds" | grep -cF "$root") ))
+  printf '%s %s %s gitfail=%s left=%s\n' "$name" "$arm" "$tiers" "$gitfail" "$left"
+done
+```
+
+- `tiers`: assistant events with a `parent_tool_use_id` are the agent's. Session events
+  must name `claude-sonnet-5-5` and agent events the column's `<agent-id>`, matched on the
+  prefix: `message.model` carries a dated id such as `claude-haiku-4-5-20251001`. A run
+  whose agent events show another tier invalidates its column: say so in the note under
+  the matrix table and leave the cell unfilled.
+- `left`: every `cd` or `git -C` to an absolute path outside the run's own sandbox (the
+  parent of `out/`), plus, for `reviewer-tests-findings`, any command that names the
+  plugin root (`suite.root`). The planner case runs `scripts/plan-lint.sh` by its absolute
+  plugin path, so it is spared that second count. Every reviewer-case run must show
+  `left=0`; name any run with `left>0` in the note under the matrix table.
+- `gitfail`: how often the trace says `Failed to locate 'git'`. It is reported in the
+  note, not a pass condition.
 
 ## Registered-phase dispatch smoke — not CI-gated
 
