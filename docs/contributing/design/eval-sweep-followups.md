@@ -197,9 +197,10 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
 reading rules live in `docs/contributing/maintainer-smokes.md` § Model-class matrix, "Trace check,
 every run", which is the procedure of record. It reports per run the session and agent tiers,
 `gitfail` (tool results saying `Failed to locate 'git'`) and `left` (absolute paths outside the
-run's sandbox that it moved to or touched, through Bash `cd`/`pushd`/`git -C` targets or any
-file tool; the planner case's reads of its own plugin root are spared), and flags a run with no
-trace as `NO-TRACE`. After each sweep, `git -C <suite.root> status --porcelain` must be empty.
+run's sandbox that any tool input names, resolved for `..`, minus system binaries and, for the
+planner case, the plugin's own `templates/` and `scripts/`), and flags an errored run as
+`NO-TRACE` and a reaped sandbox as `TRACE-GONE`. Around each tier, a file-time check
+(`find <suite.root> -newer <marker>`) lists anything written into the plugin checkout.
 
 ### 4. Sandbox git (item 3)
 

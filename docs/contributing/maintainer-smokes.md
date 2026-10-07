@@ -256,50 +256,74 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
 
+**Plugin checkout, around each tier.** Before launching a tier, mark the time with
+`marker=$(mktemp) && touch "$marker"`. After it, outside any sandbox, list what changed under the
+plugin root since the mark:
+
+```bash
+find <suite.root> -newer "$marker" -type f -not -path '<suite.root>/evals/results/*' \
+  -not -path '<suite.root>/.git/objects/*' -not -path '<suite.root>/.git/logs/*' -not -name index
+```
+
+It must print nothing. It reads file times only, so it runs no git and sees ignored paths
+(`.claude/`, `node_modules/`) and `.git/config` or `.git/hooks`. Anything it lists was written by
+a run that left its sandbox: name it in the note under the matrix table and remove it before the
+next tier.
+
 **Trace check, every run.** Run it on each `aggregate-result.json`. It reads only the kept
 traces: a kept sandbox is sealed, so never run git inside it.
 
 ```bash
 f=evals/results/<ts>/aggregate-result.json; root=$(jq -r .suite.root "$f")
-jq -r '.cases[] | .name as $n | .arms | to_entries[] | .key as $a | .value[] | "\($n)\t\($a)\t\(.tracePath // "")"' "$f" |
-while IFS=$'\t' read -r name arm trace; do
-  [ -s "$trace" ] || { printf '%s %s NO-TRACE\n' "$name" "$arm"; continue; }
+jq -r '.cases[] | .name as $n | .arms | to_entries[] | .key as $a | .value[] | [$n, $a, ((.error // "") | tostring | length), (.tracePath // "")] | @tsv' "$f" |
+while IFS=$'\t' read -r name arm errlen trace; do
+  if [ ! -s "$trace" ]; then
+    if [ "$errlen" -gt 0 ]; then state=NO-TRACE; else state=TRACE-GONE; fi
+    printf '%s %s %s\n' "$name" "$arm" "$state"; continue
+  fi
   sandbox=$(dirname "$(dirname "$trace")")
+  allowed="$sandbox /dev /bin /sbin /usr/bin /usr/sbin /usr/local/bin /opt/homebrew/bin /Library/Developer/CommandLineTools/usr/bin"; exact=""
+  [ "$name" = planning-plan-lints ] && { allowed="$allowed $root/templates $root/scripts"; exact=$root; }
   tiers=$(jq -r 'select(.type=="assistant") | "\(if .parent_tool_use_id then "agent" else "session" end)=\(.message.model)"' "$trace" | sort -u | tr '\n' ' ')
-  gitfail=$(jq -r 'select(.type=="user") | .message.content[]? | select(.type=="tool_result") | .content | tostring' "$trace" | grep -o "Failed to locate 'git'" | wc -l | tr -d ' ')
-  uses=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | if .name=="Bash" then "Bash\t\(.input.command)" else "\(.name)\t\(.input.file_path // .input.path // .input.notebook_path // "")" end' "$trace")
-  targets=$( { printf '%s\n' "$uses" | grep '^Bash' | grep -oE "((cd|pushd)( +--)?|git +(-C|--git-dir=|--work-tree=)) *[\"']?/[^ \"';&|)]+" | grep -oE "/[^ \"';&|)]+$"
-    printf '%s\n' "$uses" | grep -v '^Bash' | grep -E $'^(Write|Edit|NotebookEdit)\t/' | cut -f2
-    reads=$(printf '%s\n' "$uses" | grep -E $'^(Read|Grep|Glob)\t/' | cut -f2)
-    [ "$name" = planning-plan-lints ] && reads=$(printf '%s\n' "$reads" | grep -vF "$root/")
-    printf '%s\n' "$reads"; } | grep '^/')
-  left=$(printf '%s\n' "$targets" | grep -c . ); inside=$(printf '%s\n' "$targets" | grep -cF "$sandbox/"); left=$(( left - inside ))
+  gitfail=$(jq -s --arg m "Failed to locate 'git'" '[.[] | select(.type=="user") | .message.content[]? | select(.type=="tool_result" and ((.content | tostring) | contains($m)))] | length' "$trace")
+  left=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .input | del(.content, .new_string, .old_string, .edits, .prompt, .description) | tojson' "$trace" |
+    grep -oE "(^|[ \"'=(]|:-)/[^ \"'\\\;&|()<>,{}]*" | sed -E 's|^[^/]*||;s|^/tmp(/\|$)|/private/tmp\1|; s|^/var(/\|$)|/private/var\1|' |
+    awk -v allowed="$allowed" -v exact="$exact" '
+      { n = split($0, seg, "/"); depth = 0
+        for (i = 2; i <= n; i++) { if (seg[i] == "" || seg[i] == ".") continue
+          if (seg[i] == "..") { if (depth > 0) depth--; continue } out[++depth] = seg[i] }
+        p = ""; for (i = 1; i <= depth; i++) p = p "/" out[i]; if (p == "") p = "/"
+        k = split(allowed, a, " "); inside = (p == exact)
+        for (i = 1; i <= k; i++) if (p == a[i] || index(p, a[i] "/") == 1) inside = 1
+        if (!inside) count++ }
+      END { print count + 0 }')
   printf '%s %s %s gitfail=%s left=%s\n' "$name" "$arm" "${tiers:-NO-EVENTS }" "$gitfail" "$left"
 done
 ```
 
 - `NO-TRACE`: the run errored before Claude started (a failed scaffold, a CLI swapped by an
   auto-update mid-run). It has no grades worth reading: re-run it, never fill a cell from it.
+  `TRACE-GONE`: the run did not error but its kept sandbox has since been removed (macOS
+  clears `/private/tmp` on reboot); its grades stand, but its tiers and `left` cannot be read.
 - `tiers`: assistant events with a `parent_tool_use_id` are the agent's. Session events
   must name `claude-sonnet-5-5` and agent events the column's `<agent-id>`, matched on the
   prefix: `message.model` carries a dated id such as `claude-haiku-4-5-20251001`. A run
   whose agent events show another tier invalidates its column: say so in the note under
   the matrix table and leave the cell unfilled. A with-arm run with no `agent=` entry, or a
   run with no `session=` entry (`NO-EVENTS`), cannot show its tier: name it in the note.
-- `left`: absolute paths outside the run's own sandbox (the parent of `out/`) that the run
-  moved to or touched — every `cd`, `pushd`, `git -C`, `git --git-dir=` or
-  `git --work-tree=` target in a Bash command, every `Write`, `Edit` or `NotebookEdit` path,
-  and every `Read`, `Grep` or `Glob` path. The planner case reads the plugin's own
-  `templates/` and `scripts/` by absolute path, so its reads under the plugin root
-  (`suite.root`) are spared. Every run must show `left=0`; name any run with `left>0` in the
-  note under the matrix table. Paths written through `/tmp` rather than `/private/tmp` count
-  as outside; read the trace before naming such a run.
+- `left`: absolute paths a run's tools named outside its own sandbox (the parent of `out/`).
+  Every tool input counts — Bash commands whole, multi-line included, and every file tool's
+  path or pattern — except file contents, edit strings and agent prompts, which are payload,
+  not access. Paths are resolved for `..`, and `/tmp` and `/var` are read as their
+  `/private` targets. System binary directories and `/dev` are allowed, and so is the
+  Command Line Tools `bin`, which agents try when `/usr/bin/git` fails. The planner case
+  also may name the plugin root itself and its `templates/` and `scripts/`, which the
+  planning skill reads and runs. Every run must show `left=0`; name any run with `left>0` in
+  the note under the matrix table, after reading the paths in its trace. Not counted: paths
+  reached through `~`, a variable or a relative `..` chain, which only the file-time check
+  above catches when they write.
 - `gitfail`: how many tool results say `Failed to locate 'git'`. It is reported in the note,
   not a pass condition.
-
-**Plugin checkout, after each sweep.** Outside any sandbox, `git -C <suite.root> status
---porcelain` must print nothing. Anything it lists was written by a run that left its
-sandbox: name it in the note and remove it before the next tier.
 
 ## Registered-phase dispatch smoke — not CI-gated
 
