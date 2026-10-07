@@ -293,6 +293,55 @@ test(
   },
 );
 
+const REVIEWER_AGENT = path.join(ROOT, 'agents/reviewer.md');
+const HARNESS_READ_CONTRACT = path.join(ROOT, 'contracts/harness-read.md');
+
+// A directly spawned reviewer sees only its own body; the review phase also injects the
+// contract. Each set is written in both places, so the two copies must stay equal.
+function agentSetFor(text, key) {
+  const match = text.match(new RegExp(`${key}[^{]*\\{([^}]+)\\}`, 'i'));
+  if (!match) return [];
+  return match[1].split(',').map((entry) => entry.trim());
+}
+
+function contractSetFor(text, key) {
+  const match = text.match(new RegExp(`${key}\\??:\\s*([A-Z-]+(?:\\|[A-Z-]+)+)`));
+  if (!match) return [];
+  return match[1].split('|');
+}
+
+test(
+  "Given the reviewer agent and the harness-read contract, when each one's severity scale is read, then both name the same non-empty scale",
+  () => {
+    const sut = fs.readFileSync(REVIEWER_AGENT, 'utf8');
+    const contract = fs.readFileSync(HARNESS_READ_CONTRACT, 'utf8');
+
+    const result = agentSetFor(sut, 'severity');
+
+    assert.ok(result.length > 0, 'agents/reviewer.md should name a severity set');
+    assert.deepStrictEqual(
+      [...result].sort(),
+      [...contractSetFor(contract, 'severity')].sort(),
+    );
+  },
+);
+
+test(
+  "Given the reviewer agent and the harness-read contract, when each one's claim-status set is read, then both name the same non-empty set",
+  () => {
+    const sut = fs.readFileSync(REVIEWER_AGENT, 'utf8');
+    const contract = fs.readFileSync(HARNESS_READ_CONTRACT, 'utf8');
+
+    const result = agentSetFor(sut, 'claim status');
+
+    assert.ok(result.length > 0, 'agents/reviewer.md should name a claim-status set');
+    assert.deepStrictEqual(
+      [...result].sort(),
+      [...contractSetFor(contract, 'status')].sort(),
+    );
+  },
+);
+
 test(
   'Given every agent, when its tools list is read, then no entry is an MCP tool or a sub-agent-spawning tool',
   () => {
