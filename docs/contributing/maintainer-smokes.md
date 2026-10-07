@@ -234,8 +234,9 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   whose session ran at the column tier.
 - `<ceiling>`: pilot each tier first with `--runs 1` under the fixed USD 5 cap; ceiling = that
   tier's `costUsd` × 3 × 1.5. Prices differ per tier, and the sonnet column pays an opus judge.
-  Measured on 2026-10-07, pilot then sweep: opus USD 1.00 / 3.07, sonnet 0.56 / 1.61, haiku
-  0.53 / 1.49.
+  Measured on 2026-10-07 with the session at the column tier, pilot then sweep: opus USD
+  1.00 / 3.07, sonnet 0.56 / 1.61, haiku 0.53 / 1.49; only the sonnet figures carry over to a
+  sonnet session.
 - `<judge>` is `claude-sonnet-5-5` for the opus and haiku columns and `claude-opus-5-5` for the
   sonnet column, so the judge
   is never at the agent tier under test; it may share the session's tier.
@@ -255,35 +256,50 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
 
-**Trace check, every run.** Run it on each `aggregate-result.json`. It reads only the kept traces: a kept sandbox is sealed, so never
-run git inside it.
+**Trace check, every run.** Run it on each `aggregate-result.json`. It reads only the kept
+traces: a kept sandbox is sealed, so never run git inside it.
 
 ```bash
 f=evals/results/<ts>/aggregate-result.json; root=$(jq -r .suite.root "$f")
-jq -r '.cases[] | .name as $n | .arms | to_entries[] | .key as $a | .value[] | "\($n)\t\($a)\t\(.tracePath)"' "$f" |
+jq -r '.cases[] | .name as $n | .arms | to_entries[] | .key as $a | .value[] | "\($n)\t\($a)\t\(.tracePath // "")"' "$f" |
 while IFS=$'\t' read -r name arm trace; do
+  [ -s "$trace" ] || { printf '%s %s NO-TRACE\n' "$name" "$arm"; continue; }
   sandbox=$(dirname "$(dirname "$trace")")
-  cmds=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Bash") | .input.command' "$trace")
   tiers=$(jq -r 'select(.type=="assistant") | "\(if .parent_tool_use_id then "agent" else "session" end)=\(.message.model)"' "$trace" | sort -u | tr '\n' ' ')
-  gitfail=$(grep -c "Failed to locate 'git'" "$trace")
-  left=$(printf '%s\n' "$cmds" | grep -E '(cd|git +-C) +"?/' | grep -cvF "$sandbox")
-  [ "$name" = reviewer-tests-findings ] && left=$(( left + $(printf '%s\n' "$cmds" | grep -cF "$root") ))
-  printf '%s %s %s gitfail=%s left=%s\n' "$name" "$arm" "$tiers" "$gitfail" "$left"
+  gitfail=$(jq -r 'select(.type=="user") | .message.content[]? | select(.type=="tool_result") | .content | tostring' "$trace" | grep -o "Failed to locate 'git'" | wc -l | tr -d ' ')
+  uses=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | if .name=="Bash" then "Bash\t\(.input.command)" else "\(.name)\t\(.input.file_path // .input.path // .input.notebook_path // "")" end' "$trace")
+  targets=$( { printf '%s\n' "$uses" | grep '^Bash' | grep -oE "((cd|pushd)( +--)?|git +(-C|--git-dir=|--work-tree=)) *[\"']?/[^ \"';&|)]+" | grep -oE "/[^ \"';&|)]+$"
+    printf '%s\n' "$uses" | grep -v '^Bash' | grep -E $'^(Write|Edit|NotebookEdit)\t/' | cut -f2
+    reads=$(printf '%s\n' "$uses" | grep -E $'^(Read|Grep|Glob)\t/' | cut -f2)
+    [ "$name" = planning-plan-lints ] && reads=$(printf '%s\n' "$reads" | grep -vF "$root/")
+    printf '%s\n' "$reads"; } | grep '^/')
+  left=$(printf '%s\n' "$targets" | grep -c . ); inside=$(printf '%s\n' "$targets" | grep -cF "$sandbox/"); left=$(( left - inside ))
+  printf '%s %s %s gitfail=%s left=%s\n' "$name" "$arm" "${tiers:-NO-EVENTS }" "$gitfail" "$left"
 done
 ```
 
+- `NO-TRACE`: the run errored before Claude started (a failed scaffold, a CLI swapped by an
+  auto-update mid-run). It has no grades worth reading: re-run it, never fill a cell from it.
 - `tiers`: assistant events with a `parent_tool_use_id` are the agent's. Session events
   must name `claude-sonnet-5-5` and agent events the column's `<agent-id>`, matched on the
   prefix: `message.model` carries a dated id such as `claude-haiku-4-5-20251001`. A run
   whose agent events show another tier invalidates its column: say so in the note under
-  the matrix table and leave the cell unfilled.
-- `left`: every `cd` or `git -C` to an absolute path outside the run's own sandbox (the
-  parent of `out/`), plus, for `reviewer-tests-findings`, any command that names the
-  plugin root (`suite.root`). The planner case runs `scripts/plan-lint.sh` by its absolute
-  plugin path, so it is spared that second count. Every reviewer-case run must show
-  `left=0`; name any run with `left>0` in the note under the matrix table.
-- `gitfail`: how often the trace says `Failed to locate 'git'`. It is reported in the
-  note, not a pass condition.
+  the matrix table and leave the cell unfilled. A with-arm run with no `agent=` entry, or a
+  run with no `session=` entry (`NO-EVENTS`), cannot show its tier: name it in the note.
+- `left`: absolute paths outside the run's own sandbox (the parent of `out/`) that the run
+  moved to or touched — every `cd`, `pushd`, `git -C`, `git --git-dir=` or
+  `git --work-tree=` target in a Bash command, every `Write`, `Edit` or `NotebookEdit` path,
+  and every `Read`, `Grep` or `Glob` path. The planner case reads the plugin's own
+  `templates/` and `scripts/` by absolute path, so its reads under the plugin root
+  (`suite.root`) are spared. Every run must show `left=0`; name any run with `left>0` in the
+  note under the matrix table. Paths written through `/tmp` rather than `/private/tmp` count
+  as outside; read the trace before naming such a run.
+- `gitfail`: how many tool results say `Failed to locate 'git'`. It is reported in the note,
+  not a pass condition.
+
+**Plugin checkout, after each sweep.** Outside any sandbox, `git -C <suite.root> status
+--porcelain` must print nothing. Anything it lists was written by a run that left its
+sandbox: name it in the note and remove it before the next tier.
 
 ## Registered-phase dispatch smoke — not CI-gated
 

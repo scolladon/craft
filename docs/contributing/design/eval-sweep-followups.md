@@ -193,28 +193,13 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   further sweep step and re-open ADR-398 and ADR-402 with the user together. There is no silent
   fallback to D2 (c).
 
-**Per-run trace check** (read-only, for any `aggregate-result.json`):
-
-```bash
-f=evals/results/<ts>/aggregate-result.json; root=$(jq -r .suite.root "$f")
-jq -r '.cases[] | .name as $n | .arms | to_entries[] | .key as $a | .value[] | "\($n)\t\($a)\t\(.tracePath)"' "$f" |
-while IFS=$'\t' read -r name arm trace; do
-  sandbox=$(dirname "$(dirname "$trace")")
-  cmds=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use" and .name=="Bash") | .input.command' "$trace")
-  tiers=$(jq -r 'select(.type=="assistant") | "\(if .parent_tool_use_id then "agent" else "session" end)=\(.message.model)"' "$trace" | sort -u | tr '\n' ' ')
-  gitfail=$(grep -c "Failed to locate 'git'" "$trace")
-  left=$(printf '%s\n' "$cmds" | grep -E '(cd|git +-C) +"?/' | grep -cvF "$sandbox")
-  [ "$name" = reviewer-tests-findings ] && left=$(( left + $(printf '%s\n' "$cmds" | grep -cF "$root") ))
-  printf '%s %s %s gitfail=%s left=%s\n' "$name" "$arm" "$tiers" "$gitfail" "$left"
-done
-```
-
-`left` counts every `cd` or `git -C` to an absolute path outside the run's own sandbox
-(`/private/tmp/e-*`, the parent of `out/`). It does not depend on where the plugin is checked
-out, so a move into the main checkout counts even when the sweep runs from a worktree. For the
-reviewer case, which calls no plugin script, any command that names `$root` also counts. The
-planner case is spared that second count because it legitimately runs `scripts/plan-lint.sh` by
-its absolute plugin path.
+**Per-run trace check** (read-only, for any `aggregate-result.json`): the snippet and its
+reading rules live in `docs/contributing/maintainer-smokes.md` § Model-class matrix, "Trace check,
+every run", which is the procedure of record. It reports per run the session and agent tiers,
+`gitfail` (tool results saying `Failed to locate 'git'`) and `left` (absolute paths outside the
+run's sandbox that it moved to or touched, through Bash `cd`/`pushd`/`git -C` targets or any
+file tool; the planner case's reads of its own plugin root are spared), and flags a run with no
+trace as `NO-TRACE`. After each sweep, `git -C <suite.root> status --porcelain` must be empty.
 
 ### 4. Sandbox git (item 3)
 
