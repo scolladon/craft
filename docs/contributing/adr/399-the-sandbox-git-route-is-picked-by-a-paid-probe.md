@@ -16,7 +16,7 @@ In 51 of 52 swept runs `/usr/bin/git` failed inside the eval child: the sandbox 
 ## Options considered
 
 1. **Route A: an operator-side PATH precondition in the sweep procedure** — pros: no case change; measures the reviewer as it works / cons: only possible if the child honours PATH order
-2. **Route B: the reviewer scaffold writes `git diff HEAD~1 HEAD` to `.git/review-range.diff`; the prompt names it** — pros: works on any machine, including one with only the Xcode shim / cons: the reviewer may no longer run git; refines ADR-386
+2. **Route B: the reviewer scaffold writes `git diff HEAD~1 HEAD` into the repository's git directory (`../.git/review-range.diff` from the eval workspace, whose repository root is the run's `HOME`); the prompt names it** — pros: works on any machine, including one with only the Xcode shim / cons: the reviewer may no longer run git; refines ADR-386
 3. **Route C: documented floor** — pros: no change / cons: structured review keeps measuring the workaround
 
 ## Decision

@@ -100,8 +100,10 @@ sandbox it fails: `couldn't create cache file '…/T/xcrun_db-…'`, then `Faile
 with a Homebrew git directory ahead of `/usr/bin`, yet `type -a git` listed only
 `/usr/bin/git`, and a `PATH` prepend inside the command still resolved `/usr/bin/git`. A
 scaffold runs outside the sandbox, where git works, so `reviewer-tests-findings` writes the
-reviewed range's diff to `.git/review-range.diff` after its last commit, and its prompt names
-that file; both arms get it. `planning-plan-lints` keeps the failure: no grader depends on the
+reviewed range's diff into the git directory after its last commit, and its prompt names that
+file; both arms get it. The sandbox's repository root is the run's `HOME`, one level above the
+workspace, so the file is `../.git/review-range.diff` from the agent's working directory, and
+the scaffold locates it with `git rev-parse --git-dir` rather than a fixed `.git/`. `planning-plan-lints` keeps the failure: no grader depends on the
 planner's commit. A case whose outcome needs git inside the child scores 0 on such a machine.
 
 **Reading results.**

@@ -7,4 +7,4 @@ cp -R "$case_dir/fixture/." .
 commit "chore: fixture base"
 cp -R "$case_dir/fixture-head/." .
 commit "feat: add a shout flag to greet.sh"
-git diff --no-ext-diff HEAD~1 HEAD > .git/review-range.diff
+git diff --no-ext-diff HEAD~1 HEAD > "$(git rev-parse --git-dir)/review-range.diff"

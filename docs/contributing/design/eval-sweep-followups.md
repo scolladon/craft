@@ -267,13 +267,15 @@ CLT git works (E2). After its last commit, `evals/reviewer-tests-findings/scaffo
 line (9 → 10):
 
 ```bash
-git diff --no-ext-diff HEAD~1 HEAD > .git/review-range.diff
+git diff --no-ext-diff HEAD~1 HEAD > "$(git rev-parse --git-dir)/review-range.diff"
 ```
 
-- The file lives in `.git/`, so the working tree and `git status` match HEAD, and the child can
-  read it (sandbox reads cover cwd).
+- The file lives in the git directory, so the working tree and `git status` match HEAD. The
+  sandbox's repository root is the run's `HOME`, one level above the workspace, so the file is
+  `../.git/review-range.diff` from cwd; the child can read it, as it reads the rest of the run's
+  sandbox.
 - The prompt names the file (D4 wording): "…over HEAD~1..HEAD of the git repository in the current
-  working directory (the range's diff is also saved at .git/review-range.diff)…".
+  working directory (the range's diff is also saved at ../.git/review-range.diff)…".
 - It works on every machine, including one with only the Xcode shim.
 - It changes what is measured: the reviewer can review without running git. Both arms receive the
   same file.

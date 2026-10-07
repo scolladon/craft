@@ -582,7 +582,7 @@ GREEN:
    agent tier (with-arm, `findings-shape` of 3): opus …, sonnet …, haiku …. A haiku session is
    not supported (README FAQ); the eval sweep holds the session at sonnet and the matrix
    columns name the agent tier. Sandbox git: `PATH` cannot route the eval child to a working
-   git, so the reviewer case's scaffold writes the range's diff to `.git/review-range.diff`;
+   git, so the reviewer case's scaffold writes the range's diff to `../.git/review-range.diff`;
    `left` … in every reviewer-case run. USD `cost.total` for the probe, pilots, before runs and
    sweep." For each `expectationMisses` entry, add one open entry in the same section stating
    the miss and its measured numbers.
