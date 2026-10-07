@@ -203,10 +203,32 @@ remove the `shift`" to prove they can fail. Strict TDD would make every RED step
 the current code. Take it into the next prompt audit of `agents/planner.md`, with
 `planning-plan-lints` run before and after.
 
-**Fill the model-class matrix from the eval sweep.** Once the pilot passes, run the per-tier
-sweep in the same doc's Model-class matrix section and fill the planner and structured-review
-cells of `docs/guides/model-class-matrix.md`. If the sub-agent model override does not reach
-the agents, record that the agent rows ran at the pinned tier.
+**Fill the model-class matrix from the eval sweep — delivered 2026-10-07**
+(docs/model-class-matrix-eval-sweep). The planner and structured-review cells of
+`docs/guides/model-class-matrix.md` are filled from three runs per tier: planner PASS / PASS /
+FAIL, structured-review PARTIAL for all three tiers (opus / sonnet / haiku). The sub-agent
+override reaches the agents only with `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`; without it a sonnet
+session spawned opus agents. `docs/contributing/maintainer-smokes.md` § Model-class matrix now
+exports both variables, keeps the sandbox, and says how to check the agent tier in the trace.
+USD 9.07 for the sweep, pilots included.
+
+**The reviewer agent carries no severity scale.** CRITICAL/HIGH/MEDIUM/LOW lives in
+`contracts/harness-read.md`, which only the review phase hands over. Spawned directly, the
+reviewer used the scale in 1 of 3 opus runs and 0 of 3 sonnet and haiku runs, writing
+`[blocking]`, `[major]`, or no severity at all; that is every structured-review point the sweep
+lost but one. Name the scale in `agents/reviewer.md` at the next prompt audit, then re-run
+`reviewer-tests-findings` per tier.
+
+**haiku ends its turn after loading the planning skill.** In 2 of 3 sweep runs and the pilot,
+a haiku session called `craft:planning`, said the phase was running in the background and ended
+the turn without spawning the planner. If craft is to support a haiku session, the skill needs
+a first step haiku acts on rather than announces.
+
+**A reviewer that loses git in the eval sandbox leaves it.** On macOS the xcrun git shim fails
+in the sandbox. opus switches to `/opt/homebrew/bin/git`; sonnet read the current files instead
+of the diff; one haiku reviewer moved to the plugin checkout, which the sandbox lets it read, and
+reviewed craft itself. Give the agent cases a git that works in the sandbox, so the
+structured-review cells measure the review rather than the workaround.
 
 **Behavioural cases for the units no case drives.** The eval suite's unit table names what is
 covered (`run`, `planning`/planner, reviewer, `decisions`, `prune`/core contract). Prune
