@@ -4,7 +4,7 @@
 > the agent at each tier rather than the harness around it. Three follow-ups from the 2026-10-07
 > sweep: the reviewer names no severity scale, a haiku session stops before planning, and git
 > fails inside the eval sandbox. Done only when a per-tier re-sweep shows the effect.
-> Status: draft → self-reviewed ×3 → accepted
+> Status: accepted (ratified as ADR-396…402)
 
 ## Context
 
@@ -189,8 +189,9 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   the session model when the two differ, because the 2026-10-07 sweep had them equal. The
   haiku-column pilot (§ 5, step S1) settles it at no extra cost. Session events must match
   `claude-sonnet-5-5*` and agent events must match `claude-haiku-4-5*`. If the agent events show
-  sonnet, `FORCE` follows the session: D2 (a) and (b) cannot be implemented. Stop and fall back to
-  D2 (c), and amend the ADR-389 consequence.
+  sonnet, `FORCE` follows the session: D2 (a) and (b) cannot be implemented. Stop before any
+  further sweep step and re-open ADR-398 and ADR-402 with the user together. There is no silent
+  fallback to D2 (c).
 
 **Per-run trace check** (read-only, for any `aggregate-result.json`):
 
@@ -312,9 +313,9 @@ the procedure, the git route and the D4 clause. C2 is C1 plus the reviewer scale
 | S4 (before) | C1 | `--case reviewer-tests-findings` | per tier | per tier | 3 | that tier's pilot reviewer-case `costUsd` × 3 × 1.5 | with-arm score, Δ, `findings-shape` passes |
 | S5 (after, sweep) | C2 | `--tag agent` | per tier | per tier | 3 | tier pilot top-level `costUsd` × 3 × 1.5 | cells, Δ, `findings-shape` passes |
 
-- The table assumes D2 (a). Under D2 (b), the opus-column steps run the session at opus. Under
-  D2 (c), every step runs the session at the column tier, and S1 no longer settles P2. Without
-  P2, nothing depends on FORCE semantics.
+- The table follows D2 (a), ratified as ADR-398. If P2 shows FORCE follows the session, no step
+  after S1 runs: ADR-398 and ADR-402 are re-opened with the user together, and the table is
+  re-planned from their answer. There is no silent fallback to D2 (b) or (c).
 - Order: S0, S1 (haiku first, because it settles P2), S2, S3, then S4 per tier, then C2, then S5
   per tier.
 - A ceiling hit (exit 2) means re-pilot that tier. Do not raise the cap (ADR-392).
@@ -360,9 +361,10 @@ the procedure, the git route and the D4 clause. C2 is C1 plus the reviewer scale
 
 ### 7. Error semantics and edge behaviour
 
-- **P2 shows that FORCE follows the session.** Stop before S2. Fall back to D2 (c) and amend
-  ADR-389. Revise C1's sweep-procedure text to match before going on. The S1 data still counts
-  as a sonnet-agent pilot.
+- **P2 shows that FORCE follows the session.** Stop before S2, and before any further sweep
+  step. Re-open ADR-398 and ADR-402 with the user together; there is no silent fallback. C1's
+  sweep-procedure text and the rest of the run matrix wait on their answer. The S1 data still
+  counts as a sonnet-agent pilot.
 - **P1 is inconclusive** (the child never runs the command, or the output is truncated). Re-run
   once. Never infer a route from a missing outcome.
 - **A trace's `message.model` has no dated suffix.** The check matches on the prefix, so it holds
@@ -408,14 +410,17 @@ the procedure, the git route and the D4 clause. C2 is C1 plus the reviewer scale
 
 ## Decision candidates
 
+Ratified as ADR-396…402: ADR-396 records the haiku session floor (item 2, settled by the user);
+D1–D6 map to ADR-397–402 as named in the # column.
+
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
 |---|---|---|---|---|
-| D1 | How the reviewer gets the severity scale, and how agent and contract stay consistent | (a) one Contract bullet naming the set `{CRITICAL, HIGH, MEDIUM, LOW}`, plus an agreement test against `contracts/harness-read.md` (status set pinned the same way); (b) copy the full finding shape from `harness-read.md` l. 2 into the agent, with a test pinning the two lines equal; (c) point the agent at `contracts/harness-read.md` by path | **(a)** | (a) fixes the measured loss (8 of 9 points) with the smallest duplication, and the test catches drift. (b) duplicates the `file:line` and fix shape, which the phase already injects and which a missing-test finding cannot satisfy. (c) fails outside the phase: a directly spawned agent has no plugin-root path, and the six mirrors run on hosts with different layouts. |
-| D2 | Session tier in the eval sweep (open question B) | (a) hold the session at sonnet for every column and vary only the agent tier through `CLAUDE_CODE_SUBAGENT_MODEL` + `FORCE`; (b) hold the session at sonnet for the haiku column only; (c) keep session = column tier and mark the haiku planner cell as a session-floor result | **(a)**, provided P2 passes | (a) is the only option where a column differs from the others by agent tier alone: one variable, a supported session everywhere, and the session's relay of the findings (graded on `last_message`) held constant. The cost is comparability of the opus column with 2026-10-07, since its session changes. The sonnet column is unchanged and serves as the control. (b) keeps two columns comparable but mixes session tiers across columns. (c) keeps measuring an unsupported configuration and leaves the haiku planner unmeasured. |
-| D3 | Sandbox-git route (item 3), mapped from the P1 outcome | (a) operator-side `PATH` precondition in the procedure (route A); (b) the scaffold writes the range's diff into `.git/` and the prompt names it (route B, refines ADR-386); (c) documented floor, cases unchanged (route C) | **O3 → (a); O1, O2 or O4 → (b)** | (a) changes nothing in the cases and measures the reviewer as it really works, but it is possible only if the child honours `PATH`, which E7 puts in doubt. (b) works on every machine, including one with only the Xcode shim, and removes the trigger for leaving the sandbox. Its cost is that the reviewer may no longer run git. (c) leaves structured-review measuring the workaround, which is the problem the brief exists to remove. |
-| D4 | Guard against an agent leaving the sandbox | (a) a case-prompt clause in both agent cases: "the git repository in the current working directory"; (b) `append_system_prompt` in both agent cases; (c) a working-tree bullet in `agents/reviewer.md` | **(a)**, with the `left` trace check run either way | (a) mirrors what the real phase passes (an absolute working directory), is visible in the case, and applies to both arms. (b) is hidden from anyone reading `prompt.md` and may not reach the spawned agent. (c) is a second edit to the unit under before/after test, which confounds R5, and it goes beyond the brief's item 1. |
-| D5 | Baseline for the reviewer before/after (evidence, not gate) | (a) a fresh 3-run before per tier on C1 (S4); (b) reuse the 2026-10-07 sweep as "before"; (c) a fresh before at the haiku column only | **(a)** | Only (a) isolates the scale edit. (b) is free, but it confounds the edit with the session hold and the git route, both of which move the review cells. (c) costs about USD 1 against about USD 3 but shows the effect at one tier only, while the brief asks for per-tier evidence. |
-| D6 | Meaning of the matrix columns now that a haiku session is out of support, which also affects the full-pipeline rows | (a) every column names the agent tier, with the session held at a supported tier, and both procedures say so; (b) eval rows use agent tier; the full-pipeline haiku cells read "n/a — haiku session not supported"; (c) define only the eval rows and leave the full-pipeline procedure for its first run | **(a)** | One table with one column meaning. (b) gives one column two meanings across rows. (c) defers a definition that the floor already forces, and the next full-pipeline run would start without one. |
+| D1 → ADR-397 | How the reviewer gets the severity scale, and how agent and contract stay consistent | (a) one Contract bullet naming the set `{CRITICAL, HIGH, MEDIUM, LOW}`, plus an agreement test against `contracts/harness-read.md` (status set pinned the same way); (b) copy the full finding shape from `harness-read.md` l. 2 into the agent, with a test pinning the two lines equal; (c) point the agent at `contracts/harness-read.md` by path | **(a)** | (a) fixes the measured loss (8 of 9 points) with the smallest duplication, and the test catches drift. (b) duplicates the `file:line` and fix shape, which the phase already injects and which a missing-test finding cannot satisfy. (c) fails outside the phase: a directly spawned agent has no plugin-root path, and the six mirrors run on hosts with different layouts. |
+| D2 → ADR-398 | Session tier in the eval sweep (open question B) | (a) hold the session at sonnet for every column and vary only the agent tier through `CLAUDE_CODE_SUBAGENT_MODEL` + `FORCE`; (b) hold the session at sonnet for the haiku column only; (c) keep session = column tier and mark the haiku planner cell as a session-floor result | **(a)**, provided P2 passes | (a) is the only option where a column differs from the others by agent tier alone: one variable, a supported session everywhere, and the session's relay of the findings (graded on `last_message`) held constant. The cost is comparability of the opus column with 2026-10-07, since its session changes. The sonnet column is unchanged and serves as the control. (b) keeps two columns comparable but mixes session tiers across columns. (c) keeps measuring an unsupported configuration and leaves the haiku planner unmeasured. |
+| D3 → ADR-399 | Sandbox-git route (item 3), mapped from the P1 outcome | (a) operator-side `PATH` precondition in the procedure (route A); (b) the scaffold writes the range's diff into `.git/` and the prompt names it (route B, refines ADR-386); (c) documented floor, cases unchanged (route C) | **O3 → (a); O1, O2 or O4 → (b)** | (a) changes nothing in the cases and measures the reviewer as it really works, but it is possible only if the child honours `PATH`, which E7 puts in doubt. (b) works on every machine, including one with only the Xcode shim, and removes the trigger for leaving the sandbox. Its cost is that the reviewer may no longer run git. (c) leaves structured-review measuring the workaround, which is the problem the brief exists to remove. |
+| D4 → ADR-400 | Guard against an agent leaving the sandbox | (a) a case-prompt clause in both agent cases: "the git repository in the current working directory"; (b) `append_system_prompt` in both agent cases; (c) a working-tree bullet in `agents/reviewer.md` | **(a)**, with the `left` trace check run either way | (a) mirrors what the real phase passes (an absolute working directory), is visible in the case, and applies to both arms. (b) is hidden from anyone reading `prompt.md` and may not reach the spawned agent. (c) is a second edit to the unit under before/after test, which confounds R5, and it goes beyond the brief's item 1. |
+| D5 → ADR-401 | Baseline for the reviewer before/after (evidence, not gate) | (a) a fresh 3-run before per tier on C1 (S4); (b) reuse the 2026-10-07 sweep as "before"; (c) a fresh before at the haiku column only | **(a)** | Only (a) isolates the scale edit. (b) is free, but it confounds the edit with the session hold and the git route, both of which move the review cells. (c) costs about USD 1 against about USD 3 but shows the effect at one tier only, while the brief asks for per-tier evidence. |
+| D6 → ADR-402 | Meaning of the matrix columns now that a haiku session is out of support, which also affects the full-pipeline rows | (a) every column names the agent tier, with the session held at a supported tier, and both procedures say so; (b) eval rows use agent tier; the full-pipeline haiku cells read "n/a — haiku session not supported"; (c) define only the eval rows and leave the full-pipeline procedure for its first run | **(a)** | One table with one column meaning. (b) gives one column two meanings across rows. (c) defers a definition that the floor already forces, and the next full-pipeline run would start without one. |
 
 ## Test strategy
 
