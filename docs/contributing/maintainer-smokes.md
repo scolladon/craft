@@ -176,9 +176,7 @@ the rule, on its own reasoning. `planning-plan-lints` 0.00: the bare plan passes
 clauses; craft's evidence there is the with-only `plan-lint-ok` and `part-sections`.
 
 **Unconfirmed until a later pilot.** Whether craft's hooks load in the eval child: no pilot
-command triggered the `git diff` guard, and the trace carries no hook events. Whether
-`CLAUDE_CODE_SUBAGENT_MODEL` reaches the spawned agents (see the eval sweep below): the pilots
-set no override, and the agents ran at the session model.
+command triggered the `git diff` guard, and the trace carries no hook events.
 
 **Troubleshooting: every Bash-granting case is refused.** An error starting "the Docker
 (~/.docker, DOCKER_CONFIG) credential store on this machine holds a symbolic link inside it"
@@ -213,20 +211,27 @@ be filled from the behavioural eval suite instead: the `agent`-tagged cases
 runs per tier. For each tier `<id>`:
 
 ```bash
-CLAUDE_CODE_SUBAGENT_MODEL=<id> claude plugin eval . --tag agent --model <id> \
-  --no-publish --scaffold --allow-tools Write Bash \
+CLAUDE_CODE_SUBAGENT_MODEL=<id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
+  claude plugin eval . --tag agent --model <id> \
+  --no-publish --scaffold --keep-temp --allow-tools Write Bash \
   --judge-model <judge> --max-cost-usd <ceiling>
 ```
 
 - `<ceiling>`: pilot each tier first with `--runs 1` under the fixed USD 5 cap; ceiling = that
   tier's `costUsd` × 3 × 1.5. Prices differ per tier, and the sonnet column pays an opus judge.
+  Measured on 2026-10-07, pilot then sweep: opus USD 1.00 / 3.07, sonnet 0.56 / 1.61, haiku
+  0.53 / 1.49. A haiku pilot can read cheap because haiku sometimes stops before planning.
 - `<judge>` is `claude-sonnet-5-5` for the opus and haiku columns and `claude-opus-5-5` for the
   sonnet column, so the judge is never the model under test.
 - `--model` alone moves only the session tier: `agents/planner.md` and `agents/reviewer.md` pin
-  `model: opus`. The exported `CLAUDE_CODE_SUBAGENT_MODEL` carries the tier to the spawned
-  agents. If the pin still wins, also export `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`. Record which
-  form was needed. If neither reaches the agents, the agent rows ran at the pinned tier: say so
-  in the note under the matrix table.
+  `model: opus`. Both variables are needed (sweep of 2026-10-07, Claude Code 2.1.292): with
+  `CLAUDE_CODE_SUBAGENT_MODEL` alone the pin won and a sonnet session spawned opus agents;
+  adding `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` moved them to the session tier. Check it on every
+  sweep: in the kept `out/trace.jsonl`, assistant events with a `parent_tool_use_id` are the
+  agent's, and their `message.model` must name the tier under test. If it does not, the agent
+  rows ran at the pinned tier: say so in the note under the matrix table.
+- `--keep-temp` keeps each run's sandbox and its trace; the result JSON's `tracePath` points
+  at it. The opus column cannot show whether the override works, because the pin is opus.
 - Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
 - The trigger, decisions and prune results, and each tier's Δ for the two agent cases, go in a
   one-line note under the matrix table, not in new rows; the template's shape does not change.

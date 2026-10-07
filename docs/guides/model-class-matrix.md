@@ -19,11 +19,28 @@ Dimensions (rows) follow the SP5 contract-adherence axes plus a full-pipeline ro
 
 | Dimension | opus (`claude-opus-5-5`) | sonnet (`claude-sonnet-5-5`) | haiku (`claude-haiku-4-5`) |
 |---|---|---|---|
-| planner | — (not yet run) | — (not yet run) | — (not yet run) |
+| planner | PASS (1.00, eval) | PASS (1.00, eval) | FAIL (0.33, eval) |
 | part-TDD | — (not yet run) | — (not yet run) | — (not yet run) |
-| structured-review | — (not yet run) | — (not yet run) | — (not yet run) |
+| structured-review | PARTIAL (0.78, eval) | PARTIAL (0.67, eval) | PARTIAL (0.56, eval) |
 | blocker | — (not yet run) | — (not yet run) | — (not yet run) |
 | full-pipeline-completion | — (not yet run) | — (not yet run) | — (not yet run) |
+
+*Eval sweep, 2026-10-07 (Claude Code 2.1.292, 3 runs per arm).* Cell = with-craft mean of
+`planning-plan-lints` (planner) and `reviewer-tests-findings` (structured-review); "eval" marks a
+cell from the sweep, not the full pipeline. Each trace shows the agents at the column's tier: the
+sonnet and haiku columns needed `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`, as the plain override lost
+to the `model: opus` pin. Δ planner / review: opus 0.00 / +0.44, sonnet 0.00 / +0.33, haiku
+−0.67 / 0.00. The planner Δ counts four bare-arm `failing-test-first` FAILs (opus 1, haiku 3) as
+PASS, rescored after reading plans whose `--shout` tests fail before greet.sh changes.
+Structured-review loses on `findings-shape` in every run but one: spawned outside the review
+phase, the reviewer gets no severity scale, and wrote CRITICAL/HIGH/MEDIUM/LOW in 1 of 3 opus
+runs and 0 of 3 sonnet and haiku runs. haiku planner: in 2 of 3 runs the haiku session loaded
+`craft:planning`, said the phase was running and ended its turn without spawning the planner.
+haiku review: in 1 of 3 runs the reviewer could not run git in the sandbox, moved to the plugin
+checkout and reviewed that instead. The reviewer Δ is mostly the bare model refusing for want of
+a craft agent; haiku's bare arm once delegated to a general-purpose agent and passed. Trigger,
+decisions and prune were not swept per tier. part-TDD, blocker and full-pipeline-completion need
+the full-pipeline run.
 
 ---
 
@@ -65,4 +82,5 @@ undercounts its true cost. No agent self-reports usage.
 
 ---
 
-*Last run:* — (not yet run)
+*Last run:* 2026-10-07 — eval sweep, planner and structured-review rows only (USD 9.07 across
+the three tiers, pilots included). The full-pipeline run has not been done yet.
