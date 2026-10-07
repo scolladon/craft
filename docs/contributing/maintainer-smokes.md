@@ -256,19 +256,31 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
 
-**Plugin checkout, around each tier.** Before launching a tier, mark the time with
-`marker=$(mktemp) && touch "$marker"`. After it, outside any sandbox, list what changed under the
-plugin root since the mark:
+**Plugin checkout, around each tier.** Before launching a tier, outside any sandbox, make sure
+`evals/results/` exists, resolve the git directory and mark the time:
 
 ```bash
-find <suite.root> -newer "$marker" -type f -not -path '<suite.root>/evals/results/*' \
-  -not -path '<suite.root>/.git/objects/*' -not -path '<suite.root>/.git/logs/*' -not -name index
+root=<suite.root>; mkdir -p "$root/evals/results"
+common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)
+marker=$(mktemp) && touch "$marker"
 ```
 
-It must print nothing. It reads file times only, so it runs no git and sees ignored paths
-(`.claude/`, `node_modules/`) and `.git/config` or `.git/hooks`. Anything it lists was written by
-a run that left its sandbox: name it in the note under the matrix table and remove it before the
-next tier.
+After the tier, list what changed since the mark:
+
+```bash
+find "$root" -cnewer "$marker" -not -path "$root/evals/results" -not -path "$root/evals/results/*" \
+  -not -path "$root/.git/objects/*" -not -path "$root/.git/logs/*" -not -path "$root/.git/index"
+[ "$common" = "$root/.git" ] || find "$common" -cnewer "$marker" \( -name config -o -name hooks -o -path '*/hooks/*' \)
+```
+
+It must print nothing. It reads inode change times only, so it runs no git after the tier and
+sees what `git status` hides: ignored paths (`.claude/`, `node_modules/`), a deleted or
+renamed file (through its parent directory), a moved-in file that kept its old mtime, a new
+symlink or directory, and a planted git `config` or hook — in the checkout's own `.git/`, or,
+when the plugin runs from a linked worktree, in the common git directory. Anything it lists was
+changed by a run that left its sandbox: name it in the note under the matrix table and restore
+it before the next tier. Writes outside the plugin checkout are not covered here; the trace
+check's `left` is the only signal for them.
 
 **Trace check, every run.** Run it on each `aggregate-result.json`. It reads only the kept
 traces: a kept sandbox is sealed, so never run git inside it.
@@ -286,8 +298,10 @@ while IFS=$'\t' read -r name arm errlen trace; do
   [ "$name" = planning-plan-lints ] && { allowed="$allowed $root/templates $root/scripts"; exact=$root; }
   tiers=$(jq -r 'select(.type=="assistant") | "\(if .parent_tool_use_id then "agent" else "session" end)=\(.message.model)"' "$trace" | sort -u | tr '\n' ' ')
   gitfail=$(jq -s --arg m "Failed to locate 'git'" '[.[] | select(.type=="user") | .message.content[]? | select(.type=="tool_result" and ((.content | tostring) | contains($m)))] | length' "$trace")
-  left=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use") | .input | del(.content, .new_string, .old_string, .edits, .prompt, .description) | tojson' "$trace" |
-    grep -oE "(^|[ \"'=(]|:-)/[^ \"'\\\;&|()<>,{}]*" | sed -E 's|^[^/]*||;s|^/tmp(/\|$)|/private/tmp\1|; s|^/var(/\|$)|/private/var\1|' |
+  left=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use")
+      | (if .name == "Grep" then .input | del(.pattern) else .input end)
+      | del(.content, .new_string, .old_string, .edits, .new_source, .todos, .prompt, .description) | .. | strings' "$trace" |
+    grep -oE "(^|[[:space:]\"'=(;&|<>\`]|:-)/[^[:space:]\"'\\;&|()<>,{}\`]*" | sed -E 's|^[^/]*||; s|^/tmp(/\|$)|/private/tmp\1|; s|^/var(/\|$)|/private/var\1|' |
     awk -v allowed="$allowed" -v exact="$exact" '
       { n = split($0, seg, "/"); depth = 0
         for (i = 2; i <= n; i++) { if (seg[i] == "" || seg[i] == ".") continue
@@ -312,16 +326,18 @@ done
   the matrix table and leave the cell unfilled. A with-arm run with no `agent=` entry, or a
   run with no `session=` entry (`NO-EVENTS`), cannot show its tier: name it in the note.
 - `left`: absolute paths a run's tools named outside its own sandbox (the parent of `out/`).
-  Every tool input counts — Bash commands whole, multi-line included, and every file tool's
-  path or pattern — except file contents, edit strings and agent prompts, which are payload,
-  not access. Paths are resolved for `..`, and `/tmp` and `/var` are read as their
-  `/private` targets. System binary directories and `/dev` are allowed, and so is the
-  Command Line Tools `bin`, which agents try when `/usr/bin/git` fails. The planner case
-  also may name the plugin root itself and its `templates/` and `scripts/`, which the
-  planning skill reads and runs. Every run must show `left=0`; name any run with `left>0` in
-  the note under the matrix table, after reading the paths in its trace. Not counted: paths
-  reached through `~`, a variable or a relative `..` chain, which only the file-time check
-  above catches when they write.
+  Every string in a tool's input counts — Bash commands line by line, and every file tool's
+  path or Glob pattern — except payload: file contents, edit strings, notebook sources, todo
+  text, agent prompts and Grep's regex. A path counts wherever it starts a line or follows
+  whitespace, a quote, `=`, `(`, `;`, `&`, `|`, `<`, `>`, a backtick or `:-`. Paths are
+  resolved for `..`, and `/tmp` and `/var` are read as their `/private` targets. System
+  binary directories and `/dev` are allowed, and so is the Command Line Tools `bin`, which
+  agents try when `/usr/bin/git` fails. The planner case also may name the plugin root itself
+  and its `templates/` and `scripts/`, which the planning skill reads and runs. Every run must
+  show `left=0`; name any run with `left>0` in the note under the matrix table, after reading
+  the paths in its trace, since prose such as ` / ` or a `sed` address can over-count. Not
+  counted: paths reached through `~`, a variable or a relative `..` chain; the file-time check
+  above catches them only when they change the plugin checkout.
 - `gitfail`: how many tool results say `Failed to locate 'git'`. It is reported in the note,
   not a pass condition.
 
