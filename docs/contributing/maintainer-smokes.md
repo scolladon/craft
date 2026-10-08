@@ -133,6 +133,10 @@ planner's commit. A case whose outcome needs git inside the child scores 0 on su
 **Evidence, not gate.** Before enacting an approved `craft:prune` candidate, or a prompt-surface
 audit edit under `skills/` or `agents/`, run the case(s) that drive the touched unit on the tree
 before and after the change. Compare Δ and the with-craft score.
+For `agents/planner.md` the judge cannot see whether a RED label is accurate (`failing-test-first`
+ignores steps that add only already-passing tests), so also read every RED step of the kept
+with-craft plans by hand against the rubric in
+[planner-red-label-audit](design/planner-red-label-audit.md) (Context).
 
 | Unit | Case(s) |
 |---|---|
