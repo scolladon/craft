@@ -9,7 +9,7 @@ subjects: []
 
 ## Context
 
-The kept `planning-plan-lints` plans are valid before-plans for a hand count, but their scores came from the grader before its recalibration (ADR-405), and no haiku plan exists from a sonnet session. The defect is intermittent: three sonnet-tier runs of the same case mislabelled 3 of 3, 1 of 3, then 0 of 3 plans.
+The kept `planning-plan-lints` plans are valid before-plans for a hand count, but their scores came from the grader before its recalibration (ADR-405), and no haiku plan exists from a sonnet session. The defect is intermittent: three sonnet-tier runs of the same case mislabelled 1 of 3, 3 of 3, then 0 of 3 plans.
 
 ## Options considered
 
