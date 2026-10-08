@@ -434,3 +434,6 @@ eval-sweep-followups design turns=78 tool_calls=84 tokens=6975997 duration_ms=10
 eval-sweep-followups implementation turns=23 tool_calls=28 tokens=585878 duration_ms=432370 cache_read=493016 cache_creation=90874 output=1942 avg_ctx=25389 equiv=172650
 eval-sweep-followups planning turns=46 tool_calls=48 tokens=3760915 duration_ms=746593 cache_read=3625242 cache_creation=130141 output=5440 avg_ctx=81641 equiv=552492
 eval-sweep-followups review turns=77 tool_calls=78 tokens=2095951 duration_ms=1009396 cache_read=1835117 cache_creation=233746 output=26934 avg_ctx=26870 equiv=610518
+recalibrate-failing-test-first-grader design turns=19 tool_calls=19 tokens=696716 duration_ms=221804 cache_read=647579 cache_creation=48900 output=199 avg_ctx=36659 equiv=126916
+recalibrate-failing-test-first-grader implementation turns=5 tool_calls=5 tokens=93441 duration_ms=62611 cache_read=72063 cache_creation=21138 output=230 avg_ctx=18642 equiv=34789
+recalibrate-failing-test-first-grader planning turns=21 tool_calls=22 tokens=879060 duration_ms=238949 cache_read=820102 cache_creation=58704 output=212 avg_ctx=41850 equiv=156492
