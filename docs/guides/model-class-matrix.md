@@ -53,8 +53,14 @@ sandbox: the plugin-checkout file-time check printed nothing after every tier. R
 fail before greet.sh changes, and the maintainer rescored all 10 as PASS. They were 1 bare run
 at the haiku pilot, 1 bare run at the opus pilot, and 4 runs at each of the S5 haiku and opus
 tiers (1 with craft, 3 bare). Judged planner values before the rescore: haiku 0.89 with craft /
-0.67 bare, opus 0.89 with craft / 0.67 bare. Trigger, decisions and prune were not swept per
-tier. part-TDD, blocker and full-pipeline-completion need the full-pipeline run.
+0.67 bare, opus 0.89 with craft / 0.67 bare. The grader was then recalibrated: its second sentence
+now reads "Steps that add only already-passing tests, before or after that change, neither satisfy
+nor fail this." Replayed through the sonnet judge on the 32 recorded plans, the old wording failed
+14 and the new one fails 2; both fail all 4 hand-built plans that break the criterion. Of the 2, one
+plan's RED step claims an already-passing test fails (a planner defect, kept as a known judge
+disagreement); the other is a 2-1 FAIL split on a genuine PASS (noise). The values above are the
+2026-10-08 measurement, unchanged. Trigger, decisions and prune were not swept per tier. part-TDD,
+blocker and full-pipeline-completion need the full-pipeline run.
 
 ---
 
