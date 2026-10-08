@@ -224,6 +224,23 @@ plugin-checkout file-time check stayed empty), and `left` was 0 in every reviewe
 one haiku run that probed `/opt/homebrew` for git and tried a denied read of an invented
 plugin-checkout path. USD 8.78 for the probe, pilots, before runs and sweep.
 
+**Recalibrate the `failing-test-first` grader.** In the 2026-10-08 sweep the sonnet judge failed
+10 plans that do add a test expected to fail before `greet.sh` changes (1 bare run at the haiku
+pilot, 1 at the opus pilot, 1 with-craft and 3 bare runs at each of the haiku and opus sweep
+tiers); each was rescored PASS by hand. Every misgraded plan opens with a harness step that pins
+already-passing behaviour, then adds the failing `--shout` test, so the judge seems to read
+"before any step that changes greet.sh" as "the first step". Reword
+`evals/planning-plan-lints/graders/failing-test-first.md` one clause at a time and replay the
+kept plans through the judge offline (aggregates under `~/craft-eval-results/2026-10-0{7,8}*`)
+before the next paid run; until then the planner Δ needs a hand read.
+
+**Pin the engine's claim-status set to the review contract.** `engine/src/findings.js`
+`STATUS_PREFIX_PATTERN` (`VERIFIED|SUSPECT|RULED-OUT|PROBE`) is a third copy of the claim-status
+set beside `contracts/harness-read.md` and `agents/reviewer.md`. The structure test pins the agent
+to the contract, but nothing pins the parser, so a status added to both prose copies would pass
+CI while `normalize-findings` silently drops it. Add an engine test that reads the contract's
+`status?:` set and compares it to the pattern's alternatives.
+
 **Behavioural cases for the units no case drives.** The eval suite's unit table names what is
 covered (`run`, `planning`/planner, reviewer, `decisions`, `prune`/core contract). Prune
 candidates in any other skill or agent carry no behavioural evidence. Add a case for a unit
