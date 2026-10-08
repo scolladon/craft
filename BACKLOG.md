@@ -212,23 +212,17 @@ session spawned opus agents. `docs/contributing/maintainer-smokes.md` § Model-c
 exports both variables, keeps the sandbox, and says how to check the agent tier in the trace.
 USD 9.07 for the sweep, pilots included.
 
-**The reviewer agent carries no severity scale.** CRITICAL/HIGH/MEDIUM/LOW lives in
-`contracts/harness-read.md`, which only the review phase hands over. Spawned directly, the
-reviewer used the scale in 1 of 3 opus runs and 0 of 3 sonnet and haiku runs, writing
-`[blocking]`, `[major]`, or no severity at all; that is every structured-review point the sweep
-lost but one. Name the scale in `agents/reviewer.md` at the next prompt audit, then re-run
-`reviewer-tests-findings` per tier.
-
-**haiku ends its turn after loading the planning skill.** In 2 of 3 sweep runs and the pilot,
-a haiku session called `craft:planning`, said the phase was running in the background and ended
-the turn without spawning the planner. If craft is to support a haiku session, the skill needs
-a first step haiku acts on rather than announces.
-
-**A reviewer that loses git in the eval sandbox leaves it.** On macOS the xcrun git shim fails
-in the sandbox. opus switches to `/opt/homebrew/bin/git`; sonnet read the current files instead
-of the diff; one haiku reviewer moved to the plugin checkout, which the sandbox lets it read, and
-reviewed craft itself. Give the agent cases a git that works in the sandbox, so the
-structured-review cells measure the review rather than the workaround.
+**Eval-sweep follow-ups — delivered 2026-10-08** (fix/eval-sweep-followups).
+`agents/reviewer.md` names the severity scale {CRITICAL, HIGH, MEDIUM, LOW}, pinned equal to
+`contracts/harness-read.md` by a structure test; `reviewer-tests-findings` before → after per
+agent tier (with-arm, `findings-shape` of 3): opus 1.00 (3/3) → 1.00 (3/3), sonnet 0.78 (1/3) →
+1.00 (3/3), haiku 0.78 (1/3) → 1.00 (3/3). A haiku session is not supported (README FAQ); the
+eval sweep holds the session at sonnet and the matrix columns name the agent tier. Sandbox git:
+`PATH` cannot route the eval child to a working git, so the reviewer case's scaffold writes the
+range's diff to `../.git/review-range.diff`; no run wrote outside its sandbox (the
+plugin-checkout file-time check stayed empty), and `left` was 0 in every reviewer-case run except
+one haiku run that probed `/opt/homebrew` for git and tried a denied read of an invented
+plugin-checkout path. USD 8.78 for the probe, pilots, before runs and sweep.
 
 **Behavioural cases for the units no case drives.** The eval suite's unit table names what is
 covered (`run`, `planning`/planner, reviewer, `decisions`, `prune`/core contract). Prune

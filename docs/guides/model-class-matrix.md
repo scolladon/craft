@@ -9,7 +9,9 @@ Run the full pipeline across the three Claude tiers on a representative brief, r
 each dimension below, and capture the harness-surfaced per-phase tokens + wall-clock
 into the tables. Commit the result so the artifact is diffable across runs. The planner and
 structured-review cells can be filled more cheaply by the eval sweep: see the Behavioural eval
-suite and Model-class matrix sections of `docs/contributing/maintainer-smokes.md`.
+suite and Model-class matrix sections of `docs/contributing/maintainer-smokes.md`. A column names
+the tier the craft agents run at; the session runs at opus or sonnet (a haiku session is not
+supported), and the haiku column routes the agents to haiku.
 
 ---
 
@@ -19,28 +21,40 @@ Dimensions (rows) follow the SP5 contract-adherence axes plus a full-pipeline ro
 
 | Dimension | opus (`claude-opus-5-5`) | sonnet (`claude-sonnet-5-5`) | haiku (`claude-haiku-4-5`) |
 |---|---|---|---|
-| planner | PASS (1.00, eval) | PASS (1.00, eval) | FAIL (0.33, eval) |
+| planner | PASS (1.00, eval) | PASS (1.00, eval) | PASS (1.00, eval) |
 | part-TDD | — (not yet run) | — (not yet run) | — (not yet run) |
-| structured-review | PARTIAL (0.78, eval) | PARTIAL (0.67, eval) | PARTIAL (0.56, eval) |
+| structured-review | PASS (1.00, eval) | PASS (1.00, eval) | PASS (1.00, eval) |
 | blocker | — (not yet run) | — (not yet run) | — (not yet run) |
 | full-pipeline-completion | — (not yet run) | — (not yet run) | — (not yet run) |
 
-*Eval sweep, 2026-10-07 (Claude Code 2.1.292, 3 runs per arm).* Cell = with-craft mean of
+*Eval sweep, 2026-10-08 (Claude Code 2.1.293, 3 runs per arm).* Cell = with-craft mean of
 `planning-plan-lints` (planner) and `reviewer-tests-findings` (structured-review); "eval" marks a
-cell from the sweep, not the full pipeline. Each trace shows the agents at the column's tier: the
-sonnet and haiku columns needed `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1`, as the plain override lost
-to the `model: opus` pin. Δ planner / review: opus 0.00 / +0.44, sonnet 0.00 / +0.33, haiku
-−0.67 / 0.00. The planner Δ counts four bare-arm `failing-test-first` FAILs (opus 1, haiku 3) as
-PASS, rescored after reading plans whose `--shout` tests fail before greet.sh changes.
-Structured-review loses on `findings-shape` in every run but one: spawned outside the review
-phase, the reviewer gets no severity scale, and wrote CRITICAL/HIGH/MEDIUM/LOW in 1 of 3 opus
-runs and 0 of 3 sonnet and haiku runs. haiku planner: in 2 of 3 runs the haiku session loaded
-`craft:planning`, said the phase was running and ended its turn without spawning the planner.
-haiku review: in 1 of 3 runs the reviewer could not run git in the sandbox, moved to the plugin
-checkout and reviewed that instead. The reviewer Δ is mostly the bare model refusing for want of
-a craft agent; haiku's bare arm once delegated to a general-purpose agent and passed. Trigger,
-decisions and prune were not swept per tier. part-TDD, blocker and full-pipeline-completion need
-the full-pipeline run.
+cell from the sweep, not the full pipeline. The session ran at sonnet in every column. The
+columns name the agent tier. The trace check showed agent events at each column's tier. The opus
+and haiku columns are not comparable with 2026-10-07, whose session ran at the column tier.
+craft does not support a haiku session (README FAQ). In the 2026-10-07 sweep a haiku session
+loaded `craft:planning` and ended its turn without spawning the planner. So haiku is measured as
+an agent tier only. The 2026-10-07 haiku planner cell (0.33) measured that unsupported session.
+Under a sonnet session the haiku planner scores 1.00. Δ planner / review: opus 0.00 / +0.67,
+sonnet 0.00 / +0.67, haiku 0.00 / +0.67. The reviewer Δ is driven by the bare arm having no
+craft reviewer to spawn. Reviewer severity scale, before → after (with-arm, `findings-shape`
+passes of 3): opus 1.00 (3/3) → 1.00 (3/3), sonnet 0.78 (1/3) → 1.00 (3/3), haiku 0.78 (1/3) →
+1.00 (3/3). Claude Code was 2.1.293 in both runs at every tier. Sandbox git: the reviewer case
+reads the range's diff the scaffold writes. `gitfail` per run, with craft / bare, planner: haiku
+2–8 / 1–1, sonnet 2–4 / 1–1, opus 1–2 / 1–1; reviewer: haiku 2–6 / 0–1, sonnet 1–1 / 0–1, opus
+1–1 / 0–1. `left` totals: every bare run 0. Reviewer with craft: sonnet 0, opus 0, haiku 2 (one
+run: a `/opt/homebrew` probe while hunting for git, and a Read of an invented path in the plugin
+checkout, which permissions denied). Planner with craft: haiku 4 (two runs, each hunting for git:
+`/opt`, a `PATH=/usr/local/bin:/usr/bin:/bin` string, `~/.local/bin`, `~/.n/bin`), sonnet 1 (one
+run, a false positive from heredoc prose `` `PASS`/`FAIL ``), opus 2 (one run hunting for git:
+`/Applications/Xcode.app`, `/Library/Developer/CommandLineTools`). No run wrote outside its
+sandbox: the plugin-checkout file-time check printed nothing after every tier. Rescore: the
+`failing-test-first` llm grader (sonnet judge) failed 10 plans that do add a test expected to
+fail before greet.sh changes, and the maintainer rescored all 10 as PASS. They were 1 bare run
+at the haiku pilot, 1 bare run at the opus pilot, and 4 runs at each of the S5 haiku and opus
+tiers (1 with craft, 3 bare). Judged planner values before the rescore: haiku 0.89 with craft /
+0.67 bare, opus 0.89 with craft / 0.67 bare. Trigger, decisions and prune were not swept per
+tier. part-TDD, blocker and full-pipeline-completion need the full-pipeline run.
 
 ---
 
@@ -82,5 +96,6 @@ undercounts its true cost. No agent self-reports usage.
 
 ---
 
-*Last run:* 2026-10-07 — eval sweep, planner and structured-review rows only (USD 9.07 across
-the three tiers, pilots included). The full-pipeline run has not been done yet.
+*Last run:* 2026-10-08 — eval sweep, planner and structured-review rows only, agent tier per
+column under a sonnet session (USD 8.78 for the probe, pilots, before runs and sweep). The
+full-pipeline run has not been done yet.

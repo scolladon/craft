@@ -158,11 +158,13 @@ Trigger invocation: USD 0.81, ceiling USD 4 at three runs. Phase and agent invoc
 USD 1.96, ceiling USD 9.
 
 **Reviewer output shape.** `reviewer-tests-findings` spawns `craft:reviewer` directly, outside
-the review phase, so the agent receives no per-line output contract. Its `findings-shape` grader
-therefore accepts a severity word, in any case, within 300 characters of a fixture file name,
-in either order, rather than mirroring the normalizer's line grammar. A finding about a missing
-test has no line to cite, and the agent writes `HIGH` in one run and `Severity: high` in the
-next.
+the review phase. The agent names the severity scale {CRITICAL, HIGH, MEDIUM, LOW} itself, and a
+structure test keeps that set equal to the review contract's; the per-line shape (`file:line`,
+suggested fix) still comes only from the phase. The `findings-shape` grader therefore stays
+lenient: a severity word, in any case, within 300 characters of a fixture file name, in either
+order. A finding about a missing test has no line to cite. Before the agent named the scale,
+`findings-shape` passed 3 of 3 at opus, 1 of 3 at sonnet and 1 of 3 at haiku, and each failing
+run tagged its findings with a claim status but no severity; after, 3 of 3 at every tier.
 
 **Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
 craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
@@ -234,9 +236,8 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   whose session ran at the column tier.
 - `<ceiling>`: pilot each tier first with `--runs 1` under the fixed USD 5 cap; ceiling = that
   tier's `costUsd` × 3 × 1.5. Prices differ per tier, and the sonnet column pays an opus judge.
-  Measured on 2026-10-07 with the session at the column tier, pilot then sweep: opus USD
-  1.00 / 3.07, sonnet 0.56 / 1.61, haiku 0.53 / 1.49; only the sonnet figures carry over to a
-  sonnet session.
+  Measured on 2026-10-08 with the session at sonnet, pilot then sweep, per agent tier: opus
+  USD 0.73 / 1.97, sonnet 0.54 / 1.65, haiku 0.52 / 1.50.
 - `<judge>` is `claude-sonnet-5-5` for the opus and haiku columns and `claude-opus-5-5` for the
   sonnet column, so the judge
   is never at the agent tier under test; it may share the session's tier.
@@ -247,7 +248,9 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` moved them to the override's tier, which equalled the
   session's in that sweep. The override also reaches agents the bare arm spawns, so both
   arms run their agents at the column tier. The trace check below verifies the tiers on
-  every run.
+  every run. With the session at sonnet and the override at
+  haiku (pilot of 2026-10-08, Claude Code 2.1.292 of S1), agent events showed
+  `claude-haiku-4-5`: FORCE follows the override, not the session.
 - `--keep-temp` keeps each run's sandbox and its trace; the result JSON's `tracePath` points
   at it. The opus column cannot show whether the override works, because the pin is opus.
 - Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
