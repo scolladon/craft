@@ -201,7 +201,9 @@ uncovered fork on its own; re-pilot before reading its Δ as prune evidence.
 added steps marked RED or characterization whose tests pass on first run, then "temporarily
 remove the `shift`" to prove they can fail. Strict TDD would make every RED step fail against
 the current code. Take it into the next prompt audit of `agents/planner.md`, with
-`planning-plan-lints` run before and after.
+`planning-plan-lints` run before and after. The 2026-10-07T21-15 with-craft run 1 plan is ready-made
+evidence: its single RED step claims `greet.sh Ada` fails, and the recalibrated grader still
+fails it 3 of 3 (kept in `~/craft-eval-results/2026-10-07T21-15-38-585Z`).
 
 **Fill the model-class matrix from the eval sweep — delivered 2026-10-07**
 (docs/model-class-matrix-eval-sweep). The planner and structured-review cells of
@@ -224,15 +226,14 @@ plugin-checkout file-time check stayed empty), and `left` was 0 in every reviewe
 one haiku run that probed `/opt/homebrew` for git and tried a denied read of an invented
 plugin-checkout path. USD 8.78 for the probe, pilots, before runs and sweep.
 
-**Recalibrate the `failing-test-first` grader.** In the 2026-10-08 sweep the sonnet judge failed
-10 plans that do add a test expected to fail before `greet.sh` changes (1 bare run at the haiku
-pilot, 1 at the opus pilot, 1 with-craft and 3 bare runs at each of the haiku and opus sweep
-tiers); each was rescored PASS by hand. Every misgraded plan opens with a harness step that pins
-already-passing behaviour, then adds the failing `--shout` test, so the judge seems to read
-"before any step that changes greet.sh" as "the first step". Reword
-`evals/planning-plan-lints/graders/failing-test-first.md` one clause at a time and replay the
-kept plans through the judge offline (aggregates under `~/craft-eval-results/2026-10-0{7,8}*`)
-before the next paid run; until then the planner Δ needs a hand read.
+**Recalibrate the `failing-test-first` grader — delivered 2026-10-08**
+(fix/recalibrate-failing-test-first-grader). The grader's second sentence now reads "Steps that
+add only already-passing tests, before or after that change, neither satisfy nor fail this."
+A `claude -p` replay of the judge prompt proved unfaithful (0 of 10 real false FAILs
+reproduced), so the wordings were replayed through the real sonnet judge in a throwaway
+plugin-eval suite that plants each recorded plan: genuine-PASS plans failed went from 14 of 32 to
+2 of 32, and all 4 hand-built negatives still fail. `docs/contributing/maintainer-smokes.md`
+§ Behavioural eval suite describes the method. USD 5.26 for the replay.
 
 **Pin the engine's claim-status set to the review contract.** `engine/src/findings.js`
 `STATUS_PREFIX_PATTERN` (`VERIFIED|SUSPECT|RULED-OUT|PROBE`) is a third copy of the claim-status
