@@ -25,4 +25,4 @@ Adopted as recommended (option 1). The agent carries the full rule; the template
 
 ## Consequences
 
-- `agents/part-implementer.md` is unchanged; its handling of a planned RED that passes on arrival stays out of scope until an eval case measures it.
+- `agents/part-implementer.md` is unchanged; its handling of a planned RED that passes on arrival stays out of scope until an eval case measures it. ADR-412 refines this: the implementer contract and handback line now name the `GUARD` entry.
