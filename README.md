@@ -177,8 +177,8 @@ in code where a silent regression is expensive to discover later.
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
-receipts: [32 design docs](docs/contributing/design/), [31 parted plans](docs/contributing/plan/),
-[395 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
+receipts: [33 design docs](docs/contributing/design/), [32 parted plans](docs/contributing/plan/),
+[402 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
@@ -247,6 +247,12 @@ your own history.
 **Does it work on an existing, messy repo?** Yes — the only precondition is a
 discoverable test command. Phases whose tools are absent no-op with a note;
 `propose`/`integrate` no-op without a git remote.
+
+**Which model should run the session?** opus or sonnet. The session model runs `/craft:run`,
+the phase skills, and every phase set to `execution: inline`. A haiku session is not
+supported: in the behavioural eval sweep it loaded the planning skill and ended its turn
+without spawning the planner. haiku stays routable per agent through `models.<agent>` and
+`models.fallback`.
 
 **What happens when a gate goes red?** Nothing gets committed — the invariant is
 orchestrator-enforced. The phase enters its fix loop; if it can't reach green, the

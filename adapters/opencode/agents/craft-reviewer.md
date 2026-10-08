@@ -31,4 +31,6 @@ Contract:
 - Tag each emitted finding with its claim status over
   {VERIFIED, SUSPECT, RULED-OUT, PROBE}, defaulting to the actionable case when reporting
   a plain defect; omit status when you are not deliberating.
+- Rate each finding's severity over {CRITICAL, HIGH, MEDIUM, LOW}, written as that
+  upper-case word.
 - Final message: the structured findings list — no prose around it.

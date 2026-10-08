@@ -96,8 +96,15 @@ checkout, or in any other directory, stops before it copies or commits anything.
 
 **Git inside the sandbox (macOS).** `/usr/bin/git` is the Xcode shim, and inside the eval
 sandbox it fails: `couldn't create cache file '…/T/xcrun_db-…'`, then `Failed to locate 'git'`.
-Children work around it with `/opt/homebrew/bin/git` when they think to. No grader depends on a
-commit today; a case whose outcome needs git scores 0 on such a machine.
+`PATH` cannot route around it: a probe child (2026-10-07) kept the operator's `PATH` order,
+with a Homebrew git directory ahead of `/usr/bin`, yet `type -a git` listed only
+`/usr/bin/git`, and a `PATH` prepend inside the command still resolved `/usr/bin/git`. A
+scaffold runs outside the sandbox, where git works, so `reviewer-tests-findings` writes the
+reviewed range's diff into the git directory after its last commit, and its prompt names that
+file; both arms get it. The sandbox's repository root is the run's `HOME`, one level above the
+workspace, so the file is `../.git/review-range.diff` from the agent's working directory, and
+the scaffold locates it with `git rev-parse --git-dir` rather than a fixed `.git/`. `planning-plan-lints` keeps the failure: no grader depends on the
+planner's commit. A case whose outcome needs git inside the child scores 0 on such a machine.
 
 **Reading results.**
 
@@ -151,11 +158,13 @@ Trigger invocation: USD 0.81, ceiling USD 4 at three runs. Phase and agent invoc
 USD 1.96, ceiling USD 9.
 
 **Reviewer output shape.** `reviewer-tests-findings` spawns `craft:reviewer` directly, outside
-the review phase, so the agent receives no per-line output contract. Its `findings-shape` grader
-therefore accepts a severity word, in any case, within 300 characters of a fixture file name,
-in either order, rather than mirroring the normalizer's line grammar. A finding about a missing
-test has no line to cite, and the agent writes `HIGH` in one run and `Severity: high` in the
-next.
+the review phase. The agent names the severity scale {CRITICAL, HIGH, MEDIUM, LOW} itself, and a
+structure test keeps that set equal to the review contract's; the per-line shape (`file:line`,
+suggested fix) still comes only from the phase. The `findings-shape` grader therefore stays
+lenient: a severity word, in any case, within 300 characters of a fixture file name, in either
+order. A finding about a missing test has no line to cite. Before the agent named the scale,
+`findings-shape` passed 3 of 3 at opus, 1 of 3 at sonnet and 1 of 3 at haiku, and each failing
+run tagged its findings with a claim status but no severity; after, 3 of 3 at every tier.
 
 **Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
 craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
@@ -189,11 +198,14 @@ Model Runner's inference engine until Docker reinstalls it, which brings the lin
 ## Model-class matrix (cross-tier) — not CI-gated
 
 On demand / when a maintainer wants the full-pipeline + output-quality matrix: run the
-full pipeline across the Claude class — opus (`claude-opus-5-5`), sonnet
-(`claude-sonnet-5-5`), haiku (`claude-haiku-4-5`) — on a representative brief,
-record a tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / part-TDD /
-structured-review / blocker / full-pipeline-completion), and capture the per-phase
-tokens + wall-clock into the committed artifact and the run record.
+full pipeline on a representative brief once per agent tier of the Claude class — opus
+(`claude-opus-5-5`), sonnet (`claude-sonnet-5-5`), haiku (`claude-haiku-4-5`) — record a
+tier×dimension PASS/PARTIAL/FAIL table (dimensions: planner / part-TDD / structured-review /
+blocker / full-pipeline-completion), and capture the per-phase tokens + wall-clock into the
+committed artifact and the run record. A column names the tier the craft agents run at. The
+session runs at opus or sonnet, since craft does not support a haiku session; the haiku
+column routes the agents to haiku through the manifest's `models.*` keys or the sub-agent
+override below.
 
 **Numbers are harness-sourced.** The orchestrator reads `subagent_tokens` and `duration_ms`
 from that phase's own sub-agent transcript, not from the spawn's returned final-message usage
@@ -208,28 +220,37 @@ artifact template) and append a one-line entry to the run record under
 **Eval sweep (planner and structured-review rows).** The planner and structured-review cells can
 be filled from the behavioural eval suite instead: the `agent`-tagged cases
 (`planning-plan-lints` fills planner, `reviewer-tests-findings` fills structured-review), three
-runs per tier. For each tier `<id>`:
+runs per tier. The session stays at sonnet in every column; only the agent tier `<agent-id>` moves:
 
 ```bash
-CLAUDE_CODE_SUBAGENT_MODEL=<id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
-  claude plugin eval . --tag agent --model <id> \
+CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
+  claude plugin eval . --tag agent --model claude-sonnet-5-5 \
   --no-publish --scaffold --keep-temp --allow-tools Write Bash \
   --judge-model <judge> --max-cost-usd <ceiling>
 ```
 
+- Session tier: `claude-sonnet-5-5` in every column. A haiku session
+  is not supported, and a fixed session leaves the agent tier as the one variable per column.
+  The sonnet column (session and agents at sonnet) repeats the 2026-10-07 configuration and
+  is the control against it; the opus and haiku columns are not comparable with 2026-10-07,
+  whose session ran at the column tier.
 - `<ceiling>`: pilot each tier first with `--runs 1` under the fixed USD 5 cap; ceiling = that
   tier's `costUsd` × 3 × 1.5. Prices differ per tier, and the sonnet column pays an opus judge.
-  Measured on 2026-10-07, pilot then sweep: opus USD 1.00 / 3.07, sonnet 0.56 / 1.61, haiku
-  0.53 / 1.49. A haiku pilot can read cheap because haiku sometimes stops before planning.
+  Measured on 2026-10-08 with the session at sonnet, pilot then sweep, per agent tier: opus
+  USD 0.73 / 1.97, sonnet 0.54 / 1.65, haiku 0.52 / 1.50.
 - `<judge>` is `claude-sonnet-5-5` for the opus and haiku columns and `claude-opus-5-5` for the
-  sonnet column, so the judge is never the model under test.
-- `--model` alone moves only the session tier: `agents/planner.md` and `agents/reviewer.md` pin
-  `model: opus`. Both variables are needed (sweep of 2026-10-07, Claude Code 2.1.292): with
-  `CLAUDE_CODE_SUBAGENT_MODEL` alone the pin won and a sonnet session spawned opus agents;
-  adding `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` moved them to the session tier. Check it on every
-  sweep: in the kept `out/trace.jsonl`, assistant events with a `parent_tool_use_id` are the
-  agent's, and their `message.model` must name the tier under test. If it does not, the agent
-  rows ran at the pinned tier: say so in the note under the matrix table.
+  sonnet column, so the judge
+  is never at the agent tier under test; it may share the session's tier.
+- `--model` moves only the session.
+  `agents/planner.md` and `agents/reviewer.md` pin `model: opus`, so the agents need both
+  variables (sweep of 2026-10-07, Claude Code 2.1.292): with `CLAUDE_CODE_SUBAGENT_MODEL`
+  alone the pin won and a sonnet session spawned opus agents; adding
+  `CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1` moved them to the override's tier, which equalled the
+  session's in that sweep. The override also reaches agents the bare arm spawns, so both
+  arms run their agents at the column tier. The trace check below verifies the tiers on
+  every run. With the session at sonnet and the override at
+  haiku (pilot of 2026-10-08, Claude Code 2.1.292 of S1), agent events showed
+  `claude-haiku-4-5`: FORCE follows the override, not the session.
 - `--keep-temp` keeps each run's sandbox and its trace; the result JSON's `tracePath` points
   at it. The opus column cannot show whether the override works, because the pin is opus.
 - Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
@@ -237,6 +258,91 @@ CLAUDE_CODE_SUBAGENT_MODEL=<id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   one-line note under the matrix table, not in new rows; the template's shape does not change.
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
+
+**Plugin checkout, around each tier.** Before launching a tier, outside any sandbox, make sure
+`evals/results/` exists, resolve the git directory and mark the time:
+
+```bash
+root=<suite.root>; mkdir -p "$root/evals/results"
+common=$(git -C "$root" rev-parse --path-format=absolute --git-common-dir)
+marker=$(mktemp) && touch "$marker"
+```
+
+After the tier, list what changed since the mark:
+
+```bash
+find "$root" -cnewer "$marker" -not -path "$root/evals/results" -not -path "$root/evals/results/*" \
+  -not -path "$root/.git/objects/*" -not -path "$root/.git/logs/*" -not -path "$root/.git/index"
+[ "$common" = "$root/.git" ] || find "$common" -cnewer "$marker" \( -name config -o -name hooks -o -path '*/hooks/*' \)
+```
+
+It must print nothing. It reads inode change times only, so it runs no git after the tier and
+sees what `git status` hides: ignored paths (`.claude/`, `node_modules/`), a deleted or
+renamed file (through its parent directory), a moved-in file that kept its old mtime, a new
+symlink or directory, and a planted git `config` or hook — in the checkout's own `.git/`, or,
+when the plugin runs from a linked worktree, in the common git directory. Anything it lists was
+changed by a run that left its sandbox: name it in the note under the matrix table and restore
+it before the next tier. Writes outside the plugin checkout are not covered here; the trace
+check's `left` is the only signal for them.
+
+**Trace check, every run.** Run it on each `aggregate-result.json`. It reads only the kept
+traces: a kept sandbox is sealed, so never run git inside it.
+
+```bash
+f=evals/results/<ts>/aggregate-result.json; root=$(jq -r .suite.root "$f")
+jq -r '.cases[] | .name as $n | .arms | to_entries[] | .key as $a | .value[] | [$n, $a, ((.error // "") | tostring | length), (.tracePath // "")] | @tsv' "$f" |
+while IFS=$'\t' read -r name arm errlen trace; do
+  if [ ! -s "$trace" ]; then
+    if [ "$errlen" -gt 0 ]; then state=NO-TRACE; else state=TRACE-GONE; fi
+    printf '%s %s %s\n' "$name" "$arm" "$state"; continue
+  fi
+  sandbox=$(dirname "$(dirname "$trace")")
+  allowed="$sandbox /dev /bin /sbin /usr/bin /usr/sbin /usr/local/bin /opt/homebrew/bin /Library/Developer/CommandLineTools/usr/bin"; exact=""
+  [ "$name" = planning-plan-lints ] && { allowed="$allowed $root/templates $root/scripts"; exact=$root; }
+  tiers=$(jq -r 'select(.type=="assistant") | "\(if .parent_tool_use_id then "agent" else "session" end)=\(.message.model)"' "$trace" | sort -u | tr '\n' ' ')
+  gitfail=$(jq -s --arg m "Failed to locate 'git'" '[.[] | select(.type=="user") | .message.content[]? | select(.type=="tool_result" and ((.content | tostring) | contains($m)))] | length' "$trace")
+  left=$(jq -r 'select(.type=="assistant") | .message.content[]? | select(.type=="tool_use")
+      | (if .name == "Grep" then .input | del(.pattern) else .input end)
+      | del(.content, .new_string, .old_string, .edits, .new_source, .todos, .prompt, .description) | .. | strings' "$trace" |
+    grep -oE "(^|[[:space:]\"'=(;&|<>\`]|:-)/[^[:space:]\"'\\;&|()<>,{}\`]*" | sed -E 's|^[^/]*||; s|^/tmp(/\|$)|/private/tmp\1|; s|^/var(/\|$)|/private/var\1|' |
+    awk -v allowed="$allowed" -v exact="$exact" '
+      { n = split($0, seg, "/"); depth = 0
+        for (i = 2; i <= n; i++) { if (seg[i] == "" || seg[i] == ".") continue
+          if (seg[i] == "..") { if (depth > 0) depth--; continue } out[++depth] = seg[i] }
+        p = ""; for (i = 1; i <= depth; i++) p = p "/" out[i]; if (p == "") p = "/"
+        k = split(allowed, a, " "); inside = (p == exact)
+        for (i = 1; i <= k; i++) if (p == a[i] || index(p, a[i] "/") == 1) inside = 1
+        if (!inside) count++ }
+      END { print count + 0 }')
+  printf '%s %s %s gitfail=%s left=%s\n' "$name" "$arm" "${tiers:-NO-EVENTS }" "$gitfail" "$left"
+done
+```
+
+- `NO-TRACE`: the run errored before Claude started (a failed scaffold, a CLI swapped by an
+  auto-update mid-run). It has no grades worth reading: re-run it, never fill a cell from it.
+  `TRACE-GONE`: the run did not error but its kept sandbox has since been removed (macOS
+  clears `/private/tmp` on reboot); its grades stand, but its tiers and `left` cannot be read.
+- `tiers`: assistant events with a `parent_tool_use_id` are the agent's. Session events
+  must name `claude-sonnet-5-5` and agent events the column's `<agent-id>`, matched on the
+  prefix: `message.model` carries a dated id such as `claude-haiku-4-5-20251001`. A run
+  whose agent events show another tier invalidates its column: say so in the note under
+  the matrix table and leave the cell unfilled. A with-arm run with no `agent=` entry, or a
+  run with no `session=` entry (`NO-EVENTS`), cannot show its tier: name it in the note.
+- `left`: absolute paths a run's tools named outside its own sandbox (the parent of `out/`).
+  Every string in a tool's input counts — Bash commands line by line, and every file tool's
+  path or Glob pattern — except payload: file contents, edit strings, notebook sources, todo
+  text, agent prompts and Grep's regex. A path counts wherever it starts a line or follows
+  whitespace, a quote, `=`, `(`, `;`, `&`, `|`, `<`, `>`, a backtick or `:-`. Paths are
+  resolved for `..`, and `/tmp` and `/var` are read as their `/private` targets. System
+  binary directories and `/dev` are allowed, and so is the Command Line Tools `bin`, which
+  agents try when `/usr/bin/git` fails. The planner case also may name the plugin root itself
+  and its `templates/` and `scripts/`, which the planning skill reads and runs. Every run must
+  show `left=0`; name any run with `left>0` in the note under the matrix table, after reading
+  the paths in its trace, since prose such as ` / ` or a `sed` address can over-count. Not
+  counted: paths reached through `~`, a variable or a relative `..` chain; the file-time check
+  above catches them only when they change the plugin checkout.
+- `gitfail`: how many tool results say `Failed to locate 'git'`. It is reported in the note,
+  not a pass condition.
 
 ## Registered-phase dispatch smoke — not CI-gated
 
