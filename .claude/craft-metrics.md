@@ -430,3 +430,7 @@ plugin-eval-suite design turns=68 tool_calls=71 tokens=6116466 duration_ms=10432
 plugin-eval-suite implementation turns=39 tool_calls=42 tokens=911910 duration_ms=505192 cache_read=782798 cache_creation=127227 output=1805 avg_ctx=23336 equiv=246419
 plugin-eval-suite planning turns=44 tool_calls=47 tokens=3787098 duration_ms=930782 cache_read=3620914 cache_creation=157244 output=8852 avg_ctx=85869 equiv=602994
 plugin-eval-suite review turns=187 tool_calls=193 tokens=8953239 duration_ms=2098718 cache_read=8405691 cache_creation=541882 output=5292 avg_ctx=47850 equiv=1544756
+eval-sweep-followups design turns=78 tool_calls=84 tokens=6975997 duration_ms=1007278 cache_read=6765646 cache_creation=208781 output=1414 avg_ctx=89418 equiv=944767
+eval-sweep-followups implementation turns=23 tool_calls=28 tokens=585878 duration_ms=432370 cache_read=493016 cache_creation=90874 output=1942 avg_ctx=25389 equiv=172650
+eval-sweep-followups planning turns=46 tool_calls=48 tokens=3760915 duration_ms=746593 cache_read=3625242 cache_creation=130141 output=5440 avg_ctx=81641 equiv=552492
+eval-sweep-followups review turns=77 tool_calls=78 tokens=2095951 duration_ms=1009396 cache_read=1835117 cache_creation=233746 output=26934 avg_ctx=26870 equiv=610518
