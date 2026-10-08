@@ -437,3 +437,8 @@ eval-sweep-followups review turns=77 tool_calls=78 tokens=2095951 duration_ms=10
 recalibrate-failing-test-first-grader design turns=19 tool_calls=19 tokens=696716 duration_ms=221804 cache_read=647579 cache_creation=48900 output=199 avg_ctx=36659 equiv=126916
 recalibrate-failing-test-first-grader implementation turns=5 tool_calls=5 tokens=93441 duration_ms=62611 cache_read=72063 cache_creation=21138 output=230 avg_ctx=18642 equiv=34789
 recalibrate-failing-test-first-grader planning turns=21 tool_calls=22 tokens=879060 duration_ms=238949 cache_read=820102 cache_creation=58704 output=212 avg_ctx=41850 equiv=156492
+planner-red-label-audit design turns=75 tool_calls=80 tokens=4592041 duration_ms=1239650 cache_read=4395206 cache_creation=194121 output=2564 avg_ctx=61193 equiv=695142
+planner-red-label-audit documentation turns=4 tool_calls=5 tokens=69086 duration_ms=59659 cache_read=50101 cache_creation=18922 output=55 avg_ctx=17258 equiv=28946
+planner-red-label-audit implementation turns=12 tool_calls=12 tokens=212548 duration_ms=128856 cache_read=171389 cache_creation=40673 output=462 avg_ctx=17674 equiv=70314
+planner-red-label-audit planning turns=46 tool_calls=46 tokens=1761695 duration_ms=484388 cache_read=1655790 cache_creation=105295 output=518 avg_ctx=38286 equiv=299880
+planner-red-label-audit review turns=87 tool_calls=94 tokens=2983785 duration_ms=908412 cache_read=2698684 cache_creation=283346 output=1581 avg_ctx=34278 equiv=632130
