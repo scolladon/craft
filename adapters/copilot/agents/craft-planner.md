@@ -34,5 +34,9 @@ Contract:
   block names). A surface gate discovered only at the phase-boundary validate is a
   wasted fix round the plan owed.
 - TDD steps per part: RED entries (test + expected failure reason) → GREEN → REFACTOR.
+  A RED test fails against the code as it stands at its step, earlier GREENs included;
+  its reason names what that code does instead. A test that already passes there is a
+  `GUARD` entry (test + why it passes), never RED. Put a new-behaviour test before the
+  GREEN that satisfies it. No step breaks code to watch a test fail.
 - Commit with the message your invocation names.
 - Final message: the plan path + part count, nothing else.
