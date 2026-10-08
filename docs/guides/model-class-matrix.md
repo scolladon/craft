@@ -58,9 +58,13 @@ now reads "Steps that add only already-passing tests, before or after that chang
 nor fail this." Replayed through the sonnet judge on the 32 recorded plans, the old wording failed
 14 and the new one fails 2; both fail all 4 hand-built plans that break the criterion. Of the 2, one
 plan's RED step claims an already-passing test fails (a planner defect, kept as a known judge
-disagreement); the other is a 2-1 FAIL split on a genuine PASS (noise). The values above are the
-2026-10-08 measurement, unchanged. Trigger, decisions and prune were not swept per tier. part-TDD,
-blocker and full-pipeline-completion need the full-pipeline run.
+disagreement); the other is a 2-1 FAIL split on a genuine PASS (noise). Follow-up, 2026-10-08:
+the planner now labels an already-passing test `GUARD`, never RED. `planning-plan-lints` with-craft,
+before → after (3 runs per arm): opus 1.00 → 1.00, sonnet 1.00 → 1.00, haiku 0.67 → 1.00 (Δ −0.22 →
+0.00); every grader passes on all 18 after-runs. Hand count of RED labels (the judge cannot see
+them): 7 of 19 plans clean before, 8 of 9 after; `GUARD` used by sonnet 3/3, opus 3/3, haiku 0/3.
+The table cells above are the earlier measurement, unchanged. Trigger, decisions and prune were
+not swept per tier. part-TDD, blocker and full-pipeline-completion need the full-pipeline run.
 
 ---
 

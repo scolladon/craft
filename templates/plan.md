@@ -29,7 +29,8 @@
      any pinned behaviour bytes the part must reproduce. -->
 
 ### TDD steps
-<!-- RED entries (test, expected failure reason) → GREEN (minimal code) → REFACTOR. -->
+<!-- RED entries (test, expected failure reason) → GREEN (minimal code) → REFACTOR.
+     A test that already passes at its step is a GUARD entry (test, why it passes), never RED. -->
 
 ### Gate
 <!-- The part gate command(s) for this part (from the manifest's gates.part,

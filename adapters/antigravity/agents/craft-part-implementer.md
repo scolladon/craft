@@ -11,4 +11,4 @@ commit message, and any repo-specific context block — binding constraints.
 
 Contract:
 
-- Final message: the commit hash + one line per RED/GREEN cycle, plus any deferred observations.
+- Final message: the commit hash + one line per RED/GREEN cycle and per `GUARD`, plus any deferred observations.

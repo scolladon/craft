@@ -197,13 +197,28 @@ the fork too, but the fixture's design doc says "a product call no ADR covers", 
 the answer. Drop that phrase so the case measures whether the decisions skill spots an
 uncovered fork on its own; re-pilot before reading its Δ as prune evidence.
 
-**The planner labels an already-passing test as RED.** In both pilot plans, `craft:planner`
-added steps marked RED or characterization whose tests pass on first run, then "temporarily
-remove the `shift`" to prove they can fail. Strict TDD would make every RED step fail against
-the current code. Take it into the next prompt audit of `agents/planner.md`, with
-`planning-plan-lints` run before and after. The 2026-10-07T21-15 with-craft run 1 plan is ready-made
-evidence: its single RED step claims `greet.sh Ada` fails, and the recalibrated grader still
-fails it 3 of 3 (kept in `~/craft-eval-results/2026-10-07T21-15-38-585Z`).
+**The planner labels an already-passing test as RED — delivered 2026-10-08**
+(fix/planner-red-label-audit). `agents/planner.md` now says a RED fails against the code as it
+stands at its step, a test that already passes is a `GUARD` entry (never RED), a new-behaviour
+test comes before the GREEN that satisfies it, and no step breaks code to watch a test fail;
+`templates/plan.md` names the `GUARD` entry. Review found `contracts/construction.md` still
+required every test written first to fail, so it now runs a planned `GUARD` as passing and the
+part-implementer handback reports each `GUARD`. `planning-plan-lints` with-craft / bare / Δ per
+agent tier, before → after: opus 1.00 / 1.00 / 0.00 → unchanged, sonnet 1.00 / 1.00 / 0.00 →
+unchanged, haiku 0.67 / 0.89 / −0.22 → 1.00 / 1.00 / 0.00. RED labels by hand (the judge cannot
+see them): 7 of 19 with-craft plans clean before (C1 5, C2 8, C3 6), 8 of 9 after (one haiku plan
+leaves a passing test unnamed in a RED step; one more haiku plan is a borderline read), which
+meets the design's 8-of-9 rule only at the threshold. Haiku never writes the `GUARD` token
+(0 of 3). USD 6.85 for the before and after runs.
+
+**Measure the part-implementer on a plan with `GUARD` entries.** The construction contract now
+tells the implementer to run a planned `GUARD` and confirm it passes, with no failure, no GREEN
+and no break-to-prove step, and to treat a `GUARD` that fails on arrival as a RED. No eval case
+covers the implementer (`docs/contributing/maintainer-smokes.md` "Evidence, not gate" has no
+row for it), so this rule shipped without behavioural evidence. Add a case that hands
+`craft:part-implementer` a one-part plan with a RED, a `GUARD` and a `GUARD` that fails on
+arrival. Grade it on the handback lines and on whether any command reverts or breaks code to
+make a test fail.
 
 **Fill the model-class matrix from the eval sweep — delivered 2026-10-07**
 (docs/model-class-matrix-eval-sweep). The planner and structured-review cells of
