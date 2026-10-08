@@ -63,8 +63,8 @@ the planner now labels an already-passing test `GUARD`, never RED. `planning-pla
 before → after (3 runs per arm): opus 1.00 → 1.00, sonnet 1.00 → 1.00, haiku 0.67 → 1.00 (Δ −0.22 →
 0.00); every grader passes on all 18 after-runs. Hand count of RED labels (the judge cannot see
 them): 7 of 19 plans clean before, 8 of 9 after; `GUARD` used by sonnet 3/3, opus 3/3, haiku 0/3.
-The table cells above are the earlier measurement, unchanged. Trigger, decisions and prune were not swept per tier. part-TDD,
-blocker and full-pipeline-completion need the full-pipeline run.
+The table cells above are the earlier measurement, unchanged. Trigger, decisions and prune were
+not swept per tier. part-TDD, blocker and full-pipeline-completion need the full-pipeline run.
 
 ---
 
