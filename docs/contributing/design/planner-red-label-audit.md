@@ -100,7 +100,10 @@ test, not the step.
 - **C2 RED label on a passing test:** the test passes against its baseline, has no C1, and
   is labelled RED, either explicitly or by sitting in a RED-headed step, without being named
   as passing or as a guard. A hedge ("if step 2 already makes it pass…") does not name it
-  passing. A test named as passing or as a guard is not C2, whatever its step heading:
+  passing. A guard or passing name given only conditionally ("if it passes, keep it as a
+  guard", "or note it as a characterisation test") is a hedge too and does not exempt the
+  test; only an unconditional name ("either way", "passes already") does. A test named
+  unconditionally as passing or as a guard is not C2, whatever its step heading:
   "RED 2", "RED/guard" and "RED 2 (regression guard)" headings over a declared guard are
   not counted.
 - **C3 break-to-prove:** a step changes code (the script or the test's own assertion)
@@ -119,7 +122,7 @@ One worked example per class, from the plans:
 |---|---|---|
 | C1 | 21-15 with-1, step 1: one RED step for T1–T3, "All three tests fail" | T2 passes against the original script |
 | C1 over C2 | 07-35 with-1, "RED 2": T2 "currently fails" | T2 passes after GREEN 1; RED label and failure claim both apply, counted C1 only |
-| C2 | 06-13 with-1, step 3 "RED": T3, "If step 2 already passes it, record that it was green on arrival" | step 2's GREEN reads `${1:-world}`, so T3 passes; the hedge does not name it passing |
+| C2 | 06-13 with-1, step 3 "RED": T3, "If step 2 already passes it, record that it was green on arrival and keep the test as a regression guard" | step 2's GREEN reads `${1:-world}`, so T3 passes; the guard name is conditional, so it is a hedge |
 | not C2 | 21-15 with-0, "RED 2": T2, "passes against the unchanged script … (not a RED)" | named as passing; the heading does not count |
 | C3 | 14-07 with-2, step 3: T3 run against the original via `git stash` after GREEN 2 | T3 passes against its baseline; the step runs it against another version |
 
@@ -264,7 +267,7 @@ because no contract fragment uses backticks and the token still greps. The line 
 
 | Clause | Closes |
 |---|---|
-| "written, run, and confirmed passing for its stated reason" | a `GUARD` taken on trust: the implementer still runs it, and the reason is checked as the RED reason is |
+| "written, run, and confirmed passing for its stated reason" | a `GUARD` taken on trust: the implementer still runs it and checks the stated reason by reading the code at its step, never by a run that breaks code |
 | "it owes no failure" | the conflict with "it must fail for the stated reason": a blocker handback on a `GUARD`, or a refused refactor |
 | "and no GREEN" | a GREEN written for a test that already passes (06-34 with-0 step 4, 14-07 with-1 step 5) |
 | "no step breaks code to watch it fail" | C3 moved from the plan into the implementer |
@@ -281,8 +284,10 @@ regenerates `adapters/<adapter>/agents/craft-part-implementer.md`.
 
 **Contract edge behaviour.**
 
-- *A `GUARD` that fails on arrival*: not "confirmed passing", and the clause gives no
-  licence to fix code for it. It falls to the core blocker protocol.
+- *A `GUARD` that fails on arrival* (the plan assumed an earlier GREEN the implementer
+  wrote differently): the test failed before its code, so it is a RED under the first
+  sentence. The implementer writes its GREEN, reports it as a RED/GREEN cycle, and notes the
+  plan mismatch as a deferred observation. No blocker: the outcome is TDD-consistent.
 - *A planned RED that passes on arrival*: unchanged. The first sentence still requires a RED
   to fail, so it stays a blocker under the same protocol.
 - *A part made only of `GUARD` entries*: "Never write implementation before its failing
@@ -360,7 +365,10 @@ after-runs, read with the Context rubric (resolution rule, C1/C2/C3, precedence,
 
 - **Decision rule:** the change shows an effect if at least 8 of the 9 after-plans are clean,
   against the before pool's 7 of 19. At the before rate, 8 or 9 clean plans out of 9 by
-  chance has a probability of about 0.2%. Fewer than 8 clean: no effect shown. The BACKLOG
+  chance has a probability of about 0.2%, an indicative figure that assumes independent
+  plans. Plans within one run move together (sonnet runs went 2, 0 and 3 of 3 clean), so
+  the effective sample is nearer 3 runs than 9 plans; the threshold rests on the per-tier
+  before rates (haiku 0 of 3, opus 2 of 6) as much as on that figure. Fewer than 8 clean: no effect shown. The BACKLOG
   entry then stays open with the counts, and ADR-411's consequence applies (a dedicated
   grader becomes worth its replay cost).
 - **Ordering:** read the same way: at least 8 of 9 after-plans with T3 a RED before its
