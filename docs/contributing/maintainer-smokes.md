@@ -123,6 +123,12 @@ planner's commit. A case whose outcome needs git inside the child scores 0 on su
 - Keep one clause per `llm` grader. A FAIL on a multi-clause criterion does not say which clause
   failed: `tdd-parts` once failed a valid plan three votes out of three, and the same plan passed
   both halves once split.
+- Check a reworded `llm` grader against the real judge, not `claude -p`: the judge runs with no
+  tools, thinking or session context, and a `claude -p` replay reproduced 0 of 10 real false FAILs.
+  Use a throwaway suite with one case per kept plan, whose scaffold copies the plan to the focus
+  path, prompt "Reply with the single word OK. Do not use any tools.", and one grader per wording.
+  Run `--ablation none --runs 1 --scaffold --judge-model <sweep judge>`. `case.yaml` holds only
+  `schema_version` and `context.scaffold_script`; frontmatter and prompt go in `prompt.md`.
 
 **Evidence, not gate.** Before enacting an approved `craft:prune` candidate, or a prompt-surface
 audit edit under `skills/` or `agents/`, run the case(s) that drive the touched unit on the tree
