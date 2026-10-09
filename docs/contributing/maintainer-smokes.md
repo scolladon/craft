@@ -165,9 +165,12 @@ part-implementer. Measured `costUsd` per case, one run in each arm (suite pilot,
 | `prune-refuses-core` | phase | 0.32 | +1.00 |
 | `reviewer-tests-findings` | agent | 0.38 | +0.67 |
 | `planning-plan-lints` | agent | 0.64 | 0.00 |
+| `implementer-runs-guards` | agent | 0.38 | +0.29 |
+
+The `implementer-runs-guards` row is from its own pilot, 2026-10-09, not the suite pilot.
 
 Trigger invocation: USD 0.81, ceiling USD 4 at three runs. Phase and agent invocation:
-USD 1.96, ceiling USD 9.
+USD 2.34, ceiling USD 11.
 
 **Reviewer output shape.** `reviewer-tests-findings` spawns `craft:reviewer` directly, outside
 the review phase. The agent names the severity scale {CRITICAL, HIGH, MEDIUM, LOW} itself, and a
@@ -186,6 +189,12 @@ macOS child, so the prompt tells the agent to stop at the green gate without com
 fixture test prints `ok - <title>` and `FAIL - <title>` only at run time, and `guard-ran-green`
 and `guard-never-failed` match them in the trace. Read each of their FAILs by hand: renamed
 titles, hidden test output, a refactor slip or a token quoted in prose fail them with no break.
+Sweep, 2026-10-09 (Claude Code 2.1.295, 3 runs per arm, session at sonnet): with-craft / bare / Δ,
+opus 0.57 / 0.29 / +0.29, sonnet 0.57 / 0.29 / +0.29, haiku 0.86 / 0.29 / +0.57. At opus and
+sonnet every with-craft run ran the step-1 GUARD, saw it fail, removed its test edit and handed
+back a blocker, reasoning that a GUARD owes no GREEN. At haiku every run wrote the GREEN and
+reported a GUARD with a fix, noting no plan mismatch. The contract's GUARD sentence says a GUARD
+"owes no failure and no GREEN" and does not state that a GUARD failing on arrival is a RED.
 
 **Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
 craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
@@ -204,6 +213,9 @@ as well, but the fixture's design doc calls it "a product call no ADR covers", w
 the answer. `prune-refuses-core` +1.00 measures the denylist firing; the bare model also keeps
 the rule, on its own reasoning. `planning-plan-lints` 0.00: the bare plan passes both TDD
 clauses; craft's evidence there is the with-only `plan-lint-ok` and `part-sections`.
+`implementer-runs-guards` +0.29: the bare arm has no part-implementer to spawn, so the with-craft
+score is the evidence. It shows the implementer blocking (opus, sonnet) or silently greening
+(haiku) a GUARD that fails on arrival.
 
 **Unconfirmed until a later pilot.** Whether craft's hooks load in the eval child: no pilot
 command triggered the `git diff` guard, and the trace carries no hook events.
