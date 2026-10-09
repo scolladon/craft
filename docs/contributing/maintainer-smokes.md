@@ -143,6 +143,7 @@ with-craft plans by hand against the rubric in
 | `skills/run` | `run-fires-craft-this`, `run-fires-default-workflow`, `run-quiet-unrelated` |
 | `skills/planning`, `agents/planner.md` | `planning-plan-lints` |
 | `agents/reviewer.md` | `reviewer-tests-findings` |
+| `agents/part-implementer.md`, `contracts/construction.md` | `implementer-runs-guards` |
 | `skills/decisions` | `decisions-noop-when-clear`, `decisions-escalates-fork` |
 | `skills/prune`, `contracts/core.md` | `prune-refuses-core` |
 
@@ -151,7 +152,8 @@ implying coverage.
 
 **Tags and cost.** `trigger`: the three run cases, on the session model, run without a tool
 grant. `phase`: the two decisions cases and prune. `agent`: planning and reviewer, the
-opus-pinned roles. Measured `costUsd` per case, one run in each arm (suite pilot, 2026-10-06):
+opus-pinned roles, and `implementer-runs-guards`, which drives the sonnet-pinned
+part-implementer. Measured `costUsd` per case, one run in each arm (suite pilot, 2026-10-06):
 
 | Case | Tag | `costUsd` | Δ |
 |---|---|---|---|
@@ -175,6 +177,15 @@ lenient: a severity word, in any case, within 300 characters of a fixture file n
 order. A finding about a missing test has no line to cite. Before the agent named the scale,
 `findings-shape` passed 3 of 3 at opus, 1 of 3 at sonnet and 1 of 3 at haiku, and each failing
 run tagged its findings with a claim status but no severity; after, 3 of 3 at every tier.
+
+**Implementer case.** `implementer-runs-guards` spawns `craft:part-implementer` directly, outside
+the implement phase that prepends the construction contract. Its scaffold assembles that contract
+from the live plugin into `../.git/implementation-contract.md`; the prompt has the session start
+the agent's prompt with it, and `contract-delivered` reports whether it did. git fails in the
+macOS child, so the prompt tells the agent to stop at the green gate without committing. The
+fixture test prints `ok - <title>` and `FAIL - <title>` only at run time, and `guard-ran-green`
+and `guard-never-failed` match them in the trace. Read each of their FAILs by hand: renamed
+titles, hidden test output, a refactor slip or a token quoted in prose fail them with no break.
 
 **Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
 craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
@@ -230,7 +241,9 @@ artifact template) and append a one-line entry to the run record under
 **Eval sweep (planner and structured-review rows).** The planner and structured-review cells can
 be filled from the behavioural eval suite instead: the `agent`-tagged cases
 (`planning-plan-lints` fills planner, `reviewer-tests-findings` fills structured-review), three
-runs per tier. The session stays at sonnet in every column; only the agent tier `<agent-id>` moves:
+runs per tier. `--tag agent` also runs `implementer-runs-guards`, which fills no cell: a one-part
+`GUARD` probe is not full-pipeline TDD. The session stays at sonnet in every column; only the
+agent tier `<agent-id>` moves:
 
 ```bash
 CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
@@ -264,8 +277,9 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
 - `--keep-temp` keeps each run's sandbox and its trace; the result JSON's `tracePath` points
   at it. The opus column cannot show whether the override works, because the pin is opus.
 - Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
-- The trigger, decisions and prune results, and each tier's Δ for the two agent cases, go in a
-  one-line note under the matrix table, not in new rows; the template's shape does not change.
+- The trigger, decisions and prune results, each tier's Δ for the planner and reviewer cases, and
+  each tier's with-craft score and Δ for `implementer-runs-guards`, go in a one-line note under
+  the matrix table, not in new rows; the template's shape does not change.
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
 
