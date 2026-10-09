@@ -18,7 +18,7 @@ if [ "${1:-}" = "--audience" ]; then
   [ -d "$dir" ] || { echo "docs-structure-lint: no such directory: $dir" >&2; exit 2; }
 
   root="$(git rev-parse --show-toplevel)"
-  rel="$(cd "$dir" && pwd)"
+  rel="$(cd "$dir" && pwd -P)"
   rel="${rel#"$root"/}"
 
   # Prefix-strip via literal parameter expansion (never a sed program built from

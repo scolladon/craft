@@ -191,8 +191,12 @@ positions in turn (ADR-431). It was 9 of 10 red against a verbatim move of the o
 12 of 12 green after the fix. It also pins `ci.sh`'s bare call and its errexit. Bash 3.2 is
 pinned locally; CI's ubuntu run is the first bash 5 run.
 
-**`docs-structure-lint.sh --audience` fails from a symlinked repo path.** Line 20 takes the root
-from `git rev-parse --show-toplevel`, which returns the resolved path. Line 21 builds the
+**`docs-structure-lint.sh --audience` fails from a symlinked repo path — delivered 2026-10-09**
+(fix/docs-structure-lint-symlink). Line 21 now resolves the directory with `pwd -P`, so both sides
+of the prefix strip are physical paths. `test/docs-structure-lint.test.js` runs `--audience`
+through a symlink to a mktemp throwaway repo: exit 2 before the fix, exit 0 after. Original
+report: line 20 takes the root from `git rev-parse --show-toplevel`, which returns the resolved
+path. Line 21 builds the
 directory with `cd "$dir" && pwd`, which keeps the logical path. Under a symlinked checkout
 (macOS `mktemp -d` → `/var/folders/…`, where `/var` → `/private/var`), the line-22 prefix strip
 misses, and `--audience docs` exits 2 with "unexpected top-level entry under docs: docs".
