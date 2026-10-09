@@ -58,7 +58,7 @@ under `/private/tmp/e-*`.
   the step matrix in § Design (passing GUARD green after step 3, failing GUARD red on arrival,
   RED red before step 3).
 - **R4.** Nine graders, as the § Design table gives them. Each `llm` grader holds one clause.
-  Six are scored (`arm: both`). Two are `with-only` indicators that report whether the agent
+  Seven are scored (`arm: both`). Two are `with-only` indicators that report whether the agent
   was spawned and whether its prompt carried the contract.
 - **R5.** `docs/contributing/maintainer-smokes.md`:
   - the "Evidence, not gate" table gains the row `` `agents/part-implementer.md`, `contracts/construction.md` `` → `` `implementer-runs-guards` ``;
@@ -290,8 +290,9 @@ In the table, `\|` escapes the regex alternation for Markdown; the grader file h
   `git show --stat` or `digit stash`.
 - It uses a lookahead to skip `checkout -b`/`-B` and no lookbehind.
 
-The two trace regexes, on test output serialized as P2 describes: a failing run matches
-`guard-never-failed` and not `guard-ran-green`, and a passing run the reverse.
+The three trace regexes, on test output serialized as P2 describes: a failing run matches
+`guard-never-failed` and not `guard-ran-green`, and a passing run the reverse; a failing
+empty-name run matches `arrival-guard-ran-red`.
 
 ### Arms
 
@@ -344,7 +345,7 @@ sizing exception). plan-lint caps each part at 6 backticked paths.
     755, like the siblings.
 - **Part 2 — prompt and graders.**
   - Creates `prompt.md` and the nine `graders/*.md` from the table above.
-  - That is 9 files, so the part backticks `prompt.md` and the `graders/` directory and lists
+  - That is 10 files, so the part backticks `prompt.md` and the `graders/` directory and lists
     the grader file names in plain text. If plan-lint counts each file, split the three `llm`
     graders into Part 3.
   - Grader frontmatter follows `evals/planning-plan-lints/graders/*.md` and
@@ -365,7 +366,7 @@ Gate for each part: `bash scripts/ci.sh` green. Parts 1 and 2 also need the loca
 | D-1 | How the failing-on-arrival `GUARD` is built | (a) step 1, before any GREEN, claims behaviour the fixture lacks (`${1-world}` and an empty name); (b) after the RED's GREEN, claims an output the plan says that GREEN produces (the planner-red-label-audit story); (c) after the GREEN, claims a fixture-state behaviour unrelated to `--shout` | **(a)** | Only (a) fails on arrival in every run: fixture bytes alone decide it (pinned matrix). With (b), a GREEN that happens to deliver the claim makes the `GUARD` pass and two graders FAIL with no defect. With (c), a GREEN that rewrites the name default flips it the same way. The contract rule is the same in all three: a `GUARD` that fails on arrival is a RED. |
 | D-2 | How a break-to-prove ("temporary edits to watch a test fail") is graded | (a) runtime tokens: the test helper prints `FAIL - <title>` only at run time, so a `not_contains` trace regex on the passing `GUARD`'s title, paired with a positive `ok - <title>` regex and a `tool_used` regex for git revert attempts; (b) `tool_used` regexes over Edit/Write inputs touching greet.sh; (c) an `llm` grader with `focus: trace` | **(a)** | (a) is deterministic and catches a break made by any means once the test runs. The positive regex makes the negative one non-vacuous. (b) cannot tell a break edit from a GREEN or REFACTOR edit to the same file. (c) grades a long JSON trace, which the CLI itself warns judges are noisy on (P4), and costs 3 judge votes per run. |
 | D-3 | How the construction contract reaches the agent | (a) the scaffold runs `contract-assemble.js --descriptor-id implementation` into the git dir, and the prompt has the session prepend it verbatim; (b) the scaffold copies only `contracts/construction.md`; (c) no contract: the agent body alone | **(a)** | (a) delivers the production bytes (P8), core included, whose git-state line also forbids stash and checkout. (b) drops the core and is not what production sends. (c) measures a spawn production never makes, and the rule under test would be absent. |
-| D-4 | Bare-arm semantics and arm split | (a) shared prompt; all six outcome graders `both`; `fired` and `contract-delivered` `with-only`; (b) every outcome grader `with-only`; (c) deterministic graders `both`, `llm` graders `with-only` | **(a)** | The prompt is shared, so the bare arm also gets the contract. Δ isolates the agent body, and the with-craft score is the evidence. (b) reports no Δ. (c) hides whether a bare session reports a `GUARD` as well as the agent's handback line does. |
+| D-4 | Bare-arm semantics and arm split | (a) shared prompt; all seven outcome graders `both`; `fired` and `contract-delivered` `with-only`; (b) every outcome grader `with-only`; (c) deterministic graders `both`, `llm` graders `with-only` | **(a)** | The prompt is shared, so the bare arm also gets the contract. Δ isolates the agent body, and the with-craft score is the evidence. (b) reports no Δ. (c) hides whether a bare session reports a `GUARD` as well as the agent's handback line does. |
 | D-5 | The in-sandbox commit failure | (a) the prompt tells the agent to stop at the green gate without committing and to write "no commit" in the hash slot; (b) keep the commit and ask for the cycle lines whatever its outcome; (c) route git through an absolute path | **(a)** | (a) behaves the same on every machine and spends no turns fighting git. It also keeps the blocker protocol from replacing the cycle lines with a `{unit, reason, options}` handback. No grader reads the commit. (b) leaves the handback shape to how the agent handles a red commit. (c) is machine-specific, and a `PATH` route did not work (maintainer-smokes "Git inside the sandbox"). |
 | D-6 | Recording the ninth case against ADR-395 ("ships eight cases") | (a) a new ADR that refines ADR-395 to nine cases; (b) amend ADR-395 in place; (c) drop or merge a case to stay at eight | **(a)** | The ADR corpus refines rather than rewrites (ADR-412 refines ADR-407). ADR-395's options weighed trigger and decisions coverage, which this case does not touch. |
 | D-7 | Sweep wiring for an `agent`-tagged case (the tag itself is fixed by the brief) | (a) the "Eval sweep" paragraph names the case; per-tier results go in the matrix note; the part-TDD cell stays with the full-pipeline run; (b) the case also fills the part-TDD cell; (c) a separate tag so `--tag agent` stays planner + reviewer | **(a)** | `--tag agent` will run it in every sweep, so the paragraph must say so. Filling part-TDD from a one-part `GUARD` probe would overclaim: that dimension covers full-pipeline TDD. (c) contradicts the brief's tag. |

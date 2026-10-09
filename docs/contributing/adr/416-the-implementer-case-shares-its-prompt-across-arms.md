@@ -14,7 +14,7 @@ The bare arm has no `craft:part-implementer` agent. Deciding which graders score
 
 ## Options considered
 
-1. **Shared prompt; the six outcome graders score both arms; `fired` and `contract-delivered` are with-only** *(recommended)* — pros: Δ isolates the agent body / cons: the bare arm also gets the contract, so Δ says nothing about the contract text itself
+1. **Shared prompt; the seven outcome graders score both arms; `fired` and `contract-delivered` are with-only** *(recommended)* — pros: Δ isolates the agent body / cons: the bare arm also gets the contract, so Δ says nothing about the contract text itself
 2. **Every outcome grader with-only** — pros: simple / cons: no Δ
 3. **Deterministic graders both, `llm` graders with-only** — pros: cheaper judge / cons: hides whether a bare session reports a `GUARD` as well as the agent does
 
