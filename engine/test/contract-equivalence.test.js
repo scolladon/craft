@@ -32,7 +32,7 @@ const DESCRIPTORS = parsePipeline(
 // Markers specific to each bundle.
 const PHASE_EXPECTATIONS = {
   producer:       ['template', 'Decision-candidates', 'convergence', 'mktemp'],
-  construction:   ['RED→GREEN→REFACTOR', 'atomic commit', 'sut'],
+  construction:   ['RED→GREEN→REFACTOR', 'atomic commit', 'sut', 'confirmed passing for its stated reason', 'fails on its first run is a RED'],
   'harness-read': ['Read-only', 'findings', 'Zero findings'],
   'harness-exec': ['triages', 'Never weaken', 'change-scoped'],
   delivery:       ['traceable', 'listed targets', 'synthesis records'],
