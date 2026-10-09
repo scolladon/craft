@@ -221,18 +221,34 @@ broke code or attempted a git revert to watch a test fail. The arrival rule did 
 and sonnet handed back a blocker on the failing `GUARD` in every run, haiku wrote its GREEN but
 never reported the plan mismatch. USD 3.77, pilots and replay included.
 
-**State the arriving-`GUARD` rule in the construction contract.** `contracts/construction.md`
-line 1 says a plan `GUARD` "owes no failure and no GREEN" and never says what to do when one
-fails on arrival; the rule ("a RED: write its GREEN, report a RED/GREEN cycle, note the plan
-mismatch as a deferred observation; no blocker") lives only in
-`docs/contributing/design/planner-red-label-audit.md` § "Contract edge behaviour".
-`implementer-runs-guards` measured the gap: opus 4 of 4 and sonnet 5 of 5 with-craft runs
-blocked at the failing `GUARD`, citing that a `GUARD` owes no GREEN; haiku 4 of 4 greened it
-silently and kept the `GUARD` label. Add the arrival clause to the contract line (no adapter
-mirror carries it), then re-run the case per agent tier (`docs/contributing/maintainer-smokes.md`
-§ Model-class matrix, "Eval sweep"); the numbers above are the before. Watch
-`arrival-guard-observed` at haiku, and `guard-ran-green` at opus and sonnet, which turns
-non-vacuous only once the part runs past step 1.
+**State the arriving-`GUARD` rule in the construction contract — delivered 2026-10-09**
+(fix/arriving-guard-contract-rule). Line 1 of `contracts/construction.md` now confirms a `GUARD`
+"passing for its stated reason" only when it passes on its first run, and says a `GUARD` that
+fails on its first run is a RED: write its GREEN, report a RED/GREEN cycle, note the plan
+mismatch as a deferred observation, not a blocker. A planned RED that passes stays a blocker.
+`engine/test/contract-equivalence.test.js` pins the new clauses, and pins the eval grader's
+phrase with its exact casing. `implementer-runs-guards` with-craft / bare / Δ per agent tier,
+before → after (3 runs per arm): opus 0.57 / 0.29 / +0.29 → 1.00 / 0.29 / +0.71, sonnet
+0.57 / 0.29 / +0.29 → 1.00 / 0.29 / +0.71, haiku 0.86 / 0.29 / +0.57 → unchanged. Opus and
+sonnet no longer block: every run wrote the GREEN, reported the mismatch and ran past step 1.
+Haiku writes the GREEN but reported the mismatch in 1 of 4 runs (pilot included). USD 3.43,
+pilots included.
+
+**Haiku omits the arriving-`GUARD` deferred observation.** After the contract change, haiku
+wrote the GREEN for the failing step-1 `GUARD` in every run but reported the plan mismatch in
+1 of 4 (`arrival-guard-observed` FAIL in all three sweep runs); two runs kept the `GUARD` label.
+The contract states the rule, so the gap is in how haiku turns it into the handback. One
+candidate is naming the case in the handback line of `agents/part-implementer.md`, which
+ADR-423 left unchanged for lack of evidence; this is that evidence.
+Re-run `implementer-runs-guards` at haiku per `docs/contributing/maintainer-smokes.md`
+§ Model-class matrix, "Eval sweep"; the numbers above are the before.
+
+**Bound the arriving-`GUARD` exemption to the part.** The arriving-`GUARD` clause says "not a
+blocker" without a condition, while the contract's Scope line keeps the implementer inside its
+part. When a `GUARD` fails on its first run and its GREEN would land outside the part, the two
+pull apart. Review raised it; the maintainer left it open because no run has shown it. Prove it
+first with an eval fixture whose failing `GUARD`'s GREEN lies in a file another part owns, and
+check whether the implementer edits that file or blocks.
 
 **Fill the model-class matrix from the eval sweep — delivered 2026-10-07**
 (docs/model-class-matrix-eval-sweep). The planner and structured-review cells of
