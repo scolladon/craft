@@ -27,3 +27,4 @@ The maintainer chose option 1. A plan `GUARD` entry is written, run, and confirm
 
 - ADR-407's consequence that `agents/part-implementer.md` stays unchanged no longer holds for its handback line.
 - The implementer's behaviour on a `GUARD` has no behavioural eval; a reviewer or an implementation-phase observation is the only evidence until a case measures it.
+- ADR-421 refines this: "confirmed passing for its stated reason" and "owes no failure and no GREEN" hold only for a `GUARD` that passes on its first run; a `GUARD` that fails on its first run is a RED.

@@ -20,10 +20,10 @@ ADR-412's contract sentence says a plan `GUARD` "owes no failure and no GREEN" a
 
 ## Decision
 
-The maintainer chose option 2. Line 1 of `contracts/construction.md` reads: a plan GUARD entry is written, run, and confirmed passing for its stated reason, and no step breaks code to watch it fail. A GUARD that passes on its first run owes no failure and no GREEN. A GUARD that fails on its first run is a RED: write its GREEN, report a RED/GREEN cycle, and note the plan mismatch as a deferred observation, not a blocker. A planned RED that passes on its first run stays a blocker under the unchanged first sentence.
+The maintainer chose option 2. Line 1 of `contracts/construction.md` reads: a plan GUARD entry is written and run, and no step breaks code to watch it fail. A GUARD that passes on its first run is confirmed passing for its stated reason and owes no failure and no GREEN. A GUARD that fails on its first run is a RED: write its GREEN, report a RED/GREEN cycle, and note the plan mismatch as a deferred observation, not a blocker. A planned RED that passes on its first run stays a blocker under the unchanged first sentence.
 
 ## Consequences
 
-- ADR-412's "owes no failure and no GREEN" now holds only for a `GUARD` that passes on its first run; its other guarantees stand.
+- ADR-412's "confirmed passing for its stated reason" and "owes no failure and no GREEN" now hold only for a `GUARD` that passes on its first run, since a `GUARD` that fails on its first run cannot meet either; "no step breaks code to watch it fail" still binds every `GUARD`.
 - A `GUARD` that fails and whose GREEN lies outside the part is left open: the Scope line and "not a blocker" pull apart, and no run has produced one.
 - The paid `implementer-runs-guards` sweep per agent tier is the behavioural evidence.

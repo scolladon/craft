@@ -80,13 +80,13 @@ the edit directly.
 **The line after (recommended D-1 (b), D-2 (a)).**
 
 ```
-RED→GREEN→REFACTOR strictly: write the test first, run it (it must fail for the stated reason), then write minimal code to pass, then refactor. Never write implementation before its failing test. A plan GUARD entry is written, run, and confirmed passing for its stated reason, and no step breaks code to watch it fail. A GUARD that passes on its first run owes no failure and no GREEN. A GUARD that fails on its first run is a RED: write its GREEN, report a RED/GREEN cycle, and note the plan mismatch as a deferred observation, not a blocker.
+RED→GREEN→REFACTOR strictly: write the test first, run it (it must fail for the stated reason), then write minimal code to pass, then refactor. Never write implementation before its failing test. A plan GUARD entry is written and run, and no step breaks code to watch it fail. A GUARD that passes on its first run is confirmed passing for its stated reason and owes no failure and no GREEN. A GUARD that fails on its first run is a RED: write its GREEN, report a RED/GREEN cycle, and note the plan mismatch as a deferred observation, not a blocker.
 ```
 
 | Clause | Closes |
 |---|---|
-| "confirmed passing for its stated reason, and no step breaks code to watch it fail" | ADR-412's guarantees, unchanged in force; the grader phrase survives (P3) |
-| "A GUARD that passes on its first run owes no failure and no GREEN" | the ADR-412 exemption, now scoped to the case it was written for, so it no longer reads as an absolute (opus, sonnet) |
+| "no step breaks code to watch it fail" | ADR-412's break-to-prove ban, still binding every `GUARD` |
+| "A GUARD that passes on its first run is confirmed passing for its stated reason and owes no failure and no GREEN" | ADR-412's confirmation and exemption, now scoped to the case they were written for, so neither reads as an absolute a failing `GUARD` cannot meet (opus, sonnet); the grader phrase survives (P3) |
 | "fails on its first run is a RED: write its GREEN" | the blocker and the removed test edit (opus, sonnet) |
 | "report a RED/GREEN cycle" | a fixed failing `GUARD` reported under the `GUARD` label (haiku) |
 | "note the plan mismatch as a deferred observation" | the silent fix (haiku); it lands in the handback slot P7 already has |

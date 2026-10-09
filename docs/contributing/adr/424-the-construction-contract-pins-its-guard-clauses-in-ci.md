@@ -21,8 +21,9 @@ ADR-412's contract edit shipped with no structural test. The `implementer-runs-g
 
 ## Decision
 
-The maintainer chose option 3. `PHASE_EXPECTATIONS.construction` in `engine/test/contract-equivalence.test.js` carries "fails on its first run is a RED" and "confirmed passing for its stated reason".
+The maintainer chose option 3. `PHASE_EXPECTATIONS.construction` in `engine/test/contract-equivalence.test.js` carries "confirmed passing for its stated reason", "passes on its first run is confirmed passing for its stated reason", "fails on its first run is a RED: write its GREEN" and "not a blocker". Because that marker check ignores case and the grader does not, a separate test asserts "confirmed passing for its stated reason" with its exact casing.
 
 ## Consequences
 
 - Rewording either clause of `contracts/construction.md` needs the marker updated in the same change.
+- "report a RED/GREEN cycle", "deferred observation" and "no step breaks code to watch it fail" stay unpinned; only the paid sweep checks them.
