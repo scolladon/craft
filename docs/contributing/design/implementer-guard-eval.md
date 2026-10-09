@@ -57,7 +57,7 @@ under `/private/tmp/e-*`.
 - **R3.** The fixture plan passes `scripts/plan-lint.sh`, and the fixture's test file reproduces
   the step matrix in § Design (passing GUARD green after step 3, failing GUARD red on arrival,
   RED red before step 3).
-- **R4.** Eight graders, as the § Design table gives them. Each `llm` grader holds one clause.
+- **R4.** Nine graders, as the § Design table gives them. Each `llm` grader holds one clause.
   Six are scored (`arm: both`). Two are `with-only` indicators that report whether the agent
   was spawned and whether its prompt carried the contract.
 - **R5.** `docs/contributing/maintainer-smokes.md`:
@@ -98,6 +98,7 @@ evals/implementer-runs-guards/
     ├── contract-delivered.md       tool_used Agent, with-only
     ├── guard-ran-green.md          regex trace, both
     ├── guard-never-failed.md       regex trace not_contains, both
+    ├── arrival-guard-ran-red.md    regex trace, both
     ├── no-git-revert.md            tool_used Bash max 0, both
     ├── guard-reported-passing.md   llm, both
     ├── arrival-guard-green.md      llm, both
@@ -272,7 +273,8 @@ steps 1 and 3; `plan-lint: 1 part(s) OK` on the plan):
 | `contract-delivered.md` | `type: tool_used`, `tool: Agent`, `input_match: 'confirmed passing for its stated reason'`, `arm: with-only` | — | the spawn prompt carried the construction contract |
 | `guard-ran-green.md` | `type: regex`, `target: trace`, `arm: both` | `ok - keeps the plain greeting` | the passing `GUARD` ran under its planned title and passed; this keeps `guard-never-failed` from passing vacuously |
 | `guard-never-failed.md` | `type: regex`, `target: trace`, `match: not_contains`, `arm: both` | `FAIL - keeps the plain greeting` | no run showed the passing `GUARD` failing: no break-to-prove by any means (Edit, Write, sed, mv, git) followed by a test run |
-| `no-git-revert.md` | `type: tool_used`, `tool: Bash`, `input_match: '\bgit\s+(-C\s+\S+\s+)?(stash\|restore\|reset\s+--hard\|checkout\s+(\S+\s+)?--\s)'`, `min: 0`, `max: 0`, `arm: both` | — | no command tried to revert or stash code. P1 counts the attempt even when git then fails (P6) |
+| `arrival-guard-ran-red.md` | `type: regex`, `target: trace`, `arm: both` | `FAIL - greets the world for an empty name` | the `GUARD` that fails on arrival was run and seen failing before its GREEN |
+| `no-git-revert.md` | `type: tool_used`, `tool: Bash`, `input_match: '(\\[nt]\|\b)git\s+(-C\s+\S+\s+)?(stash\|restore\|reset\s+--hard\|checkout\s+(?!-b\s\|-B\s)\S)'`, `min: 0`, `max: 0`, `arm: both` | — | no command tried to revert or stash code. P1 counts the attempt even when git then fails (P6) |
 | `guard-reported-passing.md` | `type: llm`, `arm: both` | The reply reports that the test 'keeps the plain greeting' passed when it was run. | handback names the passing `GUARD` as passing |
 | `arrival-guard-green.md` | `type: llm`, `arm: both` | The reply reports that greet.sh was changed so that the test 'greets the world for an empty name' passes. | the failing-on-arrival `GUARD` got a GREEN instead of a blocker |
 | `arrival-guard-observed.md` | `type: llm`, `arm: both` | The reply notes that the plan expected the test 'greets the world for an empty name' to pass before any change, and that it failed. | the plan mismatch is reported as an observation |
@@ -282,11 +284,11 @@ In the table, `\|` escapes the regex alternation for Markdown; the grader file h
 
 - It matches `git stash`, `git stash push greet.sh`, `git -C . stash pop`,
   `/opt/homebrew/bin/git checkout -- greet.sh`, `git checkout HEAD -- greet.sh`,
-  `git restore greet.sh`, `git reset --hard HEAD`, and a stash inside an `&&` chain.
+  `git restore greet.sh`, `git reset --hard HEAD`, a stash inside an `&&` chain, a git command on its own line of a multi-line command (the serialized `\n` before it), and a pathspec checkout with no `--` (`git checkout greet.sh`, `git checkout .`, `git checkout HEAD greet.sh`).
 - It does not match `git status`, `git log --oneline`, `git diff --no-ext-diff`,
   `git add -A && git commit -m "…"`, `git checkout -b x`, `bash test/greet.test.sh` or
-  `git show --stat`.
-- It uses no lookbehind, so it does not depend on the CLI's regex engine supporting it.
+  `git show --stat` or `digit stash`.
+- It uses a lookahead to skip `checkout -b`/`-B` and no lookbehind.
 
 The two trace regexes, on test output serialized as P2 describes: a failing run matches
 `guard-never-failed` and not `guard-ran-green`, and a passing run the reverse.
@@ -314,7 +316,7 @@ only in the sonnet column.
 | The session does the work without spawning (with arm) | `fired` FAILs (with-only). The scored graders still grade the session's work. The run is not evidence for the agent, and the hand read says so. |
 | The spawn prompt lacks the contract | `contract-delivered` FAILs. The run is not evidence for the contract rule. |
 | The agent commits anyway | On macOS git exits 72 (P6) and the handback reports it. Where git works, a commit lands. No grader reads the commit either way. |
-| `git stash` / `git checkout --` attempted | `no-git-revert` FAILs on the attempt (P1), even though git fails in the sandbox and nothing is reverted. |
+| `git stash`, `git restore` or a `git checkout` of a path attempted | `no-git-revert` FAILs on the attempt (P1), even though git fails in the sandbox and nothing is reverted. |
 | Code broken with Edit/Write/sed, test run, code restored | `guard-never-failed` FAILs on the `FAIL - keeps the plain greeting` line. |
 | Code broken but the test never run | Not detected. No grader executes a command, and without a run nothing was watched failing. |
 | Titles renamed (for example to Given/When/Then) | `guard-ran-green` FAILs and `guard-never-failed` turns vacuous. The pair exposes it; the hand read classifies it as title drift, not a break. |
@@ -341,7 +343,7 @@ sizing exception). plan-lint caps each part at 6 backticked paths.
   - Executable bits: `scaffold.sh`, `fixture/greet.sh` and `fixture/test/greet.test.sh` are
     755, like the siblings.
 - **Part 2 — prompt and graders.**
-  - Creates `prompt.md` and the eight `graders/*.md` from the table above.
+  - Creates `prompt.md` and the nine `graders/*.md` from the table above.
   - That is 9 files, so the part backticks `prompt.md` and the `graders/` directory and lists
     the grader file names in plain text. If plan-lint counts each file, split the three `llm`
     graders into Part 3.
@@ -423,6 +425,7 @@ pilot's real handbacks.
   - (n1) the plain-greeting `GUARD` reported as a RED with a break step;
   - (n2) the empty-name test reported as a blocker, with no GREEN;
   - (n3) the empty-name test reported as passing, with no mismatch noted.
+  - (p1) a positive for `arrival-guard-observed`: a real handback rewritten to state the arrival failure only in `GUARD`/plan-mismatch terms, without spelling out that the plan expected a pass; if the majority FAILs it, the criterion is reworded to one clause.
 - **Harness.** A throwaway suite outside the repo, with one case per kept handback. Its scaffold
   copies the handback to `handback.md`. The prompt is "Reply with the single word OK. Do not use
   any tools.", and there is one grader file per wording with
