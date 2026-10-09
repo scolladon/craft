@@ -88,18 +88,18 @@ test('Given scripts/ci.sh, when its content is read, then run_prose_lint exclude
   );
 });
 
-test('Given scripts/ci.sh, when the hygiene block is located, then it sits after the lint chain and non-adjacent to run_intention_lint', () => {
+test('Given scripts/ci.sh, when the hygiene block is located, then it sits after the static-lints call and non-adjacent to run_intention_lint', () => {
   const content = fs.readFileSync(CI_SCRIPT, 'utf8');
   const intentionIdx = content.indexOf('run_intention_lint');
-  const lintChainIdx = content.indexOf('shellcheck scripts');
+  const staticLintsIdx = content.indexOf('bash scripts/static-lints.sh');
   const stubLintIdx = content.indexOf('run_stub_lint');
 
   assert.ok(intentionIdx >= 0, 'expected run_intention_lint to be present');
-  assert.ok(lintChainIdx >= 0, 'expected the shellcheck lint chain to be present');
+  assert.ok(staticLintsIdx >= 0, 'expected the static-lints call to be present');
   assert.ok(stubLintIdx >= 0, 'expected run_stub_lint to be present');
   assert.ok(
-    intentionIdx < lintChainIdx && lintChainIdx < stubLintIdx,
-    'expected run_intention_lint < shellcheck lint chain < run_stub_lint ordering'
+    intentionIdx < staticLintsIdx && staticLintsIdx < stubLintIdx,
+    'expected run_intention_lint < static-lints call < run_stub_lint ordering'
   );
 });
 
