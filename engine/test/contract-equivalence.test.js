@@ -32,7 +32,7 @@ const DESCRIPTORS = parsePipeline(
 // Markers specific to each bundle.
 const PHASE_EXPECTATIONS = {
   producer:       ['template', 'Decision-candidates', 'convergence', 'mktemp'],
-  construction:   ['RED→GREEN→REFACTOR', 'atomic commit', 'sut', 'confirmed passing for its stated reason', 'fails on its first run is a RED'],
+  construction:   ['RED→GREEN→REFACTOR', 'atomic commit', 'sut', 'confirmed passing for its stated reason', 'passes on its first run is confirmed passing for its stated reason', 'fails on its first run is a RED: write its GREEN', 'not a blocker'],
   'harness-read': ['Read-only', 'findings', 'Zero findings'],
   'harness-exec': ['triages', 'Never weaken', 'change-scoped'],
   delivery:       ['traceable', 'listed targets', 'synthesis records'],
@@ -284,5 +284,23 @@ test('Given the core git-safety invariant, when a descriptor is assembled in age
   assert.ok(
     hasCI(inlineBlock, 'repo-wide git state'),
     'Descriptor "planning": repo-wide git-state marker missing from inline-mode assembly',
+  );
+});
+
+// ─── construction GUARD phrase: exact casing ──────────────────────────────
+// The behavioural eval matches this phrase in the spawn prompt with a
+// case-sensitive pattern, so the case-insensitive marker loop cannot guard it.
+
+const CONSTRUCTION_GUARD_PHRASE = 'confirmed passing for its stated reason';
+
+test('Given the implementation descriptor, when assembled in agent mode, then the construction GUARD phrase appears with its exact casing', () => {
+  const descriptor = DESCRIPTORS.find(d => d.id === 'implementation');
+  const sut = assembleContract;
+
+  const result = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+
+  assert.ok(
+    result.includes(CONSTRUCTION_GUARD_PHRASE),
+    `Descriptor "implementation": "${CONSTRUCTION_GUARD_PHRASE}" missing with its exact casing`,
   );
 });
