@@ -211,14 +211,28 @@ leaves a passing test unnamed in a RED step; one more haiku plan is a borderline
 meets the design's 8-of-9 rule only at the threshold. Haiku never writes the `GUARD` token
 (0 of 3). USD 6.85 for the before and after runs.
 
-**Measure the part-implementer on a plan with `GUARD` entries.** The construction contract now
-tells the implementer to run a planned `GUARD` and confirm it passes, with no failure, no GREEN
-and no break-to-prove step, and to treat a `GUARD` that fails on arrival as a RED. No eval case
-covers the implementer (`docs/contributing/maintainer-smokes.md` "Evidence, not gate" has no
-row for it), so this rule shipped without behavioural evidence. Add a case that hands
-`craft:part-implementer` a one-part plan with a RED, a `GUARD` and a `GUARD` that fails on
-arrival. Grade it on the handback lines and on whether any command reverts or breaks code to
-make a test fail.
+**Measure the part-implementer on a plan with `GUARD` entries — delivered 2026-10-09**
+(feat/implementer-guard-eval). `evals/implementer-runs-guards` hands `craft:part-implementer` a
+one-part plan with a `GUARD` that fails on arrival, a RED and a passing `GUARD`, prepended with
+the assembled construction contract; nine graders, three of them `llm`, validated by a faithful
+replay (18 of 18 grades matched the hand read). Per agent tier, with-craft / bare / Δ over three
+runs: opus 0.57 / 0.29 / +0.29, sonnet 0.57 / 0.29 / +0.29, haiku 0.86 / 0.29 / +0.57. No run
+broke code or attempted a git revert to watch a test fail. The arrival rule did not hold: opus
+and sonnet handed back a blocker on the failing `GUARD` in every run, haiku wrote its GREEN but
+never reported the plan mismatch. USD 3.77, pilots and replay included.
+
+**State the arriving-`GUARD` rule in the construction contract.** `contracts/construction.md`
+line 1 says a plan `GUARD` "owes no failure and no GREEN" and never says what to do when one
+fails on arrival; the rule ("a RED: write its GREEN, report a RED/GREEN cycle, note the plan
+mismatch as a deferred observation; no blocker") lives only in
+`docs/contributing/design/planner-red-label-audit.md` § "Contract edge behaviour".
+`implementer-runs-guards` measured the gap: opus 4 of 4 and sonnet 5 of 5 with-craft runs
+blocked at the failing `GUARD`, citing that a `GUARD` owes no GREEN; haiku 4 of 4 greened it
+silently and kept the `GUARD` label. Add the arrival clause to the contract line (no adapter
+mirror carries it), then re-run the case per agent tier (`docs/contributing/maintainer-smokes.md`
+§ Model-class matrix, "Eval sweep"); the numbers above are the before. Watch
+`arrival-guard-observed` at haiku, and `guard-ran-green` at opus and sonnet, which turns
+non-vacuous only once the part runs past step 1.
 
 **Fill the model-class matrix from the eval sweep — delivered 2026-10-07**
 (docs/model-class-matrix-eval-sweep). The planner and structured-review cells of
