@@ -175,6 +175,23 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-09 — follow-ups surfaced by the harder-decisions-fork-fixture run, not yet scheduled)
+
+**`ci.sh` lint chain fails open.** `scripts/ci.sh` lines 80–86 run shellcheck, pipeline-lint,
+pipeline-resolve, contracts-lint, backlog-lint, design-lint, the three `docs-structure-lint.sh`
+calls and `sync-adapter-agents.sh --check` as one `a && b && …` list. Under `set -e`, a failure
+anywhere but the last command of a `&&` list does not stop the script, so a red lint before
+`sync-adapter-agents.sh` is ignored (`bash -c 'set -euo pipefail; false && true; echo continued'`
+prints `continued`, exit 0). Observed: run from a `/var/folders/…` throwaway clone,
+`docs-structure-lint.sh --audience docs` exited 2 and `ci.sh` still exited 0. Fix: one command
+per line (or `|| exit 1` on each), plus a test that a failing lint fails `ci.sh`.
+
+**Prune review: the decisions skill's escalation path.** With the hint removed from its fixture,
+`decisions-escalates-fork` still scores bare 1.00 / Δ 0.00 over three runs (2026-10-09): the
+bare model escalates the uncovered fork on its own. Take that to `craft:prune` as evidence for
+the escalation wording in `skills/decisions/SKILL.md`; keep the `NO-OP(decisions):` path and its
+`decisions-noop-when-clear` case (+0.50) out of the candidate.
+
 ### Open (scoped 2026-10-06 — follow-ups surfaced by the plugin-eval-suite run, not yet scheduled)
 
 **Suite pilot and grader calibration for the behavioural eval suite — delivered 2026-10-06**
@@ -192,10 +209,16 @@ invocation, so the trigger cases now run in their own invocation without it; a f
 needs `npm ci` in `engine/` before any run. Still unconfirmed: whether craft's hooks load in
 the eval child.
 
-**Harder fixture for `decisions-escalates-fork`.** Δ is 0.00 because the bare model escalates
-the fork too, but the fixture's design doc says "a product call no ADR covers", which hands it
-the answer. Drop that phrase so the case measures whether the decisions skill spots an
-uncovered fork on its own; re-pilot before reading its Δ as prune evidence.
+**Harder fixture for `decisions-escalates-fork` — delivered 2026-10-09**
+(fix/harder-decisions-fork-fixture). The fixture's design doc no longer ends its Why cell with
+"a product call no ADR covers"; the trade-off itself stays. with-craft / bare / Δ, before → after:
+1.00 / 1.00 / 0.00 (suite pilot 2026-10-06, 1 run per arm) → 1.00 / 1.00 / 0.00 (pilot, 1 run
+per arm, USD 0.31) and 1.00 / 1.00 / 0.00 (3 runs per arm, USD 0.92; Claude Code 2.1.295,
+session at opus, judge sonnet). Every grader passed 3 of 3 in both arms; there was no FAIL to
+read. Every bare run escalated on its own, noting that the Why cell argues against the
+recommended option and that Requirement 1 covers only a terminal. This is the prune evidence
+maintainer-smokes "Reading results" asks for, for the decisions skill's escalation path;
+nothing is pruned here, and the case stays for its with-only `no-false-noop` grader.
 
 **The planner labels an already-passing test as RED — delivered 2026-10-08**
 (fix/planner-red-label-audit). `agents/planner.md` now says a RED fails against the code as it
