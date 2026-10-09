@@ -456,3 +456,7 @@ harder-decisions-fork-fixture design turns=19 tool_calls=20 tokens=908636 durati
 harder-decisions-fork-fixture documentation turns=4 tool_calls=4 tokens=69331 duration_ms=75971 cache_read=52571 cache_creation=16700 output=52 avg_ctx=17320 equiv=26400
 harder-decisions-fork-fixture implementation turns=5 tool_calls=5 tokens=84688 duration_ms=61694 cache_read=65341 cache_creation=19138 output=199 avg_ctx=16898 equiv=31462
 harder-decisions-fork-fixture planning turns=25 tool_calls=26 tokens=922330 duration_ms=422043 cache_read=872225 cache_creation=49778 output=277 avg_ctx=36882 equiv=150880
+ci-lint-chain-fail-closed design turns=46 tool_calls=50 tokens=2090263 duration_ms=644571 cache_read=1971946 cache_creation=117732 output=493 avg_ctx=45430 equiv=346917
+ci-lint-chain-fail-closed implementation turns=10 tool_calls=10 tokens=251572 duration_ms=121800 cache_read=224310 cache_creation=26888 output=354 avg_ctx=25122 equiv=57831
+ci-lint-chain-fail-closed planning turns=39 tool_calls=40 tokens=2584654 duration_ms=748644 cache_read=2481502 cache_creation=100385 output=2689 avg_ctx=66204 equiv=387154
+ci-lint-chain-fail-closed review turns=52 tool_calls=53 tokens=1344304 duration_ms=1207270 cache_read=1212016 cache_creation=131509 output=675 avg_ctx=25839 equiv=289067
