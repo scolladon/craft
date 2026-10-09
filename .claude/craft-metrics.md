@@ -442,3 +442,8 @@ planner-red-label-audit documentation turns=4 tool_calls=5 tokens=69086 duration
 planner-red-label-audit implementation turns=12 tool_calls=12 tokens=212548 duration_ms=128856 cache_read=171389 cache_creation=40673 output=462 avg_ctx=17674 equiv=70314
 planner-red-label-audit planning turns=46 tool_calls=46 tokens=1761695 duration_ms=484388 cache_read=1655790 cache_creation=105295 output=518 avg_ctx=38286 equiv=299880
 planner-red-label-audit review turns=87 tool_calls=94 tokens=2983785 duration_ms=908412 cache_read=2698684 cache_creation=283346 output=1581 avg_ctx=34278 equiv=632130
+implementer-guard-eval design turns=72 tool_calls=75 tokens=6650355 duration_ms=1079813 cache_read=6487528 cache_creation=161878 output=805 avg_ctx=92355 equiv=855269
+implementer-guard-eval documentation turns=6 tool_calls=6 tokens=118552 duration_ms=220822 cache_read=95967 cache_creation=22469 output=104 avg_ctx=19741 equiv=38215
+implementer-guard-eval implementation turns=21 tool_calls=23 tokens=426438 duration_ms=180414 cache_read=364238 cache_creation=61354 output=804 avg_ctx=20268 equiv=117178
+implementer-guard-eval planning turns=59 tool_calls=61 tokens=4556839 duration_ms=880731 cache_read=4421429 cache_creation=134296 output=996 avg_ctx=77218 equiv=615111
+implementer-guard-eval review turns=45 tool_calls=50 tokens=1383536 duration_ms=538226 cache_read=1187816 cache_creation=194288 output=1342 avg_ctx=30715 equiv=368442
