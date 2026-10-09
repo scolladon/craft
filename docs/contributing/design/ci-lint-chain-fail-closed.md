@@ -3,7 +3,7 @@
 > Brief: every lint in the `scripts/ci.sh` lint block (L80–86) must fail `ci.sh` when it
 > fails; today seven of the ten lint invocations are fail-open because they sit in a non-final
 > position of one `a && b && …` list. RED-first: a test proves a failing lint fails the block.
-> Status: draft → self-reviewed ×3 → accepted
+> Status: draft → self-reviewed ×3 → revised against ADRs 429-432 (every candidate settled)
 
 ## Context
 
@@ -77,6 +77,10 @@ Errexit primitives, each run as `bash -c 'set -euo pipefail; <probe>'`:
 | `false && true; echo continued` | 0 | `continued` |
 | `true && false; echo continued` | 1 | — |
 | `true && false && true; echo continued` | 0 | `continued` |
+| `false && true && true` (the list is the last statement) | 1 | — |
+| script file `set -euo pipefail` + `false && true && true` as its last line, run as `bash a.sh` | 1 | — |
+| same script file + a trailing `true` line | 0 | — |
+| script file `set -euo pipefail` + `true && (exit 3)` as its last line | 3 | — |
 | `true && for x in a; do (exit 2) \|\| exit 1; done && true; echo continued` | 1 | — |
 | `(exit 2); echo continued` | 2 | — |
 | `for x in a b; do (exit 3); echo body-$x; done; echo continued` | 3 | — |
@@ -88,7 +92,9 @@ Errexit primitives, each run as `bash -c 'set -euo pipefail; <probe>'`:
 Current block, L80–86 copied verbatim under `set -euo pipefail` into a throwaway where every
 lint is a stub that exits 2 when it is the selected one (`shellcheck` stubbed on `PATH`, the
 three `engine/bin/*.js` and four `scripts/*.sh` stubbed in place); `ran-to-end` = a trailing
-`echo BLOCK-END` printed:
+`echo BLOCK-END` printed. That trailing statement matters: it stands for the hygiene block that
+follows the list in `ci.sh`, and the fail-open rows below hold only because a statement follows
+the list:
 
 | Failing lint | stub fired | ran-to-end | exit | verdict |
 |---|---|---|---|---|
@@ -104,6 +110,12 @@ three `engine/bin/*.js` and four `scripts/*.sh` stubbed in place); `ran-to-end` 
 | docs-structure-lint `--audience docs` | yes | yes | 0 | **fail-open** |
 | sync-adapter-agents `--check` | yes | no | 2 | fail-closed (last in list) |
 
+Without a following statement the list is the last statement of its script, and its
+short-circuited status becomes the script's exit (rows `false && true && true` above). So the
+verbatim move of this list into its own script, run alone, exits the stub's status for the
+seven fail-open positions; they leak again as soon as any statement follows the list. Moving
+the list is not the fix; splitting it is.
+
 Both fix forms, same harness: one-command-per-line → every failing row fail-closed, exit 2
 (the lint's own status), ran-to-end no; `|| exit 1` on each → every failing row
 fail-closed, exit 1 (status normalised). Control row green in both.
@@ -114,14 +126,16 @@ divergence goes red in CI, not silently green.
 
 Two consequences of the pins drive the design:
 
-1. A lint list is fail-closed only if every lint is its own statement (or carries an
-   explicit `exit`). Splitting into statements alone is enough under errexit.
+1. A lint list is fail-closed whatever follows it only if every lint is its own statement
+   (or carries an explicit `exit`). Splitting into statements alone is enough under errexit.
+   An `&&` list that ends its script propagates its status only while nothing is appended
+   after it.
 2. Errexit does not cross a `bash script.sh` boundary, and is disabled inside a function
    called from an `||`/`&&` context. So whichever unit holds the lints must declare
    `set -euo pipefail` itself (script) or be called as a bare statement (function), and the
    `ci.sh` call site must be a bare statement.
 
-### Shape (under the recommended candidates 1a + 2a)
+### Shape (candidates 1a + 2a, settled by ADR-429 and ADR-430)
 
 New `scripts/static-lints.sh` holds the block, one invocation per line, same order,
 self-rooted exactly like `ci.sh` L8 so a copy placed in any `<root>/scripts/` lints `<root>`:
@@ -161,10 +175,11 @@ Collateral edits (R5):
   `scripts/ci.sh`; title "Given scripts/static-lints.sh, when its content is read, then it
   wires --check into the static lints".
 
-Under candidate 1b instead, the block becomes a `run_static_lints()` function inside
-`ci.sh` with the same body (minus `set`/`cd`), called as the bare line `run_static_lints`;
-both collateral tests keep passing unchanged because the text stays in `ci.sh`. Under 2b,
-each line keeps `|| exit 1` and exit statuses normalise to 1.
+Rejected alternatives, for the record: under candidate 1b the block would have become a
+`run_static_lints()` function inside `ci.sh` with the same body (minus `set`/`cd`), called as
+the bare line `run_static_lints`; both collateral tests would have passed unchanged because
+the text stays in `ci.sh`. Under 2b, each line would keep `|| exit 1` and exit statuses would
+normalise to 1.
 
 ### Edge behaviour
 
@@ -173,16 +188,25 @@ each line keeps `|| exit 1` and exit statuses normalise to 1.
 - Fail-fast is preserved: the first red lint stops the block, as the AND-list intended.
 - A future editor re-joining two lines with `&&` re-opens the hole for the left command;
   the per-position behavioural test catches it (that position's case goes red).
+- The test does not run the shipped script byte for byte: it copies it and appends one
+  trailing `true` statement (ADR-432). Without it, a list that ends the script propagates its
+  status (pinned above), so a re-join of the last two lines, or the verbatim move itself,
+  would stay green until someone appends a lint. With it, the harness proves each lint stops
+  the script whatever follows it, and a re-join of the last two lines goes red now.
 - A future `bash scripts/static-lints.sh || true` (or `&&`-joined call) in `ci.sh` is
   caught by the wiring assertion (bare-line regex), not by the behavioural test.
 
 ## Decision candidates
 
+All four are settled ("ratified": the maintainer chose; "adopted": as recommended, no user
+judgment). Row 4 was raised during planning, after the RED measurement below.
+
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
 |---|---|---|---|---|
-| 1 | How the test isolates the lint block from the rest of `ci.sh` | (a) extract the block to `scripts/static-lints.sh`; the test copies the real script into a mktemp throwaway with stubbed lints and runs it; `ci.sh` calls it as a bare line. (b) keep it in `ci.sh` as a `run_static_lints()` function; the test carves the function text out of `ci.sh` (like `functionBody()`), runs it under `set -euo pipefail` in the same stubbed throwaway. (c) text-only structural assertion: no lint line in the block is joined by `&&` or a `\` continuation. | (a) | The test executes the shipped file byte for byte, not a regex carve; its own `set -euo pipefail` makes it fail-closed whoever calls it (pinned: errexit does not cross a `bash` boundary). Precedent: `scripts/living-corpus.sh`. Cost: two coupled tests are retargeted. (b) leaves those tests untouched but tests a text slice whose boundaries a crude carve can misread. (c) is cheapest but proves no behaviour: `shellcheck … \|\| true` on its own line passes it. |
-| 2 | Fix form inside the block | (a) one command per line, errexit enforces; loops drop their inner `\|\| exit 1`. (b) `\|\| exit 1` appended to every command. | (a) | Pinned: (a) propagates the lint's own exit status (2), (b) normalises it to 1. (a) matches every other step in `ci.sh` (bare statements) and the script's declared `set -euo pipefail` contract. (b) is redundant under errexit and invites the next edit to omit it on one line silently. |
-| 3 | Granularity of the RED test | (a) one case per lint position (10 failing-position cases + 1 green control asserting all twelve invocations, loop files included, ran in order). (b) one representative failing lint (e.g. docs-structure-lint `--audience docs`) + the green control. | (a) | The defect is position-dependent (pinned: 7 open, 3 closed). (b) can go green while other positions stay open; a later `&&` re-join at any position would only be caught by (a). Cost: 11 subprocess runs over stubs, each a few ms. |
+| 1 | How the test isolates the lint block from the rest of `ci.sh` | (a) extract the block to `scripts/static-lints.sh`; the test copies the real script into a mktemp throwaway with stubbed lints and runs it; `ci.sh` calls it as a bare line. (b) keep it in `ci.sh` as a `run_static_lints()` function; the test carves the function text out of `ci.sh` (like `functionBody()`), runs it under `set -euo pipefail` in the same stubbed throwaway. (c) text-only structural assertion: no lint line in the block is joined by `&&` or a `\` continuation. | (a) → **ADR-429, ratified (a)** | The test executes the shipped file (plus one appended trailing statement, row 4), not a regex carve; its own `set -euo pipefail` makes it fail-closed whoever calls it (pinned: errexit does not cross a `bash` boundary). Precedent: `scripts/living-corpus.sh`. Cost: two coupled tests are retargeted. (b) leaves those tests untouched but tests a text slice whose boundaries a crude carve can misread. (c) is cheapest but proves no behaviour: `shellcheck … \|\| true` on its own line passes it. |
+| 2 | Fix form inside the block | (a) one command per line, errexit enforces; loops drop their inner `\|\| exit 1`. (b) `\|\| exit 1` appended to every command. | (a) → **ADR-430, adopted (a)** | Pinned: (a) propagates the lint's own exit status (2), (b) normalises it to 1. (a) matches every other step in `ci.sh` (bare statements) and the script's declared `set -euo pipefail` contract. (b) is redundant under errexit and invites the next edit to omit it on one line silently. |
+| 3 | Granularity of the RED test | (a) one case per lint position (10 failing-position cases + 1 green control asserting all twelve invocations, loop files included, ran in order). (b) one representative failing lint (e.g. docs-structure-lint `--audience docs`) + the green control. | (a) → **ADR-431, adopted (a)** | The defect is position-dependent (pinned: 7 open, 3 closed). (b) can go green while other positions stay open; a later `&&` re-join at any position would only be caught by (a). Cost: 11 subprocess runs over stubs, each a few ms. |
+| 4 | How the harness runs the copied script | (a) copy the shipped `scripts/static-lints.sh` and append one trailing `true` statement. (b) byte-for-byte copy. (c) both harnesses. | (a) → **ADR-432, ratified (a)** | Measured: an `&&` list that is the last statement of its script propagates its short-circuit status, so (b) reds only 2/10 cases (the loops) against the verbatim move; (a) restores the "statements follow" condition of `ci.sh` and reds 9/10. (a) also catches a re-join of the last two lines. Cost: the throwaway script is the shipped bytes plus one line. (c) adds 11 cases for no extra coverage. |
 
 ## Test strategy
 
@@ -212,7 +236,9 @@ const LINT_IDS = [
 ```
 
 `buildThrowaway()`: `mkdtempSync(os.tmpdir()/static-lints-)` → `realpathSync`; copy the real
-`scripts/static-lints.sh` to `<tmp>/scripts/`; write stubs that append their id to
+`scripts/static-lints.sh` to `<tmp>/scripts/` and append one trailing line `true` to the copy
+(`TRAILING_STATEMENT = 'true\n'`; ADR-432: it restores the statement that follows the lints in
+`ci.sh`, without which a list ending the script would still propagate its status); write stubs that append their id to
 `$LINT_LOG` and exit `STUB_FAIL_STATUS` when their id equals `$FAIL_LINT`:
 `<tmp>/bin/shellcheck` (id `shellcheck`, args ignored — the glob expands to stub names),
 `<tmp>/scripts/{backlog-lint,design-lint,docs-structure-lint,sync-adapter-agents}.sh`
@@ -231,11 +257,15 @@ Cases (titles Given/When/Then, AAA, `sut` = the spawned result):
 | 12 | `scripts/ci.sh` text | matches `/^bash scripts\/static-lints\.sh$/m` (bare statement, no `\|\|`/`&&`), between `run_intention_lint` and `run_stub_lint` (the retargeted ordering test covers the order) |
 
 RED evidence (R3): land the extraction first as a verbatim move of the current AND-list
-(including `set -euo pipefail` + `cd`), run the new file, and record the result: per the
-pinned matrix cases 2–5 (shellcheck, pipeline-lint, pipeline-resolve, contracts-lint) and
-8–10 (docs-structure-lint ×3) — seven positions — fail with exit 0 and a log that runs past
-`<id>`; under candidate 2a's exact-status assertion cases 6–7 (the loops) also fail
-(exit 1 ≠ 3) — nine red, only case 11 (sync-adapter-agents) green. Then apply the one-per-line fix → all green.
+(including `set -euo pipefail` + `cd`), run the new test (its harness appends the trailing
+statement), and record the result: cases 2–5 (shellcheck, pipeline-lint, pipeline-resolve,
+contracts-lint) and 8–10 (docs-structure-lint ×3) — the seven fail-open positions — fail with
+exit 0 ≠ 3 (the log ends at `<id>`: the list short-circuited, then the trailing `true` ran);
+under 2a's exact-status assertion cases 6–7 (the loops) also fail (exit 1 ≠ 3) — 9/10 red,
+only case 11 (sync-adapter-agents, last in the list) green. Then apply the one-per-line fix →
+all green. A byte-for-byte copy without the trailing statement would red only cases 6–7
+(measured; ADR-432). The trailing statement also turns a later re-join of the last two lines
+(`docs-structure-lint --audience docs && sync-adapter-agents --check`) red: case 10 exits 0.
 Never commit the red state; the gate is `bash scripts/ci.sh`.
 
 Collateral verification: the two retargeted tests (L90–103, L409–418) green; `shellcheck`
