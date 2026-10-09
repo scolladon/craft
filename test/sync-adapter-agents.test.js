@@ -406,9 +406,9 @@ test('Given a shared agent file carrying a tools key in its frontmatter, when --
   });
 });
 
-test('Given scripts/ci.sh, when its content is read, then it wires --check into the lint chain', () => {
+test('Given scripts/static-lints.sh, when its content is read, then it wires --check into the static lints', () => {
   // Arrange
-  const sut = fs.readFileSync(path.join(ROOT, 'scripts', 'ci.sh'), 'utf8');
+  const sut = fs.readFileSync(path.join(ROOT, 'scripts', 'static-lints.sh'), 'utf8');
 
   // Act
   const result = sut.includes('bash scripts/sync-adapter-agents.sh --check');

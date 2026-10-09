@@ -129,7 +129,7 @@ require_trusted_pointer() {
 # topic never leaks its lines into the new run.
 write_atomically() {
   local target="$1" content="$2" tmp
-  [ ! -L "$target" ] && [ ! -d "$target" ] || die "refusing a symlinked or directory run file: $target"
+  if [ -L "$target" ] || [ -d "$target" ]; then die "refusing a symlinked or directory run file: $target"; fi
   tmp="$(mktemp "$(runs_dir)/.craft-run-ledger.XXXXXX")"
   printf '%s\n' "$content" > "$tmp"
   mv "$tmp" "$target"
@@ -140,7 +140,7 @@ write_atomically() {
 sweep_stale_pointers() {
   local ptr run_id
   for ptr in "$(runs_dir)"/*"$POINTER_SUFFIX"; do
-    [ -f "$ptr" ] && [ ! -L "$ptr" ] || continue
+    if [ ! -f "$ptr" ] || [ -L "$ptr" ]; then continue; fi
     run_id="$(basename "$ptr" "$POINTER_SUFFIX")"
     if ! read_pointer "$run_id" || [ ! -f "$ledger" ]; then
       rm -f "$ptr"
@@ -198,7 +198,7 @@ trusted_candidates() {
   for ptr in "$(runs_dir)"/*"$POINTER_SUFFIX"; do
     [ -e "$ptr" ] || continue
     run_id="$(basename "$ptr" "$POINTER_SUFFIX")"
-    load_trusted_pointer "$run_id" && [ -f "$ledger" ] || continue
+    if ! load_trusted_pointer "$run_id" || [ ! -f "$ledger" ]; then continue; fi
     printf '%s %s %s\n' "${key#*@}" "$key" "$ledger"
   done | sort -r | cut -d' ' -f2-
 }

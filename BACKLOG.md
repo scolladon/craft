@@ -177,14 +177,29 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-10-09 — follow-ups surfaced by the harder-decisions-fork-fixture run, not yet scheduled)
 
-**`ci.sh` lint chain fails open.** `scripts/ci.sh` lines 80–86 run shellcheck, pipeline-lint,
-pipeline-resolve, contracts-lint, backlog-lint, design-lint, the three `docs-structure-lint.sh`
-calls and `sync-adapter-agents.sh --check` as one `a && b && …` list. Under `set -e`, a failure
-anywhere but the last command of a `&&` list does not stop the script, so a red lint before
-`sync-adapter-agents.sh` is ignored (`bash -c 'set -euo pipefail; false && true; echo continued'`
-prints `continued`, exit 0). Observed: run from a `/var/folders/…` throwaway clone,
-`docs-structure-lint.sh --audience docs` exited 2 and `ci.sh` still exited 0. Fix: one command
-per line (or `|| exit 1` on each), plus a test that a failing lint fails `ci.sh`.
+**`ci.sh` lint chain fails open — delivered 2026-10-09** (fix/ci-lint-chain-fail-closed). The
+static lints moved to `scripts/static-lints.sh`, which has its own `set -euo pipefail` and runs
+one statement per line. `ci.sh` calls it as a bare line (ADR-429, ADR-430). In the old
+`&&` list, seven of the ten lints failed open: shellcheck, pipeline-lint, pipeline-resolve,
+contracts-lint and the three `docs-structure-lint.sh` calls. Now every failing lint stops the
+build with that lint's own exit status.
+
+`test/static-lints-ci.test.js` copies the shipped script into a mktemp throwaway with stubbed
+lints and appends one trailing statement (ADR-432). The trailing statement is needed because a
+`&&` list that ends its own script already propagates its status. The test fails each of the ten
+positions in turn (ADR-431). It was 9 of 10 red against a verbatim move of the old list, and
+12 of 12 green after the fix. It also pins `ci.sh`'s bare call and its errexit. Bash 3.2 is
+pinned locally; CI's ubuntu run is the first bash 5 run.
+
+**`docs-structure-lint.sh --audience` fails from a symlinked repo path.** Line 20 takes the root
+from `git rev-parse --show-toplevel`, which returns the resolved path. Line 21 builds the
+directory with `cd "$dir" && pwd`, which keeps the logical path. Under a symlinked checkout
+(macOS `mktemp -d` → `/var/folders/…`, where `/var` → `/private/var`), the line-22 prefix strip
+misses, and `--audience docs` exits 2 with "unexpected top-level entry under docs: docs".
+Reproduced 2026-10-09 from a clone of the branch: exit 2 from the symlinked path, exit 0 after
+`cd -P`. This is the exit 2 the fail-open entry above observed. Since that entry's fix, the exit
+stops `ci.sh` instead of being masked. Fix: resolve both paths the same way (`pwd -P` at line
+21), with a test that runs `--audience` from a symlinked throwaway.
 
 **Prune review: the decisions skill's escalation path.** With the hint removed from its fixture,
 `decisions-escalates-fork` still scores bare 1.00 / Δ 0.00 over three runs (2026-10-09): the
