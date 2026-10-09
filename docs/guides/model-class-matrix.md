@@ -67,9 +67,12 @@ The table cells above are the earlier measurement, unchanged. Trigger, decisions
 not swept per tier. part-TDD, blocker and full-pipeline-completion need the full-pipeline run.
 
 *Implementer case, 2026-10-09 (Claude Code 2.1.295, 3 runs per arm).* With craft / bare / Δ of
-`implementer-runs-guards`: opus 0.57 / 0.29 / +0.29, sonnet 0.57 / 0.29 / +0.29, haiku 0.86 /
-0.29 / +0.57. Opus and sonnet ran the step-1 GUARD, saw it fail and handed back a blocker. Haiku
-wrote the GREEN and reported a GUARD with a fix. The bare arm stopped and asked. The case fills no
+`implementer-runs-guards`, before → after the contract said a GUARD that fails on its first run is
+a RED: opus 0.57 → 1.00 (Δ +0.29 → +0.71), sonnet 0.57 → 1.00 (+0.29 → +0.71), haiku 0.86 → 0.86
+(+0.57, unchanged); bare 0.29 throughout. Before, opus and sonnet ran the step-1 GUARD, saw it fail
+and handed back a blocker; after, they wrote the GREEN, reported a RED/GREEN cycle with the plan
+mismatch deferred, and ran past step 1. Haiku wrote the GREEN both times but, in the three after-runs,
+never reported the mismatch. The bare arm stopped and asked. The case fills no
 cell; part-TDD stays with the full-pipeline run.
 
 ---

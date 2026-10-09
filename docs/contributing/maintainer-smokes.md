@@ -193,8 +193,18 @@ Sweep, 2026-10-09 (Claude Code 2.1.295, 3 runs per arm, session at sonnet): with
 opus 0.57 / 0.29 / +0.29, sonnet 0.57 / 0.29 / +0.29, haiku 0.86 / 0.29 / +0.57. At opus and
 sonnet every with-craft run ran the step-1 GUARD, saw it fail, removed its test edit and handed
 back a blocker, reasoning that a GUARD owes no GREEN. At haiku every run wrote the GREEN and
-reported a GUARD with a fix, noting no plan mismatch. The contract's GUARD sentence says a GUARD
-"owes no failure and no GREEN" and does not state that a GUARD failing on arrival is a RED.
+reported a GUARD with a fix, noting no plan mismatch. The contract's GUARD sentence then said a GUARD
+"owes no failure and no GREEN" and did not state that a GUARD failing on arrival is a RED.
+The contract now says "A GUARD that fails on its first run is a RED: write its GREEN, report a
+RED/GREEN cycle, and note the plan mismatch as a deferred observation, not a blocker."
+After, same setup: opus 1.00 / 0.29 / +0.71, sonnet 1.00 / 0.29 / +0.71, haiku 0.86 / 0.29 / +0.57.
+At opus and sonnet every with-craft run kept the failing step-1 GUARD, wrote its GREEN
+(`${1:-world}`), reported a RED/GREEN cycle with the mismatch as a deferred observation, then ran
+past step 1; `guard-ran-green` and `guard-never-failed` passed past step 1 for the first time. At
+haiku all three runs wrote the GREEN but none reported the mismatch (`arrival-guard-observed` FAIL
+x3): one labelled the step RED/GREEN, two kept a GUARD label. The bare arm has no part-implementer
+and stopped in every run. No run broke code or ran a git revert; the only git calls were read-only
+`git ls-files`, refused by the sandbox. Sweep cost USD 0.94 opus, 0.79 sonnet, 0.78 haiku.
 
 **Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
 craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
