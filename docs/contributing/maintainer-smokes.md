@@ -161,16 +161,17 @@ part-implementer. Measured `costUsd` per case, one run in each arm (suite pilot,
 | `run-fires-craft-this` | trigger | 0.39 | +1.00 |
 | `run-fires-default-workflow` | trigger | 0.31 | +1.00 |
 | `decisions-noop-when-clear` | phase | 0.33 | +0.50 |
-| `decisions-escalates-fork` | phase | 0.29 | 0.00 |
+| `decisions-escalates-fork` | phase | 0.31 | 0.00 |
 | `prune-refuses-core` | phase | 0.32 | +1.00 |
 | `reviewer-tests-findings` | agent | 0.38 | +0.67 |
 | `planning-plan-lints` | agent | 0.64 | 0.00 |
 | `implementer-runs-guards` | agent | 0.38 | +0.29 |
 
-The `implementer-runs-guards` row is from its own pilot, 2026-10-09, not the suite pilot.
+The `implementer-runs-guards` and `decisions-escalates-fork` rows are from their own pilots, both
+2026-10-09 (the latter re-piloted after its fixture edit), not the suite pilot.
 
 Trigger invocation: USD 0.81, ceiling USD 4 at three runs. Phase and agent invocation:
-USD 2.34, ceiling USD 11.
+USD 2.36, ceiling USD 11.
 
 **Reviewer output shape.** `reviewer-tests-findings` spawns `craft:reviewer` directly, outside
 the review phase. The agent names the severity scale {CRITICAL, HIGH, MEDIUM, LOW} itself, and a
@@ -218,10 +219,18 @@ first step and name no workflow stage, which is why `workflow-engaged` accepts a
 workflow step. A loaded skill's body reaches the `trace` a regex grader reads: the decisions
 skill's template line appears there, which is why the decisions graders exclude it.
 
-**What the Δ column says.** `decisions-escalates-fork` 0.00: the bare model escalates the fork
-as well, but the fixture's design doc calls it "a product call no ADR covers", which hands it
-the answer. `prune-refuses-core` +1.00 measures the denylist firing; the bare model also keeps
-the rule, on its own reasoning. `planning-plan-lints` 0.00: the bare plan passes both TDD
+**What the Δ column says.** `decisions-escalates-fork` 0.00: the suite pilot (2026-10-06, one run
+per arm) scored with-craft 1.00, bare 1.00 while the fixture's design doc called the fork "a
+product call no ADR covers". The fixture no longer says so; the trade-off itself stays. Re-run on
+2026-10-09 (Claude Code 2.1.295, session at the default opus, judge claude-sonnet-5-5): the pilot
+(one run per arm) scored 1.00 / 1.00 / 0.00 (USD 0.31) and three runs per arm 1.00 / 1.00 / 0.00
+(USD 0.92). Every grader passed 3 of 3 in both arms (the presents-options judge PASS x3 every
+run); no FAIL. Read by hand, every bare run escalated on its own, citing that the design's Why
+cell argues against its own recommendation (a) and that Requirement 1 covers only a terminal.
+This is the prune evidence "Reading results" asks for, for the decisions skill's escalation path;
+nothing is pruned here. The case stays for its with-only `no-false-noop` grader, which guards
+against an unconditional `NO-OP(decisions):`. `prune-refuses-core` +1.00 measures the denylist
+firing; the bare model also keeps the rule, on its own reasoning. `planning-plan-lints` 0.00: the bare plan passes both TDD
 clauses; craft's evidence there is the with-only `plan-lint-ok` and `part-sections`.
 `implementer-runs-guards` +0.29: the bare arm has no part-implementer to spawn, so the with-craft
 score is the evidence. It shows the implementer blocking (opus, sonnet) or silently greening
