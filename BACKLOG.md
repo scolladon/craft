@@ -175,6 +175,23 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-09 — follow-ups surfaced by the harder-decisions-fork-fixture run, not yet scheduled)
+
+**`ci.sh` lint chain fails open.** `scripts/ci.sh` lines 80–86 run shellcheck, pipeline-lint,
+pipeline-resolve, contracts-lint, backlog-lint, design-lint, the three `docs-structure-lint.sh`
+calls and `sync-adapter-agents.sh --check` as one `a && b && …` list. Under `set -e`, a failure
+anywhere but the last command of a `&&` list does not stop the script, so a red lint before
+`sync-adapter-agents.sh` is ignored (`bash -c 'set -euo pipefail; false && true; echo continued'`
+prints `continued`, exit 0). Observed: run from a `/var/folders/…` throwaway clone,
+`docs-structure-lint.sh --audience docs` exited 2 and `ci.sh` still exited 0. Fix: one command
+per line (or `|| exit 1` on each), plus a test that a failing lint fails `ci.sh`.
+
+**Prune review: the decisions skill's escalation path.** With the hint removed from its fixture,
+`decisions-escalates-fork` still scores bare 1.00 / Δ 0.00 over three runs (2026-10-09): the
+bare model escalates the uncovered fork on its own. Take that to `craft:prune` as evidence for
+the escalation wording in `skills/decisions/SKILL.md`; keep the `NO-OP(decisions):` path and its
+`decisions-noop-when-clear` case (+0.50) out of the candidate.
+
 ### Open (scoped 2026-10-06 — follow-ups surfaced by the plugin-eval-suite run, not yet scheduled)
 
 **Suite pilot and grader calibration for the behavioural eval suite — delivered 2026-10-06**
