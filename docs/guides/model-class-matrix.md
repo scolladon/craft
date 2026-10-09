@@ -66,6 +66,12 @@ them): 7 of 19 plans clean before, 8 of 9 after; `GUARD` used by sonnet 3/3, opu
 The table cells above are the earlier measurement, unchanged. Trigger, decisions and prune were
 not swept per tier. part-TDD, blocker and full-pipeline-completion need the full-pipeline run.
 
+*Implementer case, 2026-10-09 (Claude Code 2.1.295, 3 runs per arm).* With craft / bare / Δ of
+`implementer-runs-guards`: opus 0.57 / 0.29 / +0.29, sonnet 0.57 / 0.29 / +0.29, haiku 0.86 /
+0.29 / +0.57. Opus and sonnet ran the step-1 GUARD, saw it fail and handed back a blocker. Haiku
+wrote the GREEN and reported a GUARD with a fix. The bare arm stopped and asked. The case fills no
+cell; part-TDD stays with the full-pipeline run.
+
 ---
 
 ## Per-phase tokens + wall-clock
