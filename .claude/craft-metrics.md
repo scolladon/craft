@@ -447,3 +447,8 @@ implementer-guard-eval documentation turns=6 tool_calls=6 tokens=118552 duration
 implementer-guard-eval implementation turns=21 tool_calls=23 tokens=426438 duration_ms=180414 cache_read=364238 cache_creation=61354 output=804 avg_ctx=20268 equiv=117178
 implementer-guard-eval planning turns=59 tool_calls=61 tokens=4556839 duration_ms=880731 cache_read=4421429 cache_creation=134296 output=996 avg_ctx=77218 equiv=615111
 implementer-guard-eval review turns=45 tool_calls=50 tokens=1383536 duration_ms=538226 cache_read=1187816 cache_creation=194288 output=1342 avg_ctx=30715 equiv=368442
+arriving-guard-contract-rule design turns=29 tool_calls=31 tokens=1179941 duration_ms=356551 cache_read=1117535 cache_creation=62058 output=290 avg_ctx=40678 equiv=190834
+arriving-guard-contract-rule documentation turns=4 tool_calls=4 tokens=70604 duration_ms=57214 cache_read=51046 cache_creation=19491 output=59 avg_ctx=17636 equiv=29771
+arriving-guard-contract-rule implementation turns=6 tool_calls=7 tokens=117105 duration_ms=68529 cache_read=94670 cache_creation=22306 output=117 avg_ctx=19498 equiv=37947
+arriving-guard-contract-rule planning turns=18 tool_calls=18 tokens=675670 duration_ms=193299 cache_read=626855 cache_creation=48400 output=379 avg_ctx=37516 equiv=125117
+arriving-guard-contract-rule review turns=34 tool_calls=35 tokens=748430 duration_ms=297581 cache_read=623270 cache_creation=124639 output=453 avg_ctx=21999 equiv=220459
