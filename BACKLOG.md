@@ -192,10 +192,16 @@ invocation, so the trigger cases now run in their own invocation without it; a f
 needs `npm ci` in `engine/` before any run. Still unconfirmed: whether craft's hooks load in
 the eval child.
 
-**Harder fixture for `decisions-escalates-fork`.** Δ is 0.00 because the bare model escalates
-the fork too, but the fixture's design doc says "a product call no ADR covers", which hands it
-the answer. Drop that phrase so the case measures whether the decisions skill spots an
-uncovered fork on its own; re-pilot before reading its Δ as prune evidence.
+**Harder fixture for `decisions-escalates-fork` — delivered 2026-10-09**
+(fix/harder-decisions-fork-fixture). The fixture's design doc no longer ends its Why cell with
+"a product call no ADR covers"; the trade-off itself stays. with-craft / bare / Δ, before → after:
+1.00 / 1.00 / 0.00 (suite pilot 2026-10-06, 1 run per arm) → 1.00 / 1.00 / 0.00 (pilot, 1 run
+per arm, USD 0.31) and 1.00 / 1.00 / 0.00 (3 runs per arm, USD 0.92; Claude Code 2.1.295,
+session at opus, judge sonnet). Every grader passed 3 of 3 in both arms; there was no FAIL to
+read. Every bare run escalated on its own, noting that the Why cell argues against the
+recommended option and that Requirement 1 covers only a terminal. This is the prune evidence
+maintainer-smokes "Reading results" asks for, for the decisions skill's escalation path;
+nothing is pruned here, and the case stays for its with-only `no-false-noop` grader.
 
 **The planner labels an already-passing test as RED — delivered 2026-10-08**
 (fix/planner-red-label-audit). `agents/planner.md` now says a RED fails against the code as it
