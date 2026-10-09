@@ -2,6 +2,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const { createTmpGitRepo } = require('./helpers/tmp-git-repo');
 
@@ -139,6 +141,29 @@ test('Given two single-word top-level entries alongside their two-word union, wh
     assert.match(result.stderr, /(^|\n) {2}y($|\n)/, `expected "y" reported; got: ${result.stderr}`);
     assert.match(result.stderr, /(^|\n) {2}x y($|\n)/, `expected "x y" reported; got: ${result.stderr}`);
   } finally {
+    cleanup();
+  }
+});
+
+test('Given a repo reached through a symlinked path, when --audience lints its docs from there, then the clean top level exits 0', () => {
+  // Arrange
+  const { root, cleanup } = createTmpGitRepo([
+    'docs/README.md',
+    'docs/contributing/note.md',
+    'docs/guides/note.md',
+  ]);
+  const linkParent = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-structure-lint-link-'));
+  const linkedRoot = path.join(linkParent, 'repo');
+  fs.symlinkSync(root, linkedRoot);
+
+  try {
+    // Act
+    const result = sut(path.join(linkedRoot, 'docs'), linkedRoot);
+
+    // Assert
+    assert.strictEqual(result.status, 0, `expected exit status 0; got stderr: ${result.stderr}`);
+  } finally {
+    fs.rmSync(linkParent, { recursive: true, force: true });
     cleanup();
   }
 });
