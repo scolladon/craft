@@ -24,7 +24,7 @@ is decision candidate 1.
 
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
 |---|---|---|---|---|
-| 1 | What `--shout` does when stdout is not a terminal | (a) shout anyway; (b) ignore `--shout` when stdout is piped, so scripts matching `Hello` keep working; (c) shout and print a warning on stderr when piped | **(a)** | Predictable and simplest, but scripts that match `Hello` break when a caller adds `--shout`. Whether piped callers matter more than predictability is a product call no ADR covers. |
+| 1 | What `--shout` does when stdout is not a terminal | (a) shout anyway; (b) ignore `--shout` when stdout is piped, so scripts matching `Hello` keep working; (c) shout and print a warning on stderr when piped | **(a)** | Predictable and simplest, but scripts that match `Hello` break when a caller adds `--shout`. |
 
 ## Test strategy
 
