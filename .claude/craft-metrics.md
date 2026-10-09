@@ -452,3 +452,7 @@ arriving-guard-contract-rule documentation turns=4 tool_calls=4 tokens=70604 dur
 arriving-guard-contract-rule implementation turns=6 tool_calls=7 tokens=117105 duration_ms=68529 cache_read=94670 cache_creation=22306 output=117 avg_ctx=19498 equiv=37947
 arriving-guard-contract-rule planning turns=18 tool_calls=18 tokens=675670 duration_ms=193299 cache_read=626855 cache_creation=48400 output=379 avg_ctx=37516 equiv=125117
 arriving-guard-contract-rule review turns=34 tool_calls=35 tokens=748430 duration_ms=297581 cache_read=623270 cache_creation=124639 output=453 avg_ctx=21999 equiv=220459
+harder-decisions-fork-fixture design turns=19 tool_calls=20 tokens=908636 duration_ms=275469 cache_read=840319 cache_creation=67752 output=527 avg_ctx=47795 equiv=171395
+harder-decisions-fork-fixture documentation turns=4 tool_calls=4 tokens=69331 duration_ms=75971 cache_read=52571 cache_creation=16700 output=52 avg_ctx=17320 equiv=26400
+harder-decisions-fork-fixture implementation turns=5 tool_calls=5 tokens=84688 duration_ms=61694 cache_read=65341 cache_creation=19138 output=199 avg_ctx=16898 equiv=31462
+harder-decisions-fork-fixture planning turns=25 tool_calls=26 tokens=922330 duration_ms=422043 cache_read=872225 cache_creation=49778 output=277 avg_ctx=36882 equiv=150880
