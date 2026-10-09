@@ -10,6 +10,7 @@ const ROOT = path.resolve(__dirname, '..');
 const STATIC_LINTS_SCRIPT = path.join(ROOT, 'scripts', 'static-lints.sh');
 const CI_SCRIPT = path.join(ROOT, 'scripts', 'ci.sh');
 const STATIC_LINTS_CALL = /^bash scripts\/static-lints\.sh$/m;
+const CI_ERREXIT = /^set -euo pipefail$/m;
 
 const THROWAWAY_PREFIX = 'static-lints-';
 const LINT_LOG_NAME = 'lint.log';
@@ -70,14 +71,12 @@ function writeThrowawayFile(root, relativePath, content) {
   fs.writeFileSync(target, content, { mode: EXECUTABLE_MODE });
 }
 
-function buildThrowaway() {
-  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), THROWAWAY_PREFIX)));
+function populateThrowaway(root) {
   writeThrowawayFile(root, 'scripts/static-lints.sh', fs.readFileSync(STATIC_LINTS_SCRIPT, 'utf8') + TRAILING_STATEMENT);
   writeThrowawayFile(root, 'bin/shellcheck', shellStub('shellcheck'));
   for (const name of SHELL_STUB_NAMES) writeThrowawayFile(root, `scripts/${name}.sh`, shellStub(`${name} $*`));
   for (const name of NODE_STUB_NAMES) writeThrowawayFile(root, `engine/bin/${name}.js`, nodeStub(name));
   for (const input of LINT_INPUTS) writeThrowawayFile(root, input, '');
-  return root;
 }
 
 function readInvocations(logPath) {
@@ -86,9 +85,10 @@ function readInvocations(logPath) {
 }
 
 function runStaticLints(failingLint) {
-  const root = buildThrowaway();
+  const root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), THROWAWAY_PREFIX)));
   const logPath = path.join(root, LINT_LOG_NAME);
   try {
+    populateThrowaway(root);
     const result = spawnSync('bash', [path.join(root, 'scripts', 'static-lints.sh')], {
       cwd: root,
       encoding: 'utf8',
@@ -138,6 +138,17 @@ test('Given scripts/ci.sh, when its content is read, then it calls static-lints 
 
   // Act
   const result = STATIC_LINTS_CALL.test(sut);
+
+  // Assert
+  assert.strictEqual(result, true);
+});
+
+test('Given scripts/ci.sh, when its content is read, then it keeps errexit so the bare static-lints call stops it', () => {
+  // Arrange
+  const sut = fs.readFileSync(CI_SCRIPT, 'utf8');
+
+  // Act
+  const result = CI_ERREXIT.test(sut);
 
   // Assert
   assert.strictEqual(result, true);
