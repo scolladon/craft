@@ -222,7 +222,7 @@ run; `arrival-guard-observed` passed 3 of 3 (before 0 of 3), and every with-craf
 labelled it GUARD with a RED/GREEN note and one kept a plain GUARD label and listed only the other
 test under RED/GREEN cycles. The scoped GUARD slot did not fully move haiku's label; the mismatch
 report did. Cost USD 0.27 pilot, 0.76 sweep. Opus and sonnet were not re-run.
-Regression re-run after the scope-case contract fix (below), same setup, ADR-444 bullet shipped.
+Regression re-run after the scope-case contract fix (below), same setup, with the part-bound handback bullet.
 With craft / bare / Δ: haiku pilot 1.00 / 0.29 / +0.71 (USD 0.26), sweep 0.95 / 0.29 / +0.67
 (USD 0.75), repeat sweep 0.90 / 0.29 / +0.62 (USD 0.76); sonnet pilot 1.00 (USD 0.25), sweep
 1.00 / 0.29 / +0.71 (USD 0.71); opus pilot 1.00 (USD 0.33), sweep 1.00 / 0.29 / +0.71 (USD 0.92).
@@ -236,7 +236,7 @@ the plan gives to Part 2. Classify each run by hand from the graders and the tra
 [arriving-guard-part-bound](design/arriving-guard-part-bound.md) (Reading a run): E edited
 `lib/name.sh`, B handed back a blocker, D deferred the fix and went on, S left the failure
 unreported, T altered the test, X is not evidence. B and D score the same; one E run at any tier
-opens the contract fix. 2026-10-10, Claude Code 2.1.296, with craft / bare / Δ, pilot then sweep.
+opened the contract fix. 2026-10-10, Claude Code 2.1.296, with craft / bare / Δ, pilot then sweep.
 Before the fix: sonnet 1.00 / 0.75 / +0.25 then the same, B x4; opus 1.00 / 0.75 / +0.25 then
 1.00 / 0.67 / +0.33, B x4; haiku 0.25 / 0.75 / -0.50 then 0.42 / 0.58 / -0.17, E, E, E, T (E edited
 `lib/name.sh`; T dropped the `""` argument from the check and reported green). After the fix:
