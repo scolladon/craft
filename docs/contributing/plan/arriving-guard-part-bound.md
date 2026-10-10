@@ -1,9 +1,13 @@
-# Plan — eval case for an arriving GUARD whose GREEN lies outside the part
+# Plan — eval case and contract fix for an arriving GUARD whose GREEN lies outside the part
 
-> Source: design doc `docs/contributing/design/arriving-guard-part-bound.md` · ADRs 437, 438, 439, 440, 441, 442
+> Source: design doc `docs/contributing/design/arriving-guard-part-bound.md` · ADRs 437, 438, 439, 440, 441, 442, 443, 444, 445, 446
 > The plan is the implementation script AND the knowledge handoff. Part agents start
 > with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
+
+**Revision (2026-10-10).** Parts 1–3 (the eval case) are delivered. The revised design brings the
+contract fix in scope (design § "The contract fix" and § "Delivery shape — the fix", ADRs 443–446).
+Parts 4–5 are that delivery shape's Parts 1–2.
 
 ## Sizing rules
 
@@ -20,8 +24,8 @@
   backtick the files the part CREATES or EDITS, and write read-only reference paths in
   plain text.
 
-**How this plan applies them.** Three parts. All three are test infrastructure or docs only:
-no `engine/`, `skills/`, `agents/`, `contracts/` or `adapters/` delta (R9), so each stands
+**How this plan applies them.** Five parts. Parts 1–3 (the case) are test infrastructure or docs only:
+no `engine/`, `skills/`, `agents/`, `contracts/` or `adapters/` delta (design § Out of scope), so each stands
 alone under the sizing exception. The design's "Delivery shape" proposes four parts; this plan
 merges its Part 2 (fixture docs and prompt: three `sed` extractions) into its Part 3 (graders),
 because the former alone would not earn an agent lifecycle (PD-1). Counts under plan-lint
@@ -31,9 +35,17 @@ prompt.md, and the `graders/` directory as one span; the ten grader names are pl
 Part 3 = 1. Cycles: Part 1 one, Part 2 three, Part 3 four. The order is forced: Part 2's probes
 scaffold the case Part 1 creates, and Part 3 documents a case that must exist.
 
-- **No unit-test RED, stated honestly.** No automated test reads `evals/` (ADR-393), and
+Parts 4–5 (the fix) change plugin text, so each folds the pin test of its text into the same
+part: no standalone test part. Counts under plan-lint: Part 4 = 2 (the contract and the
+contract-equivalence test), Part 5 = 2 (the agent body and the p10 test; the six regenerated
+mirrors and the sync script are plain text). One RED→GREEN cycle each. They share no file. The
+order follows the design: the bullet Part 5 writes restates the outcome the contract of Part 4
+states, so the contract lands first. PD-4 keeps them as two parts.
+
+- **No unit-test RED in Parts 1–3, stated honestly.** No automated test reads `evals/` (ADR-393), and
   test/plugin-evals-local-only.test.js FAILS any file under test/, engine/test/ or an adapter
-  test dir that names an `evals/` path. So no part adds a node test. Each RED is a local probe
+  test dir that names an `evals/` path. So no case part adds a node test; the node tests of
+  Parts 4–5 read contracts/ and agents/, never evals/. Each RED is a local probe
   script the implementer writes to a `mktemp -d` path OUTSIDE the worktree and runs: it fails
   before the GREEN because the files are absent (exit 127 / ENOENT), and passes after it. Checks
   that already pass at their step are labelled GUARD.
@@ -48,13 +60,18 @@ scaffold the case Part 1 creates, and Part 3 documents a case that must exist.
 - **Paid evals are not a part.** The per-tier pilots, sweeps and optional judge replay (design
   § Test strategy, "Paid runs") are run by the orchestrator after the implementation phase, one
   tier at a time with user approval. No part runs `claude plugin eval`, `claude -p`, or a judge.
+  The after-measure (design § Test strategy, "After-measure") runs the same way once Parts 4–5
+  land.
 - **Deferred, not in any part.** The maintainer-smokes cost-table row for the new case, the
   "Phase and agent invocation" total and ceiling, the per-tier classification, and the BACKLOG
   entry's closure or conversion (R5 last line, R10) wait for the paid runs.
+- **The record is not a plan part.** The design's "Part 3 — the record" needs the paid after-measure numbers, so it runs in the documentation phase.
 - **R6 and R8 are already done.** ADR-442 (refines ADR-418 to ten cases) and the design doc are
   committed with their README count bumps (README.md l. 180–181: 41 design docs, 442 ADRs). No
   part adds a design doc, plan or ADR, so no part touches README.md. The plan commit itself moves
   "[39 parted plans]" to "[40 parted plans]" (test/readme-drift.test.js counts the live tree).
+  Parts 4–5 add no file either, and ADRs 443–446 landed with their own bumps (README.md l. 181:
+  446 ADRs), so the revision moves no README count.
 - **Fixture docs are data, verified not linted.** design-lint reads only
   docs/contributing/design/*.md, docs-structure-lint scans docs/ only, ci.sh's shellcheck covers
   scripts/*.sh and hooks/*.sh only, test/plan-doc-fences.test.js reads only
@@ -65,6 +82,11 @@ scaffold the case Part 1 creates, and Part 3 documents a case that must exist.
   Parts 1–3 at the exact bytes below: `bash scripts/ci.sh` exit 0 (last line "craft-adr: OK —
   442 ADR(s) checked, 6 declaring supersession."); stub-lint and prose-lint with `--gate blocking`
   on the touched files both exit 0; every probe output quoted below is that run's output.
+- **Measured before the revision.** A throwaway clone of this branch at 910bf4b with Parts 4–5
+  applied at the exact bytes below: `bash scripts/ci.sh` exit 0 (last line "craft-adr: OK — 446
+  ADR(s) checked, 6 declaring supersession.", engine suite `# pass 2780`, `# fail 0`);
+  prose-lint `--gate blocking` on the contract, the agent body and the six mirrors exits 0; every
+  output quoted in Parts 4–5 is that run's output.
 
 **Public surface.** The plan introduces no exported code symbol. Its one new surface is the
 eval case, which `claude plugin eval` discovers as a directory under `evals/` and selects by its
@@ -74,16 +96,21 @@ eval case, which `claude plugin eval` discovers as a directory under `evals/` an
 |---|---|
 | `evals/implementer-guard-outside-part/` (Parts 1–2) | none in CI (ADR-393); the local probes of each part; touched-diff stub/prose lint |
 | maintainer-smokes "Evidence, not gate" row, "Tags and cost", new "Implementer scope case" paragraph, "Eval sweep" sentence, matrix-note bullet (Part 3) | test/plugin-evals-local-only.test.js (every fenced `claude plugin eval` command carries `--no-publish` and `--max-cost-usd`, none `--trust-plugin`/`--publish-report`; Part 3 adds no fenced command); docs-structure-lint (the one new relative link resolves); touched-`.md` prose lint; adr-lint (the edits cite no ADR) |
+| contracts/construction.md line 1, the construction contract every implementation spawn receives (Part 4) | engine/test/contract-equivalence.test.js `PHASE_EXPECTATIONS.construction` (moved in-part) and its exact-casing test `CONSTRUCTION_GUARD_PHRASE` (unchanged, stays green); contracts-lint (ci.sh); touched-`.md` prose lint. No adapter mirrors the contract, so no sync step |
+| agents/part-implementer.md line 16, the Final-message bullet (Part 5) | test/p10-structure.test.js (the prefix pin stays green, the new pin lands in-part); `scripts/sync-adapter-agents.sh --check` in ci.sh over the six adapters/*/agents/craft-part-implementer.md mirrors (regenerated in-part with `--write`); touched-`.md` prose lint |
 | docs/guides/model-class-matrix.md l. 31 (lists the cases that fill matrix cells) | unchanged: the new case fills no cell (design § Out of scope) |
 | README.md l. 276 (points at maintainer-smokes for evals) | unchanged |
 
 **Binding for each part.**
 
 - No provenance references (ADR numbers, design decision ids, phase or backlog ids) in any file
-  under `evals/implementer-guard-outside-part/` or in the maintainer-smokes edits. The design's
+  under `evals/implementer-guard-outside-part/`, in the maintainer-smokes edits, or in the
+  contract, agent, mirror and test edits of Parts 4–5. The design's
   verbatim bytes carry none; the fixture's "Part 1"/"Part 2" are the fixture plan's own parts.
-- Never change contracts/, agents/, adapter mirrors, engine/test/contract-equivalence.test.js or
-  evals/implementer-runs-guards/ (R9, design § Out of scope).
+- Parts 1–3: never change contracts/, agents/, adapter mirrors,
+  engine/test/contract-equivalence.test.js or evals/implementer-runs-guards/ (design § Out of
+  scope). Parts 4–5: change only the files their Context blocks name (R9); nothing under evals/;
+  never hand-edit an adapter mirror.
 - No suppression directives: no `# shellcheck disable=…`, no `# shellcheck shell=…` line in the
   fixture (it would also break the file-target grader, which anchors on the first byte).
 - No swallowed errors in probes: they print every exit code.
@@ -100,16 +127,20 @@ eval case, which `claude plugin eval` discovers as a directory under `evals/` an
 
 ADRs 437–442 adopt every design recommendation (D-1..D-5, option 1 each, plus the ten-case
 refinement). The design fixes the bytes of every created file and the content of every
-maintainer-smokes edit. Three plan-level choices remain; the plan is written to each
-recommendation.
+maintainer-smokes edit. ADRs 443–446 fix the contract sentence, the handback bullet (option 3),
+the pins (option 1) and the acceptance read (option 2); Parts 4–5 copy their quoted text byte for
+byte. Four plan-level choices remain; the plan is written to each recommendation.
 
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
 |---|---|---|---|---|
 | PD-1 | Part count | (a) three parts: the design's Part 2 (fixture docs + prompt) merged into its Part 3 (graders); (b) four parts, as the design's "Delivery shape"; (c) two parts: also fold maintainer-smokes into the graders part | **(a)** | The design's Part 2 is three `sed` extractions and one probe, ~15 tool calls: it does not earn a lifecycle. Merged, the part has 4 counted paths and 3 cycles, under both ceilings. (c) reaches 7 cycles, over ~5. |
 | PD-2 | How fixture scripts are shellchecked (design § Test strategy: "Run shellcheck on the fixture scripts when it is installed", no expected result given) | (a) `shellcheck -s bash -S warning` on scaffold.sh and the three fixture scripts, bytes untouched; (b) default `shellcheck` on scaffold.sh only; (c) add a shebang or shell directive to fixture/lib/name.sh | **(a)** | Measured at default severity on the design's bytes: SC2148 (error: no shebang) on the sourced one-line lib/name.sh, SC1091 (info) on both `.` source lines, SC2329 (info: `check_name` unused until step 1 adds a call). All are inherent to the design (D-1 needs the sourced file and the not-yet-called helper). (a) exits 0 and still catches warning-level defects. (b) leaves three scripts unchecked. (c) breaks the file-target grader's pinned `^resolve_name` anchor (P7), R1's byte-for-byte rule, and the no-suppression rule. |
 | PD-3 | Whether the "Implementer scope case" paragraph links the design's class table | (a) one relative link to docs/contributing/design/arriving-guard-part-bound.md "(Reading a run)"; (b) no link: the paragraph alone | **(a)** | The class signatures (which grader result maps to E/B/D/S/T/X) do not fit in R5's 8 lines, and the hand reader needs them every run. maintainer-smokes already links a design doc for the planner hand read (planner-red-label-audit). |
+| PD-4 | Part split for the fix | (a) two parts, as the design's "Delivery shape — the fix": the contract and its pins, then the bullet, its p10 pin and the mirrors; (b) one part with both edits, both pins and the mirrors, one commit | **(a)** | Each part is one cycle and about 20 tool calls, which PD-1's reading would call too small to earn a lifecycle. They stay apart because they are two decisions (ADR-443, ADR-444) with two commit messages fixed by the design, and ADR-446 reopens the contract wording on any E, T or S run after the fix: rewording or reverting the contract then touches one commit, not one that also regenerates six mirrors. (b) saves one lifecycle and fits both ceilings (4 counted paths, 2 cycles), but its one commit has to carry both fixes. |
 
 ## Part 1 — Case shell and fixture code
+
+Delivered: commit 39c65b9.
 
 ### Context
 
@@ -300,6 +331,8 @@ last line "craft-adr: OK — 442 ADR(s) checked, 6 declaring supersession.". On 
 `test(evals): add the implementer-guard-outside-part case shell and fixture code`
 
 ## Part 2 — Fixture docs, prompt and graders
+
+Delivered: commit 4e5a075.
 
 ### Context
 
@@ -634,6 +667,8 @@ last line "craft-adr: OK — 442 ADR(s) checked, 6 declaring supersession.". On 
 
 ## Part 3 — Maintainer-smokes: document the implementer scope case
 
+Delivered: commit 8a3d6a4.
+
 ### Context
 
 File this part edits: `docs/contributing/maintainer-smokes.md` (441 lines on this branch). Five
@@ -812,3 +847,260 @@ last line "craft-adr: OK — 442 ADR(s) checked, 6 declaring supersession.". On 
 ### Commit
 
 `docs(evals): document the implementer-guard-outside-part case in maintainer-smokes`
+
+## Part 4 — The contract and its pins
+
+### Context
+
+Two files, one sentence pair. Line numbers verified on this branch at 910bf4b.
+
+| File | Where | Change |
+|---|---|---|
+| `engine/test/contract-equivalence.test.js` | line 35, the `construction` entry of `PHASE_EXPECTATIONS` (object opens l. 33) | one stale marker replaced, two markers added |
+| `contracts/construction.md` | line 1 (of 4), its last sentence, which ends the line | one sentence replaced by two |
+
+Line 35 today:
+
+```js
+  construction:   ['RED→GREEN→REFACTOR', 'atomic commit', 'sut', 'passes on its first run is confirmed passing for its stated reason', 'fails on its first run is a RED: write its GREEN', 'not a blocker'],
+```
+
+Last sentence of contract line 1 today (it occurs once in the file):
+
+```text
+A GUARD that fails on its first run is a RED: write its GREEN, report a RED/GREEN cycle, and note the plan mismatch as a deferred observation, not a blocker.
+```
+
+How the pins are checked, so the RED below reads right:
+
+- The marker loop (l. 86–104) builds one test per descriptor bundle, titled "Given descriptor
+  "<id>" with bundle "<name>", when assembled in agent mode, then bundle markers are all
+  present". Only the implementation descriptor lists the construction bundle (pipeline/default.yml
+  l. 64–67), so one test covers it. It asserts each marker with `hasCI`
+  (engine/test-helpers/contract-markers.js l. 18: case-insensitive substring), in array order,
+  and stops at the first missing one: the RED shows one failure naming the in-part marker.
+- 'not a blocker' stays: the in-part sentence still carries it.
+- The exact-casing test in the same file (`CONSTRUCTION_GUARD_PHRASE`, l. 294, "confirmed passing
+  for its stated reason") reads the GUARD-pass clause earlier on line 1, which this part leaves
+  alone. It stays green throughout.
+- engine/bin/contract-assemble.js `--descriptor-id implementation` prints the assembled
+  implementation contract: 18 lines today. Both new sentences stay on line 1, so it stays 18. The
+  scaffold.sh of both implementer eval cases writes that same output to
+  <git-dir>/implementation-contract.md. The bin's main guard compares `process.argv[1]` with its
+  real path: call it through a physical path (`pwd -P`), or it prints nothing and exits 0.
+
+What does not change (do not "fix" it): the rest of line 1 and lines 2–4 stay byte-identical; no
+adapter mirrors the contract, so there is no sync step; nothing under evals/ changes. The old
+sentence stays, as history, in docs/contributing/maintainer-smokes.md l. 200 (the documentation
+phase rewords "now says" there), BACKLOG.md l. 273, docs/guides/model-class-matrix.md l. 70,
+ADR-421 l. 23, ADR-424 l. 24 and the dated design and plan docs. A repo-wide grep for "write its
+GREEN" still hits them after this part: expected.
+
+Read-only references (plain text): engine/test-helpers/contract-markers.js, pipeline/default.yml,
+engine/bin/contract-assemble.js, docs/contributing/adr/443-an-arriving-guard-whose-green-lies-outside-the-part-is-a-blocker.md,
+docs/contributing/adr/445-the-construction-pins-cover-both-arriving-guard-outcomes.md.
+
+### TDD steps
+
+RED 1 — the pins. In engine/test/contract-equivalence.test.js line 35, replace this exact
+substring (Edit tool, old string unique in the file; the arrows earlier on the line stay
+untouched):
+
+```text
+'fails on its first run is a RED: write its GREEN', 'not a blocker'],
+```
+
+with:
+
+```text
+'fails on its first run is a RED: when its GREEN lies inside the part, write it', 'not a blocker', 'When its GREEN lies outside the part, it is a blocker', "leave that file and the GUARD's check unchanged"],
+```
+
+The last marker is double-quoted because it holds an ASCII apostrophe. Line 35 then reads, byte
+for byte:
+
+```js
+  construction:   ['RED→GREEN→REFACTOR', 'atomic commit', 'sut', 'passes on its first run is confirmed passing for its stated reason', 'fails on its first run is a RED: when its GREEN lies inside the part, write it', 'not a blocker', 'When its GREEN lies outside the part, it is a blocker', "leave that file and the GUARD's check unchanged"],
+```
+
+Run, from the worktree root:
+
+```bash
+log="$(mktemp)"; (cd engine && node --test test/contract-equivalence.test.js) > "$log" 2>&1; echo "exit=$?"; grep -n '^not ok\|^# pass\|^# fail\|missing' "$log" | head
+```
+
+Expected: `exit=1`, `# pass 104`, `# fail 1`, the failing test "not ok 40 - Given descriptor
+"implementation" with bundle "construction", when assembled in agent mode, then bundle markers
+are all present", and its error line:
+
+```text
+  error: 'Descriptor "implementation" bundle "construction": marker "fails on its first run is a RED: when its GREEN lies inside the part, write it" missing'
+```
+
+It fails because the shipped contract says "is a RED: write its GREEN", which the new in-part
+marker does not match (the two out-of-part markers are absent too; the loop stops at the first).
+
+GREEN 1 — the contract. In contracts/construction.md, replace the old last sentence of line 1
+(quoted in Context; Edit tool, whole sentence as the old string) with ADR-443's two sentences,
+byte for byte:
+
+```text
+A GUARD that fails on its first run is a RED: when its GREEN lies inside the part, write it, report a RED/GREEN cycle, and note the plan mismatch as a deferred observation, not a blocker. When its GREEN lies outside the part, it is a blocker: leave that file and the GUARD's check unchanged.
+```
+
+One space between the two sentences, both on line 1, the line still ends with its newline. Check:
+`wc -l < contracts/construction.md` prints 4; `grep -c "GUARD's check unchanged" contracts/construction.md`
+prints 1 (ASCII apostrophe). The RED 1 command now prints `exit=0`, `# pass 105`, `# fail 0`.
+
+GUARD 1 — the assembled contract keeps 18 lines and holds the new sentence once. From the
+worktree root:
+
+```bash
+R="$(pwd -P)"; T="$(cd "$(mktemp -d)" && pwd -P)"; (cd "$T" && node "$R/engine/bin/contract-assemble.js" --descriptor-id implementation > out.md; echo "exit=$?"; wc -l < out.md; grep -c "When its GREEN lies outside the part, it is a blocker" out.md)
+```
+
+Prints `exit=0`, `18`, `1`. Passes because both sentences sit on line 1.
+
+GUARD 2 — both implementer eval cases scaffold the new contract. From the worktree root:
+
+```bash
+R="$(pwd -P)"; for c in implementer-runs-guards implementer-guard-outside-part; do T="$(cd "$(mktemp -d)" && pwd -P)"; (cd "$T" && git init -q && bash "$R/evals/$c/scaffold.sh" >/dev/null 2>&1; echo "$c scaffold=$? lines=$(wc -l < .git/implementation-contract.md | tr -d ' ') hits=$(grep -c "When its GREEN lies outside the part, it is a blocker" .git/implementation-contract.md)"); done
+```
+
+Prints `implementer-runs-guards scaffold=0 lines=18 hits=1` and
+`implementer-guard-outside-part scaffold=0 lines=18 hits=1`. Passes because each scaffold writes
+the bin's output. Each scaffold commits into its own throwaway, never the worktree.
+
+GUARD 3 — `node engine/bin/prose-lint.js --gate blocking -- contracts/construction.md; echo "prose=$?"`
+prints only `prose=0`. Passes because ADR-443's wording avoids the ban list.
+
+No REFACTOR: ADR-443 and ADR-445 fix the bytes.
+
+### Gate
+
+Targeted first: the RED 1 command (`exit=0`, `# pass 105`, `# fail 0`). Then
+`log="$(mktemp)"; bash scripts/ci.sh > "$log" 2>&1; echo "ci exit=$?"; tail -5 "$log"` — exit 0,
+last line "craft-adr: OK — 446 ADR(s) checked, 6 declaring supersession.";
+`grep -n '^# pass 2780\|^# fail' "$log" | head -2` shows the engine suite at `# pass 2780`, `# fail 0`.
+On a non-zero exit, `grep -n "not ok\|ci:" "$log" | head`.
+
+### Commit
+
+`git add contracts/construction.md engine/test/contract-equivalence.test.js`, then:
+
+`fix(contracts): make an arriving GUARD whose GREEN lies outside the part a blocker`
+
+## Part 5 — The handback bullet and its mirrors
+
+### Context
+
+Two edited files; six mirrors regenerated by a script. Line numbers verified on this branch at
+910bf4b; Part 4 touches neither file.
+
+| File | Where | Change |
+|---|---|---|
+| `test/p10-structure.test.js` | new test after line 356, the end of the prefix test (l. 344–356), before line 358 ("Given every agent, when its tools list is read…") | +14 lines |
+| `agents/part-implementer.md` | line 16 (of 16), the Final-message bullet, its last sentence | sentence bounded, one sentence added |
+
+Line 16 today:
+
+```text
+- Final message: the commit hash + one line per RED/GREEN cycle and per `GUARD` that passed on its first run, plus any deferred observations. A `GUARD` that failed on its first run gets a RED/GREEN line and the deferred observation `PLAN-MISMATCH(<test title>): the plan expected it to pass; it failed on its first run`.
+```
+
+p10 helpers to reuse: `PART_IMPLEMENTER_AGENT` (l. 342, the agent's absolute path), `fs`
+(l. 5), `assert` (l. 3, node:assert, so use `deepStrictEqual`), `test` (l. 2). The file is
+CommonJS and separates tests by one blank line. The prefix pin (l. 344–356) asserts the body
+includes `PLAN-MISMATCH(<test title>):`; the new wording keeps that token, so it stays green.
+
+Mirrors, plain text, never hand-edited: adapters/{aider,antigravity,codex,copilot,cursor,opencode}/agents/craft-part-implementer.md.
+`bash scripts/sync-adapter-agents.sh --write` rewrites their body below each adapter's own
+frontmatter (the bullet sits at mirror line 9 aider, 14 antigravity and cursor, 15 copilot,
+16 codex, 27 opencode). ci.sh runs the script's `--check`, so a forgotten `--write` fails the gate
+with six "drifted" lines.
+
+Read-only references (plain text): scripts/sync-adapter-agents.sh,
+docs/contributing/adr/444-the-handback-gives-an-out-of-part-guard-a-blocker-not-a-red-green-line.md,
+contracts/construction.md line 1 (Part 4's sentence, which this bullet restates for the handback).
+
+### TDD steps
+
+RED 1 — the new pin. Insert after line 356 of test/p10-structure.test.js (one blank line before
+it, line 358's test follows after one blank line), byte for byte:
+
+```js
+test(
+  'Given the part-implementer agent, when its body is read, then it bounds the RED/GREEN line of a GUARD that failed on its first run to a GREEN inside the part',
+  () => {
+    const sut = fs.readFileSync(PART_IMPLEMENTER_AGENT, 'utf8');
+
+    const result = {
+      inside: sut.includes('whose GREEN lies inside the part'),
+      outside: sut.includes('whose GREEN lies outside the part'),
+    };
+
+    assert.deepStrictEqual(result, { inside: true, outside: true });
+  },
+);
+```
+
+Run, from the worktree root:
+
+```bash
+log="$(mktemp)"; node --test test/p10-structure.test.js > "$log" 2>&1; echo "exit=$?"; grep -n '^not ok\|^# pass\|^# fail' "$log"; grep -A14 '^not ok' "$log" | grep 'inside\|outside'
+```
+
+Expected: `exit=1`, `# pass 24`, `# fail 1`, "not ok 24 - Given the part-implementer agent, when
+its body is read, then it bounds the RED/GREEN line of a GUARD that failed on its first run to a
+GREEN inside the part", and from the second grep that title again plus the actual lines
+`+   inside: false,`, `+   outside: false` and the expected lines `-   inside: true,`,
+`-   outside: true`. It fails
+because line 16 gives every `GUARD` that failed on its first run a RED/GREEN line with no
+GREEN-location clause (`grep -c "GREEN lies" agents/part-implementer.md` prints 0).
+
+GUARD 1 — in the same run, "Given the part-implementer agent, when its body is read, then it
+names the PLAN-MISMATCH(<test title>): token prefix" is among the 24 passes. Passes because the
+token is untouched.
+
+GREEN 1 — the bullet. In agents/part-implementer.md line 16, replace this exact substring (Edit
+tool; unique in the file):
+
+```text
+A `GUARD` that failed on its first run gets a RED/GREEN line and the deferred observation `PLAN-MISMATCH(<test title>): the plan expected it to pass; it failed on its first run`.
+```
+
+with (ADR-444 option 3, the design's D-6 (c) wording; +167 characters):
+
+```text
+A `GUARD` that failed on its first run and whose GREEN lies inside the part gets a RED/GREEN line and the deferred observation `PLAN-MISMATCH(<test title>): the plan expected it to pass; it failed on its first run`. One whose GREEN lies outside the part gets no RED/GREEN line: hand back a blocker whose reason carries that `PLAN-MISMATCH` line.
+```
+
+The file stays 16 lines. The RED 1 command now prints `exit=0`, `# pass 25`, `# fail 0`.
+
+Then regenerate the mirrors, from the worktree root. `bash scripts/sync-adapter-agents.sh --check; echo "check=$?"`
+first prints six lines `sync-adapter-agents: <adapter>/part-implementer: drifted` and `check=1`
+(expected: the body changed). `bash scripts/sync-adapter-agents.sh --write; echo "write=$?"`
+prints six `sync-adapter-agents: <adapter>/part-implementer: rewritten` lines, then
+`sync-adapter-agents: 54 mirrors in sync across 6 adapters.` and `write=0`. A second `--check`
+prints that in-sync line and `check=0`. `git diff --no-ext-diff --stat` then lists 8 files: the
+agent and the six mirrors at `2 +-` each, the test at `14 +`, "8 files changed, 21 insertions(+),
+7 deletions(-)".
+
+GUARD 2 — `node engine/bin/prose-lint.js --gate blocking -- agents/part-implementer.md adapters/*/agents/craft-part-implementer.md; echo "prose=$?"`
+prints only `prose=0`. Passes because the wording avoids the ban list.
+
+No REFACTOR: ADR-444 fixes the bytes.
+
+### Gate
+
+Targeted first: the RED 1 command (`exit=0`, `# pass 25`, `# fail 0`). Then
+`log="$(mktemp)"; bash scripts/ci.sh > "$log" 2>&1; echo "ci exit=$?"; tail -5 "$log"` — exit 0,
+the third-to-last line "sync-adapter-agents: 54 mirrors in sync across 6 adapters." and the last
+line "craft-adr: OK — 446 ADR(s) checked, 6 declaring supersession.". On a non-zero exit,
+`grep -n "not ok\|ci:\|drifted" "$log" | head`.
+
+### Commit
+
+`git add test/p10-structure.test.js agents/part-implementer.md adapters/aider/agents/craft-part-implementer.md adapters/antigravity/agents/craft-part-implementer.md adapters/codex/agents/craft-part-implementer.md adapters/copilot/agents/craft-part-implementer.md adapters/cursor/agents/craft-part-implementer.md adapters/opencode/agents/craft-part-implementer.md`, then:
+
+`fix(agents): hand back a blocker for an arriving GUARD whose GREEN lies outside the part`
