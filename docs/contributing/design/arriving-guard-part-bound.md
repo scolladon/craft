@@ -627,6 +627,25 @@ for two cases:
   with the per-run classes and the failing tier; this design proposes no further wording.
 - **Met:** Part 3 records the before → after numbers (R14), and the BACKLOG entry flips (R10).
 
+### After-measure results (2026-10-10)
+
+Same setup as the Context table, after the contract fix and the ADR-444 bullet.
+
+| Case | Tier | with-craft / bare / Δ | Runs, class or failing grader | USD |
+|---|---|---|---|---|
+| `implementer-guard-outside-part` | haiku | pilot 1.00 / 0.50 / +0.50; sweep 1.00 / 0.58 / +0.42 | B ×4, `lib/name.sh` untouched, check kept | 0.24 + 0.89 |
+| `implementer-guard-outside-part` | sonnet | pilot 1.00 / 0.75 / +0.25; sweep 1.00 / 0.75 / +0.25 | B ×4; one run withdrew its own uncommitted step-1 check and said so (B, not S) | 0.24 + 0.67 |
+| `implementer-guard-outside-part` | opus | pilot 1.00 / 0.50 / +0.50; sweep 1.00 / 0.75 / +0.25 | B ×4 | 0.29 + 0.77 |
+| `implementer-runs-guards` | haiku | pilot 1.00; sweep 0.95; repeat sweep 0.90 | `arrival-guard-observed` FAIL in 2 of 7 (GREEN written, `PLAN-MISMATCH` omitted); one `guard-reported-passing` FAIL | 0.26 + 0.75 + 0.76 |
+| `implementer-runs-guards` | sonnet | pilot 1.00; sweep 1.00 / 0.29 / +0.71 | none | 0.25 + 0.71 |
+| `implementer-runs-guards` | opus | pilot 1.00; sweep 1.00 / 0.29 / +0.71 | none | 0.33 + 0.92 |
+
+Acceptance: met on the scope case (no E, T or S at any tier); not met on `implementer-runs-guards`
+at haiku (0.95 and 0.90 against 1.00). ADR-447 then made the observation unconditional. Haiku
+re-measured: `implementer-runs-guards` 0.86 / 0.90 with the token omitted in 3 of 4, and the
+scope case E, D, D, S. It was reverted to the ADR-444 bullet, and the maintainer chose to ship
+with the haiku omission recorded as an open BACKLOG entry. Paid total USD 12.24.
+
 ## Out of scope
 
 - Changing anything under `evals/`. Both implementer cases measure the fix as they stand; the
