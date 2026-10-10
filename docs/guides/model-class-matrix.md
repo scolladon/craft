@@ -72,8 +72,14 @@ a RED: opus 0.57 → 1.00 (Δ +0.29 → +0.71), sonnet 0.57 → 1.00 (+0.29 → 
 (+0.57, unchanged); bare 0.29 throughout. Before, opus and sonnet ran the step-1 GUARD, saw it fail
 and handed back a blocker; after, they wrote the GREEN, reported a RED/GREEN cycle with the plan
 mismatch deferred, and ran past step 1. Haiku wrote the GREEN both times but, in the three after-runs,
-never reported the mismatch. The bare arm stopped and asked. The case fills no
-cell; part-TDD stays with the full-pipeline run.
+never reported the mismatch. The bare arm stopped and asked. Follow-up, 2026-10-10 (Claude Code
+2.1.296, agents forced to haiku, 3 runs per arm): the part-implementer's Final-message bullet now
+scopes its per-GUARD line to a GUARD that passed on its first run, and a GUARD that failed on its
+first run gets a RED/GREEN line plus a deferred `PLAN-MISMATCH` observation. Haiku 0.86 → 1.00 (Δ
++0.57 → +0.71); all seven scored graders pass in every with-craft run and the mismatch is reported
+3 of 3 (before 0 of 3). Hand read: two of three runs labelled the step GUARD with a RED/GREEN note,
+one kept a plain GUARD label, so the label did not fully move; the mismatch report did. Opus and
+sonnet were not re-run. The case fills no cell; part-TDD stays with the full-pipeline run.
 
 ---
 

@@ -206,6 +206,19 @@ haiku all three runs wrote the GREEN but none reported the mismatch (`arrival-gu
 x3): one labelled the step RED/GREEN, two kept a GUARD label. The bare arm has no part-implementer
 and stopped in every run. No run broke code or ran a git revert; the only git calls were read-only
 `git ls-files`, refused by the sandbox. Sweep cost USD 0.94 opus, 0.79 sonnet, 0.78 haiku.
+Haiku re-run, 2026-10-10 (Claude Code 2.1.296, session at sonnet, agents forced to haiku with
+`CLAUDE_CODE_SUBAGENT_MODEL=claude-haiku-4-5` and `FORCE=1`; every with-craft trace shows
+`claude-haiku-4-5-20251001`; 3 runs per arm): the part-implementer's Final-message bullet now scopes
+its per-GUARD line to a GUARD that passed on its first run. A GUARD that failed on its first run
+gets a RED/GREEN line and the deferred observation `PLAN-MISMATCH(<test title>): the plan expected
+it to pass; it failed on its first run`. The contract is unchanged. Haiku with-craft / bare / Δ
+0.86 / 0.29 / +0.57 → 1.00 / 0.29 / +0.71. All seven scored graders passed in every with-craft
+run; `arrival-guard-observed` passed 3 of 3 (before 0 of 3), and every with-craft reply carried a
+`PLAN-MISMATCH(greets the world for an empty name): …` observation. A 1-run pilot agreed (1.00 /
+0.29). Read by hand, no grader: the pilot labelled the step-1 test RED→GREEN; in the sweep two runs
+labelled it GUARD with a RED/GREEN note and one kept a plain GUARD label and listed only the other
+test under RED/GREEN cycles. The scoped GUARD slot did not fully move haiku's label; the mismatch
+report did. Cost USD 0.27 pilot, 0.76 sweep. Opus and sonnet were not re-run.
 
 **Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
 craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
