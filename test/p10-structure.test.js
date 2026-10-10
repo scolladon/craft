@@ -342,7 +342,7 @@ test(
 const PART_IMPLEMENTER_AGENT = path.join(ROOT, 'agents/part-implementer.md');
 
 test(
-  'Given the part-implementer agent, when its body is read, then it names the PLAN-MISMATCH token for a GUARD that failed on its first run',
+  'Given the part-implementer agent, when its body is read, then it names the PLAN-MISMATCH(<test title>): token prefix',
   () => {
     const sut = fs.readFileSync(PART_IMPLEMENTER_AGENT, 'utf8');
 
