@@ -339,6 +339,22 @@ test(
   },
 );
 
+const PART_IMPLEMENTER_AGENT = path.join(ROOT, 'agents/part-implementer.md');
+
+test(
+  'Given the part-implementer agent, when its body is read, then it names the PLAN-MISMATCH token for a GUARD that failed on its first run',
+  () => {
+    const sut = fs.readFileSync(PART_IMPLEMENTER_AGENT, 'utf8');
+
+    const result = sut.includes('PLAN-MISMATCH(<test title>):');
+
+    assert.ok(
+      result,
+      'agents/part-implementer.md should name the PLAN-MISMATCH(<test title>): token',
+    );
+  },
+);
+
 test(
   'Given every agent, when its tools list is read, then no entry is an MCP tool or a sub-agent-spawning tool',
   () => {
