@@ -291,12 +291,27 @@ with-craft / bare / Δ over 3 runs, before → after: 0.86 / 0.29 / +0.57 → 1.
 label moved less: two runs wrote `GUARD` with a RED/GREEN note, one kept a plain `GUARD` label.
 Opus and sonnet were not re-run. USD 1.03, pilot included.
 
-**Bound the arriving-`GUARD` exemption to the part.** The arriving-`GUARD` clause says "not a
-blocker" without a condition, while the contract's Scope line keeps the implementer inside its
-part. When a `GUARD` fails on its first run and its GREEN would land outside the part, the two
-pull apart. Review raised it; the maintainer left it open because no run has shown it. Prove it
-first with an eval fixture whose failing `GUARD`'s GREEN lies in a file another part owns, and
-check whether the implementer edits that file or blocks.
+**Bound the arriving-`GUARD` exemption to the part — delivered 2026-10-10**
+(fix/arriving-guard-part-bound). `evals/implementer-guard-outside-part` gives the part-implementer
+a step-1 `GUARD` that fails on its first run and turns green only through `lib/name.sh`, a file
+the plan gives to Part 2. With the contract as shipped, haiku edited that file in 3 of 4 runs and
+altered the check in the fourth; sonnet and opus blocked in 4 of 4. Line 1 of
+`contracts/construction.md` now writes the GREEN only when it lies inside the part; when it lies
+outside, the `GUARD` is a blocker that leaves that file and the check unchanged. The
+part-implementer's `Final message` bullet hands such a `GUARD` back as a blocker carrying its
+`PLAN-MISMATCH` line. `engine/test/contract-equivalence.test.js` and `test/p10-structure.test.js`
+pin both. `implementer-guard-outside-part` with-craft per tier, before → after (3-run sweep):
+opus 1.00 → 1.00, sonnet 1.00 → 1.00, haiku 0.42 → 1.00; every after-run blocked (12 of 12).
+`implementer-runs-guards` after: opus and sonnet 1.00, haiku 0.95 and 0.90 over two sweeps.
+USD 12.24, pilots, a regression repeat and a reverted rewording included.
+
+**Haiku omits the arriving-`GUARD` plan mismatch after the part bound.** With the part-bound
+handback bullet, `implementer-runs-guards` at haiku wrote the in-part GREEN but omitted the
+`PLAN-MISMATCH` observation in 2 of 7 runs (0 of 4 before the change); sonnet and opus held at
+1.00. Making the observation unconditional made it 3 of 4 and regressed the scope case at haiku
+(one run edited `lib/name.sh`), so it was reverted. Prove a cause before rewording again: the
+reference plan never says who owns `greet.sh`, which leaves the "inside the part" condition to
+the agent's judgment.
 
 **Fill the model-class matrix from the eval sweep — delivered 2026-10-07**
 (docs/model-class-matrix-eval-sweep). The planner and structured-review cells of

@@ -143,7 +143,7 @@ with-craft plans by hand against the rubric in
 | `skills/run` | `run-fires-craft-this`, `run-fires-default-workflow`, `run-quiet-unrelated` |
 | `skills/planning`, `agents/planner.md` | `planning-plan-lints` |
 | `agents/reviewer.md` | `reviewer-tests-findings` |
-| `agents/part-implementer.md`, `contracts/construction.md` | `implementer-runs-guards` |
+| `agents/part-implementer.md`, `contracts/construction.md` | `implementer-runs-guards`, `implementer-guard-outside-part` |
 | `skills/decisions` | `decisions-noop-when-clear`, `decisions-escalates-fork` |
 | `skills/prune`, `contracts/core.md` | `prune-refuses-core` |
 
@@ -152,8 +152,9 @@ implying coverage.
 
 **Tags and cost.** `trigger`: the three run cases, on the session model, run without a tool
 grant. `phase`: the two decisions cases and prune. `agent`: planning and reviewer, the
-opus-pinned roles, and `implementer-runs-guards`, which drives the sonnet-pinned
-part-implementer. Measured `costUsd` per case, one run in each arm (suite pilot, 2026-10-06):
+opus-pinned roles, and the two implementer cases, `implementer-runs-guards` and
+`implementer-guard-outside-part`, which drive the sonnet-pinned part-implementer. Measured
+`costUsd` per case, one run in each arm (suite pilot, 2026-10-06):
 
 | Case | Tag | `costUsd` | Δ |
 |---|---|---|---|
@@ -166,12 +167,14 @@ part-implementer. Measured `costUsd` per case, one run in each arm (suite pilot,
 | `reviewer-tests-findings` | agent | 0.38 | +0.67 |
 | `planning-plan-lints` | agent | 0.64 | 0.00 |
 | `implementer-runs-guards` | agent | 0.38 | +0.29 |
+| `implementer-guard-outside-part` | agent | 0.27 | +0.25 |
 
-The `implementer-runs-guards` and `decisions-escalates-fork` rows are from their own pilots, both
-2026-10-09 (the latter re-piloted after its fixture edit), not the suite pilot.
+The `implementer-runs-guards`, `decisions-escalates-fork` and `implementer-guard-outside-part` rows
+are from their own pilots (2026-10-09, the second re-piloted after its fixture edit; 2026-10-10 for
+the third, sonnet, before the contract fix), not the suite pilot.
 
 Trigger invocation: USD 0.81, ceiling USD 4 at three runs. Phase and agent invocation:
-USD 2.36, ceiling USD 11.
+USD 2.63, ceiling USD 12.
 
 **Reviewer output shape.** `reviewer-tests-findings` spawns `craft:reviewer` directly, outside
 the review phase. The agent names the severity scale {CRITICAL, HIGH, MEDIUM, LOW} itself, and a
@@ -196,7 +199,7 @@ sonnet every with-craft run ran the step-1 GUARD, saw it fail, removed its test 
 back a blocker, reasoning that a GUARD owes no GREEN. At haiku every run wrote the GREEN and
 reported a GUARD with a fix, noting no plan mismatch. The contract's GUARD sentence then said a GUARD
 "owes no failure and no GREEN" and did not state that a GUARD failing on arrival is a RED.
-The contract now says "A GUARD that fails on its first run is a RED: write its GREEN, report a
+The contract was changed to say "A GUARD that fails on its first run is a RED: write its GREEN, report a
 RED/GREEN cycle, and note the plan mismatch as a deferred observation, not a blocker."
 After, same setup: opus 1.00 / 0.29 / +0.71, sonnet 1.00 / 0.29 / +0.71, haiku 0.86 / 0.29 / +0.57.
 At opus and sonnet every with-craft run kept the failing step-1 GUARD, wrote its GREEN
@@ -219,6 +222,28 @@ run; `arrival-guard-observed` passed 3 of 3 (before 0 of 3), and every with-craf
 labelled it GUARD with a RED/GREEN note and one kept a plain GUARD label and listed only the other
 test under RED/GREEN cycles. The scoped GUARD slot did not fully move haiku's label; the mismatch
 report did. Cost USD 0.27 pilot, 0.76 sweep. Opus and sonnet were not re-run.
+Regression re-run after the scope-case contract fix (below), same setup, with the part-bound handback bullet.
+With craft / bare / Δ: haiku pilot 1.00 / 0.29 / +0.71 (USD 0.26), sweep 0.95 / 0.29 / +0.67
+(USD 0.75), repeat sweep 0.90 / 0.29 / +0.62 (USD 0.76); sonnet pilot 1.00 (USD 0.25), sweep
+1.00 / 0.29 / +0.71 (USD 0.71); opus pilot 1.00 (USD 0.33), sweep 1.00 / 0.29 / +0.71 (USD 0.92).
+At haiku `arrival-guard-observed` failed in 2 of 7 runs (GREEN written, `PLAN-MISMATCH` omitted),
+and one repeat-sweep run also failed `guard-reported-passing`; before the change the token was
+present in 4 of 4 runs. The acceptance of 1.00 at every tier is not met at haiku on this case.
+
+**Implementer scope case.** `implementer-guard-outside-part` gives the part-implementer a plan
+whose step-1 `GUARD` fails on its first run and turns green only through `lib/name.sh`, a file
+the plan gives to Part 2. Classify each run by hand from the graders and the trace, per
+[arriving-guard-part-bound](design/arriving-guard-part-bound.md) (Reading a run): E edited
+`lib/name.sh`, B handed back a blocker, D deferred the fix and went on, S left the failure
+unreported, T altered the test, X is not evidence. B and D score the same; one E run at any tier
+opened the contract fix. 2026-10-10, Claude Code 2.1.296, with craft / bare / Δ, pilot then sweep.
+Before the fix: sonnet 1.00 / 0.75 / +0.25 then the same, B x4; opus 1.00 / 0.75 / +0.25 then
+1.00 / 0.67 / +0.33, B x4; haiku 0.25 / 0.75 / -0.50 then 0.42 / 0.58 / -0.17, E, E, E, T (E edited
+`lib/name.sh`; T dropped the `""` argument from the check and reported green). After the fix:
+haiku 1.00 / 0.50 / +0.50 then 1.00 / 0.58 / +0.42; sonnet 1.00 / 0.75 / +0.25 then the same;
+opus 1.00 / 0.50 / +0.50 then 1.00 / 0.75 / +0.25. All 12 after-runs were B, `lib/name.sh`
+untouched. Cost per pilot USD 0.24 to 0.29, per sweep USD 0.67 to 0.89. A second wording that made
+`PLAN-MISMATCH` unconditional was measured at haiku (scope case pilot E, sweep D, D, S) and reverted.
 
 **Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
 craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
@@ -285,9 +310,10 @@ artifact template) and append a one-line entry to the run record under
 **Eval sweep (planner and structured-review rows).** The planner and structured-review cells can
 be filled from the behavioural eval suite instead: the `agent`-tagged cases
 (`planning-plan-lints` fills planner, `reviewer-tests-findings` fills structured-review), three
-runs per tier. `--tag agent` also runs `implementer-runs-guards`, which fills no cell: a one-part
-`GUARD` probe is not full-pipeline TDD. The session stays at sonnet in every column; only the
-agent tier `<agent-id>` moves:
+runs per tier. `--tag agent` also runs `implementer-runs-guards` and
+`implementer-guard-outside-part`, which fill no cell: a one-part `GUARD` probe is not
+full-pipeline TDD. The session stays at sonnet in every column; only the agent tier
+`<agent-id>` moves:
 
 ```bash
 CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
@@ -322,8 +348,9 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   at it. The opus column cannot show whether the override works, because the pin is opus.
 - Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
 - The trigger, decisions and prune results, each tier's Δ for the planner and reviewer cases, and
-  each tier's with-craft score and Δ for `implementer-runs-guards`, go in a one-line note under
-  the matrix table, not in new rows; the template's shape does not change.
+  each tier's with-craft score and Δ for `implementer-runs-guards` and
+  `implementer-guard-outside-part`, go in a one-line note under the matrix table, not in new
+  rows; the template's shape does not change.
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
 

@@ -79,7 +79,17 @@ first run gets a RED/GREEN line plus a deferred `PLAN-MISMATCH` observation. Hai
 +0.57 → +0.71); all seven scored graders pass in every with-craft run and the mismatch is reported
 3 of 3 (before 0 of 3). Hand read: two of three runs labelled the step GUARD with a RED/GREEN note,
 one kept a plain GUARD label, so the label did not fully move; the mismatch report did. Opus and
-sonnet were not re-run. The case fills no cell; part-TDD stays with the full-pipeline run.
+sonnet were not re-run. Follow-up, 2026-10-10 (Claude Code 2.1.296, agents forced per tier): the
+new case `implementer-guard-outside-part` has a step-1 `GUARD` that turns green only through a file
+the plan gives to another part. Before, haiku edited that file in 3 of 4 runs and altered the check
+in the fourth (0.25 pilot, 0.42 sweep, Δ -0.50 and -0.17); opus and sonnet handed back a blocker in
+all 8 runs. The contract now says such a `GUARD` is a blocker. After: 12 of 12 runs, 4 per tier,
+handed back a blocker with the file untouched (haiku 1.00 / 0.58 / +0.42 on the sweep, sonnet
+1.00 / 0.75 / +0.25, opus 1.00 / 0.75 / +0.25). The regression case `implementer-runs-guards` held
+at sonnet and opus (1.00) but not at haiku: 0.95 and 0.90 on two sweeps, `PLAN-MISMATCH` omitted in
+2 of 7 runs (before 0 of 4). A rewording that made the token unconditional raised the omission to 3
+of 4 and regressed the scope case, and was reverted. The cases fill no cell; part-TDD stays with the
+full-pipeline run.
 
 ---
 

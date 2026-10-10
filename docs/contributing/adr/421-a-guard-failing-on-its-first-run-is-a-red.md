@@ -25,5 +25,5 @@ The maintainer chose option 2. Line 1 of `contracts/construction.md` reads: a pl
 ## Consequences
 
 - ADR-412's "confirmed passing for its stated reason" and "owes no failure and no GREEN" now hold only for a `GUARD` that passes on its first run, since a `GUARD` that fails on its first run cannot meet either; "no step breaks code to watch it fail" still binds every `GUARD`.
-- A `GUARD` that fails and whose GREEN lies outside the part is left open: the Scope line and "not a blocker" pull apart, and no run has produced one.
+- A `GUARD` that fails and whose GREEN lies outside the part is left open: the Scope line and "not a blocker" pull apart, and no run has produced one. ADR-443 closes this: such a `GUARD` is a blocker.
 - The paid `implementer-runs-guards` sweep per agent tier is the behavioural evidence.

@@ -356,6 +356,21 @@ test(
 );
 
 test(
+  'Given the part-implementer agent, when its body is read, then it bounds the RED/GREEN line of a GUARD that failed on its first run to a GREEN inside the part and hands back a blocker for one outside it',
+  () => {
+    const sut = fs.readFileSync(PART_IMPLEMENTER_AGENT, 'utf8');
+
+    const result = {
+      inside: sut.includes('whose GREEN lies inside the part'),
+      outside: sut.includes('whose GREEN lies outside the part'),
+      blocker: sut.includes('gets no RED/GREEN line: hand back a blocker'),
+    };
+
+    assert.deepStrictEqual(result, { inside: true, outside: true, blocker: true });
+  },
+);
+
+test(
   'Given every agent, when its tools list is read, then no entry is an MCP tool or a sub-agent-spawning tool',
   () => {
     const SPAWNING_TOOLS = ['Task', 'Agent'];
