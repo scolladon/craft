@@ -205,11 +205,15 @@ Reproduced 2026-10-09 from a clone of the branch: exit 2 from the symlinked path
 stops `ci.sh` instead of being masked. Fix: resolve both paths the same way (`pwd -P` at line
 21), with a test that runs `--audience` from a symlinked throwaway.
 
-**Prune review: the decisions skill's escalation path.** With the hint removed from its fixture,
-`decisions-escalates-fork` still scores bare 1.00 / Δ 0.00 over three runs (2026-10-09): the
-bare model escalates the uncovered fork on its own. Take that to `craft:prune` as evidence for
-the escalation wording in `skills/decisions/SKILL.md`; keep the `NO-OP(decisions):` path and its
-`decisions-noop-when-clear` case (+0.50) out of the candidate.
+**Prune review: the decisions skill's escalation path — delivered 2026-10-10**
+(chore/prune-decisions-escalation). `craft:prune` proposed one candidate, ratified: the
+escalate-when conditions and "when in doubt, escalate" are cut from `skills/decisions/SKILL.md`;
+any candidate the adopt rule does not admit is a genuine fork. ADR-433 records the partial
+supersession. The adopt sentence and the `NO-OP(decisions):` path are unchanged. with-craft / bare / Δ
+over three runs per arm after the cut (Claude Code 2.1.296, session at opus, judge sonnet):
+`decisions-escalates-fork` 1.00 / 1.00 / 0.00 (USD 0.91), `decisions-noop-when-clear`
+1.00 / 0.50 / +0.50 (USD 1.01; the bare arm writes no ADR). Every with-only grader passed 3 of 3.
+No fixture covers a clear, ADR-aligned recommendation over a real user trade-off.
 
 ### Open (scoped 2026-10-06 — follow-ups surfaced by the plugin-eval-suite run, not yet scheduled)
 
