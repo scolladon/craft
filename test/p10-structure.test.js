@@ -356,17 +356,17 @@ test(
 );
 
 test(
-  'Given the part-implementer agent, when its body is read, then it always reports the plan mismatch of a GUARD that failed on its first run, with a RED/GREEN line inside the part or a blocker outside it',
+  'Given the part-implementer agent, when its body is read, then it bounds the RED/GREEN line of a GUARD that failed on its first run to a GREEN inside the part and hands back a blocker for one outside it',
   () => {
     const sut = fs.readFileSync(PART_IMPLEMENTER_AGENT, 'utf8');
 
     const result = {
-      always: sut.includes('failed on its first run always gets the deferred observation'),
-      inside: sut.includes('with a RED/GREEN line when its GREEN lies inside the part'),
-      outside: sut.includes('as the reason of a blocker when its GREEN lies outside it'),
+      inside: sut.includes('whose GREEN lies inside the part'),
+      outside: sut.includes('whose GREEN lies outside the part'),
+      blocker: sut.includes('gets no RED/GREEN line: hand back a blocker'),
     };
 
-    assert.deepStrictEqual(result, { always: true, inside: true, outside: true });
+    assert.deepStrictEqual(result, { inside: true, outside: true, blocker: true });
   },
 );
 
