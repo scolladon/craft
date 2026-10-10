@@ -465,3 +465,8 @@ haiku-arriving-guard-handback implementation turns=10 tool_calls=13 tokens=19311
 haiku-arriving-guard-handback planning turns=15 tool_calls=15 tokens=518655 duration_ms=185002 cache_read=472064 cache_creation=46404 output=157 avg_ctx=34567 equiv=106026
 haiku-arriving-guard-handback review turns=25 tool_calls=27 tokens=503351 duration_ms=154570 cache_read=405872 cache_creation=97018 output=411 avg_ctx=20118 equiv=163965
 haiku-arriving-guard-handback documentation turns=6 tool_calls=9 tokens=117505 duration_ms=29438 cache_read=97460 cache_creation=19625 output=408 avg_ctx=19516 equiv=36329
+arriving-guard-part-bound design turns=136 tool_calls=142 tokens=11833569 duration_ms=1918652 cache_read=11521875 cache_creation=309349 output=2073 avg_ctx=86996 equiv=1549511
+arriving-guard-part-bound documentation turns=10 tool_calls=10 tokens=231803 duration_ms=106705 cache_read=206807 cache_creation=24733 output=243 avg_ctx=23156 equiv=52832
+arriving-guard-part-bound implementation turns=34 tool_calls=38 tokens=721807 duration_ms=353581 cache_read=612702 cache_creation=107811 output=1226 avg_ctx=21194 equiv=202232
+arriving-guard-part-bound planning turns=112 tool_calls=116 tokens=8821674 duration_ms=1495725 cache_read=8563705 cache_creation=255824 output=1921 avg_ctx=78748 equiv=1185980
+arriving-guard-part-bound review turns=73 tool_calls=78 tokens=2663429 duration_ms=754893 cache_read=2469922 cache_creation=191769 output=1592 avg_ctx=36464 equiv=494809
