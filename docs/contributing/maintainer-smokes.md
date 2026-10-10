@@ -143,7 +143,7 @@ with-craft plans by hand against the rubric in
 | `skills/run` | `run-fires-craft-this`, `run-fires-default-workflow`, `run-quiet-unrelated` |
 | `skills/planning`, `agents/planner.md` | `planning-plan-lints` |
 | `agents/reviewer.md` | `reviewer-tests-findings` |
-| `agents/part-implementer.md`, `contracts/construction.md` | `implementer-runs-guards` |
+| `agents/part-implementer.md`, `contracts/construction.md` | `implementer-runs-guards`, `implementer-guard-outside-part` |
 | `skills/decisions` | `decisions-noop-when-clear`, `decisions-escalates-fork` |
 | `skills/prune`, `contracts/core.md` | `prune-refuses-core` |
 
@@ -152,8 +152,9 @@ implying coverage.
 
 **Tags and cost.** `trigger`: the three run cases, on the session model, run without a tool
 grant. `phase`: the two decisions cases and prune. `agent`: planning and reviewer, the
-opus-pinned roles, and `implementer-runs-guards`, which drives the sonnet-pinned
-part-implementer. Measured `costUsd` per case, one run in each arm (suite pilot, 2026-10-06):
+opus-pinned roles, and the two implementer cases, `implementer-runs-guards` and
+`implementer-guard-outside-part`, which drive the sonnet-pinned part-implementer. Measured
+`costUsd` per case, one run in each arm (suite pilot, 2026-10-06):
 
 | Case | Tag | `costUsd` | Δ |
 |---|---|---|---|
@@ -220,6 +221,15 @@ labelled it GUARD with a RED/GREEN note and one kept a plain GUARD label and lis
 test under RED/GREEN cycles. The scoped GUARD slot did not fully move haiku's label; the mismatch
 report did. Cost USD 0.27 pilot, 0.76 sweep. Opus and sonnet were not re-run.
 
+**Implementer scope case.** `implementer-guard-outside-part` gives the part-implementer a plan
+whose step-1 `GUARD` fails on its first run and turns green only through `lib/name.sh`, a file
+the plan gives to Part 2. Classify each run by hand from the graders and the trace, per
+[arriving-guard-part-bound](design/arriving-guard-part-bound.md) (Reading a run): E edited
+`lib/name.sh`, B handed back a blocker, D deferred the fix and went on, S left the failure
+unreported, T altered the test, X is not evidence (no spawn, no contract, or step 1 never ran).
+The verdict is the per-run class, not the mean score: B and D score the same, and one E run at
+any tier opens the contract fix.
+
 **Observed in the pilots.** craft's skills load in the with-craft arm (`suite.plugins` lists
 craft with no `problem`, and the skill fires). craft's agents load too: the child's `init` event
 lists every `craft:*` agent, and the reviewer and planner cases spawn theirs. A scaffold reads its
@@ -285,9 +295,10 @@ artifact template) and append a one-line entry to the run record under
 **Eval sweep (planner and structured-review rows).** The planner and structured-review cells can
 be filled from the behavioural eval suite instead: the `agent`-tagged cases
 (`planning-plan-lints` fills planner, `reviewer-tests-findings` fills structured-review), three
-runs per tier. `--tag agent` also runs `implementer-runs-guards`, which fills no cell: a one-part
-`GUARD` probe is not full-pipeline TDD. The session stays at sonnet in every column; only the
-agent tier `<agent-id>` moves:
+runs per tier. `--tag agent` also runs `implementer-runs-guards` and
+`implementer-guard-outside-part`, which fill no cell: a one-part `GUARD` probe is not
+full-pipeline TDD. The session stays at sonnet in every column; only the agent tier
+`<agent-id>` moves:
 
 ```bash
 CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
@@ -322,8 +333,9 @@ CLAUDE_CODE_SUBAGENT_MODEL=<agent-id> CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 \
   at it. The opus column cannot show whether the override works, because the pin is opus.
 - Cell = the case's with-craft mean score: PASS = 1.0, PARTIAL ≥ 0.5, FAIL < 0.5.
 - The trigger, decisions and prune results, each tier's Δ for the planner and reviewer cases, and
-  each tier's with-craft score and Δ for `implementer-runs-guards`, go in a one-line note under
-  the matrix table, not in new rows; the template's shape does not change.
+  each tier's with-craft score and Δ for `implementer-runs-guards` and
+  `implementer-guard-outside-part`, go in a one-line note under the matrix table, not in new
+  rows; the template's shape does not change.
 - part-TDD, blocker, full-pipeline-completion and the per-phase tokens stay with the
   full-pipeline run above; no eval case reaches them.
 
