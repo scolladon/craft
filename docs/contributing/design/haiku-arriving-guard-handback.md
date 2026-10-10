@@ -110,8 +110,7 @@ construction spawn (inline mode included) to fix one agent's handback.
     (`REVIEWER_AGENT` const at line 296, then two tests that read the body with
     `fs.readFileSync`). Add a `PART_IMPLEMENTER_AGENT = path.join(ROOT,
     'agents/part-implementer.md')` const and one test, e.g. "Given the part-implementer agent,
-    when its final-message line is read, then it names the PLAN-MISMATCH token for a GUARD
-    that failed on its first run". It asserts `sut.includes('PLAN-MISMATCH(<test title>):')`
+    when its body is read, then it names the PLAN-MISMATCH(<test title>): token prefix". It asserts `sut.includes('PLAN-MISMATCH(<test title>):')`
     (AAA, `sut`, `result`). `fs`, `path` and `ROOT` are already imported. Do not use `grepQ`:
     it matches whole lines (`grep -qx`).
   - Not touched: `contracts/construction.md`, `engine/test/contract-equivalence.test.js`,
