@@ -280,14 +280,16 @@ sonnet no longer block: every run wrote the GREEN, reported the mismatch and ran
 Haiku writes the GREEN but reported the mismatch in 1 of 4 runs (pilot included). USD 3.43,
 pilots included.
 
-**Haiku omits the arriving-`GUARD` deferred observation.** After the contract change, haiku
-wrote the GREEN for the failing step-1 `GUARD` in every run but reported the plan mismatch in
-1 of 4 (`arrival-guard-observed` FAIL in all three sweep runs); two runs kept the `GUARD` label.
-The contract states the rule, so the gap is in how haiku turns it into the handback. One
-candidate is naming the case in the handback line of `agents/part-implementer.md`, which
-ADR-423 left unchanged for lack of evidence; this is that evidence.
-Re-run `implementer-runs-guards` at haiku per `docs/contributing/maintainer-smokes.md`
-§ Model-class matrix, "Eval sweep"; the numbers above are the before.
+**Haiku omits the arriving-`GUARD` deferred observation — delivered 2026-10-10**
+(fix/haiku-arriving-guard-handback). The `Final message` bullet of `agents/part-implementer.md`
+now scopes its `GUARD` line to a `GUARD` that passed on its first run, and gives a `GUARD` that
+failed on its first run a RED/GREEN line and the deferred observation `PLAN-MISMATCH(<test
+title>): the plan expected it to pass; it failed on its first run`. `test/p10-structure.test.js`
+pins the token prefix; the contract is unchanged. `implementer-runs-guards` at haiku,
+with-craft / bare / Δ over 3 runs, before → after: 0.86 / 0.29 / +0.57 → 1.00 / 0.29 / +0.71;
+`arrival-guard-observed` 0 of 3 → 3 of 3, with a `PLAN-MISMATCH` line in every run. The step-1
+label moved less: two runs wrote `GUARD` with a RED/GREEN note, one kept a plain `GUARD` label.
+Opus and sonnet were not re-run. USD 1.03, pilot included.
 
 **Bound the arriving-`GUARD` exemption to the part.** The arriving-`GUARD` clause says "not a
 blocker" without a condition, while the contract's Scope line keeps the implementer inside its

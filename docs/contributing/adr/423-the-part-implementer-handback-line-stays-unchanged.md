@@ -4,9 +4,12 @@ subjects:
 ---
 # 423 — The part-implementer handback line stays unchanged
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-434
 - **Date:** 2026-10-09
 - **Design:** docs/contributing/design/arriving-guard-contract-rule.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-434** for the part-implementer handback line staying unchanged: the line now
+> names a `GUARD` that failed on its first run with a `PLAN-MISMATCH` token.
 
 ## Context
 

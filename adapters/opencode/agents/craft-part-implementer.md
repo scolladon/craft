@@ -24,4 +24,4 @@ commit message, and any repo-specific context block — binding constraints.
 
 Contract:
 
-- Final message: the commit hash + one line per RED/GREEN cycle and per `GUARD`, plus any deferred observations.
+- Final message: the commit hash + one line per RED/GREEN cycle and per `GUARD` that passed on its first run, plus any deferred observations. A `GUARD` that failed on its first run gets a RED/GREEN line and the deferred observation `PLAN-MISMATCH(<test title>): the plan expected it to pass; it failed on its first run`.
