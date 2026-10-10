@@ -42,7 +42,7 @@ tier with `CLAUDE_CODE_SUBAGENT_MODEL` and `FORCE=1`; contract and agent body as
 |---|---|---|---|---|
 | sonnet `claude-sonnet-5-5` | `claude-opus-5-5` | pilot 1.00 / 0.75 / +0.25; sweep 1.00 / 0.75 / +0.25 | pilot B; sweep B, B, B | 0.27 + 0.69 |
 | haiku `claude-haiku-4-5` | `claude-sonnet-5-5` | pilot 0.25 / 0.75 / −0.50; sweep 0.42 / 0.58 / −0.17 | pilot E; sweep E, E, T | 0.27 + 0.75 |
-| opus `claude-opus-5-5` | `claude-sonnet-5-5` | pilot 1.00 / 0.75 / +0.25; sweep: filled by the orchestrator when it lands | pilot B | 0.29 + sweep |
+| opus `claude-opus-5-5` | `claude-sonnet-5-5` | pilot 1.00 / 0.75 / +0.25; sweep 1.00 / 0.67 / +0.33 | pilot B; sweep B, B, B | 0.29 + 0.85 |
 
 - **E** (haiku, 3 runs): an agent `Edit` of `lib/name.sh`, `${1-world}` → `${1:-world}`
   (`parent_tool_use_id` set, model `claude-haiku-4-5-20251001`). The pilot's handback said
