@@ -460,3 +460,8 @@ ci-lint-chain-fail-closed design turns=46 tool_calls=50 tokens=2090263 duration_
 ci-lint-chain-fail-closed implementation turns=10 tool_calls=10 tokens=251572 duration_ms=121800 cache_read=224310 cache_creation=26888 output=354 avg_ctx=25122 equiv=57831
 ci-lint-chain-fail-closed planning turns=39 tool_calls=40 tokens=2584654 duration_ms=748644 cache_read=2481502 cache_creation=100385 output=2689 avg_ctx=66204 equiv=387154
 ci-lint-chain-fail-closed review turns=52 tool_calls=53 tokens=1344304 duration_ms=1207270 cache_read=1212016 cache_creation=131509 output=675 avg_ctx=25839 equiv=289067
+haiku-arriving-guard-handback design turns=49 tool_calls=51 tokens=2819851 duration_ms=445522 cache_read=2721615 cache_creation=97305 output=833 avg_ctx=57531 equiv=398056
+haiku-arriving-guard-handback implementation turns=10 tool_calls=13 tokens=193110 duration_ms=68068 cache_read=170198 cache_creation=22386 output=506 avg_ctx=19260 equiv=47552
+haiku-arriving-guard-handback planning turns=15 tool_calls=15 tokens=518655 duration_ms=185002 cache_read=472064 cache_creation=46404 output=157 avg_ctx=34567 equiv=106026
+haiku-arriving-guard-handback review turns=25 tool_calls=27 tokens=503351 duration_ms=154570 cache_read=405872 cache_creation=97018 output=411 avg_ctx=20118 equiv=163965
+haiku-arriving-guard-handback documentation turns=6 tool_calls=9 tokens=117505 duration_ms=29438 cache_read=97460 cache_creation=19625 output=408 avg_ctx=19516 equiv=36329
