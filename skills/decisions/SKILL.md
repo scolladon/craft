@@ -26,10 +26,8 @@ ENTIRELY session-owned — never delegated.
    ADOPTED without escalation when its design recommendation is clear AND aligns with
    an existing ADR or a stated craft principle — check "aligns with an existing ADR"
    against the governing slice arriving on slot 1 (`skills/run/SKILL.md`'s intention
-   hint), an indexed read, never an unindexed wish over the full ADR directory. A
-   candidate is a GENUINE FORK — escalated — when the recommendation is unclear, the
-   alternatives carry a real user-judgment trade-off, or it deviates from an existing
-   ADR/principle. When in doubt, escalate: adopt only the unambiguous.
+   hint), an indexed read, never an unindexed wish over the full ADR directory. Any
+   other candidate is a GENUINE FORK — escalated.
 2. **Genuine forks → user conversation.** Per escalated candidate: present ≤3 options
    with the design's recommendation; capture the user's decision.
 3. **No genuine forks (zero candidates, or every candidate adopted) → first-class

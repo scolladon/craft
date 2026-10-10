@@ -1,8 +1,12 @@
 # 100 — `decisions` adopts a recommendation without escalating only when clear and ADR/principle-aligned
 
-- **Status:** accepted
+- **Status:** superseded by ADR-433
 - **Date:** 2026-06-21
 - **Design:** docs/DESIGN-P19-noop-first-class-phase-outcome.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-433** for the escalate-when wording only: the skill no longer lists the
+> escalation conditions or the when-in-doubt default; every candidate the adopt rule does not
+> admit is escalated.
 
 ## Context
 
