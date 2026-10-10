@@ -4,7 +4,7 @@ subjects:
 ---
 # 447 — The PLAN-MISMATCH observation is unconditional for an arriving GUARD
 
-- **Status:** accepted
+- **Status:** rejected — reverted after measurement
 - **Date:** 2026-10-10
 - **Design:** docs/contributing/design/arriving-guard-part-bound.md · **Supersedes/Refines:** refines ADR-444
 
@@ -26,3 +26,4 @@ The maintainer chose option 1. The bullet's sentence reads: A `GUARD` that faile
 
 - The structure pin moves to the new clauses; the `PLAN-MISMATCH(<test title>):` prefix pin is unchanged.
 - Haiku is re-measured on both implementer cases against the ADR-446 acceptance read.
+- Measured and reverted the same day. With this bullet, haiku omitted the observation in 3 of 4 `implementer-runs-guards` runs, and `implementer-guard-outside-part` went from 4 of 4 blocked to one run that edited `lib/name.sh`, two that deferred, and one that dropped the check while reporting it unchanged. ADR-444's bullet stands; the 2-of-7 omission stays open.
