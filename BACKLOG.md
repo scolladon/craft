@@ -285,7 +285,7 @@ wrote the GREEN for the failing step-1 `GUARD` in every run but reported the pla
 1 of 4 (`arrival-guard-observed` FAIL in all three sweep runs); two runs kept the `GUARD` label.
 The contract states the rule, so the gap is in how haiku turns it into the handback. One
 candidate is naming the case in the handback line of `agents/part-implementer.md`, which
-ADR-423 left unchanged for lack of evidence; this is that evidence.
+was left unchanged for lack of evidence; this is that evidence.
 Re-run `implementer-runs-guards` at haiku per `docs/contributing/maintainer-smokes.md`
 § Model-class matrix, "Eval sweep"; the numbers above are the before.
 
