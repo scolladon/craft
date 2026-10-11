@@ -177,15 +177,18 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-10-11 — follow-ups surfaced by the transient-model-retry run, not yet scheduled)
 
-**Four process suites each carry their own region slicer, and they disagree.**
-`test/run-record.test.js:50` (`sliceRegion`), `test/concepts-frames.test.js:25` and
-`test/auto-compaction-docs.test.js:81` (`sliceFrom`), and `test/model-retry-token.test.js`
-(`sliceRegion`) all slice a markdown file between two line patterns. They differ on a missing
-end marker (fail loud vs silently widen to EOF) and on the join (`' '` vs `'\n'`).
-`run-record.test.js` documents why widening to EOF is wrong: a renamed heading turns a scoped
-pin into a whole-file grep that passes for the wrong reason. Centralising into
-`test/helpers/` with fail-loud as the only behaviour changes two suites' semantics, so each
-call site needs checking that its end marker exists.
+**Four process suites each carry their own region slicer — delivered 2026-10-11**
+(test/centralise-region-slicer). One helper, `test/helpers/region-slice.js`, replaces the four
+copies, and its own suite is `test/region-slice.test.js`. There were 38 call sites, not 4. No
+single join kept all four suites green, so the helper has two shapes (ADR-472): `sliceRegion`
+returns the exact lines joined with `'\n'`, which the concepts Sources bullet count needs for
+its `^…/m` anchor, and `sliceProse` collapses whitespace for the word-wrapped pins in
+run-record and model-retry. "From the top" and "to the end" are now the `FROM_TOP` / `TO_END`
+sentinels (ADR-473). A start or end pattern that is given but not found fails the assertion.
+A `null`, `undefined`, string or omitted boundary throws `TypeError`, which also closes a
+second widening path: run-record's slicer used to slice to EOF when the end argument was left
+out. Before switching to fail-loud, every call site that used to widen was checked against
+its target file. Each end marker exists, so no hidden false pass was exposed.
 
 **Capture the error text the Task tool surfaces on a real 529.** The transient-overload retry
 classifies on the strings the Claude Code bundle uses (`529`, `overloaded_error`, `Repeated 529
