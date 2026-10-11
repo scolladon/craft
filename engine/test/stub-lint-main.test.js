@@ -209,3 +209,107 @@ test('Given a STUB-WAIVE token with interior padding around the path, when main 
   assert.equal(result, 0, `expected the trimmed padded path to clear; stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
   assert.equal(io.stdout.joined(), '');
 });
+
+// ─── the lint's own name is not a marker; real markers on ci.sh still fire ───
+
+const CI_SH_HYGIENE_HEADER = '# --- hygiene gates (workstream C): touched-diff stub-lint + prose-lint ---';
+const CI_SH_STUB_LINT_INVOCATION =
+  '  node engine/bin/stub-lint.js --gate "$hygiene_gate" ${waivers[@]+"${waivers[@]}"} -- "${src[@]}"';
+
+function findingsOf(io) {
+  return io.stdout.joined().split('\n').filter(Boolean);
+}
+
+function writeCiSh(lines) {
+  return writeFixture(tmpRoot(), 'scripts/ci.sh', `${lines.join('\n')}\n`);
+}
+
+test('Given a ci.sh-shaped file naming stub-lint in its header and its invocation, when main runs with --gate blocking, then it exits 0 with no findings', () => {
+  const sut = main;
+  const ciSh = writeCiSh([CI_SH_HYGIENE_HEADER, CI_SH_STUB_LINT_INVOCATION]);
+  const io = makeCaptureIo();
+
+  const result = sut(['--gate', 'blocking', '--', ciSh], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+  assert.deepEqual(findingsOf(io), []);
+});
+
+test('Given stub-lint sharing a line with another marker, when main runs, then only that other marker is reported', () => {
+  const sut = main;
+  const ciSh = writeCiSh(['stub-lint TODO later', 'stub-lint stub']);
+  const io = makeCaptureIo();
+
+  sut([ciSh], io);
+
+  assert.deepEqual(findingsOf(io), [`STUB-FOUND(${ciSh}): TODO@L1`, `STUB-FOUND(${ciSh}): STUB@L2`]);
+});
+
+test('Given the lint name in upper and mixed case, when main runs, then neither is reported', () => {
+  const sut = main;
+  const ciSh = writeCiSh(['STUB-LINT', 'Stub-Lint']);
+  const io = makeCaptureIo();
+
+  sut([ciSh], io);
+
+  assert.deepEqual(findingsOf(io), []);
+});
+
+test('Given the lint name twice on one line, when main runs, then neither occurrence is reported', () => {
+  const sut = main;
+  const ciSh = writeCiSh(['stub-lint stub-lint']);
+  const io = makeCaptureIo();
+
+  sut([ciSh], io);
+
+  assert.deepEqual(findingsOf(io), []);
+});
+
+test('Given a ci.sh-shaped file with real TODO, stub and FIXME lines, when main runs with --gate blocking, then each is reported on its line and the run exits non-zero', () => {
+  const sut = main;
+  const ciSh = writeCiSh([CI_SH_HYGIENE_HEADER, CI_SH_STUB_LINT_INVOCATION, '# TODO: x', '# stub: fill in', '# FIXME']);
+  const io = makeCaptureIo();
+
+  const result = sut(['--gate', 'blocking', '--', ciSh], io);
+
+  assert.equal(result, 2);
+  assert.deepEqual(findingsOf(io), [
+    `STUB-FOUND(${ciSh}): TODO@L3`,
+    `STUB-FOUND(${ciSh}): STUB@L4`,
+    `STUB-FOUND(${ciSh}): FIXME@L5`,
+  ]);
+});
+
+test('Given the hygiene header worded with a bare prose stub, when main runs, then that stub is still reported', () => {
+  const sut = main;
+  const ciSh = writeCiSh(['# --- hygiene gates (workstream C): touched-diff stub + prose lints ---']);
+  const io = makeCaptureIo();
+
+  sut([ciSh], io);
+
+  assert.deepEqual(findingsOf(io), [`STUB-FOUND(${ciSh}): STUB@L1`]);
+});
+
+test('Given near-miss forms of the lint name, when main runs, then each still reports a STUB marker', () => {
+  const sut = main;
+  const nearMisses = ['stub-linter', 'stub-lints', 'stub -lint', 'stub--lint', 'STUB-WAIVE(x)'];
+  const ciSh = writeCiSh(nearMisses);
+  const io = makeCaptureIo();
+
+  sut([ciSh], io);
+
+  assert.deepEqual(
+    findingsOf(io),
+    nearMisses.map((_, idx) => `STUB-FOUND(${ciSh}): STUB@L${idx + 1}`),
+  );
+});
+
+test('Given the lint name glued onto a preceding marker, when main runs, then neither the name nor the marker is reported', () => {
+  const sut = main;
+  const ciSh = writeCiSh(['TODOstub-lint']);
+  const io = makeCaptureIo();
+
+  sut([ciSh], io);
+
+  assert.deepEqual(findingsOf(io), []);
+});

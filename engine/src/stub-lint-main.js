@@ -16,6 +16,12 @@ const FOUND_TOKEN = 'STUB-FOUND';
 // Compiled once (MARKERS is frozen). `matchAll` clones the regexp internally, so
 // reusing this global pattern across lines/files carries no lastIndex state.
 const MARKER_PATTERN = new RegExp(`\\b(${MARKERS.join('|')})\\b`, 'gi');
+// The lint's own name: `-` is a word boundary, so `stub` inside `stub-lint` would
+// otherwise read as a STUB marker at every call site that names the lint.
+const OWN_NAME_PATTERN = /\bstub-lint\b/gi;
+// equivalent mutant (StringLiteral: '' instead of ' '): the name is stripped only
+// between non-word characters or line edges, so no replacement can join or split a marker
+const OWN_NAME_REPLACEMENT = ' ';
 
 /**
  * @param {string} content
@@ -24,7 +30,8 @@ const MARKER_PATTERN = new RegExp(`\\b(${MARKERS.join('|')})\\b`, 'gi');
 function scan(content) {
   const findings = [];
   content.split('\n').forEach((line, idx) => {
-    for (const match of line.matchAll(MARKER_PATTERN)) {
+    const scannable = line.replace(OWN_NAME_PATTERN, OWN_NAME_REPLACEMENT);
+    for (const match of scannable.matchAll(MARKER_PATTERN)) {
       findings.push(`${match[1].toUpperCase()}@L${idx + 1}`);
     }
   });
