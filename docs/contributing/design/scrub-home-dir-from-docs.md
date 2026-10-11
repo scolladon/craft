@@ -257,6 +257,7 @@ session-authored.
 - **`/private/tmp/claude-<uid>/` paths**: a uid identifies no one.
 - **The spawn briefs' "absolute working directory"**: agents need it at runtime (R3).
 - **`plan-lint` product-wide enforcement**: deferred by DC-5 (a).
-- **Workspace-layout segments inside placeholder-user lines** (`/Users/x/…`, `-Users-x-…` in
-  `plan/usage-telemetry-miner.md:336`, `usage-mine-main.js:157`, `usage-mine-main.test.js:1320`):
-  they carry no username, so they stay as they are.
+- **Generic layout segments inside placeholder-user lines** (`/Users/x/y/z` in
+  `engine/src/observability/usage-mine-main.js:157`, `-Users-x-craft` in
+  `usage-mine-main.test.js:1320`): they carry neither username nor the real layout. The real
+  `workspace/perso` layout is dropped (to `w`) wherever it survived beside the `x` placeholder.

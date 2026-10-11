@@ -333,7 +333,7 @@ field names, do not invent):**
 **Exports:**
 - `resolveTranscriptDir(cwd, homeDir, overrideDir) → string` — when `overrideDir` is set, return its
   lexical resolve; else `join(homeDir, '.claude', 'projects', cwd.replaceAll('/', '-'))`. e.g. cwd
-  `/Users/x/workspace/perso/craft` → dir `…/.claude/projects/-Users-x-workspace-perso-craft`. Lexical
+  `/Users/x/w/craft` → dir `…/.claude/projects/-Users-x-w-craft`. Lexical
   only — containment is Part 4's job.
 - `tokensFromClaudeUsage(usageObj) → { input, cacheRead, cacheCreation, output, cacheCreationTtl }` —
   maps the JSONL `*_input_tokens` field names to the neutral `UsageEvent.tokens` shape +
