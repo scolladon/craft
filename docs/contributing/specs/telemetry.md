@@ -110,7 +110,12 @@ The valid bindings are **`{ claude, pi, opencode, copilot, codex, aider }`**.
   and `summaryMissing: true`. Every `CompactionEstimate` this binding emits has the shape
   `{ run, sourceKind, cacheRead, input, output, summaryMissing }`; it carries no path and no
   summary text. Boundary and summary lines contribute no `UsageEvent` — they carry no
-  `message.usage`.
+  `message.usage`. Within one `parseLines` call, a boundary or summary line whose top-level `uuid`
+  was already consumed is skipped with no state change — it neither opens, closes, nor
+  summary-misses a pending compaction — because the CLI can re-append an earlier stretch of a
+  transcript with the same `uuid`s. A compaction line with no `uuid` is never deduplicated. The
+  dedup runs after the `since` filter and touches only boundary and summary lines; billed events
+  (folded by `message.id`) and the marker scan are unchanged.
 
 The binding is called once per invocation by the CLI front-door (`engine/src/observability/usage-mine-main.js`),
 which resolves flags, injects deps, and passes the resulting `UsageEvent[]` to `aggregate`.

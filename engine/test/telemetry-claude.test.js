@@ -1181,3 +1181,84 @@ test('Given a compaction summary line with no message field, when parseLines run
   assert.equal(result.compactions[0].summaryMissing, true);
   assert.deepEqual(result.compactions[0].output, [1300, 2600]);
 });
+
+// ── parseLines — a re-appended compaction pair is mined once ──
+
+const replayBoundary = (uuid, preTokens, timestamp) => JSON.stringify({
+  type: 'system', subtype: 'compact_boundary', uuid, sessionId: 'sess-replay', timestamp,
+  compactMetadata: { trigger: 'auto', preTokens },
+});
+const replaySummary = (uuid, content, timestamp) => JSON.stringify({
+  type: 'user', isCompactSummary: true, uuid, sessionId: 'sess-replay', timestamp,
+  message: { role: 'user', content },
+});
+const replayEstimate = (cacheRead, output, summaryMissing) => ({
+  run: 'sess-replay', sourceKind: 'main', cacheRead, input: [3000, 5500], output, summaryMissing,
+});
+
+test('Given compaction-reappended.jsonl whose boundary and summary are re-appended with their original uuids, when parseLines runs, then compactions holds one main estimate', async () => {
+  const sut = parseLines;
+  const lines = fixtureLines('compaction-reappended.jsonl');
+
+  const result = await sut(asyncLines(lines));
+
+  assert.deepEqual(result.compactions, [
+    { run: 'sess-reappend', sourceKind: 'main', cacheRead: 24715, input: [3000, 5500], output: [1014, 2366], summaryMissing: false },
+  ]);
+});
+
+test('Given a re-appended boundary and summary arriving while a later boundary is still open, when parseLines runs, then the duplicates are skipped and the later boundary closes on its own summary', async () => {
+  const sut = parseLines;
+  const b1 = replayBoundary('u-b1', 8000, '2026-03-01T10:00:00.000Z');
+  const s1 = replaySummary('u-s1', 'x'.repeat(800), '2026-03-01T10:00:05.000Z');
+  const b2 = replayBoundary('u-b2', 9000, '2026-03-01T11:00:00.000Z');
+  const s2 = replaySummary('u-s2', 'x'.repeat(400), '2026-03-01T11:00:05.000Z');
+
+  const result = await sut(asyncLines([b1, s1, b2, b1, s1, s2]));
+
+  assert.deepEqual(result.compactions, [
+    replayEstimate(8000, [240, 560], false),
+    replayEstimate(9000, [120, 280], false),
+  ]);
+});
+
+test('Given a re-appended boundary and summary ending the stream while a later boundary is still open, when parseLines runs, then the later boundary closes as summary-missing', async () => {
+  const sut = parseLines;
+  const b1 = replayBoundary('u-b1', 8000, '2026-03-01T10:00:00.000Z');
+  const s1 = replaySummary('u-s1', 'x'.repeat(800), '2026-03-01T10:00:05.000Z');
+  const b2 = replayBoundary('u-b2', 9000, '2026-03-01T11:00:00.000Z');
+
+  const result = await sut(asyncLines([b1, s1, b2, b1, s1]));
+
+  assert.deepEqual(result.compactions, [
+    replayEstimate(8000, [240, 560], false),
+    replayEstimate(9000, [1300, 2600], true),
+  ]);
+});
+
+test('Given compaction-reappended.jsonl with a sub-agent context, when parseLines runs, then compactions holds one subagent estimate', async () => {
+  const sut = parseLines;
+  const lines = fixtureLines('compaction-reappended.jsonl');
+  const context = { sourceKind: 'subagent', agentType: 'craft:planner', spawnId: 0 };
+
+  const result = await sut(asyncLines(lines), null, context);
+
+  assert.deepEqual(result.compactions, [
+    { run: 'sess-reappend', sourceKind: 'subagent', cacheRead: 24715, input: [3000, 5500], output: [1014, 2366], summaryMissing: false },
+  ]);
+});
+
+test('Given the same uuid-bearing auto-skip assistant line twice, when parseLines runs, then both markers are kept', async () => {
+  const sut = parseLines;
+  const line = JSON.stringify({
+    type: 'assistant', uuid: 'u-m1', sessionId: 'sess-scope',
+    message: { role: 'assistant', content: [{ type: 'text', text: 'auto-skip: review — evaluated unnecessary (no source diff in scope)' }] },
+  });
+
+  const result = await sut(asyncLines([line, line]));
+
+  assert.deepEqual(result.markers, [
+    { run: 'sess-scope', phase: 'review' },
+    { run: 'sess-scope', phase: 'review' },
+  ]);
+});

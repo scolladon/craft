@@ -246,6 +246,41 @@ function isCompactSummary(parsed) {
 }
 
 /**
+ * The uuid identifying a compaction line, or null for any other line or a
+ * compaction line that carries none.
+ *
+ * @param {object} parsed - Parsed transcript line
+ * @returns {string|null}
+ */
+function compactionUuidOf(parsed) {
+  if (!isCompactBoundary(parsed) && !isCompactSummary(parsed)) return null;
+  return parsed.uuid ?? null;
+}
+
+/**
+ * Whether a compaction line repeats one already consumed (a CLI re-append).
+ *
+ * @param {object} parsed - Parsed transcript line
+ * @param {Set<string>} consumed - Compaction uuids already consumed
+ * @returns {boolean}
+ */
+function isReplayedCompactionLine(parsed, consumed) {
+  // null is never remembered, so a non-compaction or uuid-less line cannot match.
+  return consumed.has(compactionUuidOf(parsed));
+}
+
+/**
+ * Record a compaction line's uuid as consumed.
+ *
+ * @param {object} parsed - Parsed transcript line
+ * @param {Set<string>} consumed - Compaction uuids already consumed
+ */
+function rememberCompactionUuid(parsed, consumed) {
+  const uuid = compactionUuidOf(parsed);
+  if (uuid !== null) consumed.add(uuid);
+}
+
+/**
  * Open a pending compaction from a boundary line's preTokens.
  *
  * @param {object} parsed
@@ -344,6 +379,9 @@ function estimateWithoutSummary(pending) {
  * the `since` filter, ahead of the marker scan and the `includeInline` skip,
  * so `--since` gates on the boundary's own timestamp and `--no-inline` never
  * touches compactions — they are never billed main-loop turns.
+ * A boundary or summary line whose `uuid` was already consumed in this call is
+ * a CLI re-append and is skipped with no state change; a line with no `uuid`
+ * is never deduplicated.
  *
  * @param {AsyncIterable<string>} lines - Line stream
  * @param {string | null} [since] - ISO timestamp cutoff (inclusive lower bound)
@@ -357,6 +395,7 @@ export async function parseLines(lines, since = null, context = null) {
   const markers = [];
   const compactions = [];
   let pending = null;
+  const consumedCompactionUuids = new Set();
   let skipped = 0;
   let sawUnlabelledEvent = false;
   let span = { first: null, last: null };
@@ -380,6 +419,8 @@ export async function parseLines(lines, since = null, context = null) {
     // Compaction boundaries and their summaries are administrative lines, not
     // billed turns — detected and consumed before the marker scan and the
     // includeInline skip so neither touches them (see the JSDoc above).
+    if (isReplayedCompactionLine(parsed, consumedCompactionUuids)) continue;
+    rememberCompactionUuid(parsed, consumedCompactionUuids);
     if (isCompactBoundary(parsed)) {
       if (pending) compactions.push(estimateWithoutSummary(pending));
       pending = openCompaction(parsed, isSubagent ? 'subagent' : 'main');
