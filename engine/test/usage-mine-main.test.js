@@ -1306,9 +1306,9 @@ test('Given a main-loop event carrying a slug and a slug-less sub-agent event sh
 test('Given a plain absolute cwd, when dashedCwd runs, then every path separator becomes a dash', () => {
   const sut = dashedCwd;
 
-  const result = sut('/Users/scolladon/workspace/perso/craft');
+  const result = sut('/Users/x/workspace/perso/craft');
 
-  assert.equal(result, '-Users-scolladon-workspace-perso-craft');
+  assert.equal(result, '-Users-x-workspace-perso-craft');
 });
 
 test('Given a cwd containing a dot, when dashedCwd runs, then the dot also becomes a dash', () => {
