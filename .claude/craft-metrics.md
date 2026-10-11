@@ -474,3 +474,7 @@ pin-claim-status-set-to-contract design turns=41 tool_calls=43 tokens=2081337 du
 pin-claim-status-set-to-contract implementation turns=6 tool_calls=7 tokens=119628 duration_ms=31919 cache_read=99665 cache_creation=19671 output=280 avg_ctx=19891 equiv=35967
 pin-claim-status-set-to-contract planning turns=18 tool_calls=18 tokens=624461 duration_ms=167755 cache_read=576855 cache_creation=47418 output=152 avg_ctx=34684 equiv=117754
 pin-claim-status-set-to-contract review turns=22 tool_calls=23 tokens=404554 duration_ms=132008 cache_read=321899 cache_creation=82402 output=209 avg_ctx=18379 equiv=136281
+refuse-open-on-live-run-id design turns=35 tool_calls=39 tokens=2054328 duration_ms=416290 cache_read=1960262 cache_creation=93606 output=390 avg_ctx=58684 equiv=315054
+refuse-open-on-live-run-id implementation turns=13 tool_calls=14 tokens=296607 duration_ms=148065 cache_read=246187 cache_creation=49872 output=522 avg_ctx=22776 equiv=89595
+refuse-open-on-live-run-id planning turns=46 tool_calls=54 tokens=3532578 duration_ms=829831 cache_read=3412071 cache_creation=119405 output=1010 avg_ctx=76773 equiv=495605
+refuse-open-on-live-run-id review turns=60 tool_calls=61 tokens=1562041 duration_ms=909998 cache_read=1418657 cache_creation=142282 output=982 avg_ctx=26018 equiv=324748
