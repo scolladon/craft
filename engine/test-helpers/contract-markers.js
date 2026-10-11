@@ -12,6 +12,7 @@ export const CORE_MARKERS = [
   'repo-wide git state',
   'Output digest',
   'Turn budget',
+  'repo-relative paths',
 ];
 
 /** Case-insensitive substring presence — the marker proves an invariant, not its casing. */
