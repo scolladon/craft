@@ -175,6 +175,23 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-11 — follow-ups surfaced by the stub-lint-ci-self-reference run, not yet scheduled)
+
+**A waiver token quoted in prose is a live waiver.** `ci.sh` passes every touched `.md` as a
+`--waiver-source`, and `collectWaived` in `engine/src/hygiene-lint-core.js` takes every
+`STUB-WAIVE(<path>)` match, so a design doc or ADR that merely *discusses* a waiver silently
+waives that path for the whole branch. Reproduced: with `# TODO: x` appended to `scripts/ci.sh`,
+`stub-lint --gate blocking` exits 2 alone and 0 with
+`docs/contributing/design/stub-lint-ci-self-reference.md` (which quotes the token) as the waiver
+source. The same applies to `SLOP-WAIVE`. Under `hygiene.gate: blocking` this is a fail-open.
+
+**Residual prose-marker findings in tracked source.** A full-tree stub scan still reports six
+non-self-reference hits: prose "stub" at `engine/src/hygiene-lint-core.js:18` and
+`engine/src/hygiene-gate-main.js:3`, `STUB-WAIVE` at `engine/src/hygiene-lint-core.js:7`, and
+prose "placeholder" at `engine/src/gates.js:25`, `adapters/pi/src/run.js:29` and
+`engine/src/observability/adapters/aider/telemetry.js:137`. Each fires only when its file is
+touched. Rewording is the fix; the case-insensitive rule (ADR-210) is not.
+
 ### Open (scoped 2026-10-11 — follow-ups surfaced by the transient-model-retry run, not yet scheduled)
 
 **Four process suites each carry their own region slicer — delivered 2026-10-11**
@@ -439,12 +456,17 @@ per spawn; once a tier is degraded, later spawns and retries go straight to the 
 Pinned by `test/model-retry-token.test.js`. Design:
 [transient-model-retry](docs/contributing/design/transient-model-retry.md); ADR-462–465.
 
-**`stub-lint` flags `scripts/ci.sh`'s own mentions of `stub-lint`.** `STUB-FOUND(scripts/ci.sh)`
-fires on the lines that *invoke* the stub lint, so any change touching `ci.sh` surfaces two
-advisory findings that are pure self-reference. Advisory today (`ci.sh` still exits 0), latent
-until a change makes `ci.sh` part of the touched set — which this one did. The hygiene core
-already has an `isSelf` notion for a lint's own source; `ci.sh` is the analogous case for a
-lint's own call site.
+**`stub-lint` flags `scripts/ci.sh`'s own mentions of `stub-lint` — delivered 2026-10-11**
+(fix/stub-lint-ci-self-reference). The lint's own name is now a token, not a marker:
+`engine/src/stub-lint-main.js` strips `stub-lint` (case-insensitive, word-bounded) from each line
+before matching (ADR-474, ADR-477). The exemption is per token, never per line or file, so a real
+`# TODO: x` or `# stub: fill in` in `ci.sh` is still reported, and `stub-linter`, `STUB-WAIVE(x)`
+and `STUB-FOUND(x)` still fire (ADR-476). The `ci.sh` hygiene header now names the lints instead
+of using a bare prose "stub" (ADR-475). `node engine/bin/stub-lint.js --gate blocking --
+scripts/ci.sh` prints nothing. Pinned by fixture tests in `engine/test/stub-lint-main.test.js`,
+not a process test over the real file (ADR-478). Design:
+[stub-lint-ci-self-reference](docs/contributing/design/stub-lint-ci-self-reference.md);
+ADR-474–478.
 
 **The lint mains re-implement helpers `cli-io.js` already exports.** `isRegularFile` (the
 `statSync` form) is defined locally in `manifest-lint-main.js`, `intention-lint-main.js` and
