@@ -22,6 +22,7 @@ readonly RUN_ID_PATTERN='^[a-z0-9][a-z0-9-]*$'
 readonly PHASE_PATTERN='^[a-z][a-z0-9-]*$'
 readonly RUN_KEY_PATTERN='^[a-z0-9][a-z0-9-]*@[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 readonly UTC_STAMP_FORMAT='+%Y-%m-%dT%H:%M:%SZ'
+readonly OPEN_RUN_EXIT=3
 
 usage_exit() {
   cat >&2 <<'EOF'
@@ -159,6 +160,14 @@ warn_if_replacing() {
   printf 'run-ledger: open: replacing existing pointer for run-id %s\n' "$run_id" >&2
 }
 
+# A run stays open from `open` to `close`: no process outlives a tool call, so
+# whether an open run is dead is the user's call, never this script's.
+refuse_if_open() {
+  local run_id="$1"
+  load_trusted_pointer "$run_id" && [ -f "$ledger" ] || return 0
+  die "open: run-id $run_id is already open since ${key#*@} (ledger $ledger); refusing to discard it" "$OPEN_RUN_EXIT"
+}
+
 cmd_open() {
   [ $# -le 1 ] || usage_exit
   local run_id="${1:-}" target run_key
@@ -166,6 +175,7 @@ cmd_open() {
   resolve_git_common || die "not inside a git repository's work tree"
   prepare_runs_dir
   sweep_stale_pointers
+  refuse_if_open "$run_id"
   target="$(ledger_path "$run_id")"
   write_atomically "$target" "$LEDGER_HEADER"
   warn_if_replacing "$run_id"
