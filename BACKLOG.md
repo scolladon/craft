@@ -348,12 +348,16 @@ plugin-eval suite that plants each recorded plan: genuine-PASS plans failed went
 2 of 32, and all 4 hand-built negatives still fail. `docs/contributing/maintainer-smokes.md`
 § Behavioural eval suite describes the method. USD 5.26 for the replay.
 
-**Pin the engine's claim-status set to the review contract.** `engine/src/findings.js`
-`STATUS_PREFIX_PATTERN` (`VERIFIED|SUSPECT|RULED-OUT|PROBE`) is a third copy of the claim-status
-set beside `contracts/harness-read.md` and `agents/reviewer.md`. The structure test pins the agent
-to the contract, but nothing pins the parser, so a status added to both prose copies would pass
-CI while `normalize-findings` silently drops it. Add an engine test that reads the contract's
-`status?:` set and compares it to the pattern's alternatives.
+**Pin the engine's claim-status set to the review contract — delivered 2026-10-11**
+(chore/pin-claim-status-set-to-contract). `engine/test/findings.test.js` reads the contract's
+`status?:` set and drives each status through `normalizeFindings` as a per-line record; every one
+must round-trip in contract order. `STATUS_PREFIX_PATTERN` stays private, with no production
+change. A status added to the contract alone now fails CI, not just a run. Before, the parser
+threw on the first per-line record carrying it and rejected the whole batch; it did not drop the
+status silently. A status the parser accepts but the contract does not name goes undetected.
+That is unused acceptance: JSON-layout statuses already pass unvalidated. The extraction is
+anchored at the closing `}`, so a spaced pipe or a free-text set fails on the non-empty assertion.
+A source-read test in `engine/test/` was measured to abort every full Stryker run.
 
 **Behavioural cases for the units no case drives.** The eval suite's unit table names what is
 covered (`run`, `planning`/planner, reviewer, `decisions`, `prune`/core contract). Prune

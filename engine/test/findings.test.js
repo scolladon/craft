@@ -330,6 +330,26 @@ test('Given a status-bearing record without a fix, when normalizeFindings runs, 
   assert.deepEqual(Object.keys(result[0]), ['file', 'line', 'severity', 'finding', 'status']);
 });
 
+const HARNESS_READ_CONTRACT = join(__dir, '..', '..', 'contracts', 'harness-read.md');
+const CONTRACT_STATUS_SET_PATTERN = /status\??:\s*([A-Z-]+(?:\|[A-Z-]+)+)\s*\}/u;
+const STATUS_LESS_RECORD = 'HIGH src/a.js:1 — finding';
+
+function contractStatusSet() {
+  const match = readFileSync(HARNESS_READ_CONTRACT, 'utf8').match(CONTRACT_STATUS_SET_PATTERN);
+  return match ? match[1].split('|') : [];
+}
+
+test('Given each claim status the harness-read contract names, when a per-line record carrying it is normalized, then every status round-trips in contract order', () => {
+  const expected = contractStatusSet();
+  const raw = expected.map(status => `${status}: ${STATUS_LESS_RECORD}`).join('\n');
+  const sut = normalizeFindings;
+
+  const result = sut(raw).map(finding => finding.status);
+
+  assert.ok(expected.length > 0, 'contracts/harness-read.md should name a claim-status set');
+  assert.deepEqual(result, expected);
+});
+
 // ─── backward compatibility: existing fixtures gain no status key ────────────
 
 test('Given existing fixtures without status prefixes, when normalizeFindings runs, then results are unchanged and carry no status key', () => {
