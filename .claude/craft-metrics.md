@@ -478,3 +478,9 @@ refuse-open-on-live-run-id design turns=35 tool_calls=39 tokens=2054328 duration
 refuse-open-on-live-run-id implementation turns=13 tool_calls=14 tokens=296607 duration_ms=148065 cache_read=246187 cache_creation=49872 output=522 avg_ctx=22776 equiv=89595
 refuse-open-on-live-run-id planning turns=46 tool_calls=54 tokens=3532578 duration_ms=829831 cache_read=3412071 cache_creation=119405 output=1010 avg_ctx=76773 equiv=495605
 refuse-open-on-live-run-id review turns=60 tool_calls=61 tokens=1562041 duration_ms=909998 cache_read=1418657 cache_creation=142282 output=982 avg_ctx=26018 equiv=324748
+miner-compaction-uuid-dedup design turns=29 tool_calls=31 tokens=1084903 duration_ms=323139 cache_read=1033503 cache_creation=50699 output=643 avg_ctx=37388 equiv=169997
+miner-compaction-uuid-dedup documentation turns=4 tool_calls=6 tokens=68282 duration_ms=57734 cache_read=49432 cache_creation=18770 output=72 avg_ctx=17053 equiv=28774
+miner-compaction-uuid-dedup implementation turns=5 tool_calls=6 tokens=120948 duration_ms=29821 cache_read=91380 cache_creation=29302 output=256 avg_ctx=24138 equiv=47056
+miner-compaction-uuid-dedup planning turns=35 tool_calls=37 tokens=1779563 duration_ms=413593 cache_read=1698504 cache_creation=80647 output=342 avg_ctx=50835 equiv=272439
+miner-compaction-uuid-dedup review turns=17 tool_calls=18 tokens=351424 duration_ms=99984 cache_read=255770 cache_creation=95450 output=170 avg_ctx=20662 equiv=145774
+miner-compaction-uuid-dedup validation turns=3 tool_calls=3 tokens=48547 duration_ms=7674 cache_read=31075 cache_creation=17413 output=53 avg_ctx=16165 equiv=25145
