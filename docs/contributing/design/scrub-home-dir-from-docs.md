@@ -144,19 +144,28 @@ match rule is shape-based, with a fixed placeholder allowlist, over the whole tr
 
 ```js
 // class D — absolute home-rooted paths (slash form + Claude projects-dir dashed form)
-const PATH_START = "(?:^|[\\s`'\"(=:\\[{,>])";
-const HOME_SLASH = new RegExp(`${PATH_START}/(?:Users|home)/([A-Za-z0-9._-]+)`, 'g');
-const HOME_DASHED = new RegExp(`(?:${PATH_START}|/)-(?:Users|home)-([A-Za-z0-9._]+)-`, 'g');
+const NOT_AFTER_PATH_CHAR = '(?<![A-Za-z0-9._~$…])';      // fail-closed anchor
+const HOME_ROOT_PREFIX = '(?:file://|/mnt/[a-z]|/private/var|/var|/run/host|/System/Volumes/Data|/Volumes/[^/]+)?';
+const HOME_SLASH = new RegExp(`${NOT_AFTER_PATH_CHAR}${HOME_ROOT_PREFIX}/(?:Users|home)/([A-Za-z0-9._-]+)`, 'gi');
+const NOT_AFTER_DASHED_CHAR = '(?<![A-Za-z0-9._~$…-])';   // a `--home-…` flag never anchors
+const HOME_DASHED = new RegExp(`${NOT_AFTER_DASHED_CHAR}(?:[A-Za-z]-)?-(?:Users|home)-([A-Za-z0-9._]+)`, 'gi');
 const PLACEHOLDER_HOMES = new Set(['alice', 'example', 'me', 'someone', 'user', 'x', 'other-clone']);
 function findHomePathLeaks(line) { /* captured segments not in PLACEHOLDER_HOMES */ }
 ```
 
-- **Candidate lines** come from `git grep -nIE '/(Users|home)/|-(Users|home)-'`, run from
-  `ROOT`. `-I` skips binaries. The judging happens in JS, so the rule does not depend on the
-  PCRE support of the host's git build.
-- **Anchoring.** A home root counts only at a path start: line start, whitespace, quote,
-  backtick, `( = : [ { , >`, or `/` for the dashed form. So `…/home/cwd`, `/fake/home/user`,
-  and an ADR slug containing `-home-` all pass.
+> Revised during review: the first cut listed allowed predecessor characters; reviewers proved
+> `file://`, `;`, `|`, `&`, diff markers, WSL/volume roots, a bare `-Users-<name>` and Windows
+> `C--Users-<name>` slipped past it, and that CRLF and NUL-bearing rows were dropped. The anchor
+> is now a negative lookbehind, matching is case-insensitive, the scan runs `git grep -naiE`, and
+> an unparsable row throws.
+
+- **Candidate lines** come from `git grep -naiE '/(Users|home)/|-(Users|home)-'`, run from
+  `ROOT`. `-a` keeps NUL-bearing fixtures in the scan; an unparsable row throws rather than
+  being skipped. The judging happens in JS, so the rule does not depend on the PCRE support of
+  the host's git build.
+- **Anchoring.** A home root counts unless a path-segment character (`[A-Za-z0-9._~$…]`, plus
+  `-` for the dashed form) sits right before it. So `…/home/cwd`, `/fake/home/user`, a
+  `--home-dir` flag and an ADR slug containing `-home-` all pass.
 - **Placeholders.** Any segment starting with `<` fails the `[A-Za-z0-9._-]` class, so
   `/Users/<name>/` passes with no special case. `PLACEHOLDER_HOMES` is the set pinned from
   today's tree. A real user who happens to be named `alice` would be missed, and that miss is
@@ -260,4 +269,4 @@ session-authored.
 - **Generic layout segments inside placeholder-user lines** (`/Users/x/y/z` in
   `engine/src/observability/usage-mine-main.js:157`, `-Users-x-craft` in
   `usage-mine-main.test.js:1320`): they carry neither username nor the real layout. The real
-  `workspace/perso` layout is dropped (to `w`) wherever it survived beside the `x` placeholder.
+  workspace layout segments are replaced by `w` wherever they survived beside the `x` placeholder.
