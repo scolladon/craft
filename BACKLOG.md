@@ -381,11 +381,14 @@ a regression only under BSD awk, which aborts on invalid UTF-8. CI runs on `ubun
 where mawk/gawk never abort, so there the guard is checked vacuously. A `macos-latest` job,
 for the hooks suite at least, would make the guard CI-checked.
 
-**`open` on a live run-id discards that run's ledger.** The run-id is the topic slug; a
-second `/craft:run` of the same topic runs `run-ledger.sh open` at §0 step 4, before the
-workspace collision rule can stop it, and replaces the live run's ledger with a fresh one.
-Only one stderr line warns. Refusing would need a liveness signal that tells a live run from
-a crashed one; the pointer has none today.
+**`open` on a live run-id discards that run's ledger — delivered 2026-10-11**
+(fix/refuse-open-on-live-run-id). `run-ledger.sh open` now exits 3 and writes nothing when the
+run-id still has a trusted pointer and its ledger: a run stays open from `open` to `close`, and
+whether an open run is dead is the user's call. No pid or tree probe was added — measured, no
+process outlives a tool call, and a worktree/branch probe reads a live run as dead before
+`workspace` and after teardown. §0 step 4 STOPs on the refusal with three options: stop, discard
+(`close`, then `open`), or re-slug. The refusal prints no run-key, so no compaction hook binds to
+the refused attempt. An untrusted leftover pointer is still replaced with the stderr warning.
 
 **Surface the compaction estimate at `Done`.** The miner reports `compactionEstimate` per
 run, but `emit-metrics` prints nothing about it, so a run's compaction cost is visible only
