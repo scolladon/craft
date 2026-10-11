@@ -75,7 +75,8 @@ like a bare repository is never taken for the git dir.
 Seven more fixed, greppable tokens join the existing run-record family (`NO-OP(<phase>):`,
 `GATE(<phase>):`, `auto-skip:`, `WAIVER:`, `POLICY(...)`, `INTENTION-DRIFT(<page>):`,
 `INTENTION-WAIVE(<page>):`, `STUB-FOUND(<file>):`, `STUB-WAIVE(<file>):`,
-`SLOP-FOUND(<file>):`, `SLOP-WAIVE(<file>):`), all anchored at the start of `<record>`:
+`SLOP-FOUND(<file>):`, `SLOP-WAIVE(<file>):`, `MODEL-RETRY(<role>):`,
+`MODEL-DEGRADED(<tier>):`), all anchored at the start of `<record>`:
 
 | Token | Regex over `<record>` | Emitted by |
 |---|---|---|
