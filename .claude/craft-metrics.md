@@ -502,3 +502,7 @@ centralise-region-slicer design turns=30 tool_calls=30 tokens=1261897 duration_m
 centralise-region-slicer implementation turns=18 tool_calls=19 tokens=378805 duration_ms=74075 cache_read=317486 cache_creation=60897 output=386 avg_ctx=21023 equiv=109836
 centralise-region-slicer planning turns=54 tool_calls=56 tokens=3323539 duration_ms=541548 cache_read=3223488 cache_creation=99343 output=600 avg_ctx=61536 equiv=449636
 centralise-region-slicer review turns=34 tool_calls=34 tokens=769879 duration_ms=295991 cache_read=631973 cache_creation=137044 output=794 avg_ctx=22620 equiv=238540
+stub-lint-ci-self-reference design turns=28 tool_calls=30 tokens=1090449 duration_ms=358604 cache_read=1027452 cache_creation=62369 output=572 avg_ctx=38924 equiv=183622
+stub-lint-ci-self-reference implementation turns=5 tool_calls=6 tokens=105674 duration_ms=26910 cache_read=84011 cache_creation=21540 output=113 avg_ctx=21112 equiv=35901
+stub-lint-ci-self-reference planning turns=28 tool_calls=30 tokens=1441013 duration_ms=361765 cache_read=1372580 cache_creation=68067 output=310 avg_ctx=51454 equiv=223948
+stub-lint-ci-self-reference review turns=22 tool_calls=23 tokens=497837 duration_ms=167121 cache_read=392880 cache_creation=103929 output=984 avg_ctx=22584 equiv=174163
