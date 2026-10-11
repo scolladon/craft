@@ -50,13 +50,20 @@ const readmeCanonicalUrlOnlyFilter = {
 
 // Class D: absolute home-rooted paths leak the author's OS username and workspace layout.
 // Whole tracked tree on purpose — dated docs and test fixtures carried every past leak.
-const PATH_START = "(?:^|[\\s`'\"(=:\\[{,>])";
-const HOME_SLASH_PATTERN = new RegExp(`${PATH_START}/(?:Users|home)/([A-Za-z0-9._-]+)`, 'g');
-const HOME_DASHED_PATTERN = new RegExp(`(?:${PATH_START}|/)-(?:Users|home)-([A-Za-z0-9._]+)-`, 'g');
+const PATH_START = "(?:^|[\\s`'\"(=:\\[{,>;|&*])";
+// A home root may sit under a URL scheme, a WSL drive mount, or a relocated home volume.
+const HOME_ROOT_PREFIX = '(?:file://|/mnt/[a-z]|/var|/System/Volumes/Data)?';
+const HOME_SLASH_PATTERN = new RegExp(
+  `${PATH_START}${HOME_ROOT_PREFIX}/(?:Users|home)/([A-Za-z0-9._-]+)`,
+  'gi',
+);
+// Leading `-` covers a Windows drive (`C--Users-…`); the segment may end the name.
+const HOME_DASHED_PATTERN = new RegExp(`(?:${PATH_START}|/|-)-(?:Users|home)-([A-Za-z0-9._]+)`, 'gi');
 const PLACEHOLDER_HOMES = new Set(['alice', 'example', 'me', 'someone', 'user', 'x', 'other-clone']);
 const HOME_CANDIDATE_PATTERN = '/(Users|home)/|-(Users|home)-';
 const GIT_GREP_NO_MATCH = 1;
-const LOCATED_LINE_PATTERN = /^(.+?):(\d+):(.*)$/;
+// `s`: a CRLF row keeps its trailing \r, which `.` would otherwise refuse to match.
+const LOCATED_LINE_PATTERN = /^(.+?):(\d+):(.*)$/s;
 
 function findHomePathLeaks(line) {
   return [HOME_SLASH_PATTERN, HOME_DASHED_PATTERN]
@@ -67,7 +74,8 @@ function findHomePathLeaks(line) {
 
 function listHomePathCandidateLines() {
   try {
-    return execFileSync('git', ['grep', '-nIE', HOME_CANDIDATE_PATTERN], {
+    // -a: a NUL byte must not hide a captured fixture from the scan as "binary".
+    return execFileSync('git', ['grep', '-naiE', HOME_CANDIDATE_PATTERN], {
       cwd: ROOT,
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -80,11 +88,18 @@ function listHomePathCandidateLines() {
   }
 }
 
-function listHomePathLeakLocations() {
-  return listHomePathCandidateLines()
-    .map((candidate) => candidate.match(LOCATED_LINE_PATTERN))
-    .filter((located) => located && findHomePathLeaks(located[3]).length > 0)
-    .map((located) => `${located[1]}:${located[2]}`);
+function locateCandidate(candidate) {
+  const located = candidate.match(LOCATED_LINE_PATTERN);
+  // The row text is never echoed: it may be the very leak this class exists to keep out of CI logs.
+  if (!located) throw new Error(`class D: unparsable git grep row of ${candidate.length} chars`);
+  return { file: located[1], line: located[2], text: located[3] };
+}
+
+function listHomePathLeakLocations(candidates) {
+  return candidates
+    .map(locateCandidate)
+    .filter((located) => findHomePathLeaks(located.text).length > 0)
+    .map((located) => `${located.file}:${located.line}`);
 }
 
 function runGrep(pattern, paths, allowlistFilters) {
@@ -262,53 +277,104 @@ test(
 );
 
 const SYNTHETIC_HOME = 'synthetic';
+const LEAK_SHAPED_LINES = [
+  `cd /Users/${SYNTHETIC_HOME}/w && x`,
+  `\`/Users/${SYNTHETIC_HOME}\``,
+  `/home/${SYNTHETIC_HOME}/x`,
+  `"cwd":"/Users/${SYNTHETIC_HOME}/p"`,
+  `WT=/Users/${SYNTHETIC_HOME}/w`,
+  `'/Users/${SYNTHETIC_HOME}/w'`,
+  `(/Users/${SYNTHETIC_HOME})`,
+  `key:/Users/${SYNTHETIC_HOME}`,
+  `[/Users/${SYNTHETIC_HOME}]`,
+  `{/Users/${SYNTHETIC_HOME}}`,
+  `a,/Users/${SYNTHETIC_HOME}`,
+  `>/Users/${SYNTHETIC_HOME}`,
+  `a;/Users/${SYNTHETIC_HOME}`,
+  `a|/home/${SYNTHETIC_HOME}`,
+  `a&&/Users/${SYNTHETIC_HOME}`,
+  `**/Users/${SYNTHETIC_HOME}/x**`,
+  `file:///Users/${SYNTHETIC_HOME}/x`,
+  `/mnt/c/Users/${SYNTHETIC_HOME}/craft`,
+  `/var/home/${SYNTHETIC_HOME}/craft`,
+  `/System/Volumes/Data/Users/${SYNTHETIC_HOME}/x`,
+  `/users/${SYNTHETIC_HOME}/x`,
+  `projects/-Users-${SYNTHETIC_HOME}-craft`,
+  `\`~/.claude/projects/-home-${SYNTHETIC_HOME}-craft\``,
+  `~/.claude/projects/-Users-${SYNTHETIC_HOME}/abc.jsonl`,
+  `C--Users-${SYNTHETIC_HOME}-workspace-craft`,
+];
+const HARMLESS_LINES = [
+  '/Users/<name>/x',
+  '-Users-<name>-craft',
+  '/Users/alice/p',
+  '/private/tmp/e-abc/home/cwd/g.sh',
+  '/fake/home/user',
+  'adr/241-copilot-adapter-home-dist.md',
+  '~/.claude/projects',
+  '$HOME/.claude',
+  `github.com/${SYNTHETIC_HOME}/craft`,
+  '-Users-x-craft',
+  '/home/user',
+];
 
-test('Given leak-shaped lines in slash and dashed form, when findHomePathLeaks judges each, then every one is flagged', () => {
-  const sut = findHomePathLeaks;
-  const leakShapedLines = [
-    `cd /Users/${SYNTHETIC_HOME}/w && x`,
-    `\`/Users/${SYNTHETIC_HOME}\``,
-    `/home/${SYNTHETIC_HOME}/x`,
-    `projects/-Users-${SYNTHETIC_HOME}-craft`,
-    `"cwd":"/Users/${SYNTHETIC_HOME}/p"`,
-    `\`~/.claude/projects/-home-${SYNTHETIC_HOME}-craft\``,
-  ];
+for (const line of LEAK_SHAPED_LINES) {
+  test(`Given the leak-shaped line ${line}, when findHomePathLeaks judges it, then a leak is flagged`, () => {
+    const sut = findHomePathLeaks;
 
-  for (const line of leakShapedLines) {
     const result = sut(line);
 
-    assert.ok(result.length > 0, `expected a leak to be flagged in: ${line}`);
-  }
+    assert.ok(result.length > 0);
+  });
+
+  test(`Given the leak-shaped line ${line}, when the git grep prefilter is applied, then it is a candidate`, () => {
+    const sut = new RegExp(HOME_CANDIDATE_PATTERN, 'i');
+
+    const result = sut.test(line);
+
+    assert.ok(result);
+  });
+}
+
+for (const line of HARMLESS_LINES) {
+  test(`Given the harmless line ${line}, when findHomePathLeaks judges it, then nothing is flagged`, () => {
+    const sut = findHomePathLeaks;
+
+    const result = sut(line);
+
+    assert.deepStrictEqual(result, []);
+  });
+}
+
+test('Given git grep rows holding a leak, a placeholder and a CRLF leak, when listHomePathLeakLocations judges them, then only the leaks are located', () => {
+  const sut = listHomePathLeakLocations;
+  const candidates = [
+    `docs/a.md:3:cd /Users/${SYNTHETIC_HOME}/w`,
+    'docs/a.md:4:/Users/<name>/x',
+    `docs/a.md:5:cd /Users/${SYNTHETIC_HOME}/w\r`,
+  ];
+
+  const result = sut(candidates);
+
+  assert.deepStrictEqual(result, ['docs/a.md:3', 'docs/a.md:5']);
 });
 
-test('Given placeholder, synthetic-fixture and non-root home-shaped lines, when findHomePathLeaks judges each, then none is flagged', () => {
-  const sut = findHomePathLeaks;
-  const harmlessLines = [
-    '/Users/<name>/x',
-    '/Users/alice/p',
-    '/private/tmp/e-abc/home/cwd/g.sh',
-    '/fake/home/user',
-    'adr/241-copilot-adapter-home-dist.md',
-    '~/.claude/projects',
-    '$HOME/.claude',
-    `github.com/${SYNTHETIC_HOME}/craft`,
-    '-Users-x-craft',
-    '/home/user',
-  ];
+test('Given a git grep row with no file:line prefix, when listHomePathLeakLocations judges it, then it throws instead of skipping the row', () => {
+  const sut = listHomePathLeakLocations;
+  const candidates = [`cd /Users/${SYNTHETIC_HOME}/w`];
 
-  for (const line of harmlessLines) {
-    const result = sut(line);
+  const result = () => sut(candidates);
 
-    assert.deepStrictEqual(result, [], `expected no leak in: ${line}`);
-  }
+  assert.throws(result, /unparsable git grep row/);
 });
 
 test('Given the tracked tree, when every home-rooted candidate line is judged, then zero leaks remain', () => {
   const candidates = listHomePathCandidateLines();
+  const sut = listHomePathLeakLocations;
+
+  const result = sut(candidates);
+
   assert.ok(candidates.length > 0, 'git grep found no candidate line: the scan itself is broken');
-
-  const result = listHomePathLeakLocations();
-
   assert.deepStrictEqual(
     result,
     [],
