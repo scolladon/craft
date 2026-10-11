@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { TO_END, sliceRegion } = require('./helpers/region-slice');
 
 const ROOT = path.resolve(__dirname, '..');
 const CONCEPTS_PATH = path.join(ROOT, 'docs', 'guides', 'concepts.md');
@@ -16,22 +17,6 @@ const WORD_COUNTS = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven:
 
 function frameHeadingCount(content) {
   return (content.match(/^## Frame /gm) ?? []).length;
-}
-
-// Slices from the first line matching `startPattern` to the line before the next
-// match of `endPattern` (or EOF when `endPattern` is absent) — the same
-// region-isolation shape run-record.test.js uses, so a mention outside the
-// target section can never satisfy a section-scoped assertion.
-function sliceFrom(content, startPattern, endPattern) {
-  const lines = content.split('\n');
-  const startIdx = lines.findIndex((line) => startPattern.test(line));
-  assert.notEqual(startIdx, -1, `region start ${startPattern} not found — heading renamed?`);
-  const searchFrom = startIdx + 1;
-  const relativeEnd = endPattern
-    ? lines.slice(searchFrom).findIndex((line) => endPattern.test(line))
-    : -1;
-  const endIdx = endPattern && relativeEnd !== -1 ? searchFrom + relativeEnd : lines.length;
-  return lines.slice(startIdx, endIdx).join('\n');
 }
 
 test('Given the concepts guide, when its frame headings are counted, then there are five', () => {
@@ -59,7 +44,7 @@ test('Given the frame count, when README.md states it in prose, then the stated 
 });
 
 test('Given the README enumerates the frames, then every frame source is named', () => {
-  const sentence = sliceFrom(readme, /^New to this way of working\?/, /^## /);
+  const sentence = sliceRegion(readme, /^New to this way of working\?/, /^## /);
 
   // Derived, not hardcoded: a sixth frame's source must not be droppable silently.
   // Newline-excluded: a frame with no external source (e.g. "configuration
@@ -83,7 +68,7 @@ test('Given the configuration-layer sentence counts layers and not frames, then 
 });
 
 test('Given the Sources section, when its stated URL count is compared with its bullets, then they agree', () => {
-  const section = sliceFrom(concepts, /^## Sources$/, null);
+  const section = sliceRegion(concepts, /^## Sources$/, TO_END);
   const bulletCount = (section.match(/^- <https?:/gm) ?? []).length;
   const wordMatch = section.match(/(\w+) URLs\b/);
 
@@ -92,7 +77,7 @@ test('Given the Sources section, when its stated URL count is compared with its 
 });
 
 test('Given Frame 5 ships, then its mapping rows name only mechanisms that exist', () => {
-  const section = sliceFrom(concepts, /^## Frame 5/, /^## /);
+  const section = sliceRegion(concepts, /^## Frame 5/, /^## /);
 
   assert.ok(section.length > 0, 'expected a "## Frame 5" section');
   assert.ok(section.includes('craft-runs/<run-id>.md'));

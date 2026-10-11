@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { sliceRegion } = require('./helpers/region-slice');
 
 const ROOT = path.resolve(__dirname, '..');
 const POC_RECORD_PATH = path.join(ROOT, 'docs/contributing/specs/auto-compaction-poc-record.md');
@@ -75,19 +76,6 @@ test('Given the auto-compaction poc-record page, when scanned for anonymised pla
   assert.ok(sut.includes('<nonce>'), 'expected the <nonce> placeholder');
 });
 
-// Region isolation, the same shape as concepts-frames.test.js's sliceFrom: a
-// mention outside the target section can never satisfy a section-scoped
-// assertion.
-function sliceFrom(content, startPattern, endPattern) {
-  const lines = content.split('\n');
-  const startIdx = lines.findIndex((line) => startPattern.test(line));
-  assert.notEqual(startIdx, -1, `region start ${startPattern} not found`);
-  const searchFrom = startIdx + 1;
-  const relativeEnd = lines.slice(searchFrom).findIndex((line) => endPattern.test(line));
-  const endIdx = relativeEnd === -1 ? lines.length : searchFrom + relativeEnd;
-  return lines.slice(startIdx, endIdx).join('\n');
-}
-
 const GUIDE_TOKENS = [
   'autoCompactWindow',
   '233000',
@@ -99,7 +87,7 @@ const GUIDE_TOKENS = [
 
 test('Given the customizing guide, when the auto-compaction subsection is sliced, then it names the settings knob, both hooks and the never-writes rule', () => {
   const content = fs.readFileSync(CUSTOMIZING_PATH, 'utf8');
-  const sut = sliceFrom(
+  const sut = sliceRegion(
     content,
     /^### Long sessions — auto-compaction \(Claude Code\)$/,
     /^#{2,3} /
