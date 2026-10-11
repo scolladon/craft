@@ -376,11 +376,6 @@ session with `--settings '{"autoCompactWindow":100000}'` and the plugin installe
 opens a run and fills context until compaction. Record the result in
 `docs/contributing/specs/auto-compaction-poc-record.md`.
 
-**The hooks' `LC_ALL=C` guard runs only on macOS awk.** The multibyte-locale hook tests catch
-a regression only under BSD awk, which aborts on invalid UTF-8. CI runs on `ubuntu-latest`,
-where mawk/gawk never abort, so there the guard is checked vacuously. A `macos-latest` job,
-for the hooks suite at least, would make the guard CI-checked.
-
 **`open` on a live run-id discards that run's ledger — delivered 2026-10-11**
 (fix/refuse-open-on-live-run-id). `run-ledger.sh open` now exits 3 and writes nothing when the
 run-id still has a trusted pointer and its ledger: a run stays open from `open` to `close`, and
@@ -1057,3 +1052,10 @@ recommendation and one attended end-to-end loop over two real entries.
   empirically (read-only probes) + prose; a gated opt-in test is the home if ever wanted.
 - **`backlog.id-pattern` manifest knob** (machine-enforced `file` id-form) — ADR-060: `file`
   id-form stays orchestrator prose-judgment until a repo actually needs the machine check. YAGNI.
+- **A `macos-latest` job for the hooks' `LC_ALL=C` guard** — *premise refuted 2026-10-11.* The
+  entry assumed CI's awk never aborts, so the multibyte-locale hook tests passed vacuously on
+  `ubuntu-latest`. Measured there, `/usr/bin/awk` is gawk 5.2.1 (alternatives priority 10 over
+  mawk's 5). With the guard removed, gawk dies with `invalid regexp: Invalid collation character`
+  on the byte-range control-chars ERE, so all 4 multibyte tests fail, as they do under macOS awk.
+  The existing ubuntu job already runs them, so it already catches a guard removal. Only mawk and
+  original-awk pass vacuously, and CI uses neither.
