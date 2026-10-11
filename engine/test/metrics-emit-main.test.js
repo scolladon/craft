@@ -15,6 +15,7 @@ import {
   rmSync,
   mkdirSync,
   cpSync,
+  existsSync,
 } from 'node:fs';
 import { createInterface } from 'node:readline';
 import { join, dirname } from 'node:path';
@@ -87,6 +88,39 @@ function reviewerLine(timestamp, input, output) {
 function addReviewerSpawn(subagentsDir, id, timestamp) {
   writeFileSync(join(subagentsDir, `agent-review-${id}.jsonl`), `${reviewerLine(timestamp, 1, 1)}\n`, 'utf8');
   writeFileSync(join(subagentsDir, `agent-review-${id}.meta.json`), JSON.stringify({ agentType: 'craft:reviewer' }), 'utf8');
+}
+
+const TELEMETRY_FIXTURE_DIR = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'telemetry');
+const SKIP_NOTE = 'metrics-emit: no --session, compaction estimate skipped\n';
+const LINE_ALL = 'Compactions: 3 (main 2, sub-agent 1) — estimated summary-call cost 32k–60k equiv (estimate; not in totals)\n';
+const LINE_SUBAGENT_ONLY = 'Compactions: 1 (main 0, sub-agent 1) — estimated summary-call cost 9k–16k equiv (estimate; not in totals)\n';
+const LINE_MAIN_ONLY = 'Compactions: 2 (main 2, sub-agent 0) — estimated summary-call cost 23k–45k equiv (estimate; not in totals)\n';
+const LINE_SINCE = 'Compactions: 2 (main 1, sub-agent 1) — estimated summary-call cost 22k–41k equiv (estimate; not in totals)\n';
+
+// Scoping is by path, so the fixture lines' own sessionId is irrelevant.
+function addCompactedSession(transcriptDir, sessionId) {
+  const subagentsDir = join(transcriptDir, sessionId, 'subagents');
+  mkdirSync(subagentsDir, { recursive: true });
+  cpSync(join(TELEMETRY_FIXTURE_DIR, 'compaction-main.jsonl'), join(transcriptDir, `${sessionId}.jsonl`));
+  cpSync(join(TELEMETRY_FIXTURE_DIR, 'compaction-subagent.jsonl'), join(subagentsDir, 'agent-c.jsonl'));
+  writeFileSync(join(subagentsDir, 'agent-c.meta.json'), JSON.stringify({ agentType: 'craft:planner' }), 'utf8');
+}
+
+function compactionLines(io) {
+  return io.stdout.writes.filter((write) => write.startsWith('Compactions:'));
+}
+
+function openSpy(opened) {
+  return (path) => {
+    opened.push(String(path));
+    return createReadStream(path);
+  };
+}
+
+function compactedTree() {
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  addCompactedSession(transcriptDir, 'sess-c');
+  return { projectsRoot, transcriptDir, repoRoot: makeTmp('metrics-emit-repo-') };
 }
 
 // ── 1. absent transcript dir + explicit --phase degrades to transcript=na ──
@@ -512,5 +546,183 @@ test('Given no --phase flag and a transcript dir with no labelled events at all,
   const result = await sut(['--run', 'run-x', '--dir', transcriptDir], io);
 
   assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.equal(io.stderr.joined(), `metrics-emit: no events found for run 'run-x'\n${SKIP_NOTE}`);
+});
+
+// ── 19. the run-level call prints the session's compaction estimate line ──
+
+test('Given a session whose main and sub-agent transcripts both compacted, when the run-level call names it with --session, then the last stdout line is the session\'s Compactions estimate and stderr stays empty', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', 'sess-c'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.equal(io.stdout.writes.at(-1), LINE_ALL);
+  assert.equal(io.stderr.joined(), '');
+});
+
+test('Given two trees that differ only by the session\'s main transcript, when the run-level call runs on each, then both ledgers are byte-identical and only the trailing Compactions line differs', async () => {
+  const sut = main;
+  const a = compactedTree();
+  const b = compactedTree();
+  rmSync(join(b.transcriptDir, 'sess-c.jsonl'));
+  const ioA = makeIo({ projectsRoot: a.projectsRoot, repoRoot: a.repoRoot });
+  const ioB = makeIo({ projectsRoot: b.projectsRoot, repoRoot: b.repoRoot });
+
+  await sut(['--run', 'run-x', '--dir', a.transcriptDir, '--session', 'sess-c'], ioA);
+  await sut(['--run', 'run-x', '--dir', b.transcriptDir, '--session', 'sess-c'], ioB);
+
+  assert.equal(readLedger(a.repoRoot), readLedger(b.repoRoot));
+  assert.deepEqual(ioA.stdout.writes.slice(0, -1), ioB.stdout.writes.slice(0, -1));
+  assert.equal(ioB.stdout.writes.at(-1), LINE_SUBAGENT_ONLY);
+});
+
+test('Given --phase and --session, when main runs, then no Compactions line prints, no skip note prints and the session\'s main transcript is never opened', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  const opened = [];
+  const io = makeIo({ projectsRoot, repoRoot, createReadStream: openSpy(opened) });
+
+  await sut(['--run', 'run-x', '--phase', 'planning', '--dir', transcriptDir, '--session', 'sess-c'], io);
+
+  assert.deepEqual(compactionLines(io), []);
+  assert.equal(opened.some((path) => path.endsWith('sess-c.jsonl')), false);
+  assert.equal(io.stderr.joined().includes('compaction estimate skipped'), false);
+  assert.match(runRows(repoRoot)[0], /^run-x planning /);
+});
+
+test('Given a named session with no compaction, when the run-level call runs, then stdout carries the appended rows only and stderr stays empty', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', 'sess-a'], io);
+
+  assert.deepEqual(io.stdout.writes, runRows(repoRoot).map((row) => `${row}\n`));
+  assert.equal(io.stderr.joined(), '');
+});
+
+test('Given sess-c and sess-cc both compacted, when the run-level call names sess-c, then only sess-c\'s compactions are counted', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  addCompactedSession(transcriptDir, 'sess-cc');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', 'sess-c'], io);
+
+  assert.deepEqual(compactionLines(io), [LINE_ALL]);
+});
+
+test('Given only the session\'s main transcript and no sub-agent of that session, when the run-level call runs, then it reports no events, writes no ledger, and still prints the main-only Compactions line', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  cpSync(join(TELEMETRY_FIXTURE_DIR, 'compaction-main.jsonl'), join(transcriptDir, 'sess-c.jsonl'));
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', 'sess-c'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
   assert.equal(io.stderr.joined(), "metrics-emit: no events found for run 'run-x'\n");
+  assert.deepEqual(io.stdout.writes, [LINE_MAIN_ONLY]);
+  assert.equal(existsSync(ledgerPathFor(repoRoot)), false);
+});
+
+test('Given --since between the two main-loop compactions, when the run-level call runs, then the line counts only boundaries at or after it', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', 'sess-c', '--since', '2026-03-01T10:30:00.000Z'], io);
+
+  assert.deepEqual(compactionLines(io), [LINE_SINCE]);
+});
+
+test('Given a --session naming a sub-agent transcript path, when the run-level call runs, then no Compactions line prints', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', 'sess-c/subagents/agent-c'], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.deepEqual(compactionLines(io), []);
+});
+
+test('Given an empty --session, when the run-level call runs, then no Compactions line prints and stderr carries the skip note', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', ''], io);
+
+  assert.deepEqual(compactionLines(io), []);
+  assert.equal(io.stderr.writes.includes(SKIP_NOTE), true);
+});
+
+// ── 20. the skip note and the summed advisory counts ──
+
+test('Given no --session, when the run-level call runs, then no Compactions line prints, no main transcript is opened, and stderr carries the skip note', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  cpSync(join(TELEMETRY_FIXTURE_DIR, 'compaction-main.jsonl'), join(transcriptDir, 'null.jsonl'));
+  const opened = [];
+  const io = makeIo({ projectsRoot, repoRoot, createReadStream: openSpy(opened) });
+
+  await sut(['--run', 'run-x', '--dir', transcriptDir], io);
+
+  assert.deepEqual(compactionLines(io), []);
+  assert.equal(io.stderr.writes.includes(SKIP_NOTE), true);
+  assert.equal(opened.length > 0 && opened.every((path) => path.includes('/subagents/')), true);
+});
+
+test('Given --phase and no --session, when main runs, then no skip note is written', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir } = copyProjFixture();
+  const repoRoot = makeTmp('metrics-emit-repo-');
+  const io = makeIo({ projectsRoot, repoRoot });
+
+  const result = await sut(['--run', 'run-x', '--phase', 'design', '--dir', transcriptDir], io);
+
+  assert.equal(result, 0, `stderr: ${io.stderr.joined()}`);
+  assert.equal(io.stderr.joined(), '');
+});
+
+test('Given the session\'s main transcript refused by containment, when the run-level call runs, then the advisory counts one refusal and the line carries the sub-agent compaction only', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  const io = makeIo({
+    projectsRoot,
+    repoRoot,
+    containByRealpath: (root, candidate) => (String(candidate).endsWith('sess-c.jsonl') ? null : containByRealpath(root, candidate)),
+  });
+
+  await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', 'sess-c'], io);
+
+  assert.equal(io.stderr.joined(), 'metrics-emit: 0 transcript(s) unreadable, 1 refused by containment\n');
+  assert.deepEqual(compactionLines(io), [LINE_SUBAGENT_ONLY]);
+});
+
+test('Given both the main and the sub-agent transcript of the session unreadable, when the run-level call runs, then one advisory line sums both failures', async () => {
+  const sut = main;
+  const { projectsRoot, transcriptDir, repoRoot } = compactedTree();
+  const io = makeIo({
+    projectsRoot,
+    repoRoot,
+    createReadStream: (path) => {
+      if (/(sess-c|agent-c)\.jsonl$/.test(String(path))) throw new Error('EIO');
+      return createReadStream(path);
+    },
+  });
+
+  await sut(['--run', 'run-x', '--dir', transcriptDir, '--session', 'sess-c'], io);
+
+  assert.equal(
+    io.stderr.joined(),
+    "metrics-emit: 2 transcript(s) unreadable, 0 refused by containment\nmetrics-emit: no events found for run 'run-x'\n",
+  );
+  assert.deepEqual(io.stdout.writes, []);
 });

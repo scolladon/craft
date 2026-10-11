@@ -30,12 +30,19 @@
  * expected steady state (a phase that has not run yet, an unlabelled spawn)
  * rather than a caller mistake.
  *
- * Only sub-agent transcripts are parsed. A main-loop transcript yields no
- * event here twice over — `parseLines` bails on `includeInline: false`, and a
+ * Rows read sub-agent transcripts only. A main-loop transcript yields no event
+ * here twice over — `parseLines` bails on `includeInline: false`, and a
  * main-loop event carries `phase: null` and is filtered out downstream — so
  * narrowing before the parse makes the one-row-per-agent-spawned-phase
  * contract structural rather than incidental, and drops the realpath chain and
  * full stream-parse each discarded entry would otherwise cost.
+ *
+ * The one main-loop transcript ever read is the named session's own
+ * `<session>.jsonl`, matched exactly, on the run-level call (no `--phase`)
+ * only, and only for its compactions. They feed one advisory `Compactions:`
+ * line printed after the rows. Its events are discarded, so it never adds a
+ * row. A run-level call without `--session` skips the line with one stderr
+ * note, because a forgotten flag must stay visible.
  *
  * Grouping: one parse of the discovered transcripts, then a group-by on the
  * `phase` the claude adapter already stamped from each sidecar's agentType.
@@ -68,6 +75,7 @@ import {
   makeDiscoveryPorts,
   streamTranscriptFiles,
 } from './usage-mine-main.js';
+import { formatCompactionEstimateLine } from './usage-aggregate.js';
 
 const EXIT_OK = 0;
 // The four config errors below are the only non-zero exits — every other
@@ -89,6 +97,8 @@ const DEFAULT_LEDGER_RELPATH = join('.claude', 'craft-metrics.md');
 // checked at the front door, never in the pure formatter.
 const ROW_TOKEN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/;
 const SUBAGENT_SOURCE_KIND = 'subagent';
+const MAIN_SOURCE_KIND = 'main';
+const NO_SESSION_NOTE = 'metrics-emit: no --session, compaction estimate skipped\n';
 
 function parseArgs(argv) {
   const parsed = { run: null, phase: null, session: null, dir: null, since: null, ledger: null };
@@ -235,46 +245,90 @@ function resolveDeps(io) {
   };
 }
 
-// Returns phase-labelled events only. The unlabelled ones are not an error
-// worth failing on: a spawn whose sidecar is missing or malformed is an
-// expected steady state, and dropping it here keeps one row per phase.
-async function collectPhasedEvents(parsed, transcriptDir, deps) {
-  const { readdirSync, readFileSync, containByRealpath, createReadStream, createInterface, stderr } = deps;
+function wantsCompactionLine(parsed) {
+  return parsed.phase === null && Boolean(parsed.session);
+}
+
+// Exact relPath, never a prefix: a session whose id merely starts with this one
+// must never contribute. An empty result means no extra stream call opens a file.
+function selectMainEntries(entries, parsed) {
+  if (!wantsCompactionLine(parsed)) return [];
+  const mainRelPath = `${parsed.session}.jsonl`;
+  return entries.filter((entry) => entry.context.sourceKind === MAIN_SOURCE_KIND && entry.relPath === mainRelPath);
+}
+
+function partitionEntries(parsed, transcriptDir, { readdirSync, readFileSync, containByRealpath }) {
   const { entries } = discover(makeDiscoveryPorts(transcriptDir, { readdirSync, readFileSync, containByRealpath }));
   // equivalent mutant (this filter dropped, or its predicate forced true): a main-loop
   // entry that slipped through would carry `context.sourceKind !== 'subagent'`, so
   // parseLines's own `!isSubagent && includeInline === false` bail (below) already
   // drops it, and any event that still escaped carries `phase: null`, filtered by
-  // this function's own return line — behaviour-preserving performance narrowing.
+  // collectTranscripts — behaviour-preserving performance narrowing. With `--session`,
+  // `sessionFilter`'s `<session>/` prefix also excludes every root-level main entry, so
+  // none reaches the compaction line through this scope. Without `--session`, no line
+  // prints.
   // equivalent mutant (OptionalChaining on `entry.context` dropped): discover()'s only
   // two push sites (discovery.js) always attach a `context: {...}` object, never
   // null/undefined, so `.sourceKind` here can never throw either way.
-  const scoped = entries
+  const subagentEntries = entries
     .filter((entry) => entry.context?.sourceKind === SUBAGENT_SOURCE_KIND)
     .filter(sessionFilter(parsed.session));
-  // equivalent mutant (`false` -> `true`): every entry reaching here is already
-  // sourceKind:'subagent' (the filter above), so parseLines's `isSubagent` is always
-  // true and its `!isSubagent && includeInline === false` bail never evaluates this
-  // flag either way.
-  const { events, failed, refused } = await streamTranscriptFiles(
-    scoped, transcriptDir, createReadStream, createInterface, containByRealpath, parseLines, parsed.since, false,
+  return { subagentEntries, mainEntries: selectMainEntries(entries, parsed) };
+}
+
+function streamEntries(entries, parsed, transcriptDir, { createReadStream, createInterface, containByRealpath }) {
+  // equivalent mutant (`false` -> `true`): for sub-agent entries parseLines's `isSubagent`
+  // is always true, so its `!isSubagent && includeInline === false` bail never reads this
+  // flag. For the session's main entry the flag only decides whether main-loop events get
+  // built. parseLines detects compactions before that bail, and collectTranscripts
+  // discards the main stream's events.
+  return streamTranscriptFiles(
+    entries, transcriptDir, createReadStream, createInterface, containByRealpath, parseLines, parsed.since, false,
   );
+}
+
+// Phase-labelled events only. The unlabelled ones are not an error worth failing
+// on: a spawn whose sidecar is missing or malformed is an expected steady state,
+// and dropping it here keeps one row per phase.
+// Rows come from sub-agent events only; compactions come from both streams.
+async function collectTranscripts(parsed, transcriptDir, deps) {
+  const { stderr } = deps;
+  const { subagentEntries, mainEntries } = partitionEntries(parsed, transcriptDir, deps);
+  const subagent = await streamEntries(subagentEntries, parsed, transcriptDir, deps);
+  const mainLoop = await streamEntries(mainEntries, parsed, transcriptDir, deps);
+  const failed = subagent.failed + mainLoop.failed;
+  const refused = subagent.refused + mainLoop.refused;
   if (failed > 0 || refused > 0) {
     stderr.write(`metrics-emit: ${failed} transcript(s) unreadable, ${refused} refused by containment\n`);
   }
-  return events.filter((event) => event.phase !== null);
+  return {
+    phasedEvents: subagent.events.filter((event) => event.phase !== null),
+    compactions: [...subagent.compactions, ...mainLoop.compactions],
+  };
+}
+
+function reportCompactions(parsed, compactions, { stdout, stderr }) {
+  if (parsed.phase !== null) return;
+  if (!parsed.session) {
+    stderr.write(NO_SESSION_NOTE);
+    return;
+  }
+  const line = formatCompactionEstimateLine(compactions);
+  if (line !== null) stdout.write(`${line}\n`);
 }
 
 /**
+ * Prints the appended rows, then, on a run-level call naming --session, the
+ * session's advisory compaction line.
  * @param {string[]} argv
  * @param {{ stdout: {write(s:string):void}, stderr: {write(s:string):void},
  *   readFileSync?: Function, writeFileSync?: Function, mkdirSync?: Function,
  *   createReadStream?: Function, createInterface?: Function,
  *   readdirSync?: Function, containByRealpath?: Function,
  *   projectsRoot?: string, repoRoot?: string, cwd?: string }} io
- * @returns {Promise<number>} 0 on every advisory path; 1 for the four config
- *   errors caught before any I/O (missing --run, unparseable --since, an
- *   out-of-bounds --dir or --ledger).
+ * @returns {Promise<number>} 0 on every advisory path; 1 for the six config
+ *   errors caught before any I/O (a missing or malformed --run, a malformed
+ *   --phase, an unparseable --since, an out-of-bounds --dir or --ledger).
  */
 export async function main(argv, io) {
   const deps = resolveDeps(io);
@@ -287,13 +341,13 @@ export async function main(argv, io) {
     return EXIT_CONFIG_ERROR;
   }
 
-  const phasedEvents = await collectPhasedEvents(parsed, config.transcriptDir, deps);
+  const { phasedEvents, compactions } = await collectTranscripts(parsed, config.transcriptDir, deps);
   const rows = buildRows(parsed.run, parsed.phase, phasedEvents);
   if (rows.length === 0) {
     stderr.write(`metrics-emit: no events found for run '${parsed.run}'\n`);
-    return EXIT_OK;
+  } else {
+    appendLedgerRows(config.ledgerPath, rows, deps);
   }
-
-  appendLedgerRows(config.ledgerPath, rows, deps);
+  reportCompactions(parsed, compactions, deps);
   return EXIT_OK;
 }
