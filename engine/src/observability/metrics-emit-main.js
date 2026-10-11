@@ -78,7 +78,7 @@ import {
 import { formatCompactionEstimateLine } from './usage-aggregate.js';
 
 const EXIT_OK = 0;
-// The four config errors below are the only non-zero exits — every other
+// The config errors resolveConfig returns are the only non-zero exits — every other
 // path (absent dir, unreadable sidecar, zero events) stays advisory.
 const EXIT_CONFIG_ERROR = 1;
 const CLAUDE_SOURCE = 'claude';
@@ -150,7 +150,7 @@ function buildRows(runId, requestedPhase, phasedEvents) {
     .map((phase) => formatMetricsRow(runId, phase, groups.get(phase), renderCacheSplit));
 }
 
-// The four config errors, resolved together: each returns before any I/O
+// The config errors, resolved together: each returns before any I/O
 // runs, and the two containment checks reuse the same shape so main() never
 // has to know which check produced the message it forwards to stderr.
 function resolveConfig(parsed, { projectsRoot, repoRoot, cwd, containByRealpath }) {
