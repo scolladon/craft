@@ -79,7 +79,7 @@ run_intention_lint
 
 bash scripts/static-lints.sh
 
-# --- hygiene gates (workstream C): touched-diff stub + prose lints ---
+# --- hygiene gates (workstream C): touched-diff stub-lint + prose-lint ---
 # Posture is the manifest's resolved hygiene.gate (advisory | blocking); flipping
 # to blocking is a one-line manifest edit, never a code change. Distinct block,
 # non-adjacent to run_intention_lint, so each workstream reverts without
