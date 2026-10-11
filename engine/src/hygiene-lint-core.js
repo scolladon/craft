@@ -6,7 +6,8 @@
  * `{ self, waiverPattern, foundToken, scan }` — the gate's own module path (for
  * self-exclusion), its `SLOP/STUB-WAIVE` regex, its FOUND token, and its
  * `scan(content) → string[]` (which closes over the gate's marker/ban list).
- * Everything else lives here once.
+ * Everything else lives here once, including the waiver grammar: a waiver is a
+ * line that starts with the token and `: <reason>`, outside a fenced code block.
  */
 
 import { readFileSync, statSync } from 'node:fs';
@@ -60,18 +61,99 @@ export function parseArgs(argv) {
 }
 
 /**
- * Collect waived file paths from `--waiver-source` files, matched by the gate's
- * own waiver regex. An unreadable source is a loud stderr line, handled (never
- * swallowed), then skipped.
+ * A fenced code block opens on 3+ backticks (no backtick in the info string) or
+ * 3+ tildes, at any indentation; the run is captured to match its closer.
+ */
+const FENCE_OPENER = /^[ \t]*(?:(`{3,})[^`]*|(~{3,}).*)$/;
+const FENCE_CLOSER = /^[ \t]*(`{3,}|~{3,})\s*$/;
+
+/**
+ * @param {string} line
+ * @returns {string|undefined} the opener's run, or undefined when the line opens no fence
+ */
+function openedFence(line) {
+  const match = FENCE_OPENER.exec(line);
+  return match ? (match[1] ?? match[2]) : undefined;
+}
+
+/**
+ * A closer uses the opener's character, is at least as long, and carries no text.
+ * @param {string} line
+ * @param {string} fence the open fence's run
+ * @returns {boolean}
+ */
+function closesFence(line, fence) {
+  const match = FENCE_CLOSER.exec(line);
+  if (match === null) return false;
+  const run = match[1];
+  return run[0] === fence[0] && run.length >= fence.length;
+}
+
+/**
+ * The lines of `content` outside fenced code blocks. An unclosed fence runs to
+ * the end of the content.
+ * @param {string} content
+ * @returns {string[]}
+ */
+function unfencedLines(content) {
+  const lines = [];
+  let fence; // the open fence's run; undefined outside a fence
+  for (const line of content.split('\n')) {
+    if (fence !== undefined) {
+      if (closesFence(line, fence)) fence = undefined;
+      continue;
+    }
+    fence = openedFence(line);
+    // equivalent mutant (ConditionalExpression forced true): it also keeps the opener line, which starts with whitespace, a backtick or a tilde, so no anchored waiver pattern can match it
+    if (fence === undefined) lines.push(line);
+  }
+  return lines;
+}
+
+// A waiver states why it waives: the token is followed by `:` and a non-empty reason.
+const WAIVER_REASON = String.raw`:\s*\S`;
+
+/**
+ * Anchor a gate's bare waiver pattern to the start of a line and require a
+ * reason. Rebuilding from `source` drops the gate's `g` flag, so `exec` keeps no
+ * state between lines; the `(?:...)` wrapper keeps the waived path in group 1.
+ * @param {RegExp} waiverPattern
+ * @returns {RegExp}
+ */
+function anchorWaiver(waiverPattern) {
+  return new RegExp(`^(?:${waiverPattern.source})${WAIVER_REASON}`);
+}
+
+/**
+ * @param {string} content
+ * @param {RegExp} anchored
+ * @returns {string[]} the trimmed path of every waiver line
+ */
+function waivedPaths(content, anchored) {
+  const paths = [];
+  for (const line of unfencedLines(content)) {
+    const match = anchored.exec(line);
+    if (match) paths.push(match[1].trim());
+  }
+  return paths;
+}
+
+/**
+ * Collect waived file paths from `--waiver-source` files. A waiver is a line
+ * that starts with the gate's token followed by `: <reason>`, outside a fenced
+ * code block; the token anywhere else is a mention and waives nothing. An
+ * unreadable source is a loud stderr line, handled (never swallowed), then skipped.
  * @param {string[]} waiverSources
  * @param {{ stderr: { write(s: string): void } }} io
- * @param {RegExp} waiverPattern global regex capturing the waived path in group 1
+ * @param {RegExp} waiverPattern the gate's bare token regex, waived path in group 1;
+ *   collectWaived anchors it to a line start and requires `: <reason>`
  * @param {number} [maxBytes] size cap (defaults to MAX_FILE_BYTES); a too-large
  *   waiver source is skipped with a note, same as a scanned file
  * @returns {{ waived: Set<string>, readError: boolean }} paths resolved to absolute;
  *   readError is true if any requested source was unreadable (gates under blocking)
  */
 export function collectWaived(waiverSources, io, waiverPattern, maxBytes = MAX_FILE_BYTES, base = process.cwd()) {
+  const anchored = anchorWaiver(waiverPattern);
   const waived = new Set();
   let readError = false;
   for (const source of waiverSources) {
@@ -83,7 +165,7 @@ export function collectWaived(waiverSources, io, waiverPattern, maxBytes = MAX_F
     if (content === undefined) continue; // skipped (too large)
     // Resolve the capture so ./x, absolute, and trailing-slash variants all
     // land on the same key as the resolved scanned path.
-    for (const match of content.matchAll(waiverPattern)) waived.add(resolve(base, match[1].trim()));
+    for (const path of waivedPaths(content, anchored)) waived.add(resolve(base, path));
   }
   return { waived, readError };
 }

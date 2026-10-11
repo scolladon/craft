@@ -11,6 +11,7 @@ import {
   scanFile,
   main,
   escapeRegExp,
+  MAX_FILE_BYTES,
 } from '../src/hygiene-lint-core.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 
@@ -87,6 +88,128 @@ test('Given an unreadable waiver source, when collectWaived runs, then it report
   assert.equal(waived.size, 0);
   assert.equal(readError, true);
   assert.ok(io.stderr.joined().includes('cannot read waiver source'), `stderr: ${io.stderr.joined()}`);
+});
+
+// ─── collectWaived: a waiver is an anchored line outside a fenced block ────
+
+const WAIVED_PATH = 'p.js';
+const ANCHORED_WAIVER = 'X-WAIVE(p.js): r';
+const BACKTICK_FENCE = '```';
+
+function waivedFrom(sut, content) {
+  const root = tmpRoot();
+  const source = writeFixture(root, 'w.md', content);
+  const { waived } = sut([source], makeCaptureIo(), WAIVER, MAX_FILE_BYTES, root);
+  return { waived: [...waived], root };
+}
+
+test('Given a waiver token quoted mid-sentence, when collectWaived runs, then nothing is waived', () => {
+  const sut = collectWaived;
+  const root = tmpRoot();
+  const source = writeFixture(root, 'w.md', 'We note X-WAIVE(foo.js) in passing.\n');
+  const io = makeCaptureIo();
+
+  const { waived, readError } = sut([source], io, WAIVER, MAX_FILE_BYTES, root);
+
+  assert.equal(readError, false);
+  assert.deepEqual([...waived], []);
+});
+
+test('Given a waiver token that does not start its line, when collectWaived runs, then each one is inert', () => {
+  const sut = collectWaived;
+  const rows = [
+    ['inline code span', `\`${ANCHORED_WAIVER}\`\n`],
+    ['bullet', `- ${ANCHORED_WAIVER}\n`],
+    ['indented', `  ${ANCHORED_WAIVER}\n`],
+    ['table cell', `| ${ANCHORED_WAIVER} |\n`],
+    ['blockquote', `> ${ANCHORED_WAIVER}\n`],
+  ];
+
+  for (const [row, content] of rows) {
+    const { waived } = waivedFrom(sut, content);
+
+    assert.deepEqual(waived, [], `${row}: waived ${waived}`);
+  }
+});
+
+test('Given a column-0 waiver token without a non-empty reason, when collectWaived runs, then each one is inert', () => {
+  const sut = collectWaived;
+  const rows = [
+    ['no colon', 'X-WAIVE(p.js)\n'],
+    ['empty reason', 'X-WAIVE(p.js):\n'],
+    ['empty reason, CRLF', 'X-WAIVE(p.js):\r\n'],
+  ];
+
+  for (const [row, content] of rows) {
+    const { waived } = waivedFrom(sut, content);
+
+    assert.deepEqual(waived, [], `${row}: waived ${waived}`);
+  }
+});
+
+test('Given two waiver tokens on one line, when collectWaived runs, then only the column-0 one is waived', () => {
+  const sut = collectWaived;
+
+  const { waived, root } = waivedFrom(sut, 'X-WAIVE(p.js): r X-WAIVE(q.js): s\n');
+
+  assert.deepEqual(waived, [resolve(root, WAIVED_PATH)]);
+});
+
+test('Given an anchored waiver line, when collectWaived runs, then exactly its trimmed path is waived', () => {
+  const sut = collectWaived;
+  const rows = [
+    ['bare line', `${ANCHORED_WAIVER}\n`],
+    ['padded path', 'X-WAIVE(  p.js  ): r\n'],
+    ['CRLF line', `${ANCHORED_WAIVER}\r\n`],
+  ];
+
+  for (const [row, content] of rows) {
+    const { waived, root } = waivedFrom(sut, content);
+
+    assert.deepEqual(waived, [resolve(root, WAIVED_PATH)], row);
+  }
+});
+
+test('Given an anchored waiver line inside a fenced block, when collectWaived runs, then it is inert', () => {
+  const sut = collectWaived;
+  const rows = [
+    ['backtick fence', `${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['tilde fence', `~~~\n${ANCHORED_WAIVER}\n~~~\n`],
+    ['info string', `\`\`\`js\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['unclosed fence', `${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n`],
+    ['shorter run does not close', `\`\`\`\`\n${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n\`\`\`\`\n`],
+    ['other character does not close', `${BACKTICK_FENCE}\n~~~\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['closer with trailing text does not close', `${BACKTICK_FENCE}\n\`\`\` x\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['run after text does not close', `${BACKTICK_FENCE}\nx \`\`\`\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['list-indented fence', `- item\n\n  ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n  ${BACKTICK_FENCE}\n`],
+    ['four-backtick fence', `\`\`\`\`\n${ANCHORED_WAIVER}\n\`\`\`\`\n`],
+    ['shorter tilde run does not close', `~~~~\n~~~\n${ANCHORED_WAIVER}\n~~~~\n`],
+    ['CRLF fence', `${BACKTICK_FENCE}\r\n${ANCHORED_WAIVER}\r\n${BACKTICK_FENCE}\r\n`],
+  ];
+
+  for (const [row, content] of rows) {
+    const { waived } = waivedFrom(sut, content);
+
+    assert.deepEqual(waived, [], `${row}: waived ${waived}`);
+  }
+});
+
+test('Given a fence that closes before an anchored waiver line, when collectWaived runs, then the line waives', () => {
+  const sut = collectWaived;
+  const rows = [
+    ['backtick fence closed', `${BACKTICK_FENCE}\nx\n${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n`],
+    ['tilde fence with a backtick info string', `~~~ a\`b\nx\n~~~\n${ANCHORED_WAIVER}\n`],
+    ['inline triple backticks are not an opener', `\`\`\`a\`\`\` x\n${ANCHORED_WAIVER}\n`],
+    ['four-backtick fence closed', `\`\`\`\`\nx\n\`\`\`\`\n${ANCHORED_WAIVER}\n`],
+    ['indented fence closed by an indented closer', `  ${BACKTICK_FENCE}\nx\n  ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n`],
+    ['CRLF fence closed', `${BACKTICK_FENCE}\r\nx\r\n${BACKTICK_FENCE}\r\n${ANCHORED_WAIVER}\r\n`],
+  ];
+
+  for (const [row, content] of rows) {
+    const { waived, root } = waivedFrom(sut, content);
+
+    assert.deepEqual(waived, [resolve(root, WAIVED_PATH)], row);
+  }
 });
 
 // ─── scanFile ───────────────────────────────────────────────────────────────

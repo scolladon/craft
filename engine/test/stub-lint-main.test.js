@@ -97,6 +97,19 @@ test('Given a waiver source waiving the seeded file, when main runs with --gate 
   assert.equal(io.stdout.joined(), '');
 });
 
+test('Given a waiver source that only quotes the token mid-sentence, when main runs with --gate blocking, then the finding stands and it exits 2', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const seeded = writeFixture(root, 'seeded.js', '// TODO fix this\n');
+  const waiverSource = writeFixture(root, 'mention.md', `We note STUB-WAIVE(${seeded}): tracked elsewhere in passing.\n`);
+  const io = makeCaptureIo();
+
+  const result = sut(['--gate', 'blocking', '--waiver-source', waiverSource, seeded], io);
+
+  assert.equal(result, 2, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().includes(`STUB-FOUND(${seeded}): TODO@L1`), `stdout was: ${io.stdout.joined()}`);
+});
+
 // ─── unreadable waiver source → loud stderr, run still completes ────────────
 
 test('Given an unreadable --waiver-source path, when main runs alongside a clean file, then it reports "cannot read waiver source" on stderr and completes', () => {
