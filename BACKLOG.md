@@ -305,13 +305,18 @@ opus 1.00 → 1.00, sonnet 1.00 → 1.00, haiku 0.42 → 1.00; every after-run b
 `implementer-runs-guards` after: opus and sonnet 1.00, haiku 0.95 and 0.90 over two sweeps.
 USD 12.24, pilots, a regression repeat and a reverted rewording included.
 
-**Haiku omits the arriving-`GUARD` plan mismatch after the part bound.** With the part-bound
-handback bullet, `implementer-runs-guards` at haiku wrote the in-part GREEN but omitted the
-`PLAN-MISMATCH` observation in 2 of 7 runs (0 of 4 before the change); sonnet and opus held at
-1.00. Making the observation unconditional made it 3 of 4 and regressed the scope case at haiku
-(one run edited `lib/name.sh`), so it was reverted. Prove a cause before rewording again: the
-reference plan never says who owns `greet.sh`, which leaves the "inside the part" condition to
-the agent's judgment.
+**Haiku omits the arriving-`GUARD` plan mismatch after the part bound — closed unproven,
+agent and fixture unchanged, 2026-10-11** (docs/haiku-guard-mismatch-ownership). With the
+part-bound handback bullet, `implementer-runs-guards` at haiku omitted the `PLAN-MISMATCH`
+observation in 2 of 7 runs (0 of 4 before the change); sonnet and opus held at 1.00. The
+suspected cause, a reference plan that never says who owns `greet.sh`, has no support in the
+traces: the 7 haiku traces on disk show no run asking who owns `greet.sh`, and plan step 3
+already edits it. Both omitting runs fixed `greet.sh` as a plain bug, without naming the
+arriving-`GUARD` rule, and handed back a generic summary; the 5 passing runs named the rule at
+the failure in 3 cases. Thinking blocks are empty, so only the visible text was read. The shift
+itself is within noise: 2 of 7 against 0 of 4 has a one-sided Fisher p of 21/55 ≈ 0.38.
+Separating a ~20% omission rate from zero needs about 20 runs per arm, so no fixture probe and
+no rewording were run. Free: no paid sweep.
 
 **Fill the model-class matrix from the eval sweep — delivered 2026-10-07**
 (docs/model-class-matrix-eval-sweep). The planner and structured-review cells of
