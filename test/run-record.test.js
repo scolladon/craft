@@ -92,6 +92,9 @@ test("Given skills/run/SKILL.md §0 step 4, when the open-record region is read,
   assert.ok(result.includes("would append this run's lines to that run's ledger"), 'expected the reason a refused run cannot continue');
   assert.ok(result.includes('run-ledger.sh close <run-id>'), 'expected the discard path');
   assert.ok(result.includes('Never run `close` without the user choosing option 2'), 'expected the user-only discard rule');
+  assert.ok(result.includes('append nothing for this run and never continue the walk'), 'expected the halt rule');
+  assert.ok(result.includes('{ resolve, reason: "run-id <slug> already open since <iso>", options }'), 'expected the blocker shape');
+  assert.ok(result.includes('"$ledger" open <run-id> && "$ledger" append <run-id> resolve'), 'expected the chain that keeps seeded lines out of a refused run');
 });
 
 test('Given the run-record spec, when normalised, then it states the flush-per-line rule and drops the buffered/phase-boundary wording', () => {
