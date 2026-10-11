@@ -121,7 +121,7 @@ Placed at the end of the `// ─── status field (optional)` section, just ab
 
 ```js
 const HARNESS_READ_CONTRACT = join(__dir, '..', '..', 'contracts', 'harness-read.md');
-const CONTRACT_STATUS_SET_PATTERN = /status\??:\s*([A-Z-]+(?:\|[A-Z-]+)+)/u;
+const CONTRACT_STATUS_SET_PATTERN = /status\??:\s*([A-Z-]+(?:\|[A-Z-]+)+)\s*\}/u;
 const STATUS_LESS_RECORD = 'HIGH src/a.js:1 — finding';
 
 function contractStatusSet() {
@@ -157,7 +157,9 @@ test('Given each claim status the harness-read contract names, when a per-line r
   carries R2. A contract status with a character outside `[A-Z-]` (e.g. `NEEDS_INFO`)
   would be truncated at extraction. The test still goes red (the partial token does not
   parse), but the message is misleading. The sibling p10 test has the same limit,
-  accepted.
+  accepted. The capture is anchored at the closing `}`, so a spaced pipe
+  (`PROBE | REFUTED }`) yields no match and fails on the non-empty assertion instead of
+  capturing the old set.
 - Production change: none (R3). The test reaches the behaviour through the public
   `normalizeFindings`, so the export precondition in the brief is not met.
 

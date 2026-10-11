@@ -106,7 +106,7 @@ Insert this block verbatim between l. 331's closing `});` + blank line and l. 33
 
 ```js
 const HARNESS_READ_CONTRACT = join(__dir, '..', '..', 'contracts', 'harness-read.md');
-const CONTRACT_STATUS_SET_PATTERN = /status\??:\s*([A-Z-]+(?:\|[A-Z-]+)+)/u;
+const CONTRACT_STATUS_SET_PATTERN = /status\??:\s*([A-Z-]+(?:\|[A-Z-]+)+)\s*\}/u;
 const STATUS_LESS_RECORD = 'HIGH src/a.js:1 — finding';
 
 function contractStatusSet() {
