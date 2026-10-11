@@ -27,8 +27,9 @@ adapter:
 - **Transient-overload retry**: a spawn that dies on a transient overload is respawned once on
   the same tier, immediately, before the tier is degraded; any other availability error degrades
   at once, and when an error text matches both classes the permanent class wins. The allowance is
-  per spawn; once the tier is degraded, later spawns and retries skip straight to the fallback.
-  Keep identical to the "Model resolution & fallback" block in `skills/run/SKILL.md`.
+  per spawn; once the tier is degraded, later spawns and retries skip straight to the fallback
+  and a retry already in flight finishes on its tier. Keep identical to the "Model resolution &
+  fallback" block in `skills/run/SKILL.md`.
 - **Degraded-tier memory**: once a tier is known degraded this run, later spawns skip straight
   to the fallback — never pay the same dead spawn twice.
 - **Supported class**: Haiku-4.5-and-up. The port exposes only bind + probe; the supported-class

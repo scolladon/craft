@@ -20,9 +20,11 @@ const SAME_TIER_PHRASE = 'once on the same tier';
 const SECOND_OVERLOAD_PHRASE = 'an overload on that retry';
 const STEP_NINE_SECOND_OVERLOAD_PHRASE = 'second overload of that spawn';
 const PERMANENT_WINS_PHRASE = 'the permanent class wins';
-const NO_WAIT_PHRASE = 'immediately';
-const PER_SPAWN_PHRASE = 'per spawn';
+const IMMEDIATE_SAME_TIER_PHRASE = 'once on the same tier, immediately';
+const PER_SPAWN_PHRASE = 'allowance is per spawn';
 const DEGRADED_SKIP_PHRASE = 'later spawns and retries skip straight to the fallback';
+const IN_FLIGHT_PHRASE = 'a retry already in flight finishes on its tier';
+const BARE_SUBSTRING_GUARD_PHRASE = 'never a bare substring';
 const RETIRED_SKILL_PHRASE = '(model down/overloaded/unknown';
 const RETIRED_MODEL_SPEC_PHRASES = [
   'a model-availability error marks the tier degraded',
@@ -33,7 +35,13 @@ const RETIRED_MODEL_SPEC_PHRASES = [
   'which core handles via fallback re-resolution',
   'an absent id marks the tier degraded',
 ];
-const RULE_PHRASES = [SAME_TIER_PHRASE, PERMANENT_WINS_PHRASE, NO_WAIT_PHRASE, PER_SPAWN_PHRASE, DEGRADED_SKIP_PHRASE];
+const RULE_PHRASES = [
+  IMMEDIATE_SAME_TIER_PHRASE,
+  PERMANENT_WINS_PHRASE,
+  PER_SPAWN_PHRASE,
+  DEGRADED_SKIP_PHRASE,
+  IN_FLIGHT_PHRASE,
+];
 const CHAIN_START = "→ the descriptor's `model:` field";
 const CHAIN_END = '→ session model';
 
@@ -71,9 +79,17 @@ const invariantBullet = () =>
 const transientRetryBullet = () =>
   sliceRegion(modelSpec, /^- \*\*Transient-overload retry\*\*/, /^- \*\*Degraded-tier memory\*\*/);
 
+// Prose phrases match case-insensitively so a sentence may open with one;
+// fixed tokens and API literals are greppable, so their case is pinned exactly.
 function assertIncludesEvery(text, phrases, label) {
   for (const phrase of phrases) {
     assert.ok(text.toLowerCase().includes(phrase.toLowerCase()), `${label} is missing "${phrase}"`);
+  }
+}
+
+function assertIncludesExactly(text, literals, label) {
+  for (const literal of literals) {
+    assert.ok(text.includes(literal), `${label} is missing "${literal}"`);
   }
 }
 
@@ -88,7 +104,7 @@ test("Given skills/run/SKILL.md and docs/contributing/specs/model.md, when the r
 test('Given the Model resolution & fallback bullet of skills/run/SKILL.md, when it is read, then it names both full tokens and both overload markers', () => {
   const sut = invariantBullet();
 
-  assertIncludesEvery(sut, [...MODEL_TOKENS, OVERLOAD_STATUS, OVERLOAD_ERROR_TYPE], 'the invariant bullet');
+  assertIncludesExactly(sut, [...MODEL_TOKENS, OVERLOAD_STATUS, OVERLOAD_ERROR_TYPE], 'the invariant bullet');
 });
 
 test('Given the Model resolution & fallback bullet of skills/run/SKILL.md, when it is read, then it states the same-tier retry, the tie-break, the no-wait, the per-spawn allowance and the degraded skip', () => {
@@ -101,6 +117,12 @@ test('Given the Model resolution & fallback bullet of skills/run/SKILL.md, when 
   const sut = invariantBullet();
 
   assertIncludesEvery(sut, [SECOND_OVERLOAD_PHRASE], 'the invariant bullet');
+});
+
+test('Given the Model resolution & fallback bullet of skills/run/SKILL.md, when it is read, then it limits the 529 marker to a status or error code', () => {
+  const sut = invariantBullet();
+
+  assertIncludesEvery(sut, [BARE_SUBSTRING_GUARD_PHRASE], 'the invariant bullet');
 });
 
 test('Given skills/run/SKILL.md, when it is read, then it no longer says a bare model down/overloaded/unknown error degrades the tier', () => {
@@ -116,11 +138,8 @@ test('Given step 9 of the skills/run/SKILL.md phase walk, when it is read, then 
     /^`design` and `review` are already concern-named/
   );
 
-  assertIncludesEvery(
-    sut,
-    [RETRY_TOKEN_NAME, DEGRADED_TOKEN_NAME, SAME_TIER_PHRASE, STEP_NINE_SECOND_OVERLOAD_PHRASE],
-    'step 9'
-  );
+  assertIncludesExactly(sut, [RETRY_TOKEN_NAME, DEGRADED_TOKEN_NAME], 'step 9');
+  assertIncludesEvery(sut, [SAME_TIER_PHRASE, STEP_NINE_SECOND_OVERLOAD_PHRASE], 'step 9');
 });
 
 test("Given the run skill's Run-record tokens list and the run-record spec's family list, when each is read, then each names both full tokens", () => {
@@ -133,7 +152,7 @@ test("Given the run skill's Run-record tokens list and the run-record spec's fam
   ];
 
   for (const [file, region] of sut) {
-    assertIncludesEvery(region, MODEL_TOKENS, `${file} token list`);
+    assertIncludesExactly(region, MODEL_TOKENS, `${file} token list`);
   }
 });
 
