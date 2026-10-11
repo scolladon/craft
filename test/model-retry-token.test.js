@@ -3,6 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { normaliseWhitespace, sliceProse } = require('./helpers/region-slice');
 
 const ROOT = path.resolve(__dirname, '..');
 const RUN_SKILL_PATH = path.join(ROOT, 'skills', 'run', 'SKILL.md');
@@ -45,22 +46,6 @@ const RULE_PHRASES = [
 const CHAIN_START = "→ the descriptor's `model:` field";
 const CHAIN_END = '→ session model';
 
-function normaliseWhitespace(text) {
-  return text.replace(/\s+/g, ' ');
-}
-
-// Bounded slice so a token mentioned in an unrelated section cannot satisfy a
-// region-scoped pin; a missing boundary fails loudly rather than widening to the
-// whole file. Whitespace is collapsed so indented, word-wrapped bullets still match.
-function sliceRegion(content, startPattern, endPattern) {
-  const lines = content.split('\n');
-  const startIdx = lines.findIndex((line) => startPattern.test(line));
-  assert.notEqual(startIdx, -1, `region start ${startPattern} not found — heading renamed?`);
-  const relativeEnd = lines.slice(startIdx + 1).findIndex((line) => endPattern.test(line));
-  assert.notEqual(relativeEnd, -1, `region end ${endPattern} not found — heading renamed?`);
-  return normaliseWhitespace(lines.slice(startIdx, startIdx + 1 + relativeEnd).join(' '));
-}
-
 function resolutionChainOf(content) {
   const text = normaliseWhitespace(content);
   const startIdx = text.indexOf(CHAIN_START);
@@ -75,9 +60,9 @@ const modelSpec = fs.readFileSync(MODEL_SPEC_PATH, 'utf8');
 const runRecordSpec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
 
 const invariantBullet = () =>
-  sliceRegion(runSkill, /^- \*\*Model resolution & fallback\*\*/, /^- \*\*Blockers\*\*/);
+  sliceProse(runSkill, /^- \*\*Model resolution & fallback\*\*/, /^- \*\*Blockers\*\*/);
 const transientRetryBullet = () =>
-  sliceRegion(modelSpec, /^- \*\*Transient-overload retry\*\*/, /^- \*\*Degraded-tier memory\*\*/);
+  sliceProse(modelSpec, /^- \*\*Transient-overload retry\*\*/, /^- \*\*Degraded-tier memory\*\*/);
 
 // Prose phrases match case-insensitively so a sentence may open with one;
 // fixed tokens and API literals are greppable, so their case is pinned exactly.
@@ -132,7 +117,7 @@ test('Given skills/run/SKILL.md, when it is read, then it no longer says a bare 
 });
 
 test('Given step 9 of the skills/run/SKILL.md phase walk, when it is read, then it names both tokens, the same-tier retry and the per-spawn second overload', () => {
-  const sut = sliceRegion(
+  const sut = sliceProse(
     runSkill,
     /^9\. \*\*On model-down\*\*/,
     /^`design` and `review` are already concern-named/
@@ -144,10 +129,10 @@ test('Given step 9 of the skills/run/SKILL.md phase walk, when it is read, then 
 
 test("Given the run skill's Run-record tokens list and the run-record spec's family list, when each is read, then each names both full tokens", () => {
   const sut = [
-    ['skills/run/SKILL.md', sliceRegion(runSkill, /^### Run-record tokens/, /^\| Token \| Emitted by \|/)],
+    ['skills/run/SKILL.md', sliceProse(runSkill, /^### Run-record tokens/, /^\| Token \| Emitted by \|/)],
     [
       'docs/contributing/specs/run-record.md',
-      sliceRegion(runRecordSpec, /^## Token vocabulary/, /^\| Token \| Regex over/),
+      sliceProse(runRecordSpec, /^## Token vocabulary/, /^\| Token \| Regex over/),
     ],
   ];
 
