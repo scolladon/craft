@@ -157,7 +157,7 @@ Drift proofs (throwaway only; they show the RED the GUARD exists to raise, witho
 the worktree). Build the copy after GUARD 1 so it carries the new test:
 
 ```bash
-W=/Users/scolladon/workspace/perso/craft-pin-claim-status-set-to-contract
+W=$(git rev-parse --show-toplevel)
 T=$(mktemp -d)
 rsync -a --exclude node_modules --exclude .git --exclude engine/.stryker-tmp "$W/" "$T/"
 cp "$T/contracts/harness-read.md" "$T/harness-read.orig"
