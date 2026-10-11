@@ -24,10 +24,11 @@ const ABSENT_HEADING = /^## Absent$/u;
 const TOP_LINE_PATTERN = /^Preamble line$/u;
 const URL_BULLET = /^- <https?:/gmu;
 const URL_BULLET_COUNT = 2;
-const WRAPPED_PHRASE = 'a bullet whose phrase wraps across an indented continuation';
+const SECOND_SECTION_PROSE = '## Second - a bullet whose phrase wraps across an indented continuation';
 
-const START_NOT_FOUND = /region start .* not found — heading renamed\?/u;
-const END_NOT_FOUND = /region end .* not found — heading renamed\?/u;
+const START_NOT_FOUND = { name: 'AssertionError', message: /region start .* not found — heading renamed\?/u };
+const END_NOT_FOUND = { name: 'AssertionError', message: /region end .* not found — heading renamed\?/u };
+const STRING_HEADING = '## Second';
 const START_WRONG_TYPE = { name: 'TypeError', message: 'region start must be a RegExp or FROM_TOP' };
 const END_WRONG_TYPE = { name: 'TypeError', message: 'region end must be a RegExp or TO_END' };
 
@@ -35,11 +36,13 @@ const WRONG_TYPE_END_CALLS = [
   ['omitted', (sut) => sut(FIXTURE, FIRST_HEADING)],
   ['undefined', (sut) => sut(FIXTURE, FIRST_HEADING, undefined)],
   ['null', (sut) => sut(FIXTURE, FIRST_HEADING, null)],
+  ['string', (sut) => sut(FIXTURE, FIRST_HEADING, STRING_HEADING)],
 ];
 const WRONG_TYPE_START_CALLS = [
   ['omitted', (sut) => sut(FIXTURE)],
   ['undefined', (sut) => sut(FIXTURE, undefined, SECOND_HEADING)],
   ['null', (sut) => sut(FIXTURE, null, SECOND_HEADING)],
+  ['string', (sut) => sut(FIXTURE, STRING_HEADING, TO_END)],
 ];
 
 test('Given a start and an end pattern, when the region is sliced, then it includes the start line and excludes the end line', () => {
@@ -122,12 +125,12 @@ test('Given FROM_TOP and an end pattern matching the first line, when the region
   assert.strictEqual(result, '');
 });
 
-test('Given a bullet that wraps onto an indented continuation, when the region is sliced as prose, then the phrase matches as one', () => {
+test('Given a bullet that wraps onto an indented continuation, when the region is sliced as prose, then only that region comes back with its whitespace collapsed', () => {
   const sut = sliceProse;
 
   const result = sut(FIXTURE, SECOND_HEADING, TO_END);
 
-  assert.ok(result.includes(WRAPPED_PHRASE), result);
+  assert.strictEqual(result, SECOND_SECTION_PROSE);
 });
 
 test('Given a mixed run of spaces, tabs and newlines, when whitespace is normalised, then the run collapses to one space', () => {
