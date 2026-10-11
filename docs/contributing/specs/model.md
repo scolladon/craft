@@ -7,8 +7,9 @@
   - **pre**: `model` is already resolved by core policy (the orchestrator owns resolution order;
     the adapter only receives the resolved tier string).
   - **post**: the worker runs on that model. If the adapter cannot reach the model (model down /
-    provider key absent) it raises a model-down signal, which core handles via fallback
-    re-resolution and respawn from the artifact — NOT via the blocker protocol.
+    provider key absent) it raises a model-down signal, which core handles via its
+    retry-then-degrade policy (Core policy retained) and respawn from the artifact — NOT via the
+    blocker protocol.
 
 - `isAvailable(model) → bool` — adapter probe; lets core skip a known-down tier during
   fallback re-resolution without attempting a spawn that will immediately fail.
@@ -23,11 +24,18 @@ adapter:
   tier) → `models.fallback` → engine default `sonnet` → session model. This is the single
   source of truth; keep it identical to the "Model resolution & fallback" block in
   `skills/run/SKILL.md`.
+- **Transient-overload retry**: a spawn that dies on a transient overload is respawned once on
+  the same tier, immediately, before the tier is degraded; any other availability error degrades
+  at once, and when an error text matches both classes the permanent class wins. The allowance is
+  per spawn; once the tier is degraded, later spawns and retries skip straight to the fallback
+  and a retry already in flight finishes on its tier. Keep identical to the "Model resolution &
+  fallback" block in `skills/run/SKILL.md`.
 - **Degraded-tier memory**: once a tier is known degraded this run, later spawns skip straight
   to the fallback — never pay the same dead spawn twice.
 - **Supported class**: Haiku-4.5-and-up. The port exposes only bind + probe; the supported-class
   floor is a core invariant, not a per-adapter decision.
-- **model-down is not a task blocker**: it triggers core fallback re-resolution + respawn from
+- **model-down is not a task blocker**: it triggers the core retry-then-degrade policy above
+  (one same-tier retry on a transient overload, else fallback re-resolution) + respawn from
   artifact. Only a tier that resolves to no provider/key with no fallback available is a
   runtime blocker.
 
@@ -43,7 +51,7 @@ Claude SKU for that tier. The descriptor's `model:` field carries the tier strin
 (`opus|sonnet|haiku`); the frontmatter pin is the Claude binding of that same tier.
 
 `isAvailable`: attempt a minimal probe against the Claude API for the given tier; a
-model-availability error marks the tier degraded and returns `false`.
+model-availability error returns `false`; core decides whether that degrades the tier.
 
 ## Pi binding
 
@@ -70,7 +78,7 @@ the resolution order is core policy, restated nowhere in this binding.
 `isAvailable`: probe whether the tier-mapped provider is configured (credentials/key present).
 Returns `false` if the tier maps to no configured provider.
 
-**Failure → blocker**: model-down triggers core fallback re-resolution + respawn from the
+**Failure → blocker**: model-down triggers the core retry-then-degrade policy + respawn from the
 artifact — NOT the blocker protocol. A tier that resolves to no provider after exhausting the
 full resolution order is a runtime blocker. Semantics identical to the Claude and Pi bindings
 above.
@@ -87,7 +95,8 @@ sentinel for every tier, swappable to real model ids without a code change once 
 seat pins them via the on-demand smoke.
 
 `isAvailable`: probe whether the tier-mapped model is reachable for the configured seat or BYOK
-provider; a model-availability error marks the tier degraded and returns `false`.
+provider; a model-availability error returns `false`; core decides whether that degrades the
+tier.
 
 ## Codex binding
 
@@ -105,13 +114,13 @@ loud on an unknown tier rather than falling back quietly, and why the committed 
 cross-checked against the auth-free catalog rather than assumed.
 
 `isAvailable`: probe whether the tier-mapped model id is present in the auth-free catalog; an
-absent id marks the tier degraded and returns `false`.
+absent id returns `false`; core decides whether that degrades the tier.
 
 ## Failure → blocker
 
 **model-down is NOT a task blocker.** A spawn that fails on a model-availability error triggers
-core fallback re-resolution + respawn-from-artifact. The adapter raises the model-down signal;
-core handles the rest.
+the core retry-then-degrade policy (Core policy retained, above) + respawn-from-artifact. The
+adapter raises the model-down signal; core handles the rest.
 
 **A tier that resolves to no provider/key** — after exhausting the full resolution order and
 all fallbacks — is a runtime blocker. Escalate via the blocker protocol that `contracts/core.md`
@@ -124,6 +133,7 @@ Failures split by where they are detectable:
 `models.<role>` or `models.fallback`; a Pi tier with no entry in the tier map and no override
 configured. Caught at startup; surface as a non-zero exit before any phase begins.
 
-**Runtime errors** (knowable only at spawn time): the model is down, overloaded, or returns an
-availability error. These are not blockers — they trigger the degraded-tier path above. Only
-when no tier in the entire resolution order is reachable does the run escalate a blocker.
+**Runtime errors** (knowable only at spawn time): an overloaded model gets one same-tier retry,
+then the degraded-tier path above; a model that is down, unknown, or refuses access takes the
+degraded-tier path above at once. These are not blockers. Only when no tier in the entire
+resolution order is reachable does the run escalate a blocker.

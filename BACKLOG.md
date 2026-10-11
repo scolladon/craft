@@ -175,6 +175,25 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-11 — follow-ups surfaced by the transient-model-retry run, not yet scheduled)
+
+**Four process suites each carry their own region slicer, and they disagree.**
+`test/run-record.test.js:50` (`sliceRegion`), `test/concepts-frames.test.js:25` and
+`test/auto-compaction-docs.test.js:81` (`sliceFrom`), and `test/model-retry-token.test.js`
+(`sliceRegion`) all slice a markdown file between two line patterns. They differ on a missing
+end marker (fail loud vs silently widen to EOF) and on the join (`' '` vs `'\n'`).
+`run-record.test.js` documents why widening to EOF is wrong: a renamed heading turns a scoped
+pin into a whole-file grep that passes for the wrong reason. Centralising into
+`test/helpers/` with fail-loud as the only behaviour changes two suites' semantics, so each
+call site needs checking that its end marker exists.
+
+**Capture the error text the Task tool surfaces on a real 529.** The transient-overload retry
+classifies on the strings the Claude Code bundle uses (`529`, `overloaded_error`, `Repeated 529
+Overloaded errors`, the "high load … switch to Sonnet" off-switch), read from CLI 2.1.296 with
+`strings`. The text the session actually receives from a dead spawn was never captured. On the
+next real overload, save that text and check it against the classification in
+`skills/run/SKILL.md`.
+
 ### Open (scoped 2026-10-09 — follow-ups surfaced by the harder-decisions-fork-fixture run, not yet scheduled)
 
 **`ci.sh` lint chain fails open — delivered 2026-10-09** (fix/ci-lint-chain-fail-closed). The
@@ -405,16 +424,17 @@ cases for a duplicate pair arriving while a later boundary is still open.
 
 ### Open (scoped 2026-08-19 — follow-ups surfaced by the decision-drift-propagation run, not yet scheduled)
 
-**A transient model 529 permanently degrades the highest-value phase.** The model-resolution
-invariant in `skills/run/SKILL.md` treats every model-availability error alike: one spawn death
-marks the tier degraded *for the rest of the run* and re-resolves to `models.fallback` (absent a
-declaration, `sonnet`). It does not distinguish a genuine model-down from a transient
-server-side 529, so a single blip at the first spawn costs the whole run its `opus` designer and
-planner. This run hit exactly that on its first design spawn, with zero work produced, and the
-session deviated deliberately — retrying once on the pinned tier — rather than pay it. Either
-the invariant should allow a bounded retry-before-degrade, or the deviation should be written
-into it as the rule. Leaving the engine's stated rule and the practised rule in disagreement is
-the one option that is clearly wrong.
+**A transient model 529 permanently degrades the highest-value phase — delivered 2026-10-11**
+(fix/transient-model-retry). The model-resolution invariant in `skills/run/SKILL.md` now
+classifies a spawn's availability error. A transient overload (`529` as a status or error code,
+or `overloaded_error`) is respawned once on the same tier, immediately, recording
+`MODEL-RETRY(<role>): <tier> overload`. Any other or unclassifiable error, an overload on that
+retry, or text that also matches a permanent error degrades the tier for the run as before,
+recording `MODEL-DEGRADED(<tier>): fallback=<tier> cause=<overload|unavailable>`. The allowance is
+per spawn; once a tier is degraded, later spawns and retries go straight to the fallback.
+`docs/contributing/specs/model.md` states the same rule; both tokens join the run-record family.
+Pinned by `test/model-retry-token.test.js`. Design:
+[transient-model-retry](docs/contributing/design/transient-model-retry.md); ADR-462–465.
 
 **`stub-lint` flags `scripts/ci.sh`'s own mentions of `stub-lint`.** `STUB-FOUND(scripts/ci.sh)`
 fires on the lines that *invoke* the stub lint, so any change touching `ci.sh` surfaces two
