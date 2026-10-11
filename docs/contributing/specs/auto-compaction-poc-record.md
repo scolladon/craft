@@ -125,23 +125,52 @@ an SDK host's own user message) executes it as a command.
 | P4 | Manual `/compact <text>`: `PreCompact` fires with `trigger:"manual"` and `custom_instructions` = `<text>`. Registrations with matcher `manual`, `""`, `auto\|manual` or no matcher fire; matcher `auto` does not. `SessionStart[compact]` fires too. Hook stdout and the user's text both reach the summary; the boundary's `trigger` is `manual`. A matcher of `""` fired on both triggers, so `""` is pinned for either. | five registrations on one session; marker and user fact in the summary |
 | P5 | A `PreCompact` hook exiting 2 **blocks** the compaction (no boundary; the CLI prints "Compaction blocked by PreCompact hook"). Exit 1 does not block. | one session per exit code |
 
-## Live smoke (pending)
+## Live smoke (2026-10-11)
 
-Not yet run. When it runs, it is recorded here, not gated in CI.
+**All checks hold** — CLI 2.1.296, one throwaway session, run on demand, never gated in CI.
 
-A throwaway session launched with `--settings '{"autoCompactWindow":100000}'` and the
-plugin installed as a real plugin (not injected as a settings hook) opens a run ledger and
-fills context until an automatic compaction fires. It checks:
+**Setup.** The session ran in a throwaway git repository. Its project settings did one thing:
+enable the installed craft plugin. User and local settings were not loaded, so no settings hook
+existed anywhere. It was launched headless with `--settings '{"autoCompactWindow":100000}'` on
+the small-tier model and driven one user message per turn. The debug log reads
+`effectiveWindow=80000` and `thresholdSource=settings`, so `T = 67000`. First, the model ran
+`run-ledger.sh open` and three phase events: `design` started, `design` done, `implementation`
+started. Then the operator, never the model, appended a ledger line carrying a `<nonce>`. A
+second `<nonce>` was appended the same way before the sub-agent step. Neither nonce had any way
+into a model's context except the reorient hook's ledger tail.
 
-- the plugin-registered reorient hook fired (not just a settings-injected one)
-- the block reached the model — confirmed by asking for a marker only the hook could have
-  printed
-- the transcript binding held on a real main session, not only in a probe harness
-- a sub-agent's compaction during the run also received the guard
-- reading each `isCompactSummary` line from the steer hook: the main session's summary holds
-  the run-id, ledger path and in-flight phase; a sub-agent's holds its task statement and no
-  ledger path; a manual `/compact` is steered the same way
+**Sequence.**
 
-It closes three assumptions the probes above could not: plugin-registration versus
-settings-hook parity, key-in-transcript behaviour on a real (non-probe) main session, and
-which of the steer hook's candidate paragraphs reads best in practice.
+1. Filler turns until an automatic compaction (`preTokens` 75467).
+2. A question answered from context only.
+3. One general-purpose sub-agent read 14 filler files. It compacted automatically twice
+   (`preTokens` 72456 and 71219).
+4. A manual `/compact`, sent as a plain user message (`preTokens` 34793).
+5. The same question again.
+
+| check | result | evidence |
+|---|---|---|
+| the plugin-registered `SessionStart[compact]` fired | yes, 4/4 compactions (main auto, main manual, sub-agent ×2) | One debug line per compaction: `Hooks: SessionStart:compact [${CRAFT_ROOT:-<plugin-root>}/hooks/reorient-after-compact.sh] (plugin craft@<marketplace>) finished with status 0`, 129–243 ms. Each summary is followed by a `hook_success` attachment named `SessionStart:compact`. `PreCompact:auto` and `PreCompact:manual` ran the plugin's `steer-compact-summary.sh` with status 0, 4/4 |
+| its block reached the model | yes | After the automatic compaction, asked for every marker token in its context, the main session returned the ledger `<nonce>` and attributed it to the hook output. After the manual compaction it returned both `<nonce>`s |
+| the transcript binding held | yes | The run-key that `open` printed appears verbatim, once, in the main transcript, inside the stored output of the shell call. `run-ledger.sh locate --transcript` on that transcript returns the run-id and its ledger. The hook prints its block only when bound, and it printed it every time |
+| a sub-agent's compaction got the guard | yes | For both sub-agent compactions, the hook block, guard paragraph first, landed in the sub-agent's transcript and not the main one. The sub-agent read only its files, never ran the rebuild, and reported both `<nonce>`s as found "only in the SessionStart craft hook text" |
+| the main summary keeps run-id, ledger path, in-flight phase | yes | Automatic: the run-id and the ledger path verbatim, and the anchor sentence "The run ledger outranks this summary." verbatim. The phase is paraphrased, not in the steer's `phase(s) in flight:` wording: "The implementation phase has started but has not been marked done". Manual: the run-id, the ledger path, "in-flight phase `implementation`", and the anchor sentence |
+| a sub-agent summary keeps its task and no ledger path | yes | Both summaries open with the spawn prompt's task, near-verbatim, and neither holds a ledger path. The first also omits the run-id. The second names the run-id once, in a description of the reorient text it had received ("apply only to the craft orchestrator running" the run; "this agent is not that orchestrator, so those steps were ignored"), never as a run anchor |
+| a manual `/compact` is steered | yes | `PreCompact:manual` ran the steer hook, the boundary reads `trigger: manual`, and the summary keeps all three main-session anchors |
+
+**Closed assumptions.**
+
+- **Plugin vs settings hook.** Registration does not change behaviour. The order matches the
+  settings-hook spike (`PreCompact` → summary call → `SessionStart[compact]` → boundary).
+  Stdout reaches the model. A sub-agent's hook output stays in the sub-agent's context.
+- **Key in transcript.** It holds on a real main session, not only in a probe harness.
+- **Which paragraph.** Each summariser applied its own paragraph: orchestrator for the main
+  session, sub-agent for the sub-agent. The one drift is that the automatic summary
+  paraphrases the in-flight phase instead of keeping the steer's wording.
+
+A headless driver's `/compact` user message runs a real manual compaction. Spike 2 had left
+this as a static read.
+
+**Observed outside the hooks.** After the manual compaction, the CLI re-appended an earlier
+stretch of the main transcript, including the automatic boundary and its summary, with the
+same `uuid`s. A count of boundary lines therefore reads three compactions where two happened.

@@ -19,7 +19,7 @@ const REQUIRED_HEADINGS = [
   '## Summary-call cost',
   '## Model-triggered compaction routes',
   '## Pinned while designing',
-  '## Live smoke (pending)',
+  '## Live smoke (2026-10-11)',
 ];
 
 const CONTENT_ANCHORS = [
