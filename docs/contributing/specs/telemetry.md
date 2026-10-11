@@ -713,9 +713,22 @@ agent-spawned phase in `.claude/craft-metrics.md`, written by `engine/bin/metric
 One session directory can hold two spawns of the same phase (a revision round, or
 validation and architecture sharing one role); without `--since` as a lower bound on that
 second call, its row re-counts the first spawn's events instead of describing only what
-ran after it. Only sub-agent transcripts are parsed — a main-loop transcript is narrowed
-out before the parse, since it carries no phase label and would be filtered out
-downstream anyway.
+ran after it. Rows read sub-agent transcripts only — a main-loop transcript is narrowed
+out of the row parse, since it carries no phase label and would be filtered out
+downstream anyway. The one main-loop transcript ever read is the named session's own
+`<session>.jsonl` (matched exactly, never by prefix), on a run-level call only, and only
+for its compactions; it adds no event and no row.
+
+**Compaction estimate line.** A run-level call (no `--phase`) that names `--session` folds
+every compaction of that session — its main transcript and its sub-agent transcripts, each
+boundary gated by `--since` on its own timestamp — and, when there is at least one, prints
+one line to stdout after any rows: the same `Compactions:` line the miner's markdown report
+renders under "Per run (`runs[*]`)" above, from the same formatter. It prints even when no
+row does. It is advisory: never written to the metrics ledger, never in totals, drift or the
+baseline, and exit codes are unchanged. A `--phase` call never prints it. A run-level call
+without `--session` (an empty `--session` counts as absent) prints no line and writes one
+stderr note, `metrics-emit: no --session, compaction estimate skipped`. This is the
+`emit-metrics` option ADR-382 left for later, taken by ADR-455.
 
 Config errors (exit 1, one stderr line naming the flag): a missing `--run`; a `--run` or
 `--phase` that fails `ROW_TOKEN` (`/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/`) — these are the
