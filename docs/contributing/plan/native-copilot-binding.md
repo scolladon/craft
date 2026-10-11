@@ -20,9 +20,9 @@
 
 Read this once; no part restates it.
 
-- **Working directory**: `/Users/scolladon/workspace/perso/craft-native-copilot-binding`
-  (git worktree, branch `feat/native-copilot-binding`). Work ONLY there. Absolute paths
-  in every command.
+- **Working directory**: the worktree root (`<worktree>`)
+  (git worktree, branch `feat/native-copilot-binding`). Work ONLY there. Repo-relative paths
+  in every command, run from the worktree root.
 - **Toolchain**: npm, nested package at `engine/`. Node's built-in runner only —
   `node:test` + `node:assert/strict`. No test framework dependency exists; do not add one.
 - **House test style**: Given/When/Then titles, AAA body, a `sut` variable naming the
@@ -214,9 +214,9 @@ zero provenance tokens in every new file.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding/adapters/copilot && node --test 'test/**/*.test.js'
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding && node --test test/every-test-file-registers.test.js
-bash /Users/scolladon/workspace/perso/craft-native-copilot-binding/scripts/ci.sh
+(cd adapters/copilot && node --test 'test/**/*.test.js')
+node --test test/every-test-file-registers.test.js
+bash scripts/ci.sh
 ```
 (The full `ci.sh` runs here because this part edits `ci.sh` itself — a mis-placed
 `run_suite` line is only visible there.)
@@ -320,7 +320,7 @@ decided, not left open.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding/adapters/copilot && node --test 'test/**/*.test.js'
+cd adapters/copilot && node --test 'test/**/*.test.js'
 ```
 
 ### Commit
@@ -423,7 +423,7 @@ early-return guard; no nesting beyond one level.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding/adapters/copilot && node --test 'test/**/*.test.js'
+cd adapters/copilot && node --test 'test/**/*.test.js'
 ```
 
 ### Commit
@@ -605,7 +605,7 @@ No boolean parameters. Verify the fail-closed catch returns a verdict on every p
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding/adapters/copilot && node --test 'test/**/*.test.js'
+cd adapters/copilot && node --test 'test/**/*.test.js'
 ```
 
 ### Commit
@@ -818,7 +818,7 @@ body containing a `${CLAUDE_PLUGIN_ROOT}` token means the wrong source was copie
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding/adapters/copilot && node --test 'test/**/*.test.js'
+cd adapters/copilot && node --test 'test/**/*.test.js'
 ```
 
 ### Commit
@@ -1031,8 +1031,8 @@ discrimination rule. `parseLines` itself stays a thin loop mirroring the sibling
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding/engine && node --test test/copilot-telemetry.test.js
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding && node --test test/source-hygiene.test.js
+(cd engine && node --test test/copilot-telemetry.test.js)
+node --test test/source-hygiene.test.js
 ```
 
 ### Commit
@@ -1176,7 +1176,7 @@ a function and that no env read escaped to module scope.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding/engine && node --test test/usage-mine-main.test.js test/contract-equivalence.test.js test/copilot-telemetry.test.js
+cd engine && node --test test/usage-mine-main.test.js test/contract-equivalence.test.js test/copilot-telemetry.test.js
 ```
 
 ### Commit
@@ -1369,8 +1369,8 @@ Self-check before committing:
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-copilot-binding && node --test test/living-corpus.test.js test/source-hygiene.test.js test/docs-structure-lint.test.js
-bash /Users/scolladon/workspace/perso/craft-native-copilot-binding/scripts/ci.sh
+node --test test/living-corpus.test.js test/source-hygiene.test.js test/docs-structure-lint.test.js
+bash scripts/ci.sh
 ```
 
 ### Commit
