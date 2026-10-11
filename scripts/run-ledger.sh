@@ -126,8 +126,8 @@ require_trusted_pointer() {
 }
 
 # Written to a temp file inside the run directory then `mv`d over, so a reader
-# never sees a partial file and a leftover from a crashed attempt of the same
-# topic never leaks its lines into the new run.
+# never sees a partial file and a leftover ledger with no open pointer never
+# leaks its lines into the new run.
 write_atomically() {
   local target="$1" content="$2" tmp
   if [ -L "$target" ] || [ -d "$target" ]; then die "refusing a symlinked or directory run file: $target"; fi
@@ -161,10 +161,11 @@ warn_if_replacing() {
 }
 
 # A run stays open from `open` to `close`: no process outlives a tool call, so
-# whether an open run is dead is the user's call, never this script's.
+# whether an open run is dead is the user's call, never this script's. Runs
+# after the sweep, which has already dropped every pointer whose ledger is gone.
 refuse_if_open() {
   local run_id="$1"
-  load_trusted_pointer "$run_id" && [ -f "$ledger" ] || return 0
+  load_trusted_pointer "$run_id" || return 0
   die "open: run-id $run_id is already open since ${key#*@} (ledger $ledger); refusing to discard it" "$OPEN_RUN_EXIT"
 }
 
