@@ -366,15 +366,15 @@ the next time a prune or prompt audit targets it, not speculatively.
 
 ### Open (scoped 2026-09-22 — follow-ups surfaced by the auto-compaction-safety run, not yet scheduled)
 
-**Live smoke for the plugin-registered compaction hooks.** The design pinned every hook
-behaviour against settings-registered hooks in throwaway sessions. Two assumptions stay
-unpinned: that a plugin-registered `SessionStart[compact]` / `PreCompact` hook behaves
-exactly like the settings hook the spike used, and that the run-key `open` prints lands
-verbatim in a real orchestrator transcript. The on-demand smoke is written up in
-`docs/contributing/plan/auto-compaction-safety.md` (post-merge manual item): a throwaway
-session with `--settings '{"autoCompactWindow":100000}'` and the plugin installed, which
-opens a run and fills context until compaction. Record the result in
-`docs/contributing/specs/auto-compaction-poc-record.md`.
+**Live smoke for the plugin-registered compaction hooks — delivered 2026-10-11**
+(docs/live-smoke-compaction-hooks). All checks hold on CLI 2.1.296, recorded in
+`docs/contributing/specs/auto-compaction-poc-record.md` §"Live smoke (2026-10-11)". The
+plugin-registered `SessionStart[compact]` and `PreCompact` hooks fired on 4/4 compactions
+(main auto, main manual, sub-agent ×2) and match the settings-hook spike. A ledger nonce the
+model never saw came back from context. The run-key bound the real main transcript. The
+sub-agent got the guard and ignored the rebuild. The summaries kept the run-id, ledger path
+and phase (main) or the task with no ledger path (sub-agent), and a manual `/compact` was
+steered too. One drift: the automatic summary paraphrases the in-flight phase.
 
 **`open` on a live run-id discards that run's ledger — delivered 2026-10-11**
 (fix/refuse-open-on-live-run-id). `run-ledger.sh open` now exits 3 and writes nothing when the
