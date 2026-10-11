@@ -62,10 +62,13 @@ export function parseArgs(argv) {
 
 /**
  * A fenced code block opens on 3+ backticks (no backtick in the info string) or
- * 3+ tildes, at any indentation; the run is captured to match its closer.
+ * 3+ tildes, at any indentation; the run is captured to match its closer. A
+ * closer indented four or more spaces is fence content, as in CommonMark.
  */
 const FENCE_OPENER = /^[ \t]*(?:(`{3,})[^`]*|(~{3,}).*)$/;
-const FENCE_CLOSER = /^[ \t]*(`{3,}|~{3,})\s*$/;
+const FENCE_CLOSER = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+// CRLF sources split to the same lines as LF ones, so no pattern sees a `\r`.
+const LINE_BREAK = /\r?\n/;
 
 /**
  * @param {string} line
@@ -98,9 +101,9 @@ function closesFence(line, fence) {
 function unfencedLines(content) {
   const lines = [];
   let fence; // the open fence's run; undefined outside a fence
-  for (const line of content.split('\n')) {
+  for (const line of content.split(LINE_BREAK)) {
     if (fence !== undefined) {
-      if (closesFence(line, fence)) fence = undefined;
+      fence = closesFence(line, fence) ? undefined : fence;
       continue;
     }
     fence = openedFence(line);
