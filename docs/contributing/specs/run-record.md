@@ -145,7 +145,8 @@ A rebuild reads the ledger and re-runs `run-state` (see `skills/run/SKILL.md`
 
 `run-ledger.sh open` writes the ledger fresh — the header line is appended first, then
 the seeded `Resolution.record[]` entries from §1c — through a temp file and a rename, so a
-leftover from a crashed attempt of the same topic never leaks into the new run.
+leftover ledger with no open pointer never leaks into the new run. A run-id that is still
+open is refused, never overwritten (see Inherited edges).
 
 ## The present-file case
 
@@ -160,7 +161,8 @@ Every ledger line is appended in the tool call that produces it or in the orches
 very next tool call — never held longer than that.
 
 1. **`open`, at §0 step 4.** Creates the ledger and the pointer and appends the seeded
-   `Resolution.record[]` lines in the same call.
+   `Resolution.record[]` lines in the same call. It refuses — exit 3, nothing written — a
+   run-id whose trusted pointer and ledger exist; see Inherited edges.
 2. **`append`, at every phase boundary and whenever a line is produced.** Phase walk
    step 4 appends `PHASE-START(<phase.id>):` at phase entry; step 7 appends
    `PHASE-DONE(<phase.id>):` together with the phase's `GATE`/`NO-OP`/`inline:` lines,
@@ -197,24 +199,29 @@ A failed ledger append is surfaced to the user in-session and the run continues;
 **not** recorded into the ledger itself (that would be circular). Same posture as a
 failed `save` (ADR-120): a write failure never blocks delivery work.
 
+A refused `open` (exit 3) is not a write failure: the orchestrator STOPs, because a run
+that continued would append into the other run's ledger.
+
 ## Inherited edges
 
 **Run-id collision.** The run-id is the topic slug, so a genuine re-run of the same
 feature reuses it — inherited, not introduced: `.claude/craft-metrics.md` already keys on
-the same slug and already carries repeat records for one id. `open` on an id already in
-use discards that id's ledger, whether its run is live or crashed, and starts a fresh
-one; the stderr replacement line is the only signal. A second run of the same topic
-never inherits the first one's lines, and a live run of that topic loses its ledger.
+the same slug and already carries repeat records for one id. While the first run is open
+— its trusted pointer and its ledger exist, from `open` to `close` — `open` on the same id
+refuses with exit 3 and touches neither file. No process outlives a tool call, so nothing
+tells a live run from a crashed one: the orchestrator STOPs (§0 step 4) and the user
+chooses stop, discard (`close`, then `open`) or re-slug. A second run of the same topic
+never inherits the first one's lines, and never discards them unasked.
 
 **Resume double-`Done`.** A run that reaches `Done` twice (once before a reset, once
 after) calls `save` twice. This is convergent, not corrupting: `save` decay-merges
 against the run-start `MemoryView` and entries are advisory, so the second call
 reconciles to the same result rather than compounding.
 
-**Pointer replacement.** `run-ledger.sh open` on a `<run-id>` that already has a pointer
-replaces it and writes one stderr line saying so (a run-id collision) — the same
-inherited collision above, now visible at the moment it happens rather than only at
-resume.
+**Pointer replacement.** `run-ledger.sh open` on a `<run-id>` whose leftover pointer is
+untrusted (a stamp in the future, say) replaces it and writes one stderr line saying so.
+Such a pointer can bind no run — `locate` and `append` refuse it — so replacing it
+discards nothing live.
 
 ## Ledger vs. store
 

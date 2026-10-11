@@ -82,6 +82,18 @@ test('Given skills/run/SKILL.md §0 step 4, when the open-record region is read,
   assert.ok(!result.includes('buffer the lines in-session'), 'the pre-worktree buffer wording must be gone');
 });
 
+test("Given skills/run/SKILL.md §0 step 4, when the open-record region is read, then a refused open is a STOP whose only discard path is close on the user's choice", () => {
+  const sut = sliceRegion;
+
+  const result = sut(runSkill, /^4\. Open the \*\*run record\*\*/, /^## Phase walk/).replace(/\s+/gu, ' ');
+
+  assert.ok(result.includes('**A refused `open` is a STOP.**'), 'expected the refused-open paragraph');
+  assert.ok(result.includes('`open` exits 3'), 'expected the refusal exit code');
+  assert.ok(result.includes("would append this run's lines to that run's ledger"), 'expected the reason a refused run cannot continue');
+  assert.ok(result.includes('run-ledger.sh close <run-id>'), 'expected the discard path');
+  assert.ok(result.includes('Never run `close` without the user choosing option 2'), 'expected the user-only discard rule');
+});
+
 test('Given the run-record spec, when normalised, then it states the flush-per-line rule and drops the buffered/phase-boundary wording', () => {
   const normalised = runRecordSpec.replace(/\s+/g, ' ');
 
@@ -252,6 +264,31 @@ test('Given the run-record spec, when the inherited-edges section is read, then 
   assert.match(result, /collision/iu);
   // Both inherited edges live in this region; the earlier rewrite dropped this one.
   assert.match(result, /decay-merges against the run-start/u);
+});
+
+test('Given the run-record spec, when the inherited-edges section is read, then an open run-id is refused and only an untrusted leftover pointer is replaced', () => {
+  const spec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
+  const sut = sliceRegion;
+
+  const result = sut(spec, /^## Inherited edges/u, /^## /u).replace(/\s+/gu, ' ');
+
+  assert.ok(!result.includes('a live run of that topic loses its ledger'), 'the discard wording must be gone');
+  assert.ok(!result.includes("discards that id's ledger"), 'the discard wording must be gone');
+  assert.ok(result.includes('refuses with exit 3 and touches neither file'), result);
+  assert.ok(result.includes('can bind no run'), result);
+});
+
+test('Given the run-record spec, when the absent-file, write-cadence and failure-posture sections are read, then each states the refusal of an open run-id', () => {
+  const spec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
+  const sut = (heading) => sliceRegion(spec, heading, /^## /u).replace(/\s+/gu, ' ');
+
+  const absentFile = sut(/^## The absent-file case/u);
+  const cadence = sut(/^## Write cadence/u);
+  const posture = sut(/^## Failure posture/u);
+
+  assert.ok(absentFile.includes('a leftover ledger with no open pointer'), absentFile);
+  assert.ok(cadence.includes('exit 3, nothing written'), cadence);
+  assert.ok(posture.includes('A refused `open` (exit 3) is not a write failure'), posture);
 });
 
 test('Given skills/run/SKILL.md §Done, when the metrics procedure is read, then it names the emitter wrapper and the run-id flag', () => {
