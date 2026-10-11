@@ -470,3 +470,7 @@ arriving-guard-part-bound documentation turns=10 tool_calls=10 tokens=231803 dur
 arriving-guard-part-bound implementation turns=34 tool_calls=38 tokens=721807 duration_ms=353581 cache_read=612702 cache_creation=107811 output=1226 avg_ctx=21194 equiv=202232
 arriving-guard-part-bound planning turns=112 tool_calls=116 tokens=8821674 duration_ms=1495725 cache_read=8563705 cache_creation=255824 output=1921 avg_ctx=78748 equiv=1185980
 arriving-guard-part-bound review turns=73 tool_calls=78 tokens=2663429 duration_ms=754893 cache_read=2469922 cache_creation=191769 output=1592 avg_ctx=36464 equiv=494809
+pin-claim-status-set-to-contract design turns=41 tool_calls=43 tokens=2081337 duration_ms=565763 cache_read=2001968 cache_creation=78570 output=717 avg_ctx=50747 equiv=302076
+pin-claim-status-set-to-contract implementation turns=6 tool_calls=7 tokens=119628 duration_ms=31919 cache_read=99665 cache_creation=19671 output=280 avg_ctx=19891 equiv=35967
+pin-claim-status-set-to-contract planning turns=18 tool_calls=18 tokens=624461 duration_ms=167755 cache_read=576855 cache_creation=47418 output=152 avg_ctx=34684 equiv=117754
+pin-claim-status-set-to-contract review turns=22 tool_calls=23 tokens=404554 duration_ms=132008 cache_read=321899 cache_creation=82402 output=209 avg_ctx=18379 equiv=136281
