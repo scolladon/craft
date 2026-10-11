@@ -26,7 +26,8 @@ The Model **port** only exposes `select`/`isAvailable`; the *order* is core poli
 **manifest → agent pin → `models.fallback` → session model**. A pinned tier that goes down does not
 fail the run — it falls back, and the **degraded tier is remembered** for the rest of the run so the
 run record shows exactly where quality was traded. A transient overload (`529` / `overloaded_error`)
-is the exception: it is retried once on the same tier, immediately, before the tier is degraded. Routing the wrong tier hurts quality, not safety:
+is the exception: it is retried once on the same tier, immediately, before the tier is degraded.
+Routing the wrong tier hurts quality, not safety:
 the contract and gates bind regardless of model.
 
 Valid agent keys are the craft agents (`designer`, `planner`, `reviewer`, `part-implementer`,
