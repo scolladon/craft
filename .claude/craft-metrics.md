@@ -489,3 +489,8 @@ compaction-estimate-at-done implementation turns=20 tool_calls=23 tokens=546128 
 compaction-estimate-at-done planning turns=84 tool_calls=87 tokens=9205626 duration_ms=1009348 cache_read=9006261 cache_creation=196517 output=2680 avg_ctx=109559 equiv=1159840
 compaction-estimate-at-done review turns=55 tool_calls=56 tokens=1669869 duration_ms=340438 cache_read=1483996 cache_creation=184569 output=1194 avg_ctx=30340 equiv=385191
 compaction-estimate-at-done validation turns=4 tool_calls=4 tokens=67317 duration_ms=15039 cache_read=48470 cache_creation=18723 output=116 avg_ctx=16800 equiv=28839
+transient-model-retry design turns=47 tool_calls=47 tokens=2591263 duration_ms=482378 cache_read=2506311 cache_creation=84239 output=619 avg_ctx=55120 equiv=359119
+transient-model-retry documentation turns=5 tool_calls=6 tokens=81367 duration_ms=21132 cache_read=63113 cache_creation=18054 output=190 avg_ctx=16235 equiv=29839
+transient-model-retry implementation turns=10 tool_calls=11 tokens=269539 duration_ms=63109 cache_read=238570 cache_creation=30646 output=303 avg_ctx=26924 equiv=63700
+transient-model-retry planning turns=54 tool_calls=57 tokens=3660198 duration_ms=649367 cache_read=3546179 cache_creation=112721 output=1190 avg_ctx=67759 equiv=501577
+transient-model-retry review turns=57 tool_calls=58 tokens=1450137 duration_ms=466097 cache_read=1247847 cache_creation=200209 output=1967 avg_ctx=25406 equiv=384995
