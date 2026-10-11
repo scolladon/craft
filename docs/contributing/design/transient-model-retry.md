@@ -147,6 +147,13 @@ to fallback (MODEL-DEGRADED); respawn from artifact.`
 - They are not added to the parsed Token-vocabulary table, so `engine/src/run-state.js` is
   unchanged.
 
+**Rule vs fact.** This rewrites a standing rule instead of stating one missing fact
+("a 529 is transient; the harness already backed off"). The fact alone would not suffice:
+the old invariant explicitly orders degradation on *overloaded*, so an orchestrator that
+knew the fact still had to break a written rule to act on it, which is exactly the
+disagreement this change removes. The rule has to change; the fact is folded into it as
+the classification.
+
 **Touched files (recommended set):** `skills/run/SKILL.md`, `docs/contributing/specs/model.md`,
 `docs/contributing/specs/run-record.md`, and one new process test `test/model-retry-token.test.js`.
 No engine source changes. `README.md:105` and `docs/guides/customizing.md:117` are still true
