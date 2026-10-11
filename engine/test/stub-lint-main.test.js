@@ -292,7 +292,7 @@ test('Given the hygiene header worded with a bare prose stub, when main runs, th
 
 test('Given near-miss forms of the lint name, when main runs, then each still reports a STUB marker', () => {
   const sut = main;
-  const nearMisses = ['stub-linter', 'stub-lints', 'stub -lint', 'stub--lint', 'STUB-WAIVE(x)'];
+  const nearMisses = ['stub-linter', 'stub-lints', 'stub -lint', 'stub--lint', 'stub-lintTODO'];
   const ciSh = writeCiSh(nearMisses);
   const io = makeCaptureIo();
 
@@ -302,6 +302,26 @@ test('Given near-miss forms of the lint name, when main runs, then each still re
     findingsOf(io),
     nearMisses.map((_, idx) => `STUB-FOUND(${ciSh}): STUB@L${idx + 1}`),
   );
+});
+
+test('Given the run-record tokens of the lint, when main runs, then each still reports a STUB marker', () => {
+  const sut = main;
+  const ciSh = writeCiSh(['STUB-WAIVE(x)', 'STUB-FOUND(x)']);
+  const io = makeCaptureIo();
+
+  sut([ciSh], io);
+
+  assert.deepEqual(findingsOf(io), [`STUB-FOUND(${ciSh}): STUB@L1`, `STUB-FOUND(${ciSh}): STUB@L2`]);
+});
+
+test('Given the lint name inside a larger word or a module path, when main runs, then nothing is reported', () => {
+  const sut = main;
+  const ciSh = writeCiSh(['xstub-lint', 'run_stub_lint() {', 'import { main } from "../src/stub-lint-main.js";']);
+  const io = makeCaptureIo();
+
+  sut([ciSh], io);
+
+  assert.deepEqual(findingsOf(io), []);
 });
 
 test('Given the lint name glued onto a preceding marker, when main runs, then neither the name nor the marker is reported', () => {
