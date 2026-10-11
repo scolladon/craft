@@ -36,6 +36,9 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
    Fold any `SLOP-FOUND(<file>): …` lines into the run record and a hygiene note in the
    PR body; the `hygiene.gate` knob and the `SLOP-WAIVE(<file>)` waiver are honored (the
    body is its own waiver source, so a deliberate ban-list word can be waived in-body).
+   The in-body waiver is its own line, `SLOP-WAIVE(<body-file>): <reason>`, starting at
+   column 0 and outside any code fence; the token mid-sentence or inside a fence waives
+   nothing.
    PR body only — never the ci.sh touched-docs cadence.
 
    Invoke the VCS port `propose(title, body)` (see `docs/contributing/specs/vcs.md`); the adapter
