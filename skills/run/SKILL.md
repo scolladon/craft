@@ -572,13 +572,17 @@ run continues; it is **not** recorded into the ledger itself (that would be circ
 same posture as a failed `save` above.
 
 **Metrics ledger (separate, append-only).** Call
-`bash "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/emit-metrics.sh" --run <run-id>` once from `<main-repo-dir>`; it
-groups this session's sub-agent transcripts by phase, appends one row per agent-spawned
-phase to `.claude/craft-metrics.md`, and prints what it appended. A phase that ran twice in
+`bash "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/emit-metrics.sh" --run <run-id> --session "$CLAUDE_CODE_SESSION_ID"` once
+from `<main-repo-dir>`; it groups this session's sub-agent transcripts by phase, appends one
+row per agent-spawned phase to `.claude/craft-metrics.md`, and prints what it appended.
+When this session compacted, it then prints one advisory line,
+`Compactions: <n> (main <m>, sub-agent <s>) — estimated summary-call cost <lo>k–<hi>k equiv (estimate; not in totals)`
+— stdout only, never a ledger row. A phase that ran twice in
 one session (a revision round, or validation and architecture sharing one role) needs its
-own call with `--phase <phase-id> --since <iso8601>`, where `--since` is the iso on that
+own call with `--phase <phase-id> --since <iso8601> --session "$CLAUDE_CODE_SESSION_ID"`, where `--since` is the iso on that
 phase's latest `PHASE-START(<phase>):` line in the ledger, or its
-row re-counts the first run of that phase. A phase with no transcript records
+row re-counts the first run of that phase; a `--phase` call never prints the `Compactions:`
+line. A phase with no transcript records
 `transcript=na`. Never hand-assemble a row; never write metrics into the learnings store
 `.claude/craft-memory.md`.
 
@@ -586,4 +590,5 @@ row re-counts the first run of that phase. A phase with no transcript records
 the final message: it removes the pointer and the ledger.
 
 Final message: the PR URL (or branch name if no remote) + one-line summary + the run
-record.
+record + the `Compactions:` line verbatim when the run-level `emit-metrics` call printed
+one.

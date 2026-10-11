@@ -385,10 +385,15 @@ process outlives a tool call, and a worktree/branch probe reads a live run as de
 (`close`, then `open`), or re-slug. The refusal prints no run-key, so no compaction hook binds to
 the refused attempt. An untrusted leftover pointer is still replaced with the stderr warning.
 
-**Surface the compaction estimate at `Done`.** The miner reports `compactionEstimate` per
-run, but `emit-metrics` prints nothing about it, so a run's compaction cost is visible only
-to someone who mines by hand. One advisory line at `Done` was the cheap later add the
-decision left open.
+**Surface the compaction estimate at `Done` — delivered 2026-10-11**
+(feat/compaction-estimate-at-done). A run-level `emit-metrics` call that names `--session` now
+also reads that session's own main transcript, for its compactions only, and prints one advisory
+`Compactions:` line after the rows from the miner's formatter. It is never a ledger row, never in
+totals or drift, and exit codes are unchanged. A `--phase` call prints nothing; a run-level call
+without `--session` (or with an empty one) writes one stderr note instead. `Done` passes
+`--session "$CLAUDE_CODE_SESSION_ID"` on both calls and relays the line in the final message.
+Design: [compaction-estimate-at-done](docs/contributing/design/compaction-estimate-at-done.md);
+ADR-455–461.
 
 **The miner double-counts a compaction the CLI re-appends — delivered 2026-10-11**
 (fix/miner-compaction-uuid-dedup). `parseLines` now skips a `compact_boundary` or

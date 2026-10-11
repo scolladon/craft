@@ -626,6 +626,12 @@ function formatCompactionsLine({ count, main, subagent, equiv }) {
   return `Compactions: ${count} (main ${main}, sub-agent ${subagent}) — estimated summary-call cost ${lo}k–${hi}k equiv (estimate; not in totals)`;
 }
 
+// The advisory line emit-metrics prints: same fold, same wording as report.md.
+export function formatCompactionEstimateLine(compactions) {
+  const estimate = buildCompactionEstimate(compactions);
+  return estimate ? formatCompactionsLine(estimate) : null;
+}
+
 export function renderMarkdown(report) {
   if (!report.runs?.length) {
     return `# Usage Report\n\n_No data: ${report.note ?? 'empty'}_\n`;

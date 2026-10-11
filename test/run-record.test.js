@@ -317,6 +317,19 @@ test('Given skills/run/SKILL.md §Done, when the metrics procedure is read, then
   assert.match(result, /re-counts the first/i);
 });
 
+test('Given skills/run/SKILL.md §Done, when the metrics procedure is read, then both emitter calls scope to this session', () => {
+  const result = sliceRegion(runSkill, /^## Done/, null);
+
+  const sessionFlags = result.split('--session "$CLAUDE_CODE_SESSION_ID"').length - 1;
+  assert.ok(sessionFlags >= 2, `expected the run-level and the --phase call to pass --session, found ${sessionFlags}`);
+});
+
+test('Given skills/run/SKILL.md §Done, when the final message is read, then it relays the Compactions line', () => {
+  const result = sliceRegion(runSkill, /^Final message:/, null);
+
+  assert.ok(result.includes('`Compactions:` line verbatim'), 'expected the final message to relay the Compactions line');
+});
+
 // The ledger is append-only and a further format change is expected, so the
 // marker COUNT and today's date are not the invariant — a test pinning them
 // fails later for being right. What must hold is that the newest boundary
