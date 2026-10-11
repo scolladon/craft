@@ -63,12 +63,12 @@ export function parseArgs(argv) {
 /**
  * A fenced code block opens on 3+ backticks (no backtick in the info string) or
  * 3+ tildes, at any indentation; the run is captured to match its closer. A
- * closer indented more than three columns past its opener is fence content, as
- * in CommonMark, where a list item's fence is measured from the item's indent.
+ * closer may sit up to three columns in, as in CommonMark, or as deep as its
+ * opener so a list item's fence closes at the item's own indent.
  */
 const FENCE_OPENER = /^([ \t]*)(?:(`{3,})[^`]*|(~{3,}).*)$/;
 const FENCE_CLOSER = /^([ \t]*)(`{3,}|~{3,})[ \t]*$/;
-const MAX_CLOSER_EXTRA_INDENT = 3;
+const MAX_CLOSER_MARGIN_INDENT = 3;
 const TAB_WIDTH = 4;
 // CRLF sources split to the same lines as LF ones, so no pattern sees a `\r`.
 const LINE_BREAK = /\r?\n/;
@@ -92,8 +92,8 @@ function openedFence(line) {
 }
 
 /**
- * A closer uses the opener's character, is at least as long, sits at most three
- * columns past the opener's indent, and carries no text.
+ * A closer uses the opener's character, is at least as long, is indented no
+ * deeper than three columns or its opener, and carries no text.
  * @param {string} line
  * @param {{ indent: number, run: string }} fence the open fence
  * @returns {boolean}
@@ -102,7 +102,7 @@ function closesFence(line, fence) {
   const match = FENCE_CLOSER.exec(line);
   if (match === null) return false;
   const [, indent, run] = match;
-  const withinIndent = indentWidth(indent) - fence.indent <= MAX_CLOSER_EXTRA_INDENT;
+  const withinIndent = indentWidth(indent) <= Math.max(MAX_CLOSER_MARGIN_INDENT, fence.indent);
   return withinIndent && run[0] === fence.run[0] && run.length >= fence.run.length;
 }
 

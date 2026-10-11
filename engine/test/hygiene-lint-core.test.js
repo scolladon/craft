@@ -189,6 +189,7 @@ test('Given an anchored waiver line inside a fenced block, when collectWaived ru
     ['CRLF tilde fence with an info string', `~~~md\r\n${ANCHORED_WAIVER}\r\n~~~\r\n`],
     ['closer indented four spaces does not close', `${BACKTICK_FENCE}\n    ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
     ['tab-indented closer past a column-0 opener does not close', `${BACKTICK_FENCE}\n\t${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['closer indented four columns past the margin does not close an indented opener', `  ${BACKTICK_FENCE}\n     ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
     ['closer indented four spaces past a list-nested opener does not close', `1. step\n\n    ${BACKTICK_FENCE}\n        ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n    ${BACKTICK_FENCE}\n`],
   ];
 
