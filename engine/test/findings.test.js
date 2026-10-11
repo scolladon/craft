@@ -331,7 +331,7 @@ test('Given a status-bearing record without a fix, when normalizeFindings runs, 
 });
 
 const HARNESS_READ_CONTRACT = join(__dir, '..', '..', 'contracts', 'harness-read.md');
-const CONTRACT_STATUS_SET_PATTERN = /status\??:\s*([A-Z-]+(?:\|[A-Z-]+)+)/u;
+const CONTRACT_STATUS_SET_PATTERN = /status\??:\s*([A-Z-]+(?:\|[A-Z-]+)+)\s*\}/u;
 const STATUS_LESS_RECORD = 'HIGH src/a.js:1 — finding';
 
 function contractStatusSet() {
