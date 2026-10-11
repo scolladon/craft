@@ -65,8 +65,8 @@ function compactionUuidOf(parsed) {            // null for non-compaction lines 
   return parsed.uuid ?? null;
 }
 function isReplayedCompactionLine(parsed, consumed) {
-  const uuid = compactionUuidOf(parsed);
-  return uuid !== null && consumed.has(uuid);
+  // null is never added (see below), so a no-uuid line can never match
+  return consumed.has(compactionUuidOf(parsed));
 }
 function rememberCompactionUuid(parsed, consumed) {
   const uuid = compactionUuidOf(parsed);
