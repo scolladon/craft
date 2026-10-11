@@ -876,6 +876,22 @@ integrate.)_
 P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2026-06-23 — see the
 **P26 delivered** note under Status above.
 
+### Open (scoped 2026-10-11 — run last, after every other open entry)
+
+**Spike an unattended backlog driver.** Today each run ends by electing the next entry and
+handing back a prompt, and a person types `/clear` and pastes it. The session cannot clear its
+own context, so a loop that clears the backlog has to drive it from outside. Two candidates to
+spike: a `claude -p "/craft:run <brief>"` process per entry, which is a fresh context every
+time but cannot ask anything; or an interactive session in `tmux`, where a driver waits for the
+session to go idle (a `Stop` hook writing a marker file), then sends `/clear` and the next
+`/craft:run` with `tmux send-keys`, so a person can attach and answer when a run asks. Both need
+the elected next entry written to a brief file rather than to the chat, every routine outward
+action (push, PR, merge) pre-approved by policy, and stop conditions: a blocker, a CI that stays
+red after one fix round, a budget cap, an empty backlog. Open questions: what the driver does at
+a decisions-phase question or a paid-eval ask, how it detects that a run asked rather than
+finished, and how it notifies the person when it stops. Deliver a spike report with a
+recommendation and one attended end-to-end loop over two real entries.
+
 ---
 
 ## Parked
