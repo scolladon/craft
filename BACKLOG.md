@@ -390,6 +390,16 @@ run, but `emit-metrics` prints nothing about it, so a run's compaction cost is v
 to someone who mines by hand. One advisory line at `Done` was the cheap later add the
 decision left open.
 
+**The miner double-counts a compaction the CLI re-appends.** Seen in the 2026-10-11 live smoke
+(CLI 2.1.296): after a manual `/compact`, the CLI re-appended an earlier stretch of the main
+transcript, and the automatic boundary and its `isCompactSummary` line were in it, with the
+same `uuid`s. `parseLines` in `engine/src/observability/adapters/claude/telemetry.js` opens a
+compaction on every `compact_boundary` line without deduplicating by `uuid`, so that transcript
+mines as 3 compactions where 2 happened. That inflates `compactionEstimate` by one summary call
+(~12–21k equiv at these sizes). Billed turns are unaffected, since they fold by message id.
+Fix: skip a boundary (and the summary that closes it) whose `uuid` was already seen, pinned by
+a fixture that repeats one boundary/summary pair.
+
 ### Open (scoped 2026-08-19 — follow-ups surfaced by the decision-drift-propagation run, not yet scheduled)
 
 **A transient model 529 permanently degrades the highest-value phase.** The model-resolution
