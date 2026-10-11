@@ -63,33 +63,47 @@ export function parseArgs(argv) {
 /**
  * A fenced code block opens on 3+ backticks (no backtick in the info string) or
  * 3+ tildes, at any indentation; the run is captured to match its closer. A
- * closer indented four or more spaces is fence content, as in CommonMark.
+ * closer indented more than three columns past its opener is fence content, as
+ * in CommonMark, where a list item's fence is measured from the item's indent.
  */
-const FENCE_OPENER = /^[ \t]*(?:(`{3,})[^`]*|(~{3,}).*)$/;
-const FENCE_CLOSER = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+const FENCE_OPENER = /^([ \t]*)(?:(`{3,})[^`]*|(~{3,}).*)$/;
+const FENCE_CLOSER = /^([ \t]*)(`{3,}|~{3,})[ \t]*$/;
+const MAX_CLOSER_EXTRA_INDENT = 3;
+const TAB_WIDTH = 4;
 // CRLF sources split to the same lines as LF ones, so no pattern sees a `\r`.
 const LINE_BREAK = /\r?\n/;
 
 /**
- * @param {string} line
- * @returns {string|undefined} the opener's run, or undefined when the line opens no fence
+ * @param {string} indent leading spaces and tabs
+ * @returns {number} the indent's width in columns
  */
-function openedFence(line) {
-  const match = FENCE_OPENER.exec(line);
-  return match ? (match[1] ?? match[2]) : undefined;
+function indentWidth(indent) {
+  return indent.replaceAll('\t', ' '.repeat(TAB_WIDTH)).length;
 }
 
 /**
- * A closer uses the opener's character, is at least as long, and carries no text.
  * @param {string} line
- * @param {string} fence the open fence's run
+ * @returns {{ indent: number, run: string }|undefined} the opener's indent width and
+ *   run, or undefined when the line opens no fence
+ */
+function openedFence(line) {
+  const match = FENCE_OPENER.exec(line);
+  return match ? { indent: indentWidth(match[1]), run: match[2] ?? match[3] } : undefined;
+}
+
+/**
+ * A closer uses the opener's character, is at least as long, sits at most three
+ * columns past the opener's indent, and carries no text.
+ * @param {string} line
+ * @param {{ indent: number, run: string }} fence the open fence
  * @returns {boolean}
  */
 function closesFence(line, fence) {
   const match = FENCE_CLOSER.exec(line);
   if (match === null) return false;
-  const run = match[1];
-  return run[0] === fence[0] && run.length >= fence.length;
+  const [, indent, run] = match;
+  const withinIndent = indentWidth(indent) - fence.indent <= MAX_CLOSER_EXTRA_INDENT;
+  return withinIndent && run[0] === fence.run[0] && run.length >= fence.run.length;
 }
 
 /**
@@ -100,7 +114,7 @@ function closesFence(line, fence) {
  */
 function unfencedLines(content) {
   const lines = [];
-  let fence; // the open fence's run; undefined outside a fence
+  let fence; // the open fence; undefined outside a fence
   for (const line of content.split(LINE_BREAK)) {
     if (fence !== undefined) {
       fence = closesFence(line, fence) ? undefined : fence;

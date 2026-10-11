@@ -188,6 +188,8 @@ test('Given an anchored waiver line inside a fenced block, when collectWaived ru
     ['CRLF tilde fence', `~~~\r\n${ANCHORED_WAIVER}\r\n~~~\r\n`],
     ['CRLF tilde fence with an info string', `~~~md\r\n${ANCHORED_WAIVER}\r\n~~~\r\n`],
     ['closer indented four spaces does not close', `${BACKTICK_FENCE}\n    ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['tab-indented closer past a column-0 opener does not close', `${BACKTICK_FENCE}\n\t${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['closer indented four spaces past a list-nested opener does not close', `1. step\n\n    ${BACKTICK_FENCE}\n        ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n    ${BACKTICK_FENCE}\n`],
   ];
 
   for (const [row, content] of rows) {
@@ -208,6 +210,9 @@ test('Given a fence that closes before an anchored waiver line, when collectWaiv
     ['CRLF fence closed', `${BACKTICK_FENCE}\r\nx\r\n${BACKTICK_FENCE}\r\n${ANCHORED_WAIVER}\r\n`],
     ['longer closer closes', `${BACKTICK_FENCE}\nx\n\`\`\`\`\n${ANCHORED_WAIVER}\n`],
     ['closer indented three spaces closes', `${BACKTICK_FENCE}\nx\n   ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n`],
+    ['list-nested fence closed by its own indentation', `1. step\n\n    ${BACKTICK_FENCE}\n    x\n    ${BACKTICK_FENCE}\n\n${ANCHORED_WAIVER}\n`],
+    ['tab-indented fence closed by a tab-indented closer', `\t${BACKTICK_FENCE}\n\tx\n\t${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n`],
+    ['indented fence closed by a column-0 closer', `  ${BACKTICK_FENCE}\nx\n${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n`],
   ];
 
   for (const [row, content] of rows) {
