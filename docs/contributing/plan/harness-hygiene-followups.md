@@ -181,8 +181,8 @@ this part removes:
 ```
 
 That premise is a property of the CI runner's inventory. `pi` resolves to
-`/Users/scolladon/.n/bin/pi` on this machine, and `node` resolves to
-`/Users/scolladon/.n/bin/node` — the **same directory**, so the two cannot be separated by
+`<node-bin>/pi` on this machine, and `node` resolves to
+`<node-bin>/node` — the **same directory**, so the two cannot be separated by
 dropping a PATH entry. The fix is to construct the environment, not to filter one.
 
 **Walk order that decides what the synthetic PATH must contain.** `adapters/pi/src/cli.js`

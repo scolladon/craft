@@ -971,7 +971,7 @@ untouched in every respect.
 
 **`dashedCwd` — the mapping, and what is and is not verified.** Every path separator and
 every `.` becomes `-`. Verified against the live projects root:
-`/Users/scolladon/workspace/perso/craft` → `-Users-scolladon-workspace-perso-craft`, and a
+`/Users/<name>/craft` → `-Users-<name>-craft`, and a
 nested case producing a doubled dash
 (`/private/tmp/claude-501/-Users-…-craft/…/scratchpad/sp9` →
 `-private-tmp-claude-501--Users-…-craft-…-scratchpad-sp9`). **No path on this box contains
@@ -1385,7 +1385,7 @@ entirely.
 own project directory — **not** the worktree's, which has almost no history:
 
 ```
-node engine/bin/usage-mine.js --dir "$HOME/.claude/projects/-Users-scolladon-workspace-perso-craft"
+node engine/bin/usage-mine.js --dir "$HOME/.claude/projects/-Users-<name>-craft"
 ```
 
 `report.json` and `report.md` land in the repo root and are **gitignored**
@@ -1487,7 +1487,7 @@ the *pre-regeneration* file and each check is asserted by running it.
    record how many phases the `drift` array flags. Expect **every** phase — that is design
    Requirement 15's failure state.
 3. **GREEN — regenerate.** Run the miner against
-   `$HOME/.claude/projects/-Users-scolladon-workspace-perso-craft`, move `report.json`
+   `$HOME/.claude/projects/-Users-<name>-craft`, move `report.json`
    over `docs/contributing/metrics-baseline.report.json`, delete the stray `report.md`.
 4. **GREEN — the four mechanical checks.** Re-run checks 1–4 from the Context block against
    the regenerated file and report every actual number. Any failure here means a part was

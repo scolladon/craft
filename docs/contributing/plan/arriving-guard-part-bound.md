@@ -189,7 +189,7 @@ evals/implementer-runs-guards/scaffold.sh, engine/bin/contract-assemble.js.
 
 RED 1 — scaffold probe. Write this script with the Write tool to a new file outside the worktree
 (`probe="$(mktemp -d)/scaffold-probe.sh"`), then run
-`bash "$probe" /Users/scolladon/workspace/perso/craft-arriving-guard-part-bound 2>&1 | head -60`.
+`bash "$probe" "$PWD" 2>&1 | head -60`.
 It builds its own throwaway sandboxes; it never writes in the worktree. Keep the file: Part 2
 reruns it.
 

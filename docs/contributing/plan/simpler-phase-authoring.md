@@ -17,7 +17,7 @@
 
 ## Conventions binding every part
 
-- **Working tree:** `/Users/scolladon/workspace/perso/craft-simpler-phase-authoring`
+- **Working tree:** `<worktree>`
   (branch `feat/simpler-phase-authoring`). Work ONLY here. Parts are sequential and share
   this one tree; each builds on the prior commit.
 - **Public-surface decision (made once, here):** every new exported symbol this plan

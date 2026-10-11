@@ -44,7 +44,7 @@ Every load-bearing choice is pre-decided; this plan opens no new decision candid
 ### Context
 
 Pre-chewed — do NOT re-explore. Working dir is the worktree root
-`/Users/scolladon/workspace/perso/craft-nested-insert-fail-loud`; use repo-relative
+`<worktree>`; use repo-relative
 paths from there.
 
 **What ships:** a `pipeline.insert` entry carrying a `phase:` key (the nested shape) or

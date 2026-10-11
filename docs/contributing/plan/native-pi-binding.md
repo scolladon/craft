@@ -16,8 +16,8 @@
 
 ## Global context (read once — applies to every part)
 
-- **Working tree**: `/Users/scolladon/workspace/perso/craft-native-pi-binding` (branch
-  `feat/native-pi-binding`, baseline green). Work ONLY here; absolute paths.
+- **Working tree**: `<worktree>` (branch
+  `feat/native-pi-binding`, baseline green). Work ONLY here; repo-relative paths.
 - **The pi adapter package already exists and is CI-wired.** `adapters/pi/` has
   `package.json`, `src/*.js`, `test/*.test.js`, `.claude/workflow.md`, `stryker.conf.json`;
   `scripts/ci.sh` line 52 already runs its suite; `test/every-test-file-registers.test.js`
