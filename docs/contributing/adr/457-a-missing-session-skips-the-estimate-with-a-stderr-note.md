@@ -25,3 +25,4 @@ Option 1, ratified by the user: `metrics-emit: no --session, compaction estimate
 ## Consequences
 
 - Exit code stays 0; the note is advisory.
+- An empty `--session` counts as absent, the same rule `sessionFilter` applies to rows: it writes the note rather than summing every session's sub-agent compactions.

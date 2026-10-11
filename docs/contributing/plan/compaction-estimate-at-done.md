@@ -84,6 +84,7 @@ Part 2's behaviour.
     unchanged), and it would drop `Done`'s rows wherever the variable is unset.
   - **Recommend (b).** The rows already treat `''` as absent, so the line and the note follow
     the same rule. R2 holds, and the forgotten-session case ADR-457 targets stays visible.
+  - **Decided: (b)**, adopted as recommended. It follows from the ratified ADR-457 and from R2. Implement option (b), including E13.
 
 ## Part 1 — Core: export formatCompactionEstimateLine
 
