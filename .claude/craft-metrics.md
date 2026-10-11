@@ -494,3 +494,7 @@ transient-model-retry documentation turns=5 tool_calls=6 tokens=81367 duration_m
 transient-model-retry implementation turns=10 tool_calls=11 tokens=269539 duration_ms=63109 cache_read=238570 cache_creation=30646 output=303 avg_ctx=26924 equiv=63700
 transient-model-retry planning turns=54 tool_calls=57 tokens=3660198 duration_ms=649367 cache_read=3546179 cache_creation=112721 output=1190 avg_ctx=67759 equiv=501577
 transient-model-retry review turns=57 tool_calls=58 tokens=1450137 duration_ms=466097 cache_read=1247847 cache_creation=200209 output=1967 avg_ctx=25406 equiv=384995
+scrub-home-dir-from-docs design turns=59 tool_calls=61 tokens=3893732 duration_ms=585655 cache_read=3775626 cache_creation=117281 output=707 avg_ctx=65983 equiv=527817
+scrub-home-dir-from-docs implementation turns=34 tool_calls=39 tokens=732504 duration_ms=244474 cache_read=621818 cache_creation=110135 output=483 avg_ctx=21530 equiv=202334
+scrub-home-dir-from-docs planning turns=71 tool_calls=73 tokens=6385827 duration_ms=850549 cache_read=6224569 cache_creation=160104 output=1012 avg_ctx=89927 equiv=827789
+scrub-home-dir-from-docs review turns=108 tool_calls=110 tokens=3586261 duration_ms=1243053 cache_read=3290160 cache_creation=292250 output=3635 avg_ctx=33172 equiv=712720
