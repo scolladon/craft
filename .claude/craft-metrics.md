@@ -484,3 +484,8 @@ miner-compaction-uuid-dedup implementation turns=5 tool_calls=6 tokens=120948 du
 miner-compaction-uuid-dedup planning turns=35 tool_calls=37 tokens=1779563 duration_ms=413593 cache_read=1698504 cache_creation=80647 output=342 avg_ctx=50835 equiv=272439
 miner-compaction-uuid-dedup review turns=17 tool_calls=18 tokens=351424 duration_ms=99984 cache_read=255770 cache_creation=95450 output=170 avg_ctx=20662 equiv=145774
 miner-compaction-uuid-dedup validation turns=3 tool_calls=3 tokens=48547 duration_ms=7674 cache_read=31075 cache_creation=17413 output=53 avg_ctx=16165 equiv=25145
+compaction-estimate-at-done design turns=54 tool_calls=55 tokens=3901442 duration_ms=568742 cache_read=3786786 cache_creation=113971 output=577 avg_ctx=72238 equiv=524135
+compaction-estimate-at-done implementation turns=20 tool_calls=23 tokens=546128 duration_ms=192069 cache_read=462050 cache_creation=83298 output=740 avg_ctx=27269 equiv=154068
+compaction-estimate-at-done planning turns=84 tool_calls=87 tokens=9205626 duration_ms=1009348 cache_read=9006261 cache_creation=196517 output=2680 avg_ctx=109559 equiv=1159840
+compaction-estimate-at-done review turns=55 tool_calls=56 tokens=1669869 duration_ms=340438 cache_read=1483996 cache_creation=184569 output=1194 avg_ctx=30340 equiv=385191
+compaction-estimate-at-done validation turns=4 tool_calls=4 tokens=67317 duration_ms=15039 cache_read=48470 cache_creation=18723 output=116 avg_ctx=16800 equiv=28839
