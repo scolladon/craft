@@ -498,3 +498,7 @@ scrub-home-dir-from-docs design turns=59 tool_calls=61 tokens=3893732 duration_m
 scrub-home-dir-from-docs implementation turns=34 tool_calls=39 tokens=732504 duration_ms=244474 cache_read=621818 cache_creation=110135 output=483 avg_ctx=21530 equiv=202334
 scrub-home-dir-from-docs planning turns=71 tool_calls=73 tokens=6385827 duration_ms=850549 cache_read=6224569 cache_creation=160104 output=1012 avg_ctx=89927 equiv=827789
 scrub-home-dir-from-docs review turns=108 tool_calls=110 tokens=3586261 duration_ms=1243053 cache_read=3290160 cache_creation=292250 output=3635 avg_ctx=33172 equiv=712720
+centralise-region-slicer design turns=30 tool_calls=30 tokens=1261897 duration_ms=328072 cache_read=1202193 cache_creation=59282 output=362 avg_ctx=42051 equiv=196192
+centralise-region-slicer implementation turns=18 tool_calls=19 tokens=378805 duration_ms=74075 cache_read=317486 cache_creation=60897 output=386 avg_ctx=21023 equiv=109836
+centralise-region-slicer planning turns=54 tool_calls=56 tokens=3323539 duration_ms=541548 cache_read=3223488 cache_creation=99343 output=600 avg_ctx=61536 equiv=449636
+centralise-region-slicer review turns=34 tool_calls=34 tokens=769879 duration_ms=295991 cache_read=631973 cache_creation=137044 output=794 avg_ctx=22620 equiv=238540
