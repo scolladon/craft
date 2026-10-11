@@ -131,7 +131,8 @@ per call:
 
 ```js
 const FENCE_OPENER = /^[ \t]*(?:(`{3,})[^`]*|(~{3,}).*)$/;
-const FENCE_CLOSER = /^[ \t]*(`{3,}|~{3,})\s*$/;
+const FENCE_CLOSER = /^ {0,3}(`{3,}|~{3,})[ \t]*$/;
+const LINE_BREAK = /\r?\n/; // content.split(LINE_BREAK): CRLF lines carry no `\r`
 const WAIVER_REASON = String.raw`:\s*\S`;
 
 function anchorWaiver(waiverPattern) {
@@ -182,7 +183,8 @@ A line-based subset of CommonMark fenced code blocks, pinned against markdown-it
 | ```` ``` ```` opener, then a ```` ```` ```` line | closed | closed (≥ length) |
 | unclosed opener | fenced to EOF | fenced to EOF |
 | ```` ```a`b ```` (backtick in info string) | not a fence | not a fence |
-| CRLF opener/closer | fence | fence (`\s*` / `.*` absorb `\r`) |
+| CRLF opener/closer (backtick or tilde) | fence | fence (lines split on `\r?\n`, so no pattern sees `\r`) |
+| closer indented 4+ spaces inside a fence | still fenced | still fenced (closer indent capped at 3) |
 | ```` > ``` ```` (fence inside a blockquote) | fence | not an opener, but every line inside starts with `>`, so no token there is at column 0 |
 
 Line-level cross-check over every tracked `.md` (954 files, 114,594 lines at `2d607f5`): the
@@ -192,9 +194,10 @@ divergent lines.
 Known gap (accepted): the opener allows any indentation, so a 4+-space indented line
 starting with ```` ``` ```` at top level counts as an opener here but is an indented code
 block in CommonMark. That over-fences, which is fail-closed (a real waiver below it is
-dropped and its finding stays visible). The only fail-open divergence needs a crafted
-sequence (an over-indented opener, followed by a real fence whose opener our state reads as
-the closer). The threat model is accidental mention, not an adversarial author, who could
+dropped and its finding stays visible). The closer, unlike the opener, is capped at 3
+spaces of indentation, so a 4-space-indented fence nested in a fenced sample does not close
+the outer fence early. The only fail-open divergence needs a crafted sequence (an
+over-indented opener, followed by a real fence whose opener our state reads as the closer). The threat model is accidental mention, not an adversarial author, who could
 simply write a waiver.
 
 ### Edge matrix
@@ -325,7 +328,9 @@ the expected mutants:
 | `{3,}` → `{3}` in the closer | R2-e |
 | ``[^`]*`` dropped / negated | R2-d |
 | `[ \t]*` dropped | R3-h |
-| closer `\s*$` → `\s*` | R3-g |
+| closer `[ \t]*$` → `[ \t]*` | R3-g |
+| closer ` {0,3}` widened or narrowed | unit rows "closer indented four spaces does not close" / "closer indented three spaces closes" |
+| `LINE_BREAK` → `'\n'` | unit row "CRLF tilde fence" |
 | `>=` → `>` in `closesFence` | R2-b |
 | same-char check dropped | R3-f |
 | `^` dropped from the anchor template (hand-mutation: Stryker does not mutate inside a template) | R1, R4-b |
