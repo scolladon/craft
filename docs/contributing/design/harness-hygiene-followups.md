@@ -280,7 +280,7 @@ churn four surfaces to express a measurement change that `detail` already carrie
 
 ### Pinned matrix B — the pi hang, measured on this machine
 
-`pi` resolves to `/Users/scolladon/.n/bin/pi`; `node` to `/Users/scolladon/.n/bin/node`
+`pi` resolves to `<node-bin>/pi`; `node` to `<node-bin>/node`
 (same directory — the two cannot be separated by dropping a PATH entry); `git` to
 `/opt/homebrew/bin/git`.
 

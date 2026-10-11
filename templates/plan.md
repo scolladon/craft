@@ -34,7 +34,9 @@
 
 ### Gate
 <!-- The part gate command(s) for this part (from the manifest's gates.part,
-     placeholders resolved: <touched-tests>, <touched-files>). -->
+     placeholders resolved: <touched-tests>, <touched-files>). Commands run from
+     the worktree root — write them repo-relative (`cd engine && …`), never
+     `cd <absolute path>`. -->
 
 ### Commit
 <!-- The exact conventional-commit message this part lands as. -->

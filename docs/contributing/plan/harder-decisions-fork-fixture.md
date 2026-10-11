@@ -82,7 +82,7 @@ These run after the implementation phase and are owned by others; no part perfor
 
 ### Context
 
-Worktree: /Users/scolladon/workspace/perso/craft-harder-decisions-fork-fixture.
+Worktree: the worktree root (`<worktree>`).
 
 File to edit (the only one): `evals/decisions-escalates-fork/fixture/docs/design/shout-flag.md`,
 line 27, the single data row of its `## Decision candidates` table. Current bytes of the
@@ -126,7 +126,7 @@ them for this phrase.
 
 RED 1 — scaffold probe. Write this script to a new file outside the worktree
 (`probe="$(mktemp -d)/fork-fixture-probe.sh"`), then run
-`bash "$probe" /Users/scolladon/workspace/perso/craft-harder-decisions-fork-fixture 2>&1`
+`bash "$probe" "$PWD" 2>&1`
 (4 lines of output). It builds its own throwaway sandbox; it never writes in the worktree.
 
 ```bash

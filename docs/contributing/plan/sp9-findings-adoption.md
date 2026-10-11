@@ -46,7 +46,7 @@ suppression directives, no swallowed errors. `contracts/harness-read.md` must no
 the substring "retrieval" (case-insensitive — `contracts-lint` rejects it; the engine
 derives retrieval). Every touched `.md` stays lychee-clean (offline relative-link +
 `#fragment` resolution); `--offline` does not check external `https://` URLs. Bounded
-scope: work only in `/Users/scolladon/workspace/perso/craft-sp9-findings-adoption`.
+scope: work only in `<worktree>`.
 
 ---
 

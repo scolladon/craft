@@ -84,7 +84,7 @@ where pi's primitives permit and carving out where they differ (pi has **no suba
 ### External contract — pinned empirically against the live binary (never designed from memory)
 
 pi's extensibility is an **external contract** and was pinned against the **live binary** installed at
-`/Users/scolladon/.n/bin/pi` (`@earendil-works/pi-coding-agent@0.80.10`, `dist/cli.js`) plus the docs
+`<node-bin>/pi` (`@earendil-works/pi-coding-agent@0.80.10`, `dist/cli.js`) plus the docs
 that ship *with that exact version* (`node_modules/@earendil-works/pi-coding-agent/docs/*.md`) and real
 `--mode json` / `--list-models` runs. Every state-mutating probe (`pi install`, `pi config`) was run
 under an isolated `HOME=$(mktemp -d)` + `PI_CODING_AGENT_DIR=$(mktemp -d)` so the user's real pi config

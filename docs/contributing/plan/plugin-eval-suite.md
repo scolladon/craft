@@ -201,7 +201,7 @@ console.log(problems.length > 0 ? problems.join('\n') : `ok: ${caseNames.length}
 process.exit(problems.length > 0 ? 1 : 0);
 ```
 
-Then, from the worktree root (`WT=/Users/scolladon/workspace/perso/craft-plugin-eval-suite`):
+Then, from the worktree root (`WT="$PWD"`):
 
 ```bash
 node <scratchpad>/check-cases.cjs "$WT" <case-name>...            # → ok: N case(s)

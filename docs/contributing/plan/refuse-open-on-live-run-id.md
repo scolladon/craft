@@ -101,7 +101,7 @@ BACKLOG.md`, run inside ci.sh) must stay green.
 
 ### Context
 
-Working directory: /Users/scolladon/workspace/perso/craft-refuse-open-on-live-run-id
+Working directory: the worktree root (`<worktree>`)
 (branch fix/refuse-open-on-live-run-id). Bash 3.2 locally (macOS /bin/bash); CI runs
 ubuntu bash 5.
 
@@ -398,7 +398,7 @@ shellcheck scripts/run-ledger.sh
 
 ### Context
 
-Working directory: /Users/scolladon/workspace/perso/craft-refuse-open-on-live-run-id.
+Working directory: the worktree root (`<worktree>`).
 Part 1 has landed: `run-ledger.sh open` now exits 3, prints nothing on stdout and writes
 nothing when the run-id's trusted pointer and ledger both exist; its stderr line is
 `run-ledger: open: run-id <id> is already open since <iso> (ledger <path>); refusing to discard it`.

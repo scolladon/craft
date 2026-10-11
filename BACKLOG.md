@@ -498,13 +498,22 @@ source and test, and no lint enforces it — the sweep that found this one was m
 ref (the sentence is useful; its numbering is not), and consider whether the hygiene lints
 should carry a provenance-ref rule so the next one fails loudly.
 
-**Committed docs disclose the maintainer's home directory.** Design and plan docs embed
-absolute paths like `/Users/<name>/…`, leaking the OS username and toolchain layout into a
-public repo. This is repo-wide convention, not a regression — 18 files on `main` do it, and
-the plan template appears to mandate an absolute working-directory line — which is exactly why
-it needs a template-level decision rather than a per-file patch. The memory store already
-forbids the same leak for `findings.file`; the inconsistency is between artifact types, not
-within one.
+**Committed docs disclose the maintainer's home directory — delivered 2026-10-11**
+(fix/scrub-home-dir-from-docs). The real count was 83 lines in 31 tracked files, not 18: a
+second form, the dashed Claude projects-dir name (`-Users-<name>-…`), carried the username
+too, including a captured aider fixture. Every file was swept in place, `archive/` and ADR-035
+included, with only the path text changed (ADR-466). Out-of-repo locations are now named by
+placeholder (`<worktree>`, `<main-repo-dir>`, `<node-bin>`; ADR-471), and the two engine
+fixtures use the `x` placeholder home (ADR-470). Git history is not rewritten.
+
+No template mandated the absolute path: spawn briefs pass it, and planners transcribed it. A
+`contracts/core.md` invariant now tells every role that committed artifacts carry repo-relative
+paths, and the `templates/plan.md` Gate note says the same (ADR-468; plan-lint unchanged,
+ADR-469). Class D in `test/source-hygiene.test.js` blocks a home-rooted path anywhere in the
+tracked tree (ADR-467). Review hardened its first cut: the anchor is now a fail-closed negative
+lookbehind, matching is case-insensitive, the scan runs `git grep -naiE` from a git env
+stripped of `GIT_DIR`, and an unparsable row throws. Placeholders such as `/Users/<name>/` in
+this file pass.
 
 ### Open (scoped 2026-07-30 — follow-ups surfaced by the orchestrator-tax-hardening run, not yet scheduled)
 

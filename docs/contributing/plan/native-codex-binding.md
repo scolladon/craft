@@ -20,9 +20,9 @@
 
 Read this once; no part restates it.
 
-- **Working directory**: `/Users/scolladon/workspace/perso/craft-native-codex-binding`
-  (git worktree, branch `feat/native-codex-binding`). Work ONLY there. Absolute paths in
-  every command.
+- **Working directory**: the worktree root (`<worktree>`)
+  (git worktree, branch `feat/native-codex-binding`). Work ONLY there. Repo-relative paths in
+  every command, run from the worktree root.
 - **Toolchain**: npm, nested package at `engine/`. Node's built-in runner only —
   `node:test` + `node:assert/strict`. No test framework dependency exists; do not add one.
 - **House test style**: Given/When/Then titles, AAA body, a `sut` variable naming the unit
@@ -259,10 +259,10 @@ content delta each, and no other `.js` file may show more than an import-line ch
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/engine && node --test 'test/**/*.test.js' 2>&1 | tail -30
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/pi && node --test 'test/**/*.test.js' 2>&1 | tail -20
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/copilot && node --test 'test/**/*.test.js' 2>&1 | tail -20
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding && node --test 'test/*.test.js' 2>&1 | tail -20
+(cd engine && node --test 'test/**/*.test.js' 2>&1 | tail -30)
+(cd adapters/pi && node --test 'test/**/*.test.js' 2>&1 | tail -20)
+(cd adapters/copilot && node --test 'test/**/*.test.js' 2>&1 | tail -20)
+node --test 'test/*.test.js' 2>&1 | tail -20
 ```
 
 ### Commit
@@ -403,9 +403,9 @@ real duplication; do not over-abstract a 3-case loop.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -30
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding && node --test 'test/*.test.js' 2>&1 | tail -20
-export PATH="/tmp/craft-codex-stubs:$PATH" && cd /Users/scolladon/workspace/perso/craft-native-codex-binding && bash scripts/ci.sh 2>&1 | tail -30
+(cd adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -30)
+node --test 'test/*.test.js' 2>&1 | tail -20
+export PATH="/tmp/craft-codex-stubs:$PATH" && bash scripts/ci.sh 2>&1 | tail -30
 ```
 
 ### Commit
@@ -535,7 +535,7 @@ being the safe direction — it is the one comment a future reader most needs.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -30
+cd adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -30
 ```
 
 ### Commit
@@ -714,7 +714,7 @@ the `why` comments on unconditional bridging and the unpinned patch field.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -40
+cd adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -40
 ```
 
 ### Commit
@@ -849,7 +849,7 @@ path ends in one named call; no `finally`.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -40
+cd adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -40
 ```
 
 ### Commit
@@ -978,7 +978,7 @@ present". `craft.rules` is a committed artifact and the hygiene rule applies to 
 hand-write it, or RED 12 becomes a tautology the first time and a false alarm the next:
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/codex
+cd adapters/codex
 node --input-type=module -e "import('./src/execpolicy-rules.js').then(m => process.stdout.write(m.buildExecpolicyRules()))" > craft.rules
 ```
 Then let RED 12 confirm the bytes match.
@@ -990,7 +990,7 @@ named constant so RED 11 has a stable anchor.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -40
+cd adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -40
 ```
 
 ### Commit
@@ -1221,8 +1221,8 @@ hand-maintained enumerations that drift apart.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -40
-export PATH="/tmp/craft-codex-stubs:$PATH" && cd /Users/scolladon/workspace/perso/craft-native-codex-binding && bash scripts/ci.sh 2>&1 | tail -30
+(cd adapters/codex && node --test 'test/**/*.test.js' 2>&1 | tail -40)
+export PATH="/tmp/craft-codex-stubs:$PATH" && bash scripts/ci.sh 2>&1 | tail -30
 ```
 
 ### Commit
@@ -1390,7 +1390,7 @@ exports its equivalent, `tokensFromPiUsage` — follow that if the test wants it
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/engine && node --test 'test/**/*.test.js' 2>&1 | tail -30
+cd engine && node --test 'test/**/*.test.js' 2>&1 | tail -30
 ```
 
 ### Commit
@@ -1506,9 +1506,9 @@ and the block equals plain agent-mode assembly". One case per descriptor via the
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/engine && node --test 'test/**/*.test.js' 2>&1 | tail -30
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding && git diff --no-ext-diff --quiet "$(git merge-base HEAD main)" -- engine/src/contract.js contracts/ && echo "contract byte-unchanged" || { echo "GATE FAILED: contract.js or contracts/ changed" >&2; false; }
-export PATH="/tmp/craft-codex-stubs:$PATH" && cd /Users/scolladon/workspace/perso/craft-native-codex-binding && bash scripts/ci.sh 2>&1 | tail -30
+(cd engine && node --test 'test/**/*.test.js' 2>&1 | tail -30)
+git diff --no-ext-diff --quiet "$(git merge-base HEAD main)" -- engine/src/contract.js contracts/ && echo "contract byte-unchanged" || { echo "GATE FAILED: contract.js or contracts/ changed" >&2; false; }
+export PATH="/tmp/craft-codex-stubs:$PATH" && bash scripts/ci.sh 2>&1 | tail -30
 ```
 
 `--quiet` exits non-zero on any difference, so this is a real gate rather than a printed
@@ -1701,8 +1701,8 @@ carve-out beats a fake guarantee, and the honesty is the deliverable here.
 ### Gate
 
 ```
-export PATH="/tmp/craft-codex-stubs:$PATH" && cd /Users/scolladon/workspace/perso/craft-native-codex-binding && bash scripts/ci.sh 2>&1 | tail -40
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding && grep -rEn 'stryker|mutmut|mutation|mutant|\bgh\b|\bgithub\b' docs/adapters README.md || echo "clean"
+export PATH="/tmp/craft-codex-stubs:$PATH" && bash scripts/ci.sh 2>&1 | tail -40
+grep -rEn 'stryker|mutmut|mutation|mutant|\bgh\b|\bgithub\b' docs/adapters README.md || echo "clean"
 ```
 
 ### Commit
@@ -1836,9 +1836,9 @@ the next reader can diff them at a glance.
 ### Gate
 
 ```
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/engine && npm run mutation 2>&1 | tail -60
-cd /Users/scolladon/workspace/perso/craft-native-codex-binding/engine && node --test 'test/**/*.test.js' 2>&1 | tail -30
-export PATH="/tmp/craft-codex-stubs:$PATH" && cd /Users/scolladon/workspace/perso/craft-native-codex-binding && bash scripts/ci.sh 2>&1 | tail -40
+(cd engine && npm run mutation 2>&1 | tail -60)
+(cd engine && node --test 'test/**/*.test.js' 2>&1 | tail -30)
+export PATH="/tmp/craft-codex-stubs:$PATH" && bash scripts/ci.sh 2>&1 | tail -40
 ```
 
 ### Commit

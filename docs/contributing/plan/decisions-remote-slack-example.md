@@ -21,7 +21,7 @@
 
 Zero-context handoff. Everything below is quoted so the implementer does not re-explore.
 
-**Working directory (work ONLY here):** `/Users/scolladon/workspace/perso/craft-decisions-remote-slack-example`
+**Working directory (work ONLY here):** `<worktree>`
 
 **The four files to touch** (design §File inventory):
 

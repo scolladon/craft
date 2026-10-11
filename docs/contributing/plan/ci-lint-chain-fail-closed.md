@@ -94,7 +94,7 @@ the script's exit status).
 
 ### Context
 
-Worktree: /Users/scolladon/workspace/perso/craft-ci-lint-chain-fail-closed. Bash on this
+Worktree: the worktree root (`<worktree>`). Bash on this
 machine is 3.2.57 (macOS /bin/bash); CI runs ubuntu-latest bash 5.x through
 .github/workflows/ci.yml → `bash scripts/ci.sh`, so the new test is the bash 5 pin there.
 
@@ -406,7 +406,7 @@ GUARD 3 — real-lint end-to-end, in a throwaway clone (never the worktree). Com
 the worktree yet; the clone takes the working-tree files by copy:
 
 ```bash
-w=/Users/scolladon/workspace/perso/craft-ci-lint-chain-fail-closed
+w="$PWD"
 t="$(mktemp -d)"; git clone -q "$w" "$t/repo"
 cp "$w/scripts/static-lints.sh" "$t/repo/scripts/static-lints.sh"
 printf 'phases: [\n' > "$t/repo/pipeline/default.yml"

@@ -229,7 +229,7 @@ absolute) — they are cwd-independent already.
 - **RED** — Prove the cwd coupling without mutating the worktree: temporarily add a
   discriminating assertion to the target test, `assert.ok(io.stdout.joined().includes('no
   manifest at'))`, then run `node --test engine/test/manifest-lint-main.test.js` from the
-  **repo root** (`/Users/scolladon/workspace/perso/craft-hermetic-test-suites`). It FAILS:
+  **repo root** (`<worktree>`). It FAILS:
   the repo's valid `.claude/workflow.md` drives the valid branch whose message is
   `.claude/workflow.md valid.` (no `no manifest at`). Failure reason: the branch under test
   is chosen by cwd, not controlled by the test.

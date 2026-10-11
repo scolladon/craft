@@ -70,7 +70,7 @@ Every load-bearing choice is pre-settled; this plan opens no new decision candid
 **Executor:** part-implementer agent (pure TDD, no live CLI)
 
 Working dir is the worktree root
-`/Users/scolladon/workspace/perso/craft-harden-prove-codex-binding`; use repo-relative
+`<worktree>`; use repo-relative
 paths. Pre-chewed — do NOT re-explore.
 
 **Two byte-identical const triples exist today.**

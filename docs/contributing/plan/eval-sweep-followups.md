@@ -162,7 +162,7 @@ GREEN, in order:
 
    ```bash
    t=$(mktemp -d); mkdir "$t/home" "$t/box"; cd "$t/box" && git init -q \
-     && HOME="$t/home" bash /Users/scolladon/workspace/perso/craft-eval-sweep-followups/evals/reviewer-tests-findings/scaffold.sh \
+     && HOME="$t/home" bash <worktree>/evals/reviewer-tests-findings/scaffold.sh \
      && grep -c '^+' .git/review-range.diff && git status --porcelain | wc -l
    ```
 
@@ -287,7 +287,7 @@ and the fenced command still carries `--no-publish` and `--max-cost-usd`.
 ### Gate
 
 ```bash
-cd /Users/scolladon/workspace/perso/craft-eval-sweep-followups && scratch=$(mktemp -d)
+scratch=$(mktemp -d)
 shellcheck evals/reviewer-tests-findings/scaffold.sh
 test "$(wc -l < evals/reviewer-tests-findings/scaffold.sh)" -eq 10
 node --test test/plugin-evals-local-only.test.js test/readme-drift.test.js test/source-hygiene.test.js test/docs-structure-lint.test.js > "$scratch/p1.txt" 2>&1; tail -n 12 "$scratch/p1.txt"
@@ -438,7 +438,7 @@ module-private.
 ### Gate
 
 ```bash
-cd /Users/scolladon/workspace/perso/craft-eval-sweep-followups && scratch=$(mktemp -d)
+scratch=$(mktemp -d)
 node --test test/p10-structure.test.js test/sync-adapter-agents.test.js test/source-hygiene.test.js test/plugin-evals-local-only.test.js > "$scratch/p2.txt" 2>&1; tail -n 12 "$scratch/p2.txt"
 bash scripts/sync-adapter-agents.sh --check
 for a in aider antigravity codex copilot cursor; do (cd "adapters/$a" && node --test test/native-surface.test.js > "$scratch/$a.txt" 2>&1; echo "$a exit=$?"); done
@@ -594,7 +594,7 @@ one cell and one `findings-shape` count against its aggregate with the jq reads 
 ### Gate
 
 ```bash
-cd /Users/scolladon/workspace/perso/craft-eval-sweep-followups && scratch=$(mktemp -d)
+scratch=$(mktemp -d)
 node --test test/plugin-evals-local-only.test.js test/docs-structure-lint.test.js test/backlog-lint.test.js test/living-corpus.test.js > "$scratch/p3.txt" 2>&1; tail -n 12 "$scratch/p3.txt"
 bash scripts/backlog-lint.sh BACKLOG.md
 bash scripts/docs-structure-lint.sh docs/guides && bash scripts/docs-structure-lint.sh --audience docs

@@ -147,7 +147,7 @@ design's "Local, free" checks), run from a `mktemp` path, plus the repo gate.
 
 RED 1 — scaffold probe. Write this script to a new file outside the worktree
 (`probe="$(mktemp -d)/scaffold-probe.sh"`), then run
-`bash "$probe" /Users/scolladon/workspace/perso/craft-implementer-guard-eval 2>&1`
+`bash "$probe" "$PWD" 2>&1`
 (output is ~25 lines). It builds its own throwaway sandboxes; it never writes in the worktree.
 
 ```bash

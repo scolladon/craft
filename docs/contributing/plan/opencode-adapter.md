@@ -16,8 +16,8 @@
 
 ## Global context (read once — applies to every part)
 
-- **Working tree**: `/Users/scolladon/workspace/perso/craft-opencode-adapter` (branch
-  `feat/opencode-adapter`, baseline green). Work ONLY here; absolute paths.
+- **Working tree**: `<worktree>` (branch
+  `feat/opencode-adapter`, baseline green). Work ONLY here; repo-relative paths.
 - **Provenance is one-way** (`test/source-hygiene.test.js`): NO phase/ADR/backlog refs in
   any source or test file you write. This plan/PR carries provenance; the adapter code
   must not. No suppression directives (`@ts-ignore`, `eslint-disable`, coverage-ignore).

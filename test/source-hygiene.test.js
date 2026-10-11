@@ -2,6 +2,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { execFileSync } = require('node:child_process');
+const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
@@ -47,6 +49,77 @@ const readmeCanonicalUrlOnlyFilter = {
     line.includes(README_CANONICAL_URL) &&
     !new RegExp(CLASS_B_PATTERN).test(line.split(README_CANONICAL_URL).join('')),
 };
+
+// Class D: absolute home-rooted paths leak the author's OS username and workspace layout.
+// Whole tracked tree on purpose — dated docs and test fixtures carried every past leak.
+// Fail-closed anchor: a home root counts unless a path-segment character (an elision `…`
+// included) sits right before it, so every other predecessor (quote, operator, diff marker) anchors.
+const PATH_SEGMENT_CHARS = 'A-Za-z0-9._…';
+const NOT_AFTER_PATH_CHAR = `(?<![${PATH_SEGMENT_CHARS}])`;
+// A home root may sit under a WSL drive mount or a relocated home volume.
+const HOME_ROOT_PREFIX = '(?:/mnt/[a-z]|/private/var|/var|/run/host|/System/Volumes/Data|/Volumes/[^/]+)?';
+const HOME_SLASH_PATTERN = new RegExp(
+  `${NOT_AFTER_PATH_CHAR}${HOME_ROOT_PREFIX}/(?:Users|home)/([A-Za-z0-9._-]+)`,
+  'gi',
+);
+// `-` also blocks the dashed form, so a `--home-…` CLI flag never reads as a projects dir;
+// a Windows drive (`C--Users-…`) is matched through its letter. The segment may end the name.
+const NOT_AFTER_DASHED_CHAR = `(?<![${PATH_SEGMENT_CHARS}-])`;
+const HOME_DASHED_PATTERN = new RegExp(
+  `${NOT_AFTER_DASHED_CHAR}(?:[A-Za-z]-)?-(?:Users|home)-([A-Za-z0-9._]+)`,
+  'gi',
+);
+// `cwd` is the eval-sandbox directory under a computed root (`${sandbox}/home/cwd`), not a user.
+const PLACEHOLDER_HOMES = new Set(['alice', 'cwd', 'example', 'me', 'someone', 'user', 'x', 'other-clone']);
+const HOME_CANDIDATE_PATTERN = '/(Users|home)/|-(Users|home)-';
+const GIT_GREP_NO_MATCH = 1;
+// `s`: a CRLF row keeps its trailing \r, which `.` would otherwise refuse to match.
+const LOCATED_LINE_PATTERN = /^(.+?):(\d+):(.*)$/s;
+
+function findHomePathLeaks(line) {
+  return [HOME_SLASH_PATTERN, HOME_DASHED_PATTERN]
+    .flatMap((pattern) => [...line.matchAll(pattern)])
+    .map((match) => match[1])
+    .filter((segment) => !PLACEHOLDER_HOMES.has(segment));
+}
+
+// An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git grep away from `cwd`.
+const GIT_LOCATION_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'];
+
+function withoutGitLocation(env) {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !GIT_LOCATION_KEYS.includes(key)));
+}
+
+function listHomePathCandidateLines(cwd, env = process.env) {
+  try {
+    // -a: a NUL byte must not hide a captured fixture from the scan as "binary".
+    return execFileSync('git', ['grep', '-naiE', HOME_CANDIDATE_PATTERN], {
+      cwd,
+      env: withoutGitLocation(env),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+      .split('\n')
+      .filter(Boolean);
+  } catch (err) {
+    if (err.status === GIT_GREP_NO_MATCH) return [];
+    throw err;
+  }
+}
+
+function locateCandidate(candidate) {
+  const located = candidate.match(LOCATED_LINE_PATTERN);
+  // The row text is never echoed: it may be the very leak this class exists to keep out of CI logs.
+  if (!located) throw new Error(`class D: unparsable git grep row of ${candidate.length} chars`);
+  return { file: located[1], line: located[2], text: located[3] };
+}
+
+function listHomePathLeakLocations(candidates) {
+  return candidates
+    .map(locateCandidate)
+    .filter((located) => findHomePathLeaks(located.text).length > 0)
+    .map((located) => `${located.file}:${located.line}`);
+}
 
 function runGrep(pattern, paths, allowlistFilters) {
   let result;
@@ -221,3 +294,169 @@ test(
     }
   },
 );
+
+const SYNTHETIC_HOME = 'synthetic';
+const LEAK_SHAPED_LINES = [
+  `cd /Users/${SYNTHETIC_HOME}/w && x`,
+  `\`/Users/${SYNTHETIC_HOME}\``,
+  `/home/${SYNTHETIC_HOME}/x`,
+  `"cwd":"/Users/${SYNTHETIC_HOME}/p"`,
+  `WT=/Users/${SYNTHETIC_HOME}/w`,
+  `'/Users/${SYNTHETIC_HOME}/w'`,
+  `(/Users/${SYNTHETIC_HOME})`,
+  `key:/Users/${SYNTHETIC_HOME}`,
+  `[/Users/${SYNTHETIC_HOME}]`,
+  `{/Users/${SYNTHETIC_HOME}}`,
+  `a,/Users/${SYNTHETIC_HOME}`,
+  `>/Users/${SYNTHETIC_HOME}`,
+  `a;/Users/${SYNTHETIC_HOME}`,
+  `a|/home/${SYNTHETIC_HOME}`,
+  `a&&/Users/${SYNTHETIC_HOME}`,
+  `**/Users/${SYNTHETIC_HOME}/x**`,
+  `file:///Users/${SYNTHETIC_HOME}/x`,
+  `/mnt/c/Users/${SYNTHETIC_HOME}/craft`,
+  `/var/home/${SYNTHETIC_HOME}/craft`,
+  `/System/Volumes/Data/Users/${SYNTHETIC_HOME}/x`,
+  `/users/${SYNTHETIC_HOME}/x`,
+  `projects/-Users-${SYNTHETIC_HOME}-craft`,
+  `\`~/.claude/projects/-home-${SYNTHETIC_HOME}-craft\``,
+  `~/.claude/projects/-Users-${SYNTHETIC_HOME}/abc.jsonl`,
+  `C--Users-${SYNTHETIC_HOME}-workspace-craft`,
+  `"dir":"-Users-${SYNTHETIC_HOME}-craft"`,
+  `projects/-users-${SYNTHETIC_HOME}-craft`,
+  `+/Users/${SYNTHETIC_HOME}/x`,
+  `-/Users/${SYNTHETIC_HOME}/x`,
+  `!/Users/${SYNTHETIC_HOME}/x`,
+  `@/Users/${SYNTHETIC_HOME}/x`,
+  `#/Users/${SYNTHETIC_HOME}/x`,
+  `/Volumes/Macintosh HD/Users/${SYNTHETIC_HOME}/x`,
+  `/private/var/home/${SYNTHETIC_HOME}/x`,
+  `/run/host/home/${SYNTHETIC_HOME}/x`,
+];
+const HARMLESS_LINES = [
+  '/Users/<name>/x',
+  '-Users-<name>-craft',
+  '/Users/alice/p',
+  '/private/tmp/e-abc/home/cwd/g.sh',
+  '/private/tmp/e-…/home/cwd/g.sh',
+  '../home/build/g.sh',
+  'https://api.example.com/v1/users/42',
+  '${sandbox}/home/cwd/g.sh',
+  '/fake/home/user',
+  'adr/241-copilot-adapter-home-dist.md',
+  '~/.claude/projects',
+  '$HOME/.claude',
+  `github.com/${SYNTHETIC_HOME}/craft`,
+  '-Users-x-craft',
+  '/home/user',
+  '  --home-dir /tmp/h',
+  'node bin/x.js --users-file a.json',
+  '.nav--home-page {',
+  'https://example.com/users/42',
+];
+
+for (const line of LEAK_SHAPED_LINES) {
+  test(`Given the leak-shaped line ${line}, when findHomePathLeaks judges it, then a leak is flagged`, () => {
+    const sut = findHomePathLeaks;
+
+    const result = sut(line);
+
+    assert.ok(result.length > 0);
+  });
+
+  test(`Given the leak-shaped line ${line}, when the git grep prefilter is applied, then it is a candidate`, () => {
+    const sut = new RegExp(HOME_CANDIDATE_PATTERN, 'i');
+
+    const result = sut.test(line);
+
+    assert.ok(result);
+  });
+}
+
+for (const line of HARMLESS_LINES) {
+  test(`Given the harmless line ${line}, when findHomePathLeaks judges it, then nothing is flagged`, () => {
+    const sut = findHomePathLeaks;
+
+    const result = sut(line);
+
+    assert.deepStrictEqual(result, []);
+  });
+}
+
+test('Given git grep rows holding a leak, a placeholder and a CRLF leak, when listHomePathLeakLocations judges them, then only the leaks are located', () => {
+  const sut = listHomePathLeakLocations;
+  const candidates = [
+    `docs/a.md:3:cd /Users/${SYNTHETIC_HOME}/w`,
+    'docs/a.md:4:/Users/<name>/x',
+    `docs/a.md:5:cd /Users/${SYNTHETIC_HOME}/w\r`,
+  ];
+
+  const result = sut(candidates);
+
+  assert.deepStrictEqual(result, ['docs/a.md:3', 'docs/a.md:5']);
+});
+
+test('Given a git grep row with no file:line prefix, when listHomePathLeakLocations judges it, then it throws instead of skipping the row', () => {
+  const sut = listHomePathLeakLocations;
+  const candidates = [`cd /Users/${SYNTHETIC_HOME}/w`];
+
+  const result = () => sut(candidates);
+
+  assert.throws(result, /unparsable git grep row/);
+});
+
+function hermeticGitEnv() {
+  return { PATH: process.env.PATH, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+}
+
+function withThrowawayRepo(files, assertOnRepo) {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'class-d-'));
+  try {
+    execFileSync('git', ['init', '-q'], { cwd: repo, env: hermeticGitEnv() });
+    for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(repo, name), content);
+    execFileSync('git', ['add', '.'], { cwd: repo, env: hermeticGitEnv() });
+    assertOnRepo(repo);
+  } finally {
+    fs.rmSync(repo, { recursive: true, force: true });
+  }
+}
+
+test('Given a git repo tracking a lower-case home path and a NUL-bearing leak, when listHomePathCandidateLines scans it, then both are candidates', () => {
+  const files = {
+    'lower.md': `cd /users/${SYNTHETIC_HOME}/w\n`,
+    'nul.jsonl': `a\0b\ncd /Users/${SYNTHETIC_HOME}/w\n`,
+  };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listHomePathCandidateLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(listHomePathLeakLocations(result).sort(), ['lower.md:1', 'nul.jsonl:2']);
+  });
+});
+
+test('Given an ambient GIT_DIR pointing elsewhere, when listHomePathCandidateLines scans a repo, then it scans that repo', () => {
+  const files = { 'leak.md': `cd /Users/${SYNTHETIC_HOME}/w\n` };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listHomePathCandidateLines;
+    const ambientEnv = { ...hermeticGitEnv(), GIT_DIR: path.join(os.tmpdir(), 'class-d-decoy', '.git') };
+
+    const result = sut(repo, ambientEnv);
+
+    assert.deepStrictEqual(listHomePathLeakLocations(result), ['leak.md:1']);
+  });
+});
+
+test('Given the tracked tree, when every home-rooted candidate line is judged, then zero leaks remain', () => {
+  const candidates = listHomePathCandidateLines(ROOT);
+  const sut = listHomePathLeakLocations;
+
+  const result = sut(candidates);
+
+  assert.ok(candidates.length > 0, 'git grep found no candidate line: the scan itself is broken');
+  assert.deepStrictEqual(
+    result,
+    [],
+    `Source-hygiene FAIL — home-rooted paths (class D) at:\n${result.join('\n')}`,
+  );
+});

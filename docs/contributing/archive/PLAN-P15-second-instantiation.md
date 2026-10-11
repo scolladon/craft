@@ -172,14 +172,14 @@ Part gate (engine-default capability probe, no manifest — `gates.part` → rep
 over touched files):
 
 ```
-cd /Users/scolladon/workspace/perso/craft-p15-second-instantiation/engine && node --test 'test/scenarios.test.js'
+cd engine && node --test 'test/scenarios.test.js'
 ```
 
 Phase-boundary gate (the substrate gate; this is where the `EXPECTED_TESTS` reconciliation is
 enforced):
 
 ```
-bash /Users/scolladon/workspace/perso/craft-p15-second-instantiation/scripts/ci.sh
+bash scripts/ci.sh
 ```
 
 ### Commit
@@ -271,7 +271,7 @@ Structural gate — the markdown edit must not break any test or lint (there is 
 runner over a `.md` edit; the substrate gate is the guard):
 
 ```
-bash /Users/scolladon/workspace/perso/craft-p15-second-instantiation/scripts/ci.sh
+bash scripts/ci.sh
 ```
 
 (`ci.sh` runs `node --test`, `bats`, `shellcheck scripts/*.sh hooks/*.sh`, and the engine bin
