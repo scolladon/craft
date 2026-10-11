@@ -7,8 +7,9 @@
   - **pre**: `model` is already resolved by core policy (the orchestrator owns resolution order;
     the adapter only receives the resolved tier string).
   - **post**: the worker runs on that model. If the adapter cannot reach the model (model down /
-    provider key absent) it raises a model-down signal, which core handles via fallback
-    re-resolution and respawn from the artifact — NOT via the blocker protocol.
+    provider key absent) it raises a model-down signal, which core handles via its
+    retry-then-degrade policy (Core policy retained) and respawn from the artifact — NOT via the
+    blocker protocol.
 
 - `isAvailable(model) → bool` — adapter probe; lets core skip a known-down tier during
   fallback re-resolution without attempting a spawn that will immediately fail.
@@ -24,7 +25,9 @@ adapter:
   source of truth; keep it identical to the "Model resolution & fallback" block in
   `skills/run/SKILL.md`.
 - **Transient-overload retry**: a spawn that dies on a transient overload is respawned once on
-  the same tier before the tier is degraded; any other availability error degrades at once.
+  the same tier, immediately, before the tier is degraded; any other availability error degrades
+  at once, and when an error text matches both classes the permanent class wins. The allowance is
+  per spawn; once the tier is degraded, later spawns and retries skip straight to the fallback.
   Keep identical to the "Model resolution & fallback" block in `skills/run/SKILL.md`.
 - **Degraded-tier memory**: once a tier is known degraded this run, later spawns skip straight
   to the fallback — never pay the same dead spawn twice.
@@ -74,7 +77,7 @@ the resolution order is core policy, restated nowhere in this binding.
 `isAvailable`: probe whether the tier-mapped provider is configured (credentials/key present).
 Returns `false` if the tier maps to no configured provider.
 
-**Failure → blocker**: model-down triggers core fallback re-resolution + respawn from the
+**Failure → blocker**: model-down triggers the core retry-then-degrade policy + respawn from the
 artifact — NOT the blocker protocol. A tier that resolves to no provider after exhausting the
 full resolution order is a runtime blocker. Semantics identical to the Claude and Pi bindings
 above.
@@ -110,7 +113,7 @@ loud on an unknown tier rather than falling back quietly, and why the committed 
 cross-checked against the auth-free catalog rather than assumed.
 
 `isAvailable`: probe whether the tier-mapped model id is present in the auth-free catalog; an
-absent id marks the tier degraded and returns `false`.
+absent id returns `false`; core decides whether that degrades the tier.
 
 ## Failure → blocker
 

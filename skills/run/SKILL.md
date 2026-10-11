@@ -371,8 +371,8 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    spin, never silently abandon.
 
 9. **On model-down** (not a task blocker): an overload retries once on the same
-   tier (`MODEL-RETRY`); otherwise, or on a second overload, mark the tier degraded
-   and re-resolve to fallback (`MODEL-DEGRADED`); respawn from artifact.
+   tier (`MODEL-RETRY`); otherwise, or on a second overload of that spawn, mark the
+   tier degraded and re-resolve to fallback (`MODEL-DEGRADED`); respawn from artifact.
 
 `design` and `review` are already concern-named (no alias); every other craft-native phase
 id maps to a `skills/<id>/` dir of the same name, so its `procedure` is
@@ -465,16 +465,20 @@ bring their own `procedure`, dispatched verbatim (step 2).
   `models.fallback` → engine default `sonnet` → session model (pass the resolved
   tier as the spawn's model param). If a spawn dies on a model-availability error
   (NOT a task blocker, which uses the blocker protocol), classify it. A transient
-  overload (`529` / `overloaded_error`) is retried ONCE on the same tier,
-  respawned from the artifact, recording `MODEL-RETRY(<role>): <tier> overload`.
+  overload (`529` as an HTTP status or API error code, never a bare substring, or
+  `overloaded_error`) is retried ONCE on the same tier, immediately (the harness
+  already backed off), respawned from the artifact, recording
+  `MODEL-RETRY(<role>): <tier> overload`. When the text also matches a permanent
+  error (e.g. a "high load … switch to Sonnet" off-switch), the permanent class wins.
   Any other availability error (model unknown, no access, switched off), an
   unclassifiable one, or an overload on that retry marks the model **degraded for
   the rest of the run**: record
   `MODEL-DEGRADED(<tier>): fallback=<tier> cause=<overload|unavailable>`,
   re-resolve to `models.fallback` if declared, else the engine default `sonnet`,
   else the session's own model (guaranteed available), then respawn from the
-  artifact. Once a tier is known degraded this run, later spawns skip straight to
-  the fallback — never pay the same dead spawn twice.
+  artifact. The retry allowance is per spawn. Once a tier is known degraded this
+  run, later spawns and retries skip straight to the fallback (a retry already in
+  flight finishes on its tier) — never pay the same dead spawn twice.
   (This is the Model port's select/isAvailable — the Claude binding. See docs/contributing/specs/model.md.)
 
 - **Blockers** escalate to the user as `{ phase/part, reason, ≤3 candidate options }`

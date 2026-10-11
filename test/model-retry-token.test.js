@@ -9,18 +9,31 @@ const RUN_SKILL_PATH = path.join(ROOT, 'skills', 'run', 'SKILL.md');
 const MODEL_SPEC_PATH = path.join(ROOT, 'docs', 'contributing', 'specs', 'model.md');
 const RUN_RECORD_SPEC_PATH = path.join(ROOT, 'docs', 'contributing', 'specs', 'run-record.md');
 
-const RETRY_TOKEN = 'MODEL-RETRY(';
-const DEGRADED_TOKEN = 'MODEL-DEGRADED(';
+const RETRY_TOKEN = 'MODEL-RETRY(<role>):';
+const DEGRADED_TOKEN = 'MODEL-DEGRADED(<tier>):';
 const MODEL_TOKENS = [RETRY_TOKEN, DEGRADED_TOKEN];
-const SAME_TIER_RETRY_PHRASE = 'retried ONCE on the same tier';
-const TRANSIENT_RETRY_BULLET = '**Transient-overload retry**';
+const RETRY_TOKEN_NAME = 'MODEL-RETRY';
+const DEGRADED_TOKEN_NAME = 'MODEL-DEGRADED';
+const OVERLOAD_STATUS = '`529`';
+const OVERLOAD_ERROR_TYPE = '`overloaded_error`';
+const SAME_TIER_PHRASE = 'once on the same tier';
+const SECOND_OVERLOAD_PHRASE = 'an overload on that retry';
+const STEP_NINE_SECOND_OVERLOAD_PHRASE = 'second overload of that spawn';
+const PERMANENT_WINS_PHRASE = 'the permanent class wins';
+const NO_WAIT_PHRASE = 'immediately';
+const PER_SPAWN_PHRASE = 'per spawn';
+const DEGRADED_SKIP_PHRASE = 'later spawns and retries skip straight to the fallback';
 const RETIRED_SKILL_PHRASE = '(model down/overloaded/unknown';
 const RETIRED_MODEL_SPEC_PHRASES = [
   'a model-availability error marks the tier degraded',
   'the model is down, overloaded, or returns an availability error',
   'it triggers core fallback re-resolution',
   'error triggers core fallback re-resolution',
+  'model-down triggers core fallback re-resolution',
+  'which core handles via fallback re-resolution',
+  'an absent id marks the tier degraded',
 ];
+const RULE_PHRASES = [SAME_TIER_PHRASE, PERMANENT_WINS_PHRASE, NO_WAIT_PHRASE, PER_SPAWN_PHRASE, DEGRADED_SKIP_PHRASE];
 const CHAIN_START = "→ the descriptor's `model:` field";
 const CHAIN_END = '→ session model';
 
@@ -55,6 +68,14 @@ const runRecordSpec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
 
 const invariantBullet = () =>
   sliceRegion(runSkill, /^- \*\*Model resolution & fallback\*\*/, /^- \*\*Blockers\*\*/);
+const transientRetryBullet = () =>
+  sliceRegion(modelSpec, /^- \*\*Transient-overload retry\*\*/, /^- \*\*Degraded-tier memory\*\*/);
+
+function assertIncludesEvery(text, phrases, label) {
+  for (const phrase of phrases) {
+    assert.ok(text.toLowerCase().includes(phrase.toLowerCase()), `${label} is missing "${phrase}"`);
+  }
+}
 
 test("Given skills/run/SKILL.md and docs/contributing/specs/model.md, when the resolution chain from the descriptor's model field to the session model is normalised, then both files state it identically", () => {
   const sut = resolutionChainOf(runSkill);
@@ -64,33 +85,45 @@ test("Given skills/run/SKILL.md and docs/contributing/specs/model.md, when the r
   assert.strictEqual(sut, expected);
 });
 
-test('Given the Model resolution & fallback bullet of skills/run/SKILL.md, when it is read, then it names MODEL-RETRY( and MODEL-DEGRADED( and says an overload is retried ONCE on the same tier', () => {
+test('Given the Model resolution & fallback bullet of skills/run/SKILL.md, when it is read, then it names both full tokens and both overload markers', () => {
   const sut = invariantBullet();
 
-  for (const token of MODEL_TOKENS) {
-    assert.ok(sut.includes(token), `${token} missing from the invariant bullet`);
-  }
-  assert.ok(sut.includes(SAME_TIER_RETRY_PHRASE));
+  assertIncludesEvery(sut, [...MODEL_TOKENS, OVERLOAD_STATUS, OVERLOAD_ERROR_TYPE], 'the invariant bullet');
+});
+
+test('Given the Model resolution & fallback bullet of skills/run/SKILL.md, when it is read, then it states the same-tier retry, the tie-break, the no-wait, the per-spawn allowance and the degraded skip', () => {
+  const sut = invariantBullet();
+
+  assertIncludesEvery(sut, RULE_PHRASES, 'the invariant bullet');
+});
+
+test('Given the Model resolution & fallback bullet of skills/run/SKILL.md, when it is read, then an overload on the retry degrades the tier', () => {
+  const sut = invariantBullet();
+
+  assertIncludesEvery(sut, [SECOND_OVERLOAD_PHRASE], 'the invariant bullet');
 });
 
 test('Given skills/run/SKILL.md, when it is read, then it no longer says a bare model down/overloaded/unknown error degrades the tier', () => {
-  const sut = runSkill;
+  const sut = normaliseWhitespace(runSkill);
 
   assert.ok(!sut.includes(RETIRED_SKILL_PHRASE));
 });
 
-test('Given step 9 of the skills/run/SKILL.md phase walk, when it is read, then it names MODEL-RETRY and MODEL-DEGRADED', () => {
+test('Given step 9 of the skills/run/SKILL.md phase walk, when it is read, then it names both tokens, the same-tier retry and the per-spawn second overload', () => {
   const sut = sliceRegion(
     runSkill,
     /^9\. \*\*On model-down\*\*/,
     /^`design` and `review` are already concern-named/
   );
 
-  assert.ok(sut.includes('MODEL-RETRY'));
-  assert.ok(sut.includes('MODEL-DEGRADED'));
+  assertIncludesEvery(
+    sut,
+    [RETRY_TOKEN_NAME, DEGRADED_TOKEN_NAME, SAME_TIER_PHRASE, STEP_NINE_SECOND_OVERLOAD_PHRASE],
+    'step 9'
+  );
 });
 
-test("Given the run skill's Run-record tokens list and the run-record spec's family list, when each is read, then each names MODEL-RETRY( and MODEL-DEGRADED(", () => {
+test("Given the run skill's Run-record tokens list and the run-record spec's family list, when each is read, then each names both full tokens", () => {
   const sut = [
     ['skills/run/SKILL.md', sliceRegion(runSkill, /^### Run-record tokens/, /^\| Token \| Emitted by \|/)],
     [
@@ -100,16 +133,14 @@ test("Given the run skill's Run-record tokens list and the run-record spec's fam
   ];
 
   for (const [file, region] of sut) {
-    for (const token of MODEL_TOKENS) {
-      assert.ok(region.includes(token), `${file} token list is missing ${token}`);
-    }
+    assertIncludesEvery(region, MODEL_TOKENS, `${file} token list`);
   }
 });
 
-test('Given the Core policy retained section of docs/contributing/specs/model.md, when it is read, then it carries a Transient-overload retry bullet', () => {
-  const sut = sliceRegion(modelSpec, /^## Core policy retained/, /^## Binding set/);
+test('Given the Transient-overload retry bullet of docs/contributing/specs/model.md, when it is read, then it states the same rule as the run skill invariant', () => {
+  const sut = transientRetryBullet();
 
-  assert.ok(sut.includes(TRANSIENT_RETRY_BULLET));
+  assertIncludesEvery(sut, RULE_PHRASES, 'the model.md Transient-overload retry bullet');
 });
 
 test('Given docs/contributing/specs/model.md, when it is normalised, then none of the retired degrade-at-once phrases remain', () => {
