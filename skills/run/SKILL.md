@@ -152,6 +152,21 @@ Input: `$ARGUMENTS`
    Never silence `open`'s stdout: the run-key it prints into this session's transcript
    is what binds the compaction hooks to this run.
 
+   **A refused `open` is a STOP.** `open` exits 3 when the run-id is already open: another
+   run of this topic is live, or crashed without `close`. This is not a failed append:
+   continuing would append this run's lines to that run's ledger under the same run-id,
+   and the `&&` above already keeps the seeded lines out of it. STOP with the blocker
+   `{ resolve, reason: "run-id <slug> already open since <iso>", options }`:
+
+   1. **Stop here.** The run is live: continue it in its own session.
+   2. **Discard it.** The run is dead: run `run-ledger.sh close <run-id>`, then re-run
+      this step's call unchanged. A leftover `../<repo>-<slug>` worktree or `*/<slug>`
+      branch still hits `craft:workspace`'s collision STOP.
+   3. **Re-slug.** Re-run step 3 with a different topic slug.
+
+   Never run `close` without the user choosing option 2. Until then, append nothing for
+   this run and never continue the walk.
+
    **Flush-per-line.** Every ledger line is appended in the tool call that produces it or in the orchestrator's very next tool call — never held longer than that.
 
    **One ledger, one place, the whole run.** The ledger stays at

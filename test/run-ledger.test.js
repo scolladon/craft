@@ -81,19 +81,120 @@ test('Given a run opened and a worktree added, when git status runs in both tree
   });
 });
 
-test('Given demo already open with records, when open demo runs again, then stderr names the replacement and the ledger starts fresh', () => {
+test('Given demo already open with records, when open demo runs again, then it exits 3 with an empty stdout, leaves the ledger and the pointer byte-identical and names the run-id, its open-since stamp and the ledger on one stderr line without the run-key', () => {
   withRepo(({ main }) => {
     runLedger(main, ['open', 'demo']);
     runLedger(main, ['append', 'demo', 'resolve'], 'RESOLVE: --skip review\n');
+    const ledgerBefore = fs.readFileSync(ledgerOf(main), 'utf8');
+    const pointerBefore = fs.readFileSync(pointerOf(main), 'utf8');
+    const since = pointerBefore.split(' ')[0].slice('demo@'.length);
     const sut = runLedger;
 
     const result = sut(main, ['open', 'demo']);
 
-    assert.match(result.stderr, /replacing existing pointer for run-id demo/);
-    assert.strictEqual(fs.readFileSync(ledgerOf(main), 'utf8'), `${LEDGER_HEADER}\n`);
-    assert.deepStrictEqual(fs.readdirSync(runsDirOf(main)).filter((f) => f.endsWith('.pointer')), ['demo.pointer']);
+    assert.strictEqual(result.status, 3);
+    assert.strictEqual(result.stdout, '');
+    assert.strictEqual(fs.readFileSync(ledgerOf(main), 'utf8'), ledgerBefore);
+    assert.strictEqual(fs.readFileSync(pointerOf(main), 'utf8'), pointerBefore);
+    assert.strictEqual(
+      result.stderr,
+      `run-ledger: open: run-id demo is already open since ${since} (ledger ${ledgerOf(main)}); refusing to discard it\n`,
+    );
+    assert.doesNotMatch(result.stderr, /demo@/);
   });
 });
+
+test("Given a bound run and a second session whose transcript holds only a refused open's output, when locate --transcript runs on that transcript, then no run is bound", () => {
+  withRun({}, (run) => {
+    const refused = runLedger(run.main, ['open', 'demo']);
+    const transcriptPath = writeTranscript(path.join(run.parent, 'second-session'), [refused.stdout, refused.stderr]);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['locate', '--transcript', transcriptPath]);
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, '');
+  });
+});
+
+test('Given demo already open with records, when the open-and-append chain of a second run runs, then the append never runs and the ledger keeps only its own records', () => {
+  withRepo(({ main }) => {
+    runLedger(main, ['open', 'demo']);
+    runLedger(main, ['append', 'demo', 'resolve'], 'RESOLVE: none\n');
+    const before = fs.readFileSync(ledgerOf(main), 'utf8');
+    const chain = '"$LEDGER" open demo && "$LEDGER" append demo resolve <<\'EOF\'\nRESOLVE: --skip review\nEOF\n';
+    const sut = (cwd) => spawnSync('bash', ['-c', chain], { cwd, env: { ...process.env, LEDGER: LEDGER_SCRIPT }, encoding: 'utf8' });
+
+    const result = sut(main);
+
+    if (result.error) throw result.error;
+    assert.strictEqual(result.status, 3);
+    assert.strictEqual(fs.readFileSync(ledgerOf(main), 'utf8'), before);
+  });
+});
+
+test('Given demo closed after records were appended, when open demo runs, then it exits 0 and the ledger holds the header alone', () => {
+  withRepo(({ main }) => {
+    runLedger(main, ['open', 'demo']);
+    runLedger(main, ['append', 'demo', 'resolve'], 'RESOLVE: none\n');
+    runLedger(main, ['close', 'demo']);
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo']);
+
+    assert.strictEqual(result.status, 0);
+    assert.match(result.stdout.split(' ')[0], RUN_KEY_PATTERN);
+    assert.strictEqual(fs.readFileSync(ledgerOf(main), 'utf8'), `${LEDGER_HEADER}\n`);
+  });
+});
+
+// Leftovers no run can append through: open replaces each and starts a fresh ledger.
+const REPLACEABLE_LEFTOVERS = [
+  {
+    label: 'a pointer whose ledger was deleted',
+    arrange: (main) => {
+      runLedger(main, ['open', 'demo']);
+      fs.rmSync(ledgerOf(main));
+    },
+    stderr: /^$/,
+  },
+  {
+    label: 'a ledger holding records with no pointer',
+    arrange: (main) => {
+      runLedger(main, ['open', 'demo']);
+      runLedger(main, ['append', 'demo', 'resolve'], 'RESOLVE: none\n');
+      fs.rmSync(pointerOf(main));
+    },
+    stderr: /^$/,
+  },
+  {
+    label: 'a pointer stamped in the future beside a ledger holding records',
+    arrange: (main) => {
+      fs.mkdirSync(runsDirOf(main), { recursive: true });
+      fs.writeFileSync(ledgerOf(main), `${LEDGER_HEADER}\ndemo resolve RESOLVE: none\n`);
+      fs.writeFileSync(pointerOf(main), `demo@2099-01-01T00:00:00Z ${ledgerOf(main)}\n`);
+    },
+    stderr: /^run-ledger: open: replacing existing pointer for run-id demo\n$/,
+  },
+];
+
+for (const { label, arrange, stderr } of REPLACEABLE_LEFTOVERS) {
+  test(`Given ${label}, when open demo runs, then it exits 0, the ledger holds the header alone and the pointer names a fresh run-key`, () => {
+    withRepo(({ main }) => {
+      arrange(main);
+      const sut = runLedger;
+
+      const result = sut(main, ['open', 'demo']);
+
+      const [key] = result.stdout.trim().split(' ');
+      assert.strictEqual(result.status, 0);
+      assert.match(result.stderr, stderr);
+      assert.match(key, RUN_KEY_PATTERN);
+      assert.strictEqual(fs.readFileSync(ledgerOf(main), 'utf8'), `${LEDGER_HEADER}\n`);
+      assert.strictEqual(fs.readFileSync(pointerOf(main), 'utf8'), `${key} ${ledgerOf(main)}\n`);
+    });
+  });
+}
 
 for (const [label, args, status] of [
   ['an invalid run-id', ['open', 'Bad_Id'], 2],
