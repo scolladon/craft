@@ -1,7 +1,8 @@
 ---
 # Injection point #2 (PRD §7): models.<agent> — route one phase's agent to a specific model.
 # Resolution order is manifest → agent pin → models.fallback → session model; a pinned tier
-# that goes down falls back and the degraded tier is remembered for the rest of the run. All-current.
+# that goes down falls back and the degraded tier is remembered for the rest of the run; a transient
+# overload is retried once on the same tier first. All-current.
 models:
   reviewer: opus
   fallback: sonnet
@@ -24,7 +25,8 @@ default pin. `models.fallback` names the engine's fallback when a pinned model i
 The Model **port** only exposes `select`/`isAvailable`; the *order* is core policy (§11):
 **manifest → agent pin → `models.fallback` → session model**. A pinned tier that goes down does not
 fail the run — it falls back, and the **degraded tier is remembered** for the rest of the run so the
-run record shows exactly where quality was traded. Routing the wrong tier hurts quality, not safety:
+run record shows exactly where quality was traded. A transient overload (`529` / `overloaded_error`)
+is the exception: it is retried once on the same tier, immediately, before the tier is degraded. Routing the wrong tier hurts quality, not safety:
 the contract and gates bind regardless of model.
 
 Valid agent keys are the craft agents (`designer`, `planner`, `reviewer`, `part-implementer`,
