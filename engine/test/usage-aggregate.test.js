@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 import {
   aggregate,
   renderMarkdown,
+  formatCompactionEstimateLine,
   serializeReport,
   computeDrift,
   CACHE_HOTSPOT_THRESHOLD,
@@ -1984,4 +1985,46 @@ test('Given a run whose events carry no compactions argument, when aggregate run
   const result = sut([event], PRICE_TABLE);
 
   assert.equal('compactionEstimate' in result.runs[0], false);
+});
+
+// ── 77. formatCompactionEstimateLine — the emitter's line, same fold and wording as report.md ──
+
+test('Given one main-loop compaction, when formatCompactionEstimateLine runs, then it returns the exact Compactions line', () => {
+  const sut = formatCompactionEstimateLine;
+
+  const result = sut([makeCompaction()]);
+
+  assert.equal(
+    result,
+    'Compactions: 1 (main 1, sub-agent 0) — estimated summary-call cost 11k–20k equiv (estimate; not in totals)'
+  );
+});
+
+test('Given no compactions, when formatCompactionEstimateLine runs, then it returns null', () => {
+  const sut = formatCompactionEstimateLine;
+
+  const result = sut([]);
+
+  assert.equal(result, null);
+});
+
+test('Given a main and a sub-agent compaction, when formatCompactionEstimateLine runs, then it equals the Compactions line renderMarkdown prints for the same compactions', () => {
+  const compactions = [
+    makeCompaction(),
+    makeCompaction({ sourceKind: 'subagent', cacheRead: 30000, output: [600, 1400] }),
+  ];
+  const rendered = renderMarkdown(
+    aggregate([makeEvent()], PRICE_TABLE, undefined, undefined, undefined, compactions)
+  )
+    .split('\n')
+    .find((line) => line.startsWith('Compactions:'));
+  const sut = formatCompactionEstimateLine;
+
+  const result = sut(compactions);
+
+  assert.equal(result, rendered);
+  assert.equal(
+    result,
+    'Compactions: 2 (main 1, sub-agent 1) — estimated summary-call cost 20k–35k equiv (estimate; not in totals)'
+  );
 });
