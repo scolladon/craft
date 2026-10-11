@@ -29,7 +29,7 @@ This is a new public export — add it in the same commit, not later.
 
 **Files to create/touch:**
 - CREATE `engine/src/manifest.js` — pure ESM module, no I/O
-- EDIT `engine/src/index.js` at `/Users/scolladon/workspace/perso/craft/engine/src/index.js` — add line 7
+- EDIT `engine/src/index.js` at `<main-repo-dir>/engine/src/index.js` — add line 7
 - CREATE `engine/test/manifest.test.js` — `node:test` + `node:assert/strict`
 
 **Engine module conventions (match exactly):**
@@ -311,7 +311,7 @@ feat(manifest-lint): fold shape-validation into Node core, retire yq backend (AD
 3. §0 Resolve (lines 17–30) — add engine invocation + run-record seeding
 
 **This part touches ONE file:** `skills/run/SKILL.md` at
-`/Users/scolladon/workspace/perso/craft/skills/run/SKILL.md`
+`<main-repo-dir>/skills/run/SKILL.md`
 
 No compiled code changes. No new test files. The gate is `scripts/ci.sh` staying green
 (regression safety — touching no tested code) plus a structural review confirming the

@@ -195,9 +195,9 @@ Verifiable statements that must hold when this ships:
 
     | Arm | `--dir` (under `~/.claude/projects/`) | Window | `cost.relative` | `cost.priced` |
     |---|---|---|---|---|
-    | plain | `-Users-scolladon-workspace-perso-node-sgd-bench-arm-a-plain` | whole dir | **88,634,469** (88.6M ✓) | **$62.722473** ($62.72 ✓) |
-    | staged | `-Users-scolladon-workspace-perso-node-sgd-bench-arm-b-staged` | whole dir | **154,307,277** (154.3M ✓) | **$103.950712** ($103.95 ✓) |
-    | craft | `-Users-scolladon-workspace-perso-node-sgd-bench-arm-c-craft` | lines before `2026-08-05T00:00:00Z` | **544,271,827** (544.3M ✓) | **$297.550926** ($297.55 ✓) |
+    | plain | `-Users-<name>-node-sgd-bench-arm-a-plain` | whole dir | **88,634,469** (88.6M ✓) | **$62.722473** ($62.72 ✓) |
+    | staged | `-Users-<name>-node-sgd-bench-arm-b-staged` | whole dir | **154,307,277** (154.3M ✓) | **$103.950712** ($103.95 ✓) |
+    | craft | `-Users-<name>-node-sgd-bench-arm-c-craft` | lines before `2026-08-05T00:00:00Z` | **544,271,827** (544.3M ✓) | **$297.550926** ($297.55 ✓) |
 
     The craft arm needs the window because that session was resumed the following day; the
     whole directory yields 753,224,548 / $425.62 (see *Reconciling the published figures*).
@@ -240,7 +240,7 @@ Verifiable statements that must hold when this ships:
 ### Empirically pinned corpus matrix
 
 Measured on this box on 2026-08-06 against
-`~/.claude/projects/-Users-scolladon-workspace-perso-craft`. Every number below was
+`~/.claude/projects/-Users-<name>-craft`. Every number below was
 re-derived here; the orchestrator's pre-chew is corrected where it differs (marked ⚠).
 
 **The corpus is live and grows under the miner's feet.** Re-measured later the same day while

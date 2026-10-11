@@ -7,7 +7,7 @@
 ## Context
 
 The rename ([032](032-rename-forge-to-craft.md)) raises two scope-boundary questions: (a) does
-the on-disk dev directory `/Users/scolladon/workspace/perso/forge` get renamed to `.../craft`,
+the on-disk dev directory `<dev-root>/forge` get renamed to `.../craft`,
 and (b) what about references to the plugin that live OUTSIDE the repo — the user's global
 `~/.claude/CLAUDE.md` "default feature workflow" trigger (`/forge:run`) and the project-memory
 slugs (`forge-customizable-engine-initiative`, `forge-slice-agent-selection-rule`)?
@@ -21,7 +21,7 @@ slugs (`forge-customizable-engine-initiative`, `forge-slice-agent-selection-rule
 
 ## Decision
 
-- **Repo directory: renamed** `/Users/scolladon/workspace/perso/forge` →
+- **Repo directory: renamed** `<dev-root>/forge` →
   `.../craft`. *(Initially scoped out; the user reversed the call mid-session and asked the
   session to perform it.)* The `mv` runs as the **final session action — after** the
   squash-merge to `main` and branch cleanup — so all repo edits happen on the stable old path

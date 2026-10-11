@@ -60,7 +60,7 @@ repo-local store always resolves against the target's ROOT.
 ### The gitignore reality that shapes location (a spike finding that forces a fork)
 
 The user's **global gitignore excludes every `.claude/` directory** — verified live:
-`git check-ignore -v .claude/anything` → `/Users/scolladon/.gitignore:1:.claude`. The repo already
+`git check-ignore -v .claude/anything` → `~/.gitignore:1:.claude`. The repo already
 copes with this: its own `.gitignore` (lines 6-10) **re-includes** specific committed `.claude/` paths
 (`!examples/.claude/…`, `!adapters/pi/.claude/workflow.md`) so the sample manifests reach a clone and
 CI (ADR-063). Consequence for P22: a `.claude/`-style store is **gitignored by default in this repo and

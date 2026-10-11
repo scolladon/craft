@@ -95,7 +95,7 @@ Verifiable statements that must hold when this ships:
 
 ### Empirically-pinned JSONL matrix (the foundation of the parse binding)
 
-Sampled live from `~/.claude/projects/-Users-scolladon-workspace-perso-craft/*.jsonl`
+Sampled live from `~/.claude/projects/-Users-<name>-craft/*.jsonl`
 (craft's own runs) and cross-checked against `…-node-tsgit/*.jsonl`, streaming with
 `head`/`grep`/`jq` (never catting a whole file). **Recorded facts, not memory:**
 

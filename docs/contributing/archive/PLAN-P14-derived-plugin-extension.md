@@ -144,7 +144,7 @@ this part (count them — one per RED bullet that lands as a distinct `test(...)
 `cd engine && node --test test/manifest.test.js` PLUS
 `node engine/bin/manifest-lint.js engine/test/fixtures/manifests/good-role.md` (sanity that
 manifest-lint still resolves an existing fixture). Run from repo root for the lint:
-`cd /Users/scolladon/workspace/perso/craft-derived-plugin-extension`.
+`cd <worktree>`.
 
 ### Commit
 
