@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { FROM_TOP, TO_END, sliceProse } = require('./helpers/region-slice');
+const { FROM_TOP, TO_END, normaliseWhitespace, sliceProse } = require('./helpers/region-slice');
 
 const ROOT = path.resolve(__dirname, '..');
 const RUN_SKILL_PATH = path.join(ROOT, 'skills', 'run', 'SKILL.md');
@@ -79,7 +79,7 @@ test("Given skills/run/SKILL.md §0 step 4, when the open-record region is read,
 });
 
 test('Given the run-record spec, when normalised, then it states the flush-per-line rule and drops the buffered/phase-boundary wording', () => {
-  const normalised = runRecordSpec.replace(/\s+/g, ' ');
+  const normalised = normaliseWhitespace(runRecordSpec);
 
   assert.ok(normalised.includes(FLUSH_PER_LINE), 'expected the flush-per-line sentence');
   assert.ok(!normalised.includes('buffered in-session'), 'the buffered-in-session wording must be gone');
