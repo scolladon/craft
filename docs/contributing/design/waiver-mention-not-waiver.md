@@ -132,7 +132,7 @@ per call:
 ```js
 const FENCE_OPENER = /^([ \t]*)(?:(`{3,})[^`]*|(~{3,}).*)$/;
 const FENCE_CLOSER = /^([ \t]*)(`{3,}|~{3,})[ \t]*$/;
-const MAX_CLOSER_EXTRA_INDENT = 3; // closer width - opener width, tabs = 4 columns
+const MAX_CLOSER_MARGIN_INDENT = 3; // closer width <= max(3, opener width), tabs = 4 columns
 const LINE_BREAK = /\r?\n/; // content.split(LINE_BREAK): CRLF lines carry no `\r`
 const WAIVER_REASON = String.raw`:\s*\S`;
 
@@ -185,7 +185,7 @@ A line-based subset of CommonMark fenced code blocks, pinned against markdown-it
 | unclosed opener | fenced to EOF | fenced to EOF |
 | ```` ```a`b ```` (backtick in info string) | not a fence | not a fence |
 | CRLF opener/closer (backtick or tilde) | fence | fence (lines split on `\r?\n`, so no pattern sees `\r`) |
-| closer indented 4+ columns past its opener | still fenced | still fenced (closer at most 3 columns past the opener) |
+| closer indented 4+ columns, deeper than its opener | still fenced | still fenced (closer width at most max(3, opener width)) |
 | list-nested fence (opener and closer at 4 spaces or a tab) | closed | closed |
 | ```` > ``` ```` (fence inside a blockquote) | fence | not an opener, but every line inside starts with `>`, so no token there is at column 0 |
 
@@ -196,9 +196,12 @@ divergent lines.
 Known gap (accepted): the opener allows any indentation, so a 4+-space indented line
 starting with ```` ``` ```` at top level counts as an opener here but is an indented code
 block in CommonMark. That over-fences, which is fail-closed (a real waiver below it is
-dropped and its finding stays visible). A closer must sit at most 3 columns past its
-opener's indent (tabs count 4), so a 4-space-indented fence nested in a fenced sample does
-not close the outer fence early, while a list-nested fence still closes at its own indent. The only fail-open divergence needs a crafted sequence (an
+dropped and its finding stays visible). A closer may be indented at most max(3, opener
+indent) columns (tabs count 4), so a 4-space-indented fence nested in a fenced sample does
+not close the outer fence early, while a list-nested fence still closes at its own indent.
+A differential fuzz against markdown-it (200,000 generated docs mixing fences at 0-8 columns
+and tabs, list items, blockquotes and text) finds 0 fail-open cases outside the
+over-indented-marker class described next. The only fail-open divergence needs a crafted sequence (an
 over-indented opener, followed by a real fence whose opener our state reads as the closer). The threat model is accidental mention, not an adversarial author, who could
 simply write a waiver.
 
@@ -331,7 +334,7 @@ the expected mutants:
 | ``[^`]*`` dropped / negated | R2-d |
 | `[ \t]*` dropped | R3-h |
 | closer `[ \t]*$` → `[ \t]*` | R3-g |
-| `<= MAX_CLOSER_EXTRA_INDENT` → `<` / indent check dropped | unit rows "closer indented three spaces closes" / "closer indented four spaces does not close" |
+| `<=` → `<` / `Math.max` → `Math.min` / indent check dropped | unit rows "closer indented three spaces closes" / "list-nested fence closed by its own indentation" / "closer indented four spaces does not close" |
 | tab width dropped (`' '.repeat(TAB_WIDTH)` → `''`) | unit row "tab-indented closer past a column-0 opener does not close" |
 | `LINE_BREAK` → `'\n'` | unit row "CRLF tilde fence" |
 | `>=` → `>` in `closesFence` | R2-b |

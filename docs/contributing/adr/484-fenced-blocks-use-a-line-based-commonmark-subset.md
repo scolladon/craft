@@ -15,7 +15,7 @@ and no markdown parser.
 
 ## Options considered
 
-1. **Line-based CommonMark subset** *(recommended)* — opener of 3+ backticks or tildes at any indent (no backtick in a backtick info string); closer of the same character, at least as long, at most 3 columns past its opener's indent, whitespace only after it; CRLF lines split like LF; an unclosed fence runs to end of file — pros: agrees with markdown-it on every fenced line of the tracked docs; its one known gap over-fences, which fails closed / cons: not a full parser
+1. **Line-based CommonMark subset** *(recommended)* — opener of 3+ backticks or tildes at any indent (no backtick in a backtick info string); closer of the same character, at least as long, indented at most max(3, opener indent) columns, whitespace only after it; CRLF lines split like LF; an unclosed fence runs to end of file — pros: agrees with markdown-it on every fenced line of the tracked docs; its one known gap over-fences, which fails closed / cons: not a full parser
 2. Column-0 toggles only — cons: fails open on list-indented and four-backtick fences
 3. markdown-it dependency — cons: a second runtime dependency for the engine
 
