@@ -54,21 +54,23 @@ const readmeCanonicalUrlOnlyFilter = {
 // Whole tracked tree on purpose — dated docs and test fixtures carried every past leak.
 // Fail-closed anchor: a home root counts unless a path-segment character (an elision `…`
 // included) sits right before it, so every other predecessor (quote, operator, diff marker) anchors.
-const NOT_AFTER_PATH_CHAR = '(?<![A-Za-z0-9._~$…])';
-// A home root may sit under a URL scheme, a WSL drive mount, or a relocated home volume.
-const HOME_ROOT_PREFIX = '(?:file://|/mnt/[a-z]|/private/var|/var|/run/host|/System/Volumes/Data|/Volumes/[^/]+)?';
+const PATH_SEGMENT_CHARS = 'A-Za-z0-9._…';
+const NOT_AFTER_PATH_CHAR = `(?<![${PATH_SEGMENT_CHARS}])`;
+// A home root may sit under a WSL drive mount or a relocated home volume.
+const HOME_ROOT_PREFIX = '(?:/mnt/[a-z]|/private/var|/var|/run/host|/System/Volumes/Data|/Volumes/[^/]+)?';
 const HOME_SLASH_PATTERN = new RegExp(
   `${NOT_AFTER_PATH_CHAR}${HOME_ROOT_PREFIX}/(?:Users|home)/([A-Za-z0-9._-]+)`,
   'gi',
 );
 // `-` also blocks the dashed form, so a `--home-…` CLI flag never reads as a projects dir;
 // a Windows drive (`C--Users-…`) is matched through its letter. The segment may end the name.
-const NOT_AFTER_DASHED_CHAR = '(?<![A-Za-z0-9._~$…-])';
+const NOT_AFTER_DASHED_CHAR = `(?<![${PATH_SEGMENT_CHARS}-])`;
 const HOME_DASHED_PATTERN = new RegExp(
   `${NOT_AFTER_DASHED_CHAR}(?:[A-Za-z]-)?-(?:Users|home)-([A-Za-z0-9._]+)`,
   'gi',
 );
-const PLACEHOLDER_HOMES = new Set(['alice', 'example', 'me', 'someone', 'user', 'x', 'other-clone']);
+// `cwd` is the eval-sandbox directory under a computed root (`${sandbox}/home/cwd`), not a user.
+const PLACEHOLDER_HOMES = new Set(['alice', 'cwd', 'example', 'me', 'someone', 'user', 'x', 'other-clone']);
 const HOME_CANDIDATE_PATTERN = '/(Users|home)/|-(Users|home)-';
 const GIT_GREP_NO_MATCH = 1;
 // `s`: a CRLF row keeps its trailing \r, which `.` would otherwise refuse to match.
@@ -81,11 +83,19 @@ function findHomePathLeaks(line) {
     .filter((segment) => !PLACEHOLDER_HOMES.has(segment));
 }
 
-function listHomePathCandidateLines(cwd) {
+// An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git grep away from `cwd`.
+const GIT_LOCATION_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'];
+
+function withoutGitLocation(env) {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !GIT_LOCATION_KEYS.includes(key)));
+}
+
+function listHomePathCandidateLines(cwd, env = process.env) {
   try {
     // -a: a NUL byte must not hide a captured fixture from the scan as "binary".
     return execFileSync('git', ['grep', '-naiE', HOME_CANDIDATE_PATTERN], {
       cwd,
+      env: withoutGitLocation(env),
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
     })
@@ -329,6 +339,9 @@ const HARMLESS_LINES = [
   '/Users/alice/p',
   '/private/tmp/e-abc/home/cwd/g.sh',
   '/private/tmp/e-…/home/cwd/g.sh',
+  '../home/build/g.sh',
+  'https://api.example.com/v1/users/42',
+  '${sandbox}/home/cwd/g.sh',
   '/fake/home/user',
   'adr/241-copilot-adapter-home-dist.md',
   '~/.claude/projects',
@@ -392,21 +405,46 @@ test('Given a git grep row with no file:line prefix, when listHomePathLeakLocati
   assert.throws(result, /unparsable git grep row/);
 });
 
-test('Given a git repo tracking a lower-case home path and a NUL-bearing leak, when listHomePathCandidateLines scans it, then both are candidates', () => {
+function hermeticGitEnv() {
+  return { PATH: process.env.PATH, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1' };
+}
+
+function withThrowawayRepo(files, assertOnRepo) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'class-d-'));
   try {
-    execFileSync('git', ['init', '-q'], { cwd: repo });
-    fs.writeFileSync(path.join(repo, 'lower.md'), `cd /users/${SYNTHETIC_HOME}/w\n`);
-    fs.writeFileSync(path.join(repo, 'nul.jsonl'), `a\0b\ncd /Users/${SYNTHETIC_HOME}/w\n`);
-    execFileSync('git', ['add', '.'], { cwd: repo });
-    const sut = listHomePathCandidateLines;
-
-    const result = sut(repo);
-
-    assert.deepStrictEqual(listHomePathLeakLocations(result).sort(), ['lower.md:1', 'nul.jsonl:2']);
+    execFileSync('git', ['init', '-q'], { cwd: repo, env: hermeticGitEnv() });
+    for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(repo, name), content);
+    execFileSync('git', ['add', '.'], { cwd: repo, env: hermeticGitEnv() });
+    assertOnRepo(repo);
   } finally {
     fs.rmSync(repo, { recursive: true, force: true });
   }
+}
+
+test('Given a git repo tracking a lower-case home path and a NUL-bearing leak, when listHomePathCandidateLines scans it, then both are candidates', () => {
+  const files = {
+    'lower.md': `cd /users/${SYNTHETIC_HOME}/w\n`,
+    'nul.jsonl': `a\0b\ncd /Users/${SYNTHETIC_HOME}/w\n`,
+  };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listHomePathCandidateLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(listHomePathLeakLocations(result).sort(), ['lower.md:1', 'nul.jsonl:2']);
+  });
+});
+
+test('Given an ambient GIT_DIR pointing elsewhere, when listHomePathCandidateLines scans a repo, then it scans that repo', () => {
+  const files = { 'leak.md': `cd /Users/${SYNTHETIC_HOME}/w\n` };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listHomePathCandidateLines;
+    const ambientEnv = { ...hermeticGitEnv(), GIT_DIR: path.join(os.tmpdir(), 'class-d-decoy', '.git') };
+
+    const result = sut(repo, ambientEnv);
+
+    assert.deepStrictEqual(listHomePathLeakLocations(result), ['leak.md:1']);
+  });
 });
 
 test('Given the tracked tree, when every home-rooted candidate line is judged, then zero leaks remain', () => {
