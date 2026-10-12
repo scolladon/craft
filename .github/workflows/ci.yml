@@ -24,14 +24,8 @@ jobs:
       - name: Install engine dependencies
         run: cd engine && npm ci
 
-      - name: Install bats, shellcheck, jq
-        run: sudo apt-get update && sudo apt-get install -y bats shellcheck jq
-
-      - name: Install yq
-        run: |
-          sudo wget -qO /usr/local/bin/yq \
-            https://github.com/mikefarah/yq/releases/download/v4.44.3/yq_linux_amd64
-          sudo chmod +x /usr/local/bin/yq
+      - name: Install dev tools
+        run: bash scripts/install-dev-tools.sh
 
       - name: Substrate gate
         run: bash scripts/ci.sh
