@@ -479,7 +479,7 @@ test('Given no manifest, when resolvePipeline is called, then record notes defau
   );
 });
 
-// ─── fan-out advisory (ADR-312, ADR-313) ─────────────────────────────────────
+// ─── fan-out advisory ────────────────────────────────────────────────────────
 
 test('Given the shipped default (4 dimensions × 1 pass), when resolvePipeline runs, then record has no fan-out line', () => {
   const sut = loadDefault();
@@ -1185,7 +1185,7 @@ test('Given a backlog.source that no extends.backlog-adapters registers, when re
   );
 });
 
-// ─── reviewPlan derivation (Layer A — ADR-096 / ADR-097) ─────────────────────
+// ─── reviewPlan derivation ───────────────────────────────────────────────────
 
 test('Given default pipeline/default.yml resolved with null manifest, when resolvePipeline is called, then review descriptor has reviewPlan with passes:1 and stop_rule:low-only', () => {
   const sut = loadDefault();
@@ -1279,7 +1279,7 @@ test('Given resolved review descriptor, when resolvePipeline is called, then har
   assert.equal(sourceHarness.convergence, 3, 'source convergence unchanged');
 });
 
-// ─── techniquePlan derivation (ADR-155) ──────────────────────────────────────
+// ─── techniquePlan derivation ────────────────────────────────────────────────
 
 test('Given default pipeline with null manifest, when resolvePipeline runs, then validation descriptor has techniquePlan as empty array (empty techniques)', () => {
   const sut = loadDefault();

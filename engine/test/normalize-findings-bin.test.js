@@ -60,9 +60,9 @@ test('Given a per-line input on stdin, when normalize-findings runs, then it pri
   assert.equal(result.stdout, EXPECTED);
 });
 
-// ─── R10 anchor: both shapes produce byte-identical output ───────────────────
+// ─── both shapes produce byte-identical output ───────────────────────────────
 
-test('Given JSON-array and per-line inputs for the same finding, when normalize-findings runs on each, then stdout is byte-identical (R10)', () => {
+test('Given JSON-array and per-line inputs for the same finding, when normalize-findings runs on each, then stdout is byte-identical', () => {
   const sut = runStdin;
 
   const fromJson = sut(JSON_INPUT);

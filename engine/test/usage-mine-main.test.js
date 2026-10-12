@@ -658,9 +658,9 @@ test('Given a malformed --prices JSON file, when main runs, then exit 0 with def
   assert.ok(io.stderr.joined().includes('ignoring unreadable'), 'stderr must note the malformed prices file');
 });
 
-// ─── P29 kill-tests: target survivors from mutation run ──────────────────────
+// ─── kill-tests: target survivors from a mutation run ────────────────────────
 
-// ─── P29-1. absent dir note is exactly ABSENT_NOTE ───────────────────────────
+// ─── absent dir note is exactly ABSENT_NOTE ──────────────────────────────────
 
 test('Given an absent transcript dir, when main runs, then the report note is the exact absent-dir string', async () => {
   const sut = main;
@@ -675,7 +675,7 @@ test('Given an absent transcript dir, when main runs, then the report note is th
   assert.equal(report.note, 'transcript dir absent', 'note must be the exact absent-dir string');
 });
 
-// ─── P29-2. no-files dir note names the per-source filename ──────────────────
+// ─── no-files dir note names the per-source filename ─────────────────────────
 
 test('Given an empty transcript dir (no .jsonl files), when main runs, then the report note is the exact no-files string', async () => {
   const sut = main;
@@ -727,7 +727,7 @@ test('Given an empty transcript dir, when main runs with --source codex, then th
   );
 });
 
-// ─── P29-3. --since filters events by timestamp ──────────────────────────────
+// ─── --since filters events by timestamp ─────────────────────────────────────
 
 test('Given two assistant usage lines with timestamps before and after a --since cutoff, when main runs with --since, then only the later event appears in the report', async () => {
   const sut = main;
@@ -756,7 +756,7 @@ test('Given two assistant usage lines with timestamps before and after a --since
   assert.equal(report.runs[0].run, 'sess-after', 'run id must be the after-cutoff session');
 });
 
-// ─── P29-4. skipped count accumulates across multiple files ──────────────────
+// ─── skipped count accumulates across multiple files ─────────────────────────
 
 test('Given two transcript files each with one malformed line, when main runs, then stderr reports 2 skipped malformed lines', async () => {
   const sut = main;
@@ -773,7 +773,7 @@ test('Given two transcript files each with one malformed line, when main runs, t
   assert.ok(io.stderr.joined().includes('skipped 2'), `stderr must report 2 skipped; got: ${io.stderr.joined()}`);
 });
 
-// ─── P29-5. write containment rejection log names report.json specifically ───
+// ─── write containment rejection log names report.json specifically ──────────
 
 test('Given a containByRealpath that rejects the json write path but allows reads, when main runs, then stderr names report.json in the rejection message', async () => {
   const sut = main;
@@ -790,7 +790,7 @@ test('Given a containByRealpath that rejects the json write path but allows read
   assert.ok(io.stderr.joined().includes('report.json'), `stderr must name report.json; got: ${io.stderr.joined()}`);
 });
 
-// ─── P29-6. uncontained transcript dir note is the exact UNCONTAINED_NOTE ────
+// ─── uncontained transcript dir note is the exact UNCONTAINED_NOTE ───────────
 
 test('Given a --dir that escapes the projects root, when main runs, then the report note is the exact uncontained string', async () => {
   const sut = main;
@@ -806,7 +806,7 @@ test('Given a --dir that escapes the projects root, when main runs, then the rep
     'note must be the exact uncontained string');
 });
 
-// ─── P29-7. non-.jsonl files in transcript dir are filtered out ───────────────
+// ─── non-.jsonl files in transcript dir are filtered out ──────────────────────
 
 test('Given a transcript dir containing both a .jsonl usage file and a .txt file, when main runs, then only the .jsonl file is processed', async () => {
   const sut = main;
@@ -824,7 +824,7 @@ test('Given a transcript dir containing both a .jsonl usage file and a .txt file
   assert.equal(report.runs.length, 1, 'only the .jsonl file must be processed');
 });
 
-// ─── P29-8. ENOENT error gives transcript-dir-absent note ────────────────────
+// ─── ENOENT error gives transcript-dir-absent note ───────────────────────────
 
 test('Given a transcript dir that exists but is then removed before readdirSync, when main catches ENOENT, then the report note is the absent string', async () => {
   const sut = main;
@@ -842,7 +842,7 @@ test('Given a transcript dir that exists but is then removed before readdirSync,
   assert.equal(report.note, 'transcript dir absent', 'ENOENT must produce the absent-dir note');
 });
 
-// ─── P29-9. non-ENOENT error gives code-specific note ────────────────────────
+// ─── non-ENOENT error gives code-specific note ───────────────────────────────
 
 test('Given readdirSync throwing an EACCES error, when main runs, then the report note includes the error code', async () => {
   const sut = main;
@@ -860,7 +860,7 @@ test('Given readdirSync throwing an EACCES error, when main runs, then the repor
   assert.ok(report.note.includes('EACCES'), `non-ENOENT note must include error code; got: ${report.note}`);
 });
 
-// ─── P29-10. skipped stderr message exact text ───────────────────────────────
+// ─── skipped stderr message exact text ───────────────────────────────────────
 
 test('Given a transcript with one malformed line, when main runs, then stderr contains the exact skipped-line message', async () => {
   const sut = main;
@@ -873,7 +873,7 @@ test('Given a transcript with one malformed line, when main runs, then stderr co
   assert.ok(io.stderr.joined().includes('skipped 1 malformed line'), `stderr must say "skipped 1 malformed line"; got: ${io.stderr.joined()}`);
 });
 
-// ─── P29-11. --baseline error message names --baseline ───────────────────────
+// ─── --baseline error message names --baseline ───────────────────────────────
 
 test('Given a malformed --baseline file, when main runs, then stderr error message names --baseline', async () => {
   const sut = main;
@@ -888,7 +888,7 @@ test('Given a malformed --baseline file, when main runs, then stderr error messa
   assert.ok(io.stderr.joined().includes('--baseline'), `stderr must name --baseline; got: ${io.stderr.joined()}`);
 });
 
-// ─── P29-12. safeMd containment rejection names report.md ────────────────────
+// ─── safeMd containment rejection names report.md ────────────────────────────
 
 test('Given a containByRealpath that accepts json but rejects the md write path, when main runs, then stderr names report.md in the rejection message', async () => {
   const sut = main;
@@ -906,7 +906,7 @@ test('Given a containByRealpath that accepts json but rejects the md write path,
   assert.ok(!io.stderr.joined().includes('report.json'), 'stderr must NOT name report.json when json passed but md rejected');
 });
 
-// ─── P29-13. non-.jsonl files in transcript dir are not processed ─────────────
+// ─── non-.jsonl files in transcript dir are not processed ─────────────────────
 
 test('Given a transcript dir containing both a .jsonl main-loop usage file and a .txt file, when main runs, then only the .jsonl is processed and stderr contains no skipped message', async () => {
   const sut = main;
@@ -922,7 +922,7 @@ test('Given a transcript dir containing both a .jsonl main-loop usage file and a
   assert.ok(!io.stderr.joined().includes('skipped'), `stderr must not mention skipped; got: ${io.stderr.joined()}`);
 });
 
-// ─── P29-14. all-valid lines + no --baseline → stderr empty ──────────────────
+// ─── all-valid lines + no --baseline → stderr empty ──────────────────────────
 
 test('Given a transcript with only valid main-loop usage lines and no --baseline flag, when main runs, then stderr is empty (no skipped count, no unreadable-baseline message)', async () => {
   const sut = main;
@@ -935,7 +935,7 @@ test('Given a transcript with only valid main-loop usage lines and no --baseline
   assert.equal(io.stderr.joined(), '', `expected empty stderr; got: ${io.stderr.joined()}`);
 });
 
-// ─── P29-15. writeFileSync throws for report.json → stderr note, exit 0 ──────
+// ─── writeFileSync throws for report.json → stderr note, exit 0 ──────────────
 
 test('Given writeFileSync that throws EACCES for report.json, when main runs, then stderr notes the write failure and exits 0 without throwing', async () => {
   const sut = main;
@@ -958,7 +958,7 @@ test('Given writeFileSync that throws EACCES for report.json, when main runs, th
   assert.ok(!existsSync(join(repoRoot, 'report.md')), 'report.md must not be written when json write failed');
 });
 
-// ─── P29-16. writeFileSync throws for report.md → stderr note, report.json written, exit 0 ──
+// ─── writeFileSync throws for report.md → stderr note, report.json written, exit 0 ──────────
 
 test('Given writeFileSync that throws EACCES for report.md but succeeds for report.json, when main runs, then stderr notes the write failure, report.json exists, and exits 0', async () => {
   const sut = main;
@@ -981,7 +981,7 @@ test('Given writeFileSync that throws EACCES for report.md but succeeds for repo
   assert.ok(existsSync(join(repoRoot, 'report.json')), 'report.json must still be written when only md write fails');
 });
 
-// ─── P29-17. per-file createReadStream error → file skipped, processing continues, exit 0 ──
+// ─── per-file createReadStream error → file skipped, processing continues, exit 0 ──────────
 
 test('Given two transcript files where createReadStream throws for one but succeeds for the other, when main runs, then the failing file is skipped and report has events from the successful file and exits 0', async () => {
   const sut = main;
@@ -1028,7 +1028,7 @@ test('Given a transcript file whose createReadStream throws, when main runs, the
   );
 });
 
-// ─── P29-18. loadJson readFileSync throws for --prices → defaults used, stderr note, exit 0 ──
+// ─── loadJson readFileSync throws for --prices → defaults used, stderr note, exit 0 ──────────
 
 test('Given a --prices path where readFileSync throws EACCES, when main runs, then defaults are used, stderr notes the unreadable file, and exits 0', async () => {
   const sut = main;
@@ -1052,7 +1052,7 @@ test('Given a --prices path where readFileSync throws EACCES, when main runs, th
   assert.ok(existsSync(join(repoRoot, 'report.json')), 'report.json must still be written with default prices');
 });
 
-// ─── P29-19. zero events → short-circuits before ever touching --prices ─────
+// ─── zero events → short-circuits before ever touching --prices ─────────────
 
 test('Given a transcript with no usage-bearing lines and an unreadable --prices file, when main runs, then it exits before ever reading --prices (no unreadable-prices stderr note) and the no-op note is preserved', async () => {
   const sut = main;

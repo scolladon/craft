@@ -4,4 +4,4 @@ phases:
     skip: true
 ---
 
-# Per-phase skip on a NON-protected phase — ADR-011 rejects every per-phase skip
+# Per-phase skip on a NON-protected phase — every per-phase skip is rejected

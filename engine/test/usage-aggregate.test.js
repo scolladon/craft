@@ -454,7 +454,7 @@ test('Given many review events from few distinct spawns in one run (low cycles, 
   assert.ok(Math.abs(rec.evidence.totalCost.priced - rec.evidence.meanCost.priced * billedTurns) < 1e-9, 'totalCost must equal meanCost times the billed-turn count for equal-cost turns');
 });
 
-// ── P29 kill-tests: target survivors from mutation run ────────────────────────
+// ── kill-tests: target survivors from a mutation run ──────────────────────────
 
 // ── 15. cost.relative is exact token sum (computeRelativeCost) ───────────────
 

@@ -1008,7 +1008,7 @@ test('Given a supersedes adr id that is not exactly three digits, when main runs
   const result = sut([join(root, 'adr')], io);
 
   // Length is the substitute for the word boundary `git grep -E` cannot carry:
-  // an id of "01" would make the pattern ADR-(01) match ADR-012 and
+  // an id of "01" would make the pattern match a longer id such as 012 and
   // mis-attribute the hit.
   assert.equal(result, 2);
   const out = io.stdout.joined();

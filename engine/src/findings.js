@@ -194,7 +194,7 @@ function parseLineShape(raw) {
 /**
  * Normalises raw role output into a canonical Finding[].
  *
- * Accepts two shapes interchangeably (R10 — key on fields, never on layout):
+ * Accepts two shapes interchangeably (key on fields, never on layout):
  *   - A JSON array of `{ file, line, severity, finding, fix? }` objects.
  *   - A per-line list where each line is:
  *       `<severity> <file>:<line> — <finding> [ | <fix> ]`

@@ -3,4 +3,4 @@ pipeline:
   skip: [decisions]
 ---
 
-# Pipeline skip — valid ADR-010 surface
+# Pipeline skip — valid pipeline surface

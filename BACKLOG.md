@@ -175,26 +175,38 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-12 — follow-ups surfaced by the provenance-sweep-part-two run, not yet scheduled)
+
+**A step id still sits in a test title.** `test/memory-store.test.js:81` reads "Given the memory
+port doc was authored in S4": `S4` is a step id, and class E (ADR-490) does not match `S\d+`.
+`engine/test/scenarios.test.js` uses `S1`–`S9` as scenario names it defines itself, so an `S\d+`
+token cannot join the pattern without telling a defined name from provenance. Reword the one
+title; decide whether a narrower form is worth a rule. Design context:
+[provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md).
+
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the backlog-sweep-six-entries run, not yet scheduled)
 
-**Single-letter rule ids still sit in shipped code comments.** The new whole-tree provenance
-test (ADR-485) covers phase, decision-record, part, backlog and design-candidate numbering,
-but not ids such as `R10` (`engine/src/findings.js:197`), `F6`
-(`engine/src/observability/adapters/claude/telemetry.js:59`) or `R3`
-(`engine/src/observability/metrics-line.js:9`, which names a rule in
-`test/architecture-boundaries.test.js`). Over `engine/src` a `\b[RTF]\d+\b` pattern hit 3
-lines with 1 false positive at design time, so it cannot join the rule without an allowlist
-or a narrower form. Decide per id whether it is provenance (strip it) or a stable in-repo
-rule name (keep it, and teach the test the difference).
+**Single-letter rule ids still sit in shipped code comments — delivered 2026-10-12**
+(chore/provenance-sweep-part-two). `R10` (`engine/src/findings.js`) and `F6`
+(`engine/src/observability/adapters/claude/telemetry.js`) are dropped from their comments, and
+the `R3` comment in `engine/src/observability/metrics-line.js` states the composition-root rule
+in words. Class E's shipped-code scan gains a `(?-i:[RTF]\d+)` token, case-sensitive inside the
+case-insensitive scan, so `-f2-` in `scripts/run-ledger.sh` and a lower-case `r1` are not
+reported (ADR-489). The seven test lines citing `R10` or `F6` say what they pin without the id
+(ADR-492); the other test-side single-letter ids, and the `R1`–`R3` rule names in
+`test/architecture-boundaries.test.js`, are unchanged. Design:
+[provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md); ADR-489–492.
 
-**Provenance refs in tests are unguarded.** The provenance test stops at shipped code on
-purpose: over `engine/test` the same pattern hits 165 lines, mostly fixture data (`ADR-001`
-×74, `Part 1/2` ×44). About 40 of those are comments or titles carrying real provenance —
-e.g. `usage-mine-main.test.js` "P29-n", `manifest.test.js` "ADR-011", and the test title at
-`adapters/pi/test/tool-call-hook.test.js:128` "DC-5" — plus the file names
-`test/p{10,20,22}-*.test.js`. Clean them in one sweep, then decide whether a comment-and-title
-scoped rule over tests can hold without a fixture allowlist. Design context:
-[backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
+**Provenance refs in tests are unguarded — delivered 2026-10-12**
+(chore/provenance-sweep-part-two). The 46 test comments and titles carrying provenance are
+reworded to give the reason, along with three assert messages, three fixture headings and two
+example-data lines that read as refs. Class E now also scans `engine/test`, `test` and
+`adapters/*/test`, reporting a hit only on a comment line or a line-anchored
+`test`/`it`/`describe` title, with no allowlist; the 146 remaining hits are fixture data
+(ADR-490). `test/p10-structure.test.js`, `test/p20-dod.test.js` and `test/p22-memory.test.js`
+are now `test/plugin-structure.test.js`, `test/repo-dod.test.js` and `test/memory-store.test.js`,
+and the `subjects:` of ADR-436 and ADR-449 follow (ADR-491). Design:
+[provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md); ADR-489–492.
 
 ### Open (scoped 2026-10-11 — follow-ups surfaced by the stub-lint-ci-self-reference run, not yet scheduled)
 
@@ -351,7 +363,7 @@ pilots included.
 (fix/haiku-arriving-guard-handback). The `Final message` bullet of `agents/part-implementer.md`
 now scopes its `GUARD` line to a `GUARD` that passed on its first run, and gives a `GUARD` that
 failed on its first run a RED/GREEN line and the deferred observation `PLAN-MISMATCH(<test
-title>): the plan expected it to pass; it failed on its first run`. `test/p10-structure.test.js`
+title>): the plan expected it to pass; it failed on its first run`. `test/plugin-structure.test.js`
 pins the token prefix; the contract is unchanged. `implementer-runs-guards` at haiku,
 with-craft / bare / Δ over 3 runs, before → after: 0.86 / 0.29 / +0.57 → 1.00 / 0.29 / +0.71;
 `arrival-guard-observed` 0 of 3 → 3 of 3, with a `PLAN-MISMATCH` line in every run. The step-1
@@ -366,7 +378,7 @@ altered the check in the fourth; sonnet and opus blocked in 4 of 4. Line 1 of
 `contracts/construction.md` now writes the GREEN only when it lies inside the part; when it lies
 outside, the `GUARD` is a blocker that leaves that file and the check unchanged. The
 part-implementer's `Final message` bullet hands such a `GUARD` back as a blocker carrying its
-`PLAN-MISMATCH` line. `engine/test/contract-equivalence.test.js` and `test/p10-structure.test.js`
+`PLAN-MISMATCH` line. `engine/test/contract-equivalence.test.js` and `test/plugin-structure.test.js`
 pin both. `implementer-guard-outside-part` with-craft per tier, before → after (3-run sweep):
 opus 1.00 → 1.00, sonnet 1.00 → 1.00, haiku 0.42 → 1.00; every after-run blocked (12 of 12).
 `implementer-runs-guards` after: opus and sonnet 1.00, haiku 0.95 and 0.90 over two sweeps.

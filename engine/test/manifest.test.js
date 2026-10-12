@@ -636,7 +636,7 @@ test('Given a manifest with an unknown field on a known phase, when validateMani
   assert.ok(result.errors.some(e => e.includes('unknown field on phase plan: bogusField')));
 });
 
-// ─── ADR-011: per-phase skip → loud error ────────────────────────────────────
+// ─── per-phase skip → loud error ─────────────────────────────────────────────
 
 test('Given a manifest with phases.plan.skip present, when validateManifest runs, then it returns an error containing "pipeline.skip"', () => {
   const sut = validateManifest;
@@ -794,7 +794,7 @@ test('Given a manifest with multiple validation errors, when validateManifest ru
   assert.ok(result.errors.some(e => e.includes('unknown top-level key: unknownTop')));
   assert.ok(result.errors.some(e => e.includes('unknown phase: bogusPhase')));
   assert.ok(result.errors.some(e => e.includes('unknown gates field: bogusGateField')));
-  // the per-phase skip on bogusPhase must also accumulate (ADR-011), not be dropped
+  // the per-phase skip on bogusPhase must also accumulate, not be dropped
   assert.ok(result.errors.some(e => e.includes('pipeline.skip')));
 });
 
@@ -910,10 +910,10 @@ test('Given a models map naming every valid agent role key, when validateManifes
   assert.deepEqual(result, { ok: true, errors: [] });
 });
 
-test('Given a per-phase skip on a NON-protected phase (design), when validateManifest runs, then it is still rejected with pipeline.skip guidance (ADR-011 broadening)', () => {
+test('Given a per-phase skip on a NON-protected phase (design), when validateManifest runs, then it is still rejected with pipeline.skip guidance', () => {
   const sut = validateManifest;
 
-  // Pre-P3 the bash PROTECTED list let design.skip lint clean; ADR-011 rejects every per-phase skip.
+  // Every per-phase skip is rejected, not only a protected phase's: design.skip must not lint clean.
   const result = sut(
     { phases: { design: { skip: true } } },
     { fileExists: ALWAYS_EXISTS },
@@ -996,7 +996,7 @@ test('Given a manifest with models.validation-triager (renamed key), when valida
   assert.ok(result.errors.some(e => e.includes('harness-triager')));
 });
 
-// ─── phases: newly accepted fields (ADR-028 lint-gap closure) ────────────────
+// ─── phases: newly accepted fields ───────────────────────────────────────────
 
 test('Given phases.documentation.execution: inline, when validateManifest runs, then ok:true (no longer rejected)', () => {
   const sut = validateManifest;
@@ -1376,7 +1376,7 @@ test('Given phases.implementation.turn_budget and tools together, when validateM
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
 
-// ─── phases.harness shape validation (ADR-030) ───────────────────────────────
+// ─── phases.harness shape validation ─────────────────────────────────────────
 
 test('Given phases.review.harness: "not-an-object", when validateManifest runs, then ok:false', () => {
   const sut = validateManifest;

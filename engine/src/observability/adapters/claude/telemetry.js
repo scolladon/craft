@@ -56,7 +56,7 @@ const SUMMARY_OUTPUT_MULTIPLIERS = [1.2, 2.8];
 const SUMMARY_OUTPUT_FALLBACK = [1300, 2600];
 const CHARS_PER_TOKEN = 4;
 
-// F6: coerce non-finite values (string, NaN, null) to 0 so they can't poison cost math.
+// Coerce non-finite values (string, NaN, null) to 0 so they can't poison cost math.
 const numOrZero = (v) => (Number.isFinite(v) ? v : 0);
 
 /**

@@ -1,7 +1,7 @@
 ---
 subjects:
   - engine/test/findings.test.js
-  - test/p10-structure.test.js
+  - test/plugin-structure.test.js
 ---
 # 449 — The claim-status pin lives in the engine findings suite
 

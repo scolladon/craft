@@ -312,7 +312,7 @@ test('Given a clean file under blocking, when main runs, then it exits EXIT_OK',
   assert.equal(io.stdout.joined(), '');
 });
 
-// ─── Part 2 hardening: parseArgs `--` end-of-options + dangling flags ────────
+// ─── hardening: parseArgs `--` end-of-options + dangling flags ───────────────
 
 test('Given a lone -- before the file list, when parseArgs runs, then every following option-looking token is a file', () => {
   const sut = parseArgs;
@@ -355,7 +355,7 @@ test('Given -- passed by ci.sh before real files, when main runs blocking with a
   assert.equal(result, EXIT_FOUND);
 });
 
-// ─── Part 2 hardening: waiver-path normalization ────────────────────────────
+// ─── hardening: waiver-path normalization ───────────────────────────────────
 
 test('Given a waiver capture with a trailing slash and a scanned absolute path, when main runs blocking, then the finding is still cleared', () => {
   const sut = main;
@@ -387,7 +387,7 @@ test('Given a waiver capture written as ./relative and the file scanned by the s
   }
 });
 
-// ─── Part 2 hardening: waiver-source read errors gate under blocking ─────────
+// ─── hardening: waiver-source read errors gate under blocking ────────────────
 
 test('Given an unreadable --waiver-source under blocking, when main runs, then it exits EXIT_FOUND', () => {
   const sut = main;
@@ -412,7 +412,7 @@ test('Given an unreadable --waiver-source under advisory, when main runs, then i
   assert.equal(result, EXIT_OK);
 });
 
-// ─── Part 2 hardening: large-file skip ──────────────────────────────────────
+// ─── hardening: large-file skip ─────────────────────────────────────────────
 
 test('Given a file larger than the cap, when scanFile runs, then it emits a loud skip note and is neutral', () => {
   const sut = scanFile;
@@ -476,7 +476,7 @@ test('Given an over-cap file under --gate blocking, when main runs, then the ski
   assert.ok(io.stderr.joined().includes(`skipping ${file}`), `stderr: ${io.stderr.joined()}`);
 });
 
-// ─── Part 2 hardening: escapeRegExp ─────────────────────────────────────────
+// ─── hardening: escapeRegExp ────────────────────────────────────────────────
 
 test('Given a literal with a . metacharacter, when escapeRegExp runs, then the pattern matches only the literal', () => {
   const sut = escapeRegExp;
@@ -513,7 +513,7 @@ test('Given each regex metacharacter, when escapeRegExp runs, then new RegExp is
   }
 });
 
-// ─── Part 2 hardening: collectWaived size cap ───────────────────────────────
+// ─── hardening: collectWaived size cap ──────────────────────────────────────
 
 test('Given a waiver source larger than the cap, when collectWaived runs, then it is skipped with a note and yields no waivers', () => {
   const sut = collectWaived;
