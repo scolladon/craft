@@ -554,7 +554,7 @@ test('Given two parts sharing a file where one heading does not match the "## Pa
 // `(\S)`): a heading with more than one space before a multi-character label
 // must still resolve to the label in full.
 
-test('Given a part heading with two spaces before a multi-digit label ("## Part  12 — thing"), when main runs, then the resolved label is exactly "Part 12"', () => {
+test('Given a part heading with two spaces before a multi-digit label, when main runs, then the resolved label keeps the whole number', () => {
   const sut = main;
   const root = repoRoot();
   const oddPart = '## Part  12 — thing\n\n### Context\n\nEdit `engine/src/findings.js` here.\n\n### TDD steps\n\n1. RED then GREEN.\n\n### Gate\n\necho ok\n\n### Commit\n\nfeat: twelve\n';
