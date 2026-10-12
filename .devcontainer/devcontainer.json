@@ -1,0 +1,13 @@
+{
+  "name": "craft",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22",
+  "features": {
+    "ghcr.io/anthropics/devcontainer-features/claude-code:1": {}
+  },
+  "postCreateCommand": "bash scripts/install-dev-tools.sh && npm --prefix engine ci",
+  "secrets": {
+    "ANTHROPIC_API_KEY": {
+      "description": "Optional: an API key for Claude Code. Without it, run claude and log in."
+    }
+  }
+}

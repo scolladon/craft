@@ -8,6 +8,7 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 ## [Unreleased]
 
 ### Added
+- A devcontainer and an "Open in Codespaces" badge; CI and the devcontainer install the same dev tools.
 - Review findings carry a status tag, with a deliberation-review example.
 - The orchestrator protects its own context, and is safe to auto-compact at any turn.
 - Per-turn context cost is cut.

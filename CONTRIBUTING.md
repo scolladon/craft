@@ -16,6 +16,9 @@ Put Node 22, `jq` and `shellcheck` on your PATH, then install the engine depende
 npm --prefix engine ci
 ```
 
+Or open the repository in its devcontainer ([`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json)), locally or as a Codespace: it runs the shared
+dev-tool install and `npm --prefix engine ci` for you.
+
 ## The local gate
 
 ```bash
