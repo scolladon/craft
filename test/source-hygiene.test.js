@@ -128,7 +128,11 @@ function listHomePathLeakLocations(candidates) {
 // Class E: phase, decision-record, part and backlog numbering in shipped code (contracts/core.md).
 // Shipped code only: tests, skills and templates carry such tokens as fixture data or as
 // deliberate decision citations that adr-lint checks.
-const PROVENANCE_REF_PATTERN = '\\b(ADR-?\\d+|P\\d+|Part\\s+\\d+|backlog\\s*#\\d+|DC-\\d+)\\b';
+const PROVENANCE_REF_TOKENS = 'ADR-?\\d+|P\\d+|Part\\s+\\d+|backlog\\s*#\\d+|DC-\\d+';
+// Case-sensitive inside the -i scan: a `-f2-` cut field or an `r1` variable is not a review id.
+const REVIEW_ID_TOKEN = '(?-i:[RTF]\\d+)';
+const PROVENANCE_REF_PATTERN = `\\b(${PROVENANCE_REF_TOKENS})\\b`;
+const SHIPPED_PROVENANCE_REF_PATTERN = `\\b(${PROVENANCE_REF_TOKENS}|${REVIEW_ID_TOKEN})\\b`;
 const SHIPPED_CODE_PATHSPECS = [
   'engine/src',
   'engine/bin',
@@ -143,7 +147,7 @@ const SHIPPED_CODE_PATHSPECS = [
 
 function listProvenanceRefLines(cwd, env = process.env) {
   try {
-    return execFileSync('git', ['grep', '-n', '-i', '-P', PROVENANCE_REF_PATTERN, '--', ...SHIPPED_CODE_PATHSPECS], {
+    return execFileSync('git', ['grep', '-n', '-i', '-P', SHIPPED_PROVENANCE_REF_PATTERN, '--', ...SHIPPED_CODE_PATHSPECS], {
       cwd,
       env: withoutAmbientGitScope(env),
       encoding: 'utf8',
@@ -535,6 +539,28 @@ test('Given a git repo tracking a decision-candidate ref in engine source and a 
     const result = sut(repo, hermeticGitEnv());
 
     assert.deepStrictEqual(result, ['engine/src/a.js:1:// DC-3: x']);
+  });
+});
+
+test('Given a git repo tracking a single-letter review id in engine source, when listProvenanceRefLines scans it, then the line is reported', () => {
+  const files = { 'engine/src/a.js': '// F6: x\n' };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listProvenanceRefLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(result, ['engine/src/a.js:1:// F6: x']);
+  });
+});
+
+test('Given a shipped script cutting a field range and a lower-case r-number in engine source, when listProvenanceRefLines scans them, then nothing is reported', () => {
+  const files = { 'scripts/x.sh': 'cut -d" " -f2-\n', 'engine/src/b.js': '// r1 lower\n' };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listProvenanceRefLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(result, []);
   });
 });
 

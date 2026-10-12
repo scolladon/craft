@@ -6,8 +6,9 @@
  *
  * The cache split is rendered through an INJECTED function rather than an
  * imported one — this module sits under engine/src/observability/ and is not
- * a declared composition root, so R3 in test/architecture-boundaries.test.js
- * forbids it from importing adapters/claude/metrics-split.js directly. The
+ * a declared composition root, and test/architecture-boundaries.test.js allows
+ * vendor bindings to be wired up only there, so it cannot import
+ * adapters/claude/metrics-split.js directly. The
  * composition root supplies the closure that finally wires formatCacheSplit
  * in; this module imports nothing.
  *
