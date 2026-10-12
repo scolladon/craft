@@ -18,13 +18,13 @@ Review proved ADR-514's deny-list incomplete. Inside double quotes, nested param
 
 ## Options considered
 
-1. **Allow-list: path characters, plain spaces and the exact plugin-root shim only** *(recommended)* — pros: no `$` other than the shim reaches the shell, so nothing inside the quotes can execute; smallest grammar to verify / cons: `"$HOME/…"` is no longer trusted (never documented)
+1. **Allow-list: path characters, plain spaces and the exact plugin-root shim only** *(recommended)* — pros: no `$` other than the shim reaches the shell, so no shell expansion inside the quotes can execute; smallest grammar to verify / cons: `"$HOME/…"` is no longer trusted (never documented)
 2. **Allow-list plus bare-identifier `$NAME` (not followed by `:` or `[`) and `${NAME}`** — pros: keeps `"$HOME/…"` / cons: more grammar per shell to keep differential-free; no registration needs it
 3. **Extend the deny-list** — pros: smallest diff / cons: the bypass class is open-ended; it already failed once
 
 ## Decision
 
-The user ratified option 1. Quoted contents, split on the exact `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}` shim, must be path characters (`[\p{L}\p{N}._/+@%,:=-]`) and plain spaces only. The interpreter word is never a `NAME=` or `NAME+=` assignment, and no literal word (interpreter or bare operand) starts with `=`.
+The user ratified option 1. Quoted contents, split on the exact `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}` shim, must be path characters (`[\p{L}\p{N}._/+@%,:=-]`) and plain spaces only. The interpreter word is never a `NAME=` or `NAME+=` assignment, and no literal word (interpreter or bare operand) starts with `=`. The operand value, quoted or bare, starts with `/` or with the exact shim: a cycle-2 review proved `node "--eval=…//<tail>"` and `node --import=data:…//<tail>` trusted, because node reads a `-`-led operand as its own option and the tail becomes a JS comment, and a relative operand resolves against the session directory, the repository being worked on.
 
 Superseded from ADR-514: the deny-list of `"`, `\`, backtick and `$(` as the quoted-content rule.
 
@@ -32,4 +32,4 @@ Carried forward from ADR-514: the command is one interpreter word, then exactly 
 
 ## Consequences
 
-A differential fuzz (300 000 generated commands; every accepted one run under sh, bash, zsh and dash with a stub `node`) found 0 differentials with an unspaced root. With a spaced root the only residual is the legacy unquoted shim splitting, which stays accepted so untouched installs keep `trust-hook --check` green. Each bypass witness is pinned as a refusal.
+A differential fuzz (300 000 generated commands; every accepted one run under sh, bash, zsh and dash with a stub `node`) found 0 differentials with an unspaced root; a re-run with option fragments and an oracle requiring node's argv to be a rooted path (400 000 generated) also found 0. With a spaced root the only residual is the legacy unquoted shim splitting, which stays accepted so untouched installs keep `trust-hook --check` green. Each bypass witness is pinned as a refusal.
