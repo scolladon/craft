@@ -125,9 +125,10 @@ function listHomePathLeakLocations(candidates) {
     .map((located) => `${located.file}:${located.line}`);
 }
 
-// Class E: phase, decision-record, part and backlog numbering in shipped code (contracts/core.md).
-// Shipped code only: tests, skills and templates carry such tokens as fixture data or as
-// deliberate decision citations that adr-lint checks.
+// Class E: phase, decision-record, part and backlog numbering (contracts/core.md).
+// Shipped code is scanned whole-line, single-letter review ids included. Tests are scanned in
+// comments and titles only: test code and fixtures carry these tokens as data. Skills and
+// templates are not scanned: their decision citations are deliberate and adr-lint checks them.
 const PROVENANCE_REF_TOKENS = 'ADR-?\\d+|P\\d+|Part\\s+\\d+|backlog\\s*#\\d+|DC-\\d+';
 // Case-sensitive inside the -i scan: a `-f2-` cut field or an `r1` variable is not a review id.
 const REVIEW_ID_TOKEN = '(?-i:[RTF]\\d+)';
@@ -145,9 +146,48 @@ const SHIPPED_CODE_PATHSPECS = [
   ':(glob)adapters/*/plugins/**',
 ];
 
-function listProvenanceRefLines(cwd, env = process.env) {
+const TEST_CODE_PATHSPECS = ['engine/test', 'test', ':(glob)adapters/*/test/**'];
+const SLASH_COMMENT_EXTENSIONS = new Set(['.js', '.mjs', '.cjs', '.ts']);
+const HASH_COMMENT_EXTENSIONS = new Set(['.yml', '.yaml', '.sh', '.bash']);
+const SLASH_COMMENT_LINE = /^\s*(?:\/\/|\/\*|\*)/;
+const HASH_COMMENT_LINE = /^\s*#/;
+// Anchored: every title call in the test trees starts its line, so `re.test('…')` and fixture
+// strings that quote a call never read as titles.
+const TITLE_CALL = '^\\s*(?:test|it|describe)(?:\\.(?:only|skip|todo))?\\(\\s*';
+const TITLE_ON_SAME_LINE = new RegExp(`${TITLE_CALL}['"\`]`);
+const TITLE_CALL_OPENS_LINE_END = new RegExp(`${TITLE_CALL}$`);
+const STRING_OPENS_LINE = /^\s*['"`]/;
+
+function isTitleLine(text, previousText) {
+  if (TITLE_ON_SAME_LINE.test(text)) return true;
+  return TITLE_CALL_OPENS_LINE_END.test(previousText) && STRING_OPENS_LINE.test(text);
+}
+
+function isCommentOrTitleLine(file, text, previousText) {
+  const extension = path.extname(file);
+  if (HASH_COMMENT_EXTENSIONS.has(extension)) return HASH_COMMENT_LINE.test(text);
+  if (!SLASH_COMMENT_EXTENSIONS.has(extension)) return false;
+  return SLASH_COMMENT_LINE.test(text) || isTitleLine(text, previousText);
+}
+
+function commentOrTitleRows(cwd, rows) {
+  const linesByFile = new Map();
+  const linesOf = (file) => {
+    if (!linesByFile.has(file)) linesByFile.set(file, fs.readFileSync(path.join(cwd, file), 'utf8').split('\n'));
+    return linesByFile.get(file);
+  };
+  return rows.filter((row) => {
+    const located = row.match(LOCATED_LINE_PATTERN);
+    if (!located) throw new Error(`class E: unparsable git grep row of ${row.length} chars`);
+    const [, file, line, text] = located;
+    const previousText = Number(line) > 1 ? linesOf(file)[Number(line) - 2] : '';
+    return isCommentOrTitleLine(file, text, previousText);
+  });
+}
+
+function grepTrackedLines(cwd, env, pattern, pathspecs) {
   try {
-    return execFileSync('git', ['grep', '-n', '-i', '-P', SHIPPED_PROVENANCE_REF_PATTERN, '--', ...SHIPPED_CODE_PATHSPECS], {
+    return execFileSync('git', ['grep', '-n', '-i', '-P', pattern, '--', ...pathspecs], {
       cwd,
       env: withoutAmbientGitScope(env),
       encoding: 'utf8',
@@ -159,6 +199,14 @@ function listProvenanceRefLines(cwd, env = process.env) {
     if (err.status === GIT_GREP_NO_MATCH) return [];
     throw err;
   }
+}
+
+function listProvenanceRefLines(cwd, env = process.env) {
+  return grepTrackedLines(cwd, env, SHIPPED_PROVENANCE_REF_PATTERN, SHIPPED_CODE_PATHSPECS);
+}
+
+function listTestProvenanceRefLines(cwd, env = process.env) {
+  return commentOrTitleRows(cwd, grepTrackedLines(cwd, env, PROVENANCE_REF_PATTERN, TEST_CODE_PATHSPECS));
 }
 
 function runGrep(pattern, paths, allowlistFilters) {
@@ -608,5 +656,103 @@ test('Given the tracked tree, when shipped code is scanned for provenance refs, 
     result,
     [],
     `Source-hygiene FAIL — provenance refs in shipped code (class E) at:\n${result.join('\n')}`,
+  );
+});
+
+const COMMENT_OR_TITLE_ROWS = [
+  { file: 'a.test.js', text: '// ─── x ─', previousText: '' },
+  { file: 'a.test.js', text: '/* x */', previousText: '' },
+  { file: 'a.test.js', text: ' * x (y)', previousText: '/**' },
+  { file: 'a.test.js', text: "test('Given x', () => {", previousText: '' },
+  { file: 'a.mjs', text: "describe.skip('x', () => {", previousText: '' },
+  { file: 'a.test.js', text: "  'Given x',", previousText: 'test(' },
+  { file: 'a.yml', text: '# x', previousText: '' },
+];
+const NEITHER_COMMENT_NOR_TITLE_ROWS = [
+  { file: 'a.test.js', text: "const plan = 'x';", previousText: '' },
+  { file: 'a.test.js', text: "  'x',", previousText: 'const a = [' },
+  { file: 'a.test.js', text: "    assert.ok(re.test('x'));", previousText: '' },
+  { file: 'a.md', text: '# x', previousText: '' },
+  { file: 'a.md', text: '## x — y', previousText: '' },
+  { file: 'a.json', text: '"x"', previousText: '' },
+];
+
+for (const row of COMMENT_OR_TITLE_ROWS) {
+  test(`Given the ${row.file} line ${JSON.stringify(row.text)} after ${JSON.stringify(row.previousText)}, when isCommentOrTitleLine judges it, then it is a comment or a title`, () => {
+    const sut = isCommentOrTitleLine;
+
+    const result = sut(row.file, row.text, row.previousText);
+
+    assert.strictEqual(result, true);
+  });
+}
+
+for (const row of NEITHER_COMMENT_NOR_TITLE_ROWS) {
+  test(`Given the ${row.file} line ${JSON.stringify(row.text)} after ${JSON.stringify(row.previousText)}, when isCommentOrTitleLine judges it, then it is neither a comment nor a title`, () => {
+    const sut = isCommentOrTitleLine;
+
+    const result = sut(row.file, row.text, row.previousText);
+
+    assert.strictEqual(result, false);
+  });
+}
+
+test('Given a git grep row with no file:line prefix, when commentOrTitleRows filters it, then it throws instead of skipping the row', () => {
+  const sut = commentOrTitleRows;
+
+  const act = () => sut(os.tmpdir(), ['no location prefix']);
+
+  assert.throws(act, /class E: unparsable git grep row/);
+});
+
+test('Given a git repo tracking test-tree refs in a comment, a next-line title, a code string and a markdown heading, when listTestProvenanceRefLines scans it, then only the comment and the title are reported', () => {
+  const files = {
+    'engine/test/a.test.js': "// ─── P29 banner\nconst plan = 'Part 2';\n",
+    'test/b.test.js': "test(\n  'Given DC-2 x',\n  () => {},\n);\n",
+    'test/fixtures/p.md': '## Part 1 — x\n',
+    'engine/src/c.js': '// DC-3: x\n',
+  };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listTestProvenanceRefLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(result, ['engine/test/a.test.js:1:// ─── P29 banner', "test/b.test.js:2:  'Given DC-2 x',"]);
+  });
+});
+
+test('Given an ambient GIT_LITERAL_PATHSPECS, when listTestProvenanceRefLines scans a repo with a ref in an adapter test title, then the title line is still reported', () => {
+  const files = { 'adapters/x/test/a.test.js': "test('Given DC-2 x', () => {});\n" };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listTestProvenanceRefLines;
+
+    const result = sut(repo, { ...hermeticGitEnv(), GIT_LITERAL_PATHSPECS: '1' });
+
+    assert.deepStrictEqual(result, ["adapters/x/test/a.test.js:1:test('Given DC-2 x', () => {});"]);
+  });
+});
+
+test('Given a directory outside any git repository, when listTestProvenanceRefLines scans it, then the git failure propagates', () => {
+  const nonRepoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'test-provenance-non-repo-'));
+  try {
+    const sut = listTestProvenanceRefLines;
+
+    const act = () => sut(nonRepoDir, hermeticGitEnv());
+
+    assert.throws(act, { status: GIT_NOT_A_REPOSITORY });
+  } finally {
+    fs.rmSync(nonRepoDir, { recursive: true, force: true });
+  }
+});
+
+test('Given the tracked tree, when test comments and titles are scanned for provenance refs, then none remain', () => {
+  const sut = listTestProvenanceRefLines;
+
+  const result = sut(ROOT);
+
+  assert.deepStrictEqual(
+    result,
+    [],
+    `Source-hygiene FAIL — provenance refs in test comments or titles (class E) at:\n${result.join('\n')}`,
   );
 });
