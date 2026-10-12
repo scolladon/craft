@@ -67,6 +67,20 @@ tax*.
 - **Not a spec generator.** Specs are one optional phase; the unit of work is a
   delivered PR — designed, decided, tested, reviewed, validated, documented.
 
+## How craft compares
+
+Categories, not products: each cell says what the approach provides by construction.
+A given tool in a category may add more — check it.
+
+| | Plain agent prompting | Spec-driven kits | craft |
+|---|---|---|---|
+| Where the process lives | in the prompt you wrote | in templates and instructions the agent follows | in hooks, scripts and versioned [contracts](contracts/) |
+| A red test suite blocks the commit | not by the approach itself | varies by tool | by contract — [never commit on a red gate](contracts/core.md) |
+| Why a choice was made survives the session | not by the approach itself | in the spec, when written | as a ratified [decision record](docs/contributing/adr/) |
+| Review and validation before the PR | when you ask | varies by tool | gated phases — [the review phase](skills/review/SKILL.md) |
+| Resume after a killed session | from the transcript, if the tool keeps one | from the spec files | from the last committed artifact — [plans](docs/contributing/plan/) |
+| Cost against a plain prompt | baseline | varies by tool | higher — [measured, with where craft lost](docs/guides/comparison.md#where-craft-lost) |
+
 ## Quickstart
 
 ```bash
