@@ -180,6 +180,7 @@ test('Given an anchored waiver line inside a fenced block, when collectWaived ru
     ['shorter run does not close', `\`\`\`\`\n${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n\`\`\`\`\n`],
     ['other character does not close', `${BACKTICK_FENCE}\n~~~\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
     ['closer with trailing text does not close', `${BACKTICK_FENCE}\n\`\`\` x\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
+    ['closer glued to text does not close', `${BACKTICK_FENCE}\n\`\`\`x\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
     ['run after text does not close', `${BACKTICK_FENCE}\nx \`\`\`\n${ANCHORED_WAIVER}\n${BACKTICK_FENCE}\n`],
     ['list-indented fence', `- item\n\n  ${BACKTICK_FENCE}\n${ANCHORED_WAIVER}\n  ${BACKTICK_FENCE}\n`],
     ['four-backtick fence', `\`\`\`\`\n${ANCHORED_WAIVER}\n\`\`\`\`\n`],

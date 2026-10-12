@@ -113,6 +113,7 @@ function closesFence(line, fence) {
  * @returns {string[]}
  */
 function unfencedLines(content) {
+  // equivalent mutant (ArrayDeclaration seeding a non-empty array): a seeded entry is not a column-0 waiver token line, so the anchored pattern never matches it
   const lines = [];
   let fence; // the open fence; undefined outside a fence
   for (const line of content.split(LINE_BREAK)) {
