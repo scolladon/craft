@@ -506,3 +506,7 @@ stub-lint-ci-self-reference design turns=28 tool_calls=30 tokens=1090449 duratio
 stub-lint-ci-self-reference implementation turns=5 tool_calls=6 tokens=105674 duration_ms=26910 cache_read=84011 cache_creation=21540 output=113 avg_ctx=21112 equiv=35901
 stub-lint-ci-self-reference planning turns=28 tool_calls=30 tokens=1441013 duration_ms=361765 cache_read=1372580 cache_creation=68067 output=310 avg_ctx=51454 equiv=223948
 stub-lint-ci-self-reference review turns=22 tool_calls=23 tokens=497837 duration_ms=167121 cache_read=392880 cache_creation=103929 output=984 avg_ctx=22584 equiv=174163
+waiver-mention-not-waiver design turns=57 tool_calls=60 tokens=3861887 duration_ms=671298 cache_read=3753656 cache_creation=107032 output=1085 avg_ctx=67733 equiv=514695
+waiver-mention-not-waiver implementation turns=15 tool_calls=16 tokens=404140 duration_ms=151908 cache_read=344941 cache_creation=58992 output=177 avg_ctx=26931 equiv=109149
+waiver-mention-not-waiver planning turns=63 tool_calls=65 tokens=5996308 duration_ms=1691439 cache_read=5702551 cache_creation=267977 output=25654 avg_ctx=94772 equiv=1033622
+waiver-mention-not-waiver review turns=39 tool_calls=41 tokens=855584 duration_ms=377392 cache_read=696751 cache_creation=154867 output=3888 avg_ctx=21838 equiv=282777
