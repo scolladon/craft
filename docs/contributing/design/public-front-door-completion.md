@@ -5,7 +5,8 @@
 > scaffolding (CONTRIBUTING.md, SECURITY.md, issue forms incl. an adapter request), and
 > release discipline (CHANGELOG, tagged releases, a version badge) — so `plugin.json`'s
 > version stops being the only maturity signal.
-> Status: draft → self-reviewed ×3 → accepted-pending-ADR
+> Status: draft → self-reviewed ×3 → accepted-pending-ADR → **revised against ADR-500…507
+> (DC-5 deviates: ADR-504), self-reviewed ×3, accepted**
 
 ## Context
 
@@ -33,7 +34,8 @@
   `chore(metrics)` run bookkeeping), 1 non-conventional subject. No subject carries `!` or
   `BREAKING` (`git log --format='%s%n%b' v1.0.0..main | grep -E '!:|BREAKING'` → empty).
 - **GitHub repo state** (read-only `gh api`, 2026-10-12): public; issues on; discussions
-  off; private vulnerability reporting **disabled** (`{"enabled":false}`); community
+  off; private vulnerability reporting **disabled** (`{"enabled":false}`) — ADR-504 needs
+  no repo setting; community
   profile 42% (contributing, issue_template, code_of_conduct, pull_request_template all
   null). Labels: `bug documentation duplicate enhancement good first issue help wanted
   invalid question wontfix`.
@@ -72,7 +74,7 @@
   (`docs/contributing/README.md` is its map table). `docs-structure-lint --audience docs`
   only fences `docs/` top level — root files are unaffected.
 - **Outward actions are user-owned**: pushing tags, creating releases, changing repo
-  settings (private vulnerability reporting, labels, prebuilds). No part does any of them.
+  settings (labels, prebuilds). No part does any of them, and none is a merge precondition.
 
 ### Pinned external behaviour (probed 2026-10-12, read-only, scratch in `<tmp>`)
 
@@ -132,6 +134,12 @@ smoke.
 | body element | `type`, `attributes` | `type` ∈ `markdown, textarea, input, dropdown, checkboxes` (+ `upload`); `id` optional, `[A-Za-z0-9_-]`, unique per form, not allowed on `markdown` |
 | required attributes | `markdown.value`; `textarea/input.label`; `dropdown.label`+`options`; `checkboxes.label`+`options` | dropdown `options` non-empty and distinct |
 | `config.yml` | — | `blank_issues_enabled` (bool), `contact_links[]` of `{name, url, about}`; only effective on the default branch |
+| form file, optional keys | — | `title` (string) pre-fills the issue title |
+| `checkboxes.options[]` item | `label` | optional `required` (bool, default `false`) blocks submission until ticked — "only for public repositories" (craft is public) |
+
+`https://github.com/<owner>/<repo>/issues/new?template=<file>` opens a given form
+(`creating-an-issue.md`, same commit). Option-level `required` and `title` re-read at
+`syntax-for-githubs-form-schema.md` / `syntax-for-issue-forms.md` @ e85b5032f0.
 
 **Keep a Changelog 1.1.0** (keepachangelog.com, fetched): `## [Unreleased]` on top, then
 `## [X.Y.Z] - YYYY-MM-DD` newest first; groups `Added / Changed / Deprecated / Removed /
@@ -161,12 +169,14 @@ Fixed / Security`; versions linkable; "Using commit log diffs as changelogs is a
    Conventional Commits, the contribution model (DC-7), and a route into
    `docs/contributing/README.md` — it does not copy contributor docs. README line 274
    points at it.
-6. **R6 SECURITY.md** at root: supported versions, the private reporting channel (DC-5) —
-   which must be live on the repo before the file merges (the PR body says so) — and the scope (hooks, scripts and guards craft runs in a user's repo; adapter bindings
-   are portability proofs).
+6. **R6 SECURITY.md** at root: supported versions, the reporting route (ADR-504) — open a
+   public issue that asks for a private contact and carries **no vulnerability details**;
+   the maintainer replies with a private channel — with the no-details rule as the first
+   line of the reporting section, and the scope (hooks, scripts and guards craft runs in a
+   user's repo; adapter bindings are portability proofs). No repo setting is a precondition.
 7. **R7 Issue forms** under `.github/ISSUE_TEMPLATE/`: bug report, feature request,
-   adapter request, and `config.yml`; each form satisfies the pinned schema; labels only
-   from the repo's existing set. The adapter-request form asks for the facts a binding
+   adapter request, security contact request (no free-text field), and `config.yml`;
+   each form satisfies the pinned schema; labels only from the repo's existing set. The adapter-request form asks for the facts a binding
    decision needs (headless execution surface, pre-execution deny surface, extension
    mechanism, subagent dispatch, docs link) — the columns of `adapters/README.md`.
 8. **R8 CHANGELOG.md** at root in Keep a Changelog 1.1.0 shape, backfilled honestly: a
@@ -255,7 +265,7 @@ source-hygiene (pinned); it links the CHANGELOG (relative, lychee-checked). A sh
 New tags are annotated; `v1.0.0` stays lightweight (rewriting a published tag is worse).
 `docs/contributing/README.md` gains a `releasing.md` row.
 
-**Version bump** — DC-4. Recommended: a final part, after the other three land, cuts
+**Version bump** — settled by ADR-503: a final part, after the other three land, cuts
 `[1.1.0]` and sets `plugin.json` to `1.1.0`; the maintainer tags after integrate.
 
 ### 2. Community scaffolding (R5–R7)
@@ -267,6 +277,7 @@ SECURITY.md
   bug-report.yml        labels: [bug]
   feature-request.yml   labels: [enhancement]
   adapter-request.yml   labels: [enhancement]
+  security-contact.yml  no labels; no textarea/input — a warning and one required checkbox
   config.yml            blank_issues_enabled: true; contact_links: security → SECURITY.md
 ```
 
@@ -280,11 +291,49 @@ PRs* (Conventional Commits, one-line; no phase/ADR/backlog ids in source or test
 `docs/contributing/maintainer-smokes.md`, no eval command quoted) · *Releases* (link to
 `docs/contributing/releasing.md`).
 
-**SECURITY.md**: *Supported versions* (the latest release only) · *Reporting* (DC-5) ·
-*Scope* — in: hooks under `hooks/`, scripts craft executes in a user's repo, guard
+**SECURITY.md**: *Supported versions* (the latest release only) · *Reporting a
+vulnerability* (ADR-504, shape below) · *Scope* — in: hooks under `hooks/`, scripts craft executes in a user's repo, guard
 bypasses in shipped bindings, anything that writes outside the worktree; out: the host
 agent runtimes themselves, and adapters' declared limitations (`adapters/README.md` guard
 postures, e.g. aider's declined guard).
+
+```markdown
+## Reporting a vulnerability
+
+**Do not include vulnerability details in a public issue, pull request or comment.**
+
+1. Open a [security contact request](https://github.com/scolladon/craft/issues/new?template=security-contact.yml).
+   It asks for a private contact and nothing else.
+2. The maintainer replies in that issue with a private channel.
+3. Send the details there only. The public issue is closed once you have moved over.
+```
+
+The rule is the first line of the section, bold, before any step. The form makes it
+structural, not just stated: it has no free-text field to put details in, and the title is
+pre-filled so the reporter does not have to write one:
+
+```yaml
+name: Security contact request
+description: Ask for a private channel to report a vulnerability — no details here
+title: Security contact request
+body:
+  - type: markdown
+    attributes:
+      value: "**Do not include vulnerability details.** This issue is public. The maintainer replies with a private channel; see SECURITY.md."
+  - type: checkboxes
+    id: no-details
+    attributes:
+      label: Confirmation
+      options:
+        - label: This issue contains no vulnerability details.
+          required: true
+```
+
+`config.yml`'s security contact link points at SECURITY.md
+(`https://github.com/scolladon/craft/blob/main/SECURITY.md`, absolute because the chooser
+needs a URL), so the chooser shows the policy next to the form. A blank issue can still
+carry details; SECURITY.md and the chooser link are the mitigation — a public tracker
+cannot prevent it.
 
 **Issue forms** (abridged `adapter-request.yml`):
 
@@ -458,10 +507,10 @@ None is a recomputation from data, so none needs a new readme-drift sub-guard.
 | Part | Files | Commit |
 |---|---|---|
 | P1 release discipline | `CHANGELOG.md`, `docs/contributing/releasing.md`, `docs/contributing/README.md`, `README.md` (badge), `test/release-discipline.test.js` | `docs(release): add changelog, release procedure and version badge` |
-| P2 community scaffolding | `CONTRIBUTING.md`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/{bug-report,feature-request,adapter-request,config}.yml`, `README.md` (line 274), `CHANGELOG.md` (Unreleased bullet), `test/community-scaffolding.test.js` | `docs(community): add contributing guide, security policy and issue forms` |
+| P2 community scaffolding | `CONTRIBUTING.md`, `SECURITY.md`, `.github/ISSUE_TEMPLATE/{bug-report,feature-request,adapter-request,security-contact,config}.yml`, `README.md` (line 274), `CHANGELOG.md` (Unreleased bullet), `test/community-scaffolding.test.js` | `docs(community): add contributing guide, security policy and issue forms` |
 | P3 devcontainer | `scripts/install-dev-tools.sh`, `.github/workflows/ci.yml`, `.devcontainer/devcontainer.json`, `README.md` (badge + Quickstart line), `docs/contributing/maintainer-smokes.md`, `CHANGELOG.md`, `test/devcontainer.test.js` | `feat(devcontainer): add a devcontainer and Codespaces badge sharing CI's tool install` |
 | P4 comparison | `README.md` (new section), `CHANGELOG.md`, `test/readme-comparison.test.js` | `docs(readme): add a category comparison table` |
-| P5 release cut (if DC-4 = A) | `CHANGELOG.md`, `.claude-plugin/plugin.json`, `README.md` (line 189 literal) | `chore(release): 1.1.0` |
+| P5 release cut | `CHANGELOG.md`, `.claude-plugin/plugin.json`, `README.md` (line 189 literal) | `chore(release): 1.1.0` |
 
 P2–P4 depend only on P1 (the `[Unreleased]` section); they do not touch each other's
 files except `README.md` and `CHANGELOG.md`, at distinct lines. P5 runs last.
@@ -476,7 +525,9 @@ files except `README.md` and `CHANGELOG.md`, at distinct lines. P5 runs last.
 - P2: issue-form schema matrix above; labels `bug`, `enhancement`; runtime list =
   README *Beyond Claude Code* table + "claude code" + "other". YAML parse in the test:
   `require('node:module').createRequire(path.join(ROOT, 'engine/package.json'))('js-yaml')`.
-  README line 274 replaced, line 276 kept.
+  README line 274 replaced, line 276 kept. SECURITY.md reporting section and
+  `security-contact.yml` are the two snippets above, verbatim in substance; the form
+  carries no `labels` (no existing label fits, creating one is out of scope).
 - P3: CI steps to replace are `ci.yml` lines 27–34 (`Install bats, shellcheck, jq`,
   `Install yq`); the `readme-drift` and `links` jobs are untouched. Stub-on-PATH pattern:
   `test/static-lints-ci.test.js` (`shellStub`, `LINT_LOG`, `EXECUTABLE_MODE = 0o755`).
@@ -489,16 +540,21 @@ files except `README.md` and `CHANGELOG.md`, at distinct lines. P5 runs last.
 
 ## Decision candidates
 
-| # | Choice | Alternatives (≤3) | Recommendation | Why |
-|---|---|---|---|---|
-| DC-1 | Comparison sourcing | A: compare **categories** (plain prompting, spec-driven kits, craft); non-craft cells only by-construction or "varies by tool"; craft cells linked to repo evidence · B: name products (e.g. spec kits, agentic IDEs) with cited links the maintainer verifies before merge · C: compare only against plain prompting, the one arm with in-repo measured evidence | **A** | No source for any named product exists in the repo and the pipeline has none to cite; product features move faster than the README. B also trips source-hygiene the moment a cited link contains lowercase `github`. C drops the spec-driven row the brief asks for. |
-| DC-2 | Where the table lives | A: README section after *What craft is not*, linking `comparison.md` for numbers · B: new guide page `docs/guides/positioning.md` + one README line · C: extend `docs/guides/comparison.md` | **A** | The brief scopes it as a README item; one table is small. C mixes a positioning table into a measured experiment page. B adds a page for one table. |
-| DC-3 | Home of the new README guards | A: repo-shape `node:test` files under `test/` (one per part) · B: new readme-drift sub-guards in `engine/src` (mutation-covered) | **A** | The new checks are structural equalities and absences, not recomputations from data; readme-drift's design explicitly scoped the comparison table out. A keeps each part's test in its own commit. |
-| DC-4 | Cut a release in this change | A: final part bumps to **1.1.0** and cuts `[1.1.0]`; the maintainer tags and publishes after integrate · B: CHANGELOG `[Unreleased]` only; bump later via `releasing.md` · C: bump to 2.0.0 | **A** | Per the Claude Code docs, marketplace users have received none of the 85 post-tag commits because `version` never moved. No `!`/`BREAKING` subject since v1.0.0 → minor. Risk: between merge and tag, `plugin.json` says 1.1.0 while the newest tag is v1.0.0 — the procedure makes tagging the next step. |
-| DC-5 | Security reporting channel | A: GitHub private vulnerability reporting (the maintainer enables the repo setting before merge) · B: a maintainer email address in SECURITY.md · C: a public issue asking for a private contact, no details | **A** | Keeps reports private without publishing an address. Today the setting is `enabled:false`; SECURITY.md must not merge pointing at a disabled channel — enabling it is a user-owned action. |
-| DC-6 | Dev-tool install source | A: shared `scripts/install-dev-tools.sh` used by the CI `ci` job and `postCreateCommand` · B: inline in each, plus a test asserting the two lists match · C: devcontainer installs only what `ci.sh` provably uses (`jq`, `shellcheck`), CI unchanged | **A** | One definition; and CI running it on every push is the only automated exercise the devcontainer setup gets (no container build in CI). Cost: the CI job's install path changes, and the CI `yq` download becomes arch-aware. |
-| DC-7 | Contribution model in CONTRIBUTING.md | A: any process welcome; the bar is `scripts/ci.sh` green + Conventional Commits; open an issue first for features · B: feature PRs must come from a craft run (design doc, ADRs, plan as receipts) · C: issues only, PRs by invitation | **A** | B makes craft (and a paid model) a prerequisite to contribute; C closes the door the scaffolding opens. craft runs stay the maintainer's own way of working, mentioned, not required. |
-| DC-8 | Codespaces badge image | A: shields static badge `Open in-Codespaces` (passes hygiene) · B: GitHub's official `badge.svg` + widen the README allowlist in `test/source-hygiene.test.js` · C: plain text link, no badge | **A** | B weakens a VCS-neutrality gate to fit a picture; A renders the same call to action with no gate change. |
+**All eight candidates are SETTLED** — ratified by the user as ADR-500…507 (`Settled`
+column). Seven went as recommended; **DC-5 did not**: the user chose C over A, which is
+why SECURITY.md routes reports through a detail-free public issue and no repo setting
+gates the merge.
+
+| # | Choice | Alternatives (≤3) | Recommendation | Why | Settled |
+|---|---|---|---|---|---|
+| DC-1 | Comparison sourcing | A: compare **categories** (plain prompting, spec-driven kits, craft); non-craft cells only by-construction or "varies by tool"; craft cells linked to repo evidence · B: name products (e.g. spec kits, agentic IDEs) with cited links the maintainer verifies before merge · C: compare only against plain prompting, the one arm with in-repo measured evidence | **A** | No source for any named product exists in the repo and the pipeline has none to cite; product features move faster than the README. B also trips source-hygiene the moment a cited link contains lowercase `github`. C drops the spec-driven row the brief asks for. | A — ADR-500 |
+| DC-2 | Where the table lives | A: README section after *What craft is not*, linking `comparison.md` for numbers · B: new guide page `docs/guides/positioning.md` + one README line · C: extend `docs/guides/comparison.md` | **A** | The brief scopes it as a README item; one table is small. C mixes a positioning table into a measured experiment page. B adds a page for one table. | A — ADR-501 |
+| DC-3 | Home of the new README guards | A: repo-shape `node:test` files under `test/` (one per part) · B: new readme-drift sub-guards in `engine/src` (mutation-covered) | **A** | The new checks are structural equalities and absences, not recomputations from data; readme-drift's design explicitly scoped the comparison table out. A keeps each part's test in its own commit. | A — ADR-502 |
+| DC-4 | Cut a release in this change | A: final part bumps to **1.1.0** and cuts `[1.1.0]`; the maintainer tags and publishes after integrate · B: CHANGELOG `[Unreleased]` only; bump later via `releasing.md` · C: bump to 2.0.0 | **A** | Per the Claude Code docs, marketplace users have received none of the 85 post-tag commits because `version` never moved. No `!`/`BREAKING` subject since v1.0.0 → minor. Risk: between merge and tag, `plugin.json` says 1.1.0 while the newest tag is v1.0.0 — the procedure makes tagging the next step. | A — ADR-503 |
+| DC-5 | Security reporting channel | A: GitHub private vulnerability reporting (the maintainer enables the repo setting before merge) · B: a maintainer email address in SECURITY.md · C: a public issue asking for a private contact, no details | **A** | Keeps reports private without publishing an address. Today the setting is `enabled:false`; SECURITY.md must not merge pointing at a disabled channel — enabling it is a user-owned action. | **C** — ADR-504 (deviates) |
+| DC-6 | Dev-tool install source | A: shared `scripts/install-dev-tools.sh` used by the CI `ci` job and `postCreateCommand` · B: inline in each, plus a test asserting the two lists match · C: devcontainer installs only what `ci.sh` provably uses (`jq`, `shellcheck`), CI unchanged | **A** | One definition; and CI running it on every push is the only automated exercise the devcontainer setup gets (no container build in CI). Cost: the CI job's install path changes, and the CI `yq` download becomes arch-aware. | A — ADR-505 |
+| DC-7 | Contribution model in CONTRIBUTING.md | A: any process welcome; the bar is `scripts/ci.sh` green + Conventional Commits; open an issue first for features · B: feature PRs must come from a craft run (design doc, ADRs, plan as receipts) · C: issues only, PRs by invitation | **A** | B makes craft (and a paid model) a prerequisite to contribute; C closes the door the scaffolding opens. craft runs stay the maintainer's own way of working, mentioned, not required. | A — ADR-506 |
+| DC-8 | Codespaces badge image | A: shields static badge `Open in-Codespaces` (passes hygiene) · B: GitHub's official `badge.svg` + widen the README allowlist in `test/source-hygiene.test.js` · C: plain text link, no badge | **A** | B weakens a VCS-neutrality gate to fit a picture; A renders the same call to action with no gate change. | A — ADR-507 |
 
 ## Test strategy
 
@@ -530,14 +586,26 @@ Assertions that already hold today are labelled GUARD.
   `claude plugin eval` command.
 - README links `CONTRIBUTING.md`.
 - `.github/ISSUE_TEMPLATE/` holds `bug-report.yml`, `feature-request.yml`,
-  `adapter-request.yml`, `config.yml`.
+  `adapter-request.yml`, `security-contact.yml`, `config.yml`.
 - Each form (js-yaml): `name`, `description`, non-empty `body`; names unique across forms;
   every element's `type` in the pinned set; required attributes per type (matrix above);
   `id`s match `^[A-Za-z0-9_-]+$`, unique per form, absent on `markdown`; dropdown options
   non-empty and distinct; `labels` ⊆ the repo's existing labels (constant in the test,
   commented as a snapshot of repo state).
 - Adapter form carries ids `runtime`, `headless`, `deny-surface`, `subagents`.
-- `config.yml`: boolean `blank_issues_enabled`; each contact link has `name`, `url`, `about`.
+- `config.yml`: boolean `blank_issues_enabled`; each contact link has `name`, `url`, `about`;
+  one contact link's `url` ends with `/SECURITY.md`.
+- SECURITY.md has `## Reporting a vulnerability`; its first non-blank line contains
+  `Do not include vulnerability details`; the section links
+  `issues/new?template=security-contact.yml`, and that file exists (the link's target).
+- `security-contact.yml`: no element of type `textarea` or `input` (nowhere to put
+  details); its first element is `markdown` whose `value` contains
+  `Do not include vulnerability details`; one `checkboxes` element has an option with
+  `required: true` whose label contains `no vulnerability details`; `title` is set.
+- Edge: mutated-string cases — a security form with a `textarea` added, a SECURITY.md whose
+  rule sits below the steps, a checkbox option without `required` — each fails naming the
+  surface. Pure functions over strings, fed the live files and the mutated strings (same
+  shape as P1's edge cases).
 
 **`test/devcontainer.test.js`** (P3)
 
@@ -576,8 +644,10 @@ container works, and the only source for a README duration.
 
 ## Out of scope
 
-- Enabling private vulnerability reporting, creating labels, configuring Codespaces
-  prebuilds, pushing tags, publishing releases — user-owned repo actions; the docs say when.
+- Creating labels, configuring Codespaces prebuilds, pushing tags, publishing releases —
+  user-owned repo actions; the docs say when.
+- Enabling GitHub private vulnerability reporting — not used (ADR-504); switching to it
+  later is a SECURITY.md edit.
 - Building the devcontainer in CI (`devcontainers/ci`) — adds a slow job; the maintainer
   smoke covers it for now.
 - CODE_OF_CONDUCT.md and a pull-request template — the community profile lists them, the
