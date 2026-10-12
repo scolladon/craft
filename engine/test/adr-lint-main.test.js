@@ -1077,7 +1077,7 @@ test('Given malformed YAML whose later lines carry content, when main runs, then
   // static prefix, and not collapsed to "undefined" or truncated to one char).
   assert.ok(
     all.includes('missed comma between flow collection entries'),
-    `expected the parser's first line, not a stub; stdout was: ${io.stdout.joined()}`,
+    `expected the parser's first line, the real parse failure text; stdout was: ${io.stdout.joined()}`,
   );
   assert.ok(!all.includes('SENSITIVE-SECOND-LINE'), `parser output must not republish file content: ${all}`);
 });
@@ -1680,6 +1680,34 @@ test('Given adr.frozen with one whole-tree entry, when main runs, then only the 
   assert.ok(out.includes("adr.frozen entry '**' exempts the whole tree"), `stdout was: ${out}`);
   assert.ok(!out.includes('together exempt'), `stdout was: ${out}`);
   assert.ok(!out.includes('every markdown file'), `stdout was: ${out}`);
+});
+
+test('Given adr.frozen with one whole-tree entry, when main runs, then the per-entry finding is the only sweep finding', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  const out = io.stdout.joined();
+  assert.equal(out.trim().split('\n').length, 1, `stdout was: ${out}`);
+});
+
+test('Given adr.frozen scoped to a subtree, when main runs, then the sweep passes with no frozen finding', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "frozen/**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()}`);
+  assert.ok(!io.stdout.joined().includes('adr.frozen'), `stdout was: ${io.stdout.joined()}`);
 });
 
 test('Given multiple superseded ids, when main runs, then the git grep pattern is built from the escaped id alternation', () => {
