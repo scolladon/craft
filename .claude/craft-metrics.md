@@ -523,3 +523,7 @@ provenance-sweep-part-two design turns=67 tool_calls=69 tokens=5714398 duration_
 provenance-sweep-part-two implementation turns=62 tool_calls=70 tokens=1283409 duration_ms=655447 cache_read=1089382 cache_creation=192352 output=1551 avg_ctx=20675 equiv=357257
 provenance-sweep-part-two planning turns=55 tool_calls=56 tokens=5215096 duration_ms=792541 cache_read=5062707 cache_creation=151523 output=756 avg_ctx=94806 equiv=699564
 provenance-sweep-part-two review turns=54 tool_calls=56 tokens=1655499 duration_ms=443513 cache_read=1474685 cache_creation=180179 output=527 avg_ctx=30648 equiv=375435
+baseline-review-waste-replay-guard design turns=36 tool_calls=39 tokens=2264932 duration_ms=559026 cache_read=2161827 cache_creation=102576 output=457 avg_ctx=62902 equiv=346760
+baseline-review-waste-replay-guard implementation turns=22 tool_calls=24 tokens=570411 duration_ms=157159 cache_read=508523 cache_creation=61184 output=660 avg_ctx=25898 equiv=130676
+baseline-review-waste-replay-guard planning turns=68 tool_calls=69 tokens=6763271 duration_ms=1018555 cache_read=6593739 cache_creation=168321 output=1075 avg_ctx=99444 equiv=875286
+baseline-review-waste-replay-guard review turns=54 tool_calls=56 tokens=1466266 duration_ms=416049 cache_read=1294641 cache_creation=170708 output=809 avg_ctx=27138 equiv=347002
