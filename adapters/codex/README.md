@@ -100,11 +100,13 @@ installed and enforces *nothing*, with no signal that anything is wrong.
 
 So, before any headless or automated run:
 
-1. After `codex login` — that order is a requirement, not a precaution. `hooks/list`
-   **needs an authenticated `CODEX_HOME`** (pinned live: with no `auth.json`, and again
-   with a stale refresh token, `codex app-server` answers `initialize` and then exits
-   without ever answering `hooks/list`). So `trust-hook.js` cannot run before login, and
-   cannot run in a CI job unless that job seeds a valid, authenticated `CODEX_HOME`.
+1. After `codex login` — keep this order as the safe instruction. On codex-cli 0.145.0
+   `hooks/list` **needed an authenticated `CODEX_HOME`** (pinned live: with no `auth.json`,
+   and again with a stale refresh token, `codex app-server` answered `initialize` and then
+   exited without ever answering `hooks/list`), so `trust-hook.js` could not run before
+   login or in a CI job without a seeded, authenticated `CODEX_HOME`. On 0.161.0
+   `hooks/list` answered from a `CODEX_HOME` with no `auth.json`; do not rely on that
+   across versions.
    Then **trust the craft guard hook**:
 
    ```
