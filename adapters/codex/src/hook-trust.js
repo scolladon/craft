@@ -31,12 +31,30 @@ const GUARD_COMMAND_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 // substring of the command: a shell string can carry it in a comment, a
 // quoted argument or a flag value while executing something else entirely,
 // and every one of those passes a containment test. The command is therefore
-// required to be exactly an interpreter plus the guard operand — anything
+// required to be exactly an interpreter plus one guard operand — anything
 // chained, wrapped or flagged is refused rather than trusted.
+//
+// The operand has two spellings. In one pair of double quotes it may hold
+// spaces, and `$VAR`/`${…}` expand there without splitting, but the shell
+// still runs `$(…)` and backticks and re-reads backslash escapes inside
+// double quotes, so contents carrying any of them are refused. Bare, it is
+// the raw plugin-root shim plus the tail exactly, or a literal word: outside
+// quotes a substitution, a split variable, a glob or a `;` runs something
+// other than the guard with no whitespace needed, so only path characters
+// pass. The interpreter is held to the same literal-word rule.
+//
+// Only a plain space separates or pads the words, and a control character
+// anywhere refuses the command: the shell ends a command at a line break and
+// does not split on Unicode spaces, so a broader whitespace class would read
+// a command the shell runs differently.
 const GUARD_INTERPRETER = 'node';
-const GUARD_COMMAND_TOKEN_COUNT = 2;
 const PATH_SEPARATOR = '/';
-const WHITESPACE_PATTERN = /\s+/;
+const GUARD_COMMAND_SHAPE = /^ *([^ ]+) +(?:"([^"]*)"|([^ ]+)) *$/;
+const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
+const DOUBLE_QUOTE_ACTIVE_FORMS = Object.freeze(['\\', '`', '$(']);
+const LITERAL_WORD_PATTERN = /^[\p{L}\p{N}._/+@%,:=-]+$/u;
+const PLUGIN_ROOT_SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
+const RAW_GUARD_OPERAND = `${PLUGIN_ROOT_SHIM}${GUARD_COMMAND_TAIL}`;
 
 // codex's own trust gate exists to stop a repository-supplied hook from
 // executing, and `hooks/list` is asked about the craft checkout — so a hook
@@ -227,17 +245,46 @@ function toBasename(token) {
   return token.slice(token.lastIndexOf(PATH_SEPARATOR) + 1);
 }
 
+function parseGuardCommand(command) {
+  if (CONTROL_CHARACTER_PATTERN.test(command)) {
+    return null;
+  }
+  const match = GUARD_COMMAND_SHAPE.exec(command);
+  if (match === null) {
+    return null;
+  }
+  const [, interpreter, quoted, bare] = match;
+  return quoted === undefined
+    ? { interpreter, operand: bare, isInert: isInertBareOperand }
+    : { interpreter, operand: quoted, isInert: isInertQuotedOperand };
+}
+
+function isLiteralWord(word) {
+  return LITERAL_WORD_PATTERN.test(word);
+}
+
+function isInertQuotedOperand(contents) {
+  return !DOUBLE_QUOTE_ACTIVE_FORMS.some((form) => contents.includes(form));
+}
+
+function isInertBareOperand(operand) {
+  return operand === RAW_GUARD_OPERAND || isLiteralWord(operand);
+}
+
+function isGuardInterpreter(interpreter) {
+  return isLiteralWord(interpreter) && toBasename(interpreter) === GUARD_INTERPRETER;
+}
+
 function isGuardHook(hook) {
   const command = isPlainObject(hook) ? hook.command : undefined;
   if (typeof command !== 'string') {
     return false;
   }
-  const tokens = command.trim().split(WHITESPACE_PATTERN);
-  if (tokens.length !== GUARD_COMMAND_TOKEN_COUNT) {
+  const parsed = parseGuardCommand(command);
+  if (parsed === null || !parsed.isInert(parsed.operand)) {
     return false;
   }
-  const [interpreter, operand] = tokens;
-  return toBasename(interpreter) === GUARD_INTERPRETER && operand.endsWith(GUARD_COMMAND_TAIL);
+  return isGuardInterpreter(parsed.interpreter) && parsed.operand.endsWith(GUARD_COMMAND_TAIL);
 }
 
 function assertNotRepositorySourced(hook) {
@@ -251,7 +298,8 @@ function assertNotRepositorySourced(hook) {
 /**
  * Select the single hook registration whose `command` is craft's guard,
  * matched on the path tail rather than a realpath because `hooks/list` may
- * echo the command raw or shell-expanded.
+ * echo the command raw or shell-expanded. The operand is bare or in one pair
+ * of double quotes; the shape rules above say which spellings of each are trusted.
  *
  * @param {Array<{ command: string, sourcePath: string, source: string }>} hooks
  * @param {{ errors?: Array<{ message: string, path: string }> }} [params]
