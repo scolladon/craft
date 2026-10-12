@@ -8,9 +8,12 @@ supersedes:
 ---
 # 514 — The trust matcher accepts one inert double-quoted operand
 
-- **Status:** accepted — ratified by the user
+- **Status:** superseded by ADR-517
 - **Date:** 2026-10-12
 - **Design:** docs/contributing/design/codex-hooks-quote-plugin-root.md · **Supersedes/Refines:** supersedes ADR-317
+
+> **Superseded by ADR-517** for the quoted-operand content rule: the deny-list of `"`, `\`, backtick and `$(`
+> is replaced by an allow-list of path characters, plain spaces and the exact plugin-root shim.
 
 ## Context
 
