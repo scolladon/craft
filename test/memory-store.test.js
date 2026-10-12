@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
-const PHASE_OR_DECISION_RECORD_TOKEN = '(^|[^[:alnum:]_])P[0-9]+([^[:alnum:]_]|$)|ADR-[0-9]';
+const PHASE_OR_DECISION_RECORD_TOKEN = '(^|[^[:alnum:]_])P[0-9]+([^[:alnum:]_]|$)|ADR';
 const GITIGNORE = path.join(ROOT, '.gitignore');
 const STORE_PATH = path.join(ROOT, '.claude/craft-memory.md');
 
