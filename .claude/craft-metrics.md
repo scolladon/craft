@@ -510,3 +510,7 @@ waiver-mention-not-waiver design turns=57 tool_calls=60 tokens=3861887 duration_
 waiver-mention-not-waiver implementation turns=15 tool_calls=16 tokens=404140 duration_ms=151908 cache_read=344941 cache_creation=58992 output=177 avg_ctx=26931 equiv=109149
 waiver-mention-not-waiver planning turns=63 tool_calls=65 tokens=5996308 duration_ms=1691439 cache_read=5702551 cache_creation=267977 output=25654 avg_ctx=94772 equiv=1033622
 waiver-mention-not-waiver review turns=39 tool_calls=41 tokens=855584 duration_ms=377392 cache_read=696751 cache_creation=154867 output=3888 avg_ctx=21838 equiv=282777
+sibling-spawn-site-defects design turns=27 tool_calls=29 tokens=1484447 duration_ms=338747 cache_read=1403588 cache_creation=80274 output=531 avg_ctx=54960 equiv=243410
+sibling-spawn-site-defects implementation turns=10 tool_calls=12 tokens=194110 duration_ms=78021 cache_read=156159 cache_creation=37730 output=201 avg_ctx=19391 equiv=63803
+sibling-spawn-site-defects planning turns=36 tool_calls=37 tokens=2007246 duration_ms=397938 cache_read=1926402 cache_creation=80420 output=352 avg_ctx=55747 equiv=294997
+sibling-spawn-site-defects review turns=43 tool_calls=45 tokens=1056328 duration_ms=390214 cache_read=920298 cache_creation=135292 output=652 avg_ctx=24551 equiv=264491
