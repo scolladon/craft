@@ -519,3 +519,7 @@ backlog-sweep-six-entries implementation turns=63 tool_calls=68 tokens=1423750 d
 backlog-sweep-six-entries planning turns=87 tool_calls=92 tokens=10147496 duration_ms=1065405 cache_read=9922152 cache_creation=222262 output=2908 avg_ctx=116604 equiv=1284757
 backlog-sweep-six-entries review turns=75 tool_calls=79 tokens=3024826 duration_ms=580416 cache_read=2780820 cache_creation=242110 output=1746 avg_ctx=40308 equiv=589600
 backlog-sweep-six-entries validation turns=21 tool_calls=22 tokens=533860 duration_ms=235342 cache_read=504037 cache_creation=29519 output=262 avg_ctx=25409 equiv=88654
+provenance-sweep-part-two design turns=67 tool_calls=69 tokens=5714398 duration_ms=1054528 cache_read=5553712 cache_creation=144410 output=16142 avg_ctx=85049 equiv=816728
+provenance-sweep-part-two implementation turns=62 tool_calls=70 tokens=1283409 duration_ms=655447 cache_read=1089382 cache_creation=192352 output=1551 avg_ctx=20675 equiv=357257
+provenance-sweep-part-two planning turns=55 tool_calls=56 tokens=5215096 duration_ms=792541 cache_read=5062707 cache_creation=151523 output=756 avg_ctx=94806 equiv=699564
+provenance-sweep-part-two review turns=54 tool_calls=56 tokens=1655499 duration_ms=443513 cache_read=1474685 cache_creation=180179 output=527 avg_ctx=30648 equiv=375435
