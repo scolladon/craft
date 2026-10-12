@@ -1,8 +1,8 @@
 /**
- * Shared CLI I/O helpers for the engine mains (config-resolve, init-land,
- * promote-plan, the lint mains): never-throw regular-file and directory
- * predicates, a non-empty-string predicate, a stderr-and-fail-exit helper, a
- * repo-root walk, and the two exit-code constants they all share.
+ * Shared CLI I/O helpers for the engine's CLI mains, plus a pure
+ * non-empty-string predicate that intention.js shares with them: never-throw
+ * regular-file and directory predicates, a stderr-and-fail-exit helper, a
+ * repo-root walk, and the two exit-code constants.
  */
 
 import { statSync, existsSync } from 'node:fs';
@@ -35,7 +35,7 @@ export function isDirectoryPath(p) {
   try {
     return statSync(p).isDirectory();
   } catch {
-    return false; // equivalent mutant (empty catch): undefined is falsy — every caller reads the result as a boolean, same observable effect
+    return false;
   }
 }
 

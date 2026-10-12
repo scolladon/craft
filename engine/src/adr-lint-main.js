@@ -502,7 +502,7 @@ function frozenSetFindings(frozen, universal) {
  * exempt unconditionally in both branches — no separate self-flagging rule.
  * @param {string} adrDirRel
  * @param {object|null} manifest
- * @returns {{ mode: string, globs?: string[], dirs?: string[], adrDirRel: string }}
+ * @returns {{ mode: string, globs?: string[], dirs?: string[], adrDirRel: string, universal?: string[], setLevel?: string[] }}
  */
 function resolveExemptSet(adrDirRel, manifest) {
   const frozen = manifest?.adr?.frozen;
