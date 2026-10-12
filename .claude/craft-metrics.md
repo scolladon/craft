@@ -535,3 +535,9 @@ backlog-sweep-hooks-quote-dev-tools design turns=47 tool_calls=54 tokens=3169351
 backlog-sweep-hooks-quote-dev-tools implementation turns=12 tool_calls=14 tokens=277395 duration_ms=136952 cache_read=228830 cache_creation=48251 output=290 avg_ctx=23092 equiv=84671
 backlog-sweep-hooks-quote-dev-tools planning turns=34 tool_calls=35 tokens=1967816 duration_ms=493960 cache_read=1877932 cache_creation=89480 output=336 avg_ctx=57867 equiv=301391
 backlog-sweep-hooks-quote-dev-tools review turns=36 tool_calls=39 tokens=1028066 duration_ms=240246 cache_read=889586 cache_creation=137790 output=618 avg_ctx=28540 equiv=264358
+codex-hooks-quote-plugin-root design turns=49 tool_calls=57 tokens=3681072 duration_ms=657646 cache_read=3550251 cache_creation=130195 output=528 avg_ctx=75113 equiv=520507
+codex-hooks-quote-plugin-root documentation turns=4 tool_calls=4 tokens=71045 duration_ms=21250 cache_read=51579 cache_creation=19333 output=125 avg_ctx=17730 equiv=29957
+codex-hooks-quote-plugin-root implementation turns=22 tool_calls=23 tokens=618251 duration_ms=127533 cache_read=552914 cache_creation=64544 output=749 avg_ctx=28068 equiv=139760
+codex-hooks-quote-plugin-root planning turns=65 tool_calls=68 tokens=6531488 duration_ms=968740 cache_read=6358376 cache_creation=172262 output=720 avg_ctx=100473 equiv=854895
+codex-hooks-quote-plugin-root review turns=146 tool_calls=150 tokens=4489632 duration_ms=1776453 cache_read=3991502 cache_creation=490592 output=7246 avg_ctx=30701 equiv=1048912
+codex-hooks-quote-plugin-root validation turns=9 tool_calls=9 tokens=218817 duration_ms=53723 cache_read=190820 cache_creation=27785 output=194 avg_ctx=24291 equiv=54801
