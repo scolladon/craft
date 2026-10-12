@@ -24,7 +24,7 @@ Review proved ADR-514's deny-list incomplete. Inside double quotes, nested param
 
 ## Decision
 
-The user ratified option 1. Quoted contents, split on the exact `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}` shim, must be path characters (`[\p{L}\p{N}._/+@%,:=-]`) and plain spaces only. The interpreter word is never a `NAME=` or `NAME+=` assignment, and no literal word (interpreter or bare operand) starts with `=`. The operand value, quoted or bare, starts with `/` or with the exact shim: a cycle-2 review proved `node "--eval=…//<tail>"` and `node --import=data:…//<tail>` trusted, because node reads a `-`-led operand as its own option and the tail becomes a JS comment, and a relative operand resolves against the session directory, the repository being worked on.
+The user ratified option 1. Quoted contents, split on the exact `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}` shim, must be path characters (`[\p{L}\p{N}._/+@%,:=-]`) and plain spaces only. A `NAME=` assignment, a `=`-led word (zsh command lookup) and a relative interpreter (it resolves against the repository being worked on) are therefore all refused. The interpreter is exactly `node` (a PATH lookup) or an absolute path ending in `/node`, and the operand value, quoted or bare, starts with `/` or with the exact shim followed by `/` (the shim expands to nothing when no root is set): a cycle-2 review proved `node "--eval=…//<tail>"` and `node --import=data:…//<tail>` trusted, because node reads a `-`-led operand as its own option and the tail becomes a JS comment, and a relative operand resolves against the session directory, the repository being worked on.
 
 Superseded from ADR-514: the deny-list of `"`, `\`, backtick and `$(` as the quoted-content rule.
 
