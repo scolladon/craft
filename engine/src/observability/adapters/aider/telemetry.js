@@ -134,7 +134,7 @@ function eventFromTokenLine(tokenMatch, model) {
  */
 function trimLine(rawLine) {
   // equivalent mutant (?? '' -> ?? "Stryker was here!"): any coerced
-  // placeholder string still fails every classifier regex below (none start
+  // fallback string still fails every classifier regex below (none start
   // with `> Tokens:`/`> Model:`/`# aider chat started at`), so events and
   // skipped are unchanged regardless of the fallback literal.
   return String(rawLine ?? '').trim();
