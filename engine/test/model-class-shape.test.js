@@ -130,7 +130,7 @@ test('Given identical inputs but the session labelled differently per model clas
   }
 });
 
-// ─── 2. normalizeFindings shape-stability (R10 discharge) ────────────────────
+// ─── 2. normalizeFindings shape-stability ────────────────────────────────────
 
 test('Given a JSON-array finding and a per-line finding for the same data (fix present), when normalizeFindings is called on each, then the results deep-equal', () => {
   const sut = normalizeFindings;

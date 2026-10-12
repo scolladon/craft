@@ -68,7 +68,7 @@ test('Given a usage object without cache_creation, when tokensFromClaudeUsage ru
   assert.equal(result.cacheCreationTtl, null);
 });
 
-// ── 4. tokensFromClaudeUsage — adversarial non-numeric values coerce to 0 (F6) ─
+// ── 4. tokensFromClaudeUsage — adversarial non-numeric values coerce to 0 ──────
 
 test('Given a usage object with non-numeric token values (string, null, NaN), when tokensFromClaudeUsage runs, then all token fields coerce to 0', () => {
   const usage = {

@@ -58,9 +58,9 @@ test('Given a per-line fixture, when normalizeFindings runs, then it returns the
   assert.deepEqual(result, EXPECTED_FINDINGS);
 });
 
-// ─── R10 anchor: both layouts produce identical field-keyed output ─────────────
+// ─── both layouts produce identical field-keyed output ─────────────────────────
 
-test('Given JSON and per-line fixtures, when normalizeFindings runs on each, then results are deeply equal (R10)', () => {
+test('Given JSON and per-line fixtures, when normalizeFindings runs on each, then results are deeply equal', () => {
   const sut = normalizeFindings;
 
   const fromJson = sut(readFixture('array.json'));
@@ -256,7 +256,7 @@ test('Given a JSON fixture with status keys, when normalizeFindings runs, then e
   assert.ok(!('status' in result[4]), 'status-less record must not gain a status key');
 });
 
-test('Given JSON and per-line with-status fixtures, when normalizeFindings runs on each, then results are deeply equal (R10)', () => {
+test('Given JSON and per-line with-status fixtures, when normalizeFindings runs on each, then results are deeply equal', () => {
   const sut = normalizeFindings;
 
   const fromJson = sut(readFixture('with-status.json'));
