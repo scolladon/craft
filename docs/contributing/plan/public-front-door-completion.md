@@ -430,10 +430,10 @@ security policy, and issue forms for bugs, features, adapter requests and securi
 4. *Dev loop* — `claude --plugin-dir <path-to-craft>` loads the working copy.
 5. *Commits and PRs* — Conventional Commits, one line, no body; no phase, decision-record or
    backlog ids in source or test code (test/source-hygiene.test.js enforces it).
-6. *Where things live* — link [docs/contributing/README.md](docs/contributing/README.md);
+6. *Where things live* — link `docs/contributing/README.md`;
    behavioural evals are local-only and never CI: link
-   [maintainer smokes](docs/contributing/maintainer-smokes.md). **Quote no eval command.**
-7. *Releases* — link [docs/contributing/releasing.md](docs/contributing/releasing.md).
+   maintainer smokes (`docs/contributing/maintainer-smokes.md`). **Quote no eval command.**
+7. *Releases* — link `docs/contributing/releasing.md`.
 
 **SECURITY.md**:
 
@@ -460,7 +460,7 @@ Only the latest release receives security fixes — the newest entry in
 Scope — in: hooks under hooks/; scripts craft executes in a user's repository; guard
 bypasses in the shipped adapter bindings; anything that writes outside the run's worktree.
 Out: the host agent runtimes themselves; limitations an adapter declares in
-[adapters/README.md](adapters/README.md) (its guard posture — e.g. the aider binding declines
+`adapters/README.md` (its guard posture — e.g. the aider binding declines
 a guard because aider has no deny surface). Add one line: the adapter bindings are
 portability proofs, not supported products. A blank issue can still carry details; this
 policy and the chooser link are the mitigation.
@@ -678,7 +678,7 @@ maintainer smoke.
   ~~~
 
 **CONTRIBUTING edit** — in *Set up*, append: "Or open the repository in its
-[devcontainer](.devcontainer/devcontainer.json), locally or as a Codespace: it runs the shared
+devcontainer (`.devcontainer/devcontainer.json`), locally or as a Codespace: it runs the shared
 dev-tool install and `npm --prefix engine ci` for you."
 
 **maintainer-smokes.md** — append at the end of the file (after the
