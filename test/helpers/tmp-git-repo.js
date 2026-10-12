@@ -26,6 +26,8 @@ function pinnedGitEnv() {
 // under test compares its own `git rev-parse --show-toplevel` (physical)
 // against a caller-supplied directory resolved with `pwd` (logical). Skipping
 // the realpath here would make every path comparison silently mismatch.
+//
+// The returned `env` is for spawning a tool that must judge this repo rather than an ambient one.
 function createTmpGitRepo(relativeFilePaths) {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'docs-structure-lint-'));
   const root = fs.realpathSync(tmpDir);
@@ -36,11 +38,13 @@ function createTmpGitRepo(relativeFilePaths) {
     fs.writeFileSync(absoluteFilePath, '');
   }
 
+  const env = pinnedGitEnv();
+
   const runGit = (...args) =>
     execFileSync(
       'git',
       ['-C', root, '-c', 'user.email=tmp-git-repo@example.com', '-c', 'user.name=tmp-git-repo', ...args],
-      { encoding: 'utf8', env: pinnedGitEnv() }
+      { encoding: 'utf8', env }
     );
 
   runGit('init', '-q');
@@ -48,7 +52,7 @@ function createTmpGitRepo(relativeFilePaths) {
 
   const cleanup = () => fs.rmSync(root, { recursive: true, force: true });
 
-  return { root, cleanup };
+  return { root, env, cleanup };
 }
 
 module.exports = { createTmpGitRepo };

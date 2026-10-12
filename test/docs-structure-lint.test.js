@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createTmpGitRepo } = require('./helpers/tmp-git-repo');
+const { withAmbientEnv } = require('./helpers/ambient-env');
 
 const ROOT = path.resolve(__dirname, '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'docs-structure-lint.sh');
@@ -88,10 +89,11 @@ test('--audience: the live docs/ top level is exactly README.md + guides + contr
 // `cwd` matters: the script derives its git toplevel from the process's
 // working directory (`git rev-parse --show-toplevel`, no `-C`), not from
 // `dir`. Run it from inside the throwaway repo so that toplevel resolves to
-// the repo under test rather than to this suite's own repo.
-function sut(dir, cwd) {
+// the repo under test rather than to this suite's own repo. The spawn runs under
+// the repo helper's allowlisted env, so an ambient git location cannot redirect that toplevel.
+function sut(dir, cwd, env) {
   try {
-    const stdout = execFileSync('bash', [SCRIPT, '--audience', dir], { encoding: 'utf8', cwd });
+    const stdout = execFileSync('bash', [SCRIPT, '--audience', dir], { encoding: 'utf8', cwd, env });
     return { status: 0, stdout, stderr: '' };
   } catch (e) {
     return { status: e.status, stdout: e.stdout || '', stderr: e.stderr || '' };
@@ -106,7 +108,7 @@ function sut(dir, cwd) {
 // bug: a real offender goes missing from the list, not from the verdict.
 test('Given a top-level entry name containing a space, when --audience lints the tree, then the co-offender split at that space boundary is still reported', () => {
   // Arrange
-  const { root, cleanup } = createTmpGitRepo([
+  const { root, env, cleanup } = createTmpGitRepo([
     'docs/README.md',
     'docs/a b/note.md',
     'docs/b/note.md',
@@ -116,7 +118,7 @@ test('Given a top-level entry name containing a space, when --audience lints the
 
   try {
     // Act
-    const result = sut(path.join(root, 'docs'), root);
+    const result = sut(path.join(root, 'docs'), root, env);
 
     // Assert
     assert.strictEqual(result.status, 2, 'expected exit status 2');
@@ -129,11 +131,11 @@ test('Given a top-level entry name containing a space, when --audience lints the
 
 test('Given two single-word top-level entries alongside their two-word union, when --audience lints the tree, then all three distinct entries are reported', () => {
   // Arrange
-  const { root, cleanup } = createTmpGitRepo(['docs/x/note.md', 'docs/y/note.md', 'docs/x y/note.md']);
+  const { root, env, cleanup } = createTmpGitRepo(['docs/x/note.md', 'docs/y/note.md', 'docs/x y/note.md']);
 
   try {
     // Act
-    const result = sut(path.join(root, 'docs'), root);
+    const result = sut(path.join(root, 'docs'), root, env);
 
     // Assert
     assert.strictEqual(result.status, 2, 'expected exit status 2');
@@ -145,9 +147,34 @@ test('Given two single-word top-level entries alongside their two-word union, wh
   }
 });
 
+test('Given a decoy GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE on the parent process, when --audience lints a repo with three stray top-level dirs, then it exits 2 and names each one', () => {
+  // Arrange
+  const decoy = createTmpGitRepo([]);
+  const { root, env, cleanup } = createTmpGitRepo(['docs/a/note.md', 'docs/b/note.md', 'docs/c/note.md']);
+  const ambient = {
+    GIT_DIR: path.join(decoy.root, '.git'),
+    GIT_WORK_TREE: decoy.root,
+    GIT_INDEX_FILE: path.join(decoy.root, '.git', 'index'),
+  };
+
+  try {
+    // Act
+    const result = withAmbientEnv(ambient, () => sut(path.join(root, 'docs'), root, env));
+
+    // Assert
+    assert.strictEqual(result.status, 2, `expected exit status 2; got: ${result.stderr}`);
+    for (const name of ['a', 'b', 'c']) {
+      assert.match(result.stderr, new RegExp('(^|\\n) {2}' + name + '($|\\n)'), `expected "${name}" reported; got: ${result.stderr}`);
+    }
+  } finally {
+    cleanup();
+    decoy.cleanup();
+  }
+});
+
 test('Given a repo reached through a symlinked path, when --audience lints its docs from there, then the clean top level exits 0', () => {
   // Arrange
-  const { root, cleanup } = createTmpGitRepo([
+  const { root, env, cleanup } = createTmpGitRepo([
     'docs/README.md',
     'docs/contributing/note.md',
     'docs/guides/note.md',
@@ -158,7 +185,7 @@ test('Given a repo reached through a symlinked path, when --audience lints its d
 
   try {
     // Act
-    const result = sut(path.join(linkedRoot, 'docs'), linkedRoot);
+    const result = sut(path.join(linkedRoot, 'docs'), linkedRoot, env);
 
     // Assert
     assert.strictEqual(result.status, 0, `expected exit status 0; got stderr: ${result.stderr}`);

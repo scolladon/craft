@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createTmpGitRepo } = require('./helpers/tmp-git-repo');
+const { withAmbientEnv } = require('./helpers/ambient-env');
 
 const TRACKED_FIXTURE = 'docs/a.md';
 const EXCLUDE_EVERY_MARKDOWN = '*.md\n';
@@ -23,20 +24,6 @@ function hermeticGitEnv() {
 
 function runHermeticGit(repoDir, ...args) {
   return execFileSync('git', ['-C', repoDir, ...args], { encoding: 'utf8', env: hermeticGitEnv() });
-}
-
-// Restores from saved values: assigning `undefined` to a process.env key stores the string "undefined".
-function withAmbientEnv(overrides, act) {
-  const saved = Object.fromEntries(Object.keys(overrides).map((key) => [key, process.env[key]]));
-  Object.assign(process.env, overrides);
-  try {
-    return act();
-  } finally {
-    for (const [key, value] of Object.entries(saved)) {
-      if (value === undefined) delete process.env[key];
-      else process.env[key] = value;
-    }
-  }
 }
 
 test('Given a decoy GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE on the parent process, when createTmpGitRepo builds a repo, then the throwaway tracks its own files and the decoy gains no index', () => {
@@ -77,5 +64,32 @@ test('Given an ambient HOME whose global excludes file ignores every markdown fi
   } finally {
     repo?.cleanup();
     fs.rmSync(ambientHome, { recursive: true, force: true });
+  }
+});
+
+test('Given a decoy GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE and an ambient HOME on the parent process, when createTmpGitRepo builds a repo, then the returned env carries only PATH and the pinned git config keys', () => {
+  const decoyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tmp-git-repo-decoy-'));
+  let repo;
+  try {
+    runHermeticGit(decoyDir, 'init', '-q');
+    const ambient = {
+      GIT_DIR: path.join(decoyDir, '.git'),
+      GIT_WORK_TREE: decoyDir,
+      GIT_INDEX_FILE: path.join(decoyDir, '.git', 'index'),
+      HOME: decoyDir,
+    };
+    const sut = createTmpGitRepo;
+
+    repo = withAmbientEnv(ambient, () => sut([TRACKED_FIXTURE]));
+
+    assert.deepStrictEqual(repo.env, {
+      PATH: process.env.PATH,
+      GIT_CONFIG_GLOBAL: '/dev/null',
+      GIT_CONFIG_SYSTEM: '/dev/null',
+      GIT_CONFIG_NOSYSTEM: '1',
+    });
+  } finally {
+    repo?.cleanup();
+    fs.rmSync(decoyDir, { recursive: true, force: true });
   }
 });
