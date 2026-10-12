@@ -14,8 +14,8 @@ const CLAUDE_FEATURE = 'ghcr.io/anthropics/devcontainer-features/claude-code:1'
 const CODESPACES_URL = 'https://codespaces.new/scolladon/craft'
 const SMOKE_HEADING = '## Devcontainer cold-start smoke — not CI-gated'
 const DEVCONTAINER_LINK = '](.devcontainer/devcontainer.json)'
-const SHARED_INSTALL = 'scripts/install-dev-tools.sh'
-const ENGINE_INSTALL = 'npm --prefix engine ci'
+const POST_CREATE_COMMAND = 'bash scripts/install-dev-tools.sh && npm --prefix engine ci'
+const CODESPACES_BADGE = /^\[!\[[^\]]*\]\(https:\/\/img\.shields\.io\/[^)]+\)\]\(https:\/\/codespaces\.new\/scolladon\/craft\)$/
 
 const read = rel => fs.readFileSync(path.join(ROOT, rel), 'utf8')
 
@@ -37,11 +37,10 @@ test('Given the devcontainer definition, when parsed, then it uses the CI Node m
   assert.ok(image, `image ${sut.image} does not match ${IMAGE_PATTERN}`)
   assert.strictEqual(Number(image[1]), ciNodeMajor())
   assert.ok(CLAUDE_FEATURE in sut.features)
-  assert.ok(sut.postCreateCommand.includes(SHARED_INSTALL))
-  assert.ok(sut.postCreateCommand.includes(ENGINE_INSTALL))
+  assert.strictEqual(sut.postCreateCommand, POST_CREATE_COMMAND)
 })
 
-test('Given README.md, then it carries a Codespaces badge and its Codespace prose states no duration', () => {
+test('Given README.md, when its Codespace lines are read, then it carries a Codespaces badge and its Codespace prose states no duration', () => {
   // Arrange
   const lines = read('README.md').split('\n')
 
@@ -49,12 +48,12 @@ test('Given README.md, then it carries a Codespaces badge and its Codespace pros
   const sut = lines.filter(l => l.includes('Codespace') && !l.startsWith('[!['))
 
   // Assert
-  assert.ok(lines.some(l => l.includes(`](${CODESPACES_URL})`)))
+  assert.ok(lines.some(l => CODESPACES_BADGE.test(l)), `no shields badge linking ${CODESPACES_URL}`)
   assert.ok(sut.length > 0)
   for (const line of sut) assert.ok(!/\d/.test(line), `duration-like digit in: ${line}`)
 })
 
-test('Given the maintainer smokes, then the devcontainer cold start has a not-CI-gated smoke', () => {
+test('Given the maintainer smokes, when their headings are read, then the devcontainer cold start has a not-CI-gated smoke', () => {
   // Arrange
   const lines = read('docs/contributing/maintainer-smokes.md').split('\n')
 
@@ -65,7 +64,7 @@ test('Given the maintainer smokes, then the devcontainer cold start has a not-CI
   assert.ok(sut)
 })
 
-test('Given CONTRIBUTING.md, then its set-up section offers the devcontainer', () => {
+test('Given CONTRIBUTING.md, when read, then its set-up section offers the devcontainer', () => {
   // Arrange
   const text = read('CONTRIBUTING.md')
 

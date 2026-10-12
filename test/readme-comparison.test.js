@@ -30,27 +30,28 @@ function tableRows(section) {
     .map(line => line.split('|').slice(1, -1).map(cell => cell.trim()));
 }
 
-function comparisonViolations(readmeText) {
-  const section = sectionOf(readmeText, SECTION_HEADING);
-  if (section === null) return [`${SURFACE}: missing section "${SECTION_HEADING}"`];
-  const violations = [];
+function placementViolations(readmeText) {
   const at = readmeText.indexOf(SECTION_HEADING);
   const before = readmeText.indexOf(PRECEDING_HEADING);
   const after = readmeText.indexOf(FOLLOWING_HEADING);
-  if (before === -1 || at < before || after === -1 || at > after) {
-    violations.push(`${SURFACE}: "${SECTION_HEADING}" must sit between "${PRECEDING_HEADING}" and "${FOLLOWING_HEADING}"`);
-  }
+  const placed = before !== -1 && after !== -1 && at > before && at < after;
+  return placed ? [] : [`${SURFACE}: "${SECTION_HEADING}" must sit between "${PRECEDING_HEADING}" and "${FOLLOWING_HEADING}"`];
+}
+
+function evidenceViolations(section) {
   const [header, ...body] = tableRows(section);
   const column = header ? header.indexOf(CRAFT_COLUMN) : -1;
-  if (column === -1) {
-    violations.push(`${SURFACE}: comparison table has no "${CRAFT_COLUMN}" column`);
-  } else {
-    body
-      .filter(row => !RELATIVE_LINK.test(row[column] || ''))
-      .forEach(row => violations.push(`${SURFACE}: craft cell "${row[column]}" has no relative evidence link`));
-  }
-  if (ANY_DIGIT.test(section)) violations.push(`${SURFACE}: comparison section holds a digit`);
-  return violations;
+  if (column === -1) return [`${SURFACE}: comparison table has no "${CRAFT_COLUMN}" column`];
+  return body
+    .filter(row => !RELATIVE_LINK.test(row[column] || ''))
+    .map(row => `${SURFACE}: craft cell "${row[column]}" has no relative evidence link`);
+}
+
+function comparisonViolations(readmeText) {
+  const section = sectionOf(readmeText, SECTION_HEADING);
+  if (section === null) return [`${SURFACE}: missing section "${SECTION_HEADING}"`];
+  const digits = ANY_DIGIT.test(section) ? [`${SURFACE}: comparison section holds a digit`] : [];
+  return [...placementViolations(readmeText), ...evidenceViolations(section), ...digits];
 }
 
 const live = fs.readFileSync(README, 'utf8');
@@ -100,4 +101,22 @@ test('Given the section moved after the quickstart, when validated, then a viola
   const result = sut(moved);
 
   assert.ok(result.some(m => m.startsWith(SURFACE) && m.includes('must sit between')), result.join('\n'));
+});
+
+test('Given README.md without the comparison heading, when validated, then the missing section is reported', () => {
+  const sut = comparisonViolations;
+  const bad = live.replace(SECTION_HEADING, '## Comparison');
+
+  const result = sut(bad);
+
+  assert.deepStrictEqual(result, [`${SURFACE}: missing section "${SECTION_HEADING}"`]);
+});
+
+test('Given the craft column header renamed, when validated, then the missing craft column is reported', () => {
+  const sut = comparisonViolations;
+  const bad = live.replace('| Spec-driven kits | craft |', '| Spec-driven kits | ours |');
+
+  const result = sut(bad);
+
+  assert.ok(result.includes(`${SURFACE}: comparison table has no "${CRAFT_COLUMN}" column`), result.join('\n'));
 });

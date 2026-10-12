@@ -43,31 +43,39 @@ function hasLinkDefinition(text, label) {
   return new RegExp(`^\\[${escaped}\\]: \\S+$`, 'm').test(text);
 }
 
+function releasedVersions(headings) {
+  const released = [];
+  const malformed = [];
+  for (const heading of headings.filter(line => line !== UNRELEASED_HEADING)) {
+    const match = RELEASED_HEADING.exec(heading);
+    if (match) released.push(match[1]);
+    else malformed.push(`${CHANGELOG_SURFACE}: malformed release heading "${heading}"`);
+  }
+  return { released, malformed };
+}
+
+function orderViolations(released) {
+  return released.slice(1)
+    .map((version, i) => [released[i], version])
+    .filter(([newer, older]) => compareSemver(newer, older) <= 0)
+    .map(([newer, older]) => `${CHANGELOG_SURFACE}: ${newer} must be newer than ${older}`);
+}
+
+function linkViolations(changelogText, released) {
+  return ['Unreleased', ...released]
+    .filter(label => !hasLinkDefinition(changelogText, label))
+    .map(label => `${CHANGELOG_SURFACE}: missing link definition for [${label}]`);
+}
+
 function changelogViolations(changelogText, version) {
-  const violations = [];
   const headings = changelogText.split('\n').filter(line => line.startsWith('## '));
+  const { released, malformed } = releasedVersions(headings);
+  const violations = [...malformed, ...orderViolations(released), ...linkViolations(changelogText, released)];
   if (headings[0] !== UNRELEASED_HEADING) {
     violations.push(`${CHANGELOG_SURFACE}: first heading must be "${UNRELEASED_HEADING}"`);
   }
-  const rest = headings.filter(heading => heading !== UNRELEASED_HEADING);
-  const released = [];
-  for (const heading of rest) {
-    const match = RELEASED_HEADING.exec(heading);
-    if (match) released.push(match[1]);
-    else violations.push(`${CHANGELOG_SURFACE}: malformed release heading "${heading}"`);
-  }
-  for (let i = 1; i < released.length; i += 1) {
-    if (compareSemver(released[i - 1], released[i]) <= 0) {
-      violations.push(`${CHANGELOG_SURFACE}: ${released[i - 1]} must be newer than ${released[i]}`);
-    }
-  }
   if (released.length > 0 && released[0] !== version) {
     violations.push(`${CHANGELOG_SURFACE}: top release ${released[0]} differs from plugin version ${version}`);
-  }
-  for (const label of ['Unreleased', ...released]) {
-    if (!hasLinkDefinition(changelogText, label)) {
-      violations.push(`${CHANGELOG_SURFACE}: missing link definition for [${label}]`);
-    }
   }
   return violations;
 }
@@ -128,6 +136,22 @@ test('Given ascending release headings, when the changelog is validated, then CH
   assert.ok(sut.some(message => message.startsWith(CHANGELOG_SURFACE) && /newer/.test(message)));
 });
 
+test('Given a release heading without its date suffix, when the changelog is validated, then CHANGELOG.md names the malformed heading', () => {
+  const undated = VALID_CHANGELOG.replace('## [1.0.0] - 2026-07-25', '## [1.0.0] 2026-07-25');
+
+  const sut = changelogViolations(undated, '1.0.0');
+
+  assert.ok(sut.some(message => message.startsWith(CHANGELOG_SURFACE) && /malformed/.test(message)), sut.join('\n'));
+});
+
+test('Given two identical release headings, when the changelog is validated, then CHANGELOG.md is named', () => {
+  const duplicated = VALID_CHANGELOG.replace('## [1.0.0] - 2026-07-25', '## [1.0.0] - 2026-07-25\n\n## [1.0.0] - 2026-07-25');
+
+  const sut = changelogViolations(duplicated, '1.0.0');
+
+  assert.ok(sut.some(message => message.startsWith(CHANGELOG_SURFACE) && /newer/.test(message)), sut.join('\n'));
+});
+
 test('Given a released heading without a link definition, when the changelog is validated, then CHANGELOG.md is named', () => {
   const undefinedLink = VALID_CHANGELOG.replace(/^\[1\.0\.0\]: .*\n/m, '');
 
@@ -182,6 +206,7 @@ test('Given README.md, when the version badge is read, then it reads the plugin 
 test('Given the contributor docs map, when the release procedure is looked up, then it exists and is linked', () => {
   const map = readRepoFile(path.join('docs', 'contributing', 'README.md'));
 
-  assert.ok(fs.existsSync(RELEASING_DOC));
-  assert.ok(map.includes(RELEASING_LINK));
+  const sut = { exists: fs.existsSync(RELEASING_DOC), linked: map.includes(RELEASING_LINK) };
+
+  assert.deepStrictEqual(sut, { exists: true, linked: true });
 });

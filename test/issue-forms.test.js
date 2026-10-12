@@ -53,35 +53,40 @@ const loadYaml = fileName =>
 const loadForms = () =>
   Object.fromEntries(FORM_FILES.map(fileName => [fileName, loadYaml(fileName)]))
 
+const isPresent = value => (Array.isArray(value) ? value.length > 0 : Boolean(value))
+
+const idViolations = (element, fileName, seenIds) => {
+  if (element.id === undefined) return []
+  const violations = []
+  if (element.type === 'markdown') violations.push(`${fileName}: a markdown element cannot carry an id`)
+  if (!ID_PATTERN.test(element.id)) violations.push(`${fileName}: invalid element id ${element.id}`)
+  if (seenIds.has(element.id)) violations.push(`${fileName}: duplicate element id ${element.id}`)
+  seenIds.add(element.id)
+  return violations
+}
+
+const attributeViolations = (element, fileName) => {
+  const attributes = element.attributes || {}
+  return REQUIRED_ATTRIBUTES[element.type]
+    .filter(attribute => !isPresent(attributes[attribute]))
+    .map(attribute => `${fileName}: ${element.type} lacks attribute ${attribute}`)
+}
+
+const optionViolations = (element, fileName) => {
+  const options = (element.attributes || {}).options
+  if (element.type !== 'dropdown' || !Array.isArray(options)) return []
+  return new Set(options).size === options.length ? [] : [`${fileName}: dropdown options are not distinct`]
+}
+
 const elementViolations = (element, fileName, seenIds) => {
   if (!ELEMENT_TYPES.includes(element.type)) {
     return [`${fileName}: unknown element type ${element.type}`]
   }
-  const violations = []
-  if (element.id !== undefined) {
-    if (element.type === 'markdown') {
-      violations.push(`${fileName}: a markdown element cannot carry an id`)
-    }
-    if (!ID_PATTERN.test(element.id)) {
-      violations.push(`${fileName}: invalid element id ${element.id}`)
-    }
-    if (seenIds.has(element.id)) {
-      violations.push(`${fileName}: duplicate element id ${element.id}`)
-    }
-    seenIds.add(element.id)
-  }
-  const attributes = element.attributes || {}
-  for (const attribute of REQUIRED_ATTRIBUTES[element.type]) {
-    if (!attributes[attribute]) {
-      violations.push(`${fileName}: ${element.type} lacks attribute ${attribute}`)
-    }
-  }
-  if (Array.isArray(attributes.options) && element.type === 'dropdown') {
-    if (new Set(attributes.options).size !== attributes.options.length) {
-      violations.push(`${fileName}: dropdown options are not distinct`)
-    }
-  }
-  return violations
+  return [
+    ...idViolations(element, fileName, seenIds),
+    ...attributeViolations(element, fileName),
+    ...optionViolations(element, fileName),
+  ]
 }
 
 const formViolations = (form, fileName) => {
@@ -128,30 +133,24 @@ const configViolations = config => {
   return violations
 }
 
-const securityFormViolations = form => {
-  const violations = []
-  const body = form.body || []
-  if (body.some(element => FREE_TEXT_TYPES.includes(element.type))) {
-    violations.push(`${SECURITY_FORM}: no free-text element allowed`)
-  }
-  const first = body[0]
-  if (!first || first.type !== 'markdown' || !String(first.attributes.value).includes(WARNING_PHRASE)) {
-    violations.push(`${SECURITY_FORM}: first element must be the markdown warning`)
-  }
-  const confirmed = body.some(
-    element =>
-      element.type === 'checkboxes' &&
-      element.attributes.options.some(
-        option => option.required === true && option.label.includes(CONFIRMATION_PHRASE)
-      )
+const hasConfirmation = element =>
+  element.type === 'checkboxes' &&
+  element.attributes.options.some(
+    option => option.required === true && option.label.includes(CONFIRMATION_PHRASE)
   )
-  if (!confirmed) {
-    violations.push(`${SECURITY_FORM}: a required no-details confirmation is missing`)
-  }
-  if (typeof form.title !== 'string' || form.title === '') {
-    violations.push(`${SECURITY_FORM}: title must be a non-empty string`)
-  }
-  return violations
+
+const warnsFirst = first =>
+  Boolean(first) && first.type === 'markdown' && String(first.attributes.value).includes(WARNING_PHRASE)
+
+const securityFormViolations = form => {
+  const body = form.body || []
+  const checks = [
+    [!body.some(element => FREE_TEXT_TYPES.includes(element.type)), 'no free-text element allowed'],
+    [warnsFirst(body[0]), 'first element must be the markdown warning'],
+    [body.some(hasConfirmation), 'a required no-details confirmation is missing'],
+    [typeof form.title === 'string' && form.title !== '', 'title must be a non-empty string'],
+  ]
+  return checks.filter(([holds]) => !holds).map(([, message]) => `${SECURITY_FORM}: ${message}`)
 }
 
 describe('issue forms', () => {
@@ -180,7 +179,7 @@ describe('issue forms', () => {
     assert.deepStrictEqual(sut, [])
   })
 
-  it('Given the adapter request form, then it asks for the runtime, headless execution, deny surface and subagent dispatch', () => {
+  it('Given the adapter request form, when its element ids are read, then it asks for the runtime, headless execution, deny surface and subagent dispatch', () => {
     // Arrange
     const form = loadYaml(ADAPTER_FORM)
 
@@ -193,7 +192,7 @@ describe('issue forms', () => {
     }
   })
 
-  it('Given the chooser config, then blank issues are a boolean and one contact link points at the security policy', () => {
+  it('Given the chooser config, when validated, then blank issues are a boolean and one contact link points at the security policy', () => {
     // Arrange
     const config = loadYaml(CONFIG_FILE)
 
@@ -205,7 +204,7 @@ describe('issue forms', () => {
     assert.ok(config.contact_links.some(link => link.url.endsWith(SECURITY_POLICY_SUFFIX)))
   })
 
-  it('Given the security contact form, then it has no free-text field, warns first and requires the no-details confirmation', () => {
+  it('Given the security contact form, when validated, then it has no free-text field, warns first and requires the no-details confirmation', () => {
     // Arrange
     const form = loadYaml(SECURITY_FORM)
 
@@ -293,6 +292,63 @@ describe('issue form validators', () => {
     assert.strictEqual(sut.length, 1)
   })
 
+  const expectNamed = (form, fileName, fragment) => {
+    const sut = formViolations(form, fileName)
+    assert.ok(sut.some(message => message.startsWith(fileName) && message.includes(fragment)), sut.join('\n'))
+  }
+
+  it('Given a dropdown with no options, when validated, then the message names the file', () => {
+    const form = validForm()
+    form.body.push({ type: 'dropdown', attributes: { label: 'Pick', options: [] } })
+
+    expectNamed(form, BUG_FORM, 'lacks attribute options')
+  })
+
+  it('Given an element id with a space, when validated, then the message names the file', () => {
+    const form = validForm()
+    form.body[0].id = 'a b'
+
+    expectNamed(form, BUG_FORM, 'invalid element id')
+  })
+
+  it('Given two elements sharing an id, when validated, then the message names the file', () => {
+    const form = validForm()
+    form.body.push({ type: 'input', id: 'what', attributes: { label: 'Again' } })
+
+    expectNamed(form, BUG_FORM, 'duplicate element id')
+  })
+
+  it('Given a textarea without a label, when validated, then the message names the file', () => {
+    const form = validForm()
+    form.body.push({ type: 'textarea', attributes: {} })
+
+    expectNamed(form, BUG_FORM, 'textarea lacks attribute label')
+  })
+
+  it('Given a form without a name, when validated, then the message names the file', () => {
+    const form = validForm()
+    delete form.name
+
+    expectNamed(form, FEATURE_FORM, 'missing name')
+  })
+
+  it('Given a form with an empty body, when validated, then the message names the file', () => {
+    const form = { ...validForm(), body: [] }
+
+    expectNamed(form, FEATURE_FORM, 'non-empty array')
+  })
+
+  it('Given a contact link without an about text, when validated, then it is reported', () => {
+    // Arrange
+    const config = { blank_issues_enabled: true, contact_links: [{ name: 'n', url: 'https://example.com' }] }
+
+    // Act
+    const sut = configViolations(config)
+
+    // Assert
+    assert.deepStrictEqual(sut, [`${CONFIG_FILE}: contact link lacks about`])
+  })
+
   describe('security form mutations', () => {
     const mutate = change => {
       const form = loadYaml(SECURITY_FORM)
@@ -331,6 +387,21 @@ describe('issue form validators', () => {
 
       // Assert
       assert.ok(sut.length > 0 && sut.every(message => message.startsWith(SECURITY_FORM)))
+    })
+    it('Given an input appended to the security form, when validated, then free text is reported', () => {
+      // Act
+      const sut = mutate(form => form.body.push({ type: 'input', attributes: { label: 'Details' } }))
+
+      // Assert
+      assert.deepStrictEqual(sut, [`${SECURITY_FORM}: no free-text element allowed`])
+    })
+
+    it('Given the security form without a title, when validated, then the missing title is reported', () => {
+      // Act
+      const sut = mutate(form => delete form.title)
+
+      // Assert
+      assert.deepStrictEqual(sut, [`${SECURITY_FORM}: title must be a non-empty string`])
     })
   })
 })

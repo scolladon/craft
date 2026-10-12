@@ -43,7 +43,7 @@ function securityPolicyViolations(securityText) {
   return violations;
 }
 
-test('Given CONTRIBUTING.md, when read, then it routes to the contributor docs, names the local gate and quotes no eval command', () => {
+test('Given CONTRIBUTING.md, when read, then it routes to the contributor docs and the release procedure, names the local gate and quotes no eval command', () => {
   const sut = read(CONTRIBUTING);
 
   assert.ok(sut.includes(CONTRIBUTOR_DOCS_LINK));
@@ -52,7 +52,7 @@ test('Given CONTRIBUTING.md, when read, then it routes to the contributor docs, 
   assert.doesNotMatch(sut, EVAL_COMMAND);
 });
 
-test('Given README.md, then its contributor entry point links CONTRIBUTING.md', () => {
+test('Given README.md, when read, then its contributor entry point links CONTRIBUTING.md', () => {
   const sut = read(README);
 
   assert.ok(sut.includes(README_ENTRY_POINT));
