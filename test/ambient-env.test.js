@@ -47,6 +47,26 @@ test('Given an act that throws, when withAmbientEnv runs it, then the error prop
   assert.strictEqual(PROBE_KEY in process.env, false);
 });
 
+test('Given a key present in process.env and an act that throws, when withAmbientEnv runs it, then the original value is restored', () => {
+  assert.ok(!(PROBE_KEY in process.env));
+  process.env[PROBE_KEY] = 'original';
+  try {
+    const sut = withAmbientEnv;
+
+    assert.throws(
+      () =>
+        sut({ [PROBE_KEY]: 'during' }, () => {
+          throw new Error('boom');
+        }),
+      /boom/
+    );
+
+    assert.strictEqual(process.env[PROBE_KEY], 'original');
+  } finally {
+    delete process.env[PROBE_KEY];
+  }
+});
+
 test('Given an act returning a value, when withAmbientEnv runs it, then it returns that value', () => {
   assert.ok(!(PROBE_KEY in process.env));
   const sut = withAmbientEnv;

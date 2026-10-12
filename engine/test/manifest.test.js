@@ -2679,7 +2679,9 @@ test('Given a single whole-tree adr.frozen entry, when validateManifest runs, th
 
   const result = sut({ adr: { frozen: ['**'] } });
 
-  assert.equal(result.errors.filter(e => e.startsWith('adr.frozen')).length, 1);
+  const frozenErrors = result.errors.filter(e => e.startsWith('adr.frozen'));
+  assert.equal(frozenErrors.length, 1);
+  assert.ok(frozenErrors[0].includes("adr.frozen entry '**' exempts the whole tree"), frozenErrors[0]);
 });
 
 test('Given every pair of scoped adr.frozen globs, when validateManifest runs, then each pair is accepted', () => {

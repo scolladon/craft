@@ -1635,6 +1635,21 @@ test('Given adr.frozen entries that only together match every path, when main ru
   assert.ok(out.includes('adr.frozen entries together exempt the whole tree, which disables the citation sweep'), `stdout was: ${out}`);
 });
 
+test('Given a non-string entry between adr.frozen globs that only together match every path, when main runs, then the set is still flagged as disabling the sweep', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "*"\n    - 1\n    - "*/**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 2, `stdout: ${io.stdout.joined()}`);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('adr.frozen entries together exempt the whole tree, which disables the citation sweep'), `stdout was: ${out}`);
+});
+
 test('Given adr.frozen exempting every markdown file, when main runs, then it is flagged as disabling the sweep where citations live', () => {
   const sut = main;
   const root = gitTmpRoot();
