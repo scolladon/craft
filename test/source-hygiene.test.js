@@ -84,7 +84,7 @@ function findHomePathLeaks(line) {
     .filter((segment) => !PLACEHOLDER_HOMES.has(segment));
 }
 
-// An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git grep away from `cwd`.
+// An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git away from `cwd`.
 const GIT_LOCATION_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'];
 
 function withoutGitLocation(env) {
