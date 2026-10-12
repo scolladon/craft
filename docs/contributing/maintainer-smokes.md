@@ -466,3 +466,10 @@ and per-phase outcomes in `docs/contributing/archive/SC5-second-instantiation-re
 CI-gated — the engine path it exercises (toolchain-neutral resolution) is CI-proven by the `SC5`
 scenario fixture; this smoke adds runtime fidelity on a real second toolchain without coupling CI
 to a non-JS install.
+
+## Devcontainer cold-start smoke — not CI-gated
+
+On demand, open a fresh Codespace from the README badge. Confirm the post-create command exits 0,
+`yq --version` reports v4.44.3, `claude --version` runs, `bash scripts/ci.sh` passes, and
+`claude --plugin-dir .` lists `/craft:run`. Record the wall-clock time from create to ready: only a
+recorded time may back a duration in the README. Optionally repeat in a local arm64 devcontainer.

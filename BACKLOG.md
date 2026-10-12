@@ -175,6 +175,20 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-12 — follow-ups surfaced by the public-front-door-completion run, not yet scheduled)
+
+**Quote the plugin-root placeholder in `hooks/hooks.json`.** `claude plugin validate .` passes
+with three warnings: the PreToolUse, SessionStart and PreCompact commands expand
+`${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/<script>.sh` unquoted, so a plugin root containing a
+space splits into several words and the hook fails. Fix by quoting the placeholder or using the
+exec form the validator names; the hooks suite pins the command strings.
+
+**CI installs `bats` and `yq` that nothing runs.** `scripts/install-dev-tools.sh` (shared by CI
+and the devcontainer) installs both, but `git grep -w` outside docs, the workflow and the
+install script finds no consumer: `test/helpers/*.bash` are bats-shaped helpers no suite in
+`scripts/ci.sh` executes, and no script calls `yq`. Either wire the bats helpers into the gate
+or drop both tools from the install set, which also shortens the devcontainer's create step.
+
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the provenance-sweep-part-two run, not yet scheduled)
 
 **A step id still sits in a test title — delivered 2026-10-12**
@@ -737,13 +751,21 @@ command, never a stale hand-recorded capture. Needs a live run to record against
 the drift-guard ethos (`docs/design/readme-drift-guards.md`): a demo that can be regenerated is
 a demo that can be gated.
 
-**Public front-door completion set.** The remaining world-class-README items scoped during the
-2026-07-25 README revamp, each small but distinct: an honest comparison table vs adjacent
-approaches (spec-driven kits, plain agent prompting); a devcontainer + cloud-IDE badge making
-"try craft in 2 minutes" literal; community scaffolding (CONTRIBUTING.md with the local
-`scripts/ci.sh` loop, SECURITY.md, issue templates incl. an adapter-request form); release
-discipline (CHANGELOG, tagged releases, marketplace-version badge) so `plugin.json`'s version
-stops being the only maturity signal.
+**Public front-door completion set — delivered 2026-10-12** (public-front-door-completion).
+README now carries a `## How craft compares` table that compares approach categories (plain
+agent prompting, spec-driven kits, craft) rather than named products, with every craft cell
+linked to evidence in this repo and no digits (ADR-500, ADR-501), plus a plugin-version badge
+read from `.claude-plugin/plugin.json` and an "Open in Codespaces" shields badge (ADR-507).
+`.devcontainer/devcontainer.json` and the CI `ci` job share `scripts/install-dev-tools.sh`,
+which verifies yq against pinned per-arch SHA-256 checksums (ADR-505); the Codespace cold start
+is a not-CI-gated maintainer smoke, and README states no duration until it is measured.
+CONTRIBUTING.md (any process; `scripts/ci.sh` green + Conventional Commits, ADR-506),
+SECURITY.md (a detail-free public contact request, ADR-504) and four issue forms landed.
+CHANGELOG.md backfills 1.0.0 and cuts 1.1.0; `docs/contributing/releasing.md` holds the
+procedure, and `plugin.json` moved to 1.1.0 so marketplace users receive the post-tag work
+(ADR-503). Tagging `v1.1.0` stays a maintainer action after merge. Each claim is pinned by a
+root repo-shape test (ADR-502). Design context:
+[public-front-door-completion](docs/contributing/design/public-front-door-completion.md).
 
 ### Open (scoped 2026-07-23 — follow-ups surfaced by the aider binding, not yet scheduled)
 

@@ -6,6 +6,8 @@ multi-dimension review, validation, docs, and a PR, in one gated, resumable run.
 
 [![CI](https://github.com/scolladon/craft/actions/workflows/ci.yml/badge.svg)](https://github.com/scolladon/craft/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fscolladon%2Fcraft%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&label=version)](CHANGELOG.md)
+[![Open in Codespaces](https://img.shields.io/badge/Open%20in-Codespaces-blue)](https://codespaces.new/scolladon/craft)
 
 Shipped as a Claude Code plugin, with native bindings for seven other runtimes
 ([`adapters/`](adapters/)). Works zero-config on any repo with a discoverable test command.
@@ -65,6 +67,20 @@ tax*.
 - **Not a spec generator.** Specs are one optional phase; the unit of work is a
   delivered PR — designed, decided, tested, reviewed, validated, documented.
 
+## How craft compares
+
+Categories, not products: each cell says what the approach provides by construction.
+A given tool in a category may add more — check it.
+
+| | Plain agent prompting | Spec-driven kits | craft |
+|---|---|---|---|
+| Where the process lives | in the prompt you wrote | in templates and instructions the agent follows | in hooks, scripts and versioned [contracts](contracts/) |
+| Committing on a red test suite | not prevented by the approach itself | varies by tool | forbidden by contract, with a gate run at every code-producing phase boundary — [the contract](contracts/core.md) |
+| Why a choice was made survives the session | not by the approach itself | in the spec, when written | as a ratified [decision record](docs/contributing/adr/) |
+| Review and validation before the PR | when you ask | varies by tool | gated phases — [the review phase](skills/review/SKILL.md) |
+| Resume after a killed session | from the transcript, if the tool keeps one | from the spec files | from the last committed artifact — [plans](docs/contributing/plan/) |
+| Cost against a plain prompt | baseline | varies by tool | higher — [measured, with where craft lost](docs/guides/comparison.md#where-craft-lost) |
+
 ## Quickstart
 
 ```bash
@@ -82,6 +98,9 @@ Then, in any repo that has a test command:
 
 Requirement: **a discoverable test command** (`pytest`, `go test`, `cargo test`,
 `make test`, …). No test command → craft refuses to run, by design.
+
+No local setup: open a Codespace from the badge above, then run `claude --plugin-dir .` and
+try `/craft:review` on a branch, or `/craft:run` on a brief.
 
 ## What a run looks like
 
@@ -177,8 +196,8 @@ in code where a silent regression is expensive to discover later.
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
-receipts: [54 design docs](docs/contributing/design/), [53 parted plans](docs/contributing/plan/),
-[499 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
+receipts: [55 design docs](docs/contributing/design/), [54 parted plans](docs/contributing/plan/),
+[507 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
@@ -186,7 +205,7 @@ The README itself is gated: its example config, pipeline diagram, and cost numbe
 are recomputed and checked in CI by [`scripts/readme-drift.sh`](scripts/readme-drift.sh),
 so these claims can't silently drift out of sync.
 
-Current status: `v1.0.0`. The engine and Claude Code plugin are dogfooded daily; the
+Current status: `v1.1.0`. The engine and Claude Code plugin are dogfooded daily; the
 seven adapter bindings are portability proofs, not supported products. The roadmap is
 the [BACKLOG](BACKLOG.md), maintained by craft's own documentation phase.
 
@@ -271,7 +290,7 @@ session resumes from the last artifact — the plan's context blocks, not scroll
 | [docs/contributing/adr/](docs/contributing/adr/) | decision records |
 | [examples/](examples/) | one runnable sample per injection point |
 
-Contributing to craft itself? Dev loop: `claude --plugin-dir /path/to/craft`.
+Contributing to craft itself? Start at [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Behavioural evals (local, on demand, never CI): `docs/contributing/maintainer-smokes.md`.
 
