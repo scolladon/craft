@@ -26,7 +26,7 @@ const SUBSTITUTIONS = Object.freeze({
 });
 
 /**
- * Resolve the engine's literal gate placeholder into the real command
+ * Resolve the engine's literal gate token into the real command
  * by reading the committed manifest.
  *
  * Sources the gate from a pre-looked-up gateDecisions entry.

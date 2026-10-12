@@ -4,7 +4,7 @@
  * per-file waivers, scan each file, and (under `--gate blocking`) fail on any
  * finding or read error. Each gate passes its own `ctx`:
  * `{ self, waiverPattern, foundToken, scan }` — the gate's own module path (for
- * self-exclusion), its `SLOP/STUB-WAIVE` regex, its FOUND token, and its
+ * self-exclusion), its waiver-token regex, its FOUND token, and its
  * `scan(content) → string[]` (which closes over the gate's marker/ban list).
  * Everything else lives here once, including the waiver grammar: a waiver is a
  * line that starts with the token and `: <reason>`, outside a fenced code block.
@@ -16,7 +16,7 @@ import { resolve } from 'node:path';
 export const EXIT_OK = 0;
 export const EXIT_FOUND = 2;
 // Files above this size are skipped with a loud note rather than read into
-// memory — a touched lockfile / generated bundle is never a stub/prose target.
+// memory — a touched lockfile / generated bundle is never a hygiene-lint target.
 export const MAX_FILE_BYTES = 5_000_000;
 
 /**

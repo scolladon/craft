@@ -191,12 +191,13 @@ is left unclosed. Design:
 [waiver-mention-not-waiver](docs/contributing/design/waiver-mention-not-waiver.md);
 ADR-479–484.
 
-**Residual prose-marker findings in tracked source.** A full-tree stub scan still reports six
-non-self-reference hits: prose "stub" at `engine/src/hygiene-lint-core.js:18` and
-`engine/src/hygiene-gate-main.js:3`, `STUB-WAIVE` at `engine/src/hygiene-lint-core.js:7`, and
-prose "placeholder" at `engine/src/gates.js:25`, `adapters/pi/src/run.js:29` and
-`engine/src/observability/adapters/aider/telemetry.js:137`. Each fires only when its file is
-touched. Rewording is the fix; the case-insensitive rule (ADR-210) is not.
+**Residual prose-marker findings in tracked source — delivered 2026-10-12**
+(fix/residual-prose-markers). The six non-self-reference hits are reworded comments now: prose
+"stub" in `engine/src/hygiene-lint-core.js` (module header and `MAX_FILE_BYTES` note) and
+`engine/src/hygiene-gate-main.js`, and prose "placeholder" in `engine/src/gates.js`,
+`adapters/pi/src/run.js` and `engine/src/observability/adapters/aider/telemetry.js`.
+`stub-lint` prints nothing for all six files. The marker set and the case-insensitive rule
+(ADR-210) are unchanged, and no identifier was renamed.
 
 ### Open (scoped 2026-10-11 — follow-ups surfaced by the transient-model-retry run, not yet scheduled)
 

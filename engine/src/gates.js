@@ -22,7 +22,7 @@ const WAIVABLE_PHASE_IDS = new Set(['review', 'refactoring', 'validation', 'arch
 const PROPOSE_PHASE_ID = 'propose';
 
 /**
- * Placeholder string used when no gate is resolvable but the phase is not code-producing.
+ * Sentinel string used when no gate is resolvable but the phase is not code-producing.
  * Empty string signals "no gate required".
  */
 const NO_GATE = '';

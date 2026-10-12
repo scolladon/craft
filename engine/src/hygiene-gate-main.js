@@ -1,6 +1,6 @@
 /**
  * `hygiene-gate` — resolve the hygiene gate posture from a manifest so `ci.sh`
- * can pass `--gate` to the stub/prose lints without embedding YAML parsing in
+ * can pass `--gate` to the hygiene lints without embedding YAML parsing in
  * bash. Prints the resolved gate (`advisory` | `blocking`) to stdout. An absent,
  * unreadable, unparseable, or hygiene-less manifest resolves to `advisory` (the
  * safe default); only an explicit but invalid gate value is a loud non-zero.
