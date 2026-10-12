@@ -73,6 +73,7 @@ const HOME_DASHED_PATTERN = new RegExp(
 const PLACEHOLDER_HOMES = new Set(['alice', 'cwd', 'example', 'me', 'someone', 'user', 'x', 'other-clone']);
 const HOME_CANDIDATE_PATTERN = '/(Users|home)/|-(Users|home)-';
 const GIT_GREP_NO_MATCH = 1;
+const GIT_NOT_A_REPOSITORY = 128;
 // `s`: a CRLF row keeps its trailing \r, which `.` would otherwise refuse to match.
 const LOCATED_LINE_PATTERN = /^(.+?):(\d+):(.*)$/s;
 
@@ -83,7 +84,7 @@ function findHomePathLeaks(line) {
     .filter((segment) => !PLACEHOLDER_HOMES.has(segment));
 }
 
-// An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git grep away from `cwd`.
+// An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git away from `cwd`.
 const GIT_LOCATION_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'];
 
 function withoutGitLocation(env) {
@@ -139,17 +140,13 @@ function runGrep(pattern, paths, allowlistFilters) {
   return lines;
 }
 
-function listTrackedFiles(paths) {
-  let result;
-  try {
-    result = execFileSync('git', ['ls-files', '--', ...paths], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-  } catch (err) {
-    result = err.stdout ?? '';
-  }
+function listTrackedFiles(cwd, paths, env = process.env) {
+  const result = execFileSync('git', ['ls-files', '--', ...paths], {
+    cwd,
+    env: withoutGitLocation(env),
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
   return result.split('\n').filter(Boolean);
 }
 
@@ -172,7 +169,7 @@ test(
     // positively so a moved or renamed location fails loud here instead.
     for (const scannedPath of SCANNED_PATHS) {
       const relative = path.relative(ROOT, scannedPath);
-      const tracked = listTrackedFiles([relative]);
+      const tracked = listTrackedFiles(ROOT, [relative]);
       assert.ok(
         tracked.length > 0,
         `Source-hygiene FAIL — scanned path has no tracked files (stale entry?): ${relative}`,
@@ -270,7 +267,7 @@ test(
       'Source-hygiene class-C detector failed to flag a vendor-named file outside adapters/<vendor>/ (or wrongly flagged a correctly-placed one)',
     );
 
-    const tracked = listTrackedFiles(SCANNED_PATHS);
+    const tracked = listTrackedFiles(ROOT, SCANNED_PATHS);
     const offenders = findMisplacedVendorFiles(tracked);
     assert.strictEqual(
       offenders.length,
@@ -294,6 +291,36 @@ test(
     }
   },
 );
+
+test('Given a directory outside any git repository, when listTrackedFiles lists it, then the git failure propagates', () => {
+  const nonRepoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracked-files-non-repo-'));
+  try {
+    const sut = listTrackedFiles;
+
+    const act = () => sut(nonRepoDir, ['.']);
+
+    assert.throws(act, { status: GIT_NOT_A_REPOSITORY });
+  } finally {
+    fs.rmSync(nonRepoDir, { recursive: true, force: true });
+  }
+});
+
+test('Given an ambient GIT_DIR naming another repository, when listTrackedFiles lists a directory outside any git repository, then the git failure still propagates', () => {
+  const nonRepoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracked-files-non-repo-'));
+  const decoyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracked-files-decoy-'));
+  try {
+    execFileSync('git', ['init', '-q', decoyDir], { env: hermeticGitEnv() });
+    const ambientEnv = { ...process.env, GIT_DIR: path.join(decoyDir, '.git') };
+    const sut = listTrackedFiles;
+
+    const act = () => sut(nonRepoDir, ['.'], ambientEnv);
+
+    assert.throws(act, { status: GIT_NOT_A_REPOSITORY });
+  } finally {
+    fs.rmSync(nonRepoDir, { recursive: true, force: true });
+    fs.rmSync(decoyDir, { recursive: true, force: true });
+  }
+});
 
 const SYNTHETIC_HOME = 'synthetic';
 const LEAK_SHAPED_LINES = [
@@ -383,7 +410,7 @@ for (const line of HARMLESS_LINES) {
   });
 }
 
-test('Given git grep rows holding a leak, a placeholder and a CRLF leak, when listHomePathLeakLocations judges them, then only the leaks are located', () => {
+test('Given git grep rows holding a leak, a redacted home and a CRLF leak, when listHomePathLeakLocations judges them, then only the leaks are located', () => {
   const sut = listHomePathLeakLocations;
   const candidates = [
     `docs/a.md:3:cd /Users/${SYNTHETIC_HOME}/w`,

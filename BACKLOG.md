@@ -505,14 +505,27 @@ will notice. Either regenerate the report, or add a guard that fails when a comm
 recommendations disagree with a replay through the current rules. The second is the durable
 answer; the first is a prerequisite for it.
 
-**Two spawn sites still carry the defects their siblings just had fixed.**
-`test/source-hygiene.test.js` swallows a failed `git ls-files` into an empty set
-(`catch { result = err.stdout ?? '' }`), so its class-A/B scans pass vacuously wherever git
-fails — the identical defect removed from `test/architecture-boundaries.test.js`, where the
-throw now propagates. `test/helpers/tmp-git-repo.js` runs `git init` with no pinned
-environment, so an ambient `GIT_DIR` redirects it into an undeclared repo — the identical
-escape closed in `adapters/pi/test/cli.test.js`. Both are one-line fixes; neither was in
-scope, and leaving them is what turns a fixed defect back into a repo-wide pattern.
+**Two spawn sites still carry the defects their siblings just had fixed — delivered 2026-10-12**
+(fix/sibling-spawn-site-defects). `listTrackedFiles` in `test/source-hygiene.test.js` no longer
+catches a failed `git ls-files`: it takes `(cwd, paths, env = process.env)`, the throw
+propagates, and the env is stripped of `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` like its
+in-file sibling `listHomePathCandidateLines`. That strip matters in practice: a hook running in
+a linked worktree exports an absolute `GIT_DIR`, which otherwise turns a non-repo listing into
+a silent success. `test/helpers/tmp-git-repo.js` now runs git under an allowlisted env (`PATH`
+plus the three `GIT_CONFIG_*` pins, no `HOME`): an ambient `GIT_DIR`/`GIT_WORK_TREE`/
+`GIT_INDEX_FILE` can no longer redirect it, and an inherited `HOME` can no longer drop fixtures
+through the user's global excludes file. New eponymous suite `test/tmp-git-repo.test.js`; each
+fix landed RED-first. `runGrep` is untouched. Design:
+[sibling-spawn-site-defects](docs/contributing/design/sibling-spawn-site-defects.md).
+
+**`test/docs-structure-lint.test.js` runs its script under the inherited environment.** Its
+`sut(dir, cwd)` spawn passes no `env`, so an ambient `GIT_DIR`/`GIT_WORK_TREE` points
+`scripts/docs-structure-lint.sh` at another repository. Pinned in a throwaway during the
+sibling-spawn-site-defects design: a repo with three stray top-level dirs exits 2 with a clean
+environment and exits 0 ("audience shape OK") under a decoy `GIT_DIR`/`GIT_WORK_TREE` — a false
+pass. The helper that builds the repo is pinned now; the spawn that judges it is not. Fix shape:
+have `createTmpGitRepo` return its env (`{ root, env, cleanup }`) and pass it from `sut`, with a
+decoy red test.
 
 **`docs/contributing/specs/memory.md` is a living spec no freshness guard can see.** It carries
 no `subjects:` frontmatter, so the intention harness lists it under `skipped[]` as

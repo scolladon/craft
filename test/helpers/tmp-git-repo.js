@@ -4,6 +4,18 @@ const os = require('node:os');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 
+// Allowlisted, never spread from process.env: an ambient GIT_DIR/GIT_WORK_TREE would
+// redirect init/add into another repo, and an inherited HOME applies the user's global
+// excludes file even with GIT_CONFIG_GLOBAL pointed at /dev/null.
+function pinnedGitEnv() {
+  return {
+    PATH: process.env.PATH,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_SYSTEM: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+  };
+}
+
 // Builds a throwaway git repository under a fresh mkdtemp directory,
 // populates it with the given relative file paths (empty content, parent
 // directories created as needed), and stages them so `git ls-files` reports
@@ -28,7 +40,7 @@ function createTmpGitRepo(relativeFilePaths) {
     execFileSync(
       'git',
       ['-C', root, '-c', 'user.email=tmp-git-repo@example.com', '-c', 'user.name=tmp-git-repo', ...args],
-      { encoding: 'utf8' }
+      { encoding: 'utf8', env: pinnedGitEnv() }
     );
 
   runGit('init', '-q');
