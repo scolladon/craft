@@ -185,9 +185,11 @@ function commentOrTitleRows(cwd, rows) {
   });
 }
 
+// Raw paths and no binary rows: a C-quoted path or a `Binary file … matches` row would not
+// parse as `file:line:text`, so the test-tree classifier could neither read nor judge it.
 function grepTrackedLines(cwd, env, pattern, pathspecs) {
   try {
-    return execFileSync('git', ['grep', '-n', '-i', '-P', pattern, '--', ...pathspecs], {
+    return execFileSync('git', ['-c', 'core.quotePath=false', 'grep', '-I', '-n', '-i', '-P', pattern, '--', ...pathspecs], {
       cwd,
       env: withoutAmbientGitScope(env),
       encoding: 'utf8',
@@ -729,6 +731,28 @@ test('Given an ambient GIT_LITERAL_PATHSPECS, when listTestProvenanceRefLines sc
     const result = sut(repo, { ...hermeticGitEnv(), GIT_LITERAL_PATHSPECS: '1' });
 
     assert.deepStrictEqual(result, ["adapters/x/test/a.test.js:1:test('Given DC-2 x', () => {});"]);
+  });
+});
+
+test('Given a git repo tracking a ref on the first line of a non-ASCII-named test file, when listTestProvenanceRefLines scans it, then the line is reported under its raw path', () => {
+  const files = { 'test/é.test.js': '// P22 x\n' };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listTestProvenanceRefLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(result, ['test/é.test.js:1:// P22 x']);
+  });
+});
+
+test('Given a git repo tracking a binary fixture whose bytes match a ref and a test comment ref, when listTestProvenanceRefLines scans it, then only the comment is reported', () => {
+  const files = { 'test/blob.bin': 'P12\0bin\n', 'test/a.test.js': '// P3 x\n' };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listTestProvenanceRefLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(result, ['test/a.test.js:1:// P3 x']);
   });
 });
 
