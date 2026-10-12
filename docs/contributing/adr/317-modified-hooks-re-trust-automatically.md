@@ -1,8 +1,15 @@
+---
+subjects:
+  - adapters/codex/src/hook-trust.js
+---
 # 317 — A `modified` hook re-trusts automatically, gated on the hook command's identity
 
-- **Status:** accepted
+- **Status:** superseded by ADR-514
 - **Date:** 2026-07-31
 - **Design:** docs/contributing/design/codex-0145-limitation-reprobe.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-514** for the command-identity check requiring exactly two whitespace-separated tokens:
+> the operand may now also be one double-quoted span free of `"`, `\`, backticks and `$(`.
 
 ## Context
 

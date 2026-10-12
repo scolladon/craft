@@ -175,14 +175,36 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-12 — follow-ups surfaced by the codex-hooks-quote-plugin-root run, not yet scheduled)
+
+**Probe what codex does with a hook that exits neither 0 nor 2.** The pre-fix bash/sh failure made
+the guard exit 1 (node could not load the split path), and a crashing guard does the same. Whether
+codex 0.161.0 then runs the tool call (fail-open) or blocks it was never probed; the POC record
+carries it as DEFERRED. Prove it with the offline fake-provider smoke: register a hook that exits
+1, have the fake model call `exec_command`, and read whether a `command_execution` item appears.
+If it fails open, the guard needs a top-level catch that exits 2.
+
+**Commit a differential test for the codex trust matcher.** Three review cycles each found a new
+class of command `selectCraftHook` trusted while the shell or node ran something else, and a
+throwaway fuzz found zsh's `EQUALS` class the reviewers missed. That fuzz (random commands; every
+accepted one run under sh, bash, dash and zsh with a stub `node` on `PATH`; oracle: one rooted argv
+ending in the guard tail, exit 0, empty stderr) lives only in the run's scratch space. A seeded,
+bounded version in `adapters/codex/test/` would catch a regression no example row anticipates;
+zsh is absent on Ubuntu CI, so its leg needs a skip-with-reason.
+
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the backlog-sweep-hooks-quote-dev-tools run, not yet scheduled)
 
-**`adapters/codex/hooks.json` carries the same unquoted plugin-root path.** Its command is
-`node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/…`, which `claude plugin validate` never
-reads. Under `sh -c`, that form splits on a spaced root (shown by the design's probes). Still
-unproven: whether codex runs hook commands through a shell. Prove it first with a codex live
-smoke from a spaced `CRAFT_ROOT`, then quote the path and update `adapters/codex/test/config.test.js`
-and `hook-trust.test.js`, which pin the command.
+**`adapters/codex/hooks.json` carries the same unquoted plugin-root path — delivered 2026-10-12**
+(codex-hooks-quote-plugin-root). Proven first: codex-cli 0.161.0 runs a hook command as
+`<login shell> -c <command>`, the shell taken from the user database with `$SHELL` ignored
+(offline fake-provider smoke, no auth copied). From a spaced root, zsh runs the unquoted form but
+bash, sh and dash split it. Both registrations now quote the whole path (ADR-512, literal TOML
+string per ADR-513), and `trust-hook`'s matcher accepts that one double-quoted operand. Review
+then proved the matcher's own contract leaky; it is now an allow-list: a bare or absolute `node`,
+one operand rooted at `/` or at the shim plus `/`, path characters only (ADRs 514, 515, 517;
+`/proc/self/cwd` aliases bounded as a non-goal beside the accepted `..` traversal case). A live run
+trusted the quoted hook and the guard denied `git diff` with no bypass flag. Design context:
+[codex-hooks-quote-plugin-root](docs/contributing/design/codex-hooks-quote-plugin-root.md).
 
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the public-front-door-completion run, not yet scheduled)
 

@@ -29,7 +29,7 @@ const GUARD_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 // of at install time — where an unregistered hook is indistinguishable from the
 // untrusted-hook silent no-op.
 const CONFIG_TEMPLATE = readFileSync(join(ADAPTER_DIR, 'config.template.toml'), 'utf8');
-const TEMPLATE_COMMAND_PATTERN = /^\s*command\s*=\s*"(.*)"\s*$/gm;
+const TEMPLATE_COMMAND_PATTERN = /^\s*command\s*=\s*'(.*)'\s*$/gm;
 const TEMPLATE_COMMANDS = [...CONFIG_TEMPLATE.matchAll(TEMPLATE_COMMAND_PATTERN)].map(([, value]) => value);
 
 // A bare `command = "…"` line registers nothing on its own: what makes codex run
@@ -55,6 +55,13 @@ const EXPANDED_COMMAND = `node /fixture/repo${GUARD_TAIL}`;
 // The one command shape ever observed live: codex reported the interpreter itself
 // resolved to an absolute path, not the bare `node` every other fixture here uses.
 const EXPANDED_INTERPRETER_COMMAND = `/fixture/home/.n/bin/node /fixture/repo${GUARD_TAIL}`;
+const PLUGIN_ROOT_SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
+const UNQUOTED_RAW_COMMAND = `node ${PLUGIN_ROOT_SHIM}${GUARD_TAIL}`;
+const QUOTED_RAW_COMMAND = `node "${PLUGIN_ROOT_SHIM}${GUARD_TAIL}"`;
+const SPACED_ROOT = '/fixture/craft root';
+const QUOTED_EXPANDED_COMMAND = `node "${SPACED_ROOT}${GUARD_TAIL}"`;
+const QUOTED_EXPANDED_INTERPRETER_COMMAND = `/fixture/home/.n/bin/node "${SPACED_ROOT}${GUARD_TAIL}"`;
+const QUOTED_HOME_COMMAND = `node "$HOME/craft${GUARD_TAIL}"`;
 const FOREIGN_INTERPRETER_COMMAND = `python /fixture/repo${GUARD_TAIL}`;
 const FOREIGN_COMMAND = 'node /fixture/repo/other/hooks/something.js';
 
@@ -391,10 +398,10 @@ describe('parseHooksList() — a refusal shows what the server actually sent', (
 });
 
 describe('the registered command and the matched path are the same path', () => {
-  it('Given the command hooks.json registers, when the guard segments are joined, then they are a suffix of it', () => {
+  it('Given the command hooks.json registers, when the guard segments are joined, then they close its quoted operand', () => {
     const sut = REGISTERED_COMMAND;
 
-    assert.ok(sut.endsWith(GUARD_TAIL), `hooks.json registers ${sut}, which does not end with ${GUARD_TAIL}`);
+    assert.ok(sut.endsWith(`${GUARD_TAIL}"`), `hooks.json registers ${sut}, whose quoted operand does not end with ${GUARD_TAIL}`);
   });
 
   it('Given the command hooks.json registers, when selectCraftHook is asked about it, then it is the craft guard', () => {
@@ -456,6 +463,47 @@ describe('selectCraftHook() — decoy commands must not match', () => {
     ['the tail appears inside a quoted argument', `node /tmp/evil.js "--label=${GUARD_TAIL}"`],
     ['the tail appears as a flag value', `node /tmp/evil.js --mimic /opt/other${GUARD_TAIL}`],
     ['the operand merely has the tail as a prefix of a longer name', `node /Users/other-clone${GUARD_TAIL}.bak`],
+    ['a command is chained ahead of the guard', `/tmp/evil.sh && node /opt/craft${GUARD_TAIL}`],
+    ['a flag follows the guard operand', `node /opt/craft${GUARD_TAIL} --flag`],
+    ['a flag follows the quoted guard operand', `node "/opt/craft root${GUARD_TAIL}" --flag`],
+    ['a command is chained after the quoted operand with no whitespace', `node "/opt/craft${GUARD_TAIL}";/tmp/evil.sh`],
+    ['a command is chained after the quoted operand', `node "/opt/craft${GUARD_TAIL}" && /tmp/evil.sh`],
+    ['a command is chained ahead of the quoted guard', `/tmp/evil.sh && node "/opt/craft${GUARD_TAIL}"`],
+    ['a comment follows the quoted operand', `node "/opt/craft${GUARD_TAIL}" # comment`],
+    ['a second quoted argument carries the tail', `node "/tmp/evil.js" "/opt/craft${GUARD_TAIL}"`],
+    ['the quoted operand merely has the tail as a prefix of a longer name', `node "/opt/craft${GUARD_TAIL}.bak"`],
+    ['the operand is single-quoted', `node '/opt/craft${GUARD_TAIL}'`],
+    ['the quoted operand runs a command substitution', `node "$(/tmp/evil.sh)/opt/craft${GUARD_TAIL}"`],
+    ['the quoted operand runs a backtick substitution', `node "\`/tmp/evil.sh\`/opt/craft${GUARD_TAIL}"`],
+    ['the quoted operand carries a backslash escape', `node "/opt/cr\\aft${GUARD_TAIL}"`],
+    ['the quoted operand carries an escaped double quote', `node "/opt/x\\"${GUARD_TAIL}"`],
+    ['the quoted operand runs an arithmetic expansion', `node "$((1))/opt/craft${GUARD_TAIL}"`],
+    ['the quoted operand carries a line break', `node "/opt/craft\n/tmp/evil${GUARD_TAIL}"`],
+    ['the quoted operand expands a variable other than the plugin-root shim', QUOTED_HOME_COMMAND],
+    ['the quoted operand evaluates an assembled substitution through a zsh expansion flag', `node "\${(e)\${:-\${:-$}(touch MARK)}}${GUARD_TAIL}"`],
+    ['the quoted operand evaluates an assembled substitution through a recursive arithmetic subscript', `node "\${y:=a[\${z:-$}(touch MARK)]}$[y]${GUARD_TAIL}"`],
+    ['the quoted operand evaluates an assembled substitution through an array subscript', `node "\${y:=a[\${z:-$}(touch MARK)]}\${a[y]}${GUARD_TAIL}"`],
+    ['the quoted operand evaluates an assembled substitution through an indirect expansion', `node "\${y:=a[\${z:-$}(touch MARK)]}\${!y}${GUARD_TAIL}"`],
+    ['the quoted operand carries the plugin-root shim with a different default', `node "\${CRAFT_ROOT:-/tmp/evil}${GUARD_TAIL}"`],
+    ['the quoted operand is a node option that evaluates code ahead of a commented-out tail', `node "--eval=process.exitCode=0/${GUARD_TAIL}"`],
+    ['the bare operand is a node option that evaluates code ahead of a commented-out tail', `node --eval=process.exitCode=0/${GUARD_TAIL}`],
+    ['the quoted operand is a node option that imports a module ahead of a commented-out tail', `node "--import=data:text/javascript,0/${GUARD_TAIL}"`],
+    ['the bare operand is a short node option that preloads a module', `node -r/x${GUARD_TAIL}`],
+    ['the quoted operand is a short node option that preloads a module', `node "-r/x${GUARD_TAIL}"`],
+    ['the bare operand is a path relative to the session directory', `node craft${GUARD_TAIL}`],
+    ['the quoted operand is a path relative to the session directory', `node "craft${GUARD_TAIL}"`],
+    ['the quoted operand opens with a space ahead of the path', `node " /opt/craft${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a node option', `node "${PLUGIN_ROOT_SHIM}--eval=process.exitCode=0/${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a module import', `node "${PLUGIN_ROOT_SHIM}--import=data:text/javascript,0/${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a relative path', `node "${PLUGIN_ROOT_SHIM}craft${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a short node option', `node "${PLUGIN_ROOT_SHIM}-r/tmp/x${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a space and a relative path', `node "${PLUGIN_ROOT_SHIM} craft${GUARD_TAIL}"`],
+    ['the interpreter is a path relative to the session directory', `bin/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is a dot-relative path', `./node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is a relative path opening with a dash', `-r/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an absolute path that is not node', `/usr/bin/python3 /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an absolute path ending in node that runs a substitution', `/tmp/$(/tmp/evil.sh)/node /opt/craft${GUARD_TAIL}`],
+    ['the quoted operand follows an unsafe segment with a plugin-root shim and a safe tail', `node "/tmp/$(evil) ${PLUGIN_ROOT_SHIM}${GUARD_TAIL}"`],
   ];
 
   for (const [label, command] of DECOYS) {
@@ -465,6 +513,12 @@ describe('selectCraftHook() — decoy commands must not match', () => {
       assert.throws(() => sut([craftHook({ command })]), /no craft hook/i);
     });
   }
+
+  it('Given a hook whose command is an array holding the guard command, when selectCraftHook runs, then it does not match and it throws', () => {
+    const sut = selectCraftHook;
+
+    assert.throws(() => sut([craftHook({ command: [UNQUOTED_RAW_COMMAND] })]), /no craft hook/i);
+  });
 
   it('Given a hook whose command names the guard but whose source is a repository, when selectCraftHook runs, then it throws rather than selecting a repo-supplied hook', () => {
     const sut = selectCraftHook;
@@ -501,7 +555,7 @@ describe('selectCraftHook()', () => {
     assert.equal(result, hook);
   });
 
-  // Every other refusal here is already settled by the token count or by the
+  // Every other refusal here is already settled by the command's shape or by the
   // operand's tail, so without this case the interpreter rule never decides an
   // outcome on its own and could be dropped unnoticed.
   it('Given a hook whose operand is the guard but whose interpreter is not node, when selectCraftHook runs, then it does not match and it throws', () => {
@@ -577,6 +631,121 @@ describe('selectCraftHook()', () => {
   });
 });
 
+describe('selectCraftHook() — only a plain space separates the words', () => {
+  // The shell ends a command at a line break and does not split on Unicode spaces,
+  // while a JavaScript whitespace class does both, so any separator but a plain
+  // space would let the matcher read a command the shell runs differently.
+  const SEPARATOR_REFUSALS = [
+    ['a line feed separates the interpreter from the operand', `node\n/tmp/evil${GUARD_TAIL}`],
+    ['a carriage return separates the interpreter from the operand', `node\r/tmp/evil${GUARD_TAIL}`],
+    ['a tab separates the interpreter from the operand', `node\t/opt/craft${GUARD_TAIL}`],
+    ['a no-break space separates the interpreter from the operand', `node\u00a0/opt/craft${GUARD_TAIL}`],
+    ['a line feed follows the operand', `node /opt/craft${GUARD_TAIL}\n`],
+  ];
+
+  for (const [label, command] of SEPARATOR_REFUSALS) {
+    it(`Given a hook command where ${label}, when selectCraftHook runs, then it does not match and it throws`, () => {
+      const sut = selectCraftHook;
+
+      assert.throws(() => sut([craftHook({ command })]), /no craft hook/i);
+    });
+  }
+});
+
+describe('selectCraftHook() — the guard operand wrapped in one pair of double quotes', () => {
+  // Quoting the whole operand is what keeps a plugin root containing a space one
+  // word under every shell, so each of these is a registration that runs the guard.
+  const QUOTED_OPERANDS = [
+    ['the raw unexpanded guard path in double quotes', QUOTED_RAW_COMMAND],
+    ['the shell-expanded guard path under a root containing a space, in double quotes', QUOTED_EXPANDED_COMMAND],
+    ['an absolute interpreter and the quoted guard path under a root containing a space', QUOTED_EXPANDED_INTERPRETER_COMMAND],
+    ['a quoted guard path using every path character and a space', `node "/opt/n@v+1%2,x:y=z-é_9.d root${GUARD_TAIL}"`],
+    ['the plugin-root shim followed by literal path characters in double quotes', `node "${PLUGIN_ROOT_SHIM}/x_1${GUARD_TAIL}"`],
+  ];
+
+  for (const [label, command] of QUOTED_OPERANDS) {
+    it(`Given a hook command carrying ${label}, when selectCraftHook runs, then it is the craft guard`, () => {
+      const sut = selectCraftHook;
+      const hook = craftHook({ command });
+
+      const result = sut([hook]);
+
+      assert.equal(result, hook);
+    });
+  }
+});
+
+describe('selectCraftHook() — shell syntax outside quotes must not match', () => {
+  // None of these needs whitespace, so a two-word shape alone lets each through,
+  // and each makes the shell run something other than the guard: a substitution,
+  // a second word split out of a variable or a glob, a chained command. Only a
+  // literal interpreter and a literal (or the exact raw-shim) operand rule them out.
+  const SHELL_SYNTAX_COMMANDS = [
+    ['the operand runs a command substitution', `node $(touch\${IFS}MARK)${GUARD_TAIL}`],
+    ['the operand runs a backtick substitution', `node \`touch\${IFS}MARK\`${GUARD_TAIL}`],
+    ['the operand splits into a second script on a field separator', `node ./evil.js\${IFS}${GUARD_TAIL}`],
+    ['the operand splits into a globbed script on a field separator', `node ./e*.js\${IFS}${GUARD_TAIL}`],
+    ['the operand chains a second command with no whitespace', `node /nowhere;./evil${GUARD_TAIL}`],
+    ['the interpreter runs a command substitution', `$(touch\${IFS}MARK)/node /opt/craft${GUARD_TAIL}`],
+    ['the bare operand expands a variable other than the plugin-root shim', `node $HOME/craft${GUARD_TAIL}`],
+    ['only the plugin-root shim is quoted', `node "${PLUGIN_ROOT_SHIM}"${GUARD_TAIL}`],
+    ['the operand opens a double quote it never closes', `node "/opt/craft${GUARD_TAIL}`],
+  ];
+
+  for (const [label, command] of SHELL_SYNTAX_COMMANDS) {
+    it(`Given a hook command where ${label}, when selectCraftHook runs, then it does not match and it throws`, () => {
+      const sut = selectCraftHook;
+
+      assert.throws(() => sut([craftHook({ command })]), /no craft hook/i);
+    });
+  }
+});
+
+describe('selectCraftHook() — a literal word the shell reads as something other than a word', () => {
+  // Each of these is built from literal path characters only, yet the shell does
+  // not run node on the guard: a leading `NAME=` is an environment assignment, so
+  // the operand itself becomes the command, and zsh expands a word opening with `=`
+  // into a command-path lookup that never finds a path.
+  const NON_WORD_COMMANDS = [
+    ['the interpreter is an environment assignment ahead of a bare operand', `X=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment ahead of a quoted operand', `X=/node "/opt/craft${GUARD_TAIL}"`],
+    ['the interpreter is an appending environment assignment', `X+=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment to a non-ASCII name', `é=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment to a multi-letter name', `HOME=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment to an underscore-led name', `_X=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment to a name carrying a digit', `X1=/node /opt/craft${GUARD_TAIL}`],
+    ['the bare operand opens with an equals sign zsh expands as a command lookup', `node =x${GUARD_TAIL}`],
+    ['the interpreter opens with an equals sign zsh expands as a command lookup', `=/opt/n/node /opt/craft${GUARD_TAIL}`],
+  ];
+
+  for (const [label, command] of NON_WORD_COMMANDS) {
+    it(`Given a hook command where ${label}, when selectCraftHook runs, then it does not match and it throws`, () => {
+      const sut = selectCraftHook;
+
+      assert.throws(() => sut([craftHook({ command })]), /no craft hook/i);
+    });
+  }
+});
+
+describe('selectCraftHook() — a literal path may carry any path character', () => {
+  const LITERAL_PATH_COMMANDS = [
+    ['the unquoted raw plugin-root shim', UNQUOTED_RAW_COMMAND],
+    ['an operand using every literal path character', `node /opt/n@v+1%2,x:y=z-é_9.d${GUARD_TAIL}`],
+    ['an interpreter using every literal path character', `/opt/n@v+1%2,x:y=z-é_9.d/node /opt/craft${GUARD_TAIL}`],
+  ];
+
+  for (const [label, command] of LITERAL_PATH_COMMANDS) {
+    it(`Given a hook command carrying ${label}, when selectCraftHook runs, then it is the craft guard`, () => {
+      const sut = selectCraftHook;
+      const hook = craftHook({ command });
+
+      const result = sut([hook]);
+
+      assert.equal(result, hook);
+    });
+  }
+});
+
 describe('selectCraftHook() — the same command, differently spaced', () => {
   // A shell collapses runs of whitespace and ignores what surrounds the command,
   // so each of these IS the registration the guard ships. Refusing one reports
@@ -585,6 +754,8 @@ describe('selectCraftHook() — the same command, differently spaced', () => {
   const SPACINGS = [
     ['separated by more than one space', `node  /fixture/repo${GUARD_TAIL}`],
     ['surrounded by leading and trailing whitespace', ` node /fixture/repo${GUARD_TAIL} `],
+    ['separated from its quoted operand by more than one space', `node  "${SPACED_ROOT}${GUARD_TAIL}"`],
+    ['with a quoted operand, surrounded by leading and trailing whitespace', ` node "${SPACED_ROOT}${GUARD_TAIL}" `],
   ];
 
   for (const [label, command] of SPACINGS) {

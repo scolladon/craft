@@ -65,11 +65,21 @@ above. Skip it and the binding has no PreToolUse hook registered at all — a st
 runtime, looks exactly like the untrusted-hook no-op described below: installed, silent,
 enforcing nothing.
 
-The registered `command` must stay exactly two whitespace-separated tokens — interpreter
-then guard script. `bin/trust-hook.js` refuses anything else, so a quoted operand, an
-added flag or a shell wrapper leaves the hook untrusted and therefore silent. A
-hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so export `CRAFT_ROOT=<repo checkout>` or
-substitute that absolute path into the command unquoted.
+The registered `command` is the interpreter, then the guard script as one double-quoted
+operand: `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js"`.
+The quotes keep a checkout path containing a space one word under every shell codex may
+run the hook through. `bin/trust-hook.js` refuses anything else: inside the quotes only
+path characters, plain spaces and that exact `${CRAFT_ROOT:-…}` placeholder are allowed, and
+the path starts at `/` or at that placeholder followed by `/`; the interpreter is `node` or an absolute path to it. An added flag, a relative path, a chained
+command, a shell wrapper, an environment assignment or any other `$` expansion leaves the
+hook untrusted and therefore silent. A hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so
+export `CRAFT_ROOT=<repo checkout>` or substitute that absolute path into the command,
+inside the double quotes.
+
+An install wired before the operand was quoted keeps its trusted, unquoted entry until you
+re-copy the template block; under a bash or sh login shell that entry loses the guard
+whenever the checkout path contains a space. After re-copying, codex reports the hook
+`modified`, and one `node adapters/codex/bin/trust-hook.js` run trusts it again.
 
 ## Configure
 
@@ -90,11 +100,13 @@ installed and enforces *nothing*, with no signal that anything is wrong.
 
 So, before any headless or automated run:
 
-1. After `codex login` — that order is a requirement, not a precaution. `hooks/list`
-   **needs an authenticated `CODEX_HOME`** (pinned live: with no `auth.json`, and again
-   with a stale refresh token, `codex app-server` answers `initialize` and then exits
-   without ever answering `hooks/list`). So `trust-hook.js` cannot run before login, and
-   cannot run in a CI job unless that job seeds a valid, authenticated `CODEX_HOME`.
+1. After `codex login` — keep this order as the safe instruction. On codex-cli 0.145.0
+   `hooks/list` **needed an authenticated `CODEX_HOME`** (pinned live: with no `auth.json`,
+   and again with a stale refresh token, `codex app-server` answered `initialize` and then
+   exited without ever answering `hooks/list`), so `trust-hook.js` could not run before
+   login or in a CI job without a seeded, authenticated `CODEX_HOME`. On 0.161.0
+   `hooks/list` answered from a `CODEX_HOME` with no `auth.json`; do not rely on that
+   across versions.
    Then **trust the craft guard hook**:
 
    ```

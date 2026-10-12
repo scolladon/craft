@@ -475,8 +475,8 @@ so it is a live docs defect; the minimal fix is a `./` prefix.
 
 | Question | Status |
 |---|---|
-| Does `hooks/list` require an authenticated `CODEX_HOME`? | **CONFIRMED (0.145.0): yes.** With no `auth.json`, and again with a stale refresh token, `codex app-server` exits code 0 having answered only `initialize` — the `hooks/list` response never arrives. The trust helper therefore cannot run on an unauthenticated machine: not before `codex login`, and not in a CI job unless that job seeds a valid, authenticated `CODEX_HOME`. |
-| Does `hooks/list` report `command` raw or shell-expanded? | **CONFIRMED (0.145.0) as a single observation: shell-expanded.** The live dogfood reported `command=/Users/…/.n/bin/node /…/adapters/codex/hooks/craft-guard.js` — the `node` binary resolved to an absolute path. One observation is not a rule, and the raw form was never observed either way, so this cell does not say codex always expands. The matcher must accept both variants. |
+| Does `hooks/list` require an authenticated `CODEX_HOME`? | **CONFIRMED (0.145.0): yes.** With no `auth.json`, and again with a stale refresh token, `codex app-server` exits code 0 having answered only `initialize` — the `hooks/list` response never arrives. The trust helper therefore cannot run on an unauthenticated machine: not before `codex login`, and not in a CI job unless that job seeds a valid, authenticated `CODEX_HOME`. (see the 0.161.0 re-probe) |
+| Does `hooks/list` report `command` raw or shell-expanded? | **CONFIRMED (0.145.0) as a single observation: shell-expanded.** The live dogfood reported `command=/Users/…/.n/bin/node /…/adapters/codex/hooks/craft-guard.js` — the `node` binary resolved to an absolute path. One observation is not a rule, and the raw form was never observed either way, so this cell does not say codex always expands. The matcher must accept both variants. (see the 0.161.0 re-probe) |
 
 ### `app-server` stdin must stay open — CONFIRMED (0.145.0)
 
@@ -506,3 +506,21 @@ observe this, because nothing on the real filesystem changed.
 Rule for any refresh of this record: mtime-find proves *filesystem* isolation only. Treat copied
 credentials as consumed, keep probe windows short enough to stay inside the access token's lifetime,
 and expect a re-login may be needed afterwards.
+
+## Re-probe — codex-cli 0.161.0
+
+Method: an offline fake Responses provider (`model_providers`, `wire_api = "responses"`, no
+`auth.json`) in a throwaway `CODEX_HOME` and `HOME`. Isolation proven by
+`find ~/.codex -newer <marker>` = 0 files. Every row is pinned to 0.161.0; where it differs from
+the 0.145.0 section above, both stay, each pinned to its version.
+
+| Probe | Result |
+|---|---|
+| PreToolUse hook command execution (0.161.0) | **CONFIRMED (0.161.0).** The command runs as `<login shell> -c <command>`. Metachar probe `node <dump> 'a b' "$CRAFT_ROOT" $((1+1)) ; echo second >> <file>` gave argv `["a b", "<root>", "2"]`, the second command ran, and the parent process was `/bin/zsh -c …`. |
+| Which shell runs the hook (0.161.0) | **CONFIRMED (0.161.0).** The login shell from the user database (`getpwuid_r` `pw_shell`); `$SHELL` is ignored (`SHELL=/bin/bash` and `/bin/sh` still ran `/bin/zsh`). Source rust-v0.161.0: `codex-rs/core/src/session/mod.rs` `hook_shell_program`; `codex-rs/shell-command/src/shell_detect.rs` `get_user_shell_path`. |
+| Unquoted vs quoted plugin root, spaced path (0.161.0) | **CONFIRMED (0.161.0 shells).** Unquoted `node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/…/craft-guard.js` from a root containing a space: zsh runs the guard (no word-split); sh, bash and dash split the path (node exits 1). The quoted form runs the guard under all four. |
+| `hooks/list` command echo (0.161.0) | **CONFIRMED (0.161.0).** A `config.toml`-registered command is echoed raw (quotes and `${…}` kept), source `user`. The literal and escaped TOML spellings hash identically (`sha256:38713365…`). The 0.145.0 row observed an expanded echo; the matcher accepts both. |
+| `hooks/list` without credentials (0.161.0) | **CONFIRMED (0.161.0).** `hooks/list` answered from a `CODEX_HOME` with no `auth.json`. This contradicts the 0.145.0 row "requires an authenticated `CODEX_HOME`"; both stay, version-pinned. |
+| Trust migration, unquoted to quoted (0.161.0) | **CONFIRMED (0.161.0).** A trusted unquoted hook edited to the quoted command reports `modified` with the same key; one `trust-hook` run re-trusts it. |
+| End to end (0.161.0) | **CONFIRMED (0.161.0).** Template block copied verbatim, spaced `CRAFT_ROOT`; `trust-hook` trusted the quoted command, `--check` reported trusted/noop; `codex exec` without `--dangerously-bypass-hook-trust` had the guard deny `git diff` with its `--no-ext-diff` reason, and no command executed. |
+| Hook exiting 1: fail-open or fail-closed (0.161.0) | **DEFERRED.** Not probed. |

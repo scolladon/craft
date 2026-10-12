@@ -1,13 +1,23 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { delimiter, dirname, join } from 'node:path';
 
 const ADAPTER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const HOOKS_JSON_PATH = join(ADAPTER_DIR, 'hooks.json');
 const CONFIG_TEMPLATE_PATH = join(ADAPTER_DIR, 'config.template.toml');
 const SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
+const GUARD_COMMAND = `node "${SHIM}/adapters/codex/hooks/craft-guard.js"`;
+const TEMPLATE_COMMAND_PATTERN = /^\s*command\s*=\s*'(.*)'\s*$/gm;
+const REPO_ROOT = join(ADAPTER_DIR, '..', '..');
+const SPACED_ROOT_PREFIX = 'craft-codex-hook-root-';
+const SPACED_ROOT_NAME = 'craft root';
+const SHELLS = ['sh', 'bash'];
+const GUARD_DENIED_EXIT = 2;
+const BLOCKING_PAYLOAD = JSON.stringify({ cwd: '/repo', tool_name: 'exec_command', tool_input: { cmd: 'git diff' } });
 const PINNED_TIER_MODELS = new Set(['gpt-5.6-sol', 'gpt-5.6-terra', 'gpt-5.4-mini']);
 
 function readHooksJson() {
@@ -68,4 +78,67 @@ describe('config.template.toml — provider-neutral model vocabulary', () => {
 
     assert.ok(result, `unpinned model id(s) found: ${matches.filter((id) => !PINNED_TIER_MODELS.has(id))}`);
   });
+});
+
+function registeredHooksJsonCommand() {
+  return JSON.parse(readHooksJson()).hooks.PreToolUse[0].hooks[0].command;
+}
+
+function singleTemplateCommand() {
+  const commands = [...readConfigTemplate().matchAll(TEMPLATE_COMMAND_PATTERN)].map(([, value]) => value);
+  if (commands.length !== 1) {
+    throw new Error(`config.template.toml registers ${commands.length} literal-string commands, expected exactly 1`);
+  }
+  return commands[0];
+}
+
+function withSpacedRoot(act) {
+  const tmp = mkdtempSync(join(tmpdir(), SPACED_ROOT_PREFIX));
+  try {
+    const root = join(tmp, SPACED_ROOT_NAME);
+    symlinkSync(REPO_ROOT, root);
+    return act({ root, unrelated: tmp });
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+// Built from scratch rather than inherited, so an ambient CRAFT_ROOT cannot stand
+// in for the root the case under test is meant to supply.
+function runRegisteredCommand(shell, command, rootEnv) {
+  const path = [dirname(process.execPath), process.env.PATH].join(delimiter);
+  return spawnSync(shell, ['-c', command], { input: BLOCKING_PAYLOAD, env: { PATH: path, ...rootEnv }, encoding: 'utf8' });
+}
+
+describe('the registered guard command — exact spelling', () => {
+  it('Given hooks.json, when its PreToolUse command is read, then it is node and the whole guard path in one pair of double quotes', () => {
+    const sut = registeredHooksJsonCommand();
+
+    assert.equal(sut, GUARD_COMMAND);
+  });
+});
+
+describe('the registered guard command — run by a shell from a plugin root containing a space', () => {
+  const ROOT_SOURCES = [
+    ['CLAUDE_PLUGIN_ROOT names that root and CRAFT_ROOT is unset', ({ root }) => ({ CLAUDE_PLUGIN_ROOT: root })],
+    ['CRAFT_ROOT names that root and CLAUDE_PLUGIN_ROOT names another', ({ root, unrelated }) => ({ CLAUDE_PLUGIN_ROOT: unrelated, CRAFT_ROOT: root })],
+  ];
+  const REGISTRATIONS = [
+    ['hooks.json', registeredHooksJsonCommand],
+    ['config.template.toml', singleTemplateCommand],
+  ];
+  const MATRIX = SHELLS.flatMap((shell) =>
+    REGISTRATIONS.flatMap(([registration, readCommand]) =>
+      ROOT_SOURCES.map(([rootLabel, rootEnv]) => [shell, registration, readCommand, rootLabel, rootEnv])));
+
+  for (const [shell, registration, readCommand, rootLabel, rootEnv] of MATRIX) {
+    it(`Given ${rootLabel}, when ${shell} -c runs the ${registration} command on a blocking payload, then the guard itself denies it`, () => {
+      withSpacedRoot((roots) => {
+        const sut = runRegisteredCommand(shell, readCommand(), rootEnv(roots));
+
+        assert.equal(sut.status, GUARD_DENIED_EXIT, sut.stderr);
+        assert.match(sut.stderr, /--no-ext-diff/);
+      });
+    });
+  }
 });

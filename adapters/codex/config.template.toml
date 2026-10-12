@@ -17,21 +17,26 @@ approval_policy = "on-request"
 # and codex registers no hook at all, a state indistinguishable at runtime from the
 # untrusted-hook silent no-op: installed, silent, enforcing nothing.
 #
-# The command is exactly two whitespace-separated tokens, interpreter then guard, because
-# that is the only form `bin/trust-hook.js` will trust. Quoting the operand, adding a
-# flag, chaining a second command, or wrapping it in a shell all make the trust helper
-# refuse the registration rather than trust it.
+# The command is the interpreter, then the guard path as one double-quoted operand,
+# because that is the only form `bin/trust-hook.js` will trust. The quotes keep a
+# checkout path containing a space one word under every shell. Inside the quotes only
+# path characters, plain spaces and the exact `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}`
+# placeholder are allowed, the path starts at `/` or at that placeholder followed by
+# `/`, and the interpreter is `node` or an absolute path to it. Adding a flag, a
+# relative path, chaining a second command, wrapping it in a shell, or any other `$`
+# expansion makes the trust helper refuse the registration. The value is a TOML literal
+# string (single quotes), so the double quotes need no escaping.
 #
 # `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}` is expanded by the shell codex runs hook commands
 # through. A hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so either export
-# `CRAFT_ROOT=<repo checkout>` or substitute that absolute path here — unquoted, so the
-# two-token form survives.
+# `CRAFT_ROOT=<repo checkout>` or substitute that absolute path here, inside the double
+# quotes.
 [[hooks.PreToolUse]]
 matcher = "*"
 
 [[hooks.PreToolUse.hooks]]
 type = "command"
-command = "node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js"
+command = 'node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js"'
 
 [agents.craft-designer]
 model = "gpt-5.6-sol"
