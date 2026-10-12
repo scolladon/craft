@@ -9,6 +9,16 @@ contract-discovery record in [`../docs/contributing/specs/<tool>-poc-record.md`]
 All proofs are on-demand, not CI-gated. The port contracts themselves are documented in
 [`../docs/contributing/specs/`](../docs/contributing/specs/) (`execution.md`, `gate.md`, `model.md`, …).
 
+## Probe records
+
+A binding's live probe proves isolation with an mtime-find over the tool's real home. That
+proves *filesystem* isolation only. A probe that seeds a credential carrying a rotating
+refresh token, whether by copying it into a throwaway home or by sharing the store it lives
+in, records the credential-rotation caveat in its poc record, with the three mitigations:
+treat seeded credentials as consumed, keep probe windows inside the access token's
+lifetime, and expect a re-login afterwards. The worked example is the *Isolation-method
+caveat* section of [`codex-poc-record.md`](../docs/contributing/specs/codex-poc-record.md).
+
 ## Bindings and guard postures
 
 The guard posture is the load-bearing column: it states whether the runtime offers a
