@@ -4,7 +4,7 @@
       {
         "matcher": "Bash",
         "hooks": [
-          { "type": "command", "command": "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/git-no-ext-diff.sh" }
+          { "type": "command", "command": "\"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/git-no-ext-diff.sh\"" }
         ]
       }
     ],
@@ -12,7 +12,7 @@
       {
         "matcher": "compact",
         "hooks": [
-          { "type": "command", "command": "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/reorient-after-compact.sh" }
+          { "type": "command", "command": "\"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/reorient-after-compact.sh\"" }
         ]
       }
     ],
@@ -20,7 +20,7 @@
       {
         "matcher": "",
         "hooks": [
-          { "type": "command", "command": "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/steer-compact-summary.sh" }
+          { "type": "command", "command": "\"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/steer-compact-summary.sh\"" }
         ]
       }
     ]

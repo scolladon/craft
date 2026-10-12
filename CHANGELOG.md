@@ -7,6 +7,9 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Fixed
+- The plugin's hooks run when the plugin is installed under a path containing a space.
+
 ## [1.1.0] - 2026-10-12
 
 ### Added
