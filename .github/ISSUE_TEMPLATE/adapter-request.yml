@@ -1,0 +1,38 @@
+name: Adapter request
+description: Ask for a craft binding to another agent runtime
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: "Bindings are judged on the surfaces below; see adapters/README.md for the existing ones."
+  - type: input
+    id: runtime
+    attributes:
+      label: Runtime and version
+    validations:
+      required: true
+  - type: input
+    id: docs
+    attributes:
+      label: Link to the runtime's docs
+  - type: dropdown
+    id: headless
+    attributes:
+      label: Can it run one agent turn non-interactively (headless or CLI)?
+      options: ["Yes", "No", "Not sure"]
+    validations:
+      required: true
+  - type: dropdown
+    id: deny-surface
+    attributes:
+      label: Can a hook or plugin block a tool call before it executes?
+      options: ["Yes", "No", "Not sure"]
+  - type: dropdown
+    id: subagents
+    attributes:
+      label: Can it dispatch subagents with their own instructions?
+      options: ["Yes", "No", "Not sure"]
+  - type: textarea
+    id: extension
+    attributes:
+      label: Extension mechanism (plugins, commands, skills, rules files)

@@ -1,0 +1,46 @@
+name: Bug report
+description: Report something craft did wrong
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Do not include vulnerability details here — see SECURITY.md."
+  - type: input
+    id: craft-version
+    attributes:
+      label: craft version
+    validations:
+      required: true
+  - type: dropdown
+    id: runtime
+    attributes:
+      label: Runtime
+      options:
+        - "Claude Code"
+        - "pi"
+        - "opencode"
+        - "copilot"
+        - "codex"
+        - "cursor"
+        - "aider"
+        - "antigravity"
+        - "Other"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Run record or gate output
+      render: text

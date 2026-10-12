@@ -1,0 +1,14 @@
+name: Security contact request
+description: Ask for a private channel to report a vulnerability — no details here
+title: Security contact request
+body:
+  - type: markdown
+    attributes:
+      value: "**Do not include vulnerability details.** This issue is public. The maintainer replies with a private channel; see SECURITY.md."
+  - type: checkboxes
+    id: no-details
+    attributes:
+      label: Confirmation
+      options:
+        - label: This issue contains no vulnerability details.
+          required: true
