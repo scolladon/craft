@@ -1,7 +1,7 @@
 ---
 subjects:
   - agents/part-implementer.md
-  - test/p10-structure.test.js
+  - test/plugin-structure.test.js
 ---
 # 436 — The part-implementer body pins the `PLAN-MISMATCH` token prefix in CI
 

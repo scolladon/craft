@@ -226,21 +226,21 @@ test(
 );
 
 test(
-  'Given the loop workflow file is provenance-clean, when it is checked for plan references, then no P21 or ADR tokens appear',
+  'Given the loop workflow file is provenance-clean, when it is checked for plan references, then no phase or decision-record tokens appear',
   () => {
     assert.ok(
       !grepQE('P21|ADR', path.join(ROOT, 'examples/loop/workflow.md')),
-      'examples/loop/workflow.md should not contain P21 or ADR tokens',
+      'examples/loop/workflow.md should not contain phase or decision-record tokens',
     );
   },
 );
 
 test(
-  'Given the loop DoD file is provenance-clean, when it is checked for plan references, then no P21 or ADR tokens appear',
+  'Given the loop DoD file is provenance-clean, when it is checked for plan references, then no phase or decision-record tokens appear',
   () => {
     assert.ok(
       !grepQE('P21|ADR', path.join(ROOT, 'examples/loop/DOD.md')),
-      'examples/loop/DOD.md should not contain P21 or ADR tokens',
+      'examples/loop/DOD.md should not contain phase or decision-record tokens',
     );
   },
 );
