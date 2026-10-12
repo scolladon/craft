@@ -25,7 +25,7 @@ ADR-449, and two delivered entries in `BACKLOG.md`. No gate catches a dangling A
 
 ## Decision
 
-Option 1 — ratified by user. The files become `test/plugin-structure.test.js`,
+Option 1 — ratified by the user. The files become `test/plugin-structure.test.js`,
 `test/repo-dod.test.js` and `test/memory-store.test.js`. The same commit updates the
 `subjects:` of ADR-436 and ADR-449; the `BACKLOG.md` mentions are updated with the backlog flip.
 Dated design, plan and ADR bodies stay as written.

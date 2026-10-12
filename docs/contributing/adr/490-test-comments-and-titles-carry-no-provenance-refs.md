@@ -23,7 +23,7 @@ that can be reworded. The other 145 are fixture data the code under test parses 
 
 ## Decision
 
-Option 1 — ratified by user. Class E also scans the test trees (`engine/test`, `test`,
+Option 1 — ratified by the user. Class E also scans the test trees (`engine/test`, `test`,
 `adapters/*/test`) with ADR-485's base pattern, reporting a row only when it is a comment line
 (`//`, `/*`, `*` in `.js`/`.mjs`/`.cjs`/`.ts`; `#` in `.yml`/`.yaml`/`.sh`/`.bash`) or a
 line-anchored `test`/`it`/`describe` title. Other extensions are never reported. No allowlist.
