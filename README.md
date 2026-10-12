@@ -272,7 +272,7 @@ session resumes from the last artifact — the plan's context blocks, not scroll
 | [docs/contributing/adr/](docs/contributing/adr/) | decision records |
 | [examples/](examples/) | one runnable sample per injection point |
 
-Contributing to craft itself? Dev loop: `claude --plugin-dir /path/to/craft`.
+Contributing to craft itself? Start at [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Behavioural evals (local, on demand, never CI): `docs/contributing/maintainer-smokes.md`.
 

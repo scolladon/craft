@@ -13,6 +13,7 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 - Per-turn context cost is cut.
 - The codex binding supports scriptable hook-trust.
 - The readme-drift check recounts the advertised corpus sizes instead of trusting the prose.
+- A contributing guide, a security policy, and issue forms for bugs, features, adapter requests and security contact.
 - Hygiene lints (stub-lint, prose-lint) with a manifest posture knob, a findings normalizer and adapter-agent sync.
 - Superseded decisions are swept by adr-lint, closing the decision-drift propagation gap.
 - A local behavioural eval suite, run by the maintainer and never in CI.
