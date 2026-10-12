@@ -19,9 +19,10 @@ approval_policy = "on-request"
 #
 # The command is the interpreter, then the guard path as one double-quoted operand,
 # because that is the only form `bin/trust-hook.js` will trust. The quotes keep a
-# checkout path containing a space one word under every shell. Adding a flag, chaining a
-# second command, wrapping it in a shell, or putting a command substitution inside the
-# quotes all make the trust helper refuse the registration rather than trust it. The
+# checkout path containing a space one word under every shell. Inside the quotes only
+# path characters, plain spaces and the exact `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}`
+# placeholder are allowed: adding a flag, chaining a second command, wrapping it in a
+# shell, or any other `$` expansion makes the trust helper refuse the registration. The
 # value is a TOML literal string (single quotes), so the double quotes need no escaping.
 #
 # `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}` is expanded by the shell codex runs hook commands

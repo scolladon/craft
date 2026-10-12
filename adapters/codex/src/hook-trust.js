@@ -35,13 +35,16 @@ const GUARD_COMMAND_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 // chained, wrapped or flagged is refused rather than trusted.
 //
 // The operand has two spellings. In one pair of double quotes it may hold
-// spaces, and `$VAR`/`${…}` expand there without splitting, but the shell
-// still runs `$(…)` and backticks and re-reads backslash escapes inside
-// double quotes, so contents carrying any of them are refused. Bare, it is
-// the raw plugin-root shim plus the tail exactly, or a literal word: outside
-// quotes a substitution, a split variable, a glob or a `;` runs something
-// other than the guard with no whitespace needed, so only path characters
-// pass. The interpreter is held to the same literal-word rule.
+// spaces, but the shell still expands there, and an expansion can assemble a
+// substitution and evaluate it (a zsh `(e)` flag, a recursive arithmetic
+// subscript) without one literal `$(`. So quoted contents are path characters
+// and plain spaces only, plus the exact plugin-root shim: no other `$` gets
+// in. Bare, the operand is the raw plugin-root shim plus the tail exactly, or
+// a literal word: outside quotes a substitution, a split variable, a glob or
+// a `;` runs something other than the guard with no whitespace needed, so
+// only path characters pass. The interpreter is held to the same literal-word
+// rule, and is never a `NAME=` assignment, which every shell applies as an
+// environment variable before running the operand itself as the command.
 //
 // Only a plain space separates or pads the words, and a control character
 // anywhere refuses the command: the shell ends a command at a line break and
@@ -51,8 +54,10 @@ const GUARD_INTERPRETER = 'node';
 const PATH_SEPARATOR = '/';
 const GUARD_COMMAND_SHAPE = /^ *([^ ]+) +(?:"([^"]*)"|([^ ]+)) *$/;
 const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
-const DOUBLE_QUOTE_ACTIVE_FORMS = Object.freeze(['\\', '`', '$(']);
-const LITERAL_WORD_PATTERN = /^[\p{L}\p{N}._/+@%,:=-]+$/u;
+// A leading `=` is zsh's command-path lookup, never a literal word.
+const LITERAL_WORD_PATTERN = /^(?!=)[\p{L}\p{N}._/+@%,:=-]+$/u;
+const QUOTED_LITERAL_PATTERN = /^[\p{L}\p{N}._/+@%,:= -]*$/u;
+const SHELL_ASSIGNMENT_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*\+?=/u;
 const PLUGIN_ROOT_SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
 const RAW_GUARD_OPERAND = `${PLUGIN_ROOT_SHIM}${GUARD_COMMAND_TAIL}`;
 
@@ -264,7 +269,7 @@ function isLiteralWord(word) {
 }
 
 function isInertQuotedOperand(contents) {
-  return !DOUBLE_QUOTE_ACTIVE_FORMS.some((form) => contents.includes(form));
+  return contents.split(PLUGIN_ROOT_SHIM).every((segment) => QUOTED_LITERAL_PATTERN.test(segment));
 }
 
 function isInertBareOperand(operand) {
@@ -272,7 +277,11 @@ function isInertBareOperand(operand) {
 }
 
 function isGuardInterpreter(interpreter) {
-  return isLiteralWord(interpreter) && toBasename(interpreter) === GUARD_INTERPRETER;
+  return (
+    isLiteralWord(interpreter) &&
+    !SHELL_ASSIGNMENT_PATTERN.test(interpreter) &&
+    toBasename(interpreter) === GUARD_INTERPRETER
+  );
 }
 
 function isGuardHook(hook) {

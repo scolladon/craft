@@ -479,6 +479,12 @@ describe('selectCraftHook() — decoy commands must not match', () => {
     ['the quoted operand carries an escaped double quote', `node "/opt/x\\"${GUARD_TAIL}"`],
     ['the quoted operand runs an arithmetic expansion', `node "$((1))/opt/craft${GUARD_TAIL}"`],
     ['the quoted operand carries a line break', `node "/opt/craft\n/tmp/evil${GUARD_TAIL}"`],
+    ['the quoted operand expands a variable other than the plugin-root shim', QUOTED_HOME_COMMAND],
+    ['the quoted operand evaluates an assembled substitution through a zsh expansion flag', `node "\${(e)\${:-\${:-$}(touch MARK)}}${GUARD_TAIL}"`],
+    ['the quoted operand evaluates an assembled substitution through a recursive arithmetic subscript', `node "\${y:=a[\${z:-$}(touch MARK)]}$[y]${GUARD_TAIL}"`],
+    ['the quoted operand evaluates an assembled substitution through an array subscript', `node "\${y:=a[\${z:-$}(touch MARK)]}\${a[y]}${GUARD_TAIL}"`],
+    ['the quoted operand evaluates an assembled substitution through an indirect expansion', `node "\${y:=a[\${z:-$}(touch MARK)]}\${!y}${GUARD_TAIL}"`],
+    ['the quoted operand carries the plugin-root shim with a different default', `node "\${CRAFT_ROOT:-/tmp/evil}${GUARD_TAIL}"`],
   ];
 
   for (const [label, command] of DECOYS) {
@@ -634,7 +640,6 @@ describe('selectCraftHook() — the guard operand wrapped in one pair of double 
     ['the raw unexpanded guard path in double quotes', QUOTED_RAW_COMMAND],
     ['the shell-expanded guard path under a root containing a space, in double quotes', QUOTED_EXPANDED_COMMAND],
     ['an absolute interpreter and the quoted guard path under a root containing a space', QUOTED_EXPANDED_INTERPRETER_COMMAND],
-    ['a quoted guard path built on a variable the shell expands without splitting', QUOTED_HOME_COMMAND],
   ];
 
   for (const [label, command] of QUOTED_OPERANDS) {
@@ -664,6 +669,12 @@ describe('selectCraftHook() — shell syntax outside quotes must not match', () 
     ['the bare operand expands a variable other than the plugin-root shim', `node $HOME/craft${GUARD_TAIL}`],
     ['only the plugin-root shim is quoted', `node "${PLUGIN_ROOT_SHIM}"${GUARD_TAIL}`],
     ['the operand opens a double quote it never closes', `node "/opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment ahead of a bare operand', `X=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment ahead of a quoted operand', `X=/node "/opt/craft${GUARD_TAIL}"`],
+    ['the interpreter is an appending environment assignment', `X+=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment to a non-ASCII name', `é=/node /opt/craft${GUARD_TAIL}`],
+    ['the bare operand opens with an equals sign zsh expands as a command lookup', `node =x${GUARD_TAIL}`],
+    ['the interpreter opens with an equals sign zsh expands as a command lookup', `=/opt/n/node /opt/craft${GUARD_TAIL}`],
   ];
 
   for (const [label, command] of SHELL_SYNTAX_COMMANDS) {
