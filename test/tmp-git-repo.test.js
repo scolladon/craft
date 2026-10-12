@@ -11,6 +11,7 @@ const TRACKED_FIXTURE = 'docs/a.md';
 const EXCLUDE_EVERY_MARKDOWN = '*.md\n';
 
 // The suite's own git calls must not depend on the ambient environment the tests vary.
+// Deliberately not the helper's own env: a regression there must not also blind the checks.
 function hermeticGitEnv() {
   return {
     PATH: process.env.PATH,

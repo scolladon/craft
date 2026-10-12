@@ -140,9 +140,10 @@ function runGrep(pattern, paths, allowlistFilters) {
   return lines;
 }
 
-function listTrackedFiles(cwd, paths) {
+function listTrackedFiles(cwd, paths, env = process.env) {
   const result = execFileSync('git', ['ls-files', '--', ...paths], {
     cwd,
+    env: withoutGitLocation(env),
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -296,11 +297,28 @@ test('Given a directory outside any git repository, when listTrackedFiles lists 
   try {
     const sut = listTrackedFiles;
 
-    const result = () => sut(nonRepoDir, ['.']);
+    const act = () => sut(nonRepoDir, ['.']);
 
-    assert.throws(result, { status: GIT_NOT_A_REPOSITORY });
+    assert.throws(act, { status: GIT_NOT_A_REPOSITORY });
   } finally {
     fs.rmSync(nonRepoDir, { recursive: true, force: true });
+  }
+});
+
+test('Given an ambient GIT_DIR naming another repository, when listTrackedFiles lists a directory outside any git repository, then the git failure still propagates', () => {
+  const nonRepoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracked-files-non-repo-'));
+  const decoyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracked-files-decoy-'));
+  try {
+    execFileSync('git', ['init', '-q', decoyDir], { env: hermeticGitEnv() });
+    const ambientEnv = { ...process.env, GIT_DIR: path.join(decoyDir, '.git') };
+    const sut = listTrackedFiles;
+
+    const act = () => sut(nonRepoDir, ['.'], ambientEnv);
+
+    assert.throws(act, { status: GIT_NOT_A_REPOSITORY });
+  } finally {
+    fs.rmSync(nonRepoDir, { recursive: true, force: true });
+    fs.rmSync(decoyDir, { recursive: true, force: true });
   }
 });
 
