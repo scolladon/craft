@@ -11,7 +11,7 @@ subjects:
 
 ## Context
 
-The matcher's comment claims anything chained, wrapped or flagged is refused, but whitespace-free shell syntax passes the two-token rule. Today `selectCraftHook` trusts `node $(touch${IFS}M)/…/craft-guard.js`, `node \`id\`/…`, `node ./evil.js${IFS}/…`, a glob variant, `node /nowhere;./evil/…/craft-guard.js` and `$(evil)/node /x/…/craft-guard.js` — each runs something other than the guard under `sh -c`. Anyone who can write the user's `config.toml` can also write `trusted_hash` directly, so this is the matcher's stated contract, not a new security boundary.
+The matcher's comment claims anything chained, wrapped or flagged is refused, but whitespace-free shell syntax passes the two-token rule. Today `selectCraftHook` trusts `node $(touch${IFS}M)/…/craft-guard.js`, `` node `id`/… ``, `node ./evil.js${IFS}/…`, a glob variant, `node /nowhere;./evil/…/craft-guard.js` and `$(evil)/node /x/…/craft-guard.js` — each runs something other than the guard under `sh -c`. Anyone who can write the user's `config.toml` can also write `trusted_hash` directly, so this is the matcher's stated contract, not a new security boundary.
 
 ## Options considered
 
