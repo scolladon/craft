@@ -125,7 +125,7 @@ describe('toolCallHook() — runtime symlink re-check', () => {
     assert.equal(result.block, true);
   });
 
-  it('Given a Write into a not-yet-existing subdir inside the working dir, when the hook runs, then it returns block:false (DC-5 nearest-existing-ancestor is contained)', async () => {
+  it('Given a Write into a not-yet-existing subdir inside the working dir, when the hook runs, then it returns block:false (the nearest existing ancestor is contained)', async () => {
     const tmp = await mkdtemp(join(tmpdir(), 'craft-pi-newdir-test-'));
     tmps.push(tmp);
     const sut = toolCallHook();

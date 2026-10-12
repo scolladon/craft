@@ -3,4 +3,4 @@ pipeline:
   bogus: true
 ---
 
-# Unknown pipeline sub-key (ADR-010 shape boundary)
+# Unknown pipeline sub-key (pipeline shape boundary)

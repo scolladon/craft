@@ -32,7 +32,7 @@ const CLASS_A_PATTERN =
 const CLASS_B_PATTERN = '\\bgh\\b|\\bgithub\\b';
 
 // Class C: vendor-suffixed source basenames must live under adapters/<vendor>/ — the
-// vendor-binding location contract (ADR-191). A vendor-named file outside that segment
+// vendor-binding location contract. A vendor-named file outside that segment
 // is a stray binding leaking vendor coupling into the neutral core.
 const VENDOR_SUFFIXES = ['claude', 'anthropic', 'openai', 'gemini'];
 const CLASS_C_PATTERN = new RegExp(`-(${VENDOR_SUFFIXES.join('|')})\\.(js|ts)$`);
@@ -251,8 +251,8 @@ test(
       // names the backlog tracker id — a tracker name, not a VCS-host CLI reference.
       /engine\/src\/manifest\.js:[0-9]+:.*github-issues/,
       // docs/guides/customizing.md 'file / gh /': the Backlog-axis label in the
-      // hexagon diagram — explicitly kept (Backlog port, out of scope per Part 9
-      // plan note); the regex is deliberately line-agnostic.
+      // hexagon diagram — explicitly kept (Backlog port, not the VCS axis); the
+      // regex is deliberately line-agnostic.
       /docs\/guides\/customizing\.md:[0-9]+:.*file \/ gh \//,
       // engine/src/observability/adapters/copilot/telemetry.js: the OTel
       // instrumentation-scope name is the protocol-level discriminator that
