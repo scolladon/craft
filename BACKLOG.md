@@ -177,11 +177,12 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the provenance-sweep-part-two run, not yet scheduled)
 
-**A step id still sits in a test title.** `test/memory-store.test.js:81` reads "Given the memory
-port doc was authored in S4": `S4` is a step id, and class E (ADR-490) does not match `S\d+`.
-`engine/test/scenarios.test.js` uses `S1`–`S9` as scenario names it defines itself, so an `S\d+`
-token cannot join the pattern without telling a defined name from provenance. Reword the one
-title; decide whether a narrower form is worth a rule. Design context:
+**A step id still sits in a test title — delivered 2026-10-12**
+(test/memory-port-doc-title). The `test/memory-store.test.js` title "Given the memory port doc
+was authored in S4" now reads "Given the memory port doc ships under the contributing specs",
+which states what the test checks without the step id. Class E (ADR-490) still does not match
+`S\d+`: `engine/test/scenarios.test.js` uses `S1`–`S9` as scenario names it defines itself, so
+no narrower rule is added. Design context:
 [provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md).
 
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the backlog-sweep-six-entries run, not yet scheduled)
