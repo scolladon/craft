@@ -470,6 +470,6 @@ to a non-JS install.
 ## Devcontainer cold-start smoke — not CI-gated
 
 On demand, open a fresh Codespace from the README badge. Confirm the post-create command exits 0,
-`yq --version` reports v4.44.3, `claude --version` runs, `bash scripts/ci.sh` passes, and
+`claude --version` runs, `bash scripts/ci.sh` passes, and
 `claude --plugin-dir .` lists `/craft:run`. Record the wall-clock time from create to ready: only a
 recorded time may back a duration in the README. Optionally repeat in a local arm64 devcontainer.
