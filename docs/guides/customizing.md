@@ -192,9 +192,12 @@ ADR citation sweep skips. Each entry is a **glob matched against repo-relative p
 directory name on its own matches only that literal path). An absent key falls back to the
 derived default; an empty list (`frozen: []`) is a deliberate "nothing else is exempt", not
 an omission. The resolved ADR directory stays exempt either way, so the sweep can never
-flag the decision records it is reading. A glob whose every segment is a wildcard (`**`,
-`*`, `**/*`) is rejected at manifest validation: it would exempt the whole tree, and this
-gate deliberately has no advisory posture to fall back to. The resolved exempt set is
+flag the decision records it is reading. A frozen list that would switch the sweep off is rejected, both at manifest validation
+and by the sweep itself: one entry that matches every path of a representative probe set
+(`**`, `**/*`, `{**,}`), entries that only together match every probe path
+(`['*', '*/**']`), or entries that together match every markdown probe path, where ADR
+citations live (`**/*.md`). A root-only `*` stays accepted. The gate deliberately has no
+advisory posture to fall back to. The resolved exempt set is
 written to stderr on every run, so an over-broad entry is visible in the log rather than
 silently disabling the sweep.
 
