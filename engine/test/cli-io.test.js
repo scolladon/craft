@@ -1,7 +1,7 @@
 /**
  * Direct unit tests for the shared cli-io helpers extracted from the
- * config-resolve/init-land/promote-plan mains: isRegularFile, fail, and the
- * exit-code constants. Given/When/Then titles, Arrange-Act-Assert bodies, sut variable.
+ * config-resolve/init-land/promote-plan mains: isRegularFile, isDirectoryPath,
+ * isNonEmptyString, fail, and the exit-code constants. Given/When/Then titles, Arrange-Act-Assert bodies, sut variable.
  */
 
 import { test } from 'node:test';
@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { isRegularFile, fail, EXIT_OK, EXIT_ERR } from '../src/cli-io.js';
+import { isRegularFile, isDirectoryPath, isNonEmptyString, fail, EXIT_OK, EXIT_ERR } from '../src/cli-io.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 
 function withTmp(fn) {
@@ -79,6 +79,64 @@ test('Given an io double, when fail runs, then it writes the message to stderr a
   assert.equal(result, EXIT_ERR);
   assert.equal(io.stderr.joined(), 'boom\n');
   assert.equal(io.stdout.joined(), '');
+});
+
+// ─── isDirectoryPath ──────────────────────────────────────────────────────────
+
+test('Given a directory, when isDirectoryPath runs, then it returns true', () => {
+  const sut = isDirectoryPath;
+
+  withTmp((tmp) => {
+    const dir = join(tmp, 'd');
+    mkdirSync(dir);
+
+    assert.equal(sut(dir), true);
+  });
+});
+
+test('Given a regular file, when isDirectoryPath runs, then it returns false', () => {
+  const sut = isDirectoryPath;
+
+  withTmp((tmp) => {
+    const filePath = join(tmp, 'file.txt');
+    writeFileSync(filePath, '');
+
+    assert.equal(sut(filePath), false);
+  });
+});
+
+test('Given a missing path, when isDirectoryPath runs, then it returns false', () => {
+  const sut = isDirectoryPath;
+
+  withTmp((tmp) => {
+    assert.equal(sut(join(tmp, 'missing')), false);
+  });
+});
+
+// ─── isNonEmptyString ─────────────────────────────────────────────────────────
+
+test('Given a non-blank string, when isNonEmptyString runs, then it returns true', () => {
+  const sut = isNonEmptyString;
+
+  const result = sut('x');
+
+  assert.equal(result, true);
+});
+
+test('Given a whitespace-only or empty string, when isNonEmptyString runs, then it returns false', () => {
+  const sut = isNonEmptyString;
+
+  const results = [sut('  '), sut('')];
+
+  assert.deepEqual(results, [false, false]);
+});
+
+test('Given a non-string value, when isNonEmptyString runs, then it returns false', () => {
+  const sut = isNonEmptyString;
+
+  const results = [sut(1), sut(undefined)];
+
+  assert.deepEqual(results, [false, false]);
 });
 
 // ─── constants ────────────────────────────────────────────────────────────────

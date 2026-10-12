@@ -20,15 +20,18 @@
  * output are machine-specific and leak the operator's home directory.
  */
 
-import { readdirSync, statSync, existsSync, lstatSync } from 'node:fs';
+import { readdirSync, existsSync, lstatSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { load } from 'js-yaml';
 import { extractFrontmatter, parseManifestContent } from './frontmatter.js';
 import { collectWaived, escapeRegExp, readWithinCap, MAX_FILE_BYTES } from './hygiene-lint-core.js';
-import { findRepoRoot } from './cli-io.js';
+import { findRepoRoot, isDirectoryPath, isNonEmptyString } from './cli-io.js';
 import { containByRealpath } from './contain.js';
-import { matchGlob, matchesEveryPath } from './glob.js';
+import { matchGlob, matchesEveryPath, coversEveryPath, PROBE_PATHS, MARKDOWN_PROBE_PATHS } from './glob.js';
+
+const FROZEN_SET_WHOLE_TREE_FINDING = 'adr.frozen entries together exempt the whole tree, which disables the citation sweep';
+const FROZEN_EVERY_MARKDOWN_FINDING = 'adr.frozen exempts every markdown file, which disables the citation sweep where ADR citations live';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -69,23 +72,6 @@ const GIT_GREP_MAX_BUFFER = 64 * 1024 * 1024;
 
 /** The `adr` id is the zero-padded 3-digit string as it appears in filenames and `ADR-NNN` prose. */
 const ADR_ID_PATTERN = /^\d{3}$/;
-
-/**
- * Never-throw directory predicate mirroring the sibling lint mains' own copy.
- * @param {string} p
- * @returns {boolean}
- */
-function isDirectoryPath(p) {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    // equivalent mutant (BlockStatement, empty catch → implicit `undefined`):
-    // the only caller reads this exclusively through `!isDirectoryPath(...)`
-    // boolean negation, never a strict `=== false` — `!false` and
-    // `!undefined` are both `true`, so an undefined return is unobservable.
-    return false;
-  }
-}
 
 /**
  * Regular-file predicate that deliberately uses `lstatSync`, NOT `statSync`:
@@ -459,14 +445,6 @@ function parseGitGrepRecords(output) {
   return { hits, unparsed };
 }
 
-/**
- * @param {string} v
- * @returns {boolean}
- */
-function isNonEmptyString(v) {
-  return typeof v === 'string' && v.trim() !== '';
-}
-
 function joinRel(parentRel, child) {
   return parentRel === '' ? child : `${parentRel}/${child}`;
 }
@@ -503,13 +481,28 @@ function commonParentRel(relPaths) {
 }
 
 /**
+ * Set-level counterpart of the per-entry whole-tree check: entries that are
+ * individually scoped can still cover everything together. `frozen` stays
+ * unfiltered because matchGlob already answers false for non-strings.
+ * @param {unknown[]} frozen
+ * @param {string[]} universal
+ * @returns {string[]}
+ */
+function frozenSetFindings(frozen, universal) {
+  if (universal.length > 0) return [];
+  if (coversEveryPath(frozen, PROBE_PATHS)) return [FROZEN_SET_WHOLE_TREE_FINDING];
+  if (coversEveryPath(frozen, MARKDOWN_PROBE_PATHS)) return [FROZEN_EVERY_MARKDOWN_FINDING];
+  return [];
+}
+
+/**
  * The C3 exempt set — derived from resolved manifest paths, or `adr.frozen`
  * globs when present (which *replace* the derived set — an empty list is a
  * deliberate "nothing else is exempt", never an omission). `<adr-dir>` stays
  * exempt unconditionally in both branches — no separate self-flagging rule.
  * @param {string} adrDirRel
  * @param {object|null} manifest
- * @returns {{ mode: string, globs?: string[], dirs?: string[], adrDirRel: string }}
+ * @returns {{ mode: string, globs?: string[], dirs?: string[], adrDirRel: string, universal?: string[], setLevel?: string[] }}
  */
 function resolveExemptSet(adrDirRel, manifest) {
   const frozen = manifest?.adr?.frozen;
@@ -525,7 +518,7 @@ function resolveExemptSet(adrDirRel, manifest) {
     // the typeof clause is a no-op: true for strings (already true), false
     // for everything else (matchesEveryPath already false either way).
     const universal = frozen.filter((g) => typeof g === 'string' && matchesEveryPath(g));
-    return { mode: 'frozen', globs: frozen, adrDirRel, universal };
+    return { mode: 'frozen', globs: frozen, adrDirRel, universal, setLevel: frozenSetFindings(frozen, universal) };
   }
 
   const adrPathRel = isNonEmptyString(manifest?.paths?.adr) ? manifest.paths.adr : adrDirRel;
@@ -647,6 +640,7 @@ function sweepHits(output, exempt, escaped, ctx) {
   for (const glob of exempt.universal ?? []) {
     findings.push(`adr.frozen entry '${safeLabel(glob)}' exempts the whole tree, which disables the citation sweep`);
   }
+  findings.push(...(exempt.setLevel ?? []));
   if (unparsed > 0) {
     findings.push(`citation sweep produced ${unparsed} unreadable output record(s), so it is not a pass claim`);
   }

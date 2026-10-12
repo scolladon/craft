@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { matchGlob, globsOverlap } from '../src/glob.js';
+import { matchGlob, globsOverlap, coversEveryPath, PROBE_PATHS, MARKDOWN_PROBE_PATHS } from '../src/glob.js';
 
 test('Given a path and a single-segment `*` pattern that match, when matchGlob runs, then it returns true', () => {
   const sut = matchGlob;
@@ -89,4 +89,67 @@ test('Given a concrete file path and its literal parent-directory prefix (no wil
   const result = sut(a, b);
 
   assert.equal(result, true);
+});
+
+test('Given two entries that only together match every path, when coversEveryPath checks the whole-tree probes, then it returns true', () => {
+  const sut = coversEveryPath;
+  const globs = ['*', '*/**'];
+
+  const result = sut(globs, PROBE_PATHS);
+
+  assert.equal(result, true);
+});
+
+test('Given a markdown-only glob, when coversEveryPath checks the markdown probes, then it returns true', () => {
+  const sut = coversEveryPath;
+  const globs = ['**/*.md'];
+
+  const result = sut(globs, MARKDOWN_PROBE_PATHS);
+
+  assert.equal(result, true);
+});
+
+test('Given root and nested markdown globs, when coversEveryPath checks the markdown probes, then it returns true', () => {
+  const sut = coversEveryPath;
+  const globs = ['*.md', '*/**/*.md'];
+
+  const result = sut(globs, MARKDOWN_PROBE_PATHS);
+
+  assert.equal(result, true);
+});
+
+test('Given a root-only glob, when coversEveryPath checks the markdown probes, then it returns false', () => {
+  const sut = coversEveryPath;
+  const globs = ['*'];
+
+  const result = sut(globs, MARKDOWN_PROBE_PATHS);
+
+  assert.equal(result, false);
+});
+
+test('Given a scoped directory glob, when coversEveryPath checks the markdown probes, then it returns false', () => {
+  const sut = coversEveryPath;
+  const globs = ['docs/**'];
+
+  const result = sut(globs, MARKDOWN_PROBE_PATHS);
+
+  assert.equal(result, false);
+});
+
+test('Given no globs, when coversEveryPath checks the whole-tree probes, then it returns false', () => {
+  const sut = coversEveryPath;
+  const globs = [];
+
+  const result = sut(globs, PROBE_PATHS);
+
+  assert.equal(result, false);
+});
+
+test('Given a markdown-only glob, when coversEveryPath checks the whole-tree probes, then it returns false', () => {
+  const sut = coversEveryPath;
+  const globs = ['**/*.md'];
+
+  const result = sut(globs, PROBE_PATHS);
+
+  assert.equal(result, false);
 });

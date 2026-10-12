@@ -2647,6 +2647,56 @@ test('Given adr { frozen: ["**/archive"] } when validateManifest runs, then a sp
   assert.equal(result.ok, true, `expected a specific glob to pass; got: ${result.errors.join('; ')}`);
 });
 
+test('Given adr.frozen entries that only together match every path, when validateManifest runs, then the set is rejected as a whole-tree exemption', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['*', '*/**'] } });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('together exempt the whole tree')), result.errors.join('; '));
+});
+
+test('Given adr.frozen exempting every markdown file, when validateManifest runs, then it is rejected', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['**/*.md'] } });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('exempts every markdown file')), result.errors.join('; '));
+});
+
+test('Given adr.frozen root and nested markdown globs, when validateManifest runs, then together they are rejected', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['*.md', '*/**/*.md'] } });
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('exempts every markdown file')), result.errors.join('; '));
+});
+
+test('Given a single whole-tree adr.frozen entry, when validateManifest runs, then exactly one adr.frozen error is reported', () => {
+  const sut = validateManifest;
+
+  const result = sut({ adr: { frozen: ['**'] } });
+
+  const frozenErrors = result.errors.filter(e => e.startsWith('adr.frozen'));
+  assert.equal(frozenErrors.length, 1);
+  assert.ok(frozenErrors[0].includes("adr.frozen entry '**' exempts the whole tree"), frozenErrors[0]);
+});
+
+test('Given every pair of scoped adr.frozen globs, when validateManifest runs, then each pair is accepted', () => {
+  const SCOPED_FROZEN_GLOBS = ['docs/**', '**/archive', 'docs/contributing/design/**', '*', 'frozen/**'];
+  const sut = validateManifest;
+
+  for (const first of SCOPED_FROZEN_GLOBS) {
+    for (const second of SCOPED_FROZEN_GLOBS) {
+      const result = sut({ adr: { frozen: [first, second] } });
+
+      assert.equal(result.ok, true, `pair [${first}, ${second}] rejected: ${result.errors.join('; ')}`);
+    }
+  }
+});
+
 test('Given adr { bogus: 1 } when validateManifest runs, then error contains "unknown adr field"', () => {
   const sut = validateManifest;
 

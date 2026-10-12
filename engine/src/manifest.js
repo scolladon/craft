@@ -9,7 +9,7 @@
 import { resolveAlias } from './alias-map.js';
 import { POLICY_ACTIONS, VERDICTS } from './policy.js';
 import { checkFileRef } from './manifest-file-ref.js';
-import { matchesEveryPath } from './glob.js';
+import { coversEveryPath, matchesEveryPath, MARKDOWN_PROBE_PATHS, PROBE_PATHS } from './glob.js';
 import { validateExtends, registeredBacklogNames } from './extends-validation.js';
 import { parseDod, validateDodCriteria } from './dod.js';
 import {
@@ -365,11 +365,26 @@ function validateAdr(adr, errors) {
     errors.push('adr.frozen must be a list of non-empty strings');
     return;
   }
-  for (const glob of frozen) {
-    if (matchesEveryPath(glob)) {
-      errors.push(`adr.frozen entry '${glob}' exempts the whole tree, which disables the citation sweep`);
-    }
-  }
+  errors.push(...frozenCoverageErrors(frozen));
+}
+
+const FROZEN_SET_WHOLE_TREE_ERROR = 'adr.frozen entries together exempt the whole tree, which disables the citation sweep';
+const FROZEN_EVERY_MARKDOWN_ERROR = 'adr.frozen exempts every markdown file, which disables the citation sweep where ADR citations live';
+
+/**
+ * Errors for frozen globs that would switch the citation sweep off: per entry first,
+ * then the set as a whole, whole-tree before markdown.
+ * @param {string[]} frozen
+ * @returns {string[]}
+ */
+function frozenCoverageErrors(frozen) {
+  const perEntry = frozen
+    .filter((glob) => matchesEveryPath(glob))
+    .map((glob) => `adr.frozen entry '${glob}' exempts the whole tree, which disables the citation sweep`);
+  if (perEntry.length > 0) return perEntry;
+  if (coversEveryPath(frozen, PROBE_PATHS)) return [FROZEN_SET_WHOLE_TREE_ERROR];
+  if (coversEveryPath(frozen, MARKDOWN_PROBE_PATHS)) return [FROZEN_EVERY_MARKDOWN_ERROR];
+  return [];
 }
 
 

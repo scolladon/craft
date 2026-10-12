@@ -1077,7 +1077,7 @@ test('Given malformed YAML whose later lines carry content, when main runs, then
   // static prefix, and not collapsed to "undefined" or truncated to one char).
   assert.ok(
     all.includes('missed comma between flow collection entries'),
-    `expected the parser's first line, not a stub; stdout was: ${io.stdout.joined()}`,
+    `expected the parser's first line, the real parse failure text; stdout was: ${io.stdout.joined()}`,
   );
   assert.ok(!all.includes('SENSITIVE-SECOND-LINE'), `parser output must not republish file content: ${all}`);
 });
@@ -1618,6 +1618,96 @@ test('Given adr.frozen mixing a whole-tree glob with a scoped one, when main run
   const out = io.stdout.joined();
   assert.ok(out.includes("adr.frozen entry '**' exempts the whole tree, which disables the citation sweep"), `stdout was: ${out}`);
   assert.ok(!out.includes("adr.frozen entry 'frozen/**' exempts"), `stdout was: ${out}`);
+});
+
+test('Given adr.frozen entries that only together match every path, when main runs, then the set is flagged as disabling the sweep', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "*"\n    - "*/**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 2, `stdout: ${io.stdout.joined()}`);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('adr.frozen entries together exempt the whole tree, which disables the citation sweep'), `stdout was: ${out}`);
+});
+
+test('Given a non-string entry between adr.frozen globs that only together match every path, when main runs, then the set is still flagged as disabling the sweep', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "*"\n    - 1\n    - "*/**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 2, `stdout: ${io.stdout.joined()}`);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('adr.frozen entries together exempt the whole tree, which disables the citation sweep'), `stdout was: ${out}`);
+});
+
+test('Given adr.frozen exempting every markdown file, when main runs, then it is flagged as disabling the sweep where citations live', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "**/*.md"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 2, `stdout: ${io.stdout.joined()}`);
+  const out = io.stdout.joined();
+  assert.ok(out.includes('adr.frozen exempts every markdown file, which disables the citation sweep where ADR citations live'), `stdout was: ${out}`);
+});
+
+test('Given adr.frozen with one whole-tree entry, when main runs, then only the per-entry finding is reported', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 2, `stdout: ${io.stdout.joined()}`);
+  const out = io.stdout.joined();
+  assert.ok(out.includes("adr.frozen entry '**' exempts the whole tree"), `stdout was: ${out}`);
+  assert.ok(!out.includes('together exempt'), `stdout was: ${out}`);
+  assert.ok(!out.includes('every markdown file'), `stdout was: ${out}`);
+});
+
+test('Given adr.frozen with one whole-tree entry, when main runs, then the per-entry finding is the only sweep finding', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  const out = io.stdout.joined();
+  assert.equal(out.trim().split('\n').length, 1, `stdout was: ${out}`);
+});
+
+test('Given adr.frozen scoped to a subtree, when main runs, then the sweep passes with no frozen finding', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  const manifest = writeFixture(root, 'workflow.yml', 'adr:\n  frozen:\n    - "frozen/**"\n');
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--manifest', manifest], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()}`);
+  assert.ok(!io.stdout.joined().includes('adr.frozen'), `stdout was: ${io.stdout.joined()}`);
 });
 
 test('Given multiple superseded ids, when main runs, then the git grep pattern is built from the escaped id alternation', () => {

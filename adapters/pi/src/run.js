@@ -93,7 +93,7 @@ function runSubprocess(file, args, options, unit, execFileFn) {
  *   hangs on an open stdin pipe in -p mode
  * - argv array, never a shell string
  * - non-zero exit rejects with { unit: pi-run, reason: <stderr> } blocker
- * - DC-3: does NOT add --model/--provider to argv
+ * - does NOT add --model/--provider to argv
  *
  * @param {string[]} argv - argv array built by buildPiArgs
  * @param {{ cwd: string, env?: object }} opts

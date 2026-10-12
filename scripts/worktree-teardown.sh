@@ -49,7 +49,7 @@ if [ -n "$PRE" ]; then
 fi
 
 # Only prune against a remote that exists — a local-only repo has none, and on some
-# git versions `fetch --prune` then aborts the script under `set -e` (P11 dogfood).
+# git versions `fetch --prune` then aborts the script under `set -e` (seen in a live teardown dogfood).
 if [ -n "$(git -C "$MAIN" remote)" ]; then
   git -C "$MAIN" fetch --prune
 fi

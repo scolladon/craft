@@ -43,6 +43,7 @@ a black-box `--help`. Live confirmation ran under the mandated isolation protoco
   copied in. Seeding is `ln -s ~/Library/Keychains $HOME_throwaway/Library/Keychains` (read-only login
   keychain; a token refresh writes back the operator's own token). This is the Cursor-specific form of
   the brief's "copy the auth in" step — the auth is not a copyable file.
+  See *Isolation-method caveat* below.
 - **Background-kill watchdog** `( cmd & PID=$!; ( sleep N; kill -9 $PID ) & wait $PID )` (macOS has no
   `timeout`; a perl-alarm watchdog does not reliably kill the agent).
 - **Isolation verified, not assumed:** `find ~/.cursor -type f -newer <marker>` returned **empty** after
@@ -126,3 +127,19 @@ a black-box `--help`. Live confirmation ran under the mandated isolation protoco
 | Shared skills/rules/commands load end-to-end | **Measured:** a `.cursor/rules/*.mdc` with `alwaysApply:true` loaded end-to-end (the response ended with the rule's exact marker token). The shared craft skills + the 9 `craft-<role>` agents load BY REFERENCE via **symlinks** into `.cursor/skills/` and `.cursor/agents/` — Cursor follows the links, so out-of-tree refs are preserved (the symlink fallback, mirroring the codex `$CODEX_HOME/skills` route). | CLOSED (live, measured) |
 | Malformed rules/permission file fails OPEN at runtime | **Measured:** a malformed (invalid-JSON) `.cursor/hooks.json` fails **OPEN** — the guard silently does not load and `git diff` (no `--no-ext-diff`) ran UNGUARDED. This binding ships no separate permission-ruleset file; the manifest IS `hooks.json`, so the install MUST validate it is well-formed (a broken manifest drops the guard silently). | CLOSED (live, measured) |
 | **Live construction proof (GoL)** | The delivered binding (real guard `failClosed:true` + the 9 role agents + `craft-run` skill, installed by symlink) drove a real `cursor-agent` turn — launched via the adapter's OWN `buildLaunchArgs` + `resolveCursorModel` — to build Conway's Game of Life. Result: a working `step()` + tests; **independently ground-truthed** (`node --test` = 2/2, plus my own blinker period-2 / block-still-life / lone-cell-death checks — genuinely correct, not a tautological test). The guard was **live throughout**: it allowed the benign `node --test` build commands and **denied** `git diff HEAD` in the same workspace (`craft-guard: git diff/show must carry --no-ext-diff`). Real usage confirmed the disjoint-token mapping again (`cacheReadTokens 34432 > inputTokens 28693`). Isolation held (`find ~/.cursor -newer` empty). A binding isn't done until a real build dogfoods it end to end — this closes that. | CLOSED (live) |
+
+## Isolation-method caveat — the mtime proof has a blind spot
+
+This record's isolation proof is an mtime-find over the real `~/.cursor`, and it reported
+zero filesystem writes there. The auth seed is outside that window: it is a symlink from the
+throwaway HOME to the operator's real `~/Library/Keychains`, so the probe reads and writes
+the operator's own login keychain. Any token refresh during a probe writes the operator's
+real keychain entry, and no filesystem check over `~/.cursor` can see it.
+
+Whether Cursor's refresh token rotates server-side on use was not probed. Assume it does.
+If it does, any copy of the pre-refresh token held elsewhere stops working once a probe
+refreshes it.
+
+Rule for any refresh of this record: mtime-find proves *filesystem* isolation only. Treat
+seeded credentials as consumed, keep probe windows short enough to stay inside the access
+token's lifetime, and expect a re-login may be needed afterwards.

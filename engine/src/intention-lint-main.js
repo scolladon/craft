@@ -5,38 +5,18 @@
  * `BACKLOG.md` SoT-pointer resolution.
  */
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { parseSubjects } from './intention-subjects.js';
 import { matchGlob } from './glob.js';
 import { containByRealpath } from './contain.js';
+import { isRegularFile, isDirectoryPath } from './cli-io.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
 
 const SOT_BLOCK_MARKER = 'SoT';
 const BACKTICK_PATTERN = /`([^`]+)`/g;
-
-/**
- * Never-throw stat predicates mirroring manifest-lint-main's isRegularFile.
- * @param {string} p
- * @returns {boolean}
- */
-function isRegularFile(p) {
-  try {
-    return statSync(p).isFile();
-  } catch {
-    return false; // equivalent mutant (empty catch): undefined is falsy — every caller only ever tests this via `!`/ternary truthiness, never `=== false`, so same observable effect
-  }
-}
-
-function isDirectoryPath(p) {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    return false; // equivalent mutant (empty catch): undefined is falsy — every caller only ever tests this via `!`/ternary truthiness, never `=== false`, so same observable effect
-  }
-}
 
 /**
  * Collect the contiguous `>`-prefixed blockquote lines starting at the SoT pointer

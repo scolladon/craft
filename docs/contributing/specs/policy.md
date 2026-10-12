@@ -1,3 +1,7 @@
+---
+subjects:
+  - engine/src/policy.js
+---
 # Policy adapter spec
 
 ## Port interface

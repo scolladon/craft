@@ -175,6 +175,27 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-12 — follow-ups surfaced by the backlog-sweep-six-entries run, not yet scheduled)
+
+**Single-letter rule ids still sit in shipped code comments.** The new whole-tree provenance
+test (ADR-485) covers phase, decision-record, part, backlog and design-candidate numbering,
+but not ids such as `R10` (`engine/src/findings.js:197`), `F6`
+(`engine/src/observability/adapters/claude/telemetry.js:59`) or `R3`
+(`engine/src/observability/metrics-line.js:9`, which names a rule in
+`test/architecture-boundaries.test.js`). Over `engine/src` a `\b[RTF]\d+\b` pattern hit 3
+lines with 1 false positive at design time, so it cannot join the rule without an allowlist
+or a narrower form. Decide per id whether it is provenance (strip it) or a stable in-repo
+rule name (keep it, and teach the test the difference).
+
+**Provenance refs in tests are unguarded.** The provenance test stops at shipped code on
+purpose: over `engine/test` the same pattern hits 165 lines, mostly fixture data (`ADR-001`
+×74, `Part 1/2` ×44). About 40 of those are comments or titles carrying real provenance —
+e.g. `usage-mine-main.test.js` "P29-n", `manifest.test.js` "ADR-011", and the test title at
+`adapters/pi/test/tool-call-hook.test.js:128` "DC-5" — plus the file names
+`test/p{10,20,22}-*.test.js`. Clean them in one sweep, then decide whether a comment-and-title
+scoped rule over tests can hold without a fixture allowlist. Design context:
+[backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
+
 ### Open (scoped 2026-10-11 — follow-ups surfaced by the stub-lint-ci-self-reference run, not yet scheduled)
 
 **A waiver token quoted in prose is a live waiver — delivered 2026-10-12**
@@ -475,23 +496,23 @@ not a process test over the real file (ADR-478). Design:
 [stub-lint-ci-self-reference](docs/contributing/design/stub-lint-ci-self-reference.md);
 ADR-474–478.
 
-**The lint mains re-implement helpers `cli-io.js` already exports.** `isRegularFile` (the
-`statSync` form) is defined locally in `manifest-lint-main.js`, `intention-lint-main.js` and
-`plan-lint-main.js` even though `cli-io.js` exports an identical one; `isNonEmptyString` and
-`isDirectoryPath` each have several independent copies across the same files. The
-decision-drift run centralised `findRepoRoot` on exactly this reasoning but deliberately stopped
-at the two-consumer case in its own radius. Note one trap for whoever does this: `adr-lint`'s
-`isNonSymlinkFile` looks like a fourth copy and is not — it uses `lstatSync` on purpose so a
-committed symlink is refused rather than followed, and merging it into the `statSync` family
-would silently reintroduce a hole a security review already found once.
+**The lint mains re-implement helpers `cli-io.js` already exports — delivered 2026-10-12**
+(chore/backlog-sweep-six-entries). `isRegularFile`, `isDirectoryPath` and `isNonEmptyString`
+now have one definition each, exported from `engine/src/cli-io.js` (ADR-487). The local copies
+in `adr-lint-main.js`, `intention-lint-main.js`, `manifest-lint-main.js`, `plan-lint-main.js`
+and `intention.js` are deleted; the suites of those modules stayed green unedited.
+`adr-lint`'s lstat-based `isNonSymlinkFile` and the list-form predicates are untouched. Design:
+[backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
 
-**`adr.frozen` can still exempt every citation without tripping the whole-tree guard.** The
-guard rejects a glob that matches every path in a probe corpus, which correctly catches `**`,
-`**/*`, `{**,}` and `**/?*`. It does not catch `**/*.md` — which matches no extensionless probe
-path, yet exempts every markdown file in the tree, and `ADR-NNN` citations live almost entirely
-in markdown. The resolved exempt set is announced on stderr every run, so this is visible rather
-than silent, but visible-and-wrong is not the same as bounded. Either widen the probe corpus to
-make the markdown case fail, or accept it explicitly and say so where the knob is documented.
+**`adr.frozen` can still exempt every citation without tripping the whole-tree guard — delivered
+2026-10-12** (chore/backlog-sweep-six-entries). Both guard sites (manifest validation and the
+adr-lint sweep) now also reject a frozen list whose entries together match every whole-tree
+probe path, or every markdown probe path (ADR-486). `**/*.md` and `['*', '*/**']` are rejected
+(the second turned adr-lint into `exit 0` with no citation checked); a root-only `*` stays
+accepted, and the per-entry check and its message are unchanged. `docs/guides/customizing.md`
+states the rule; its old claim that `*` is rejected is corrected. The probe sets are
+representative, not exhaustive: a list crafted to skip one probe still passes. Design:
+[backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
 
 ### Open (scoped 2026-08-07 — follow-ups surfaced by the harness-hygiene-followups run, not yet scheduled)
 
@@ -518,30 +539,36 @@ through the user's global excludes file. New eponymous suite `test/tmp-git-repo.
 fix landed RED-first. `runGrep` is untouched. Design:
 [sibling-spawn-site-defects](docs/contributing/design/sibling-spawn-site-defects.md).
 
-**`test/docs-structure-lint.test.js` runs its script under the inherited environment.** Its
-`sut(dir, cwd)` spawn passes no `env`, so an ambient `GIT_DIR`/`GIT_WORK_TREE` points
-`scripts/docs-structure-lint.sh` at another repository. Pinned in a throwaway during the
-sibling-spawn-site-defects design: a repo with three stray top-level dirs exits 2 with a clean
-environment and exits 0 ("audience shape OK") under a decoy `GIT_DIR`/`GIT_WORK_TREE` — a false
-pass. The helper that builds the repo is pinned now; the spawn that judges it is not. Fix shape:
-have `createTmpGitRepo` return its env (`{ root, env, cleanup }`) and pass it from `sut`, with a
-decoy red test.
+**`test/docs-structure-lint.test.js` runs its script under the inherited environment —
+delivered 2026-10-12** (chore/backlog-sweep-six-entries). `createTmpGitRepo` now returns
+`{ root, env, cleanup }`, where `env` is its allowlisted git env, and `sut` spawns the lint under
+it. A new decoy test plants `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` on the parent process and
+expects exit 2 naming the three stray dirs; it exited 0 before the fix. `withAmbientEnv` moved
+to the shared `test/helpers/ambient-env.js` with its own suite (ADR-488). Design:
+[backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
 
-**`docs/contributing/specs/memory.md` is a living spec no freshness guard can see.** It carries
-no `subjects:` frontmatter, so the intention harness lists it under `skipped[]` as
-`no-subjects` and can never raise `INTENTION-DRIFT` for it. It changed twice in one run —
-degraded-view semantics on both port verbs — and was refreshed only because a human said so.
-`specs/telemetry.md` carries `subjects: ['engine/src/observability/**']` and would flag the
-same file; `memory.js` lives under that glob, so telemetry.md over-flags what memory.md cannot
-flag at all. Give memory.md its own subjects, and sweep the corpus for other subject-less
-living pages while there.
+**`docs/contributing/specs/memory.md` is a living spec no freshness guard can see — delivered
+2026-10-12** (chore/backlog-sweep-six-entries). The memory.md half was already done:
+`subjects: [engine/src/observability/memory.js]` landed in PR #14 (cae7206). The corpus sweep
+gave `policy.md`, `gate.md`, `vcs.md` and `model.md` subjects (`engine/src/policy.js`;
+`engine/src/gates.js` + `engine/src/guards/**`; the two worktree scripts;
+`adapters/*/src/model-tier-map.js`), each glob matching tracked files; the branch's
+assert-fresh run shows no unwaived drift. Left subject-less on purpose: `backlog.md` and
+`execution.md` (their implementation is prose, and the only shared code is the vocabulary
+module every edit touches), the `*-poc-record.md` pages (records pinned to one binary version
+and date, so drift must never be "fixed" by editing them to match code), and the PRD pages and
+guides (they span the whole engine). Design:
+[backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
 
-**A provenance ref sits in shipped adapter source.** `adapters/pi/src/run.js:96` carries
-`- DC-3: does NOT add --model/--provider to argv`, a decision-candidate number from the run
-that wrote it (commit 8ef1244). The engine-owned contract forbids phase/ADR/backlog refs in
-source and test, and no lint enforces it — the sweep that found this one was manual. Strip the
-ref (the sentence is useful; its numbering is not), and consider whether the hygiene lints
-should carry a provenance-ref rule so the next one fails loudly.
+**A provenance ref sits in shipped adapter source — delivered 2026-10-12**
+(chore/backlog-sweep-six-entries). The `DC-` refs at `adapters/pi/src/run.js:96` and
+`adapters/pi/src/tool-call-hook.js:51,79`, and a `P11` in `scripts/worktree-teardown.sh:52`, are
+stripped with each sentence kept. A whole-tree source-hygiene test now greps shipped code
+(`engine/src`, `engine/bin`, `hooks`, `scripts`, adapter source/bin/extension/hook/plugin
+trees) for phase, decision-record, part, backlog and design-candidate numbering and fails with
+each `file:line` (ADR-485); it runs with an ambient `GIT_LITERAL_PATHSPECS` stripped, which
+would otherwise hide every adapter match. Tests, skills and templates are out of its scope.
+Design: [backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
 
 **Committed docs disclose the maintainer's home directory — delivered 2026-10-11**
 (fix/scrub-home-dir-from-docs). The real count was 83 lines in 31 tracked files, not 18: a
@@ -848,8 +875,15 @@ shared skills load by reference, **19 of 19** load via the symlink fallback (reg
 symlink fallback therefore stays documented as required, not optional. "Load by reference" is not
 achievable on codex 0.145.0; re-check on the next minor version.
 
-**Carry the credential-rotation caveat into every binding's probe record — scoped 2026-07-31, OPEN.**
-Surfaced by the codex 0.145.0 re-probe. Every binding record documents isolation as an mtime-find
+**Carry the credential-rotation caveat into every binding's probe record — scoped 2026-07-31,
+delivered 2026-10-12** (chore/backlog-sweep-six-entries). `cursor-poc-record.md` now carries a
+full *Isolation-method caveat* section: the keychain symlink sits outside the mtime-find
+window, any refresh during a probe writes the operator's real keychain, server-side rotation
+was not probed and is assumed, plus the three mitigations. The standing rule lives in a new
+*Probe records* section of `adapters/README.md`, the page that sets the poc-record convention
+and where a new binding's author starts. Design:
+[backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
+Original scope: surfaced by the codex 0.145.0 re-probe. Every binding record documents isolation as an mtime-find
 over the tool's real home directory, and that check is sound for filesystem writes — it reported
 zero for every probe in that run. But probes that copy an `auth.json` into a throwaway home share a
 **refresh token that rotates server-side on use**, silently invalidating the copy the operator's real
