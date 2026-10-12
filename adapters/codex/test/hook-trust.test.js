@@ -493,6 +493,14 @@ describe('selectCraftHook() — decoy commands must not match', () => {
     ['the bare operand is a path relative to the session directory', `node craft${GUARD_TAIL}`],
     ['the quoted operand is a path relative to the session directory', `node "craft${GUARD_TAIL}"`],
     ['the quoted operand opens with a space ahead of the path', `node " /opt/craft${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a node option', `node "${PLUGIN_ROOT_SHIM}--eval=process.exitCode=0/${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a module import', `node "${PLUGIN_ROOT_SHIM}--import=data:text/javascript,0/${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a relative path', `node "${PLUGIN_ROOT_SHIM}craft${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a short node option', `node "${PLUGIN_ROOT_SHIM}-r/tmp/x${GUARD_TAIL}"`],
+    ['the plugin-root shim, empty when no root is set, leads into a space and a relative path', `node "${PLUGIN_ROOT_SHIM} craft${GUARD_TAIL}"`],
+    ['the interpreter is a path relative to the session directory', `bin/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is a dot-relative path', `./node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is a relative path opening with a dash', `-r/node /opt/craft${GUARD_TAIL}`],
   ];
 
   for (const [label, command] of DECOYS) {

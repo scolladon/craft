@@ -21,10 +21,11 @@ approval_policy = "on-request"
 # because that is the only form `bin/trust-hook.js` will trust. The quotes keep a
 # checkout path containing a space one word under every shell. Inside the quotes only
 # path characters, plain spaces and the exact `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}`
-# placeholder are allowed, and the path starts at `/` or at that placeholder: adding a
-# flag, a relative path, chaining a second command, wrapping it in a shell, or any other
-# `$` expansion makes the trust helper refuse the registration. The
-# value is a TOML literal string (single quotes), so the double quotes need no escaping.
+# placeholder are allowed, the path starts at `/` or at that placeholder followed by
+# `/`, and the interpreter is `node` or an absolute path to it. Adding a flag, a
+# relative path, chaining a second command, wrapping it in a shell, or any other `$`
+# expansion makes the trust helper refuse the registration. The value is a TOML literal
+# string (single quotes), so the double quotes need no escaping.
 #
 # `${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}` is expanded by the shell codex runs hook commands
 # through. A hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so either export

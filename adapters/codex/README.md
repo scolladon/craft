@@ -70,7 +70,7 @@ operand: `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-
 The quotes keep a checkout path containing a space one word under every shell codex may
 run the hook through. `bin/trust-hook.js` refuses anything else: inside the quotes only
 path characters, plain spaces and that exact `${CRAFT_ROOT:-…}` placeholder are allowed, and
-the path starts at `/` or at that placeholder. An added flag, a relative path, a chained
+the path starts at `/` or at that placeholder followed by `/`; the interpreter is `node` or an absolute path to it. An added flag, a relative path, a chained
 command, a shell wrapper, an environment assignment or any other `$` expansion leaves the
 hook untrusted and therefore silent. A hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so
 export `CRAFT_ROOT=<repo checkout>` or substitute that absolute path into the command,

@@ -42,14 +42,16 @@ const GUARD_COMMAND_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 // in. Bare, the operand is the raw plugin-root shim plus the tail exactly, or
 // a literal word: outside quotes a substitution, a split variable, a glob or
 // a `;` runs something other than the guard with no whitespace needed, so
-// only path characters pass. The interpreter is held to the same literal-word
-// rule, and is never a `NAME=` assignment, which every shell applies as an
-// environment variable before running the operand itself as the command.
-// Past the shell, node reads an operand opening with `-` as one of its own
-// options (`--eval=…//<tail>` runs code and comments the tail out), and a
-// relative operand resolves against the session directory, which is the
-// repository being worked on. So the operand is a path rooted at `/` or at the
-// plugin-root shim, never anything else.
+// only path characters pass.
+//
+// Both words must also be paths the session cannot choose. A relative word
+// resolves against the session directory, which is the repository being
+// worked on; node reads an operand opening with `-` as one of its own options
+// (`--eval=…//<tail>` runs code and comments the tail out); a `NAME=` word is
+// an environment assignment; zsh expands a word opening with `=` into a
+// command lookup; and the shim expands to nothing when no root is set. So the
+// interpreter is exactly `node` (a PATH lookup) or an absolute path, and the
+// operand opens with `/` or with the shim followed by `/`.
 //
 // Only a plain space separates or pads the words, and a control character
 // anywhere refuses the command: the shell ends a command at a line break and
@@ -59,12 +61,10 @@ const GUARD_INTERPRETER = 'node';
 const PATH_SEPARATOR = '/';
 const GUARD_COMMAND_SHAPE = /^ *([^ ]+) +(?:"([^"]*)"|([^ ]+)) *$/;
 const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
-// A leading `=` is zsh's command-path lookup, never a literal word.
-const LITERAL_WORD_PATTERN = /^(?!=)[\p{L}\p{N}._/+@%,:=-]+$/u;
+const LITERAL_WORD_PATTERN = /^[\p{L}\p{N}._/+@%,:=-]+$/u;
 const QUOTED_LITERAL_PATTERN = /^[\p{L}\p{N}._/+@%,:= -]*$/u;
-const SHELL_ASSIGNMENT_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*\+?=/u;
-const ABSOLUTE_PATH_PREFIX = '/';
 const PLUGIN_ROOT_SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
+const ROOTED_PATH_PREFIXES = Object.freeze([PATH_SEPARATOR, `${PLUGIN_ROOT_SHIM}${PATH_SEPARATOR}`]);
 const RAW_GUARD_OPERAND = `${PLUGIN_ROOT_SHIM}${GUARD_COMMAND_TAIL}`;
 
 // codex's own trust gate exists to stop a repository-supplied hook from
@@ -283,7 +283,7 @@ function isInertBareOperand(operand) {
 }
 
 function isRootedPath(operand) {
-  return operand.startsWith(ABSOLUTE_PATH_PREFIX) || operand.startsWith(PLUGIN_ROOT_SHIM);
+  return ROOTED_PATH_PREFIXES.some((prefix) => operand.startsWith(prefix));
 }
 
 function isGuardScriptOperand(operand) {
@@ -291,10 +291,12 @@ function isGuardScriptOperand(operand) {
 }
 
 function isGuardInterpreter(interpreter) {
+  if (!isLiteralWord(interpreter)) {
+    return false;
+  }
   return (
-    isLiteralWord(interpreter) &&
-    !SHELL_ASSIGNMENT_PATTERN.test(interpreter) &&
-    toBasename(interpreter) === GUARD_INTERPRETER
+    interpreter === GUARD_INTERPRETER ||
+    (interpreter.startsWith(PATH_SEPARATOR) && toBasename(interpreter) === GUARD_INTERPRETER)
   );
 }
 
