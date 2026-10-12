@@ -44,14 +44,17 @@ const GUARD_COMMAND_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 // a `;` runs something other than the guard with no whitespace needed, so
 // only path characters pass.
 //
-// Both words must also be paths the session cannot choose. A relative word
-// resolves against the session directory, which is the repository being
-// worked on; node reads an operand opening with `-` as one of its own options
+// Both words must also be rooted. A relative word resolves against the
+// session directory, which is the repository being worked on; node reads an operand opening with `-` as one of its own options
 // (`--eval=…//<tail>` runs code and comments the tail out); a `NAME=` word is
 // an environment assignment; zsh expands a word opening with `=` into a
 // command lookup; and the shim expands to nothing when no root is set. So the
 // interpreter is exactly `node` (a PATH lookup) or an absolute path, and the
-// operand opens with `/` or with the shim followed by `/`.
+// operand opens with `/` or with the shim followed by `/`. Rooted is a
+// spelling, not a canonical path: an absolute alias such as `/proc/self/cwd/`
+// still names the session directory, exactly as a `..` traversal still
+// matches — identity is the tail, and whoever can write this config can write
+// its trusted hash directly.
 //
 // Only a plain space separates or pads the words, and a control character
 // anywhere refuses the command: the shell ends a command at a line break and
