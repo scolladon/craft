@@ -514,3 +514,8 @@ sibling-spawn-site-defects design turns=27 tool_calls=29 tokens=1484447 duration
 sibling-spawn-site-defects implementation turns=10 tool_calls=12 tokens=194110 duration_ms=78021 cache_read=156159 cache_creation=37730 output=201 avg_ctx=19391 equiv=63803
 sibling-spawn-site-defects planning turns=36 tool_calls=37 tokens=2007246 duration_ms=397938 cache_read=1926402 cache_creation=80420 output=352 avg_ctx=55747 equiv=294997
 sibling-spawn-site-defects review turns=43 tool_calls=45 tokens=1056328 duration_ms=390214 cache_read=920298 cache_creation=135292 output=652 avg_ctx=24551 equiv=264491
+backlog-sweep-six-entries design turns=93 tool_calls=97 tokens=9167604 duration_ms=923521 cache_read=8982907 cache_creation=183472 output=1039 avg_ctx=98565 equiv=1133012
+backlog-sweep-six-entries implementation turns=63 tool_calls=68 tokens=1423750 duration_ms=579110 cache_read=1243212 cache_creation=178404 output=2008 avg_ctx=22567 equiv=357492
+backlog-sweep-six-entries planning turns=87 tool_calls=92 tokens=10147496 duration_ms=1065405 cache_read=9922152 cache_creation=222262 output=2908 avg_ctx=116604 equiv=1284757
+backlog-sweep-six-entries review turns=75 tool_calls=79 tokens=3024826 duration_ms=580416 cache_read=2780820 cache_creation=242110 output=1746 avg_ctx=40308 equiv=589600
+backlog-sweep-six-entries validation turns=21 tool_calls=22 tokens=533860 duration_ms=235342 cache_read=504037 cache_creation=29519 output=262 avg_ctx=25409 equiv=88654
