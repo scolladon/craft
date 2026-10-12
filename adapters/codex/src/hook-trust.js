@@ -45,6 +45,11 @@ const GUARD_COMMAND_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 // only path characters pass. The interpreter is held to the same literal-word
 // rule, and is never a `NAME=` assignment, which every shell applies as an
 // environment variable before running the operand itself as the command.
+// Past the shell, node reads an operand opening with `-` as one of its own
+// options (`--eval=…//<tail>` runs code and comments the tail out), and a
+// relative operand resolves against the session directory, which is the
+// repository being worked on. So the operand is a path rooted at `/` or at the
+// plugin-root shim, never anything else.
 //
 // Only a plain space separates or pads the words, and a control character
 // anywhere refuses the command: the shell ends a command at a line break and
@@ -58,6 +63,7 @@ const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
 const LITERAL_WORD_PATTERN = /^(?!=)[\p{L}\p{N}._/+@%,:=-]+$/u;
 const QUOTED_LITERAL_PATTERN = /^[\p{L}\p{N}._/+@%,:= -]*$/u;
 const SHELL_ASSIGNMENT_PATTERN = /^[\p{L}_][\p{L}\p{N}_]*\+?=/u;
+const ABSOLUTE_PATH_PREFIX = '/';
 const PLUGIN_ROOT_SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
 const RAW_GUARD_OPERAND = `${PLUGIN_ROOT_SHIM}${GUARD_COMMAND_TAIL}`;
 
@@ -276,6 +282,14 @@ function isInertBareOperand(operand) {
   return operand === RAW_GUARD_OPERAND || isLiteralWord(operand);
 }
 
+function isRootedPath(operand) {
+  return operand.startsWith(ABSOLUTE_PATH_PREFIX) || operand.startsWith(PLUGIN_ROOT_SHIM);
+}
+
+function isGuardScriptOperand(operand) {
+  return isRootedPath(operand) && operand.endsWith(GUARD_COMMAND_TAIL);
+}
+
 function isGuardInterpreter(interpreter) {
   return (
     isLiteralWord(interpreter) &&
@@ -293,7 +307,7 @@ function isGuardHook(hook) {
   if (parsed === null || !parsed.isInert(parsed.operand)) {
     return false;
   }
-  return isGuardInterpreter(parsed.interpreter) && parsed.operand.endsWith(GUARD_COMMAND_TAIL);
+  return isGuardInterpreter(parsed.interpreter) && isGuardScriptOperand(parsed.operand);
 }
 
 function assertNotRepositorySourced(hook) {

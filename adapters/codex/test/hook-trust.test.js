@@ -485,6 +485,14 @@ describe('selectCraftHook() — decoy commands must not match', () => {
     ['the quoted operand evaluates an assembled substitution through an array subscript', `node "\${y:=a[\${z:-$}(touch MARK)]}\${a[y]}${GUARD_TAIL}"`],
     ['the quoted operand evaluates an assembled substitution through an indirect expansion', `node "\${y:=a[\${z:-$}(touch MARK)]}\${!y}${GUARD_TAIL}"`],
     ['the quoted operand carries the plugin-root shim with a different default', `node "\${CRAFT_ROOT:-/tmp/evil}${GUARD_TAIL}"`],
+    ['the quoted operand is a node option that evaluates code ahead of a commented-out tail', `node "--eval=process.exitCode=0/${GUARD_TAIL}"`],
+    ['the bare operand is a node option that evaluates code ahead of a commented-out tail', `node --eval=process.exitCode=0/${GUARD_TAIL}`],
+    ['the quoted operand is a node option that imports a module ahead of a commented-out tail', `node "--import=data:text/javascript,0/${GUARD_TAIL}"`],
+    ['the bare operand is a short node option that preloads a module', `node -r/x${GUARD_TAIL}`],
+    ['the quoted operand is a short node option that preloads a module', `node "-r/x${GUARD_TAIL}"`],
+    ['the bare operand is a path relative to the session directory', `node craft${GUARD_TAIL}`],
+    ['the quoted operand is a path relative to the session directory', `node "craft${GUARD_TAIL}"`],
+    ['the quoted operand opens with a space ahead of the path', `node " /opt/craft${GUARD_TAIL}"`],
   ];
 
   for (const [label, command] of DECOYS) {
@@ -640,6 +648,8 @@ describe('selectCraftHook() — the guard operand wrapped in one pair of double 
     ['the raw unexpanded guard path in double quotes', QUOTED_RAW_COMMAND],
     ['the shell-expanded guard path under a root containing a space, in double quotes', QUOTED_EXPANDED_COMMAND],
     ['an absolute interpreter and the quoted guard path under a root containing a space', QUOTED_EXPANDED_INTERPRETER_COMMAND],
+    ['a quoted guard path using every path character and a space', `node "/opt/n@v+1%2,x:y=z-é_9.d root${GUARD_TAIL}"`],
+    ['the plugin-root shim followed by literal path characters in double quotes', `node "${PLUGIN_ROOT_SHIM}/x_1${GUARD_TAIL}"`],
   ];
 
   for (const [label, command] of QUOTED_OPERANDS) {
@@ -669,15 +679,35 @@ describe('selectCraftHook() — shell syntax outside quotes must not match', () 
     ['the bare operand expands a variable other than the plugin-root shim', `node $HOME/craft${GUARD_TAIL}`],
     ['only the plugin-root shim is quoted', `node "${PLUGIN_ROOT_SHIM}"${GUARD_TAIL}`],
     ['the operand opens a double quote it never closes', `node "/opt/craft${GUARD_TAIL}`],
+  ];
+
+  for (const [label, command] of SHELL_SYNTAX_COMMANDS) {
+    it(`Given a hook command where ${label}, when selectCraftHook runs, then it does not match and it throws`, () => {
+      const sut = selectCraftHook;
+
+      assert.throws(() => sut([craftHook({ command })]), /no craft hook/i);
+    });
+  }
+});
+
+describe('selectCraftHook() — a literal word the shell reads as something other than a word', () => {
+  // Each of these is built from literal path characters only, yet the shell does
+  // not run node on the guard: a leading `NAME=` is an environment assignment, so
+  // the operand itself becomes the command, and zsh expands a word opening with `=`
+  // into a command-path lookup that never finds a path.
+  const NON_WORD_COMMANDS = [
     ['the interpreter is an environment assignment ahead of a bare operand', `X=/node /opt/craft${GUARD_TAIL}`],
     ['the interpreter is an environment assignment ahead of a quoted operand', `X=/node "/opt/craft${GUARD_TAIL}"`],
     ['the interpreter is an appending environment assignment', `X+=/node /opt/craft${GUARD_TAIL}`],
     ['the interpreter is an environment assignment to a non-ASCII name', `é=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment to a multi-letter name', `HOME=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment to an underscore-led name', `_X=/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an environment assignment to a name carrying a digit', `X1=/node /opt/craft${GUARD_TAIL}`],
     ['the bare operand opens with an equals sign zsh expands as a command lookup', `node =x${GUARD_TAIL}`],
     ['the interpreter opens with an equals sign zsh expands as a command lookup', `=/opt/n/node /opt/craft${GUARD_TAIL}`],
   ];
 
-  for (const [label, command] of SHELL_SYNTAX_COMMANDS) {
+  for (const [label, command] of NON_WORD_COMMANDS) {
     it(`Given a hook command where ${label}, when selectCraftHook runs, then it does not match and it throws`, () => {
       const sut = selectCraftHook;
 

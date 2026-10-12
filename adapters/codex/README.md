@@ -69,9 +69,10 @@ The registered `command` is the interpreter, then the guard script as one double
 operand: `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js"`.
 The quotes keep a checkout path containing a space one word under every shell codex may
 run the hook through. `bin/trust-hook.js` refuses anything else: inside the quotes only
-path characters, plain spaces and that exact `${CRAFT_ROOT:-…}` placeholder are allowed, so
-an added flag, a chained command, a shell wrapper, an environment assignment or any other
-`$` expansion leaves the hook untrusted and therefore silent. A hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so
+path characters, plain spaces and that exact `${CRAFT_ROOT:-…}` placeholder are allowed, and
+the path starts at `/` or at that placeholder. An added flag, a relative path, a chained
+command, a shell wrapper, an environment assignment or any other `$` expansion leaves the
+hook untrusted and therefore silent. A hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so
 export `CRAFT_ROOT=<repo checkout>` or substitute that absolute path into the command,
 inside the double quotes.
 
