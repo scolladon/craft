@@ -517,7 +517,7 @@ one every phase needs (`turn-budget` reads it). See phaseTurns above for what ea
 Keys deep-sorted: `detail`, `evidence`, `kind`, `model`, `phase`, `run`. `model-routing` and
 `turn-budget` additionally carry a top-level `role`.
 
-Four kinds are currently emitted:
+Five kinds are currently emitted:
 
 **cache-hotspot** — phase has high cache-creation ratio relative to total run cost:
 
@@ -604,6 +604,26 @@ other three kinds, its scope is not limited to `review`: it fires for any phase 
 it without reaching into `evidence`. `evidence` mirrors its `phaseTurns` entry plus `threshold`
 (the exact `TURN_BUDGET_BILLED_TURNS` value compared against) — see phaseTurns above for what
 `billedTurns`, `cycles`, and `toolCalls` mean. Comparison is strict `>`, matching `review-waste`.
+
+**phase-skip** — the run record carries an `auto-skip: <phase>` token, so the phase was evaluated
+unnecessary and did not run:
+
+```json
+{
+  "detail": "phase review auto-skipped (evaluated unnecessary)",
+  "evidence": {
+    "marker": "auto-skip"
+  },
+  "kind": "phase-skip",
+  "model": null,
+  "phase": "review",
+  "run": "session-abc123"
+}
+```
+
+`phaseSkipRecs` (`skip-signals.js`) emits one rec per distinct run and phase. Its input is the
+skip markers, not transcript usage, so the rec carries no cost: it is its own evidence.
+`WAIVER:` and `NO-OP(<phase>):` lines never produce one.
 
 ### Baseline deltas (`baselineDeltas[*]`)
 
