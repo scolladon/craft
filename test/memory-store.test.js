@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.join(__dirname, '..');
+const PHASE_OR_DECISION_RECORD_TOKEN = '(^|[^[:alnum:]_])P[0-9]+([^[:alnum:]_]|$)|ADR-[0-9]';
 const GITIGNORE = path.join(ROOT, '.gitignore');
 const STORE_PATH = path.join(ROOT, '.claude/craft-memory.md');
 
@@ -92,7 +93,7 @@ test(
     const memorySrc = path.join(ROOT, 'engine/src/observability/memory.js');
     const memoryTest = path.join(ROOT, 'engine/test/memory.test.js');
     assert.ok(
-      !grepRE('P22|ADR-[0-9]', memorySrc, memoryTest),
+      !grepRE(PHASE_OR_DECISION_RECORD_TOKEN, memorySrc, memoryTest),
       'engine/src/observability/memory.js and engine/test/memory.test.js should contain no phase or decision-record tokens',
     );
   },

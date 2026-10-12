@@ -592,16 +592,18 @@ test('Given a git repo tracking a decision-candidate ref in engine source and a 
   });
 });
 
-test('Given a git repo tracking a single-letter review id in engine source, when listProvenanceRefLines scans it, then the line is reported', () => {
-  const files = { 'engine/src/a.js': '// F6: x\n' };
-  withThrowawayRepo(files, (repo) => {
-    const sut = listProvenanceRefLines;
+for (const reviewId of ['R10', 'T0', 'F6']) {
+  test(`Given a git repo tracking the single-letter review id ${reviewId} in engine source, when listProvenanceRefLines scans it, then the line is reported`, () => {
+    const files = { 'engine/src/a.js': `// ${reviewId}: x\n` };
+    withThrowawayRepo(files, (repo) => {
+      const sut = listProvenanceRefLines;
 
-    const result = sut(repo, hermeticGitEnv());
+      const result = sut(repo, hermeticGitEnv());
 
-    assert.deepStrictEqual(result, ['engine/src/a.js:1:// F6: x']);
+      assert.deepStrictEqual(result, [`engine/src/a.js:1:// ${reviewId}: x`]);
+    });
   });
-});
+}
 
 test('Given a shipped script cutting a field range and a lower-case r-number in engine source, when listProvenanceRefLines scans them, then nothing is reported', () => {
   const files = { 'scripts/x.sh': 'cut -d" " -f2-\n', 'engine/src/b.js': '// r1 lower\n' };
@@ -669,6 +671,14 @@ const COMMENT_OR_TITLE_ROWS = [
   { file: 'a.mjs', text: "describe.skip('x', () => {", previousText: '' },
   { file: 'a.test.js', text: "  'Given x',", previousText: 'test(' },
   { file: 'a.yml', text: '# x', previousText: '' },
+  { file: 'a.test.js', text: "  it('Given x', () => {", previousText: '' },
+  { file: 'a.test.js', text: '  test(`Given x`, () => {', previousText: '' },
+  { file: 'a.test.js', text: "    'Given x',", previousText: '  it(' },
+  { file: 'a.cjs', text: '// x', previousText: '' },
+  { file: 'a.ts', text: '// x', previousText: '' },
+  { file: 'a.yaml', text: '# x', previousText: '' },
+  { file: 'a.sh', text: '# x', previousText: '' },
+  { file: 'a.bash', text: '# x', previousText: '' },
 ];
 const NEITHER_COMMENT_NOR_TITLE_ROWS = [
   { file: 'a.test.js', text: "const plan = 'x';", previousText: '' },
@@ -676,7 +686,10 @@ const NEITHER_COMMENT_NOR_TITLE_ROWS = [
   { file: 'a.test.js', text: "    assert.ok(re.test('x'));", previousText: '' },
   { file: 'a.md', text: '# x', previousText: '' },
   { file: 'a.md', text: '## x — y', previousText: '' },
-  { file: 'a.json', text: '"x"', previousText: '' },
+  { file: 'a.json', text: '// x', previousText: '' },
+  { file: 'a.md', text: '* x', previousText: '' },
+  { file: 'a.test.js', text: '  title,', previousText: 'test(' },
+  { file: 'a.test.js', text: "  'x',", previousText: "test('Given y', () => {" },
 ];
 
 for (const row of COMMENT_OR_TITLE_ROWS) {
