@@ -1,3 +1,7 @@
+---
+subjects:
+  - adapters/*/src/model-tier-map.js
+---
 # Model adapter spec
 
 ## Port interface

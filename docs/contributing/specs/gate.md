@@ -1,3 +1,8 @@
+---
+subjects:
+  - engine/src/gates.js
+  - engine/src/guards/**
+---
 # Gate adapter spec
 
 ## Port interface

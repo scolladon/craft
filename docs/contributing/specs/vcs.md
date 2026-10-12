@@ -1,3 +1,8 @@
+---
+subjects:
+  - scripts/worktree-setup.sh
+  - scripts/worktree-teardown.sh
+---
 # VCS adapter spec
 
 ## Port interface
