@@ -202,7 +202,7 @@ bash, sh and dash split it. Both registrations now quote the whole path (ADR-512
 string per ADR-513), and `trust-hook`'s matcher accepts that one double-quoted operand. Review
 then proved the matcher's own contract leaky; it is now an allow-list: a bare or absolute `node`,
 one operand rooted at `/` or at the shim plus `/`, path characters only (ADRs 514, 515, 517;
-`/proc/self/cwd` aliases bounded as a non-goal beside ADR-317's traversal case). A live run
+`/proc/self/cwd` aliases bounded as a non-goal beside the accepted `..` traversal case). A live run
 trusted the quoted hook and the guard denied `git diff` with no bypass flag. Design context:
 [codex-hooks-quote-plugin-root](docs/contributing/design/codex-hooks-quote-plugin-root.md).
 
