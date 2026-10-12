@@ -2191,7 +2191,7 @@ test('Given an empty report and a report with no recommendations key, when repla
   assert.deepEqual(noRecommendations, []);
 });
 
-test('Given run-derived recs rebuilt from runs listed out of id order and committed pass-through recs out of sort order, when replayRecommendations runs, then the result is in kind, run, phase and model order', () => {
+test('Given run-derived recs rebuilt from runs listed out of id order and committed pass-through recs out of sort order, when replayRecommendations runs, then the result is in kind then run order', () => {
   const sut = replayRecommendations;
   const overThreshold = reviewCycle(REVIEW_WASTE_BILLED_TURNS + 1);
   const report = {

@@ -8,8 +8,8 @@ const { pathToFileURL } = require('node:url');
 const ROOT = path.join(__dirname, '..');
 const REPORT_PATH = path.join(ROOT, 'docs', 'contributing', 'metrics-baseline.report.json');
 const RETIRED_REVIEW_WASTE_DETAIL = 'role reviewer has 6 review cycles';
-// The disagreement cases plant their own run so they keep proving the guard can fail
-// after a refresh replaces every run the committed report holds today.
+// The planted cases bring their own run and compare only its recs, so they keep proving the
+// guard can fail after a refresh replaces every run, or adds kinds that sort after it.
 const PLANTED_RUN = 'planted-run';
 const NO_COST = { priced: 0, relative: 0 };
 const DISAGREEMENT_MESSAGE =
@@ -23,6 +23,14 @@ function importAggregateModule() {
 
 function readCommittedReport() {
   return JSON.parse(fs.readFileSync(REPORT_PATH, 'utf8'));
+}
+
+function currentDetail(billedTurns) {
+  return `role reviewer billed ${billedTurns} turns across review`;
+}
+
+function plantedRecs(recommendations) {
+  return recommendations.filter(rec => rec.run === PLANTED_RUN);
 }
 
 function plantReviewWaste(report, billedTurns, detail) {
@@ -42,22 +50,32 @@ test('Given the committed metrics baseline, when its recommendations are replaye
   assert.deepStrictEqual(result, report.recommendations, DISAGREEMENT_MESSAGE);
 });
 
-test('Given the committed metrics baseline plus a review-waste rec in the retired detail shape, when replayed, then the replay disagrees', async () => {
+test('Given the committed metrics baseline plus a review-waste rec in the current shape, when replayed, then the replay agrees on the planted run', async () => {
+  const { replayRecommendations: sut, REVIEW_WASTE_BILLED_TURNS } = await importAggregateModule();
+  const report = readCommittedReport();
+  plantReviewWaste(report, REVIEW_WASTE_BILLED_TURNS + 1, currentDetail(REVIEW_WASTE_BILLED_TURNS + 1));
+
+  const result = sut(report);
+
+  assert.deepStrictEqual(plantedRecs(result), plantedRecs(report.recommendations));
+});
+
+test('Given the committed metrics baseline plus a review-waste rec in the retired detail shape, when replayed, then the replay disagrees on the planted run', async () => {
   const { replayRecommendations: sut, REVIEW_WASTE_BILLED_TURNS } = await importAggregateModule();
   const report = readCommittedReport();
   plantReviewWaste(report, REVIEW_WASTE_BILLED_TURNS + 1, RETIRED_REVIEW_WASTE_DETAIL);
 
   const result = sut(report);
 
-  assert.notDeepStrictEqual(result, report.recommendations);
+  assert.notDeepStrictEqual(plantedRecs(result), plantedRecs(report.recommendations));
 });
 
-test('Given the committed metrics baseline plus a review-waste rec for a cycle at the billed-turn threshold, when replayed, then the replay disagrees', async () => {
+test('Given the committed metrics baseline plus a review-waste rec for a cycle at the billed-turn threshold, when replayed, then the replay disagrees on the planted run', async () => {
   const { replayRecommendations: sut, REVIEW_WASTE_BILLED_TURNS } = await importAggregateModule();
   const report = readCommittedReport();
-  plantReviewWaste(report, REVIEW_WASTE_BILLED_TURNS, `role reviewer billed ${REVIEW_WASTE_BILLED_TURNS} turns across review`);
+  plantReviewWaste(report, REVIEW_WASTE_BILLED_TURNS, currentDetail(REVIEW_WASTE_BILLED_TURNS));
 
   const result = sut(report);
 
-  assert.notDeepStrictEqual(result, report.recommendations);
+  assert.notDeepStrictEqual(plantedRecs(result), plantedRecs(report.recommendations));
 });
