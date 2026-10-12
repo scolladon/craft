@@ -73,6 +73,7 @@ const HOME_DASHED_PATTERN = new RegExp(
 const PLACEHOLDER_HOMES = new Set(['alice', 'cwd', 'example', 'me', 'someone', 'user', 'x', 'other-clone']);
 const HOME_CANDIDATE_PATTERN = '/(Users|home)/|-(Users|home)-';
 const GIT_GREP_NO_MATCH = 1;
+const GIT_NOT_A_REPOSITORY = 128;
 // `s`: a CRLF row keeps its trailing \r, which `.` would otherwise refuse to match.
 const LOCATED_LINE_PATTERN = /^(.+?):(\d+):(.*)$/s;
 
@@ -139,17 +140,12 @@ function runGrep(pattern, paths, allowlistFilters) {
   return lines;
 }
 
-function listTrackedFiles(paths) {
-  let result;
-  try {
-    result = execFileSync('git', ['ls-files', '--', ...paths], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-  } catch (err) {
-    result = err.stdout ?? '';
-  }
+function listTrackedFiles(cwd, paths) {
+  const result = execFileSync('git', ['ls-files', '--', ...paths], {
+    cwd,
+    encoding: 'utf8',
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
   return result.split('\n').filter(Boolean);
 }
 
@@ -172,7 +168,7 @@ test(
     // positively so a moved or renamed location fails loud here instead.
     for (const scannedPath of SCANNED_PATHS) {
       const relative = path.relative(ROOT, scannedPath);
-      const tracked = listTrackedFiles([relative]);
+      const tracked = listTrackedFiles(ROOT, [relative]);
       assert.ok(
         tracked.length > 0,
         `Source-hygiene FAIL — scanned path has no tracked files (stale entry?): ${relative}`,
@@ -270,7 +266,7 @@ test(
       'Source-hygiene class-C detector failed to flag a vendor-named file outside adapters/<vendor>/ (or wrongly flagged a correctly-placed one)',
     );
 
-    const tracked = listTrackedFiles(SCANNED_PATHS);
+    const tracked = listTrackedFiles(ROOT, SCANNED_PATHS);
     const offenders = findMisplacedVendorFiles(tracked);
     assert.strictEqual(
       offenders.length,
@@ -294,6 +290,19 @@ test(
     }
   },
 );
+
+test('Given a directory outside any git repository, when listTrackedFiles lists it, then the git failure propagates', () => {
+  const nonRepoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tracked-files-non-repo-'));
+  try {
+    const sut = listTrackedFiles;
+
+    const result = () => sut(nonRepoDir, ['.']);
+
+    assert.throws(result, { status: GIT_NOT_A_REPOSITORY });
+  } finally {
+    fs.rmSync(nonRepoDir, { recursive: true, force: true });
+  }
+});
 
 const SYNTHETIC_HOME = 'synthetic';
 const LEAK_SHAPED_LINES = [
@@ -383,7 +392,7 @@ for (const line of HARMLESS_LINES) {
   });
 }
 
-test('Given git grep rows holding a leak, a placeholder and a CRLF leak, when listHomePathLeakLocations judges them, then only the leaks are located', () => {
+test('Given git grep rows holding a leak, a redacted home and a CRLF leak, when listHomePathLeakLocations judges them, then only the leaks are located', () => {
   const sut = listHomePathLeakLocations;
   const candidates = [
     `docs/a.md:3:cd /Users/${SYNTHETIC_HOME}/w`,
