@@ -7,6 +7,8 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-12
+
 ### Added
 - A README section comparing craft with plain agent prompting and spec-driven kits.
 - A devcontainer and an "Open in Codespaces" badge; CI and the devcontainer install the same dev tools.
@@ -47,5 +49,6 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 - Seven native bindings under `adapters/` (pi, opencode, copilot, codex, cursor, aider, antigravity) proving the ports are pluggable.
 - Comprehension and intention debt management: design docs, parted TDD plans, ADRs with user-ratified decisions.
 
-[Unreleased]: https://github.com/scolladon/craft/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/scolladon/craft/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/scolladon/craft/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/scolladon/craft/releases/tag/v1.0.0
