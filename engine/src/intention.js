@@ -8,6 +8,7 @@
 
 import { matchGlob, globsOverlap } from './glob.js';
 import { parseSubjects } from './intention-subjects.js';
+import { isNonEmptyString } from './cli-io.js';
 
 /**
  * @typedef {{ path: string, purpose: string }} IntentionEntry
@@ -103,14 +104,6 @@ function classifySubjects(content) {
     return { reason: 'malformed-subjects' };
   }
   return { subjects };
-}
-
-/**
- * @param {unknown} value
- * @returns {boolean}
- */
-function isNonEmptyString(value) {
-  return typeof value === 'string' && value.trim() !== '';
 }
 
 /**

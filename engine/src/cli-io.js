@@ -1,6 +1,7 @@
 /**
- * Shared CLI I/O helpers for the config-resolve/init-land/promote-plan mains:
- * a never-throw regular-file predicate, a stderr-and-fail-exit helper, a
+ * Shared CLI I/O helpers for the engine mains (config-resolve, init-land,
+ * promote-plan, the lint mains): never-throw regular-file and directory
+ * predicates, a non-empty-string predicate, a stderr-and-fail-exit helper, a
  * repo-root walk, and the two exit-code constants they all share.
  */
 
@@ -22,6 +23,28 @@ export function isRegularFile(p) {
   } catch {
     return false; // equivalent mutant (empty catch): undefined is falsy — same observable effect
   }
+}
+
+/**
+ * Directory predicate mirroring the bash `[ -d <path> ]` test: true only for an
+ * existing directory, never throws.
+ * @param {string} p
+ * @returns {boolean}
+ */
+export function isDirectoryPath(p) {
+  try {
+    return statSync(p).isDirectory();
+  } catch {
+    return false; // equivalent mutant (empty catch): undefined is falsy — every caller reads the result as a boolean, same observable effect
+  }
+}
+
+/**
+ * @param {unknown} value
+ * @returns {boolean}
+ */
+export function isNonEmptyString(value) {
+  return typeof value === 'string' && value.trim() !== '';
 }
 
 export function fail(io, message) {

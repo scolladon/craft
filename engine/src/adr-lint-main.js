@@ -20,13 +20,13 @@
  * output are machine-specific and leak the operator's home directory.
  */
 
-import { readdirSync, statSync, existsSync, lstatSync } from 'node:fs';
+import { readdirSync, existsSync, lstatSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { load } from 'js-yaml';
 import { extractFrontmatter, parseManifestContent } from './frontmatter.js';
 import { collectWaived, escapeRegExp, readWithinCap, MAX_FILE_BYTES } from './hygiene-lint-core.js';
-import { findRepoRoot } from './cli-io.js';
+import { findRepoRoot, isDirectoryPath, isNonEmptyString } from './cli-io.js';
 import { containByRealpath } from './contain.js';
 import { matchGlob, matchesEveryPath } from './glob.js';
 
@@ -69,23 +69,6 @@ const GIT_GREP_MAX_BUFFER = 64 * 1024 * 1024;
 
 /** The `adr` id is the zero-padded 3-digit string as it appears in filenames and `ADR-NNN` prose. */
 const ADR_ID_PATTERN = /^\d{3}$/;
-
-/**
- * Never-throw directory predicate mirroring the sibling lint mains' own copy.
- * @param {string} p
- * @returns {boolean}
- */
-function isDirectoryPath(p) {
-  try {
-    return statSync(p).isDirectory();
-  } catch {
-    // equivalent mutant (BlockStatement, empty catch → implicit `undefined`):
-    // the only caller reads this exclusively through `!isDirectoryPath(...)`
-    // boolean negation, never a strict `=== false` — `!false` and
-    // `!undefined` are both `true`, so an undefined return is unobservable.
-    return false;
-  }
-}
 
 /**
  * Regular-file predicate that deliberately uses `lstatSync`, NOT `statSync`:
@@ -457,14 +440,6 @@ function parseGitGrepRecords(output) {
     cursor = recordEnd + 1;
   }
   return { hits, unparsed };
-}
-
-/**
- * @param {string} v
- * @returns {boolean}
- */
-function isNonEmptyString(v) {
-  return typeof v === 'string' && v.trim() !== '';
 }
 
 function joinRel(parentRel, child) {
