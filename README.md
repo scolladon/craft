@@ -75,7 +75,7 @@ A given tool in a category may add more — check it.
 | | Plain agent prompting | Spec-driven kits | craft |
 |---|---|---|---|
 | Where the process lives | in the prompt you wrote | in templates and instructions the agent follows | in hooks, scripts and versioned [contracts](contracts/) |
-| Committing on a red test suite | not prevented by the approach itself | varies by tool | forbidden by contract, with the gate re-run at every phase boundary — [the contract](contracts/core.md) |
+| Committing on a red test suite | not prevented by the approach itself | varies by tool | forbidden by contract, with a gate run at every code-producing phase boundary — [the contract](contracts/core.md) |
 | Why a choice was made survives the session | not by the approach itself | in the spec, when written | as a ratified [decision record](docs/contributing/adr/) |
 | Review and validation before the PR | when you ask | varies by tool | gated phases — [the review phase](skills/review/SKILL.md) |
 | Resume after a killed session | from the transcript, if the tool keeps one | from the spec files | from the last committed artifact — [plans](docs/contributing/plan/) |
