@@ -175,19 +175,32 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-12 — follow-ups surfaced by the backlog-sweep-hooks-quote-dev-tools run, not yet scheduled)
+
+**`adapters/codex/hooks.json` carries the same unquoted plugin-root path.** Its command is
+`node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/…`, which `claude plugin validate` never
+reads. Under `sh -c`, that form splits on a spaced root (shown by the design's probes). Still
+unproven: whether codex runs hook commands through a shell. Prove it first with a codex live
+smoke from a spaced `CRAFT_ROOT`, then quote the path and update `adapters/codex/test/config.test.js`
+and `hook-trust.test.js`, which pin the command.
+
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the public-front-door-completion run, not yet scheduled)
 
-**Quote the plugin-root placeholder in `hooks/hooks.json`.** `claude plugin validate .` passes
-with three warnings: the PreToolUse, SessionStart and PreCompact commands expand
-`${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/<script>.sh` unquoted, so a plugin root containing a
-space splits into several words and the hook fails. Fix by quoting the placeholder or using the
-exec form the validator names; the hooks suite pins the command strings.
+**Quote the plugin-root placeholder in `hooks/hooks.json` — delivered 2026-10-12**
+(backlog-sweep-hooks-quote-dev-tools). The three commands now double-quote the whole path,
+`"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/<script>.sh"` (ADR-508). Exec form was rejected
+because it has no shell to expand the `CRAFT_ROOT` override (ADR-217). `claude plugin validate .`
+reports no hooks warnings. `test/hooks.test.js` expands each registered command under `sh -c`
+from a plugin root containing a space, with `CRAFT_ROOT` unset and set. Design context:
+[backlog-sweep-hooks-quote-dev-tools](docs/contributing/design/backlog-sweep-hooks-quote-dev-tools.md).
 
-**CI installs `bats` and `yq` that nothing runs.** `scripts/install-dev-tools.sh` (shared by CI
-and the devcontainer) installs both, but `git grep -w` outside docs, the workflow and the
-install script finds no consumer: `test/helpers/*.bash` are bats-shaped helpers no suite in
-`scripts/ci.sh` executes, and no script calls `yq`. Either wire the bats helpers into the gate
-or drop both tools from the install set, which also shortens the devcontainer's create step.
+**CI installs `bats` and `yq` that nothing runs — delivered 2026-10-12**
+(backlog-sweep-hooks-quote-dev-tools). The user chose to drop both (ADR-509).
+`scripts/install-dev-tools.sh` now installs only `shellcheck` and `jq`. The yq download, the
+checksums and the architecture probe are gone, along with their tests. The orphaned
+`test/helpers/{hooks,worktree,manifest-lint}.bash` are deleted. The inline-install guard covers
+apt only (ADR-510), and the devcontainer smoke no longer checks yq (ADR-511). Design context:
+[backlog-sweep-hooks-quote-dev-tools](docs/contributing/design/backlog-sweep-hooks-quote-dev-tools.md).
 
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the provenance-sweep-part-two run, not yet scheduled)
 
