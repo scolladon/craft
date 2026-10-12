@@ -48,7 +48,7 @@ function adaptPiEvent(event, ctx) {
 
 /**
  * Walks up to the nearest existing ancestor and returns its realpath.
- * DC-5: a not-yet-existing dir cannot be a symlink, so the nearest existing
+ * A not-yet-existing dir cannot be a symlink, so the nearest existing
  * ancestor's realpath is sufficient for containment checking.
  * @param {string} p
  * @returns {Promise<string>}
@@ -76,7 +76,7 @@ function isContained(realParent, realWorking) {
 }
 
 /**
- * Runtime symlink re-check for write tools (DC-5).
+ * Runtime symlink re-check for write tools.
  * Resolves the realpath of the nearest existing ancestor of the TARGET itself
  * and verifies it stays inside the working dir. Resolving the target (not just
  * its parent) means realpath follows a final-component symlink when the target

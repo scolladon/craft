@@ -122,6 +122,38 @@ function listHomePathLeakLocations(candidates) {
     .map((located) => `${located.file}:${located.line}`);
 }
 
+// Class E: phase, decision-record, part and backlog numbering in shipped code (contracts/core.md).
+// Shipped code only: tests, skills and templates carry such tokens as fixture data or as
+// deliberate decision citations that adr-lint checks.
+const PROVENANCE_REF_PATTERN = '\\b(ADR-?\\d+|P\\d+|Part\\s+\\d+|backlog\\s*#\\d+|DC-\\d+)\\b';
+const SHIPPED_CODE_PATHSPECS = [
+  'engine/src',
+  'engine/bin',
+  'hooks',
+  'scripts',
+  ':(glob)adapters/*/src/**',
+  ':(glob)adapters/*/bin/**',
+  ':(glob)adapters/*/extensions/**',
+  ':(glob)adapters/*/hooks/**',
+  ':(glob)adapters/*/plugins/**',
+];
+
+function listProvenanceRefLines(cwd, env = process.env) {
+  try {
+    return execFileSync('git', ['grep', '-n', '-i', '-P', PROVENANCE_REF_PATTERN, '--', ...SHIPPED_CODE_PATHSPECS], {
+      cwd,
+      env: withoutGitLocation(env),
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    })
+      .split('\n')
+      .filter(Boolean);
+  } catch (err) {
+    if (err.status === GIT_GREP_NO_MATCH) return [];
+    throw err;
+  }
+}
+
 function runGrep(pattern, paths, allowlistFilters) {
   let result;
   try {
@@ -440,7 +472,11 @@ function withThrowawayRepo(files, assertOnRepo) {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'class-d-'));
   try {
     execFileSync('git', ['init', '-q'], { cwd: repo, env: hermeticGitEnv() });
-    for (const [name, content] of Object.entries(files)) fs.writeFileSync(path.join(repo, name), content);
+    for (const [name, content] of Object.entries(files)) {
+      const filePath = path.join(repo, name);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, content);
+    }
     execFileSync('git', ['add', '.'], { cwd: repo, env: hermeticGitEnv() });
     assertOnRepo(repo);
   } finally {
@@ -485,5 +521,52 @@ test('Given the tracked tree, when every home-rooted candidate line is judged, t
     result,
     [],
     `Source-hygiene FAIL — home-rooted paths (class D) at:\n${result.join('\n')}`,
+  );
+});
+
+test('Given a git repo tracking a decision-candidate ref in engine source and a phase ref in an engine test, when listProvenanceRefLines scans it, then only the shipped-code line is reported', () => {
+  const files = { 'engine/src/a.js': '// DC-3: x\n', 'engine/test/a.test.js': '// P29-1\n' };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listProvenanceRefLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(result, ['engine/src/a.js:1:// DC-3: x']);
+  });
+});
+
+test('Given a shipped script naming the backlog file and a file-name pattern, when listProvenanceRefLines scans it, then nothing is reported', () => {
+  const files = { 'scripts/x.sh': '# see BACKLOG.md\n# matches SC5-* files\n' };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listProvenanceRefLines;
+
+    const result = sut(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(result, []);
+  });
+});
+
+test('Given a directory outside any git repository, when listProvenanceRefLines scans it, then the git failure propagates', () => {
+  const nonRepoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'provenance-non-repo-'));
+  try {
+    const sut = listProvenanceRefLines;
+
+    const act = () => sut(nonRepoDir, hermeticGitEnv());
+
+    assert.throws(act, { status: GIT_NOT_A_REPOSITORY });
+  } finally {
+    fs.rmSync(nonRepoDir, { recursive: true, force: true });
+  }
+});
+
+test('Given the tracked tree, when shipped code is scanned for provenance refs, then none remain', () => {
+  const sut = listProvenanceRefLines;
+
+  const result = sut(ROOT);
+
+  assert.deepStrictEqual(
+    result,
+    [],
+    `Source-hygiene FAIL — provenance refs in shipped code (class E) at:\n${result.join('\n')}`,
   );
 });
