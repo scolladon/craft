@@ -1,9 +1,10 @@
-import { readFileSync, statSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { load } from 'js-yaml';
 import { validateManifest } from './manifest.js';
 import { extractFrontmatter } from './frontmatter.js';
 import { containByRealpath } from './contain.js';
+import { isRegularFile } from './cli-io.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -16,20 +17,6 @@ const DEFAULT_MANIFEST = '.claude/workflow.md';
  */
 function resolveManifestPath(argv) {
   return argv[0] ?? DEFAULT_MANIFEST;
-}
-
-/**
- * Regular-file predicate mirroring the bash `[ -f <path> ]` test: true only for an
- * existing regular file (a directory / special file / missing path → false), never throws.
- * @param {string} p
- * @returns {boolean}
- */
-function isRegularFile(p) {
-  try {
-    return statSync(p).isFile();
-  } catch {
-    return false; // equivalent mutant (empty catch): undefined is falsy — callers use the return value as a boolean so same observable effect
-  }
 }
 
 /**

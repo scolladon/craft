@@ -29,7 +29,7 @@
 import { readFileSync, statSync } from 'node:fs';
 import { dirname, resolve, relative } from 'node:path';
 import { containByRealpath } from './contain.js';
-import { findRepoRoot } from './cli-io.js';
+import { findRepoRoot, isRegularFile } from './cli-io.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -54,19 +54,6 @@ const PART_FILE_CEILING = 6;
 // otherwise reads as a path once the whitespace check alone is applied.
 const PATH_SHAPE_CHARSET = /^[A-Za-z0-9._/*+@-]+$/;
 const KNOWN_FILE_EXTENSIONS = ['.js', '.md', '.sh', '.json', '.jsonl', '.yml', '.yaml'];
-
-/**
- * Regular-file predicate mirroring the bash `[ -f <path> ]` test.
- * @param {string} p
- * @returns {boolean}
- */
-function isRegularFile(p) {
-  try {
-    return statSync(p).isFile();
-  } catch {
-    return false; // equivalent mutant (empty catch): undefined is falsy — the caller only ever tests this via `!`, same observable effect
-  }
-}
 
 /**
  * @typedef {{ heading: string, label: string, startIdx: number, endIdx: number }} Part
