@@ -25,8 +25,14 @@ dev-tool install and `npm --prefix engine ci` for you.
 bash scripts/ci.sh
 ```
 
-This is what CI runs, in about 10 seconds. When you change `README.md`, also run
-`bash scripts/readme-drift.sh`.
+This is CI's main job, in about 10 seconds. CI also runs two more gating jobs:
+
+- `bash scripts/readme-drift.sh` recomputes the README's numeric claims, including the
+  counts of design docs, plans and ADRs. Run it when you change `README.md` or add or
+  remove a file under `docs/contributing/design/`, `docs/contributing/plan/` or
+  `docs/contributing/adr/`.
+- An offline link check over every Markdown file: a broken relative link or `#fragment`
+  fails CI.
 
 ## Dev loop
 

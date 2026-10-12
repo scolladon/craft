@@ -14,7 +14,6 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 - A devcontainer and an "Open in Codespaces" badge; CI and the devcontainer install the same dev tools.
 - Review findings carry a status tag, with a deliberation-review example.
 - The orchestrator protects its own context, and is safe to auto-compact at any turn.
-- Per-turn context cost is cut.
 - The codex binding supports scriptable hook-trust.
 - The readme-drift check recounts the advertised corpus sizes instead of trusting the prose.
 - A contributing guide, a security policy, and issue forms for bugs, features, adapter requests and security contact.
@@ -27,6 +26,7 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 - This changelog, the release procedure and a README version badge.
 
 ### Changed
+- Per-turn context cost is cut.
 - Docs are split by audience into `docs/guides` (users) and `docs/contributing` (contributors).
 
 ### Fixed

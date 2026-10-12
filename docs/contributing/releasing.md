@@ -5,7 +5,8 @@ Marketplace users receive a new copy of the plugin only when the `version` field
 release is a deliberate, small procedure.
 
 1. Pick the bump from the `[Unreleased]` groups: Removed or a breaking change means major,
-   Added means minor, only Fixed means patch. Check
+   Added means minor, only Fixed means patch; any other non-breaking group (Changed,
+   Deprecated, Security) means minor. Check
    `git log --format='%s%n%b' vLAST..main | grep -E '!:|BREAKING'`.
 2. One PR: rename `[Unreleased]` to `[X.Y.Z] - YYYY-MM-DD`, open a fresh empty
    `[Unreleased]`, update the compare links, set `.claude-plugin/plugin.json` `"version"`,
