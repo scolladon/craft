@@ -29,7 +29,7 @@ const GUARD_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 // of at install time — where an unregistered hook is indistinguishable from the
 // untrusted-hook silent no-op.
 const CONFIG_TEMPLATE = readFileSync(join(ADAPTER_DIR, 'config.template.toml'), 'utf8');
-const TEMPLATE_COMMAND_PATTERN = /^\s*command\s*=\s*"(.*)"\s*$/gm;
+const TEMPLATE_COMMAND_PATTERN = /^\s*command\s*=\s*'(.*)'\s*$/gm;
 const TEMPLATE_COMMANDS = [...CONFIG_TEMPLATE.matchAll(TEMPLATE_COMMAND_PATTERN)].map(([, value]) => value);
 
 // A bare `command = "…"` line registers nothing on its own: what makes codex run
@@ -398,10 +398,10 @@ describe('parseHooksList() — a refusal shows what the server actually sent', (
 });
 
 describe('the registered command and the matched path are the same path', () => {
-  it('Given the command hooks.json registers, when the guard segments are joined, then they are a suffix of it', () => {
+  it('Given the command hooks.json registers, when the guard segments are joined, then they close its quoted operand', () => {
     const sut = REGISTERED_COMMAND;
 
-    assert.ok(sut.endsWith(GUARD_TAIL), `hooks.json registers ${sut}, which does not end with ${GUARD_TAIL}`);
+    assert.ok(sut.endsWith(`${GUARD_TAIL}"`), `hooks.json registers ${sut}, whose quoted operand does not end with ${GUARD_TAIL}`);
   });
 
   it('Given the command hooks.json registers, when selectCraftHook is asked about it, then it is the craft guard', () => {

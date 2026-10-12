@@ -65,11 +65,19 @@ above. Skip it and the binding has no PreToolUse hook registered at all — a st
 runtime, looks exactly like the untrusted-hook no-op described below: installed, silent,
 enforcing nothing.
 
-The registered `command` must stay exactly two whitespace-separated tokens — interpreter
-then guard script. `bin/trust-hook.js` refuses anything else, so a quoted operand, an
-added flag or a shell wrapper leaves the hook untrusted and therefore silent. A
-hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so export `CRAFT_ROOT=<repo checkout>` or
-substitute that absolute path into the command unquoted.
+The registered `command` is the interpreter, then the guard script as one double-quoted
+operand: `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/adapters/codex/hooks/craft-guard.js"`.
+The quotes keep a checkout path containing a space one word under every shell codex may
+run the hook through. `bin/trust-hook.js` refuses anything else, so an added flag, a
+chained command, a shell wrapper or a command substitution inside the quotes leaves the
+hook untrusted and therefore silent. A hand-wired entry gets no `CLAUDE_PLUGIN_ROOT`, so
+export `CRAFT_ROOT=<repo checkout>` or substitute that absolute path into the command,
+inside the double quotes.
+
+An install wired before the operand was quoted keeps its trusted, unquoted entry until you
+re-copy the template block; under a bash or sh login shell that entry loses the guard
+whenever the checkout path contains a space. After re-copying, codex reports the hook
+`modified`, and one `node adapters/codex/bin/trust-hook.js` run trusts it again.
 
 ## Configure
 
