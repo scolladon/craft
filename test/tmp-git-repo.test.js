@@ -39,12 +39,16 @@ function withAmbientEnv(overrides, act) {
   }
 }
 
-test('Given a decoy GIT_DIR and GIT_WORK_TREE on the parent process, when createTmpGitRepo builds a repo, then the throwaway tracks its own files and the decoy gains no index', () => {
+test('Given a decoy GIT_DIR, GIT_WORK_TREE and GIT_INDEX_FILE on the parent process, when createTmpGitRepo builds a repo, then the throwaway tracks its own files and the decoy gains no index', () => {
   const decoyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'tmp-git-repo-decoy-'));
   let repo;
   try {
     runHermeticGit(decoyDir, 'init', '-q');
-    const ambientGitLocation = { GIT_DIR: path.join(decoyDir, '.git'), GIT_WORK_TREE: decoyDir };
+    const ambientGitLocation = {
+      GIT_DIR: path.join(decoyDir, '.git'),
+      GIT_WORK_TREE: decoyDir,
+      GIT_INDEX_FILE: path.join(decoyDir, '.git', 'index'),
+    };
     const sut = createTmpGitRepo;
 
     repo = withAmbientEnv(ambientGitLocation, () => sut([TRACKED_FIXTURE]));
