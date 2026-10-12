@@ -292,50 +292,90 @@ describe('issue form validators', () => {
     assert.strictEqual(sut.length, 1)
   })
 
-  const expectNamed = (form, fileName, fragment) => {
-    const sut = formViolations(form, fileName)
-    assert.ok(sut.some(message => message.startsWith(fileName) && message.includes(fragment)), sut.join('\n'))
-  }
+  const namesFile = (violations, fileName, fragment) =>
+    violations.some(message => message.startsWith(fileName) && message.includes(fragment))
 
   it('Given a dropdown with no options, when validated, then the message names the file', () => {
+    // Arrange
     const form = validForm()
     form.body.push({ type: 'dropdown', attributes: { label: 'Pick', options: [] } })
 
-    expectNamed(form, BUG_FORM, 'lacks attribute options')
+    // Act
+    const sut = formViolations(form, BUG_FORM)
+
+    // Assert
+    assert.ok(namesFile(sut, BUG_FORM, 'lacks attribute options'), sut.join('\n'))
   })
 
   it('Given an element id with a space, when validated, then the message names the file', () => {
+    // Arrange
     const form = validForm()
     form.body[0].id = 'a b'
 
-    expectNamed(form, BUG_FORM, 'invalid element id')
+    // Act
+    const sut = formViolations(form, BUG_FORM)
+
+    // Assert
+    assert.ok(namesFile(sut, BUG_FORM, 'invalid element id'), sut.join('\n'))
   })
 
   it('Given two elements sharing an id, when validated, then the message names the file', () => {
+    // Arrange
     const form = validForm()
     form.body.push({ type: 'input', id: 'what', attributes: { label: 'Again' } })
 
-    expectNamed(form, BUG_FORM, 'duplicate element id')
+    // Act
+    const sut = formViolations(form, BUG_FORM)
+
+    // Assert
+    assert.ok(namesFile(sut, BUG_FORM, 'duplicate element id'), sut.join('\n'))
   })
 
   it('Given a textarea without a label, when validated, then the message names the file', () => {
+    // Arrange
     const form = validForm()
     form.body.push({ type: 'textarea', attributes: {} })
 
-    expectNamed(form, BUG_FORM, 'textarea lacks attribute label')
+    // Act
+    const sut = formViolations(form, BUG_FORM)
+
+    // Assert
+    assert.ok(namesFile(sut, BUG_FORM, 'textarea lacks attribute label'), sut.join('\n'))
   })
 
   it('Given a form without a name, when validated, then the message names the file', () => {
+    // Arrange
     const form = validForm()
     delete form.name
 
-    expectNamed(form, FEATURE_FORM, 'missing name')
+    // Act
+    const sut = formViolations(form, FEATURE_FORM)
+
+    // Assert
+    assert.ok(namesFile(sut, FEATURE_FORM, 'missing name'), sut.join('\n'))
+  })
+
+  it('Given a form without a description, when validated, then the message names the file', () => {
+    // Arrange
+    const form = validForm()
+    delete form.description
+
+    // Act
+    const sut = formViolations(form, FEATURE_FORM)
+
+    // Assert
+    assert.ok(namesFile(sut, FEATURE_FORM, 'missing description'), sut.join('\n'))
   })
 
   it('Given a form with an empty body, when validated, then the message names the file', () => {
+    // Arrange
     const form = { ...validForm(), body: [] }
 
-    expectNamed(form, FEATURE_FORM, 'non-empty array')
+    // Act
+    const sut = formViolations(form, FEATURE_FORM)
+
+    // Assert
+    assert.ok(namesFile(sut, FEATURE_FORM, 'non-empty array'), sut.join('\n'))
   })
 
   it('Given a contact link without an about text, when validated, then it is reported', () => {

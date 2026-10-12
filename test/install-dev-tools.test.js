@@ -35,9 +35,9 @@ const STUBS = {
   id: '[ "$1" = -u ] || exit 64; echo "$FAKE_UID"',
   sudo: 'echo "sudo $1" >> "$TOOL_LOG"; exec "$@"',
   'apt-get': 'echo "apt-get $*" >> "$TOOL_LOG"',
-  curl: 'echo "curl $1 $2 <download> $4" >> "$TOOL_LOG"; echo fake > "$3"',
-  sha256sum: 'read -r hash _; echo "sha256sum $* $hash" >> "$TOOL_LOG"; exit "${FAKE_SHA_STATUS:-0}"',
-  install: 'echo "install $1 $2 <download> $4" >> "$TOOL_LOG"',
+  curl: 'echo "curl $1 $2 <download> $4" >> "$TOOL_LOG"; echo fake > "$3"; printf %s "$3" > "$DOWNLOAD_LOG"',
+  sha256sum: 'read -r hash file; [ "$file" = "$(cat "$DOWNLOAD_LOG")" ] || exit 64; echo "sha256sum $* $hash" >> "$TOOL_LOG"; exit "${FAKE_SHA_STATUS:-0}"',
+  install: '[ "$3" = "$(cat "$DOWNLOAD_LOG")" ] || exit 64; echo "install $1 $2 <download> $4" >> "$TOOL_LOG"',
 };
 
 function writeStubs(stubDir) {
@@ -53,6 +53,7 @@ function runInstall({ arch, uid, shaStatus = '0' }) {
     const stubDir = path.join(tmp, 'bin');
     const scratch = path.join(tmp, 'scratch');
     const toolLog = path.join(tmp, 'tools.log');
+    const downloadLog = path.join(tmp, 'download.log');
     writeStubs(stubDir);
     fs.mkdirSync(scratch);
     fs.writeFileSync(toolLog, '');
@@ -63,6 +64,7 @@ function runInstall({ arch, uid, shaStatus = '0' }) {
         PATH: stubDir + path.delimiter + process.env.PATH,
         TMPDIR: scratch,
         TOOL_LOG: toolLog,
+        DOWNLOAD_LOG: downloadLog,
         FAKE_ARCH: arch,
         FAKE_UID: uid,
         FAKE_SHA_STATUS: shaStatus,
