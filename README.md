@@ -6,6 +6,7 @@ multi-dimension review, validation, docs, and a PR, in one gated, resumable run.
 
 [![CI](https://github.com/scolladon/craft/actions/workflows/ci.yml/badge.svg)](https://github.com/scolladon/craft/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fraw.githubusercontent.com%2Fscolladon%2Fcraft%2Fmain%2F.claude-plugin%2Fplugin.json&query=%24.version&label=version)](CHANGELOG.md)
 
 Shipped as a Claude Code plugin, with native bindings for seven other runtimes
 ([`adapters/`](adapters/)). Works zero-config on any repo with a discoverable test command.
