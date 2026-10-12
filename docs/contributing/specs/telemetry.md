@@ -700,6 +700,19 @@ The result is sorted like `aggregate`'s, and the input report is never mutated. 
 produced by the current `aggregate`, the replay equals `recommendations`, so a re-mined refresh
 agrees by construction.
 
+`test/metrics-baseline-replay.test.js` fails `bash scripts/ci.sh` when the committed baseline's
+`recommendations` disagree with their replay — the case a threshold change without a re-mine
+produces. Regenerate them from the repo root; only `recommendations` changes:
+
+```sh
+node --input-type=module -e "
+import { readFileSync, writeFileSync } from 'node:fs';
+import { replayRecommendations, serializeReport } from './engine/src/observability/usage-aggregate.js';
+const p = 'docs/contributing/metrics-baseline.report.json';
+const r = JSON.parse(readFileSync(p, 'utf8'));
+writeFileSync(p, serializeReport({ ...r, recommendations: replayRecommendations(r) }));"
+```
+
 ## Metrics ledger row
 
 A second, distinct committed artifact from `report.json`: one append-only row per
