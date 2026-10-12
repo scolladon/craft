@@ -85,9 +85,9 @@ function findHomePathLeaks(line) {
 }
 
 // An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git away from `cwd`, and an
-// ambient pathspec mode would make a `:(glob)` pathspec silently match nothing.
+// ambient GIT_LITERAL_PATHSPECS would make a `:(glob)` pathspec silently match nothing.
 const GIT_LOCATION_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'];
-const GIT_PATHSPEC_MODE_KEYS = ['GIT_LITERAL_PATHSPECS', 'GIT_GLOB_PATHSPECS', 'GIT_NOGLOB_PATHSPECS', 'GIT_ICASE_PATHSPECS'];
+const GIT_PATHSPEC_MODE_KEYS = ['GIT_LITERAL_PATHSPECS'];
 const AMBIENT_GIT_SCOPE_KEYS = [...GIT_LOCATION_KEYS, ...GIT_PATHSPEC_MODE_KEYS];
 
 function withoutAmbientGitScope(env) {
