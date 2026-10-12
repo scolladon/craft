@@ -674,6 +674,32 @@ deep-sorted: `delta`, `dimension`, `phase`, `threshold`.
 The default committed baseline snapshot lives at
 `docs/contributing/metrics-baseline.report.json`, refreshed on demand as part of a closing chore.
 
+### Committed baseline replay
+
+`replayRecommendations(report)` (`usage-aggregate.js`) is a pure query: it returns the
+recommendations the current rules derive from a report's own data, without the transcripts that
+produced it. Only the run-derived rules are replayed, because their whole input is persisted on
+each `runs[*]` entry. `aggregate` composes the same rule table, so a new run-level rule cannot
+ship in one and be missing from the other.
+
+| Kind | Run input |
+|---|---|
+| `review-waste` | `runs[*].reviewCycles` |
+| `turn-budget` | `runs[*].phaseTurns` |
+
+Each committed recommendation is treated on its own:
+
+| Committed recommendation | Replay |
+|---|---|
+| any other kind (`cache-hotspot`, `model-routing`, `phase-skip`, unknown) | kept verbatim: its input (cache-creation TTL, price table, skip markers) is not persisted |
+| run-derived kind, its run present without that input key | kept verbatim: no data to judge it |
+| run-derived kind, its run present with that input key | replaced by the recommendations the rule rebuilds |
+| run-derived kind, its run absent from `runs` | dropped as stale |
+
+The result is sorted like `aggregate`'s, and the input report is never mutated. On a report
+produced by the current `aggregate`, the replay equals `recommendations`, so a re-mined refresh
+agrees by construction.
+
 ## Metrics ledger row
 
 A second, distinct committed artifact from `report.json`: one append-only row per

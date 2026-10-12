@@ -10,6 +10,7 @@ import {
   formatCompactionEstimateLine,
   serializeReport,
   computeDrift,
+  replayRecommendations,
   CACHE_HOTSPOT_THRESHOLD,
   REVIEW_WASTE_BILLED_TURNS,
   TURN_BUDGET_BILLED_TURNS,
@@ -2027,4 +2028,165 @@ test('Given a main and a sub-agent compaction, when formatCompactionEstimateLine
     result,
     'Compactions: 2 (main 1, sub-agent 1) — estimated summary-call cost 20k–35k equiv (estimate; not in totals)'
   );
+});
+
+// ── replayRecommendations: re-deriving a committed report's recommendations ──
+
+const REPLAY_SKIP_MARKER = { run: 'run-1', phase: 'documentation' };
+
+// One run whose events fire review-waste and turn-budget (the rules a replay
+// rebuilds) plus model-routing and phase-skip (the kinds it passes through).
+function replayableEvents() {
+  return [
+    ...reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS + 1),
+    ...reviewCycleEvents(TURN_BUDGET_BILLED_TURNS + 1, { phase: 'implementation', role: 'part-implementer', spawnCount: 3 }),
+    makeEvent({ model: 'model-a', tokens: { input: 0, cacheRead: 1000, cacheCreation: 0, output: 5 } }),
+    makeEvent({ model: 'model-b', tokens: { input: 0, cacheRead: 1000, cacheCreation: 0, output: 5 } }),
+  ];
+}
+
+test('Given a run firing review-waste, turn-budget, model-routing and phase-skip, when aggregate runs, then the recommendations keep their kind order and detail lines', () => {
+  const sut = aggregate;
+
+  const result = sut(replayableEvents(), PRICE_TABLE, undefined, DEFAULT_DRIFT_THRESHOLD, [REPLAY_SKIP_MARKER]);
+
+  assert.deepEqual(result.recommendations.map(rec => [rec.kind, rec.run, rec.phase, rec.detail]), [
+    ['model-routing', 'run-1', 'design', 'consider model-b for phase design'],
+    ['phase-skip', 'run-1', 'documentation', 'phase documentation auto-skipped (evaluated unnecessary)'],
+    ['review-waste', 'run-1', 'review', `role reviewer billed ${REVIEW_WASTE_BILLED_TURNS + 1} turns across review`],
+    ['turn-budget', 'run-1', 'implementation', `role part-implementer billed ${TURN_BUDGET_BILLED_TURNS + 1} turns in phase implementation`],
+  ]);
+});
+
+const RETIRED_REVIEW_WASTE_DETAIL = 'role reviewer has 6 review cycles';
+const NO_COST = Object.freeze({ priced: null, relative: 0 });
+
+// The serialized shape a committed report carries, re-parsed so each test owns a fresh copy.
+function replayableReport() {
+  const report = aggregate(replayableEvents(), PRICE_TABLE, undefined, DEFAULT_DRIFT_THRESHOLD, [REPLAY_SKIP_MARKER]);
+  return JSON.parse(serializeReport(report));
+}
+
+const committedRec = (kind, run, overrides = {}) => ({
+  kind, run, phase: 'review', model: null, detail: `${kind} as committed`, evidence: {}, ...overrides,
+});
+
+const reviewCycle = (billedTurns) => ({
+  role: 'reviewer', cycles: 1, billedTurns, totalCost: NO_COST, maxCost: NO_COST, meanCost: NO_COST,
+});
+
+const phaseTurn = (billedTurns) => ({
+  phase: 'implementation', role: 'part-implementer', cycles: 1, billedTurns, toolCalls: 0,
+  totalCost: NO_COST, maxCost: NO_COST, meanCost: NO_COST,
+});
+
+function deepFreeze(value) {
+  if (value === null || typeof value !== 'object') return;
+  Object.values(value).forEach(deepFreeze);
+  Object.freeze(value);
+}
+
+test('Given a report produced by aggregate, when replayRecommendations runs, then it returns the report recommendations unchanged', () => {
+  const sut = replayRecommendations;
+  const report = replayableReport();
+
+  const result = sut(report);
+
+  assert.deepEqual(result, report.recommendations);
+});
+
+test('Given a committed review-waste rec carrying a retired detail line, when replayRecommendations runs, then the rec comes back rebuilt by the current rule', () => {
+  const sut = replayRecommendations;
+  const report = replayableReport();
+  report.recommendations.find(rec => rec.kind === 'review-waste').detail = RETIRED_REVIEW_WASTE_DETAIL;
+
+  const result = sut(report);
+
+  assert.deepEqual(result, replayableReport().recommendations);
+});
+
+test('Given committed run-derived recs whose run data sits exactly at each threshold, when replayRecommendations runs, then both recs are dropped', () => {
+  const sut = replayRecommendations;
+  const report = {
+    runs: [{ run: 'run-1', reviewCycles: [reviewCycle(REVIEW_WASTE_BILLED_TURNS)], phaseTurns: [phaseTurn(TURN_BUDGET_BILLED_TURNS)] }],
+    recommendations: [committedRec('review-waste', 'run-1'), committedRec('turn-budget', 'run-1', { phase: 'implementation' })],
+  };
+
+  const result = sut(report);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given committed run-derived recs naming a run absent from the report runs, when replayRecommendations runs, then each rec is dropped', () => {
+  const sut = replayRecommendations;
+  const report = {
+    runs: [{ run: 'run-1', reviewCycles: [], phaseTurns: [] }],
+    recommendations: [committedRec('review-waste', 'run-gone'), committedRec('turn-budget', 'run-gone', { phase: 'implementation' })],
+  };
+
+  const result = sut(report);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given model-routing, cache-hotspot and phase-skip recs on a present run and on an absent one, when replayRecommendations runs, then each is returned verbatim', () => {
+  const sut = replayRecommendations;
+  const passThrough = [
+    committedRec('cache-hotspot', 'run-1', { model: 'model-a' }),
+    committedRec('cache-hotspot', 'run-gone', { model: 'model-a' }),
+    committedRec('model-routing', 'run-1', { model: 'model-a' }),
+    committedRec('model-routing', 'run-gone', { model: 'model-a' }),
+    committedRec('phase-skip', 'run-1'),
+    committedRec('phase-skip', 'run-gone'),
+  ];
+  const report = { runs: [{ run: 'run-1', reviewCycles: [], phaseTurns: [] }], recommendations: passThrough };
+
+  const result = sut(report);
+
+  assert.deepEqual(result, passThrough);
+});
+
+test('Given a deep-frozen report, when replayRecommendations runs, then it returns a fresh array and leaves the report untouched', () => {
+  const sut = replayRecommendations;
+  const report = replayableReport();
+  deepFreeze(report);
+
+  const result = sut(report);
+
+  assert.notStrictEqual(result, report.recommendations);
+  assert.deepEqual(report.recommendations, replayableReport().recommendations);
+});
+
+test('Given committed run-derived recs whose run lacks that rule input, when replayRecommendations runs, then each rec is returned verbatim without throwing', () => {
+  const sut = replayRecommendations;
+  const reviewWaste = committedRec('review-waste', 'run-2');
+  const turnBudget = committedRec('turn-budget', 'run-1', { phase: 'implementation' });
+  const report = {
+    runs: [{ run: 'run-1', reviewCycles: [] }, { run: 'run-2', phaseTurns: [] }],
+    recommendations: [reviewWaste, turnBudget],
+  };
+
+  const result = sut(report);
+
+  assert.deepEqual(result, [reviewWaste, turnBudget]);
+});
+
+test('Given a report with no runs key, when replayRecommendations runs, then a review-waste rec naming no run is dropped and a phase-skip rec is kept', () => {
+  const sut = replayRecommendations;
+  const runlessReviewWaste = { kind: 'review-waste', phase: 'review', model: null, detail: 'review-waste as committed', evidence: {} };
+  const phaseSkip = committedRec('phase-skip', 'run-1');
+
+  const result = sut({ recommendations: [runlessReviewWaste, phaseSkip] });
+
+  assert.deepEqual(result, [phaseSkip]);
+});
+
+test('Given an empty report and a report with no recommendations key, when replayRecommendations runs, then each returns no recs', () => {
+  const sut = replayRecommendations;
+
+  const empty = sut({ runs: [], recommendations: [] });
+  const noRecommendations = sut({ runs: [{ run: 'run-1', reviewCycles: [], phaseTurns: [] }] });
+
+  assert.deepEqual(empty, []);
+  assert.deepEqual(noRecommendations, []);
 });

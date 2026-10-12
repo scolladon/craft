@@ -410,6 +410,26 @@ function turnBudgetRecs(runs) {
   );
 }
 
+// Rules whose whole input is persisted on each report run, so a committed report can be
+// re-checked against the current thresholds without the transcripts that produced it.
+const RUN_DERIVED_RULES = Object.freeze([
+  Object.freeze({ kind: 'review-waste', input: 'reviewCycles', build: reviewWasteRecs }),
+  Object.freeze({ kind: 'turn-budget', input: 'phaseTurns', build: turnBudgetRecs }),
+]);
+
+function runDerivedRecs(runs) {
+  return RUN_DERIVED_RULES.flatMap(rule => rule.build(runs));
+}
+
+// A run-derived rec is judged only when its run carries that rule's input; a rec naming a
+// run the report no longer holds is stale, so it is judged too and nothing rebuilds it.
+function isJudgedByReplay(rec, runs) {
+  const rule = RUN_DERIVED_RULES.find(candidate => candidate.kind === rec.kind);
+  if (rule === undefined) return false;
+  const run = runs.find(candidate => candidate.run === rec.run);
+  return run === undefined || Array.isArray(run[rule.input]);
+}
+
 function sortedRecs(recs) {
   return recs.sort((a, b) => {
     const ka = `${a.kind}\x00${a.run}\x00${a.phase}\x00${a.model ?? ''}`;
@@ -584,8 +604,7 @@ export function aggregate(events, priceTable, baselineReport, threshold = DEFAUL
   const recommendations = sortedRecs([
     ...cacheHotspotRecs(allEnriched),
     ...modelRoutingRecs(allEnriched, priceTable),
-    ...reviewWasteRecs(runs),
-    ...turnBudgetRecs(runs),
+    ...runDerivedRecs(runs),
     ...phaseSkipRecs(skipMarkers),
   ]);
 
@@ -595,6 +614,15 @@ export function aggregate(events, priceTable, baselineReport, threshold = DEFAUL
     report.drift = computeDrift(report, baselineReport, threshold);
   }
   return report;
+}
+
+export function replayRecommendations(report) {
+  const runs = report.runs ?? [];
+  const committed = report.recommendations ?? [];
+  return sortedRecs([
+    ...committed.filter(rec => !isJudgedByReplay(rec, runs)),
+    ...RUN_DERIVED_RULES.flatMap(rule => rule.build(runs.filter(run => Array.isArray(run[rule.input])))),
+  ]);
 }
 
 export function serializeReport(report) {
