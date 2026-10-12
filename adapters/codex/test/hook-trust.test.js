@@ -501,6 +501,9 @@ describe('selectCraftHook() — decoy commands must not match', () => {
     ['the interpreter is a path relative to the session directory', `bin/node /opt/craft${GUARD_TAIL}`],
     ['the interpreter is a dot-relative path', `./node /opt/craft${GUARD_TAIL}`],
     ['the interpreter is a relative path opening with a dash', `-r/node /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an absolute path that is not node', `/usr/bin/python3 /opt/craft${GUARD_TAIL}`],
+    ['the interpreter is an absolute path ending in node that runs a substitution', `/tmp/$(/tmp/evil.sh)/node /opt/craft${GUARD_TAIL}`],
+    ['the quoted operand follows an unsafe segment with a plugin-root shim and a safe tail', `node "/tmp/$(evil) ${PLUGIN_ROOT_SHIM}${GUARD_TAIL}"`],
   ];
 
   for (const [label, command] of DECOYS) {

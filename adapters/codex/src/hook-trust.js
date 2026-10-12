@@ -260,6 +260,9 @@ function toBasename(token) {
 }
 
 function parseGuardCommand(command) {
+  // equivalent mutant (ConditionalExpression false / BlockStatement): the shape's
+  // padding is plain spaces only and both literal patterns exclude \p{Cc}, so a
+  // control character is refused downstream whichever word carries it.
   if (CONTROL_CHARACTER_PATTERN.test(command)) {
     return null;
   }
