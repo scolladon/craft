@@ -2035,7 +2035,7 @@ test('Given a main and a sub-agent compaction, when formatCompactionEstimateLine
 const REPLAY_SKIP_MARKER = { run: 'run-1', phase: 'documentation' };
 
 // One run whose events fire review-waste and turn-budget (the rules a replay
-// rebuilds) plus model-routing and phase-skip (the kinds it passes through).
+// rebuilds) plus model-routing; REPLAY_SKIP_MARKER adds the phase-skip rec it passes through.
 function replayableEvents() {
   return [
     ...reviewCycleEvents(REVIEW_WASTE_BILLED_TURNS + 1),
@@ -2189,4 +2189,19 @@ test('Given an empty report and a report with no recommendations key, when repla
 
   assert.deepEqual(empty, []);
   assert.deepEqual(noRecommendations, []);
+});
+
+test('Given run-derived recs rebuilt from runs listed out of id order and committed pass-through recs out of sort order, when replayRecommendations runs, then the result is in kind, run, phase and model order', () => {
+  const sut = replayRecommendations;
+  const overThreshold = reviewCycle(REVIEW_WASTE_BILLED_TURNS + 1);
+  const report = {
+    runs: [{ run: 'run-2', reviewCycles: [overThreshold] }, { run: 'run-1', reviewCycles: [overThreshold] }],
+    recommendations: [committedRec('phase-skip', 'run-1'), committedRec('cache-hotspot', 'run-1', { model: 'model-a' })],
+  };
+
+  const result = sut(report);
+
+  assert.deepEqual(result.map(rec => [rec.kind, rec.run]), [
+    ['cache-hotspot', 'run-1'], ['phase-skip', 'run-1'], ['review-waste', 'run-1'], ['review-waste', 'run-2'],
+  ]);
 });
