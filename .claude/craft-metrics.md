@@ -531,3 +531,7 @@ public-front-door-completion design turns=91 tool_calls=95 tokens=6104354 durati
 public-front-door-completion implementation turns=48 tool_calls=56 tokens=1043090 duration_ms=572387 cache_read=880979 cache_creation=160815 output=1200 avg_ctx=21706 equiv=295213
 public-front-door-completion planning turns=63 tool_calls=66 tokens=5682678 duration_ms=850931 cache_read=5527353 cache_creation=154253 output=946 avg_ctx=90186 equiv=750408
 public-front-door-completion review turns=98 tool_calls=110 tokens=3513303 duration_ms=871586 cache_read=3229249 cache_creation=281958 output=1900 avg_ctx=35831 equiv=685068
+backlog-sweep-hooks-quote-dev-tools design turns=47 tool_calls=54 tokens=3169351 duration_ms=579296 cache_read=3063658 cache_creation=105148 output=451 avg_ctx=67423 equiv=440150
+backlog-sweep-hooks-quote-dev-tools implementation turns=12 tool_calls=14 tokens=277395 duration_ms=136952 cache_read=228830 cache_creation=48251 output=290 avg_ctx=23092 equiv=84671
+backlog-sweep-hooks-quote-dev-tools planning turns=34 tool_calls=35 tokens=1967816 duration_ms=493960 cache_read=1877932 cache_creation=89480 output=336 avg_ctx=57867 equiv=301391
+backlog-sweep-hooks-quote-dev-tools review turns=36 tool_calls=39 tokens=1028066 duration_ms=240246 cache_read=889586 cache_creation=137790 output=618 avg_ctx=28540 equiv=264358
