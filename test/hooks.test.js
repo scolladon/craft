@@ -204,48 +204,110 @@ function ledgerFixtureLines(name) {
   return rest.filter((line) => line.trim() !== '');
 }
 
+const SPACED_ROOT_PREFIX = 'craft-hook-root-';
+const SH_ARGV_DUMP = '; printf "%s\\0" "$@"';
+const REGISTERED_HOOKS = [
+  { event: 'PreToolUse', script: 'git-no-ext-diff.sh' },
+  { event: 'SessionStart', script: 'reorient-after-compact.sh' },
+  { event: 'PreCompact', script: 'steer-compact-summary.sh' },
+];
+
+function readHooksConfig() {
+  return JSON.parse(fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8'));
+}
+
+function registeredCommand(event) {
+  const [binding] = readHooksConfig().hooks[event];
+  return binding.hooks[0].command;
+}
+
+// Expands a registered command the way Claude's runner does: /bin/sh -c with the plugin root in the environment.
+function expandHookCommand(command, env) {
+  const result = spawnSync('sh', ['-c', `set -- ${command}${SH_ARGV_DUMP}`], { env, encoding: 'utf8' });
+  if (result.status !== 0) throw new Error(`sh exited ${result.status}: ${result.stderr}`);
+  return result.stdout.split('\0').filter(Boolean);
+}
+
+function withSpacedRoots(act) {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), SPACED_ROOT_PREFIX));
+  try {
+    const roots = { plugin: path.join(tmp, 'plug in root'), override: path.join(tmp, 'alt root') };
+    fs.symlinkSync(ROOT, roots.plugin);
+    fs.symlinkSync(ROOT, roots.override);
+    return act(roots);
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+}
+
+function assertExecutableFile(filePath) {
+  const stats = fs.statSync(filePath);
+  assert.ok(stats.isFile(), `expected ${filePath} to be a regular file`);
+  assert.notStrictEqual(stats.mode & fs.constants.S_IXUSR, 0, `expected ${filePath} to be executable`);
+}
+
 test(
   'Given hooks/hooks.json, when parsed, then SessionStart binds "compact" to an existing, executable reorient hook',
   () => {
-    const hooksConfig = JSON.parse(fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8'));
-    const sut = hooksConfig.hooks.SessionStart[0];
+    const sut = readHooksConfig().hooks.SessionStart[0];
 
-    const hookPath = sut.hooks[0].command.replace('${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}', ROOT);
-    const stats = fs.statSync(hookPath);
+    const result = expandHookCommand(sut.hooks[0].command, { PATH: process.env.PATH, CLAUDE_PLUGIN_ROOT: ROOT });
 
     assert.strictEqual(sut.matcher, 'compact');
-    assert.ok(stats.isFile(), `expected ${hookPath} to be a regular file`);
-    assert.notStrictEqual(stats.mode & fs.constants.S_IXUSR, 0, `expected ${hookPath} to be executable`);
+    assert.strictEqual(result.length, 1, result.join('|'));
+    assertExecutableFile(result[0]);
   },
 );
 
 test(
   'Given hooks/hooks.json, when parsed, then PreCompact binds an empty matcher to an existing, executable steer hook',
   () => {
-    const hooksConfig = JSON.parse(fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8'));
-    const sut = hooksConfig.hooks.PreCompact[0];
+    const sut = readHooksConfig().hooks.PreCompact[0];
 
-    const hookPath = sut.hooks[0].command.replace('${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}', ROOT);
-    const stats = fs.statSync(hookPath);
+    const result = expandHookCommand(sut.hooks[0].command, { PATH: process.env.PATH, CLAUDE_PLUGIN_ROOT: ROOT });
 
     assert.strictEqual(sut.matcher, '');
-    assert.ok(stats.isFile(), `expected ${hookPath} to be a regular file`);
-    assert.notStrictEqual(stats.mode & fs.constants.S_IXUSR, 0, `expected ${hookPath} to be executable`);
+    assert.strictEqual(result.length, 1, result.join('|'));
+    assertExecutableFile(result[0]);
   },
 );
 
-test('Given hooks/hooks.json, when parsed, then PreToolUse is unchanged', () => {
-  const sut = JSON.parse(fs.readFileSync(path.join(HOOKS_DIR, 'hooks.json'), 'utf8'));
+test('Given hooks/hooks.json, when parsed, then PreToolUse binds Bash to the quoted git-no-ext-diff command', () => {
+  const sut = readHooksConfig();
 
   const result = sut.hooks.PreToolUse;
 
   assert.deepStrictEqual(result, [
     {
       matcher: 'Bash',
-      hooks: [{ type: 'command', command: '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/git-no-ext-diff.sh' }],
+      hooks: [{ type: 'command', command: '"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/git-no-ext-diff.sh"' }],
     },
   ]);
 });
+
+for (const { event, script } of REGISTERED_HOOKS) {
+  test(`Given a plugin root containing a space, when the ${event} command is expanded by sh, then it is one word naming the executable hook under that root`, () => {
+    withSpacedRoots(({ plugin }) => {
+      const sut = expandHookCommand;
+
+      const result = sut(registeredCommand(event), { PATH: process.env.PATH, CLAUDE_PLUGIN_ROOT: plugin });
+
+      assert.deepStrictEqual(result, [path.join(plugin, 'hooks', script)]);
+      assertExecutableFile(result[0]);
+    });
+  });
+
+  test(`Given CRAFT_ROOT set to a root containing a space, when the ${event} command is expanded by sh, then CRAFT_ROOT wins`, () => {
+    withSpacedRoots(({ plugin, override }) => {
+      const sut = expandHookCommand;
+
+      const result = sut(registeredCommand(event), { PATH: process.env.PATH, CLAUDE_PLUGIN_ROOT: plugin, CRAFT_ROOT: override });
+
+      assert.deepStrictEqual(result, [path.join(override, 'hooks', script)]);
+      assertExecutableFile(result[0]);
+    });
+  });
+}
 
 for (const hookName of COMPACTION_HOOKS) {
   test(`Given a non-git cwd, when ${hookName} runs, then it prints nothing and exits 0`, () => {
