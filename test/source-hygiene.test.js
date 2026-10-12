@@ -84,11 +84,14 @@ function findHomePathLeaks(line) {
     .filter((segment) => !PLACEHOLDER_HOMES.has(segment));
 }
 
-// An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git away from `cwd`.
+// An ambient GIT_DIR/GIT_WORK_TREE/GIT_INDEX_FILE would point git away from `cwd`, and an
+// ambient pathspec mode would make a `:(glob)` pathspec silently match nothing.
 const GIT_LOCATION_KEYS = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE'];
+const GIT_PATHSPEC_MODE_KEYS = ['GIT_LITERAL_PATHSPECS', 'GIT_GLOB_PATHSPECS', 'GIT_NOGLOB_PATHSPECS', 'GIT_ICASE_PATHSPECS'];
+const AMBIENT_GIT_SCOPE_KEYS = [...GIT_LOCATION_KEYS, ...GIT_PATHSPEC_MODE_KEYS];
 
-function withoutGitLocation(env) {
-  return Object.fromEntries(Object.entries(env).filter(([key]) => !GIT_LOCATION_KEYS.includes(key)));
+function withoutAmbientGitScope(env) {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !AMBIENT_GIT_SCOPE_KEYS.includes(key)));
 }
 
 function listHomePathCandidateLines(cwd, env = process.env) {
@@ -96,7 +99,7 @@ function listHomePathCandidateLines(cwd, env = process.env) {
     // -a: a NUL byte must not hide a captured fixture from the scan as "binary".
     return execFileSync('git', ['grep', '-naiE', HOME_CANDIDATE_PATTERN], {
       cwd,
-      env: withoutGitLocation(env),
+      env: withoutAmbientGitScope(env),
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
     })
@@ -142,7 +145,7 @@ function listProvenanceRefLines(cwd, env = process.env) {
   try {
     return execFileSync('git', ['grep', '-n', '-i', '-P', PROVENANCE_REF_PATTERN, '--', ...SHIPPED_CODE_PATHSPECS], {
       cwd,
-      env: withoutGitLocation(env),
+      env: withoutAmbientGitScope(env),
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
     })
@@ -175,7 +178,7 @@ function runGrep(pattern, paths, allowlistFilters) {
 function listTrackedFiles(cwd, paths, env = process.env) {
   const result = execFileSync('git', ['ls-files', '--', ...paths], {
     cwd,
-    env: withoutGitLocation(env),
+    env: withoutAmbientGitScope(env),
     encoding: 'utf8',
     stdio: ['pipe', 'pipe', 'pipe'],
   });
@@ -532,6 +535,17 @@ test('Given a git repo tracking a decision-candidate ref in engine source and a 
     const result = sut(repo, hermeticGitEnv());
 
     assert.deepStrictEqual(result, ['engine/src/a.js:1:// DC-3: x']);
+  });
+});
+
+test('Given an ambient GIT_LITERAL_PATHSPECS, when listProvenanceRefLines scans a repo with a ref in adapter source, then the adapter line is still reported', () => {
+  const files = { 'adapters/x/src/a.js': '// DC-3: x\n' };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listProvenanceRefLines;
+
+    const result = sut(repo, { ...hermeticGitEnv(), GIT_LITERAL_PATHSPECS: '1' });
+
+    assert.deepStrictEqual(result, ['adapters/x/src/a.js:1:// DC-3: x']);
   });
 });
 
