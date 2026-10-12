@@ -199,11 +199,22 @@ block in CommonMark. That over-fences, which is fail-closed (a real waiver below
 dropped and its finding stays visible). A closer may be indented at most max(3, opener
 indent) columns (tabs count 4), so a 4-space-indented fence nested in a fenced sample does
 not close the outer fence early, while a list-nested fence still closes at its own indent.
-A differential fuzz against markdown-it (200,000 generated docs mixing fences at 0-8 columns
-and tabs, list items, blockquotes and text) finds 0 fail-open cases outside the
-over-indented-marker class described next. The only fail-open divergence needs a crafted sequence (an
-over-indented opener, followed by a real fence whose opener our state reads as the closer). The threat model is accidental mention, not an adversarial author, who could
-simply write a waiver.
+Known fail-open classes (accepted, user decision): a differential fuzz against markdown-it
+14.1.0 (60,000 generated docs mixing fences at 0-8 columns and tabs, list items, blockquotes
+and text) finds every residual fail-open in one of two classes, and none outside them:
+
+1. **Spurious opener** (2,015 docs): a fence-shaped line markdown-it does not read as a fence,
+   such as a top-level opener indented 4+ columns (an indented code block). The state opens
+   a fence on it, then reads the next real fence's opener as its closer, so a waiver inside
+   that real fence counts.
+2. **Unclosed fence in an ended container** (73 docs): a fence inside a list item or
+   blockquote is never closed; CommonMark ends it with its container, while the state stays
+   open and reads a later top-level fence's opener as its closer.
+
+Both need markdown in which a fence is not a fence or is left unclosed; the tracked tree
+yields 0 live waivers. Closing them needs a container-aware parser (markdown-it, a second
+runtime dependency for the engine), which was weighed and declined. The threat model is
+accidental mention, not an adversarial author, who could simply write a waiver.
 
 ### Edge matrix
 

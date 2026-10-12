@@ -27,3 +27,9 @@ Option 1 — ratified by the user.
 
 An over-indented top-level fence line is treated as an opener; a waiver below it is dropped
 and its finding stays visible.
+
+Re-weighed after a differential fuzz against markdown-it and kept by the user: two fail-open
+classes remain, both needing markdown in which a fence is not a fence or is left unclosed —
+a spurious (over-indented) opener whose state swallows the next real fence's opener, and a
+fence left unclosed inside a list item or blockquote whose container ends. The tracked tree
+yields no live waiver from either.
