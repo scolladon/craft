@@ -70,3 +70,16 @@ export const PROBE_PATHS = Object.freeze([
 export function matchesEveryPath(glob) {
   return PROBE_PATHS.every((candidate) => matchGlob(candidate, glob));
 }
+
+/** Representative markdown paths: a root page, a nested record, a deep page. */
+export const MARKDOWN_PROBE_PATHS = Object.freeze(['README.md', 'docs/contributing/adr/001-example.md', 'a/b/c/d/e.md']);
+
+/**
+ * True when the globs together match every given probe — union semantics, not per entry.
+ * @param {unknown[]} globs
+ * @param {readonly string[]} probePaths
+ * @returns {boolean}
+ */
+export function coversEveryPath(globs, probePaths) {
+  return probePaths.every((candidate) => globs.some((glob) => matchGlob(candidate, glob)));
+}

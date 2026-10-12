@@ -28,7 +28,10 @@ import { extractFrontmatter, parseManifestContent } from './frontmatter.js';
 import { collectWaived, escapeRegExp, readWithinCap, MAX_FILE_BYTES } from './hygiene-lint-core.js';
 import { findRepoRoot, isDirectoryPath, isNonEmptyString } from './cli-io.js';
 import { containByRealpath } from './contain.js';
-import { matchGlob, matchesEveryPath } from './glob.js';
+import { matchGlob, matchesEveryPath, coversEveryPath, PROBE_PATHS, MARKDOWN_PROBE_PATHS } from './glob.js';
+
+const FROZEN_SET_WHOLE_TREE_FINDING = 'adr.frozen entries together exempt the whole tree, which disables the citation sweep';
+const FROZEN_EVERY_MARKDOWN_FINDING = 'adr.frozen exempts every markdown file, which disables the citation sweep where ADR citations live';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -478,6 +481,21 @@ function commonParentRel(relPaths) {
 }
 
 /**
+ * Set-level counterpart of the per-entry whole-tree check: entries that are
+ * individually scoped can still cover everything together. `frozen` stays
+ * unfiltered because matchGlob already answers false for non-strings.
+ * @param {unknown[]} frozen
+ * @param {string[]} universal
+ * @returns {string[]}
+ */
+function frozenSetFindings(frozen, universal) {
+  if (universal.length > 0) return [];
+  if (coversEveryPath(frozen, PROBE_PATHS)) return [FROZEN_SET_WHOLE_TREE_FINDING];
+  if (coversEveryPath(frozen, MARKDOWN_PROBE_PATHS)) return [FROZEN_EVERY_MARKDOWN_FINDING];
+  return [];
+}
+
+/**
  * The C3 exempt set — derived from resolved manifest paths, or `adr.frozen`
  * globs when present (which *replace* the derived set — an empty list is a
  * deliberate "nothing else is exempt", never an omission). `<adr-dir>` stays
@@ -500,7 +518,7 @@ function resolveExemptSet(adrDirRel, manifest) {
     // the typeof clause is a no-op: true for strings (already true), false
     // for everything else (matchesEveryPath already false either way).
     const universal = frozen.filter((g) => typeof g === 'string' && matchesEveryPath(g));
-    return { mode: 'frozen', globs: frozen, adrDirRel, universal };
+    return { mode: 'frozen', globs: frozen, adrDirRel, universal, setLevel: frozenSetFindings(frozen, universal) };
   }
 
   const adrPathRel = isNonEmptyString(manifest?.paths?.adr) ? manifest.paths.adr : adrDirRel;
@@ -622,6 +640,7 @@ function sweepHits(output, exempt, escaped, ctx) {
   for (const glob of exempt.universal ?? []) {
     findings.push(`adr.frozen entry '${safeLabel(glob)}' exempts the whole tree, which disables the citation sweep`);
   }
+  findings.push(...(exempt.setLevel ?? []));
   if (unparsed > 0) {
     findings.push(`citation sweep produced ${unparsed} unreadable output record(s), so it is not a pass claim`);
   }
