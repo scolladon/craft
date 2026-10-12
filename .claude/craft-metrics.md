@@ -527,3 +527,7 @@ baseline-review-waste-replay-guard design turns=36 tool_calls=39 tokens=2264932 
 baseline-review-waste-replay-guard implementation turns=22 tool_calls=24 tokens=570411 duration_ms=157159 cache_read=508523 cache_creation=61184 output=660 avg_ctx=25898 equiv=130676
 baseline-review-waste-replay-guard planning turns=68 tool_calls=69 tokens=6763271 duration_ms=1018555 cache_read=6593739 cache_creation=168321 output=1075 avg_ctx=99444 equiv=875286
 baseline-review-waste-replay-guard review turns=54 tool_calls=56 tokens=1466266 duration_ms=416049 cache_read=1294641 cache_creation=170708 output=809 avg_ctx=27138 equiv=347002
+public-front-door-completion design turns=91 tool_calls=95 tokens=6104354 duration_ms=959401 cache_read=5909827 cache_creation=193036 output=1309 avg_ctx=67066 equiv=839005
+public-front-door-completion implementation turns=48 tool_calls=56 tokens=1043090 duration_ms=572387 cache_read=880979 cache_creation=160815 output=1200 avg_ctx=21706 equiv=295213
+public-front-door-completion planning turns=63 tool_calls=66 tokens=5682678 duration_ms=850931 cache_read=5527353 cache_creation=154253 output=946 avg_ctx=90186 equiv=750408
+public-front-door-completion review turns=98 tool_calls=110 tokens=3513303 duration_ms=871586 cache_read=3229249 cache_creation=281958 output=1900 avg_ctx=35831 equiv=685068

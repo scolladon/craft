@@ -5,14 +5,14 @@ toolchain:
     lockfileFingerprint: f6b84e322952d17b
     confidence: 5
     provenance:
-      run: baseline-review-waste-replay-guard
-      commit: 33dce9c
+      run: public-front-door-completion
+      commit: 7739dc8
       date: '2026-10-12'
 gate-cmd:
   - concern: gate-cmd
     phase: part
     command: npm --prefix engine test
-    confidence: 5
+    confidence: 4
     provenance:
       run: baseline-review-waste-replay-guard
       commit: 33dce9c
@@ -22,14 +22,14 @@ gate-cmd:
     command: bash scripts/ci.sh
     confidence: 5
     provenance:
-      run: baseline-review-waste-replay-guard
-      commit: 33dce9c
+      run: public-front-door-completion
+      commit: 7739dc8
       date: '2026-10-12'
 validation-tool:
   - concern: validation-tool
     id: mutation
     configFingerprint: 4ca05ea6fec7b8df
-    confidence: 3
+    confidence: 2
     provenance:
       run: baseline-review-waste-replay-guard
       commit: 33dce9c
@@ -39,15 +39,15 @@ part-sizing:
   - concern: part-sizing
     size: docs-prose
     outcome: pass
-    confidence: 4
+    confidence: 5
     provenance:
-      run: provenance-sweep-part-two
-      commit: e7d8d3a
+      run: public-front-door-completion
+      commit: 7739dc8
       date: '2026-10-12'
   - concern: part-sizing
     size: pure-module
     outcome: pass
-    confidence: 2
+    confidence: 1
     provenance:
       run: baseline-review-waste-replay-guard
       commit: 33dce9c
@@ -55,10 +55,10 @@ part-sizing:
   - concern: part-sizing
     size: test-infra
     outcome: pass
-    confidence: 4
+    confidence: 5
     provenance:
-      run: baseline-review-waste-replay-guard
-      commit: 33dce9c
+      run: public-front-door-completion
+      commit: 7739dc8
       date: '2026-10-12'
 ---
 
@@ -66,19 +66,19 @@ part-sizing:
 > Machine-maintained. Edit the YAML frontmatter above, not this body.
 
 ## toolchain
-- confidence: 5 | provenance: 33dce9c / 2026-10-12
+- confidence: 5 | provenance: 7739dc8 / 2026-10-12
 
 ## gate-cmd
-- confidence: 5 | provenance: 33dce9c / 2026-10-12
-- confidence: 5 | provenance: 33dce9c / 2026-10-12
+- confidence: 4 | provenance: 33dce9c / 2026-10-12
+- confidence: 5 | provenance: 7739dc8 / 2026-10-12
 
 ## validation-tool
-- confidence: 3 | provenance: 33dce9c / 2026-10-12
+- confidence: 2 | provenance: 33dce9c / 2026-10-12
 
 ## findings
 _(none)_
 
 ## part-sizing
-- confidence: 4 | provenance: e7d8d3a / 2026-10-12
-- confidence: 2 | provenance: 33dce9c / 2026-10-12
-- confidence: 4 | provenance: 33dce9c / 2026-10-12
+- confidence: 5 | provenance: 7739dc8 / 2026-10-12
+- confidence: 1 | provenance: 33dce9c / 2026-10-12
+- confidence: 5 | provenance: 7739dc8 / 2026-10-12
