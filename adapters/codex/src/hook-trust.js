@@ -56,14 +56,13 @@ const GUARD_COMMAND_TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 // matches — identity is the tail, and whoever can write this config can write
 // its trusted hash directly.
 //
-// Only a plain space separates or pads the words, and a control character
-// anywhere refuses the command: the shell ends a command at a line break and
-// does not split on Unicode spaces, so a broader whitespace class would read
-// a command the shell runs differently.
+// Only a plain space separates or pads the words, and neither word's character
+// class admits a control character: the shell ends a command at a line break
+// and does not split on Unicode spaces, so a broader whitespace class would
+// read a command the shell runs differently.
 const GUARD_INTERPRETER = 'node';
 const PATH_SEPARATOR = '/';
 const GUARD_COMMAND_SHAPE = /^ *([^ ]+) +(?:"([^"]*)"|([^ ]+)) *$/;
-const CONTROL_CHARACTER_PATTERN = /\p{Cc}/u;
 const LITERAL_WORD_PATTERN = /^[\p{L}\p{N}._/+@%,:=-]+$/u;
 const QUOTED_LITERAL_PATTERN = /^[\p{L}\p{N}._/+@%,:= -]*$/u;
 const PLUGIN_ROOT_SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
@@ -260,12 +259,6 @@ function toBasename(token) {
 }
 
 function parseGuardCommand(command) {
-  // equivalent mutant (ConditionalExpression false / BlockStatement): the shape's
-  // padding is plain spaces only and both literal patterns exclude \p{Cc}, so a
-  // control character is refused downstream whichever word carries it.
-  if (CONTROL_CHARACTER_PATTERN.test(command)) {
-    return null;
-  }
   const match = GUARD_COMMAND_SHAPE.exec(command);
   if (match === null) {
     return null;
