@@ -1,6 +1,6 @@
 /**
  * In-process unit tests for the pure phase-skip signal detector: the fixed
- * `auto-skip: <phase>` run-record token grammar (ADR-146) and its fold into
+ * `auto-skip: <phase>` run-record token grammar and its fold into
  * `phase-skip` recommendations. No I/O — plain string/array inputs.
  * Given/When/Then titles, Arrange-Act-Assert bodies, sut variable.
  */
