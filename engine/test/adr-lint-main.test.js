@@ -889,6 +889,44 @@ test('Given a repo-relative DECISION-CITE-WAIVE, when main runs, then the waiver
   assert.equal(result, 0, `stdout was: ${io.stdout.joined()}`);
 });
 
+test('Given a waiver source that only quotes DECISION-CITE-WAIVE mid-sentence, when main runs, then the citation finding stands', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  writeFixture(root, 'live/note.md', 'Restates ADR-001.\n');
+  const waiverSource = writeFixture(
+    root,
+    'waivers.md',
+    'We note DECISION-CITE-WAIVE(live/note.md): deliberate historical quote in passing.\n',
+  );
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--waiver-source', waiverSource], io);
+
+  assert.equal(result, 2, `stdout was: ${io.stdout.joined()}`);
+  assert.ok(io.stdout.joined().includes('DECISION-CITE-FOUND(live/note.md): ADR-001@L1'), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given an anchored DECISION-CITE-WAIVE line inside a fenced block, when main runs, then the citation finding stands', () => {
+  const sut = main;
+  const root = gitTmpRoot();
+  writeCleanSupersession(root, '001', '002');
+  writeFixture(root, 'live/note.md', 'Restates ADR-001.\n');
+  const waiverSource = writeFixture(
+    root,
+    'waivers.md',
+    '```\nDECISION-CITE-WAIVE(live/note.md): deliberate historical quote\n```\n',
+  );
+  stageAll(root);
+  const io = makeCaptureIo();
+
+  const result = sut([join(root, 'adr'), '--waiver-source', waiverSource], io);
+
+  assert.equal(result, 2, `stdout was: ${io.stdout.joined()}`);
+  assert.ok(io.stdout.joined().includes('DECISION-CITE-FOUND(live/note.md): ADR-001@L1'), `stdout was: ${io.stdout.joined()}`);
+});
+
 test('Given any citation sweep, when main runs, then the resolved exempt set is announced so an over-broad entry cannot hide', () => {
   const sut = main;
   const root = gitTmpRoot();

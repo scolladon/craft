@@ -177,13 +177,19 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-10-11 — follow-ups surfaced by the stub-lint-ci-self-reference run, not yet scheduled)
 
-**A waiver token quoted in prose is a live waiver.** `ci.sh` passes every touched `.md` as a
-`--waiver-source`, and `collectWaived` in `engine/src/hygiene-lint-core.js` takes every
-`STUB-WAIVE(<path>)` match, so a design doc or ADR that merely *discusses* a waiver silently
-waives that path for the whole branch. Reproduced: with `# TODO: x` appended to `scripts/ci.sh`,
-`stub-lint --gate blocking` exits 2 alone and 0 with
-`docs/contributing/design/stub-lint-ci-self-reference.md` (which quotes the token) as the waiver
-source. The same applies to `SLOP-WAIVE`. Under `hygiene.gate: blocking` this is a fail-open.
+**A waiver token quoted in prose is a live waiver — delivered 2026-10-12**
+(fix/waiver-mention-not-waiver). `collectWaived` in `engine/src/hygiene-lint-core.js` now
+counts a waiver only on a line that starts at column 0 with the token followed by `: <reason>`
+(non-empty), outside a fenced code block (ADR-479, ADR-482, ADR-483). The core composes that
+anchor around each gate's bare pattern, so the gate constants and call sites are unchanged
+(ADR-481). The fix covers `STUB-WAIVE`, `SLOP-WAIVE` and `DECISION-CITE-WAIVE`, since all three
+reach the same function (ADR-480). Fences use a line-based CommonMark subset: CRLF-safe, with
+the closer indented at most max(3, opener indent) columns (ADR-484). The 962 tracked `.md`
+files now yield 0 live waivers, down from 83 raw matches. A differential fuzz against
+markdown-it leaves two accepted fail-open classes, both needing a fence that is not a fence or
+is left unclosed. Design:
+[waiver-mention-not-waiver](docs/contributing/design/waiver-mention-not-waiver.md);
+ADR-479–484.
 
 **Residual prose-marker findings in tracked source.** A full-tree stub scan still reports six
 non-self-reference hits: prose "stub" at `engine/src/hygiene-lint-core.js:18` and

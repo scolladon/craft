@@ -145,6 +145,45 @@ test('Given a waiver source waiving the seeded document, when main runs with --g
   assert.equal(io.stdout.joined(), '');
 });
 
+test('Given a waiver source that only quotes the token mid-sentence, when main runs with --gate blocking, then the finding stands and it exits 2', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const seeded = writeFixture(root, 'seeded.md', 'A seamless integration.\n');
+  const waiverSource = writeFixture(root, 'mention.md', `We note SLOP-WAIVE(${seeded}): tracked elsewhere in passing.\n`);
+  const io = makeCaptureIo();
+
+  const result = sut(['--gate', 'blocking', '--waiver-source', waiverSource, seeded], io);
+
+  assert.equal(result, 2, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().includes(`SLOP-FOUND(${seeded}): seamless`), `stdout was: ${io.stdout.joined()}`);
+});
+
+test('Given a body that is its own waiver source with an anchored waiver line, when main runs with --gate blocking, then it exits 0', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const body = join(root, 'body.md');
+  writeFixture(root, 'body.md', `We delve here.\nSLOP-WAIVE(${body}): deliberate\n`);
+  const io = makeCaptureIo();
+
+  const result = sut(['--gate', 'blocking', '--waiver-source', body, '--', body], io);
+
+  assert.equal(result, 0, `stdout: ${io.stdout.joined()} stderr: ${io.stderr.joined()}`);
+  assert.equal(io.stdout.joined(), '');
+});
+
+test('Given a body that is its own waiver source quoting the token mid-sentence, when main runs with --gate blocking, then the finding stands and it exits 2', () => {
+  const sut = main;
+  const root = tmpRoot();
+  const body = join(root, 'body.md');
+  writeFixture(root, 'body.md', `We delve here. We note SLOP-WAIVE(${body}): deliberate in passing.\n`);
+  const io = makeCaptureIo();
+
+  const result = sut(['--gate', 'blocking', '--waiver-source', body, '--', body], io);
+
+  assert.equal(result, 2, `stderr: ${io.stderr.joined()}`);
+  assert.ok(io.stdout.joined().includes(`SLOP-FOUND(${body}): delve`), `stdout was: ${io.stdout.joined()}`);
+});
+
 // ─── unreadable waiver source → loud stderr, run still completes ────────────
 
 test('Given an unreadable --waiver-source path, when main runs alongside a clean document, then it reports "cannot read waiver source" on stderr and completes', () => {

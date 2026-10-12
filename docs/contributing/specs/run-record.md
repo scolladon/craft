@@ -120,7 +120,11 @@ A rebuild reads the ledger and re-runs `run-state` (see `skills/run/SKILL.md`
   and neither substitutes for the other.
 - `DECISION-CITE-WAIVE(<file>): <reason>` — the `adr-lint` C3 live-tier-citation waiver,
   collected from `--waiver-source` files (the design doc and the PR body), exactly as
-  for `STUB-WAIVE` and `INTENTION-WAIVE`. It belongs to the `ci.sh` hygiene cadence
+  for `STUB-WAIVE` and `INTENTION-WAIVE`. A `STUB-WAIVE`, `SLOP-WAIVE` or
+  `DECISION-CITE-WAIVE` waiver is a line that starts with the token followed by
+  `: <reason>`, outside a fenced code block; the same token mid-sentence, in an inline
+  code span, a table cell or a fence is a mention and waives nothing. It belongs to the
+  `ci.sh` hygiene cadence
   family, not to a phase procedure. `DECISION-CITE-FOUND(<file>):` is **not** a
   run-record token and never appears here — under the hard-blocking lint posture a
   finding stops `ci.sh` and there is no run to fold it into; it is the lint's stdout
