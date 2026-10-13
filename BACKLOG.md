@@ -175,6 +175,18 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-timeout-probe run, not yet scheduled)
+
+**Probe a Claude Code hook timeout while the hook is stalled in a foreground command.** The
+timeout probe interrupted its hook in a background `wait`, so the TERM trap ran at once. A real
+stall sits in a foreground `cat`/`jq`/`grep`, where bash defers the TERM trap until the child
+exits, and whether Claude Code signals the process group or only the hook pid was not observed.
+The hook header and the gate spec now say "a stall in a foreground command was not probed".
+Prove it with the same throwaway `claude -p` harness: the overrun row with `sleep <n>` in the
+foreground plus a `ps -g <pgid>` snapshot at the deadline, then check MARKER (1-3 haiku turns).
+If the call runs, drop the qualifier; if the session hangs instead, write that down. See the Out
+of scope list in [claude-hook-timeout-probe](docs/contributing/design/claude-hook-timeout-probe.md).
+
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-nonzero-exit-probe run, not yet scheduled)
 
 **Probe what Claude Code does when a PreToolUse hook times out — delivered 2026-10-13**
