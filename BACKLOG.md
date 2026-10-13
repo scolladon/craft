@@ -175,15 +175,30 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-timeout-probe run, not yet scheduled)
+
+**Probe a Claude Code hook timeout while the hook is stalled in a foreground command.** The
+timeout probe interrupted its hook in a background `wait`, so the TERM trap ran at once. A real
+stall sits in a foreground `cat`/`jq`/`grep`, where bash defers the TERM trap until the child
+exits, and whether Claude Code signals the process group or only the hook pid was not observed.
+The hook header and the gate spec now say "a stall in a foreground command was not probed".
+Prove it with the same throwaway `claude -p` harness: the overrun row with `sleep <n>` in the
+foreground plus a `ps -g <pgid>` snapshot at the deadline, then check MARKER (1-3 haiku turns).
+If the call runs, drop the qualifier; if the session hangs instead, write that down. See the Out
+of scope list in [claude-hook-timeout-probe](docs/contributing/design/claude-hook-timeout-probe.md).
+
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-nonzero-exit-probe run, not yet scheduled)
 
-**Probe what Claude Code does when a PreToolUse hook times out.** `hooks/git-no-ext-diff.sh`
-now denies on TERM and HUP, but which signal Claude Code sends a hook that overruns its timeout,
-and whether it then runs the call, was never observed. Prove it with the same throwaway
-`claude -p` harness (a hook copy that sleeps past a short `timeout`, a marker-file command); if
-the timeout uses SIGKILL or ignores the exit status, write it into the hook header and the gate
-spec's residual list. See the Out of scope list in
-[claude-hook-nonzero-exit-probe](docs/contributing/design/claude-hook-nonzero-exit-probe.md).
+**Probe what Claude Code does when a PreToolUse hook times out — delivered 2026-10-13**
+(fix/claude-hook-timeout-probe). At a hook's `timeout`, Claude Code 2.1.296 sends SIGTERM, then
+runs the Bash call whatever the hook exits with or prints, and the model sees a clean result: the
+TERM trap's crash deny (3/3) and a JSON deny printed from the TERM trap (1/1)
+were both ignored (live `claude -p` probe, 6 haiku turns, a 3 s `timeout`). Nothing the hook does
+after the deadline is read, so the change is document-only: the hook header and the gate spec now
+list the timeout as fail-open, and the TERM and HUP traps stay, denying either signal from any
+other sender.
+`hooks/hooks.json` sets no `timeout`, so the documented 600 s default applies (ADRs 546-550).
+Design context: [claude-hook-timeout-probe](docs/contributing/design/claude-hook-timeout-probe.md).
 
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the codex-hook-nonzero-exit-probe run, not yet scheduled)
 

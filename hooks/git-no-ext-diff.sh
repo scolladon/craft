@@ -14,7 +14,11 @@
 # status that crashed. The matcher's own verdict stays the JSON deny on stdout.
 # TERM and HUP deny the same way. Still fails open, because no code here runs to catch it:
 # /bin/bash missing, this file missing or not executable, SIGKILL or any other untrapped
-# signal (which one Claude Code's hook timeout sends is unprobed).
+# signal. A run past Claude Code's hook timeout (600 s; hooks.json sets none) fails open
+# too, though code here does run: Claude Code (2.1.296) sends SIGTERM at the deadline, then
+# runs the call whatever this hook exits with or prints (probed with the hook interrupted in
+# a background wait; a stall in a foreground command was not probed). The TERM and HUP traps
+# still deny either signal from any other sender.
 set -euo pipefail
 
 readonly CRASH_DENY_EXIT_CODE=2

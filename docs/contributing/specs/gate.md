@@ -66,9 +66,18 @@ hook set:
   allows. TERM and HUP deny the same way, through traps that hand their status to the crash
   path. With `jq` missing from `PATH`, every Bash call is denied. Still fail-open, because no
   code in the hook can catch them: `/bin/bash` missing, the hook file missing or not
-  executable, and SIGKILL or any other untrapped signal (which one Claude Code's hook timeout
-  sends is not probed). The probe matrix is in
+  executable, and SIGKILL or any other untrapped signal. The probe matrix is in
   [the design doc](../design/claude-hook-nonzero-exit-probe.md).
+
+  On a timeout: Claude Code 2.1.296 sends SIGTERM to a hook that runs past its `timeout`
+  (documented default 600 s; `hooks/hooks.json` sets none), then runs the Bash call whatever
+  the hook exits with or prints, and the model sees a clean result with no hook event. The
+  probe tried both deny channels after the TERM: exit 2 with a stderr reason, and a JSON
+  `permissionDecision: "deny"` on stdout. Both were ignored. The probe hook was interrupted in
+  a background wait; a hook stalled in a foreground command was not probed. So a timeout fails
+  open, and nothing the hook does after the deadline is read. The TERM and HUP traps stay: they
+  deny either signal from any other sender. The timeout matrix is in
+  [the design doc](../design/claude-hook-timeout-probe.md).
 
 **gate-command**: the resolved gate string is executed as a Bash subprocess. Non-zero exit blocks
 the commit.
