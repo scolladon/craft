@@ -154,6 +154,14 @@ Review disproved two premises above; both were reproduced and fixed before valid
   `grep -c` reads to EOF (no SIGPIPE) and needs no temp file, and only exit 1 with a printed `0`
   allows (ADR-542, superseding ADR-536's feed). A darwin-gated `sandbox-exec` test pins it.
 
+- **Feeds that never start.** With `RLIMIT_NOFILE` at 5 or less, `IN=$(cat)` cannot make its
+  pipe, expands to nothing with status 0, and the empty command was allowed (pre-existing on
+  main, found in review). Each feed now appends a sentinel only a completed run prints
+  (`cat && printf .`, `jq -r … && printf .`); a missing sentinel exits 1 and the trap denies.
+  `jq -r` stays (a `jq -j` variant joined a two-document stdin into one command and allowed it).
+  A 30-payload differential against main: no clean-path difference; the two crash payloads now
+  exit 2 where main exited 5.
+
 Where the Design and Edge-behaviour sections below still name the here-string or signal
 residual, these corrections and ADRs 541-542 govern.
 

@@ -175,6 +175,16 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-nonzero-exit-probe run, not yet scheduled)
+
+**Probe what Claude Code does when a PreToolUse hook times out.** `hooks/git-no-ext-diff.sh`
+now denies on TERM and HUP, but which signal Claude Code sends a hook that overruns its timeout,
+and whether it then runs the call, was never observed. Prove it with the same throwaway
+`claude -p` harness (a hook copy that sleeps past a short `timeout`, a marker-file command); if
+the timeout uses SIGKILL or ignores the exit status, write it into the hook header and the gate
+spec's residual list. See the Out of scope list in
+[claude-hook-nonzero-exit-probe](docs/contributing/design/claude-hook-nonzero-exit-probe.md).
+
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the codex-hook-nonzero-exit-probe run, not yet scheduled)
 
 **Probe whether the cursor guard fails open on a crash.** The codex guard exited 1 when its
@@ -185,10 +195,17 @@ engine import does not resolve) plus Cursor's own exit-status matrix; harden onl
 fail-open. See the Out of scope list in
 [codex-hook-nonzero-exit-probe](docs/contributing/design/codex-hook-nonzero-exit-probe.md).
 
-**Probe whether the Claude Code guard hook fails open on a crash.** Root
-`hooks/git-no-ext-diff.sh` is a PreToolUse hook; whether a crash in it (exit 1) lets the Bash call
-run under a live Claude Code session was never observed. Prove it by making a throwaway copy of the
-script exit 1 and reading whether the call runs; harden only on a proven fail-open.
+**Probe whether the Claude Code guard hook fails open on a crash — delivered 2026-10-13**
+(fix/claude-hook-nonzero-exit-probe). Claude Code 2.1.296 runs the Bash call on hook exit 1
+(3/3), exit 127 and a SIGKILL death, and the model sees a clean result; only exit 2 denies (live
+`claude -p` probe, 8 haiku turns). `hooks/git-no-ext-diff.sh` now turns every failure bash can see
+into exit 2 with a `craft git-no-ext-diff:` reason: an EXIT trap, TERM and HUP traps, a
+`verdict_reached` flag, feed sentinels, and a matcher that allows only on grep's exit 1 with a
+printed zero count (which also closes a pipe-buffer SIGPIPE allow on large commands). With `jq`
+missing, every Bash call is denied; the README now names `jq` as a requirement. Still fail-open:
+`/bin/bash` missing, the hook file missing, SIGKILL or another untrapped signal (ADRs 533-542).
+Design context:
+[claude-hook-nonzero-exit-probe](docs/contributing/design/claude-hook-nonzero-exit-probe.md).
 
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the codex-hooks-quote-plugin-root run, not yet scheduled)
 
