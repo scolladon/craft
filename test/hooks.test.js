@@ -161,6 +161,7 @@ const ALLOW_COMPLIANT_PAYLOAD = fs.readFileSync(path.join(HOOK_FIXTURES, 'no-ext
 const CRASH_DENY_EXIT_CODE = 2;
 const COMMAND_NOT_FOUND_STATUS = 127;
 const JQ_PARSE_ERROR_STATUS = 5;
+const GREP_NO_MATCH_STATUS = 1;
 // 'echo pad\n' × 14000 = 126,000 bytes: about 60 KiB past the 64 KiB pipe buffer, still under
 // the 128 KiB one exec argument may hold (the corrected command goes to jq as one)
 const PIPE_BUFFER_OVERFLOW_LINES = 14000;
@@ -241,7 +242,15 @@ function runGitHookSignalledWhileReading(signal) {
     child.stderr.on('data', (chunk) => { stderr += chunk; });
     child.on('error', reject);
     child.on('close', (status) => resolve({ status, stdout, stderr }));
-    waitForFirstChild(child.pid);
+    try {
+      waitForFirstChild(child.pid);
+    } catch (err) {
+      // the hook would otherwise block on its open stdin and keep the test process alive
+      child.kill('SIGKILL');
+      child.stdin.destroy();
+      reject(err);
+      return;
+    }
     child.kill(signal);
     child.stdin.end(DENY_DIFF_PAYLOAD);
   });
@@ -320,6 +329,15 @@ test('Given PATH without grep, when git-no-ext-diff runs, then it exits 2 instea
   });
 });
 
+test('Given a grep that exits 1 without printing a count, when git-no-ext-diff runs on a matching command, then it exits 2 with the crash reason', () => {
+  withToolsOnly(['cat', 'jq', 'sed'], (toolsDir) => {
+    fs.symlinkSync(resolveTool('false'), path.join(toolsDir, 'grep'));
+    const sut = runGitHook;
+    const result = sut(DENY_DIFF_PAYLOAD, { PATH: toolsDir });
+    assertCrashDeny(result, GREP_NO_MATCH_STATUS);
+  });
+});
+
 test('Given a matching git diff followed by more than a pipe buffer of lines, when git-no-ext-diff runs, then it denies with the corrected command', () => {
   const command = `git diff HEAD\n${'echo pad\n'.repeat(PIPE_BUFFER_OVERFLOW_LINES)}`;
   const sut = runGitHook;
@@ -361,7 +379,9 @@ test(
     const result = sut();
     assert.strictEqual(result.status, 0, result.stderr);
     assert.strictEqual(result.stderr, '');
-    assert.strictEqual(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, 'deny');
+    const output = JSON.parse(result.stdout).hookSpecificOutput;
+    assert.strictEqual(output.permissionDecision, 'deny');
+    assert.ok(output.permissionDecisionReason.includes('git diff --no-ext-diff HEAD~1'));
   },
 );
 
