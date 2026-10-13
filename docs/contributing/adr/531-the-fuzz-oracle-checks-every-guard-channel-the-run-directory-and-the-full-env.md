@@ -29,6 +29,8 @@ Adopted from verified review findings (no user judgment): option 1. The stub log
 - the `export -p` lines, with the run directory replaced by a placeholder and `_` dropped, equal those of `node /baseline<tail>` under the same shell and root env, in both directions;
 - argv is one rooted path ending in the guard tail.
 
+Each leg then checks that the throwaway tree holds only what the harness created, so a write outside a run directory fails too. The tree is rooted at its real path, because the shells export the physical working directory.
+
 The generator gains `' &'`, `' </dev/null'`, `' && mark'`, `' || mark'`, `' >out'` and `' 2>/dev/null'` trails and a `'HOME=/x '` lead so it draws these shapes.
 
 ## Consequences
