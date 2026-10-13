@@ -6,9 +6,12 @@ supersedes: []
 ---
 # 537 — Git hook signal deaths stay documented residual
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-541
 - **Date:** 2026-10-13
 - **Design:** docs/contributing/design/claude-hook-nonzero-exit-probe.md
+
+> **Superseded by ADR-541** for signal deaths: TERM and HUP now exit from their own traps, so the EXIT trap denies them;
+> SIGKILL and untrapped signals stay residual.
 
 ## Context
 
