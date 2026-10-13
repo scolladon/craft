@@ -62,10 +62,12 @@ hook set:
   `craft git-no-ext-diff: failed (exit <n>), call denied` on stderr, where `<n>` is the status
   it would have exited with, or `craft git-no-ext-diff: no verdict reached, call denied` when
   it would have exited 0 before reaching a verdict. The JSON deny stays the matcher's verdict,
-  and a grep failure is a crash, never a no-match. With `jq` missing from `PATH`, every Bash
-  call is denied. Still fail-open, because no code in the hook can catch them: `/bin/bash`
-  missing, the hook file missing or not executable, death by a signal, and a kill by Claude
-  Code's own hook timeout (not probed). The probe matrix is in
+  and a grep failure is a crash, never a no-match: only grep's exit 1 with a printed zero count
+  allows. TERM and HUP deny the same way, through traps that hand their status to the crash
+  path. With `jq` missing from `PATH`, every Bash call is denied. Still fail-open, because no
+  code in the hook can catch them: `/bin/bash` missing, the hook file missing or not
+  executable, and SIGKILL or any other untrapped signal (which one Claude Code's hook timeout
+  sends is not probed). The probe matrix is in
   [the design doc](../design/claude-hook-nonzero-exit-probe.md).
 
 **gate-command**: the resolved gate string is executed as a Bash subprocess. Non-zero exit blocks

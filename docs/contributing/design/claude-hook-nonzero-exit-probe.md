@@ -73,9 +73,9 @@ directory, `set -euo pipefail` first, fed `{}` on stdin.
 | B9 | `trap … ERR`, explicit `exit 3` | 3 | ERR does not fire on an explicit exit |
 | B10 | `trap … ERR`, B6's `if !` | 0 | ERR does not fire inside `!` either |
 | B11 | `source ./missing-helper.sh` on the line before the EXIT trap | 1 | the sourced-helper failure happens before any trap exists |
-| B12 | EXIT trap, `sleep 2`, process sent SIGTERM / SIGHUP / SIGKILL | 143 / 129 / 137, no trap output | an EXIT trap does not run on signal death |
+| B12 | EXIT trap, `sleep 2`, process sent SIGTERM / SIGHUP / SIGKILL | 143 / 129 / 137, no trap output | an EXIT trap does not run on signal death — **corrected in review:** with the hook blocked on a child, TERM and HUP do run the EXIT trap (its deny line is written) yet the status stays 143 / 129 (ADR-541) |
 | B13 | B12 plus `trap 'exit 143' TERM`, sent SIGTERM | 2 after 2 s | the TERM trap runs once the foreground child exits, then the EXIT trap maps it |
-| B14 | `grep -qE "$GIT_RE" <<<"$CMD"`, with `TMPDIR` set to a missing directory, then to a read-only one | 0 (match) both times | the here-string falls back to `/tmp`; no writer process exists to take a SIGPIPE |
+| B14 | `grep -qE "$GIT_RE" <<<"$CMD"`, with `TMPDIR` set to a missing directory, then to a read-only one | 0 (match) both times | the here-string falls back to `/tmp`; no writer process exists to take a SIGPIPE — **corrected in review:** with every temp directory and the cwd unwritable the redirection fails with status 1 and the call is allowed (ADR-542) |
 | B15 | `[[ $CMD =~ $GIT_RE ]]` with the hook's `\s`/`\S` regex | no match on `git diff HEAD` | macOS `regcomp` has no `\s`; the `[[:space:]]` form of the same regex matches and still rejects `git stash show` |
 | B16 | `printf '%s' "$CMD" \| /usr/bin/grep -qE "$GIT_RE"`, first line `git diff HEAD`, 3 tries each | 60,013 bytes: `0 0`; 65,014 / 70,014 / 1,000,014 bytes: `141 0` (3/3) | `PIPESTATUS`: the writer is killed once the input passes the 64 KiB pipe buffer |
 | B17 | B7's trap, hook run with stderr closed (`2>&-`), cat missing, 3/3 | **1** | errexit still applies inside the trap: the reason `printf` fails and aborts the trap before its `exit 2`, so the trap itself fails open |
@@ -140,6 +140,22 @@ without `jq` on `PATH`.
 
 Harden only on a proven fail-open. The matrix proves one: exit 1, exit 127 and a signal death all
 run the call. So the hook is hardened, the matrix is recorded, and the BACKLOG entry closes.
+
+### Review corrections (after implementation)
+
+Review disproved two premises above; both were reproduced and fixed before validation.
+
+- **Signals (B12).** TERM and HUP run the EXIT trap but still end with 143 / 129, so stderr said
+  "call denied" while the call ran. The user chose to trap both (ADR-541, superseding ADR-537):
+  `trap 'exit "$SIGTERM_EXIT_STATUS"' TERM` and the HUP twin hand the EXIT trap a non-zero
+  status, which denies with `failed (exit 143|129)`. SIGKILL and untrapped signals stay residual.
+- **Here-string (B14).** With no writable temp directory or cwd, `<<<"$CMD"` fails with status 1,
+  which the matcher read as no-match. The feed is now `printf '%s' "$CMD" | grep -cE "$GIT_RE"`:
+  `grep -c` reads to EOF (no SIGPIPE) and needs no temp file, and only exit 1 with a printed `0`
+  allows (ADR-542, superseding ADR-536's feed). A darwin-gated `sandbox-exec` test pins it.
+
+Where the Design and Edge-behaviour sections below still name the here-string or signal
+residual, these corrections and ADRs 541-542 govern.
 
 ## Requirements
 
@@ -423,10 +439,10 @@ taken with no user judgment.
 | DC-1 | How a crash becomes a deny | An EXIT trap, set before the first external command, maps any non-zero status to exit 2 plus a reason line (adopted) | an ERR trap; an up-front `command -v jq` check only | ERR misses an explicit non-zero `exit` (B9), which the matcher split adds; a `jq` check covers `jq` missing only, while `cat`, `sed`, non-JSON stdin and the final `jq` still exit non-zero. The trap is the house `never_block` pattern with the opposite polarity | 533 |
 | DC-2 | Which channel denies on a crash | Exit 2 with the reason on stderr (adopted) | a fixed JSON `permissionDecision: "deny"` on stdout, exit 0 | Exit 2 is the probe-pinned deny on 2.1.296; the JSON channel depends on stdout still being clean after a crash. Same as the codex guard (ADR-518) | 534 |
 | DC-3 | What a crash denies | Every Bash call (ratified) | deny only calls whose raw stdin loosely looks like a git diff/show | One predicate, as the codex guard does. Cost accepted: with `jq` missing, Bash is unusable under the plugin until `jq` is installed; the README says so (DC-6) | 535 |
-| DC-4 | The matcher's crash-as-allow paths | In scope: split grep's status (only 1 allows) and feed it a here-string (ratified) | leave both paths out of scope; a builtin `[[ =~ ]]` with the regex rewritten | Both are proven fail-opens (B6, B16) that no exit-status mapping sees; the regex text stays byte-identical (R2 26/26) | 536 |
+| DC-4 | The matcher's crash-as-allow paths | In scope: split grep's status (only 1 allows) and feed it a here-string (ratified) | leave both paths out of scope; a builtin `[[ =~ ]]` with the regex rewritten | Both are proven fail-opens (B6, B16) that no exit-status mapping sees; the regex text stays byte-identical (R2 26/26) | 536, feed superseded by 542 |
 | DC-5 | Where the crash trap lives | Inline in `git-no-ext-diff.sh` (adopted) | a `fail_closed` helper in `hooks/bound-run.sh`, sourced | Sourcing is a crash point before any trap exists (B11) | 539 |
 | DC-6 | Where the contract and the residual are written down | The hook header, a `gate.md` Claude-binding paragraph linking this doc's matrix, and the README Quickstart requirement sentence naming `jq` on `PATH` (ratified; deviates from this doc's earlier recommendation, which left the README out) | header plus `gate.md` only; header only | DC-3 makes `jq` a hard prerequisite for Bash under the plugin, and operators learn it before installing. The README edit keeps the README guards green (Part 3) | 538 |
-| DC-7 | Signal deaths | Documented residual (adopted) | a `trap 'exit 143' TERM` (B13) | SIGKILL cannot be caught (B12), and no one has observed which signal Claude Code sends a hook. Harden only on proof. B13 stays recorded for a later probe | 537 |
+| DC-7 | Signal deaths | Documented residual (adopted) | a `trap 'exit 143' TERM` (B13) | SIGKILL cannot be caught (B12), and no one has observed which signal Claude Code sends a hook. Harden only on proof. B13 stays recorded for a later probe | 537, superseded by 541 |
 | DC-8 | A clean exit that reached no verdict (B19) | A `verdict_reached` flag set only by `allow` and after the JSON deny; the trap denies status 0 without it (adopted) | accept it and rely on `shellcheck` and the hook tests before merge | Without the flag the trap turns today's syntax-error deny into an allow (B19, 3/3); the flag restores the deny with its own reason (B20). Bash counterpart of ADR-519 | 540 |
 
 Settled before this design, so never candidates: whether to harden (the user's rule, met by the
