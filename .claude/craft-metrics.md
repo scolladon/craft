@@ -545,3 +545,8 @@ codex-hook-nonzero-exit-probe design turns=45 tool_calls=47 tokens=2870204 durat
 codex-hook-nonzero-exit-probe implementation turns=12 tool_calls=14 tokens=282174 duration_ms=142858 cache_read=229840 cache_creation=52126 output=184 avg_ctx=23499 equiv=89086
 codex-hook-nonzero-exit-probe planning turns=49 tool_calls=53 tokens=3166216 duration_ms=1187590 cache_read=3058073 cache_creation=107425 output=620 avg_ctx=64604 equiv=443287
 codex-hook-nonzero-exit-probe review turns=42 tool_calls=44 tokens=1132724 duration_ms=1182674 cache_read=1000340 cache_creation=131255 output=1045 avg_ctx=26945 equiv=269412
+codex-trust-matcher-differential-fuzz design turns=62 tool_calls=64 tokens=5947786 duration_ms=2282195 cache_read=5784141 cache_creation=162976 output=545 avg_ctx=95923 equiv=784983
+codex-trust-matcher-differential-fuzz documentation turns=6 tool_calls=6 tokens=100678 duration_ms=17048 cache_read=85153 cache_creation=15269 output=244 avg_ctx=16739 equiv=28834
+codex-trust-matcher-differential-fuzz implementation turns=40 tool_calls=40 tokens=1901350 duration_ms=747006 cache_read=1819130 cache_creation=81232 output=908 avg_ctx=47511 equiv=288073
+codex-trust-matcher-differential-fuzz planning turns=25 tool_calls=27 tokens=1503752 duration_ms=468376 cache_read=1404723 cache_creation=98487 output=492 avg_ctx=60130 equiv=266091
+codex-trust-matcher-differential-fuzz review turns=121 tool_calls=130 tokens=4821540 duration_ms=2137603 cache_read=4409087 cache_creation=409558 output=2653 avg_ctx=39826 equiv=966363
