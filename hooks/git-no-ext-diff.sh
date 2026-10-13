@@ -9,8 +9,8 @@
 #
 # Crash path: Claude Code (2.1.296) runs the Bash call on every hook exit status except 2,
 # and the model never sees the crash. So every failure below (a missing tool, stdin that
-# is not JSON, a grep that neither matches nor cleanly misses, a clean exit with no
-# verdict) ends in exit 2 with a `craft git-no-ext-diff:` reason on stderr, never in the
+# is not JSON, a feed that cannot start, a grep that neither matches nor cleanly misses,
+# a clean exit with no verdict) ends in exit 2 with a `craft git-no-ext-diff:` reason on stderr, never in the
 # status that crashed. The matcher's own verdict stays the JSON deny on stdout.
 # TERM and HUP deny the same way. Still fails open, because no code here runs to catch it:
 # /bin/bash missing, this file missing or not executable, SIGKILL or any other untrapped
@@ -20,6 +20,8 @@ set -euo pipefail
 readonly CRASH_DENY_EXIT_CODE=2
 readonly GREP_NO_MATCH=1
 readonly NO_MATCHING_LINES=0
+readonly FEED_SENTINEL='.'
+readonly FEED_NEVER_RAN_STATUS=1
 readonly SIGTERM_EXIT_STATUS=143
 readonly SIGHUP_EXIT_STATUS=129
 
@@ -47,8 +49,15 @@ trap 'deny_on_crash "$?"' EXIT
 trap 'exit "$SIGTERM_EXIT_STATUS"' TERM
 trap 'exit "$SIGHUP_EXIT_STATUS"' HUP
 
-IN=$(cat)
-CMD=$(printf '%s' "$IN" | jq -r '.tool_input.command // empty')
+# A command substitution that cannot start (no pipe or fork left) expands to nothing with
+# status 0, which reads as an empty command. Only a feed that ran to the end appends the
+# sentinel, so a missing one is a crash.
+IN=$(cat && printf '%s' "$FEED_SENTINEL")
+[ "${IN%"$FEED_SENTINEL"}" != "$IN" ] || exit "$FEED_NEVER_RAN_STATUS"
+IN=${IN%"$FEED_SENTINEL"}
+CMD=$(printf '%s' "$IN" | jq -j '.tool_input.command // empty' && printf '%s' "$FEED_SENTINEL")
+[ "${CMD%"$FEED_SENTINEL"}" != "$CMD" ] || exit "$FEED_NEVER_RAN_STATUS"
+CMD=${CMD%"$FEED_SENTINEL"}
 [ -z "$CMD" ] && allow
 
 # Already compliant, or explicitly proxied raw — let it through.

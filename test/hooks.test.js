@@ -162,6 +162,9 @@ const CRASH_DENY_EXIT_CODE = 2;
 const COMMAND_NOT_FOUND_STATUS = 127;
 const JQ_PARSE_ERROR_STATUS = 5;
 const GREP_NO_MATCH_STATUS = 1;
+const FEED_NEVER_RAN_STATUS = 1;
+// enough descriptors for bash to start the hook, too few to open a command-substitution pipe
+const TOO_FEW_FILE_DESCRIPTORS = 5;
 // 'echo pad\n' × 14000 = 126,000 bytes: about 60 KiB past the 64 KiB pipe buffer, still under
 // the 128 KiB one exec argument may hold (the corrected command goes to jq as one)
 const PIPE_BUFFER_OVERFLOW_LINES = 14000;
@@ -366,6 +369,19 @@ for (const signal of Object.keys(SIGNAL_EXIT_STATUS)) {
     assertCrashDeny(result, SIGNAL_EXIT_STATUS[signal]);
   });
 }
+
+test(
+  'Given too few file descriptors for a command substitution, when git-no-ext-diff runs, then it exits 2 with the crash reason',
+  { skip: process.platform !== 'darwin' && 'the descriptor floor is only probed on macOS /bin/bash' },
+  () => {
+    const sut = () => spawnSync('/bin/bash', ['-c', `ulimit -n ${TOO_FEW_FILE_DESCRIPTORS}; exec /bin/bash "$0"`, GIT_HOOK], {
+      input: DENY_DIFF_PAYLOAD,
+      encoding: 'utf8',
+    });
+    const result = sut();
+    assertCrashDeny(result, FEED_NEVER_RAN_STATUS);
+  },
+);
 
 test(
   'Given no writable temp directory, when git-no-ext-diff runs on a matching command, then it still denies with the corrected command',
