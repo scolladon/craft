@@ -541,3 +541,7 @@ codex-hooks-quote-plugin-root implementation turns=22 tool_calls=23 tokens=61825
 codex-hooks-quote-plugin-root planning turns=65 tool_calls=68 tokens=6531488 duration_ms=968740 cache_read=6358376 cache_creation=172262 output=720 avg_ctx=100473 equiv=854895
 codex-hooks-quote-plugin-root review turns=146 tool_calls=150 tokens=4489632 duration_ms=1776453 cache_read=3991502 cache_creation=490592 output=7246 avg_ctx=30701 equiv=1048912
 codex-hooks-quote-plugin-root validation turns=9 tool_calls=9 tokens=218817 duration_ms=53723 cache_read=190820 cache_creation=27785 output=194 avg_ctx=24291 equiv=54801
+codex-hook-nonzero-exit-probe design turns=45 tool_calls=47 tokens=2870204 duration_ms=1118732 cache_read=2756723 cache_creation=111100 output=2291 avg_ctx=63731 equiv=426092
+codex-hook-nonzero-exit-probe implementation turns=12 tool_calls=14 tokens=282174 duration_ms=142858 cache_read=229840 cache_creation=52126 output=184 avg_ctx=23499 equiv=89086
+codex-hook-nonzero-exit-probe planning turns=49 tool_calls=53 tokens=3166216 duration_ms=1187590 cache_read=3058073 cache_creation=107425 output=620 avg_ctx=64604 equiv=443287
+codex-hook-nonzero-exit-probe review turns=42 tool_calls=44 tokens=1132724 duration_ms=1182674 cache_read=1000340 cache_creation=131255 output=1045 avg_ctx=26945 equiv=269412
