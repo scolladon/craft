@@ -1,12 +1,60 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'craft-guard.js');
 const WORKING_DIR = '/repo';
+
+const ADAPTER_DIR = join(dirname(HOOK), '..');
+const REPO_ROOT = join(ADAPTER_DIR, '..', '..');
+const ALLOWED_PAYLOAD = execPayload('git diff --no-ext-diff');
+// Every form ESM links before the body runs — `import … from`, a bare `import 'x'`, `export … from` —
+// while skipping `import(`, `import.meta` and comment lines (they start with ` * ` or `//`).
+const STATIC_IMPORT_LINE = /^\s*(?:import(?!\s*[(.])|export\b[^;\n]*\bfrom\b)/m;
+const THROWING_STDIN_LISTENER =
+  "process.stdin.once('data', () => { throw new RangeError('Invalid string length'); });";
+const UNPRINTABLE_MESSAGE_THROW =
+  "process.stdin.once('data', () => { throw { message: Symbol('unprintable') }; });";
+const THROWING_MESSAGE_GETTER =
+  "process.stdin.once('data', () => { throw { get message() { throw new Error('getter'); } }; });";
+const NEVER_ENDING_STDIN = 'process.stdin.destroy();';
+const FLOATING_REJECTION = "Promise.reject(new Error('floating rejection'));";
+
+// Copies hooks/ and src/ into a throwaway root; breakTree then removes or stubs one piece.
+function withGuardCopy(breakTree, nodeArgs = []) {
+  const root = mkdtempSync(join(tmpdir(), 'craft-guard-crash-'));
+  try {
+    const adapterCopy = join(root, 'adapters', 'codex');
+    for (const dir of ['hooks', 'src']) {
+      cpSync(join(ADAPTER_DIR, dir), join(adapterCopy, dir), { recursive: true });
+    }
+    breakTree({ root, adapterCopy });
+    const guard = join(adapterCopy, 'hooks', 'craft-guard.js');
+    return spawnSync(process.execPath, [...nodeArgs, guard], { input: ALLOWED_PAYLOAD, encoding: 'utf8' });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+}
+
+// engine/bin present so resolveCraftRoot passes; engine/src absent so the predicate import fails.
+function withoutEngineSources({ root }) {
+  mkdirSync(join(root, 'engine', 'bin'), { recursive: true });
+}
+
+// Every import resolves through the symlinked engine; the stub runs `body` then returns a root.
+function stubbedCraftRoot(body) {
+  return ({ root, adapterCopy }) => {
+    symlinkSync(join(REPO_ROOT, 'engine'), join(root, 'engine'));
+    writeFileSync(
+      join(adapterCopy, 'src', 'craft-root.js'),
+      `export function resolveCraftRoot() { ${body} return '/'; }\n`,
+    );
+  };
+}
 
 // Spawns OUR hook script under `node`, never the real `codex` binary — the
 // only permitted way to exercise a subprocess-exit-code contract.
@@ -88,5 +136,55 @@ describe('craft-guard hook — enforcing exit-code contract', () => {
     const sourceText = readFileSync(HOOK, 'utf8');
 
     assert.doesNotMatch(sourceText, /\bfinally\b/);
+  });
+});
+
+function assertDeniedOnStderr(sut, stderrPattern) {
+  assert.equal(sut.status, 2);
+  assert.match(sut.stderr, stderrPattern);
+  assert.equal(sut.stdout, '');
+}
+
+describe('craft-guard hook — a crash still denies', () => {
+  it('Given the hook source text, when scanned, then it has no static import statement', () => {
+    const sourceText = readFileSync(HOOK, 'utf8');
+
+    assert.doesNotMatch(sourceText, STATIC_IMPORT_LINE);
+  });
+
+  it('Given a guard copy whose engine predicate cannot be resolved, when the hook process runs, then it exits 2 naming the missing module on stderr', () => {
+    const sut = withGuardCopy(withoutEngineSources);
+
+    assertDeniedOnStderr(sut, /^craft-guard: .*tool-call-guard/m);
+  });
+
+  it('Given a guard copy whose stdin listener throws, when the hook process runs, then it exits 2 with the error on stderr', () => {
+    const sut = withGuardCopy(stubbedCraftRoot(THROWING_STDIN_LISTENER));
+
+    assertDeniedOnStderr(sut, /^craft-guard: Invalid string length$/m);
+  });
+
+  it('Given a guard copy whose stdin listener throws a value with an unprintable message, when the hook process runs, then it exits 2 with the fail-closed reason', () => {
+    const sut = withGuardCopy(stubbedCraftRoot(UNPRINTABLE_MESSAGE_THROW));
+
+    assertDeniedOnStderr(sut, /^craft-guard: denied \(fail-closed\)$/m);
+  });
+
+  it('Given a guard copy whose stdin listener throws a value whose message getter throws, when the hook process runs, then it exits 2 with the fail-closed reason', () => {
+    const sut = withGuardCopy(stubbedCraftRoot(THROWING_MESSAGE_GETTER));
+
+    assertDeniedOnStderr(sut, /^craft-guard: denied \(fail-closed\)$/m);
+  });
+
+  it('Given a guard copy that leaves a promise rejection unhandled under the warn rejection mode, when the hook process runs, then it exits 2 with the rejection on stderr', () => {
+    const sut = withGuardCopy(stubbedCraftRoot(FLOATING_REJECTION), ['--unhandled-rejections=warn']);
+
+    assertDeniedOnStderr(sut, /^craft-guard: floating rejection$/m);
+  });
+
+  it('Given a guard copy whose stdin never ends, when the event loop drains, then it exits 2 with the fail-closed reason', () => {
+    const sut = withGuardCopy(stubbedCraftRoot(NEVER_ENDING_STDIN));
+
+    assertDeniedOnStderr(sut, /^craft-guard: denied \(fail-closed\)$/m);
   });
 });

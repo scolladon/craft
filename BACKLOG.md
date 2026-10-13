@@ -175,14 +175,32 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-13 — follow-ups surfaced by the codex-hook-nonzero-exit-probe run, not yet scheduled)
+
+**Probe whether the cursor guard fails open on a crash.** The codex guard exited 1 when its
+import graph failed to load, and codex runs the tool call on any status but 2. Whether
+`adapters/cursor/hooks/craft-guard.js` has the same static-import gap, and what Cursor does with a
+hook that exits 1, was never measured. Prove it with the codex fixture (a throwaway copy whose
+engine import does not resolve) plus Cursor's own exit-status matrix; harden only on a proven
+fail-open. See the Out of scope list in
+[codex-hook-nonzero-exit-probe](docs/contributing/design/codex-hook-nonzero-exit-probe.md).
+
+**Probe whether the Claude Code guard hook fails open on a crash.** Root
+`hooks/git-no-ext-diff.sh` is a PreToolUse hook; whether a crash in it (exit 1) lets the Bash call
+run under a live Claude Code session was never observed. Prove it by making a throwaway copy of the
+script exit 1 and reading whether the call runs; harden only on a proven fail-open.
+
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the codex-hooks-quote-plugin-root run, not yet scheduled)
 
-**Probe what codex does with a hook that exits neither 0 nor 2.** The pre-fix bash/sh failure made
-the guard exit 1 (node could not load the split path), and a crashing guard does the same. Whether
-codex 0.161.0 then runs the tool call (fail-open) or blocks it was never probed; the POC record
-carries it as DEFERRED. Prove it with the offline fake-provider smoke: register a hook that exits
-1, have the fake model call `exec_command`, and read whether a `command_execution` item appears.
-If it fails open, the guard needs a top-level catch that exits 2.
+**Probe what codex does with a hook that exits neither 0 nor 2 — delivered 2026-10-13**
+(fix/codex-hook-nonzero-exit-probe). codex-cli 0.161.0 runs the tool call on every hook exit
+status except 2, and on a signal death (offline fake-provider smoke; the matrix is in the POC
+record). The guard now turns any crash it can see into exit 2 with a `craft-guard:` reason: its
+dependencies load inside the try, and process handlers deny an uncaught throw, an unhandled
+rejection, and an event loop that drains with no verdict (ADRs 518-521). What no in-guard code
+can catch still fails open and is written down in the codex README: `node` missing from
+`PATH`, the guard file unloadable, a signal, a throwing `NODE_OPTIONS` preload. Design context:
+[codex-hook-nonzero-exit-probe](docs/contributing/design/codex-hook-nonzero-exit-probe.md).
 
 **Commit a differential test for the codex trust matcher.** Three review cycles each found a new
 class of command `selectCraftHook` trusted while the shell or node ran something else, and a

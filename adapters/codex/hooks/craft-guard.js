@@ -18,14 +18,61 @@
  * response form is a confirmed schema but a deferred, unproven path — the
  * exit-2 route is the one this binding relies on — and stray stdout could be
  * parsed as an unintended permission response.
+ *
+ * The file has no static import on purpose: ESM links static imports before
+ * the body runs, so a dependency that fails to resolve, parse or evaluate
+ * would exit 1 before any handler exists, and codex 0.161.0 runs the tool
+ * call on every exit status except 2. The handlers are registered first and
+ * the dependencies imported inside the try, so a load failure, a throw from an
+ * event callback, an unhandled rejection, and an event loop that drains with
+ * no verdict all reach the same deny call. What no code here can catch still
+ * fails open: node unable to run this file (missing or unparseable), `node`
+ * missing from PATH, a signal killing the process, a throwing preload in an
+ * inherited NODE_OPTIONS.
  */
-import { resolveCraftRoot } from '../src/craft-root.js';
-import { decideGuard } from '../src/git-guard-adapter.js';
+
+const DENY_EXIT_CODE = 2;
+const ALLOW_EXIT_CODE = 0;
 
 // A denial with a blank reason would be indistinguishable from a crash in
 // the Codex log, so the fail-closed path always writes a fixed, non-empty
 // denial line instead of an empty one.
 const FAIL_CLOSED_REASON = 'denied (fail-closed)';
+
+function denyWith(reason) {
+  process.stderr.write(`craft-guard: ${reason}\n`);
+  process.exit(DENY_EXIT_CODE);
+}
+
+// Thrown values are arbitrary: a non-string message (a Symbol) or a throwing
+// message getter would throw inside the crash handler, and node then exits 7
+// instead of 2. Reading the message must never throw.
+function readMessage(err) {
+  try {
+    return err?.message;
+  } catch {
+    return undefined;
+  }
+}
+
+function reasonOf(err) {
+  const message = readMessage(err);
+  return typeof message === 'string' && message !== '' ? message : FAIL_CLOSED_REASON;
+}
+
+function denyOnCrash(err) {
+  denyWith(reasonOf(err));
+}
+
+function denyWithoutVerdict() {
+  denyWith(FAIL_CLOSED_REASON);
+}
+
+process.on('uncaughtException', denyOnCrash);
+process.on('unhandledRejection', denyOnCrash);
+// An explicit process.exit does not emit beforeExit, so this fires only when
+// the loop drains with no verdict ever reached.
+process.on('beforeExit', denyWithoutVerdict);
 
 function readStdin() {
   return new Promise((resolvePromise) => {
@@ -38,20 +85,17 @@ function readStdin() {
   });
 }
 
-function denyWith(reason) {
-  process.stderr.write(`craft-guard: ${reason}\n`);
-  process.exit(2);
-}
-
 function allow() {
-  process.exit(0);
+  process.exit(ALLOW_EXIT_CODE);
 }
 
 async function main() {
   try {
-    // Resolved inside the try, not at module top level: resolveCraftRoot has
-    // three throw paths, and a top-level throw would crash the process
-    // before any verdict — deny or allow — is ever produced.
+    // Awaited inside main, neither a static import (linked before the handlers
+    // exist) nor a top-level await (an unsettled one exits 13), so every load
+    // failure reaches the catch below with its own message.
+    const { resolveCraftRoot } = await import('../src/craft-root.js');
+    const { decideGuard } = await import('../src/git-guard-adapter.js');
     process.env.CRAFT_ROOT = resolveCraftRoot(import.meta.url);
     const raw = await readStdin();
     const payload = JSON.parse(raw);
@@ -63,10 +107,10 @@ async function main() {
     }
     allow();
   } catch (err) {
-    // Any throw anywhere — unparseable JSON, a crashed resolveCraftRoot, an
-    // unexpected payload shape — must deny, never fall through to an
-    // implicit success. A guard that cannot decide must fail CLOSED.
-    denyWith(err?.message || FAIL_CLOSED_REASON);
+    // Any throw anywhere — a failed load, unparseable JSON, a crashed
+    // resolveCraftRoot, an unexpected payload shape — must deny, never fall
+    // through to an implicit success. A guard that cannot decide must fail CLOSED.
+    denyOnCrash(err);
   }
 }
 
