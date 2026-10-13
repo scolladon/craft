@@ -19,11 +19,11 @@ Read from the shipped bundle `~/.local/share/cursor-agent/versions/2026.07.20-8c
 | # | Condition | `failClosed: true` | no `failClosed` | `errorClass` / message |
 |---|---|---|---|---|
 | 1 | executor throws (spawn error, timeout) | block | allow | `spawn_error` / `timeout` |
-| 2 | `exitCode === 2` (constant `2` in `../hooks/dist/index.js`, Claude-compat) | deny, stderr is the message | deny, stderr is the message | — |
+| 2 | `exitCode === 2` (constant `2` in `../hooks/dist/index.js`, Claude-compat) | deny | deny | message: stdout if non-empty, else stderr, else a fixed no-reason text |
 | 3 | `exitCode !== 0 && exitCode !== null` | block | allow | `exit_nonzero`, `Hook "<cmd>" failed with exit code N: <stderr>` |
 | 4 | `stdout.trim()` empty | block | allow | `empty_stdout`, `Hook "<cmd>" returned no output.` |
-| 5 | stdout not JSON, or not a valid response | block | allow | `invalid_json` / `invalid_response` |
-| 6 | parsed `permission` is `deny` or `ask` | block | block | — |
+| 5 | stdout does not parse as a hook response (the parser retries on the last `{…}` suffix) | block | block (`beforeShellExecution` is a permission step) | `invalid_json` / `invalid_response` |
+| 6 | parsed `permission` is `deny` (or `ask`, which is handed back to the caller and prompts) | deny | deny | — |
 | 7 | anything else | allow | allow | — |
 
 A signal death reports `exitCode === null`, so it skips branch 3 and lands on branch 4. Exit 2 denies
@@ -100,7 +100,8 @@ with exit 1 and empty stdout: branches 3 and 4 above, both block under `failClos
 - ADR-320: the POC record appends a version-pinned re-probe section and corrects in place only the
   rows the re-probe falsified. Here the version is unchanged (2026.07.20-8cc9c0b), so the section is
   dated as well as version-pinned. The one falsified row is **Deny wire** (line 84); the two
-  fail-open rows (85, 121) are consistent with the matrix and stay untouched.
+  fail-open rows (85, 121) stay untouched. Row 85 reads as consistent only because its crashing hook
+  exited non-zero ("exited with code 3"): a non-JSON stdout on exit 0 blocks even without `failClosed`.
 - ADR-521 (only if DC-2 (b)): crash paths are pinned by throwaway-tree fixtures, following
   `withGuardCopy` / `withoutEngineSources` in `adapters/codex/test/craft-guard-hook.test.js:28-48`.
 
@@ -163,7 +164,7 @@ marker; the agent is asked to run one `touch <ws>/PROBE_RAN`. One turn per row.
 
 | Probe | Result | Status |
 |---|---|---|
-| How a command hook's exit is read | Runs as `<command> <<'CURSOR_HOOK_EOF'` + payload. In order: executor throws (spawn error, timeout) → block if `failClosed`, else allow; exit 2 → deny with stderr as the message, **whatever `failClosed` says**; other non-zero exit → block if `failClosed` (`exit_nonzero`), else allow; empty stdout → block if `failClosed` (`empty_stdout`), else allow; stdout not JSON or not a valid response → block if `failClosed`, else allow; `permission` `deny`/`ask` → block; anything else → allow. A signal death has exit code `null`, so it lands on the empty-stdout branch. Bundle `3143.index.js`, `executeCommandHook`. | SOURCE |
+| How a command hook's exit is read | Runs as `<command> <<'CURSOR_HOOK_EOF'` + payload. In order: executor throws (spawn error, timeout) → block if `failClosed`, else allow; exit 2 → deny, **whatever `failClosed` says** (the message is stdout if non-empty, else stderr, else a fixed no-reason text); other non-zero exit → block if `failClosed` (`exit_nonzero`), else allow; empty stdout → block if `failClosed` (`empty_stdout`), else allow; stdout that does not parse as a hook response (the parser retries on the last `{…}` suffix) → block **whatever `failClosed` says**, because `beforeShellExecution` is a permission step; `permission` `deny` → deny, `ask` → handed back to the caller (it prompts, see **Deny wire**); anything else → allow. A signal death has exit code `null`, so it lands on the empty-stdout branch. Bundle `3143.index.js`, `executeCommandHook`. | SOURCE |
 | Exit 0 + `{"permission":"allow"}` (control) | HOOK_RAN yes, PROBE_RAN yes; the agent saw `Exit code: 0`. | CONFIRMED (live) |
 | Exit 2 + stderr (control) | HOOK_RAN yes, PROBE_RAN no; `Command execution was blocked by a hook: Hook blocked with message: probe-deny-exit2`. Observed with `failClosed: true`; that exit 2 also denies without it is SOURCE. | CONFIRMED (live) + SOURCE |
 | Exit 1: craft's guard with `engine/src/` absent | HOOK_RAN yes, PROBE_RAN no; `Tool blocked because this hook is configured to fail closed (block when it fails). Hook "…craft-guard.js" failed with exit code 1: <node stack>`. | CONFIRMED (live) |
