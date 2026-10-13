@@ -12,12 +12,16 @@
 # is not JSON, a grep that neither matches nor cleanly misses, a clean exit with no
 # verdict) ends in exit 2 with a `craft git-no-ext-diff:` reason on stderr, never in the
 # status that crashed. The matcher's own verdict stays the JSON deny on stdout.
-# Still fails open, because no code here runs to catch it: /bin/bash missing, this file
-# missing or not executable, death by a signal, a kill by Claude Code's hook timeout.
+# TERM and HUP deny the same way. Still fails open, because no code here runs to catch it:
+# /bin/bash missing, this file missing or not executable, SIGKILL or any other untrapped
+# signal (which one Claude Code's hook timeout sends is unprobed).
 set -euo pipefail
 
 readonly CRASH_DENY_EXIT_CODE=2
 readonly GREP_NO_MATCH=1
+readonly NO_MATCHING_LINES=0
+readonly SIGTERM_EXIT_STATUS=143
+readonly SIGHUP_EXIT_STATUS=129
 
 # bash 3.2 ends a syntax error below the trap with status 0, so only a reached verdict
 # may exit clean.
@@ -38,6 +42,10 @@ deny_on_crash() {
   exit "$CRASH_DENY_EXIT_CODE"
 }
 trap 'deny_on_crash "$?"' EXIT
+# A signal's default action ends bash with the signal's status even after the EXIT trap ran;
+# exiting from the signal's own trap hands the EXIT trap that status to deny instead.
+trap 'exit "$SIGTERM_EXIT_STATUS"' TERM
+trap 'exit "$SIGHUP_EXIT_STATUS"' HUP
 
 IN=$(cat)
 CMD=$(printf '%s' "$IN" | jq -r '.tool_input.command // empty')
@@ -53,15 +61,15 @@ esac
 # (-C <path>, -c <k=v>, --git-dir=…, --work-tree=…) between `git` and the subcommand.
 # Deliberately does not match `git stash show`, `git show-ref`, `git difftool`.
 GIT_RE='(^|[;&|]\s*)git(\s+(-C\s+\S+|-c\s+\S+|--git-dir=\S+|--work-tree=\S+))*\s+(diff|show)(\s|$)'
-# Here-string, not a pipe: with no writer process an early-exiting `grep -q` has nothing to
-# break. Only grep's no-match status allows; any other status is a crash and denies.
+# `grep -c` reads to EOF, so the writer never meets a closed pipe, and needs no temp file the
+# way a here-string does. Only a no-match status WITH a printed zero count allows: a feed that
+# failed before grep ran prints no count, so its status 1 is a crash, not a miss.
 match_status=0
-grep -qE "$GIT_RE" <<<"$CMD" || match_status=$?
-case "$match_status" in
-  0) ;;
-  "$GREP_NO_MATCH") allow ;;
-  *) exit "$match_status" ;;
-esac
+match_count=$(printf '%s' "$CMD" | grep -cE "$GIT_RE") || match_status=$?
+if [ "$match_status" -eq "$GREP_NO_MATCH" ] && [ "$match_count" = "$NO_MATCHING_LINES" ]; then
+  allow
+fi
+[ "$match_status" -eq 0 ] || exit "$match_status"
 
 # Build the corrected command: insert --no-ext-diff after the first diff/show subcommand.
 FIXED=$(printf '%s' "$CMD" | sed -E "s/(^|[;&|][[:space:]]*)(git([[:space:]]+(-C[[:space:]]+[^[:space:]]+|-c[[:space:]]+[^[:space:]]+|--git-dir=[^[:space:]]+|--work-tree=[^[:space:]]+))*[[:space:]]+(diff|show))([[:space:]]|$)/\1\2 --no-ext-diff\6/")

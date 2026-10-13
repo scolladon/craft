@@ -1,7 +1,7 @@
 'use strict';
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { execFileSync, spawnSync } = require('node:child_process');
+const { execFileSync, spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -161,10 +161,19 @@ const ALLOW_COMPLIANT_PAYLOAD = fs.readFileSync(path.join(HOOK_FIXTURES, 'no-ext
 const CRASH_DENY_EXIT_CODE = 2;
 const COMMAND_NOT_FOUND_STATUS = 127;
 const JQ_PARSE_ERROR_STATUS = 5;
-// 'echo pad\n' × 8192 = 72 KiB: past the 64 KiB pipe buffer, under the 128 KiB one exec argument may hold
-const PIPE_BUFFER_OVERFLOW_LINES = 8192;
+// 'echo pad\n' × 14000 = 126,000 bytes: about 60 KiB past the 64 KiB pipe buffer, still under
+// the 128 KiB one exec argument may hold (the corrected command goes to jq as one)
+const PIPE_BUFFER_OVERFLOW_LINES = 14000;
 const ANY_CRAFT_DENY_REASON = /^craft git-no-ext-diff: .*, call denied$/m;
 const SYNTAX_ERROR_LINE = 'if then fi';
+const SIGNAL_EXIT_STATUS = { SIGTERM: 143, SIGHUP: 129 };
+const CHILD_POLL_TIMEOUT_MS = 5000;
+const CHILD_POLL_INTERVAL_MS = 20;
+// every directory bash may pick for a here-document temp file, the cwd included
+const NO_TEMP_WRITE_PROFILE = [
+  '(version 1)(allow default)(deny file-write*',
+  '(subpath "/private/tmp") (subpath "/private/var") (subpath "/tmp") (subpath "/var"))',
+].join(' ');
 
 function crashReason(status) {
   return new RegExp(`^craft git-no-ext-diff: failed \\(exit ${status}\\), call denied$`, 'm');
@@ -207,6 +216,35 @@ function withHookCopy({ anchor, inserted }, act) {
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+}
+
+function sleepMs(ms) {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+}
+
+// The hook forks its first child only after its traps are set, so a child is the cue that a
+// signal now meets the traps rather than bash's default disposition.
+function waitForFirstChild(pid) {
+  const deadline = Date.now() + CHILD_POLL_TIMEOUT_MS;
+  while (spawnSync('pgrep', ['-P', String(pid)]).status !== 0) {
+    if (Date.now() > deadline) throw new Error(`no child of ${pid} within ${CHILD_POLL_TIMEOUT_MS} ms`);
+    sleepMs(CHILD_POLL_INTERVAL_MS);
+  }
+}
+
+function runGitHookSignalledWhileReading(signal) {
+  return new Promise((resolve, reject) => {
+    const child = spawn('/bin/bash', [GIT_HOOK]);
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('error', reject);
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
+    waitForFirstChild(child.pid);
+    child.kill(signal);
+    child.stdin.end(DENY_DIFF_PAYLOAD);
+  });
 }
 
 function assertCrashDeny(result, status) {
@@ -263,12 +301,14 @@ test('Given stdin that is not JSON, when git-no-ext-diff runs, then it exits 2 w
 
 test('Given PATH without cat and stderr closed, when git-no-ext-diff runs, then it still exits 2', () => {
   withToolsOnly([], (toolsDir) => {
-    const sut = spawnSync;
-    const result = sut('/bin/bash', ['-c', '/bin/bash "$0" 2>&-', GIT_HOOK], {
+    const sut = () => spawnSync('/bin/bash', ['-c', '/bin/bash "$0" 2>&-', GIT_HOOK], {
       input: DENY_DIFF_PAYLOAD,
+      encoding: 'utf8',
       env: { PATH: toolsDir },
     });
+    const result = sut();
     assert.strictEqual(result.status, CRASH_DENY_EXIT_CODE);
+    assert.strictEqual(result.stdout, '');
   });
 });
 
@@ -293,11 +333,37 @@ test('Given a matching git diff followed by more than a pipe buffer of lines, wh
 });
 
 test('Given a hook copy with a syntax error right below its trap, when it runs, then it exits 2 with a craft reason', () => {
-  withHookCopy({ anchor: 'trap ', inserted: SYNTAX_ERROR_LINE }, (result) => {
+  const sut = withHookCopy;
+  sut({ anchor: 'trap ', inserted: SYNTAX_ERROR_LINE }, (result) => {
     assert.strictEqual(result.status, CRASH_DENY_EXIT_CODE, result.stderr);
     assert.match(result.stderr, ANY_CRAFT_DENY_REASON);
+    assert.strictEqual(result.stdout, '');
   });
 });
+
+for (const signal of Object.keys(SIGNAL_EXIT_STATUS)) {
+  test(`Given a ${signal} while the hook reads stdin, when git-no-ext-diff runs, then it exits 2 with the signal status as the crash reason`, async () => {
+    const sut = runGitHookSignalledWhileReading;
+    const result = await sut(signal);
+    assertCrashDeny(result, SIGNAL_EXIT_STATUS[signal]);
+  });
+}
+
+test(
+  'Given no writable temp directory, when git-no-ext-diff runs on a matching command, then it still denies with the corrected command',
+  { skip: process.platform !== 'darwin' && 'sandbox-exec is macOS-only' },
+  () => {
+    const sut = () => spawnSync('sandbox-exec', ['-p', NO_TEMP_WRITE_PROFILE, '/bin/bash', GIT_HOOK], {
+      input: DENY_DIFF_PAYLOAD,
+      encoding: 'utf8',
+      cwd: fs.realpathSync(os.tmpdir()),
+    });
+    const result = sut();
+    assert.strictEqual(result.status, 0, result.stderr);
+    assert.strictEqual(result.stderr, '');
+    assert.strictEqual(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, 'deny');
+  },
+);
 
 // ---------------------------------------------------------------------------
 // compaction hooks — SessionStart(compact) registration and bound-run lookup
