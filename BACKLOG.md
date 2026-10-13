@@ -202,13 +202,17 @@ can catch still fails open and is written down in the codex README: `node` missi
 `PATH`, the guard file unloadable, a signal, a throwing `NODE_OPTIONS` preload. Design context:
 [codex-hook-nonzero-exit-probe](docs/contributing/design/codex-hook-nonzero-exit-probe.md).
 
-**Commit a differential test for the codex trust matcher.** Three review cycles each found a new
-class of command `selectCraftHook` trusted while the shell or node ran something else, and a
-throwaway fuzz found zsh's `EQUALS` class the reviewers missed. That fuzz (random commands; every
-accepted one run under sh, bash, dash and zsh with a stub `node` on `PATH`; oracle: one rooted argv
-ending in the guard tail, exit 0, empty stderr) lives only in the run's scratch space. A seeded,
-bounded version in `adapters/codex/test/` would catch a regression no example row anticipates;
-zsh is absent on Ubuntu CI, so its leg needs a skip-with-reason.
+**Commit a differential test for the codex trust matcher — delivered 2026-10-13**
+(chore/codex-trust-matcher-differential-fuzz). `adapters/codex/test/hook-trust-differential.test.js`
+generates 2000 commands at a fixed seed (grammar fragments plus edits of the known bypass
+witnesses), keeps the 75 that `selectCraftHook` trusts, and runs each under sh, bash, dash and zsh
+with a stub `node`. A command passes only when the stub ran once on one rooted guard path, the
+shell relayed the stub's exit status, the stdin, stdout and stderr sentinels arrived intact, the
+exported env equals the shell's own baseline, and nothing was written outside its run directory.
+Fourteen single-rule matcher reverts each fail it; HEAD passes with no differential. A shell
+missing from `PATH` skips its own leg with a reason, and CI now installs zsh (ADRs 523-532). Design
+context:
+[codex-trust-matcher-differential-fuzz](docs/contributing/design/codex-trust-matcher-differential-fuzz.md).
 
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the backlog-sweep-hooks-quote-dev-tools run, not yet scheduled)
 
