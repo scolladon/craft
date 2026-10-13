@@ -550,3 +550,7 @@ codex-trust-matcher-differential-fuzz documentation turns=6 tool_calls=6 tokens=
 codex-trust-matcher-differential-fuzz implementation turns=40 tool_calls=40 tokens=1901350 duration_ms=747006 cache_read=1819130 cache_creation=81232 output=908 avg_ctx=47511 equiv=288073
 codex-trust-matcher-differential-fuzz planning turns=25 tool_calls=27 tokens=1503752 duration_ms=468376 cache_read=1404723 cache_creation=98487 output=492 avg_ctx=60130 equiv=266091
 codex-trust-matcher-differential-fuzz review turns=121 tool_calls=130 tokens=4821540 duration_ms=2137603 cache_read=4409087 cache_creation=409558 output=2653 avg_ctx=39826 equiv=966363
+claude-hook-nonzero-exit-probe design turns=111 tool_calls=140 tokens=9158475 duration_ms=1417965 cache_read=8911077 cache_creation=244106 output=3070 avg_ctx=82481 equiv=1211812
+claude-hook-nonzero-exit-probe implementation turns=20 tool_calls=22 tokens=518591 duration_ms=371115 cache_read=464167 cache_creation=53981 output=403 avg_ctx=25909 equiv=115948
+claude-hook-nonzero-exit-probe planning turns=46 tool_calls=48 tokens=3922581 duration_ms=602434 cache_read=3786663 cache_creation=135308 output=518 avg_ctx=85262 equiv=550483
+claude-hook-nonzero-exit-probe review turns=156 tool_calls=160 tokens=4818961 duration_ms=2270703 cache_read=4496536 cache_creation=320025 output=2088 avg_ctx=30877 equiv=860437
