@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { basename, delimiter, dirname, join } from 'node:path';
@@ -133,7 +133,8 @@ const FIXED_CASES = Object.freeze([
 ].map(([interpreter, operand]) => Object.freeze([interpreter, protectTokens(operand)])));
 
 async function withStubTree(act) {
-  const base = mkdtempSync(join(tmpdir(), TREE_PREFIX));
+  // The shells export the physical cwd, so the tree must not sit behind a symlinked TMPDIR.
+  const base = realpathSync(mkdtempSync(join(tmpdir(), TREE_PREFIX)));
   try {
     const tree = {
       bin: join(base, 'bin'),
@@ -357,11 +358,33 @@ async function execute(shellPath, { command, kind, exitStatus }, runDir, tree) {
   return { rootEnv, exitStatus, ...outcome };
 }
 
+function baselineDirName(kind) {
+  return `baseline-${kind}`;
+}
+
+function caseDirName({ index, exitStatus }) {
+  return `${index}-${exitStatus}`;
+}
+
+function unexpectedEntries(dir, expected) {
+  return difference(readdirSync(dir), expected).map((name) => join(dir, name));
+}
+
+// A command can write outside its own run directory, so each leg ends by checking the whole tree is as the harness left it.
+function treeLeftovers(tree, cases) {
+  const expectedRuns = [...ROOT_ENV_KINDS.map(baselineDirName), ...cases.map(caseDirName)];
+  return [
+    ...unexpectedEntries(tree.runs, expectedRuns),
+    ...unexpectedEntries(tree.bin, Object.keys(STUBS)),
+    ...[tree.home, tree.root, tree.other].flatMap((dir) => unexpectedEntries(dir, [])),
+  ];
+}
+
 // What a shell exports to a plain guard run differs per shell (zsh adds LOGNAME), so each leg measures its own.
 async function baselineLinesFor(shellPath, tree) {
   const entries = await Promise.all(
     ROOT_ENV_KINDS.map(async (kind) => {
-      const runDir = join(tree.runs, `baseline-${kind}`);
+      const runDir = join(tree.runs, baselineDirName(kind));
       await execute(shellPath, { command: `${BASELINE_COMMAND}${TAIL}`, kind, exitStatus: 0 }, runDir, tree);
       return [kind, exportLines(runDir)];
     })
@@ -370,7 +393,7 @@ async function baselineLinesFor(shellPath, tree) {
 }
 
 async function runCase(shellPath, item, tree, baselines) {
-  const runDir = join(tree.runs, `${item.index}-${item.exitStatus}`);
+  const runDir = join(tree.runs, caseDirName(item));
   const run = await execute(shellPath, item, runDir, tree);
   const record = { index: item.index, shell: basename(shellPath), command: JSON.stringify(item.command), ...run };
   return judge(record, observe(runDir, baselines[item.kind]));
@@ -384,7 +407,8 @@ function runLeg(shellPath) {
       .filter(({ command }) => isTrusted(command))
       .map((item) => ({ ...item, exitStatus: STUB_EXIT_STATUSES[item.index % STUB_EXIT_STATUSES.length] }));
     const records = await runPool(cases, (item) => runCase(shellPath, item, tree, baselines));
-    return records.filter((record) => record !== null);
+    const leftovers = treeLeftovers(tree, cases).map((leftover) => ({ shell: basename(shellPath), leftover }));
+    return [...records.filter((record) => record !== null), ...leftovers];
   });
 }
 
