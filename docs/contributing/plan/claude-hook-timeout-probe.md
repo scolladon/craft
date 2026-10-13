@@ -27,8 +27,8 @@ match the tree, and every later part gate is `ci.sh`.
 
 What the hook-timeout probe found (the design's matrix, pinned on Claude Code 2.1.296): at a
 PreToolUse hook's `timeout` Claude Code sends SIGTERM, then runs the Bash call whatever the hook
-exits with or prints, and the model sees a clean result. The hook's TERM trap runs and exits 2
-with the craft reason (3/3), and a JSON deny printed from the TERM trap (1/1) is ignored too.
+exits with or prints, and the model sees a clean result. The hook's TERM trap runs and hands 143
+to the crash deny (3/3), and a JSON deny printed from the TERM trap (1/1) is ignored too.
 Nothing the hook does after the deadline is read. The change is document-only.
 
 Decisions already ratified, so not re-opened here (all adopted as the design recommended):
@@ -176,7 +176,7 @@ today; `set -euo pipefail` is line 18). Every line from `set -euo pipefail` down
 byte-identical (design R1). No executable line changes. Lines 10-17 are the crash-path
 paragraph; lines 47-50 hold the trap comment and the TERM/HUP traps and are not touched.
 
-Edit, lines 16-17. Today (line 15 shown for anchoring, unchanged):
+Edit, line 17. Today (lines 15-16 shown for anchoring, unchanged):
 
 ```bash
 # TERM and HUP deny the same way. Still fails open, because no code here runs to catch it:

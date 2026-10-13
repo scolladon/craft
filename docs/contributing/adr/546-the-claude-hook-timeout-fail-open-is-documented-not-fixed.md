@@ -11,7 +11,7 @@ subjects:
 
 ## Context
 
-ADR-541 left open which signal Claude Code sends to a hook that runs past its timeout. A live probe answered it on Claude Code 2.1.296, with a 3 s hook timeout. Claude Code sends SIGTERM at the deadline. The hook's TERM trap runs and exits 2 with the craft deny reason. Claude Code then runs the Bash call anyway, and the model sees a clean result (3/3). A TERM trap that prints the JSON deny on stdout and exits 0 is ignored the same way (1/1). Nothing the hook does after the deadline is read.
+ADR-541 left open which signal Claude Code sends to a hook that runs past its timeout. A live probe answered it on Claude Code 2.1.296, with a 3 s hook timeout. Claude Code sends SIGTERM at the deadline. The hook's TERM trap runs and hands status 143 to the crash deny, which exits 2 with the craft reason (seen in a direct run; the live exit status was not captured). Claude Code then runs the Bash call anyway, and the model sees a clean result (3/3). A TERM trap that prints the JSON deny on stdout and exits 0 is ignored the same way (1/1). Nothing the hook does after the deadline is read.
 
 ## Options considered
 

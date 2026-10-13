@@ -44,7 +44,7 @@ The deny copy wrote `probe-deny` and the craft reason on stderr and exited 2.
 |---|---|---|---|---|---|---|---|
 | allow (control) | 0 s | yes | `EXIT rc=0` | 0 | present | `(Bash completed with no output)`, `is_error` false | runs |
 | exit 2 (control): `echo probe-deny >&2; exit 2` | 0 s | yes | `EXIT rc=2` | 2 | absent | `PreToolUse:Bash hook error: [<hook path>]: probe-deny` + newline + `craft git-no-ext-diff: failed (exit 2), call denied`, `is_error` true | **denied** |
-| overrun (3/3 repeats) | 10 s | yes | `TERM` exactly 3 s after the start line, then `EXIT rc=143` in the same second; no HUP, no INT, no later line | 2 (TERM trap → crash deny, stderr reason written) | present, about 2 s after `TERM` | `(Bash completed with no output)`, `is_error` false; no hook event in the stream (event types: `system:init`, `assistant` ×2, `user`, `rate_limit_event`, `result`) | **fail-open** |
+| overrun (3/3 repeats) | 10 s | yes | `TERM` exactly 3 s after the start line, then `EXIT rc=143` in the same second; no HUP, no INT, no later line | TERM trap exits 143 into the crash deny (exit 2 and the stderr reason in the direct run; the live exit status was not captured) | present, about 2 s after `TERM` | `(Bash completed with no output)`, `is_error` false; no hook event in the stream (event types: `system:init`, `assistant` ×2, `user`, `rate_limit_event`, `result`) | **fail-open** |
 | overrun, TERM trap prints `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"probe-json-deny-on-term"}}` on stdout, sets `verdict_reached=1`, exits 0 (1/1) | 10 s | yes | `TERM` at +3 s, `EXIT rc=0` | 0, JSON deny on stdout | present | clean result, `is_error` false | **fail-open** |
 
 At the hook's timeout Claude Code 2.1.296 sends SIGTERM, then runs the Bash call whatever the hook
@@ -130,7 +130,7 @@ about $0.0105 in total.
   stay as they are.
 - ADR-537 (superseded by ADR-541) and ADR-518: a residual the hook cannot close is documented
   for an operator, not hidden.
-- ADR-544: a probe that ends in no behaviour change adds no test that pins prose or host behaviour.
+- ADR-544: the cursor probe added no test pinning crash output. Its reason (no fail-open proven) does not carry over here; the shape (no prose or host-behaviour pin) does.
 - Dated design docs are a ledger. `claude-hook-nonzero-exit-probe.md` keeps its "Not probed: …
   timeout" sentence and its Out of scope line as written. This doc supersedes them as the record.
 
@@ -142,6 +142,20 @@ about $0.0105 in total.
   spec's residual list.
 - The TERM and HUP traps stay as they are. They still deny those signals from any other sender.
 - Dated design docs stay as written.
+
+### Review corrections (after implementation)
+
+Review narrowed three claims; the Part 2 and Part 3 texts below are the planned wording, and the
+committed hook header and `gate.md` carry these corrections.
+
+- **Version scope.** `gate.md` now puts 2.1.296 on the SIGTERM claim too, not only on the
+  run-the-call claim.
+- **Foreground stall.** Every overrun row interrupted the hook in a background `wait`. A hook
+  stalled in a foreground command (where the TERM trap waits for the child) was not probed; the
+  header and `gate.md` now say so. The only unshown alternative is a hang, not a deny.
+- **Live exit status.** The live log shows `TERM` then `EXIT rc=143`; the final exit 2 and its
+  stderr reason were seen only in the direct run. The matrix, ADR-546, the plan and BACKLOG now
+  say the TERM trap hands 143 to the crash deny.
 
 ## Requirements
 
@@ -318,7 +332,7 @@ happens.
 |---|---|---|---|---|
 | DC-1 | How the timeout residual is worded and placed in the header and `gate.md` (placement is fixed by ADR-538) | (a) its own sentence in the header and its own `On a timeout:` paragraph in `gate.md`, separate from the "no code here runs to catch it" list (Parts 2-3 as written); (b) one more item in the existing residual list in both places, e.g. "…any other untrapped signal, or a run past the hook timeout (SIGTERM, then the call runs whatever the hook returns)"; (c) delete the parenthetical in both places and let the BACKLOG entry and this doc carry the behaviour | (a) | The existing list is "no code here runs to catch it", and the timeout is the opposite case: the TERM trap runs and denies, and Claude Code ignores the deny. (b) puts it under a sentence that misstates the mechanism, which invites a future "fix" through the TERM trap, the one route this probe ruled out. (c) leaves the operator docs silent on a proven fail-open, against ADR-538. |
 | DC-2 | An explicit `timeout` on the hook's `hooks/hooks.json` entry | (a) none: keep the documented 600 s default; (b) `"timeout": 600`, the default made explicit; (c) a short value (for example 30) to bound how long a hung hook stalls a Bash call | (a) | No value closes the fail-open; a value only sets when it happens. (c) turns a slow but correct deny (a loaded host) into a fail-open sooner, and no stall is shown. (b) pins against a change to the default that nobody has observed, and it costs an edit to the `deepStrictEqual` pin at `test/hooks.test.js:546-557`. (a) keeps R1 (hooks.json byte-identical) and the same widest window as (b), with no edit. |
-| DC-3 | A test that pins the new prose or the timeout behaviour | (a) none; (b) a `test/hooks.test.js` test that asserts the header and `gate.md` name the timeout as fail-open; (c) a hook test that sends TERM to a hook waiting on a background child and asserts exit 2 | (a) | No behaviour changes, and ADR-544 set the precedent: no pin for a probe that ends document-only. (b) pins wording, which breaks on any rephrase and proves nothing about Claude Code. (c) re-pins what the existing TERM test (`test/hooks.test.js:366`) already covers, and it cannot reach the part that matters, which is Claude Code ignoring the exit after the deadline (paid, live only). |
+| DC-3 | A test that pins the new prose or the timeout behaviour | (a) none; (b) a `test/hooks.test.js` test that asserts the header and `gate.md` name the timeout as fail-open; (c) a hook test that sends TERM to a hook waiting on a background child and asserts exit 2 | (a) | No behaviour changes, and a pin can only reach the hook's side (ADR-544 has the same shape, for a different reason). (b) pins wording, which breaks on any rephrase and proves nothing about Claude Code. (c) re-pins what the existing TERM test (`test/hooks.test.js:366`) already covers, and it cannot reach the part that matters, which is Claude Code ignoring the exit after the deadline (paid, live only). |
 | DC-4 | How this design's ADR relates to ADR-541's "Carried forward" line ("which signal Claude Code's hook timeout sends stays unprobed") | (a) the new ADR refines ADR-541 (`**Supersedes/Refines:** refines ADR-541` on its Design line, no `supersedes` frontmatter), and ADR-541 is not edited; (b) frontmatter `supersedes: [{adr: "541", scope: "timeout signal unprobed"}]`; (c) no link between them | (a) | (b) triggers adr-lint C1, which requires ADR-541's Status to read `superseded by ADR-<M>`. That mislabels a decision whose TERM and HUP traps all stand, and C2 then requires `Superseded from` / `Carried forward` lines in the new ADR. (The C3 citation sweep would pass: no live-tier file cites ADR-541 today.) (c) leaves a reader of ADR-541 at "unprobed" with no pointer. (a) matches the house "refines" form (for example "refines ADR-485") and keeps ADRs as a dated ledger, like the design docs. |
 
 Settled already, so not candidates: whether to change code (the user's rule; the only hook-side

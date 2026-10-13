@@ -14,7 +14,7 @@ This change is prose only. What matters, Claude Code ignoring the hook after the
 
 ## Options considered
 
-1. **No new test** *(recommended)* — follows ADR-544 for a probe that ends document-only.
+1. **No new test** *(recommended)* — a wording test proves nothing about Claude Code, and only a paid live run shows the behaviour. Same shape as ADR-544, though its reason (no fail-open proven) does not carry over.
 2. **A test asserting the header and `gate.md` name the timeout** — cons: pins wording, proves nothing about Claude Code.
 3. **A hook test that sends TERM while the hook waits on a background child** — cons: repeats the existing TERM test and cannot reach Claude Code's behaviour.
 

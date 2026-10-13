@@ -180,7 +180,7 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 **Probe what Claude Code does when a PreToolUse hook times out — delivered 2026-10-13**
 (fix/claude-hook-timeout-probe). At a hook's `timeout`, Claude Code 2.1.296 sends SIGTERM, then
 runs the Bash call whatever the hook exits with or prints, and the model sees a clean result: the
-TERM trap's exit 2 with its stderr reason (3/3) and a JSON deny printed from the TERM trap (1/1)
+TERM trap's crash deny (3/3) and a JSON deny printed from the TERM trap (1/1)
 were both ignored (live `claude -p` probe, 6 haiku turns, a 3 s `timeout`). Nothing the hook does
 after the deadline is read, so the change is document-only: the hook header and the gate spec now
 list the timeout as fail-open, and the TERM and HUP traps stay, denying either signal from any

@@ -24,4 +24,4 @@ Adopted-as-recommended (no user judgment): option 1. `hooks/hooks.json` is uncha
 
 ## Consequences
 
-The window stays the widest the vendor default allows. If the default changes, the gate spec's "600 s by default" wording needs a refresh.
+The window stays the widest the vendor default allows. If the default changes, the 600 s in the hook header and in `gate.md`'s "documented default 600 s" need a refresh.
