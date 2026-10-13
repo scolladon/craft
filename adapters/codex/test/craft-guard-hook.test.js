@@ -17,6 +17,10 @@ const ALLOWED_PAYLOAD = execPayload('git diff --no-ext-diff');
 const STATIC_IMPORT_LINE = /^\s*(?:import(?!\s*[(.])|export\b[^;\n]*\bfrom\b)/m;
 const THROWING_STDIN_LISTENER =
   "process.stdin.once('data', () => { throw new RangeError('Invalid string length'); });";
+const UNPRINTABLE_MESSAGE_THROW =
+  "process.stdin.once('data', () => { throw { message: Symbol('unprintable') }; });";
+const THROWING_MESSAGE_GETTER =
+  "process.stdin.once('data', () => { throw { get message() { throw new Error('getter'); } }; });";
 const NEVER_ENDING_STDIN = 'process.stdin.destroy();';
 const FLOATING_REJECTION = "Promise.reject(new Error('floating rejection'));";
 
@@ -158,6 +162,18 @@ describe('craft-guard hook — a crash still denies', () => {
     const sut = withGuardCopy(stubbedCraftRoot(THROWING_STDIN_LISTENER));
 
     assertDeniedOnStderr(sut, /^craft-guard: Invalid string length$/m);
+  });
+
+  it('Given a guard copy whose stdin listener throws a value with an unprintable message, when the hook process runs, then it exits 2 with the fail-closed reason', () => {
+    const sut = withGuardCopy(stubbedCraftRoot(UNPRINTABLE_MESSAGE_THROW));
+
+    assertDeniedOnStderr(sut, /^craft-guard: denied \(fail-closed\)$/m);
+  });
+
+  it('Given a guard copy whose stdin listener throws a value whose message getter throws, when the hook process runs, then it exits 2 with the fail-closed reason', () => {
+    const sut = withGuardCopy(stubbedCraftRoot(THROWING_MESSAGE_GETTER));
+
+    assertDeniedOnStderr(sut, /^craft-guard: denied \(fail-closed\)$/m);
   });
 
   it('Given a guard copy that leaves a promise rejection unhandled under the warn rejection mode, when the hook process runs, then it exits 2 with the rejection on stderr', () => {

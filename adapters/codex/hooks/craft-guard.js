@@ -44,8 +44,24 @@ function denyWith(reason) {
   process.exit(DENY_EXIT_CODE);
 }
 
+// Thrown values are arbitrary: a non-string message (a Symbol) or a throwing
+// message getter would throw inside the crash handler, and node then exits 7
+// instead of 2. Reading the message must never throw.
+function readMessage(err) {
+  try {
+    return err?.message;
+  } catch {
+    return undefined;
+  }
+}
+
+function reasonOf(err) {
+  const message = readMessage(err);
+  return typeof message === 'string' && message !== '' ? message : FAIL_CLOSED_REASON;
+}
+
 function denyOnCrash(err) {
-  denyWith(err?.message || FAIL_CLOSED_REASON);
+  denyWith(reasonOf(err));
 }
 
 function denyWithoutVerdict() {
@@ -75,9 +91,9 @@ function allow() {
 
 async function main() {
   try {
-    // Loaded and resolved inside the try, not at module top level: a failed
-    // import or a throw from resolveCraftRoot at module level would crash the
-    // process before any verdict — deny or allow — is ever produced.
+    // Awaited inside main, neither a static import (linked before the handlers
+    // exist) nor a top-level await (an unsettled one exits 13), so every load
+    // failure reaches the catch below with its own message.
     const { resolveCraftRoot } = await import('../src/craft-root.js');
     const { decideGuard } = await import('../src/git-guard-adapter.js');
     process.env.CRAFT_ROOT = resolveCraftRoot(import.meta.url);
