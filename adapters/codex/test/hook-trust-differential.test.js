@@ -4,7 +4,7 @@ import { spawn } from 'node:child_process';
 import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { delimiter, dirname, join } from 'node:path';
+import { basename, delimiter, dirname, join } from 'node:path';
 import { GUARD_SCRIPT_SEGMENTS, selectCraftHook } from '../src/hook-trust.js';
 
 const ADAPTER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -15,11 +15,17 @@ const SHELLS = Object.freeze(['sh', 'bash', 'dash', 'zsh']);
 const POOL_SIZE = 8;
 const SPAWN_TIMEOUT_MS = 5_000;
 const NUL = '\0';
-const NODE_ENV_PATTERN = /\bNODE_\w*=/;
-const SEED = 2;
+// A status only the stub produces: a shell that backgrounds the stub or masks its exit is seen.
+const STUB_EXIT_STATUS = 3;
+// The guard reads its verdict input on stdin, so a command that redirects or detaches stdin must fail.
+const STDIN_SENTINEL = 'craft-trust-fuzz-stdin';
+const EXPORTED_NAME_PATTERN = /^export (\w+)/gm;
+const BASELINE_COMMAND = 'node /baseline';
+const UINT32_RANGE = 2 ** 32;
+const SEED = 6;
 const CAP = 2000;
-// About 80% of the 44 commands trusted at this seed: a narrowed matcher, or a TMPDIR with non-path characters, collapses the count and must fail loudly.
-const ACCEPTED_FLOOR = 35;
+// About 80% of the 65 commands trusted at this seed: a narrowed matcher, or a TMPDIR with non-path characters, collapses the count and must fail loudly.
+const ACCEPTED_FLOOR = 52;
 const SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
 const TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 const FIXTURE_SOURCE_PATH = '/fixture/codex-home/config.toml';
@@ -28,13 +34,17 @@ const TREE_PREFIX = 'craft-trust-fuzz-';
 const EXECUTABLE_MODE = 0o755;
 // The stubs write relative to their cwd, so a command that changed directory leaves no log and fails.
 const STUBS = Object.freeze({
-  node: `#!/bin/sh\nprintf '%s\\0' "$#" "$@" >> argv.log\nexport -p >> env.log\n`,
+  node: `#!/bin/sh\nprintf '%s\\0' "$#" "$@" >> argv.log\nexport -p >> env.log\nIFS= read -r line\nprintf '%s\\n' "$line" >> stdin.log\nexit ${STUB_EXIT_STATUS}\n`,
   mark: '#!/bin/sh\n: > marker\n',
 });
 const ROOT_ENV_KINDS = Object.freeze(['none', 'plugin', 'craft']);
 
-const BIN = Object.freeze({ placeholder: 'BIN' });
-const ROOT = Object.freeze({ placeholder: 'ROOT' });
+// Placeholders render per tree; SHIM and TAIL are tokens too, so seed mutation never edits inside them.
+const BIN = Object.freeze({ placeholder: 'BIN', render: (tree) => tree.bin });
+const ROOT = Object.freeze({ placeholder: 'ROOT', render: (tree) => tree.root });
+const SHIM_TOKEN = Object.freeze({ placeholder: 'SHIM', render: () => SHIM });
+const TAIL_TOKEN = Object.freeze({ placeholder: 'TAIL', render: () => TAIL });
+const PROTECTED_TOKENS = Object.freeze([[SHIM, SHIM_TOKEN], [TAIL, TAIL_TOKEN]]);
 
 const SAFE = Object.freeze(['a', 'b1', '.', '..', '_', '+', '@', '%', ',', ':', '=', '-', '/', ' ', SHIM, 'é', 'x/y']);
 const UNSAFE_CLASSES = Object.freeze([
@@ -46,10 +56,10 @@ const UNSAFE_CLASSES = Object.freeze([
   Object.freeze(['${(e)${:-${:-$}(mark)}}', '${y:=a[${z:-$}(mark)]}$[y]']),
 ]);
 const UNSAFE = Object.freeze(UNSAFE_CLASSES.flat());
-const PREFIX = Object.freeze([['/'], ['/'], [`${SHIM}/`], [`${SHIM}/`], [SHIM], [''], ['-'], ['--eval='], ['='], [' '], ['~'], ['$HOME'], [ROOT], [ROOT, '/']]);
+const PREFIX = Object.freeze([['/'], ['/'], [`${SHIM}/`], [`${SHIM}/`], [SHIM], [''], ['-'], ['--eval='], ['='], [' '], ['~'], ['$HOME'], [ROOT], [ROOT, '/'], ['/$HOME/']]);
 const LEAD = Object.freeze(['', '', '', ' ', '  ', '\t', 'NODE_OPTIONS=--require=/x ', 'X=1 ']);
-const SEP = Object.freeze([' ', ' ', ' ', '  ', '\t', ' ']);
-const TRAIL = Object.freeze(['', '', '', '', ' ', '  ', ' --flag', ';mark', ' # c', '\n', '.bak']);
+const SEP = Object.freeze([' ', ' ', ' ', '  ', '\t', ' ', '\n']);
+const TRAIL = Object.freeze(['', '', '', '', ' ', '  ', ' --flag', ';mark', ' # c', '\n', '.bak', ' &', ' </dev/null']);
 const EDIT_ALPHABET = Object.freeze([...SAFE, ...UNSAFE, 'n', 'o', 'd', 'e', '"', ' ']);
 
 // `=mark` is left out of the composed interpreters: `<bin>/=mark/node` is a literal path that does not exist.
@@ -70,13 +80,25 @@ const MAX_BODY_FRAGMENTS = 4;
 const MAX_EDITS = 3;
 const EDIT_KINDS = Object.freeze(['insert', 'delete', 'replace']);
 
+const REGISTERED_SEPARATOR_AT = REGISTERED_COMMAND.indexOf(' ');
+const REGISTERED_INTERPRETER = REGISTERED_COMMAND.slice(0, REGISTERED_SEPARATOR_AT);
+const REGISTERED_OPERAND = REGISTERED_COMMAND.slice(REGISTERED_SEPARATOR_AT);
 
-const REGISTERED_INTERPRETER = 'node';
-const REGISTERED_OPERAND = REGISTERED_COMMAND.slice(REGISTERED_INTERPRETER.length);
+function interleave(parts, token) {
+  return parts.flatMap((part, index) => (index === 0 ? [part] : [token, part])).filter((part) => part !== '');
+}
 
-// Each case is [interpreter segments, operand segments]. Only the operand is ever mutated.
+function protectTokens(segments) {
+  return PROTECTED_TOKENS.reduce(
+    (current, [literal, token]) =>
+      current.flatMap((segment) => (typeof segment === 'string' ? interleave(segment.split(literal), token) : [segment])),
+    segments
+  );
+}
+
+// Each case is [interpreter segments, operand segments]. Only the operand's literal text is ever mutated.
 const FIXED_CASES = Object.freeze([
-  [['node'], [REGISTERED_OPERAND]],
+  [[REGISTERED_INTERPRETER], [REGISTERED_OPERAND]],
   [['node'], [` ${SHIM}${TAIL}`]],
   [[BIN, '/node'], [' ', ROOT, TAIL]],
   [[BIN, '/node'], [' "', ROOT, `${TAIL}"`]],
@@ -89,7 +111,7 @@ const FIXED_CASES = Object.freeze([
   [['node'], [` "\${y:=a[\${z:-$}(mark)]}\${a[y]}${TAIL}"`]],
   [['node'], [` "\${y:=a[\${z:-$}(mark)]}\${!y}${TAIL}"`]],
   [['node'], [` "\${(e)\${:-\${:-$}(mark)}}${TAIL}"`]],
-]);
+].map(([interpreter, operand]) => Object.freeze([interpreter, protectTokens(operand)])));
 
 async function withStubTree(act) {
   const base = mkdtempSync(join(tmpdir(), TREE_PREFIX));
@@ -110,9 +132,7 @@ async function withStubTree(act) {
 }
 
 function renderSegment(segment, tree) {
-  if (segment === BIN) return tree.bin;
-  if (segment === ROOT) return tree.root;
-  return segment;
+  return typeof segment === 'string' ? segment : segment.render(tree);
 }
 
 function renderCommand(segments, tree) {
@@ -136,7 +156,7 @@ function mulberry32(seed) {
     let t = state;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return ((t ^ (t >>> 14)) >>> 0) / UINT32_RANGE;
   };
 }
 
@@ -239,12 +259,16 @@ async function runPool(items, worker) {
 
 function spawnRun(shellPath, command, env, runDir) {
   return new Promise((resolve, reject) => {
-    const child = spawn(shellPath, ['-c', command], { cwd: runDir, env, timeout: SPAWN_TIMEOUT_MS, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(shellPath, ['-c', command], { cwd: runDir, env, timeout: SPAWN_TIMEOUT_MS });
     const chunks = { stdout: '', stderr: '' };
+    const fail = (error) => reject(new Error(`spawning ${shellPath} for ${JSON.stringify(command)}: ${error.message}`));
     child.stdout.on('data', (chunk) => (chunks.stdout += chunk));
     child.stderr.on('data', (chunk) => (chunks.stderr += chunk));
-    child.on('error', (error) => reject(new Error(`spawning ${shellPath} for ${JSON.stringify(command)}: ${error.message}`)));
+    // A command that never reads stdin closes the pipe early; the oracle reports the missing sentinel instead.
+    child.stdin.on('error', (error) => (error.code === 'EPIPE' ? undefined : fail(error)));
+    child.on('error', fail);
     child.on('close', (status, signal) => resolve({ status, signal, ...chunks }));
+    child.stdin.end(`${STDIN_SENTINEL}\n`);
   });
 }
 
@@ -264,6 +288,10 @@ function readIfPresent(path) {
   return existsSync(path) ? readFileSync(path, 'utf8') : '';
 }
 
+function exportedNames(runDir) {
+  return [...readIfPresent(join(runDir, 'env.log')).matchAll(EXPORTED_NAME_PATTERN)].map(([, name]) => name);
+}
+
 function isRootedGuardInvocation(invocations) {
   if (invocations.length !== 1 || invocations[0].length !== 1) return false;
   const [argument] = invocations[0];
@@ -276,37 +304,61 @@ function rootEnvFor(kind, tree) {
   return {};
 }
 
-function judge(run) {
-  const invocations = parseInvocations(readIfPresent(join(run.runDir, 'argv.log')));
-  const marker = existsSync(join(run.runDir, 'marker'));
-  const nodeEnv = NODE_ENV_PATTERN.test(readIfPresent(join(run.runDir, 'env.log')));
-  const clean = run.status === 0 && run.signal === null && run.stdout === '' && run.stderr === '';
-  if (clean && isRootedGuardInvocation(invocations) && !marker && !nodeEnv) return null;
-  const { runDir, rootEnv, ...rest } = run;
-  return { ...rest, rootEnvKeys: Object.keys(rootEnv), invocations, marker, nodeEnv };
+function observe(runDir, baselineNames) {
+  return {
+    invocations: parseInvocations(readIfPresent(join(runDir, 'argv.log'))),
+    marker: existsSync(join(runDir, 'marker')),
+    stdin: readIfPresent(join(runDir, 'stdin.log')),
+    extraEnv: exportedNames(runDir).filter((name) => !baselineNames.includes(name)),
+  };
 }
 
-async function runCase(shellPath, shell, { index, command, kind }, tree) {
-  const runDir = join(tree.runs, String(index));
+function judge(run, observed) {
+  const clean = run.status === STUB_EXIT_STATUS && run.signal === null && run.stdout === '' && run.stderr === '';
+  const fedGuard = observed.stdin === `${STDIN_SENTINEL}\n`;
+  const untouched = !observed.marker && observed.extraEnv.length === 0;
+  if (clean && fedGuard && untouched && isRootedGuardInvocation(observed.invocations)) return null;
+  const { rootEnv, ...rest } = run;
+  return { ...rest, rootEnvKeys: Object.keys(rootEnv), ...observed };
+}
+
+async function execute(shellPath, command, kind, runDir, tree) {
   mkdirSync(runDir);
   const rootEnv = rootEnvFor(kind, tree);
-  const env = { PATH: tree.bin, HOME: tree.home, ...rootEnv };
-  const outcome = await spawnRun(shellPath, command, env, runDir);
-  return judge({ index, shell, command: JSON.stringify(command), runDir, rootEnv, ...outcome });
+  const outcome = await spawnRun(shellPath, command, { PATH: tree.bin, HOME: tree.home, ...rootEnv }, runDir);
+  return { rootEnv, ...outcome };
+}
+
+// The names a shell exports to a plain guard run differ per shell (zsh adds LOGNAME), so each leg measures its own.
+async function baselineNamesFor(shellPath, tree) {
+  const entries = await Promise.all(
+    ROOT_ENV_KINDS.map(async (kind) => {
+      const runDir = join(tree.runs, `baseline-${kind}`);
+      await execute(shellPath, `${BASELINE_COMMAND}${TAIL}`, kind, runDir, tree);
+      return [kind, exportedNames(runDir)];
+    })
+  );
+  return Object.fromEntries(entries);
+}
+
+async function runCase(shellPath, { index, command, kind }, tree, baselines) {
+  const runDir = join(tree.runs, String(index));
+  const run = await execute(shellPath, command, kind, runDir, tree);
+  return judge({ index, shell: basename(shellPath), command: JSON.stringify(command), ...run }, observe(runDir, baselines[kind]));
 }
 
 function runLeg(shellPath) {
-  const shell = shellPath.split('/').pop();
   return withStubTree(async (tree) => {
+    const baselines = await baselineNamesFor(shellPath, tree);
     const cases = buildCorpus(SEED, CAP)
       .map(({ segments, rootEnvKind }, index) => ({ index, command: renderCommand(segments, tree), kind: rootEnvKind }))
       .filter(({ command }) => isTrusted(command));
-    const records = await runPool(cases, (item) => runCase(shellPath, shell, item, tree));
+    const records = await runPool(cases, (item) => runCase(shellPath, item, tree, baselines));
     return records.filter((record) => record !== null);
   });
 }
 
-describe('selectCraftHook() — every command it trusts runs only the guard, under each shell', () => {
+describe('selectCraftHook() — every command it trusts runs only the guard, under each shell', { concurrency: true }, () => {
   it('Given the fixed seed, when the corpus is generated twice, then both corpora are identical', () => {
     const first = buildCorpus(SEED, CAP);
 
