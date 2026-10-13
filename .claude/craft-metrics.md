@@ -554,3 +554,7 @@ claude-hook-nonzero-exit-probe design turns=111 tool_calls=140 tokens=9158475 du
 claude-hook-nonzero-exit-probe implementation turns=20 tool_calls=22 tokens=518591 duration_ms=371115 cache_read=464167 cache_creation=53981 output=403 avg_ctx=25909 equiv=115948
 claude-hook-nonzero-exit-probe planning turns=46 tool_calls=48 tokens=3922581 duration_ms=602434 cache_read=3786663 cache_creation=135308 output=518 avg_ctx=85262 equiv=550483
 claude-hook-nonzero-exit-probe review turns=156 tool_calls=160 tokens=4818961 duration_ms=2270703 cache_read=4496536 cache_creation=320025 output=2088 avg_ctx=30877 equiv=860437
+cursor-hook-nonzero-exit-probe design turns=41 tool_calls=45 tokens=3216253 duration_ms=479937 cache_read=3099579 cache_creation=115207 output=1385 avg_ctx=78411 equiv=460974
+cursor-hook-nonzero-exit-probe implementation turns=18 tool_calls=22 tokens=321482 duration_ms=234909 cache_read=252531 cache_creation=68476 output=439 avg_ctx=17836 equiv=113079
+cursor-hook-nonzero-exit-probe planning turns=30 tool_calls=34 tokens=1899543 duration_ms=429098 cache_read=1807921 cache_creation=91324 output=238 avg_ctx=63310 equiv=296197
+cursor-hook-nonzero-exit-probe review turns=71 tool_calls=71 tokens=2168915 duration_ms=462137 cache_read=1986520 cache_creation=181429 output=824 avg_ctx=30536 equiv=429700
