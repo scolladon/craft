@@ -175,6 +175,21 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-13 — follow-ups surfaced by the codex-hook-nonzero-exit-probe run, not yet scheduled)
+
+**Probe whether the cursor guard fails open on a crash.** The codex guard exited 1 when its
+import graph failed to load, and codex runs the tool call on any status but 2. Whether
+`adapters/cursor/hooks/craft-guard.js` has the same static-import gap, and what Cursor does with a
+hook that exits 1, was never measured. Prove it with the codex fixture (a throwaway copy whose
+engine import does not resolve) plus Cursor's own exit-status matrix; harden only on a proven
+fail-open. See the Out of scope list in
+[codex-hook-nonzero-exit-probe](docs/contributing/design/codex-hook-nonzero-exit-probe.md).
+
+**Probe whether the Claude Code guard hook fails open on a crash.** Root
+`hooks/git-no-ext-diff.sh` is a PreToolUse hook; whether a crash in it (exit 1) lets the Bash call
+run under a live Claude Code session was never observed. Prove it by making a throwaway copy of the
+script exit 1 and reading whether the call runs; harden only on a proven fail-open.
+
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the codex-hooks-quote-plugin-root run, not yet scheduled)
 
 **Probe what codex does with a hook that exits neither 0 nor 2 — delivered 2026-10-13**
