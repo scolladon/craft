@@ -55,6 +55,19 @@ hook set:
   snapshot, last writer wins); a deny beats a concurrent rewrite deterministically — one corrected
   retry, no clobber.
 
+  On a crash: Claude Code 2.1.296 treats only exit 2 from a PreToolUse hook as a deny. Exit 1,
+  exit 127 and a signal death run the Bash call and show the model a clean result, while exit
+  2's stderr reaches the model as `PreToolUse:Bash hook error: [<hook path>]: <stderr>`. So the
+  hook turns any failure bash can see into exit 2 with
+  `craft git-no-ext-diff: failed (exit <n>), call denied` on stderr, where `<n>` is the status
+  it would have exited with, or `craft git-no-ext-diff: no verdict reached, call denied` when
+  it would have exited 0 before reaching a verdict. The JSON deny stays the matcher's verdict,
+  and a grep failure is a crash, never a no-match. With `jq` missing from `PATH`, every Bash
+  call is denied. Still fail-open, because no code in the hook can catch them: `/bin/bash`
+  missing, the hook file missing or not executable, death by a signal, and a kill by Claude
+  Code's own hook timeout (not probed). The probe matrix is in
+  [the design doc](../design/claude-hook-nonzero-exit-probe.md).
+
 **gate-command**: the resolved gate string is executed as a Bash subprocess. Non-zero exit blocks
 the commit.
 

@@ -97,7 +97,8 @@ Then, in any repo that has a test command:
 ```
 
 Requirement: **a discoverable test command** (`pytest`, `go test`, `cargo test`,
-`make test`, …). No test command → craft refuses to run, by design.
+`make test`, …) and `jq` on `PATH` (the Claude Code guard hook denies every Bash
+call without it). No test command → craft refuses to run, by design.
 
 No local setup: open a Codespace from the badge above, then run `claude --plugin-dir .` and
 try `/craft:review` on a branch, or `/craft:run` on a brief.
@@ -196,8 +197,8 @@ in code where a silent regression is expensive to discover later.
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
-receipts: [59 design docs](docs/contributing/design/), [58 parted plans](docs/contributing/plan/),
-[532 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
+receipts: [60 design docs](docs/contributing/design/), [59 parted plans](docs/contributing/plan/),
+[540 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
