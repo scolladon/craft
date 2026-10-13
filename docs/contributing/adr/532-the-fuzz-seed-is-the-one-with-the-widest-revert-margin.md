@@ -20,7 +20,7 @@ ADR-523 picks the smallest seed that kills all eleven single-rule matcher revert
 
 ## Decision
 
-Adopted in review (no user judgment): option 1. `SEED = 6`: every revert dies to at least 4 cases, 65 commands are trusted, and `ACCEPTED_FLOOR = 52`. `CAP` stays 2000 (ADR-523).
+Adopted in review (no user judgment): option 1. `SEED = 6`: every revert dies to at least 2 cases (bare `$` is the weakest), 75 commands are trusted, and `ACCEPTED_FLOOR = 60`. `CAP` stays 2000 (ADR-523).
 
 ## Consequences
 
