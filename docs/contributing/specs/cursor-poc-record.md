@@ -81,8 +81,8 @@ a black-box `--help`. Live confirmation ran under the mandated isolation protoco
 | Manifest path | Project `.cursor/hooks.json`; user `~/.cursor/hooks.json`; team `.cursor/managed/active-team-hooks/hooks.json`; enterprise `/Library/Application Support/Cursor/hooks.json`; **plus Claude interop `~/.claude/settings.json`** (`dedupeClaudeHooksAgainstCursorHooks`). | SOURCE + CONFIRMED (project path proven live) |
 | Manifest schema | `{ "version": 1, "hooks": { "beforeShellExecution": [ { "command": "<shell>", "failClosed": <bool> } ] } }`. | CONFIRMED (live) |
 | **Real payload** (dumped live via a fd-0-sync hook) | `{"conversation_id","generation_id","model","command":"echo …","cwd":"","sandbox":false,"session_id","hook_event_name":"beforeShellExecution","cursor_version","workspace_roots":["/…/proj"],"user_email","transcript_path":null}` — snake_case. **The command is top-level `payload.command`, NOT `tool_input.command`.** `cwd` may be empty → fall back to `workspace_roots[0]`. | CONFIRMED (live) |
-| **Deny wire** | Hook writes **stdout JSON** `{"permission":"deny"\|"ask"\|"allow","user_message":"…","agent_message":"…"}`. On `deny` the CLI throws `HookDeniedError` and the shell call **does not run** (agent saw `user_message` and reported "Blocked by a hook … no retry or workaround"). **Not an exit-code wire.** `ask` prompts; anything else = allow. | CONFIRMED (live) |
-| **Fail-open behavior** | A crashing/invalid-JSON hook with **no** `failClosed` → the command **RAN** (fail-OPEN). With `failClosed: true` → the command was **BLOCKED** ("exited with code 3. The hook is fail-closed"). **The craft guard must set `failClosed: true`.** | CONFIRMED (live) |
+| **Deny wire** | Hook writes **stdout JSON** `{"permission":"deny"\|"ask"\|"allow","user_message":"…","agent_message":"…"}`. On `deny` the CLI throws `HookDeniedError` and the shell call **does not run** (agent saw `user_message` and reported "Blocked by a hook … no retry or workaround"). craft's guard uses this stdout wire, not an exit code; exit 2 with a stderr message is also a deny (Claude-compat; see *Re-probe — cursor-agent 2026.07.20-8cc9c0b (2026-10-13)*). `ask` prompts; anything else = allow. | CONFIRMED (live) |
+| **Fail-open behavior** | A crashing/invalid-JSON hook with **no** `failClosed` → the command **RAN** (fail-OPEN; the probed hook exited non-zero — invalid JSON on exit 0 blocks, see *Re-probe — cursor-agent 2026.07.20-8cc9c0b (2026-10-13)*). With `failClosed: true` → the command was **BLOCKED** ("exited with code 3. The hook is fail-closed"). **The craft guard must set `failClosed: true`.** | CONFIRMED (live) |
 | Env-var substitution in hook command | `${VAR}` in the `command` template **resolves** (proven: `node ${CRAFT_PROBE_DIR}/hook.js` fired). | CONFIRMED (live) |
 | Deliver-before-exit | The deny JSON must be flushed before the hook exits; the binding writes it **synchronously to fd 1** (`fs.writeSync(1, …)`) then returns — no async-write truncation. | CONFIRMED (design) |
 
@@ -143,3 +143,30 @@ refreshes it.
 Rule for any refresh of this record: mtime-find proves *filesystem* isolation only. Treat
 seeded credentials as consumed, keep probe windows short enough to stay inside the access
 token's lifetime, and expect a re-login may be needed afterwards.
+
+## Re-probe — cursor-agent 2026.07.20-8cc9c0b (2026-10-13)
+
+Scope: what Cursor does with a `beforeShellExecution` hook that exits non-zero, dies by a signal,
+or writes nothing, and whether craft's guard can crash that way. Same binary as the rows above, so
+nothing above is re-pinned; this section extends **Fail-open behavior** (Guard / hook mechanism)
+and **Fail-open vs failClosed** (Phase B), which pinned the `failClosed` switch but not the exit
+classes. Method: `-p --output-format json --model auto --force --trust`, throwaway `HOME` with the
+`Library/Keychains` symlink, a fresh `git init` workspace per case, a project `.cursor/hooks.json`
+with ONE `beforeShellExecution` hook and `failClosed: true`. The hook first touches a `HOOK_RAN`
+marker; the agent is asked to run one `touch <ws>/PROBE_RAN`. One turn per row.
+
+| Probe | Result | Status |
+|---|---|---|
+| How a command hook's exit is read | Runs as `<command> <<'CURSOR_HOOK_EOF'` + payload. In order: executor throws (spawn error, timeout) → block if `failClosed`, else allow; exit 2 → deny, **whatever `failClosed` says** (the message is stdout if non-empty, else stderr, else a fixed no-reason text); other non-zero exit → block if `failClosed` (`exit_nonzero`), else allow; empty stdout → block if `failClosed` (`empty_stdout`), else allow; stdout that does not parse as a hook response (when the whole stdout is not JSON and ends with `}`, the parser tries each `{…}` suffix from the end backward) → block **whatever `failClosed` says**, because `beforeShellExecution` is a permission step; `permission` `deny` → deny, `ask` → handed back to the caller (it prompts, see **Deny wire**); anything else → allow. A signal death has exit code `null`, so it lands on the empty-stdout branch. Bundle `3143.index.js`, `executeCommandHook`, and `index.js` (`../hooks/dist/index.js`: `j`, `F`/`N`, `U`, `G`). | SOURCE |
+| Exit 0 + `{"permission":"allow"}` (control) | HOOK_RAN yes, PROBE_RAN yes; the agent saw `Exit code: 0`. | CONFIRMED (live) |
+| Exit 2 + stderr (control) | HOOK_RAN yes, PROBE_RAN no; `Command execution was blocked by a hook: Hook blocked with message: probe-deny-exit2`. Observed with `failClosed: true`; that exit 2 also denies without it is SOURCE. | CONFIRMED (live) + SOURCE |
+| Exit 1: craft's guard with `engine/src/` absent | HOOK_RAN yes, PROBE_RAN no; `Tool blocked because this hook is configured to fail closed (block when it fails). Hook "…craft-guard.js" failed with exit code 1: <node stack>`. | CONFIRMED (live) |
+| Exit 127 (command not found) | HOOK_RAN yes, PROBE_RAN no; `… configured to fail closed … failed with exit code 127: (eval):1: command not found …`. | CONFIRMED (live) |
+| Signal death (the hook shell runs `kill -9 $$`) | HOOK_RAN yes, PROBE_RAN no; `… configured to fail closed … Hook "…" returned no output.` | CONFIRMED (live) |
+| craft's guard crashes before its own `try` | `craft-guard.js` imports `cursor-guard-adapter.js`, which imports `engine/src/guards/tool-call-guard.js`, both statically. With `engine/src/` absent the guard exits 1 with empty stdout and `ERR_MODULE_NOT_FOUND` on stderr; the unmodified tree exits 0 with `{"permission":"allow"}`. Under `failClosed: true` that crash is blocked (row above). Direct run, node v22.22.3. | CONFIRMED |
+| Hook shell | zsh (`(eval):1:` prefix on stderr). `node` resolved by that shell was v24.5.0 on the probe host, while the operator shell had v22.22.3. | CONFIRMED (live, host-specific) |
+| Isolation and auth | `find ~/.cursor -type f -newer <marker>` returned 0 files after the five turns. Auth was stale before the turns (`Authentication required`) and needed a re-login, as the caveat above predicts. Cost: 5 turns, about 32k input and 1.6k output tokens. | CONFIRMED (live) |
+
+Verdict: with `failClosed: true`, every crash class reached here blocks the call; exit 2 denies on
+its own. No fail-open was observed, so the guard keeps today's code. `failClosed: true` stays the
+load-bearing property (see **Fail-open behavior** above).

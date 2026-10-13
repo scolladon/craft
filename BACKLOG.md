@@ -187,13 +187,15 @@ spec's residual list. See the Out of scope list in
 
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the codex-hook-nonzero-exit-probe run, not yet scheduled)
 
-**Probe whether the cursor guard fails open on a crash.** The codex guard exited 1 when its
-import graph failed to load, and codex runs the tool call on any status but 2. Whether
-`adapters/cursor/hooks/craft-guard.js` has the same static-import gap, and what Cursor does with a
-hook that exits 1, was never measured. Prove it with the codex fixture (a throwaway copy whose
-engine import does not resolve) plus Cursor's own exit-status matrix; harden only on a proven
-fail-open. See the Out of scope list in
-[codex-hook-nonzero-exit-probe](docs/contributing/design/codex-hook-nonzero-exit-probe.md).
+**Probe whether the cursor guard fails open on a crash — delivered 2026-10-13**
+(fix/cursor-hook-nonzero-exit-probe). The cursor guard has the codex static-import gap: with its
+engine predicate unresolvable it exits 1 with no stdout. cursor-agent 2026.07.20-8cc9c0b blocks
+that call under the shipped `failClosed: true`, as it does exit 127 and a SIGKILL death; exit 2
+denies whatever `failClosed` says (live `cursor-agent -p` probe, 5 turns; the matrix and the hook
+branch order are in the POC record). No fail-open is proven, so the guard is not hardened;
+`failClosed: true` stays load-bearing and test-pinned. Still fail-open, as already recorded: an
+install without `failClosed`, and a malformed `hooks.json` (ADRs 543-545). Design context:
+[cursor-hook-nonzero-exit-probe](docs/contributing/design/cursor-hook-nonzero-exit-probe.md).
 
 **Probe whether the Claude Code guard hook fails open on a crash — delivered 2026-10-13**
 (fix/claude-hook-nonzero-exit-probe). Claude Code 2.1.296 runs the Bash call on hook exit 1

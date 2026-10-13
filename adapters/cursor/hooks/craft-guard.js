@@ -7,14 +7,18 @@
  * denial, and `--force`/`--yolo` does NOT override it. The deny wire is stdout JSON,
  * NOT an exit code (the exact wire the codex binding could not assume — codex denies
  * with exit-2; Cursor denies with a stdout permission object). A future reader must not
- * "port" the exit-2 form here: Cursor reads stdout, and a stray exit code is ignored.
+ * "port" the exit-2 form here: the stdout object carries the user and agent messages.
+ * Exit codes are not ignored: Cursor treats exit 2 as a deny, and any other non-zero
+ * exit as a hook failure that layer 2 below turns into a block.
  *
  * Two fail-closed layers, by design:
  *   1. Any throw in the decision path (unreadable stdin, bad JSON, a malformed
  *      payload, a throwing predicate) DENIES here — never falls through to allow.
  *   2. hooks.json registers this hook with `failClosed: true`, so a process-level
  *      crash BEFORE this handler writes anything is also blocked by Cursor. Measured:
- *      without failClosed, a crashing hook fails OPEN (the command runs).
+ *      an import that fails to load (exit 1), a missing binary (exit 127) and a
+ *      SIGKILL (no output) are all blocked; without failClosed, a crashing hook fails
+ *      OPEN (the command runs).
  *
  * The response is written SYNCHRONOUSLY to fd 1 (`writeSync(1, …)`) then main()
  * returns — no async `process.stdout.write` + `process.exit`, which can truncate the
