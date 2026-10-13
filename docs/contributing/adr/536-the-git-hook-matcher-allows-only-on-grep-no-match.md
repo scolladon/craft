@@ -6,9 +6,12 @@ supersedes: []
 ---
 # 536 — The git hook matcher allows only on grep's no-match status
 
-- **Status:** accepted — ratified by the user
+- **Status:** superseded by ADR-542
 - **Date:** 2026-10-13
 - **Design:** docs/contributing/design/claude-hook-nonzero-exit-probe.md
+
+> **Superseded by ADR-542** for the here-string feed: grep is now fed by a pipe into `grep -c`, and only exit 1 with a printed
+> zero count allows, because a failed here-string redirection also returns 1.
 
 ## Context
 
