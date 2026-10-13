@@ -18,7 +18,7 @@ const NON_ROOT_UID = '1000';
 const ROOT_UID = '0';
 const SUDO = 'sudo';
 const APT_UPDATE = 'apt-get update';
-const APT_INSTALL = 'apt-get install -y shellcheck jq';
+const APT_INSTALL = 'apt-get install -y shellcheck jq zsh';
 const SHARED_SCRIPT_STEP = 'bash scripts/install-dev-tools.sh';
 const INLINE_INSTALL = [/apt-get install/];
 
