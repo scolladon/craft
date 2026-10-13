@@ -55,7 +55,7 @@ trap 'exit "$SIGHUP_EXIT_STATUS"' HUP
 IN=$(cat && printf '%s' "$FEED_SENTINEL")
 [ "${IN%"$FEED_SENTINEL"}" != "$IN" ] || exit "$FEED_NEVER_RAN_STATUS"
 IN=${IN%"$FEED_SENTINEL"}
-CMD=$(printf '%s' "$IN" | jq -j '.tool_input.command // empty' && printf '%s' "$FEED_SENTINEL")
+CMD=$(printf '%s' "$IN" | jq -r '.tool_input.command // empty' && printf '%s' "$FEED_SENTINEL")
 [ "${CMD%"$FEED_SENTINEL"}" != "$CMD" ] || exit "$FEED_NEVER_RAN_STATUS"
 CMD=${CMD%"$FEED_SENTINEL"}
 [ -z "$CMD" ] && allow

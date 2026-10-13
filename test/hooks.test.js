@@ -384,6 +384,27 @@ test(
 );
 
 test(
+  'Given a command feed that cannot start after stdin was read, when git-no-ext-diff runs, then it exits 2 with the crash reason',
+  { skip: process.platform !== 'darwin' && 'the descriptor floor is only probed on macOS /bin/bash' },
+  () => {
+    const sut = withHookCopy;
+    sut({ anchor: 'IN=${IN%', inserted: `ulimit -n ${TOO_FEW_FILE_DESCRIPTORS - 1}` }, (result) => {
+      assertCrashDeny(result, FEED_NEVER_RAN_STATUS);
+    });
+  },
+);
+
+test(
+  'Given two JSON documents on stdin with a git diff first, when git-no-ext-diff runs, then it denies with the corrected command',
+  () => {
+    const sut = runGitHook;
+    const result = sut('{"tool_input":{"command":"git diff"}} {"tool_input":{"command":"ls"}}');
+    assert.strictEqual(result.status, 0, result.stderr);
+    assert.strictEqual(JSON.parse(result.stdout).hookSpecificOutput.permissionDecision, 'deny');
+  },
+);
+
+test(
   'Given no writable temp directory, when git-no-ext-diff runs on a matching command, then it still denies with the corrected command',
   { skip: process.platform !== 'darwin' && 'sandbox-exec is macOS-only' },
   () => {
