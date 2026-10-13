@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { basename, delimiter, dirname, join } from 'node:path';
@@ -15,17 +15,25 @@ const SHELLS = Object.freeze(['sh', 'bash', 'dash', 'zsh']);
 const POOL_SIZE = 8;
 const SPAWN_TIMEOUT_MS = 5_000;
 const NUL = '\0';
-// A status only the stub produces: a shell that backgrounds the stub or masks its exit is seen.
-const STUB_EXIT_STATUS = 3;
-// The guard reads its verdict input on stdin, so a command that redirects or detaches stdin must fail.
+// The guard answers through its exit status: commands alternate between these stub statuses, so a shell that
+// backgrounds, masks or chains on the stub's exit (`&`, `|| x`, `&& x`) is seen under one of them.
+const STUB_EXIT_STATUSES = Object.freeze([0, 3]);
+const EXIT_STATUS_FILE = 'exit-status';
+// The guard reads its input on stdin and writes its verdict on stdout and stderr, so each channel carries a sentinel.
 const STDIN_SENTINEL = 'craft-trust-fuzz-stdin';
-const EXPORTED_NAME_PATTERN = /^export (\w+)/gm;
+const STDOUT_SENTINEL = 'craft-trust-fuzz-stdout\n';
+const STDERR_SENTINEL = 'craft-trust-fuzz-stderr\n';
+const STUB_FILES = Object.freeze(['argv.log', 'env.log', EXIT_STATUS_FILE, 'stdin.log']);
+const EXPORT_LINE_PATTERN = /^export .*$/gm;
+// The shell sets `_` to the interpreter path it ran, which legitimately differs between spellings of the same stub.
+const LAST_COMMAND_EXPORT = /^export _=/;
+const RUN_DIR_PLACEHOLDER = '<run>';
 const BASELINE_COMMAND = 'node /baseline';
 const UINT32_RANGE = 2 ** 32;
 const SEED = 6;
 const CAP = 2000;
-// About 80% of the 65 commands trusted at this seed: a narrowed matcher, or a TMPDIR with non-path characters, collapses the count and must fail loudly.
-const ACCEPTED_FLOOR = 52;
+// About 80% of the 75 commands trusted at this seed: a narrowed matcher, or a TMPDIR with non-path characters, collapses the count and must fail loudly.
+const ACCEPTED_FLOOR = 60;
 const SHIM = '${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}';
 const TAIL = `/${GUARD_SCRIPT_SEGMENTS.join('/')}`;
 const FIXTURE_SOURCE_PATH = '/fixture/codex-home/config.toml';
@@ -34,7 +42,18 @@ const TREE_PREFIX = 'craft-trust-fuzz-';
 const EXECUTABLE_MODE = 0o755;
 // The stubs write relative to their cwd, so a command that changed directory leaves no log and fails.
 const STUBS = Object.freeze({
-  node: `#!/bin/sh\nprintf '%s\\0' "$#" "$@" >> argv.log\nexport -p >> env.log\nIFS= read -r line\nprintf '%s\\n' "$line" >> stdin.log\nexit ${STUB_EXIT_STATUS}\n`,
+  node: [
+    '#!/bin/sh',
+    `printf '%s\\0' "$#" "$@" >> argv.log`,
+    'export -p >> env.log',
+    'IFS= read -r line',
+    `printf '%s\\n' "$line" >> stdin.log`,
+    `printf '%s' '${STDOUT_SENTINEL}'`,
+    `printf '%s' '${STDERR_SENTINEL}' >&2`,
+    `IFS= read -r code < ${EXIT_STATUS_FILE}`,
+    'exit "$code"',
+    '',
+  ].join('\n'),
   mark: '#!/bin/sh\n: > marker\n',
 });
 const ROOT_ENV_KINDS = Object.freeze(['none', 'plugin', 'craft']);
@@ -57,9 +76,9 @@ const UNSAFE_CLASSES = Object.freeze([
 ]);
 const UNSAFE = Object.freeze(UNSAFE_CLASSES.flat());
 const PREFIX = Object.freeze([['/'], ['/'], [`${SHIM}/`], [`${SHIM}/`], [SHIM], [''], ['-'], ['--eval='], ['='], [' '], ['~'], ['$HOME'], [ROOT], [ROOT, '/'], ['/$HOME/']]);
-const LEAD = Object.freeze(['', '', '', ' ', '  ', '\t', 'NODE_OPTIONS=--require=/x ', 'X=1 ']);
+const LEAD = Object.freeze(['', '', '', ' ', '  ', '\t', 'NODE_OPTIONS=--require=/x ', 'X=1 ', 'HOME=/x ']);
 const SEP = Object.freeze([' ', ' ', ' ', '  ', '\t', ' ', '\n']);
-const TRAIL = Object.freeze(['', '', '', '', ' ', '  ', ' --flag', ';mark', ' # c', '\n', '.bak', ' &', ' </dev/null']);
+const TRAIL = Object.freeze(['', '', '', '', ' ', '  ', ' --flag', ';mark', ' # c', '\n', '.bak', ' &', ' </dev/null', ' && mark', ' || mark', ' >out', ' 2>/dev/null']);
 const EDIT_ALPHABET = Object.freeze([...SAFE, ...UNSAFE, 'n', 'o', 'd', 'e', '"', ' ']);
 
 // `=mark` is left out of the composed interpreters: `<bin>/=mark/node` is a literal path that does not exist.
@@ -85,7 +104,7 @@ const REGISTERED_INTERPRETER = REGISTERED_COMMAND.slice(0, REGISTERED_SEPARATOR_
 const REGISTERED_OPERAND = REGISTERED_COMMAND.slice(REGISTERED_SEPARATOR_AT);
 
 function interleave(parts, token) {
-  return parts.flatMap((part, index) => (index === 0 ? [part] : [token, part])).filter((part) => part !== '');
+  return parts.flatMap((part, index) => (index === 0 ? [part] : [token, part]));
 }
 
 function protectTokens(segments) {
@@ -288,8 +307,14 @@ function readIfPresent(path) {
   return existsSync(path) ? readFileSync(path, 'utf8') : '';
 }
 
-function exportedNames(runDir) {
-  return [...readIfPresent(join(runDir, 'env.log')).matchAll(EXPORTED_NAME_PATTERN)].map(([, name]) => name);
+function exportLines(runDir) {
+  return [...readIfPresent(join(runDir, 'env.log')).matchAll(EXPORT_LINE_PATTERN)]
+    .map(([line]) => line.replaceAll(runDir, RUN_DIR_PLACEHOLDER))
+    .filter((line) => !LAST_COMMAND_EXPORT.test(line));
+}
+
+function difference(lines, others) {
+  return lines.filter((line) => !others.includes(line));
 }
 
 function isRootedGuardInvocation(invocations) {
@@ -304,55 +329,60 @@ function rootEnvFor(kind, tree) {
   return {};
 }
 
-function observe(runDir, baselineNames) {
+function observe(runDir, baselineLines) {
+  const lines = exportLines(runDir);
   return {
     invocations: parseInvocations(readIfPresent(join(runDir, 'argv.log'))),
-    marker: existsSync(join(runDir, 'marker')),
+    strayFiles: difference(readdirSync(runDir), STUB_FILES),
     stdin: readIfPresent(join(runDir, 'stdin.log')),
-    extraEnv: exportedNames(runDir).filter((name) => !baselineNames.includes(name)),
+    extraEnv: difference(lines, baselineLines),
+    missingEnv: difference(baselineLines, lines),
   };
 }
 
 function judge(run, observed) {
-  const clean = run.status === STUB_EXIT_STATUS && run.signal === null && run.stdout === '' && run.stderr === '';
-  const fedGuard = observed.stdin === `${STDIN_SENTINEL}\n`;
-  const untouched = !observed.marker && observed.extraEnv.length === 0;
-  if (clean && fedGuard && untouched && isRootedGuardInvocation(observed.invocations)) return null;
+  const relayed = run.status === run.exitStatus && run.signal === null;
+  const channels = run.stdout === STDOUT_SENTINEL && run.stderr === STDERR_SENTINEL && observed.stdin === `${STDIN_SENTINEL}\n`;
+  const untouched = [observed.strayFiles, observed.extraEnv, observed.missingEnv].every((found) => found.length === 0);
+  if (relayed && channels && untouched && isRootedGuardInvocation(observed.invocations)) return null;
   const { rootEnv, ...rest } = run;
   return { ...rest, rootEnvKeys: Object.keys(rootEnv), ...observed };
 }
 
-async function execute(shellPath, command, kind, runDir, tree) {
+async function execute(shellPath, { command, kind, exitStatus }, runDir, tree) {
   mkdirSync(runDir);
+  writeFileSync(join(runDir, EXIT_STATUS_FILE), `${exitStatus}\n`);
   const rootEnv = rootEnvFor(kind, tree);
   const outcome = await spawnRun(shellPath, command, { PATH: tree.bin, HOME: tree.home, ...rootEnv }, runDir);
-  return { rootEnv, ...outcome };
+  return { rootEnv, exitStatus, ...outcome };
 }
 
-// The names a shell exports to a plain guard run differ per shell (zsh adds LOGNAME), so each leg measures its own.
-async function baselineNamesFor(shellPath, tree) {
+// What a shell exports to a plain guard run differs per shell (zsh adds LOGNAME), so each leg measures its own.
+async function baselineLinesFor(shellPath, tree) {
   const entries = await Promise.all(
     ROOT_ENV_KINDS.map(async (kind) => {
       const runDir = join(tree.runs, `baseline-${kind}`);
-      await execute(shellPath, `${BASELINE_COMMAND}${TAIL}`, kind, runDir, tree);
-      return [kind, exportedNames(runDir)];
+      await execute(shellPath, { command: `${BASELINE_COMMAND}${TAIL}`, kind, exitStatus: 0 }, runDir, tree);
+      return [kind, exportLines(runDir)];
     })
   );
   return Object.fromEntries(entries);
 }
 
-async function runCase(shellPath, { index, command, kind }, tree, baselines) {
-  const runDir = join(tree.runs, String(index));
-  const run = await execute(shellPath, command, kind, runDir, tree);
-  return judge({ index, shell: basename(shellPath), command: JSON.stringify(command), ...run }, observe(runDir, baselines[kind]));
+async function runCase(shellPath, item, tree, baselines) {
+  const runDir = join(tree.runs, `${item.index}-${item.exitStatus}`);
+  const run = await execute(shellPath, item, runDir, tree);
+  const record = { index: item.index, shell: basename(shellPath), command: JSON.stringify(item.command), ...run };
+  return judge(record, observe(runDir, baselines[item.kind]));
 }
 
 function runLeg(shellPath) {
   return withStubTree(async (tree) => {
-    const baselines = await baselineNamesFor(shellPath, tree);
+    const baselines = await baselineLinesFor(shellPath, tree);
     const cases = buildCorpus(SEED, CAP)
       .map(({ segments, rootEnvKind }, index) => ({ index, command: renderCommand(segments, tree), kind: rootEnvKind }))
-      .filter(({ command }) => isTrusted(command));
+      .filter(({ command }) => isTrusted(command))
+      .map((item) => ({ ...item, exitStatus: STUB_EXIT_STATUSES[item.index % STUB_EXIT_STATUSES.length] }));
     const records = await runPool(cases, (item) => runCase(shellPath, item, tree, baselines));
     return records.filter((record) => record !== null);
   });
