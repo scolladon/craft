@@ -558,3 +558,7 @@ cursor-hook-nonzero-exit-probe design turns=41 tool_calls=45 tokens=3216253 dura
 cursor-hook-nonzero-exit-probe implementation turns=18 tool_calls=22 tokens=321482 duration_ms=234909 cache_read=252531 cache_creation=68476 output=439 avg_ctx=17836 equiv=113079
 cursor-hook-nonzero-exit-probe planning turns=30 tool_calls=34 tokens=1899543 duration_ms=429098 cache_read=1807921 cache_creation=91324 output=238 avg_ctx=63310 equiv=296197
 cursor-hook-nonzero-exit-probe review turns=71 tool_calls=71 tokens=2168915 duration_ms=462137 cache_read=1986520 cache_creation=181429 output=824 avg_ctx=30536 equiv=429700
+claude-hook-timeout-probe design turns=50 tool_calls=51 tokens=4413398 duration_ms=505768 cache_read=4279975 cache_creation=131409 output=1914 avg_ctx=88230 equiv=601929
+claude-hook-timeout-probe implementation turns=18 tool_calls=21 tokens=319546 duration_ms=209438 cache_read=254080 cache_creation=64974 output=456 avg_ctx=17727 equiv=108942
+claude-hook-timeout-probe planning turns=23 tool_calls=29 tokens=1200252 duration_ms=328468 cache_read=1129474 cache_creation=70478 output=254 avg_ctx=52174 equiv=202361
+claude-hook-timeout-probe review turns=50 tool_calls=52 tokens=1826514 duration_ms=425780 cache_read=1662160 cache_creation=163828 output=426 avg_ctx=36522 equiv=373231
