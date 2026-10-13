@@ -9,7 +9,7 @@ supersedes: []
 
 - **Status:** accepted — ratified by the user
 - **Date:** 2026-10-13
-- **Design:** docs/contributing/design/codex-trust-matcher-differential-fuzz.md · **Supersedes/Refines:** none
+- **Design:** docs/contributing/design/codex-trust-matcher-differential-fuzz.md · **Supersedes/Refines:** refines ADR-505, ADR-509
 
 ## Context
 
