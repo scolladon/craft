@@ -307,15 +307,15 @@ Docs only, no code delta. Files this part edits (nothing else):
   rejection, and an event loop that drains with no verdict (ADRs 518-521). What no in-guard code
   can catch still fails open and is written down in the codex README: `node` missing from
   `PATH`, the guard file unloadable, a signal, a throwing `NODE_OPTIONS` preload. Design context:
-  [codex-hook-nonzero-exit-probe](docs/contributing/design/codex-hook-nonzero-exit-probe.md).
+  `[codex-hook-nonzero-exit-probe](docs/contributing/design/codex-hook-nonzero-exit-probe.md)`.
 
   Wrap to the sibling width; the wording may be tightened, the facts may not change.
   BACKLOG.md is checked by backlog-lint (section headings), intention-lint (SoT pointers) and
   prose-lint (filler words: delve, leverage, seamless, robust, "it's important to note", "in
   conclusion").
 - `README.md` (root) — lines 198-200, section `## craft builds craft`, the receipts sentence:
-  "[57 design docs](docs/contributing/design/), [56 parted plans](docs/contributing/plan/),
-  [517 ADRs](docs/contributing/adr/)". These counts are checked against the tree by
+  `[57 design docs](docs/contributing/design/)`, `[56 parted plans](docs/contributing/plan/)`,
+  `[517 ADRs](docs/contributing/adr/)`. These counts are checked against the tree by
   readme-drift (scripts/readme-drift.sh; engine/src/readme-drift-main.js `corpusCountFindings`).
   Set each to the count readme-drift reports — at planning time 58 design docs, 57 parted plans
   (this plan included), 522 ADRs. Derive the numbers by running `bash scripts/readme-drift.sh`
