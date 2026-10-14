@@ -188,7 +188,8 @@ Reproduced in a sealed sandbox with a `module.register` load hook that swaps the
 0. It affects all 24 engine bins and both adapter entries. Fix candidate: prefer Node's own
 answer, `import.meta.main ?? isEntryPoint(import.meta.url, process.argv[1])`. `import.meta.main`
 is true when run and false when imported on Node 22.22.3, and undefined on older Node (engine
-declares `>=18`). That needs an ADR against ADR-557, and a test that reproduces the race.
+declares `>=18`). That needs an ADR on the real-path comparison (ADR-564 supersedes it), and a test
+that reproduces the race.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the bin-entry-symlink-guard run, not yet scheduled)
 
@@ -212,8 +213,8 @@ into a behavioural symlink check like `engine/test/bin-entry-symlink.bin.test.js
 
 **Engine bins exit 0 silently when invoked through a symlinked path — delivered 2026-10-14**
 (fix/bin-entry-symlink-guard). All 24 bins now guard `main` with `isEntryPoint(import.meta.url,
-process.argv[1])` from `engine/src/cli-io.js`, which real-paths both sides (ADR-556, ADR-557); only
-`ENOENT` on argv[1] means "not the entry point" (ADR-558). `engine/test/bin-entry-symlink.bin.test.js`
+process.argv[1])` from `engine/src/cli-io.js`, which then real-pathed both sides (ADR-556); only
+`ENOENT` on argv[1] meant "not the entry point" (both superseded by ADR-564). `engine/test/bin-entry-symlink.bin.test.js`
 spawns every bin through a test-made symlink and asserts it is loud (ADR-560). It failed 25 of 26
 before the fix and passes 26 of 26 after. Original entry: every `engine/bin/*.js`
 (24 of 24) runs `main` only when `process.argv[1] === fileURLToPath(import.meta.url)`. Node

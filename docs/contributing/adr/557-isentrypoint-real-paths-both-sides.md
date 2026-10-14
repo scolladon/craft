@@ -4,9 +4,12 @@ subjects:
 ---
 # 557 — `isEntryPoint` real-paths both argv[1] and the module path
 
-- **Status:** accepted
+- **Status:** superseded by ADR-564
 - **Date:** 2026-10-14
 - **Design:** docs/contributing/design/bin-entry-symlink-guard.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-564** for the real-path comparison: the guard now reads `import.meta.main` and throws on a Node
+> without it, because a link swapped after load changed the comparison's answer.
 
 ## Context
 
