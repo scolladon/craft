@@ -181,8 +181,8 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 (fix/claude-hook-foreground-stall-probe). The call runs and Claude Code does not hang: at the
 deadline Claude Code 2.1.299 sends SIGTERM to the hook's whole process tree (by parent pid, not
 by process group), so a foreground `sleep` died, the deferred TERM trap ran and its crash deny was
-ignored (2/2), and a tree that survived TERM was SIGKILLed about 1.2–1.7 s later (3/3, timed on
-2); the model saw a clean result every time (live `claude -p` probe, 5 haiku turns, a 3 s
+ignored (2/2), and a tree that survived TERM was SIGKILLed about 1.2–1.7 s later (2/2 timed
+rows; a coarser third agrees); the model saw a clean result every time (live `claude -p` probe, 5 haiku turns, a 3 s
 `timeout`). Nothing the hook can act on, so the change is document-only: the hook header and the
 gate spec drop the "not probed" qualifier and state the tree TERM and the SIGKILL escalation
 (ADRs 551-555).

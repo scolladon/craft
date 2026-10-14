@@ -32,9 +32,10 @@ The hook is a copy of `hooks/git-no-ext-diff.sh` with this block inserted right 
 - the EXIT trap re-installed to log `EXIT rc=<status> <epoch>`, then call `deny_on_crash`; the TERM
   and HUP traps log `<signal> <epoch>`, then do what the shipped trap does; an INT trap logs, then
   re-raises;
-- a watcher, detached (perl `setpgrp` plus fork, so ppid 1, its own group, stdio to `/dev/null`),
-  taking `ps` snapshots of every probe process (row fg1: +3.5/6/10/22/30 s; rows fgi2-3: every
-  0.25 s from +2.5 to +6 s, then +6.5/7/8/10/22/32 s);
+- on rows fg2 to fgi3, a watcher, detached (perl `setpgrp` plus fork, so ppid 1, its own group,
+  stdio to `/dev/null`), taking `ps` snapshots of every probe process (rows fg2 and fgi1:
+  +3.5/6/10/22/32 s; rows fgi2-3: every 0.25 s from +2.5 to +6 s, then +6.5/7/8/10/22/32 s); on
+  row fg1 the first watcher was a non-detached child of the hook and wrote no snapshot;
 - rows fg2 and fgi*: a sentinel `S2`, a perl child of the hook in its OWN process group
   (`setpgrp`), stdio to `/dev/null`, that logs every catchable signal it gets, survives it, and
   logs `S2-DONE` at +30 s;
@@ -61,8 +62,9 @@ Live matrix (Claude Code 2.1.299):
 | fgi2 | same, sharpened sentinel (traps every catchable signal, 50 ms poll) | `S2-TERM` and `FG-TERM` +2.80 s; nothing else, ever | all 3 alive at +4.0 s, all gone at +4.25 s: killed 1.23–1.48 s after TERM with no catchable signal logged, so SIGKILL | present, 3.14 s after `TERM` | same clean result | **fail-open** |
 | fgi3 | same | `FG-TERM` and `S2-TERM` +2.85 s; nothing else | alive at +4.25 s, gone at +4.5 s: killed 1.43–1.69 s after TERM, SIGKILL | present, 3.12 s after `TERM` | same clean result | **fail-open** |
 
-On every row: the hook's parent is `claude`, the hook's pgid is its own pid, and `ps` shows STAT
-`SNs` (it leads its own session too). `claude -p` exited 0 in 9–10 s wall time; no hang. The
+On every row the hook's parent is `claude` and its pgid is its own pid. Where a snapshot caught
+the hook (fgi1-3), `ps` shows STAT `SNs` (it leads its own session too). `claude -p` exited 0 in
+8.9–10.0 s wall time; no hang. The
 stream-json event types were `system:init`, `assistant` ×2, `user`, `rate_limit_event` and
 `result:success`.
 
@@ -99,7 +101,7 @@ and the out-of-group `S2` alike).
 Environment: Claude Code 2.1.299, macOS 27.0.1, `/bin/bash` 3.2.57, haiku. User settings, plugins
 and MCP servers were not loaded. Residue: one empty
 `<claude-config-dir>/projects/<probe-slug>/memory` directory per run, removed after each run; the
-mktemp projects were removed. Cost: 5 haiku turns, $0.0087 in total.
+mktemp projects were removed. Cost: 5 haiku turns, $0.0086 in total.
 
 ### The hook's own foreground children die on TERM (measured, this design)
 
@@ -190,6 +192,15 @@ a child the shipped hook does not run. They show that even then Claude Code does
   and nothing the hook returns after the deadline is read (precedent matrix). The outcome is
   document-only.
 - The TERM and HUP traps stay. Dated design docs and ADRs stay as written. Placement is ADR-538's.
+
+### Review corrections (after implementation)
+
+Review narrowed one claim. The Part 2 text below is the planned wording, and the committed hook
+header carries this correction: the closing version parenthetical put 2.1.296 on the tree-SIGTERM
+and SIGKILL clause, which only 2.1.299 measured (the precedent saw neither). The header now writes
+`Claude Code (2.1.299) sends SIGTERM to this hook's whole process tree`, and keeps both versions
+only on `runs the call whatever this hook exits with or prints`, per ADR-553. So
+`grep -c '2.1.299' hooks/git-no-ext-diff.sh` prints 2, not the plan's 1.
 
 ## Requirements
 
@@ -335,8 +346,8 @@ Replace the entry in place:
 (fix/claude-hook-foreground-stall-probe). The call runs and Claude Code does not hang: at the
 deadline Claude Code 2.1.299 sends SIGTERM to the hook's whole process tree (by parent pid, not
 by process group), so a foreground `sleep` died, the deferred TERM trap ran and its crash deny was
-ignored (2/2), and a tree that survived TERM was SIGKILLed about 1.2–1.7 s later (3/3, timed on
-2); the model saw a clean result every time (live `claude -p` probe, 5 haiku turns, a 3 s
+ignored (2/2), and a tree that survived TERM was SIGKILLed about 1.2–1.7 s later (2/2 timed
+rows; a coarser third agrees); the model saw a clean result every time (live `claude -p` probe, 5 haiku turns, a 3 s
 `timeout`). Nothing the hook can act on, so the change is document-only: the hook header and the
 gate spec drop the "not probed" qualifier and state the tree TERM and the SIGKILL escalation
 (ADRs <range>).
@@ -356,11 +367,11 @@ writes; with none, the parenthetical is dropped. Under DC-1 (a), the last clause
 | TERM or HUP from another sender, inside the timeout | exit 2, `failed (exit 143\|129)`, once a foreground child returns (ADR-541) | denied: the exit-2 contract | `test/hooks.test.js:366` |
 | Run past the timeout, hook waiting on a background child | TERM trap at the deadline → crash deny | **runs** (2.1.296); clean result, no hook event | timeout precedent, overrun rows 3/3 and JSON-deny row 1/1 |
 | Run past the timeout, hook stalled in a foreground child that dies on TERM (`sleep` live; `cat`, `jq`, `grep`, `sed` exit 143 on TERM) | the child dies with the tree TERM, the TERM trap runs at once → crash deny | **runs** (2.1.299); clean result, no hook event | fg1, fg2 (2/2); the shipped hook blocked in `cat` exits 2 at once under a tree TERM (direct run) |
-| Run past the timeout, foreground child that survives TERM | the TERM trap never runs; the tree is SIGKILLed about 1.2–1.7 s after TERM | **runs** (2.1.299); clean result, no hook event | fgi1-3 (3/3); the shipped hook runs no such child |
+| Run past the timeout, foreground child that survives TERM | the TERM trap never runs; the tree is SIGKILLed about 1.2–1.7 s after TERM | **runs** (2.1.299); clean result, no hook event | fgi2-3 (2/2 timed); fgi1 agrees within coarser snapshots; the shipped hook runs no such child |
 | A descendant in another process group, or re-parented after the hook exits | TERMed with the tree, then SIGKILLed if it survives | n/a: the shipped hook starts no such process | fgi2-3 (S2 TERMed, then SIGKILLed); fg2 for the after-exit case (n=1, inferred) |
-| A process re-parented away before the deadline | not signalled | n/a | detached watcher, every row |
+| A process re-parented away before the deadline | not signalled | n/a | detached watcher, rows fg2 to fgi3 (4/5) |
 | The `failed (exit 143), call denied` line written at the deadline | on stderr | not in the stream-json output; `--debug` routing not probed | fg1, fg2; timeout precedent |
-| Claude Code hang | none observed | `claude -p` exited 0 in 9–10 s on every row | all 5 rows; the 120 s watchdog never fired |
+| Claude Code hang | none observed | `claude -p` exited 0 in 8.9–10.0 s on every row | all 5 rows; the 120 s watchdog never fired |
 
 What makes the hook reach the timeout is still unknown. It finishes in milliseconds on every
 fixture, and the 600 s window needs a stalled host or a read that never ends.

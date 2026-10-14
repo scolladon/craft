@@ -11,7 +11,7 @@ subjects:
 
 ## Context
 
-ADR-546 was probed with the hook interrupted in a background wait. A hook stalled in a foreground command defers its TERM trap until the child exits, so whether Claude Code waits, hangs or runs the call was open. A live probe answered it on Claude Code 2.1.299, with a 3 s hook timeout. At the deadline Claude Code sends SIGTERM to the hook's whole process tree, found by parent pid, not by process group. A foreground `sleep` died with it, the TERM trap ran at once, and its crash deny was ignored (2/2). A tree that survived the TERM was SIGKILLed about 1.2–1.7 s later (3/3, timed on 2). The call ran every time, the model saw a clean result, and Claude Code did not hang.
+ADR-546 was probed with the hook interrupted in a background wait. A hook stalled in a foreground command defers its TERM trap until the child exits, so whether Claude Code waits, hangs or runs the call was open. A live probe answered it on Claude Code 2.1.299, with a 3 s hook timeout. At the deadline Claude Code sends SIGTERM to the hook's whole process tree, found by parent pid, not by process group. A foreground `sleep` died with it, the TERM trap ran at once, and its crash deny was ignored (2/2). A tree that survived the TERM was SIGKILLed about 1.2–1.7 s later (2/2 timed rows; a coarser third agrees). The call ran every time, the model saw a clean result, and Claude Code did not hang.
 
 ## Options considered
 
