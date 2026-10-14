@@ -8,7 +8,7 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 ## [Unreleased]
 
 ### Removed
-- Support for Node 18, 20, 22.0-22.17, 23 and 24.0-24.1, which lack `import.meta.main`. Every craft entry now exits 1 on them with an error naming the supported range `^22.18.0 || >=24.2.0`.
+- Support for Node 18, 20, 22.0-22.17, 23 and 24.0-24.1, which lack `import.meta.main`. Every craft entry now exits 1 on them; most print an error naming the supported range `^22.18.0 || >=24.2.0`, and some fail earlier on a missing `node:path` export.
 
 ### Fixed
 - The plugin's hooks run when the plugin is installed under a path containing a space.

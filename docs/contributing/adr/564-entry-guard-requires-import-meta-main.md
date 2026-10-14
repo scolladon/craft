@@ -36,4 +36,4 @@ Carried forward from ADR-558: nothing — the helper no longer touches the files
 
 ## Consequences
 
-The swap race is closed on every supported Node. On unsupported Node every entry fails loudly (exit 1, the named error) instead of running or silently exiting. An extensionless spelling (`node engine/bin/adr-lint`) now runs `main`. Node 18, 20 and 23 are past upstream end-of-life. ADR-047's reason for pinning Stryker 8.7.1 (the `>=18` floor) no longer holds; moving Stryker is out of scope here.
+The swap race is closed on every supported Node. On unsupported Node every entry fails loudly with exit 1 instead of running or silently exiting. Most print the named error; on Node 18 the five bins that import `engine/src/glob.js` fail first, on a missing `node:path` export. An extensionless spelling (`node engine/bin/adr-lint`) now runs `main`. Node 18, 20 and 23 are past upstream end-of-life. ADR-047's reason for pinning Stryker 8.7.1 (the `>=18` floor) no longer holds; moving Stryker is out of scope here.

@@ -213,8 +213,8 @@ into a behavioural symlink check like `engine/test/bin-entry-symlink.bin.test.js
 
 **Engine bins exit 0 silently when invoked through a symlinked path — delivered 2026-10-14**
 (fix/bin-entry-symlink-guard). All 24 bins now guard `main` with `isEntryPoint(import.meta.url,
-process.argv[1])` from `engine/src/cli-io.js`, which then real-pathed both sides (ADR-556); only
-`ENOENT` on argv[1] meant "not the entry point" (both superseded by ADR-564). `engine/test/bin-entry-symlink.bin.test.js`
+process.argv[1])` from `engine/src/cli-io.js` (ADR-556), which then real-pathed both sides; only
+`ENOENT` on argv[1] meant "not the entry point" (both behaviours superseded by ADR-564). `engine/test/bin-entry-symlink.bin.test.js`
 spawns every bin through a test-made symlink and asserts it is loud (ADR-560). It failed 25 of 26
 before the fix and passes 26 of 26 after. Original entry: every `engine/bin/*.js`
 (24 of 24) runs `main` only when `process.argv[1] === fileURLToPath(import.meta.url)`. Node
