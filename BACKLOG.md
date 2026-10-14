@@ -177,15 +177,16 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-timeout-probe run, not yet scheduled)
 
-**Probe a Claude Code hook timeout while the hook is stalled in a foreground command.** The
-timeout probe interrupted its hook in a background `wait`, so the TERM trap ran at once. A real
-stall sits in a foreground `cat`/`jq`/`grep`, where bash defers the TERM trap until the child
-exits, and whether Claude Code signals the process group or only the hook pid was not observed.
-The hook header and the gate spec now say "a stall in a foreground command was not probed".
-Prove it with the same throwaway `claude -p` harness: the overrun row with `sleep <n>` in the
-foreground plus a `ps -g <pgid>` snapshot at the deadline, then check MARKER (1-3 haiku turns).
-If the call runs, drop the qualifier; if the session hangs instead, write that down. See the Out
-of scope list in [claude-hook-timeout-probe](docs/contributing/design/claude-hook-timeout-probe.md).
+**Probe a Claude Code hook timeout while the hook is stalled in a foreground command — delivered 2026-10-14**
+(fix/claude-hook-foreground-stall-probe). The call runs and Claude Code does not hang: at the
+deadline Claude Code 2.1.299 sends SIGTERM to the hook's whole process tree (by parent pid, not
+by process group), so a foreground `sleep` died, the deferred TERM trap ran and its crash deny was
+ignored (2/2), and a tree that survived TERM was SIGKILLed about 1.2–1.7 s later (3/3, timed on
+2); the model saw a clean result every time (live `claude -p` probe, 5 haiku turns, a 3 s
+`timeout`). Nothing the hook can act on, so the change is document-only: the hook header and the
+gate spec drop the "not probed" qualifier and state the tree TERM and the SIGKILL escalation
+(ADRs 551-555).
+Design context: [claude-hook-foreground-stall-probe](docs/contributing/design/claude-hook-foreground-stall-probe.md).
 
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-nonzero-exit-probe run, not yet scheduled)
 
