@@ -175,6 +175,33 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-14 — follow-ups surfaced by the stryker-9-upgrade run, not yet scheduled)
+
+**The git ext-diff guard misses a diff/show its segment splitter or anchor never sees.**
+`gitExtDiffPredicate` (`engine/src/guards/git-ext-diff-predicate.js`) splits a command into
+shell segments and blocks a segment that starts with `git … diff|show` and lacks `--no-ext-diff`.
+Two gaps let a non-compliant call through (each reproduced against the predicate; each returns
+`block: false` where the shell runs the diff):
+- `splitSegments` (L36-55) ignores backslash escapes, so `\"` or `\'` opens a quote the shell never
+  opens and swallows every later separator: `echo \"; git diff` and `echo \'; git diff`. The
+  shell does split there (`bash -c 'echo \"; echo SECOND'` prints `"` then `SECOND`).
+- `GIT_DIFF_SHOW_RE` (L13-15) is anchored at `^\s*git`, so a segment with anything else before
+  `git` is skipped: `(git diff)`, `true && (git diff)`, `{ git diff; }`, `FOO=1 git diff`,
+  `env git diff`, `command git diff`, `! git diff`, `time git diff`. Only command substitution is a
+  documented residual today.
+Not introduced by the Stryker move; found by its security review. The guard protects parsed output
+from an external diff, not a sandbox boundary. Fix candidates: treat `\` + next char as a literal
+pair outside single quotes; add `(`/`)` to the separators; accept `{`, `!`, `time`, `env`,
+`command`, `exec` and `NAME=value` prefixes before `git`, or pin the ones left out as documented
+residuals with `block: false` tests.
+
+**Drop the `typed-rest-client` override once Stryker resolves past the exact `qs` pin.**
+`engine/package.json` overrides `typed-rest-client` to 2.3.0 because 2.3.1 (picked under
+`@stryker-mutator/core@10.0.0`'s `~2.3.0`) pins `qs` at 6.15.1, which carries GHSA-q8mj
+(ADR-572). **Trigger:** a Stryker release whose `typed-rest-client` range admits a fixed `qs`, or a
+`typed-rest-client` 2.3.x that unpins it. Then remove the override, `npm install`, and confirm
+`npm --prefix engine audit` shows no Stryker-tree advisory.
+
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the adapter-entry-symlink-guard run, not yet scheduled)
 
 **`isEntryPoint` fails open when argv[1]'s symlink is swapped after the module loads — delivered
@@ -201,11 +228,21 @@ that reproduces the race.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the entry-guard-symlink-swap-race run, not yet scheduled)
 
-**Stryker stays pinned to 8.7.1 for a Node floor the engine no longer declares.** ADR-047 chose
-`@stryker-mutator/core@8.7.1` because 9.x requires Node `>=20` and the engine declared `>=18`. The
-engine now declares `^22.18.0 || >=24.2.0` (ADR-564), so that reason is gone. Moving to 9.x is a
-separate change: it needs its own ADR against ADR-047 and a full mutation run to compare scores
-and timings with 8.7.1.
+**Stryker stays pinned to 8.7.1 for a Node floor the engine no longer declares — delivered
+2026-10-14** (chore/stryker-9-upgrade). `@stryker-mutator/core` and `tap-runner` are exact-pinned at
+10.0.0 (ADR-570 supersedes the P9-hardening DC-2a/2b; ADR-571), and a `typed-rest-client` 2.3.0
+override keeps `qs` past its advisories (ADR-572): Stryker-tree `npm audit` advisories 15 → 0.
+8.7.1 could not score on the supported 24 line: on Node 24.11.0 a narrowed `cli-io.js` run gives 0
+killed and 28 errors, against 29 killed on 10.0.0 (Node 22, 24 and 25 alike). Full runs on Node
+22.22.3: 8.7.1 scored 94.07% over 10141 mutants in 37m27s (under load); 10.0.0 scores 94.17% over
+10312 in 30m34s. The shared survivor set is identical. Of the 171 empty-statement mutants 10.0.0
+adds, 3 survived the full suite and now die to new tests, one of them a guard gap: a non-compliant
+`git diff` before a `;`/`&&`/`|`/newline separator was untested. Design context:
+[stryker-9-upgrade](docs/contributing/design/stryker-9-upgrade.md). Original entry:
+the P9-hardening decisions (DC-2a/2b) chose `@stryker-mutator/core@8.7.1` because 9.x requires Node
+`>=20` and the engine declared `>=18`. The engine now declares `^22.18.0 || >=24.2.0` (ADR-564), so
+that reason is gone. Moving to 9.x is a separate change: it needs its own ADR against that decision
+and a full mutation run to compare scores and timings with 8.7.1.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the bin-entry-symlink-guard run, not yet scheduled)
 

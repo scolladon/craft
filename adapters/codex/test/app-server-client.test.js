@@ -371,3 +371,19 @@ describe('createAppServerRunner() — double-settle pin', () => {
     assert.equal(state.killCount, 1);
   });
 });
+
+describe('createAppServerRunner() — the timeout timer is released on settle', () => {
+  it('Given a run whose response arrives before the timeout, when the runner resolves, then it leaves no pending timer behind', async () => {
+    const { child } = createFakeChildProcess();
+    const { spawn } = createFakeSpawn(child);
+    const sut = createAppServerRunner({ spawn });
+    const countPendingTimers = () => process.getActiveResourcesInfo().filter((resource) => resource === 'Timeout').length;
+    const pendingBefore = countPendingTimers();
+
+    const runPromise = sut({ requests: [], cwd: CWD, env: ENV, responseId: RESPONSE_ID });
+    child.stdout.emit('data', responseLine(RESPONSE_ID));
+    await runPromise;
+
+    assert.equal(countPendingTimers(), pendingBefore);
+  });
+});
