@@ -418,7 +418,9 @@ No new tests under DC-4 (a). Every change is prose, so the gates are the existin
   docs/contributing/plan/claude-hook-timeout-probe.md
   docs/contributing/design/claude-hook-nonzero-exit-probe.md docs/contributing/adr/541-*.md
   docs/contributing/adr/54[6-9]-*.md docs/contributing/adr/550-*.md` is empty.
-- R8: `git grep -n -e '/Users/' -e '/home/'` over the changed files finds nothing.
+- R8: `git diff --no-ext-diff main -- README.md hooks/git-no-ext-diff.sh docs/contributing/specs/gate.md
+  BACKLOG.md | grep -E '^\+' | grep -E '/Users/|/home/'` prints nothing. Only added lines are
+  checked: this doc and the plan quote the pattern itself.
 - This doc: `bash scripts/design-lint.sh docs/contributing/design/claude-hook-foreground-stall-probe.md`.
 
 What turns red, and on which change:
