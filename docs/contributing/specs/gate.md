@@ -69,15 +69,20 @@ hook set:
   executable, and SIGKILL or any other untrapped signal. The probe matrix is in
   [the design doc](../design/claude-hook-nonzero-exit-probe.md).
 
-  On a timeout: Claude Code 2.1.296 sends SIGTERM to a hook that runs past its `timeout`
-  (documented default 600 s; `hooks/hooks.json` sets none), then runs the Bash call whatever
-  the hook exits with or prints, and the model sees a clean result with no hook event. The
-  probe tried both deny channels after the TERM: exit 2 with a stderr reason, and a JSON
-  `permissionDecision: "deny"` on stdout. Both were ignored. The probe hook was interrupted in
-  a background wait; a hook stalled in a foreground command was not probed. So a timeout fails
-  open, and nothing the hook does after the deadline is read. The TERM and HUP traps stay: they
-  deny either signal from any other sender. The timeout matrix is in
-  [the design doc](../design/claude-hook-timeout-probe.md).
+  On a timeout: Claude Code sends SIGTERM to a hook that runs past its `timeout` (documented
+  default 600 s; `hooks/hooks.json` sets none), then runs the Bash call whatever the hook exits
+  with or prints, and the model sees a clean result with no hook event. On 2.1.296, with the
+  hook interrupted in a background wait, the probe tried both deny channels after the TERM:
+  exit 2 with a stderr reason, and a JSON `permissionDecision: "deny"` on stdout. Both were
+  ignored. On 2.1.299, with the hook stalled in a foreground command, the SIGTERM reached the
+  hook's whole process tree, found by parent pid, so a foreground child that dies on TERM
+  (`cat`, `jq`, `grep` and `sed` all do) died at the deadline, the TERM trap ran at once, and
+  its crash deny was ignored the same way. A tree that survived the TERM was SIGKILLed about
+  1.2–1.7 s later. Claude Code did not hang. So a timeout fails open, and nothing the hook does
+  after the deadline is read. The TERM and HUP traps stay: they deny either signal from any
+  other sender. The timeout matrices are in
+  [the background-wait design doc](../design/claude-hook-timeout-probe.md) and
+  [the foreground-stall design doc](../design/claude-hook-foreground-stall-probe.md).
 
 **gate-command**: the resolved gate string is executed as a Bash subprocess. Non-zero exit blocks
 the commit.

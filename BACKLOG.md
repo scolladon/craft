@@ -175,17 +175,31 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-14 — follow-ups surfaced by the claude-hook-foreground-stall-probe run, not yet scheduled)
+
+**Engine bins exit 0 silently when invoked through a symlinked path.** Every `engine/bin/*.js`
+(24 of 24) runs `main` only when `process.argv[1] === fileURLToPath(import.meta.url)`. Node
+resolves `import.meta.url` to the real path, while `argv[1]` keeps the symlinked one, so a bin
+reached through a symlink (macOS `/var` → `/private/var`, a symlinked checkout or plugin dir)
+never calls `main` and exits 0 with no output. Reproduced on a clone whose README claims 1
+design doc: `bash scripts/readme-drift.sh .` from the `/var/…` path exits 0 silently; from the
+`/private/var/…` path it prints `claims 1, tree holds 63` and exits 1. Any gate that shells out
+to a bin from such a path passes without running. Fix candidate: compare real paths
+(`realpathSync(process.argv[1])`), pinned by a test that invokes one bin through a symlink and
+asserts a non-zero exit on bad input.
+
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-timeout-probe run, not yet scheduled)
 
-**Probe a Claude Code hook timeout while the hook is stalled in a foreground command.** The
-timeout probe interrupted its hook in a background `wait`, so the TERM trap ran at once. A real
-stall sits in a foreground `cat`/`jq`/`grep`, where bash defers the TERM trap until the child
-exits, and whether Claude Code signals the process group or only the hook pid was not observed.
-The hook header and the gate spec now say "a stall in a foreground command was not probed".
-Prove it with the same throwaway `claude -p` harness: the overrun row with `sleep <n>` in the
-foreground plus a `ps -g <pgid>` snapshot at the deadline, then check MARKER (1-3 haiku turns).
-If the call runs, drop the qualifier; if the session hangs instead, write that down. See the Out
-of scope list in [claude-hook-timeout-probe](docs/contributing/design/claude-hook-timeout-probe.md).
+**Probe a Claude Code hook timeout while the hook is stalled in a foreground command — delivered 2026-10-14**
+(fix/claude-hook-foreground-stall-probe). The call runs and Claude Code does not hang: at the
+deadline Claude Code 2.1.299 sends SIGTERM to the hook's whole process tree (by parent pid, not
+by process group), so a foreground `sleep` died, the deferred TERM trap ran and its crash deny was
+ignored (2/2), and a tree that survived TERM was SIGKILLed about 1.2–1.7 s later (2/2 timed
+rows; a coarser third agrees); the model saw a clean result every time (live `claude -p` probe, 5 haiku turns, a 3 s
+`timeout`). Nothing the hook can act on, so the change is document-only: the hook header and the
+gate spec drop the "not probed" qualifier and state the tree TERM and the SIGKILL escalation
+(ADRs 551-555).
+Design context: [claude-hook-foreground-stall-probe](docs/contributing/design/claude-hook-foreground-stall-probe.md).
 
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-nonzero-exit-probe run, not yet scheduled)
 
