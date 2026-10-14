@@ -870,7 +870,8 @@ test('Given a report carrying a recommendation, when renderMarkdown runs, then t
 
   const result = sut(report);
 
-  assert.ok(result.includes(`\n${recommendation.detail}\nevidence: `), 'the recommendation detail must render on its own line before the evidence line');
+  const heading = `### ${recommendation.kind} (${recommendation.phase}/${recommendation.model ?? 'n/a'})`;
+  assert.ok(result.includes(`${heading}\n${recommendation.detail}\nevidence: `), 'the recommendation detail must render on its own line between its heading and its evidence line');
 });
 
 // ── 38. renderMarkdown: output starts with exact header and ends with newline ──
