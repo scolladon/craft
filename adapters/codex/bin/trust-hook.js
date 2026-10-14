@@ -10,7 +10,7 @@ import {
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+import { isEntryPoint } from '../../../engine/src/cli-io.js';
 import { main, EXIT_REFUSED } from '../src/trust-hook-main.js';
 import { createAppServerRunner } from '../src/app-server-client.js';
 import { createAtomicWriter } from '../src/atomic-write.js';
@@ -51,7 +51,7 @@ function buildDependencies() {
   };
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isEntryPoint(import.meta.url, process.argv[1])) {
   // main already catches every internal refusal; this .catch is a last-resort
   // net so a bug in main surfaces as a reasoned exit, never an unhandled
   // rejection.
