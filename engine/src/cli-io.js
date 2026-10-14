@@ -71,17 +71,18 @@ export function findRepoRoot(startDir) {
 }
 
 /**
- * True when the module at moduleUrl is the process entry script named by argv1.
+ * True when the module described by meta is the process entry script named by argv[1].
  * Both sides are real-pathed: Node real-paths the main module's URL but keeps argv[1]
  * as typed, and --preserve-symlinks-main keeps the URL symlinked instead.
- * @param {string} moduleUrl - the caller's import.meta.url
- * @param {string | undefined} argv1 - process.argv[1]
+ * @param {{ url: string }} meta - the caller's import.meta
+ * @param {readonly unknown[]} [argv] - the process argv; argv[1] names the entry script
  * @returns {boolean}
  */
-export function isEntryPoint(moduleUrl, argv1) {
+export function isEntryPoint(meta, argv = process.argv) {
+  const argv1 = argv[1];
   // realpathSync(undefined) resolves <cwd>/undefined, so an absent argv[1] must never reach it.
   if (!isNonEmptyString(argv1)) return false;
-  return realPathOrNull(argv1) === realpathSync(fileURLToPath(moduleUrl));
+  return realPathOrNull(argv1) === realpathSync(fileURLToPath(meta.url));
 }
 
 function realPathOrNull(path) {

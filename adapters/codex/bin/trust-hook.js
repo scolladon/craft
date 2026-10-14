@@ -51,7 +51,7 @@ function buildDependencies() {
   };
 }
 
-if (isEntryPoint(import.meta.url, process.argv[1])) {
+if (isEntryPoint(import.meta)) {
   // main already catches every internal refusal; this .catch is a last-resort
   // net so a bug in main surfaces as a reasoned exit, never an unhandled
   // rejection.

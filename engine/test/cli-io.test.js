@@ -153,15 +153,19 @@ function withEntryFixture(fn) {
   });
 }
 
-function urlOf(path) {
-  return pathToFileURL(path).href;
+function metaOf(path) {
+  return { url: pathToFileURL(path).href };
+}
+
+function argvNaming(argv1) {
+  return [process.execPath, argv1];
 }
 
 test('Given argv1 naming the module by its own path, when isEntryPoint runs, then it returns true', () => {
   const sut = isEntryPoint;
 
   withEntryFixture((tmp) => {
-    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'real', 'm.js'));
+    const result = sut(metaOf(join(tmp, 'real', 'm.js')), argvNaming(join(tmp, 'real', 'm.js')));
 
     assert.equal(result, true);
   });
@@ -171,7 +175,7 @@ test('Given argv1 reaching the module through a symlinked directory, when isEntr
   const sut = isEntryPoint;
 
   withEntryFixture((tmp) => {
-    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'link', 'm.js'));
+    const result = sut(metaOf(join(tmp, 'real', 'm.js')), argvNaming(join(tmp, 'link', 'm.js')));
 
     assert.equal(result, true);
   });
@@ -181,7 +185,7 @@ test('Given a module URL kept symlinked as under --preserve-symlinks-main, when 
   const sut = isEntryPoint;
 
   withEntryFixture((tmp) => {
-    const result = sut(urlOf(join(tmp, 'link', 'm.js')), join(tmp, 'link', 'm.js'));
+    const result = sut(metaOf(join(tmp, 'link', 'm.js')), argvNaming(join(tmp, 'link', 'm.js')));
 
     assert.equal(result, true);
   });
@@ -193,7 +197,7 @@ test('Given argv1 a symlink to the module file itself, when isEntryPoint runs, t
   withEntryFixture((tmp) => {
     symlinkSync(join(tmp, 'real', 'm.js'), join(tmp, 'alias.js'));
 
-    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'alias.js'));
+    const result = sut(metaOf(join(tmp, 'real', 'm.js')), argvNaming(join(tmp, 'alias.js')));
 
     assert.equal(result, true);
   });
@@ -205,7 +209,7 @@ test('Given argv1 naming a different existing file, when isEntryPoint runs, then
   withEntryFixture((tmp) => {
     writeFileSync(join(tmp, 'real', 'other.js'), '');
 
-    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'real', 'other.js'));
+    const result = sut(metaOf(join(tmp, 'real', 'm.js')), argvNaming(join(tmp, 'real', 'other.js')));
 
     assert.equal(result, false);
   });
@@ -215,7 +219,7 @@ test('Given argv1 naming a path that does not exist, when isEntryPoint runs, the
   const sut = isEntryPoint;
 
   withEntryFixture((tmp) => {
-    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'real', 'missing.js'));
+    const result = sut(metaOf(join(tmp, 'real', 'm.js')), argvNaming(join(tmp, 'real', 'missing.js')));
 
     assert.equal(result, false);
   });
@@ -227,7 +231,7 @@ test('Given argv1 crossing a regular file as if it were a directory, when isEntr
   withEntryFixture((tmp) => {
     const modulePath = join(tmp, 'real', 'm.js');
 
-    assert.throws(() => sut(urlOf(modulePath), join(modulePath, 'x')), { code: 'ENOTDIR' });
+    assert.throws(() => sut(metaOf(modulePath), argvNaming(join(modulePath, 'x'))), { code: 'ENOTDIR' });
   });
 });
 
@@ -235,7 +239,7 @@ test('Given argv1 undefined and a file named undefined in cwd, when isEntryPoint
   const sut = isEntryPoint;
   const seedUndefinedFile = (dir) => writeFileSync(join(dir, 'undefined'), '');
 
-  const result = await withTempCwd(seedUndefinedFile, () => sut(urlOf(join(process.cwd(), 'undefined')), undefined));
+  const result = await withTempCwd(seedUndefinedFile, () => sut(metaOf(join(process.cwd(), 'undefined')), [process.execPath]));
 
   assert.equal(result, false);
 });
@@ -244,9 +248,9 @@ test('Given argv1 empty or not a string, when isEntryPoint runs, then it returns
   const sut = isEntryPoint;
 
   withEntryFixture((tmp) => {
-    const moduleUrl = urlOf(join(tmp, 'real', 'm.js'));
+    const meta = metaOf(join(tmp, 'real', 'm.js'));
 
-    const results = [sut(moduleUrl, ''), sut(moduleUrl, 42)];
+    const results = [sut(meta, argvNaming('')), sut(meta, argvNaming(42))];
 
     assert.deepEqual(results, [false, false]);
   });
