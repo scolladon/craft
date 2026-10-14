@@ -160,12 +160,15 @@ test('Given an import.meta whose main is false, when isEntryPoint runs, then it 
   assert.equal(result, false);
 });
 
-test('Given an import.meta without a boolean main, when isEntryPoint runs, then it throws an error naming the supported Node range', () => {
+test('Given an import.meta without a boolean main, when isEntryPoint runs, then it throws an error naming the supported Node range and the running version', () => {
   const sut = isEntryPoint;
 
   const act = () => sut({ url: MODULE_URL });
 
-  assert.throws(act, (error) => error.message.includes(ENGINE_PACKAGE.engines.node));
+  assert.throws(
+    act,
+    (error) => error.message.includes(ENGINE_PACKAGE.engines.node) && error.message.includes(process.version),
+  );
 });
 
 // ─── constants ────────────────────────────────────────────────────────────────

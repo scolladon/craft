@@ -13,6 +13,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { linkTargetOrNull } from '../test-helpers/link-target.js';
 
 const ENGINE_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SWAP_PRELOAD = join(ENGINE_DIR, 'test-helpers', 'swap-link-on-load.js');
@@ -46,12 +47,13 @@ function spawnThroughSwappedLink(mode) {
   try {
     const env = sealedSandbox(tmp, mode);
     const binPath = join(tmp, LINK_NAME, 'bin', BIN_NAME);
-    return spawnSync(process.execPath, ['--import', SWAP_PRELOAD, binPath, ...LOUD_ARGV], {
+    const run = spawnSync(process.execPath, ['--import', SWAP_PRELOAD, binPath, ...LOUD_ARGV], {
       cwd: tmp,
       env,
       input: '',
       encoding: 'utf8',
     });
+    return Object.freeze({ ...run, linkAfter: linkTargetOrNull(env.CRAFT_SWAP_LINK), swappedTo: env.CRAFT_SWAP_TO });
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -62,6 +64,7 @@ test('Given adr-lint reached through a symlinked engine dir repointed while its 
   const sut = spawnThroughSwappedLink('repoint');
 
   // Assert
+  assert.equal(sut.linkAfter, sut.swappedTo);
   assert.equal(sut.error, undefined);
   assert.equal(sut.status, EXIT_USAGE, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);
 });
@@ -71,6 +74,7 @@ test('Given adr-lint reached through a symlinked engine dir removed while its ma
   const sut = spawnThroughSwappedLink('unlink');
 
   // Assert
+  assert.equal(sut.linkAfter, null);
   assert.equal(sut.error, undefined);
   assert.equal(sut.status, EXIT_USAGE, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);
 });

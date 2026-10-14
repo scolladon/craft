@@ -1,9 +1,9 @@
 /**
  * The trust-hook bin, spawned as a real process, runs its main when reached through a symlinked
  * adapter dir, even one repointed or removed while it starts, and stays inert when imported as a
- * module. The environment is built from scratch: no codex on PATH and throwaway HOME / CODEX_HOME, so even a guard that wrongly runs main ends in
- * a spawn ENOENT and never touches a real config. Given/When/Then titles, Arrange-Act-Assert bodies,
- * sut variable.
+ * module. The environment is built from scratch: no codex on PATH and throwaway HOME /
+ * CODEX_HOME, so even a guard that wrongly runs main ends in a spawn ENOENT and never touches a
+ * real config. Given/When/Then titles, Arrange-Act-Assert bodies, sut variable.
  */
 
 import { describe, it } from 'node:test';
@@ -13,6 +13,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { linkTargetOrNull } from '../../../engine/test-helpers/link-target.js';
 
 const ADAPTER_DIR = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BIN = join(ADAPTER_DIR, 'bin', 'trust-hook.js');
@@ -59,7 +60,8 @@ function spawnCheckWithSwap({ mode, trigger }, { tmp, env }) {
     CRAFT_SWAP_TO: join(tmp, ELSEWHERE_NAME),
   });
   const argv = ['--import', SWAP_PRELOAD, join(tmp, LINK_NAME, 'bin', 'trust-hook.js'), ...CHECK_ARGV];
-  return spawnNode(argv, { tmp, env: swapEnv });
+  const run = spawnNode(argv, { tmp, env: swapEnv });
+  return Object.freeze({ ...run, linkAfter: linkTargetOrNull(swapEnv.CRAFT_SWAP_LINK), swappedTo: swapEnv.CRAFT_SWAP_TO });
 }
 
 describe('trust-hook bin — entry-point guard', () => {
@@ -110,6 +112,7 @@ describe('trust-hook bin — entry-point guard', () => {
     const sut = withSandbox((sandbox) => spawnCheckWithSwap({ mode: 'unlink', trigger: NEVER_LOADED_TRIGGER }, sandbox));
 
     // Assert
+    assert.equal(sut.linkAfter, ADAPTER_DIR);
     assert.equal(sut.error, undefined);
     assert.equal(sut.status, EXIT_REFUSED, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);
     assert.equal(sut.stderr, EXPECTED_CHECK_STDERR);
@@ -121,6 +124,7 @@ describe('trust-hook bin — entry-point guard', () => {
     const sut = withSandbox((sandbox) => spawnCheckWithSwap({ mode: 'repoint', trigger: SWAP_TRIGGER }, sandbox));
 
     // Assert
+    assert.equal(sut.linkAfter, sut.swappedTo);
     assert.equal(sut.error, undefined);
     assert.equal(sut.status, EXIT_REFUSED, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);
     assert.equal(sut.stderr, EXPECTED_CHECK_STDERR);
@@ -132,6 +136,7 @@ describe('trust-hook bin — entry-point guard', () => {
     const sut = withSandbox((sandbox) => spawnCheckWithSwap({ mode: 'unlink', trigger: SWAP_TRIGGER }, sandbox));
 
     // Assert
+    assert.equal(sut.linkAfter, null);
     assert.equal(sut.error, undefined);
     assert.equal(sut.status, EXIT_REFUSED, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);
     assert.equal(sut.stderr, EXPECTED_CHECK_STDERR);
