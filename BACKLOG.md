@@ -175,9 +175,31 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-14 — follow-ups surfaced by the adapter-entry-symlink-guard run, not yet scheduled)
+
+**`isEntryPoint` fails open when argv[1]'s symlink is swapped after the module loads.**
+`isEntryPoint` (`engine/src/cli-io.js:84-91`) real-paths `process.argv[1]` again after Node has
+already resolved and loaded the main module. If that link is repointed or unlinked in between
+(for example an upgrade that swaps a `current` link), the check returns false and the entry exits
+0 with no output. For `adapters/codex/bin/trust-hook.js --check`, exit 0 means "trusted".
+Reproduced in a sealed sandbox with a `module.register` load hook that swaps the link while
+`trust-hook-main.js` loads: repoint and unlink both give `rc=0`, no output; the control gives
+`rc=2`. Not a regression: before the adapter-entry-symlink-guard change, every symlinked run exited
+0. It affects all 24 engine bins and both adapter entries. Fix candidate: prefer Node's own
+answer, `import.meta.main ?? isEntryPoint(import.meta.url, process.argv[1])`. `import.meta.main`
+is true when run and false when imported on Node 22.22.3, and undefined on older Node (engine
+declares `>=18`). That needs an ADR against ADR-557, and a test that reproduces the race.
+
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the bin-entry-symlink-guard run, not yet scheduled)
 
-**Adapter entry points exit 0 silently when invoked through a symlinked path.**
+**Adapter entry points exit 0 silently when invoked through a symlinked path — delivered
+2026-10-14** (fix/adapter-entry-symlink-guard). `adapters/codex/bin/trust-hook.js` and
+`adapters/pi/src/cli.js` now guard `main` with `isEntryPoint(import.meta.url, process.argv[1])`,
+imported directly from `engine/src/cli-io.js` (ADR-561). Each entry has its own behavioural link
+test, and the pi literal-string pin is gone (ADR-562). `adapters/codex/test/trust-hook.bin.test.js`
+and `adapters/pi/test/cli.test.js` spawn each entry through a test-made link, through npm's
+extensionless bin link (pi), and from an importer script. Before the fix, the link tests failed
+with exit 0; after it, codex passes 3 of 3 and pi 10 of 10. Original entry:
 `adapters/codex/bin/trust-hook.js:54` and `adapters/pi/src/cli.js:4` still guard `main` with
 `process.argv[1] === fileURLToPath(import.meta.url)`, the same defect the engine bins had (ADR-559
 kept them out of that change). Through a symlinked checkout each exits 0 with no output; from the
