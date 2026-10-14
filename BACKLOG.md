@@ -175,6 +175,19 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-14 — follow-ups surfaced by the claude-hook-foreground-stall-probe run, not yet scheduled)
+
+**Engine bins exit 0 silently when invoked through a symlinked path.** Every `engine/bin/*.js`
+(24 of 24) runs `main` only when `process.argv[1] === fileURLToPath(import.meta.url)`. Node
+resolves `import.meta.url` to the real path, while `argv[1]` keeps the symlinked one, so a bin
+reached through a symlink (macOS `/var` → `/private/var`, a symlinked checkout or plugin dir)
+never calls `main` and exits 0 with no output. Reproduced on a clone whose README claims 1
+design doc: `bash scripts/readme-drift.sh .` from the `/var/…` path exits 0 silently; from the
+`/private/var/…` path it prints `claims 1, tree holds 63` and exits 1. Any gate that shells out
+to a bin from such a path passes without running. Fix candidate: compare real paths
+(`realpathSync(process.argv[1])`), pinned by a test that invokes one bin through a symlink and
+asserts a non-zero exit on bad input.
+
 ### Open (scoped 2026-10-13 — follow-ups surfaced by the claude-hook-timeout-probe run, not yet scheduled)
 
 **Probe a Claude Code hook timeout while the hook is stalled in a foreground command — delivered 2026-10-14**
