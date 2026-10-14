@@ -3,12 +3,15 @@ import assert from 'node:assert/strict';
 import { readFileSync, mkdtempSync, mkdirSync, symlinkSync, rmSync, statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname, delimiter } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const PKG_PATH = join(__dir, '..', 'package.json');
-const CLI_PATH = join(__dir, '..', 'src', 'cli.js');
+const ADAPTER_DIR = join(__dir, '..');
+const CLI_PATH = join(ADAPTER_DIR, 'src', 'cli.js');
+const PI_RUN_ENOENT_BLOCKER = '{ unit: pi-run, reason: spawn pi ENOENT }';
+const EXIT_BLOCKED = 2;
 
 // Scans the ambient PATH for an executable without throwing, so a missing
 // binary fails the test loudly (assert.ok on the result) instead of being
@@ -40,16 +43,6 @@ describe('cli.js — thin bin entrypoint', () => {
     assert.ok(sut.startsWith('#!/usr/bin/env node'), 'must start with node shebang');
     assert.ok(sut.includes("from './run.js'"), "must import from './run.js'");
   });
-
-  it('Given cli entry, source read, then guards on import.meta.url before calling process.exit', () => {
-    // Arrange
-    const sut = readFileSync(CLI_PATH, 'utf8');
-    // Act / Assert
-    assert.ok(
-      sut.includes("process.argv[1] === fileURLToPath(import.meta.url)"),
-      'must guard on import.meta.url so importing the module does not run it',
-    );
-  });
 });
 
 // ─── subprocess execution tests (kill the NoCoverage mutants) ────────────────
@@ -66,6 +59,8 @@ describe('cli.js — subprocess execution guard', () => {
   let repoDir;
   let gitPath;
   let PINNED_ENV;
+  let linkedCliPath;
+  let npmBinPath;
 
   // Builds the throwaway repo's git identity from an allowlist, never by spreading
   // process.env — an ambient GIT_DIR/GIT_WORK_TREE or gitconfig knob (this machine's
@@ -96,18 +91,29 @@ describe('cli.js — subprocess execution guard', () => {
     repoDir = join(root, 'repo');
     mkdirSync(repoDir);
     initRepo(repoDir);
+
+    symlinkSync(ADAPTER_DIR, join(root, 'pi-link'));
+    linkedCliPath = join(root, 'pi-link', 'src', 'cli.js');
+    // npm's bin shape: an extensionless file symlink named after the bin, pointing at cli.js.
+    mkdirSync(join(root, 'npm-bin'));
+    npmBinPath = join(root, 'npm-bin', 'craft-pi');
+    symlinkSync(CLI_PATH, npmBinPath);
   });
 
   after(() => {
     rmSync(root, { recursive: true, force: true });
   });
 
-  function runCli(...args) {
-    return spawnSync(process.execPath, [CLI_PATH, ...args], {
+  function spawnNode(argv) {
+    return spawnSync(process.execPath, argv, {
       cwd: repoDir,
       env: PINNED_ENV,
       encoding: 'utf8',
     });
+  }
+
+  function runCli(...args) {
+    return spawnNode([CLI_PATH, ...args]);
   }
 
   it('Given a synthetic PATH holding only node and git, when pi is spawned directly by name, then the OS reports ENOENT', () => {
@@ -189,5 +195,39 @@ describe('cli.js — subprocess execution guard', () => {
 
     // Subprocess must exit (not hang or throw before reaching process.exit).
     assert.notEqual(result.status, null, 'cli must exit, not be killed by signal');
+  });
+
+  it('Given cli.js reached through a symlinked adapter dir and pi absent, when it runs, then it exits 2 with the pi-run blocker', () => {
+    // Arrange / Act
+    const sut = spawnNode([linkedCliPath]);
+
+    // Assert
+    assert.equal(sut.error, undefined);
+    assert.equal(sut.status, EXIT_BLOCKED, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);
+    assert.equal(sut.stderr.trim(), PI_RUN_ENOENT_BLOCKER);
+  });
+
+  it('Given cli.js reached through an npm-style extensionless bin symlink and pi absent, when it runs, then it exits 2 with the pi-run blocker', () => {
+    // Arrange / Act
+    const sut = spawnNode([npmBinPath]);
+
+    // Assert
+    assert.equal(sut.error, undefined);
+    assert.equal(sut.status, EXIT_BLOCKED, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);
+    assert.equal(sut.stderr.trim(), PI_RUN_ENOENT_BLOCKER);
+  });
+
+  it('Given cli.js imported as a module, when the import settles, then main does not run', () => {
+    // Arrange
+    const importScript = `await import(${JSON.stringify(pathToFileURL(CLI_PATH).href)});`;
+
+    // Act
+    const sut = spawnNode(['--input-type=module', '-e', importScript]);
+
+    // Assert
+    assert.equal(sut.error, undefined);
+    assert.equal(sut.status, 0, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);
+    assert.equal(sut.stdout, '');
+    assert.equal(sut.stderr, '');
   });
 });
