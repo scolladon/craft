@@ -1,8 +1,12 @@
 # 047 — P9-hardening mechanical decisions (consolidated)
 
-- **Status:** accepted
+- **Status:** superseded by ADR-570
 - **Date:** 2026-06-17
 - **Design:** docs/DESIGN-P9-hardening.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-570** for DC-2a/DC-2b only: Stryker core and tap-runner pinned at 8.7.1 for
+> a Node `>=18` floor. Both packages now sit at 10.0.0. The tap-runner as the runner, DC-2c, and
+> the other eight decisions below stand.
 
 ## Context
 

@@ -201,10 +201,10 @@ that reproduces the race.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the entry-guard-symlink-swap-race run, not yet scheduled)
 
-**Stryker stays pinned to 8.7.1 for a Node floor the engine no longer declares.** ADR-047 chose
-`@stryker-mutator/core@8.7.1` because 9.x requires Node `>=20` and the engine declared `>=18`. The
-engine now declares `^22.18.0 || >=24.2.0` (ADR-564), so that reason is gone. Moving to 9.x is a
-separate change: it needs its own ADR against ADR-047 and a full mutation run to compare scores
+**Stryker stays pinned to 8.7.1 for a Node floor the engine no longer declares.** The P9-hardening
+decisions (DC-2a/2b, superseded by ADR-570) chose `@stryker-mutator/core@8.7.1` because 9.x
+requires Node `>=20` and the engine declared `>=18`. The engine now declares `^22.18.0 || >=24.2.0` (ADR-564), so that reason is gone. Moving to 9.x is a
+separate change: it needs its own ADR against that decision and a full mutation run to compare scores
 and timings with 8.7.1.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the bin-entry-symlink-guard run, not yet scheduled)
