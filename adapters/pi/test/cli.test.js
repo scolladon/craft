@@ -1,6 +1,6 @@
 import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, mkdtempSync, mkdirSync, symlinkSync, rmSync, statSync } from 'node:fs';
+import { readFileSync, mkdtempSync, mkdirSync, symlinkSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { join, dirname, delimiter } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -12,6 +12,7 @@ const ADAPTER_DIR = join(__dir, '..');
 const CLI_PATH = join(ADAPTER_DIR, 'src', 'cli.js');
 const PI_RUN_ENOENT_BLOCKER = '{ unit: pi-run, reason: spawn pi ENOENT }';
 const EXIT_BLOCKED = 2;
+const IMPORTER_NAME = 'importer.mjs';
 
 // Scans the ambient PATH for an executable without throwing, so a missing
 // binary fails the test loudly (assert.ok on the result) instead of being
@@ -174,10 +175,10 @@ describe('cli.js — subprocess execution guard', () => {
     // If the ObjectLiteral mutant fired ({ } instead of { stdout, stderr }), the
     // write call would be on undefined and would throw — the process would crash
     // rather than exit cleanly.
-    assert.equal(result.status, 2, `expected exit 2 (pi not installed), stderr: ${result.stderr}`);
+    assert.equal(result.status, EXIT_BLOCKED, `expected exit 2 (pi not installed), stderr: ${result.stderr}`);
     assert.equal(
       result.stderr.trim(),
-      '{ unit: pi-run, reason: spawn pi ENOENT }',
+      PI_RUN_ENOENT_BLOCKER,
       `stderr must report the exact pi-run blocker, got: ${result.stderr}`,
     );
   });
@@ -217,12 +218,13 @@ describe('cli.js — subprocess execution guard', () => {
     assert.equal(sut.stderr.trim(), PI_RUN_ENOENT_BLOCKER);
   });
 
-  it('Given cli.js imported as a module, when the import settles, then main does not run', () => {
+  it('Given cli.js imported by another script, when the import settles, then main does not run', () => {
     // Arrange
-    const importScript = `await import(${JSON.stringify(pathToFileURL(CLI_PATH).href)});`;
+    const importerPath = join(root, IMPORTER_NAME);
+    writeFileSync(importerPath, `await import(${JSON.stringify(pathToFileURL(CLI_PATH).href)});\n`);
 
     // Act
-    const sut = spawnNode(['--input-type=module', '-e', importScript]);
+    const sut = spawnNode([importerPath]);
 
     // Assert
     assert.equal(sut.error, undefined);

@@ -9,7 +9,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -20,6 +20,7 @@ const LINK_NAME = 'codex-link';
 const LOUD_ARGV = ['--bogus'];
 const EXIT_REFUSED = 2;
 const EXPECTED_STDERR = 'trust-hook: unrecognised argument(s): --bogus\n';
+const IMPORTER_NAME = 'importer.mjs';
 
 // A fresh throwaway per call: bin/ holds only node, codex-link points at the real adapter dir.
 function withSandbox(fn) {
@@ -64,12 +65,16 @@ describe('trust-hook bin — entry-point guard', () => {
     assert.equal(sut.stdout, '');
   });
 
-  it('Given trust-hook imported as a module, when the import settles, then main does not run', () => {
+  it('Given trust-hook imported by another script, when the import settles, then main does not run', () => {
     // Arrange
-    const importScript = `await import(${JSON.stringify(pathToFileURL(BIN).href)});`;
+    const importScript = `await import(${JSON.stringify(pathToFileURL(BIN).href)});\n`;
 
     // Act
-    const sut = withSandbox((sandbox) => spawnNode(['--input-type=module', '-e', importScript], sandbox));
+    const sut = withSandbox((sandbox) => {
+      const importerPath = join(sandbox.tmp, IMPORTER_NAME);
+      writeFileSync(importerPath, importScript);
+      return spawnNode([importerPath], sandbox);
+    });
 
     // Assert
     assert.equal(sut.error, undefined);
