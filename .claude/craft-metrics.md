@@ -575,3 +575,8 @@ adapter-entry-symlink-guard design turns=51 tool_calls=54 tokens=3452013 duratio
 adapter-entry-symlink-guard implementation turns=21 tool_calls=25 tokens=495603 duration_ms=220693 cache_read=428723 cache_creation=66348 output=490 avg_ctx=23577 equiv=128299
 adapter-entry-symlink-guard planning turns=36 tool_calls=41 tokens=2393099 duration_ms=497579 cache_read=2292162 cache_creation=100571 output=294 avg_ctx=66467 equiv=356472
 adapter-entry-symlink-guard review turns=63 tool_calls=66 tokens=1641679 duration_ms=539350 cache_read=1482326 cache_creation=158553 output=674 avg_ctx=26048 equiv=349920
+entry-guard-symlink-swap-race design turns=117 tool_calls=121 tokens=9038122 duration_ms=1908920 cache_read=8782481 cache_creation=253780 output=1627 avg_ctx=77235 equiv=1203842
+entry-guard-symlink-swap-race implementation turns=27 tool_calls=30 tokens=668817 duration_ms=366748 cache_read=576687 cache_creation=91246 output=830 avg_ctx=24740 equiv=175930
+entry-guard-symlink-swap-race planning turns=66 tool_calls=69 tokens=7441578 duration_ms=1039305 cache_read=7263569 cache_creation=176908 output=969 avg_ctx=112737 equiv=952469
+entry-guard-symlink-swap-race review turns=82 tool_calls=82 tokens=2615485 duration_ms=756870 cache_read=2389674 cache_creation=224362 output=1285 avg_ctx=31880 equiv=526009
+entry-guard-symlink-swap-race validation turns=3 tool_calls=3 tokens=49340 duration_ms=14260 cache_read=34311 cache_creation=15000 output=23 avg_ctx=16439 equiv=22302
