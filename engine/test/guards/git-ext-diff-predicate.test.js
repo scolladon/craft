@@ -110,6 +110,23 @@ describe('gitExtDiffPredicate() — command-separator anchored git diff/show', (
   }
 });
 
+describe('gitExtDiffPredicate() — a non-compliant git diff/show before a separator still blocks', () => {
+  for (const command of [
+    'git diff; echo ok',
+    'git show HEAD && true',
+    'git diff | cat',
+    'git diff\necho done',
+  ]) {
+    it(`Given ${JSON.stringify(command)} (non-compliant invocation in a non-final segment), when checked, then returns block: true`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, true);
+    });
+  }
+});
+
 describe('gitExtDiffPredicate() — fail-open bypasses now closed', () => {
   for (const command of [
     ' git diff', // leading space on the first line
