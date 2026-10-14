@@ -571,3 +571,7 @@ bin-entry-symlink-guard implementation turns=22 tool_calls=24 tokens=505220 dura
 bin-entry-symlink-guard planning turns=61 tool_calls=63 tokens=4444113 duration_ms=755806 cache_read=4321189 cache_creation=121867 output=935 avg_ctx=72839 equiv=589250
 bin-entry-symlink-guard review turns=35 tool_calls=36 tokens=833746 duration_ms=273432 cache_read=719101 cache_creation=114105 output=470 avg_ctx=23808 equiv=216961
 bin-entry-symlink-guard validation turns=3 tool_calls=3 tokens=47911 duration_ms=10177 cache_read=33592 cache_creation=14257 output=56 avg_ctx=15952 equiv=21466
+adapter-entry-symlink-guard design turns=51 tool_calls=54 tokens=3452013 duration_ms=525095 cache_read=3345005 cache_creation=106266 output=640 avg_ctx=67674 equiv=470635
+adapter-entry-symlink-guard implementation turns=21 tool_calls=25 tokens=495603 duration_ms=220693 cache_read=428723 cache_creation=66348 output=490 avg_ctx=23577 equiv=128299
+adapter-entry-symlink-guard planning turns=36 tool_calls=41 tokens=2393099 duration_ms=497579 cache_read=2292162 cache_creation=100571 output=294 avg_ctx=66467 equiv=356472
+adapter-entry-symlink-guard review turns=63 tool_calls=66 tokens=1641679 duration_ms=539350 cache_read=1482326 cache_creation=158553 output=674 avg_ctx=26048 equiv=349920
