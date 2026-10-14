@@ -562,3 +562,7 @@ claude-hook-timeout-probe design turns=50 tool_calls=51 tokens=4413398 duration_
 claude-hook-timeout-probe implementation turns=18 tool_calls=21 tokens=319546 duration_ms=209438 cache_read=254080 cache_creation=64974 output=456 avg_ctx=17727 equiv=108942
 claude-hook-timeout-probe planning turns=23 tool_calls=29 tokens=1200252 duration_ms=328468 cache_read=1129474 cache_creation=70478 output=254 avg_ctx=52174 equiv=202361
 claude-hook-timeout-probe review turns=50 tool_calls=52 tokens=1826514 duration_ms=425780 cache_read=1662160 cache_creation=163828 output=426 avg_ctx=36522 equiv=373231
+claude-hook-foreground-stall-probe design turns=35 tool_calls=40 tokens=2392330 duration_ms=438388 cache_read=2285786 cache_creation=105573 output=901 avg_ctx=68327 equiv=365120
+claude-hook-foreground-stall-probe implementation turns=16 tool_calls=19 tokens=292760 duration_ms=209725 cache_read=220753 cache_creation=71144 output=831 avg_ctx=18246 equiv=115192
+claude-hook-foreground-stall-probe planning turns=29 tool_calls=30 tokens=1812226 duration_ms=362296 cache_read=1726041 cache_creation=85477 output=650 avg_ctx=62468 equiv=282758
+claude-hook-foreground-stall-probe review turns=57 tool_calls=59 tokens=1955524 duration_ms=478891 cache_read=1777571 cache_creation=176516 output=1323 avg_ctx=34284 equiv=405131
