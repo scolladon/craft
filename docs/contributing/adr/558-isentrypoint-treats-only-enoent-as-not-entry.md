@@ -4,9 +4,12 @@ subjects:
 ---
 # 558 — `isEntryPoint` maps only `ENOENT` to "not the entry point" and rethrows every other error
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-564
 - **Date:** 2026-10-14
 - **Design:** docs/contributing/design/bin-entry-symlink-guard.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-564** for the `ENOENT` mapping: the guard no longer real-paths argv[1], so it has no filesystem
+> error to map.
 
 ## Context
 

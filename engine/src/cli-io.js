@@ -5,12 +5,13 @@
  * repo-root walk, an entry-point predicate for the bins, and the two exit-code constants.
  */
 
-import { statSync, existsSync, realpathSync } from 'node:fs';
+import { statSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
 
 export const EXIT_OK = 0;
 export const EXIT_ERR = 1;
+
+const SUPPORTED_NODE_RANGE = '^22.18.0 || >=24.2.0';
 
 /**
  * Regular-file predicate mirroring the bash `[ -f <path> ]` test: true only for an
@@ -71,24 +72,16 @@ export function findRepoRoot(startDir) {
 }
 
 /**
- * True when the module at moduleUrl is the process entry script named by argv1.
- * Both sides are real-pathed: Node real-paths the main module's URL but keeps argv[1]
- * as typed, and --preserve-symlinks-main keeps the URL symlinked instead.
- * @param {string} moduleUrl - the caller's import.meta.url
- * @param {string | undefined} argv1 - process.argv[1]
+ * True when the module described by meta is the process entry script. Node fixes
+ * import.meta.main when it loads the entry, so a symlink in argv[1] repointed or removed
+ * afterwards cannot change the answer. Node versions without it are refused, never guessed.
+ * @param {{ main?: boolean }} meta - the caller's import.meta
  * @returns {boolean}
+ * @throws {Error} when meta.main is not a boolean (Node outside SUPPORTED_NODE_RANGE)
  */
-export function isEntryPoint(moduleUrl, argv1) {
-  // realpathSync(undefined) resolves <cwd>/undefined, so an absent argv[1] must never reach it.
-  if (!isNonEmptyString(argv1)) return false;
-  return realPathOrNull(argv1) === realpathSync(fileURLToPath(moduleUrl));
-}
-
-function realPathOrNull(path) {
-  try {
-    return realpathSync(path);
-  } catch (error) {
-    if (error.code === 'ENOENT') return null;
-    throw error;
+export function isEntryPoint(meta) {
+  if (typeof meta.main !== 'boolean') {
+    throw new Error(`craft needs Node ${SUPPORTED_NODE_RANGE} (import.meta.main); running ${process.version}`);
   }
+  return meta.main;
 }

@@ -7,9 +7,13 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Removed
+- Support for Node 18, 20, 22.0-22.17, 23 and 24.0-24.1, which lack `import.meta.main`. Every craft entry now exits 1 on them; most print an error naming the supported range `^22.18.0 || >=24.2.0`, and some fail earlier on a missing `node:path` export.
+
 ### Fixed
 - The plugin's hooks run when the plugin is installed under a path containing a space.
 - The `craft-pi` bin and the codex trust-hook run when reached through a symlink, such as npm's global bin link, instead of exiting 0 with no output.
+- Every engine bin, the codex trust-hook and the `craft-pi` bin run when the symlink they were reached through is repointed or removed while they start, instead of exiting 0 with no output, which `trust-hook --check` reported as trusted.
 
 ## [1.1.0] - 2026-10-12
 

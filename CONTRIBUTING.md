@@ -10,7 +10,7 @@ The maintainer builds craft with craft runs. That is one way of working, never a
 
 ## Set up
 
-Put Node 22, `jq` and `shellcheck` on your PATH. `zsh` is optional: CI and the devcontainer install it,
+Put Node 22.18 or later on the 22 line (or 24.2 or later), `jq` and `shellcheck` on your PATH. `zsh` is optional: CI and the devcontainer install it,
 and the codex trust-matcher fuzz runs one leg per shell. Without `zsh`, that leg is reported as skipped, never failed.
 Then install the engine dependencies:
 
