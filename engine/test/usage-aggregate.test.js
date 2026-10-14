@@ -861,6 +861,18 @@ test('Given a report with null role and a recommendation, when renderMarkdown ru
   assert.ok(result.includes('evidence:'), 'evidence line must appear');
 });
 
+// ── 37a. renderMarkdown: a recommendation's detail renders between its heading and its evidence ──
+
+test('Given a report carrying a recommendation, when renderMarkdown runs, then the recommendation detail is the line between its heading and its evidence line', () => {
+  const report = aggregate([makeEvent({ tokens: { input: 0, cacheRead: 10, cacheCreation: 500, output: 0 } })], PRICE_TABLE);
+  const [recommendation] = report.recommendations;
+  const sut = renderMarkdown;
+
+  const result = sut(report);
+
+  assert.ok(result.includes(`\n${recommendation.detail}\nevidence: `), 'the recommendation detail must render on its own line before the evidence line');
+});
+
 // ── 38. renderMarkdown: output starts with exact header and ends with newline ──
 
 test('Given a minimal valid report, when renderMarkdown runs, then output starts with the exact header and ends with a newline', () => {
