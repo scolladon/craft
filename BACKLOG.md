@@ -175,9 +175,25 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-14 — follow-ups surfaced by the bin-entry-symlink-guard run, not yet scheduled)
+
+**Adapter entry points exit 0 silently when invoked through a symlinked path.**
+`adapters/codex/bin/trust-hook.js:54` and `adapters/pi/src/cli.js:4` still guard `main` with
+`process.argv[1] === fileURLToPath(import.meta.url)`, the same defect the engine bins had (ADR-559
+kept them out of that change). Through a symlinked checkout each exits 0 with no output; from the
+physical path each exits 2 (design `docs/contributing/design/bin-entry-symlink-guard.md`, Out of
+scope). Fix: import `isEntryPoint` from `engine/src/cli-io.js` (the adapters already import from
+`engine/src/`), and rewrite `adapters/pi/test/cli.test.js:49`, which pins the literal guard string,
+into a behavioural symlink check like `engine/test/bin-entry-symlink.bin.test.js`.
+
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the claude-hook-foreground-stall-probe run, not yet scheduled)
 
-**Engine bins exit 0 silently when invoked through a symlinked path.** Every `engine/bin/*.js`
+**Engine bins exit 0 silently when invoked through a symlinked path — delivered 2026-10-14**
+(fix/bin-entry-symlink-guard). All 24 bins now guard `main` with `isEntryPoint(import.meta.url,
+process.argv[1])` from `engine/src/cli-io.js`, which real-paths both sides (ADR-556, ADR-557); only
+`ENOENT` on argv[1] means "not the entry point" (ADR-558). `engine/test/bin-entry-symlink.bin.test.js`
+spawns every bin through a test-made symlink and asserts it is loud (ADR-560). It failed 25 of 26
+before the fix and passes 26 of 26 after. Original entry: every `engine/bin/*.js`
 (24 of 24) runs `main` only when `process.argv[1] === fileURLToPath(import.meta.url)`. Node
 resolves `import.meta.url` to the real path, while `argv[1]` keeps the symlinked one, so a bin
 reached through a symlink (macOS `/var` → `/private/var`, a symlinked checkout or plugin dir)
