@@ -177,7 +177,15 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the adapter-entry-symlink-guard run, not yet scheduled)
 
-**`isEntryPoint` fails open when argv[1]'s symlink is swapped after the module loads.**
+**`isEntryPoint` fails open when argv[1]'s symlink is swapped after the module loads — delivered
+2026-10-14** (fix/entry-guard-symlink-swap-race). `isEntryPoint(import.meta)` now returns Node's own
+`import.meta.main` and throws an error naming the supported range when it is undefined (ADR-563,
+ADR-564); argv[1] is never read. `engine/package.json` declares `^22.18.0 || >=24.2.0`, a breaking
+change (ADR-569). A committed preload swaps a test-made link while the entry's dependencies load
+(ADR-567): `engine/test/bin-entry-swap-race.bin.test.js` (adr-lint) and
+`adapters/codex/test/trust-hook.bin.test.js` (`--check`) assert exit 2 and that the swap fired
+(ADR-566). Before the fix, repoint and unlink exited 0 with no output; after it, both exit 2.
+Original entry:
 `isEntryPoint` (`engine/src/cli-io.js:84-91`) real-paths `process.argv[1]` again after Node has
 already resolved and loaded the main module. If that link is repointed or unlinked in between
 (for example an upgrade that swaps a `current` link), the check returns false and the entry exits
@@ -190,6 +198,14 @@ answer, `import.meta.main ?? isEntryPoint(import.meta.url, process.argv[1])`. `i
 is true when run and false when imported on Node 22.22.3, and undefined on older Node (engine
 declares `>=18`). That needs an ADR on the real-path comparison (ADR-564 supersedes it), and a test
 that reproduces the race.
+
+### Open (scoped 2026-10-14 — follow-ups surfaced by the entry-guard-symlink-swap-race run, not yet scheduled)
+
+**Stryker stays pinned to 8.7.1 for a Node floor the engine no longer declares.** ADR-047 chose
+`@stryker-mutator/core@8.7.1` because 9.x requires Node `>=20` and the engine declared `>=18`. The
+engine now declares `^22.18.0 || >=24.2.0` (ADR-564), so that reason is gone. Moving to 9.x is a
+separate change: it needs its own ADR against ADR-047 and a full mutation run to compare scores
+and timings with 8.7.1.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the bin-entry-symlink-guard run, not yet scheduled)
 
