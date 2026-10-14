@@ -1,16 +1,18 @@
 /**
  * Direct unit tests for the shared cli-io helpers extracted from the
  * config-resolve/init-land/promote-plan mains: isRegularFile, isDirectoryPath,
- * isNonEmptyString, fail, and the exit-code constants. Given/When/Then titles, Arrange-Act-Assert bodies, sut variable.
+ * isNonEmptyString, fail, isEntryPoint, and the exit-code constants. Given/When/Then titles, Arrange-Act-Assert bodies, sut variable.
  */
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { tmpdir } from 'node:os';
-import { isRegularFile, isDirectoryPath, isNonEmptyString, fail, EXIT_OK, EXIT_ERR } from '../src/cli-io.js';
+import { isRegularFile, isDirectoryPath, isNonEmptyString, fail, isEntryPoint, EXIT_OK, EXIT_ERR } from '../src/cli-io.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
+import { withTempCwd } from '../test-helpers/with-cwd.js';
 
 function withTmp(fn) {
   const tmp = mkdtempSync(join(tmpdir(), 'craft-cli-io-'));
@@ -137,6 +139,117 @@ test('Given a non-string value, when isNonEmptyString runs, then it returns fals
   const results = [sut(1), sut(undefined)];
 
   assert.deepEqual(results, [false, false]);
+});
+
+// ─── isEntryPoint ─────────────────────────────────────────────────────────────
+
+// real/m.js plus link -> real, so one tree offers a physical and a symlinked route to the same module.
+function withEntryFixture(fn) {
+  return withTmp((tmp) => {
+    mkdirSync(join(tmp, 'real'));
+    writeFileSync(join(tmp, 'real', 'm.js'), '');
+    symlinkSync(join(tmp, 'real'), join(tmp, 'link'));
+    return fn(tmp);
+  });
+}
+
+function urlOf(path) {
+  return pathToFileURL(path).href;
+}
+
+test('Given argv1 naming the module by its own path, when isEntryPoint runs, then it returns true', () => {
+  const sut = isEntryPoint;
+
+  withEntryFixture((tmp) => {
+    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'real', 'm.js'));
+
+    assert.equal(result, true);
+  });
+});
+
+test('Given argv1 reaching the module through a symlinked directory, when isEntryPoint runs, then it returns true', () => {
+  const sut = isEntryPoint;
+
+  withEntryFixture((tmp) => {
+    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'link', 'm.js'));
+
+    assert.equal(result, true);
+  });
+});
+
+test('Given a module URL kept symlinked as under --preserve-symlinks-main, when isEntryPoint runs, then it returns true', () => {
+  const sut = isEntryPoint;
+
+  withEntryFixture((tmp) => {
+    const result = sut(urlOf(join(tmp, 'link', 'm.js')), join(tmp, 'link', 'm.js'));
+
+    assert.equal(result, true);
+  });
+});
+
+test('Given argv1 a symlink to the module file itself, when isEntryPoint runs, then it returns true', () => {
+  const sut = isEntryPoint;
+
+  withEntryFixture((tmp) => {
+    symlinkSync(join(tmp, 'real', 'm.js'), join(tmp, 'alias.js'));
+
+    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'alias.js'));
+
+    assert.equal(result, true);
+  });
+});
+
+test('Given argv1 naming a different existing file, when isEntryPoint runs, then it returns false', () => {
+  const sut = isEntryPoint;
+
+  withEntryFixture((tmp) => {
+    writeFileSync(join(tmp, 'real', 'other.js'), '');
+
+    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'real', 'other.js'));
+
+    assert.equal(result, false);
+  });
+});
+
+test('Given argv1 naming a path that does not exist, when isEntryPoint runs, then it returns false', () => {
+  const sut = isEntryPoint;
+
+  withEntryFixture((tmp) => {
+    const result = sut(urlOf(join(tmp, 'real', 'm.js')), join(tmp, 'real', 'missing.js'));
+
+    assert.equal(result, false);
+  });
+});
+
+test('Given argv1 crossing a regular file as if it were a directory, when isEntryPoint runs, then it rethrows the ENOTDIR error', () => {
+  const sut = isEntryPoint;
+
+  withEntryFixture((tmp) => {
+    const modulePath = join(tmp, 'real', 'm.js');
+
+    assert.throws(() => sut(urlOf(modulePath), join(modulePath, 'x')), { code: 'ENOTDIR' });
+  });
+});
+
+test('Given argv1 undefined and a file named undefined in cwd, when isEntryPoint runs, then it returns false', async () => {
+  const sut = isEntryPoint;
+  const seedUndefinedFile = (dir) => writeFileSync(join(dir, 'undefined'), '');
+
+  const result = await withTempCwd(seedUndefinedFile, () => sut(urlOf(join(process.cwd(), 'undefined')), undefined));
+
+  assert.equal(result, false);
+});
+
+test('Given argv1 empty or not a string, when isEntryPoint runs, then it returns false without throwing', () => {
+  const sut = isEntryPoint;
+
+  withEntryFixture((tmp) => {
+    const moduleUrl = urlOf(join(tmp, 'real', 'm.js'));
+
+    const results = [sut(moduleUrl, ''), sut(moduleUrl, 42)];
+
+    assert.deepEqual(results, [false, false]);
+  });
 });
 
 // ─── constants ────────────────────────────────────────────────────────────────

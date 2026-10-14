@@ -2,11 +2,12 @@
  * Shared CLI I/O helpers for the engine's CLI mains, plus a pure
  * non-empty-string predicate that intention.js shares with them: never-throw
  * regular-file and directory predicates, a stderr-and-fail-exit helper, a
- * repo-root walk, and the two exit-code constants.
+ * repo-root walk, an entry-point predicate for the bins, and the two exit-code constants.
  */
 
-import { statSync, existsSync } from 'node:fs';
+import { statSync, existsSync, realpathSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 export const EXIT_OK = 0;
 export const EXIT_ERR = 1;
@@ -66,5 +67,28 @@ export function findRepoRoot(startDir) {
     const parent = dirname(dir);
     if (parent === dir) return startDir;
     dir = parent;
+  }
+}
+
+/**
+ * True when the module at moduleUrl is the process entry script named by argv1.
+ * Both sides are real-pathed: Node real-paths the main module's URL but keeps argv[1]
+ * as typed, and --preserve-symlinks-main keeps the URL symlinked instead.
+ * @param {string} moduleUrl - the caller's import.meta.url
+ * @param {string | undefined} argv1 - process.argv[1]
+ * @returns {boolean}
+ */
+export function isEntryPoint(moduleUrl, argv1) {
+  // realpathSync(undefined) resolves <cwd>/undefined, so an absent argv[1] must never reach it.
+  if (!isNonEmptyString(argv1)) return false;
+  return realPathOrNull(argv1) === realpathSync(fileURLToPath(moduleUrl));
+}
+
+function realPathOrNull(path) {
+  try {
+    return realpathSync(path);
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
   }
 }
