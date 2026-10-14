@@ -566,3 +566,8 @@ claude-hook-foreground-stall-probe design turns=35 tool_calls=40 tokens=2392330 
 claude-hook-foreground-stall-probe implementation turns=16 tool_calls=19 tokens=292760 duration_ms=209725 cache_read=220753 cache_creation=71144 output=831 avg_ctx=18246 equiv=115192
 claude-hook-foreground-stall-probe planning turns=29 tool_calls=30 tokens=1812226 duration_ms=362296 cache_read=1726041 cache_creation=85477 output=650 avg_ctx=62468 equiv=282758
 claude-hook-foreground-stall-probe review turns=57 tool_calls=59 tokens=1955524 duration_ms=478891 cache_read=1777571 cache_creation=176516 output=1323 avg_ctx=34284 equiv=405131
+bin-entry-symlink-guard design turns=39 tool_calls=46 tokens=2182238 duration_ms=545820 cache_read=2091548 cache_creation=90114 output=498 avg_ctx=55942 equiv=324365
+bin-entry-symlink-guard implementation turns=22 tool_calls=24 tokens=505220 duration_ms=207946 cache_read=457662 cache_creation=46928 output=586 avg_ctx=22938 equiv=107400
+bin-entry-symlink-guard planning turns=61 tool_calls=63 tokens=4444113 duration_ms=755806 cache_read=4321189 cache_creation=121867 output=935 avg_ctx=72839 equiv=589250
+bin-entry-symlink-guard review turns=35 tool_calls=36 tokens=833746 duration_ms=273432 cache_read=719101 cache_creation=114105 output=470 avg_ctx=23808 equiv=216961
+bin-entry-symlink-guard validation turns=3 tool_calls=3 tokens=47911 duration_ms=10177 cache_read=33592 cache_creation=14257 output=56 avg_ctx=15952 equiv=21466
