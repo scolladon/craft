@@ -580,3 +580,7 @@ entry-guard-symlink-swap-race implementation turns=27 tool_calls=30 tokens=66881
 entry-guard-symlink-swap-race planning turns=66 tool_calls=69 tokens=7441578 duration_ms=1039305 cache_read=7263569 cache_creation=176908 output=969 avg_ctx=112737 equiv=952469
 entry-guard-symlink-swap-race review turns=82 tool_calls=82 tokens=2615485 duration_ms=756870 cache_read=2389674 cache_creation=224362 output=1285 avg_ctx=31880 equiv=526009
 entry-guard-symlink-swap-race validation turns=3 tool_calls=3 tokens=49340 duration_ms=14260 cache_read=34311 cache_creation=15000 output=23 avg_ctx=16439 equiv=22302
+stryker-9-upgrade design turns=136 tool_calls=144 tokens=11059023 duration_ms=1520284 cache_read=10784097 cache_creation=272804 output=1850 avg_ctx=81303 equiv=1428937
+stryker-9-upgrade implementation turns=22 tool_calls=24 tokens=421593 duration_ms=161484 cache_read=350377 cache_creation=70247 output=925 avg_ctx=19121 equiv=127515
+stryker-9-upgrade planning turns=50 tool_calls=51 tokens=3305451 duration_ms=538268 cache_read=3199012 cache_creation=105719 output=620 avg_ctx=66097 equiv=455250
+stryker-9-upgrade review turns=61 tool_calls=63 tokens=1682948 duration_ms=477015 cache_read=1539371 cache_creation=142237 output=1218 avg_ctx=27569 equiv=337945
