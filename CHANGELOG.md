@@ -9,6 +9,7 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ### Fixed
 - The plugin's hooks run when the plugin is installed under a path containing a space.
+- The `craft-pi` bin and the codex trust-hook run when reached through a symlink, such as npm's global bin link, instead of exiting 0 with no output.
 
 ## [1.1.0] - 2026-10-12
 
