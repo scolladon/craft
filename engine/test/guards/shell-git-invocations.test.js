@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseGitArgv, parseShellCommands } from '../../src/guards/shell-git-invocations.js';
+import { gitInvocations, hasInlineAlias, normaliseGitArgv, parseShellCommands } from '../../src/guards/shell-git-invocations.js';
 
 const dyn = text => ({ text, dynamic: true });
 
@@ -516,5 +516,71 @@ describe('parseShellCommands() — re-parsed eval and env -S strings', () => {
     const result = sut(`echo $(bash -c '${nest(PINNED_NESTING_CAP)}')`);
 
     assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
+  });
+});
+
+describe('gitInvocations()', () => {
+  const invocation = (name, leadingWords = [], args = []) => ({
+    ...subcommand(name, args),
+    leadingWords,
+  });
+
+  for (const [command, expected] of [
+    ['git -C . push', [invocation('push')]],
+    ['env git diff', [invocation('diff', ['env'])]],
+    ['/usr/bin/git diff', [invocation('diff')]],
+    ['echo git push', [invocation('push', ['echo'])]],
+    ['git log --grep git show', [invocation('log', [], ['--grep', 'git', 'show']), invocation('show', ['git', 'log', '--grep'])]],
+    ['ls /x/git push', [invocation('push', ['ls'])]],
+    ['rtk proxy git diff', [invocation('diff', ['rtk', 'proxy'])]],
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when anchored, then the invocations match`, () => {
+      const sut = gitInvocations;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { parsed: true, invocations: expected });
+    });
+  }
+
+  it('Given a dynamic head, when anchored, then a dynamic-head invocation is returned', () => {
+    const sut = gitInvocations;
+
+    const result = sut('$G push');
+
+    assert.deepEqual(result, { parsed: true, invocations: [{ ...subcommand('push'), leadingWords: [] }] });
+  });
+
+  it('Given an unterminated quote, when anchored, then the parse failure is returned', () => {
+    const sut = gitInvocations;
+
+    const result = sut('echo "x');
+
+    assert.deepEqual(result, parseShellCommands('echo "x'));
+    assert.equal(result.parsed, false);
+  });
+});
+
+describe('hasInlineAlias()', () => {
+  for (const [command, expected] of [
+    ['git -c alias.d=diff d', true],
+    ['git -c core.pager=cat diff', false],
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then ${expected}`, () => {
+      const sut = hasInlineAlias;
+      const [first] = gitInvocations(command).invocations;
+
+      const result = sut(first);
+
+      assert.equal(result, expected);
+    });
+  }
+
+  it('Given a non-subcommand invocation, when checked, then false', () => {
+    const sut = hasInlineAlias;
+
+    const result = sut({ kind: 'no-subcommand' });
+
+    assert.equal(result, false);
   });
 });

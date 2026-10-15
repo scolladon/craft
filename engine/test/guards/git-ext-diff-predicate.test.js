@@ -227,3 +227,103 @@ describe('gitExtDiffPredicate() — regex negatives', () => {
     assert.equal(result.block, false);
   });
 });
+
+describe('gitExtDiffPredicate() — shell grammar no longer hides a diff/show', () => {
+  for (const command of [
+    'echo \\"; git diff',
+    "echo \\'; git diff",
+    "echo $'a\\'b'; git diff",
+    "cat <<EOF\nit's\nEOF\ngit diff",
+    '(git diff)',
+    'true && (git diff)',
+    '{ git diff; }',
+    '! git diff',
+    'time git diff',
+    'if true; then git diff; fi',
+    'case x in x) git diff;; esac',
+    'f(){ git diff; }; f',
+    'FOO=1 git diff',
+    'x=$((1+2)) git diff',
+    'env git diff',
+    'command git diff',
+    'exec git diff',
+    'nohup git diff',
+    'echo x | xargs git diff',
+    '"git" diff',
+    "'git' diff",
+    'g\\it diff',
+    'git "diff"',
+    'git di""ff',
+    '/usr/bin/git diff',
+    'git --no-pager diff',
+    'git -p diff',
+    'git --git-dir .git diff',
+    'git --no-optional-locks diff',
+    '$(git diff)',
+    '`git diff`',
+    'cat <(git diff)',
+    'cat <<EOF\n$(git diff)\nEOF',
+    "bash -c 'git diff'",
+    'sh -c "git diff"',
+    'eval git diff',
+    "env -S 'git diff'",
+    'G=git; $G diff',
+    'echo git diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then it blocks`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, true);
+    });
+  }
+
+  it('Given an unterminated heredoc body holding git diff, when checked, then it is data and passes', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('cat <<EOF\nbody\ngit diff');
+
+    assert.equal(result.block, false);
+  });
+});
+
+describe('gitExtDiffPredicate() — fail-closed verdicts', () => {
+  for (const [command, reason] of [
+    ['echo "x', 'craft: command not parseable (unterminated quote) — denied fail-closed'],
+    ['echo $(x', 'craft: command not parseable (unterminated substitution) — denied fail-closed'],
+    ['git -c alias.d=diff d', 'craft: an inline git alias (-c alias.*) is denied — it can run any git verb'],
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then it blocks with the exact reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason });
+    });
+  }
+
+  it('Given a dynamic word before the subcommand and a diff word, when checked, then it blocks', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('git $OPTS diff');
+
+    assert.equal(result.block, true);
+  });
+});
+
+describe('gitExtDiffPredicate() — accepted residuals', () => {
+  for (const command of [
+    "cat <<'EOF'\n$(git diff)\nEOF",
+    'git${IFS}diff',
+    'git --frobnicate diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then it passes`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+});

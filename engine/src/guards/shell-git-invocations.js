@@ -639,3 +639,32 @@ export function parseShellCommands(command) {
   if (context.failure !== null) return { parsed: false, reason: context.failure };
   return { parsed: true, commands: context.commands };
 }
+
+const GIT_COMMAND = 'git';
+const PATH_SEPARATOR = '/';
+const ALIAS_KEY_PREFIX = 'alias.';
+
+export const INLINE_ALIAS_REASON =
+  'craft: an inline git alias (-c alias.*) is denied — it can run any git verb';
+
+const isGitWord = word => !word.dynamic && word.text.split(PATH_SEPARATOR).pop() === GIT_COMMAND;
+
+const invocationAfter = (words, index) => ({
+  ...normaliseGitArgv(words.slice(index + 1)),
+  leadingWords: texts(words.slice(0, index)),
+});
+
+const anchoredInvocations = ({ words }) => {
+  const anchors = words.flatMap((word, index) => (isGitWord(word) ? [invocationAfter(words, index)] : []));
+  if (words[0]?.dynamic !== true) return anchors;
+  return [{ ...normaliseGitArgv(words.slice(1)), leadingWords: [] }, ...anchors];
+};
+
+export function gitInvocations(command) {
+  const result = parseShellCommands(command);
+  if (!result.parsed) return result;
+  return { parsed: true, invocations: result.commands.flatMap(anchoredInvocations) };
+}
+
+export const hasInlineAlias = invocation =>
+  invocation.kind === 'subcommand' && invocation.configKeys.some(key => key.startsWith(ALIAS_KEY_PREFIX));
