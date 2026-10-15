@@ -45,14 +45,14 @@ hook below.
 
 ## Guard — honest enforcement profile
 
-craft's git-guard binds to Copilot as three layers, only two of which actually enforce:
+craft's git-guard binds to Copilot as three layers, all of which enforce:
 
 - **Containment** (`--add-dir <worktree>`, never `--allow-all-paths`) — enforces, live-proven.
 - **Command policy** (`--deny-tool` pattern set) — enforces, live-proven, and takes precedence
   even over `--allow-all-tools`.
-- **`preToolUse` hook** (`hooks/craft-observer.js`) — fires on every tool call but **cannot
-  deny**; it is audit-only, recording verdicts for the run record. Treat it as observability,
-  never as a blocking control.
+- **`preToolUse` hook** (`hooks/craft-guard.js`) — judges normalised git argv and writes a JSON
+  deny on stdout (exit 0); a crash denies by exit 2. Enforces on copilot >= 1.0.92; a hook
+  timeout fails open (copilot's behaviour).
 
 ## Usage
 

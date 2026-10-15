@@ -4,15 +4,10 @@
  * Live-proven: a `command`-type PreToolUse hook that exits with code 2 and
  * writes the reason to stderr blocks the tool call — the command never runs,
  * and Codex feeds the reason back to the model as a `function_call_output`.
- * This is the exact inverse of the Copilot observer
- * (adapters/copilot/hooks/craft-observer.js), whose always-exit-0 is
- * deliberate because Copilot's hook cannot deny. A future reader must not
- * "fix" the exit code in either direction: Copilot exits 0 because it
- * genuinely can't enforce; Codex exits 2 because it genuinely can, and every
- * path here — a real denial, a fail-closed verdict, or an unreadable
- * payload — must end in the same deny call. Unlike the Copilot observer,
- * there is no unconditional exit-0 cleanup block wrapping the try/catch
- * here — that is the one construct that could let a pass preempt a deny.
+ * Every path here — a real denial, a fail-closed verdict, or an unreadable
+ * payload — must end in the same deny call, so there is no unconditional
+ * exit-0 cleanup block wrapping the try/catch: that is the one construct that
+ * could let a pass preempt a deny.
  *
  * Never writes to stdout on the allow path: the JSON `hookSpecificOutput`
  * response form is a confirmed schema but a deferred, unproven path — the

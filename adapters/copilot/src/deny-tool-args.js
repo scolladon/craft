@@ -1,12 +1,13 @@
 /**
- * Enforcing guard layers for the Copilot adapter: the deny-tool pattern set
+ * Launch-time guard layers for the Copilot adapter: the deny-tool pattern set
  * and the launch flags that pair it with native path containment.
  *
- * Both mechanisms are live-proven to actually block, unlike Copilot's
- * `preToolUse` hook (fires but cannot deny). `--deny-tool` patterns take
- * precedence even over `--allow-all-tools`; `--add-dir` extends the
- * contained path set. `--allow-all-paths` disables that containment
- * entirely and must never be emitted here.
+ * Both mechanisms are live-proven to actually block. They are the floor
+ * behind the enforcing `preToolUse` hook (hooks/craft-guard.js), which judges
+ * normalised argv and is the layer that closes what prefix matching cannot.
+ * `--deny-tool` patterns take precedence even over `--allow-all-tools`;
+ * `--add-dir` extends the contained path set. `--allow-all-paths` disables
+ * that containment entirely and must never be emitted here.
  */
 
 import { isAbsolute } from 'node:path';
