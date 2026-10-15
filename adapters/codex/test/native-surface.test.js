@@ -317,6 +317,12 @@ describe('README.md — honesty pins', () => {
     assert.match(sut, /fail open/i);
   });
 
+  it('Given README.md, when scanned, then it states the launch path refuses to start on a malformed .rules file', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    assert.match(sut, /refuses?\s+to\s+start/i);
+  });
+
   it('Given README.md, when scanned, then it states per-sandbox-mode blocking was not measured', () => {
     const sut = readFileSync(README_PATH, 'utf8');
 
