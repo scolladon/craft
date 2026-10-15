@@ -29,7 +29,7 @@ under `plugins/craft-codex/skills/`. Its manifest also declares
 the second entry, whose `skills` field points at the repository-root `skills/` tree.
 
 `codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and rewrites its
-manifest, and the cached `.codex-plugin/plugin.json` observed on 0.145.0 is just
+manifest, and the cached `.codex-plugin/plugin.json` observed on 0.145.0 and again on 0.162.1 is just
 `{description, name}` — **both** `hooks` and `skills` are gone. So of the three surfaces
 named above, exactly one arrives this way:
 
@@ -45,7 +45,8 @@ named above, exactly one arrives this way:
   agent files up was never probed; what is pinned is only that a marketplace install does
   not carry them.
 
-**The 19 shared skills do NOT load by reference on Codex 0.145.0 (pinned live).**
+**The 19 shared skills do NOT load by reference on Codex 0.162.1 (pinned live;
+first pinned on 0.145.0).**
 `codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and, in doing
 so, drops the `craft` entry's out-of-tree `../../../../skills` reference — the cached
 plugin manifest carries no `skills` field, so `run`/`review`/`validation`/`init`/… are
@@ -93,7 +94,7 @@ from this binding's own tier map (`src/model-tier-map.js`).
 ## Install-time hook trust — read this before running headlessly
 
 **A PreToolUse hook that has never been trusted silently no-ops.** This was pinned
-live: the identical run without trusting the hook first produced no denial, no
+live, and re-confirmed on 0.162.1: the identical run without trusting the hook first produced no denial, no
 warning, and no error — the guarded command simply executed. A user who installs this
 binding without trusting `hooks/craft-guard.js` first gets a binding that *looks*
 installed and enforces *nothing*, with no signal that anything is wrong.
@@ -152,9 +153,11 @@ written down now:
 - `git -C . push`, `git --git-dir=.git push`, and `bash -lc 'git push'` all **bypass**
   the execpolicy `.rules` layer — it matches a token-prefix over argv, not an
   adversarial parse, and an interposed global option defeats it.
-- A malformed `craft.rules` file **may fail open** at runtime — the observed runtime
-  error reads like unrecognised rules are simply not applied, not that the whole
-  binary refuses to run.
+- A malformed `craft.rules` file **may fail open** at runtime, so treat it as fail open.
+  On codex 0.162.1 the outcome depends on how codex is driven: `codex exec`, this
+  binding's launch path, refuses to start, so the run stops loudly; the app-server
+  thread/turn path logs a warning, skips the rules, and runs the command anyway. The
+  interactive TUI was not probed.
 - Per-sandbox-mode blocking was **not measured** against this binding. Selecting
   `-s workspace-write` is a posture, not a claim that any particular write is
   contained by the sandbox itself — the PreToolUse hook is the layer this binding
@@ -184,7 +187,8 @@ codex exec "/craft-run <backlog-id | file | description>"
 
 `plugins/craft-codex/skills/craft-run/SKILL.md` is the thin, adapter-authored entry
 point: it names the input, defers verbatim to the shared `skills/run/SKILL.md` at the
-repository root (loaded by reference via the `craft` plugin entry above) for the
+repository root (loaded through the `$CODEX_HOME/skills` symlinks above, since codex
+does not load them by reference) for the
 single-sourced run procedure, and adds the one Codex-native paragraph this binding
 must supply itself — an explicit ask for `multi_agent_v1` subagent delegation, since
 Codex silently runs sequentially unless a skill instruction, `AGENTS.md`, or the user

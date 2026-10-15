@@ -55,6 +55,19 @@ describe('buildExecpolicyRules() — honesty disclosure', () => {
     assert.match(sut, /git -c/i);
     assert.match(sut, /fail open/i);
   });
+
+  it('Given the generated rules text, when scanned, then it names the refuse-to-start outcome and no longer claims a malformed file never fails closed', () => {
+    const sut = buildExecpolicyRules();
+
+    assert.match(sut, /refuses?\s+to\s+start/i);
+    assert.doesNotMatch(sut, /does not fail closed/i);
+  });
+
+  it('Given the generated rules text, when scanned, then it carries no codex version string', () => {
+    const sut = buildExecpolicyRules();
+
+    assert.doesNotMatch(sut, /\d+\.\d+/);
+  });
 });
 
 describe('committed craft.rules — drift guard', () => {
@@ -87,6 +100,12 @@ describe('assertRulesIntegrity() — refuse a drifted/malformed deployed rules f
     const sut = assertRulesIntegrity;
 
     assert.throws(() => sut('prefix_rule(\n    pattern=["git", ["push"'), /integrity check failed/);
+  });
+
+  it('Given a malformed deployed rules text, when assertRulesIntegrity refuses it, then the reason says codex can skip the rules and run commands', () => {
+    const sut = assertRulesIntegrity;
+
+    assert.throws(() => sut('prefix_rule(\n    pattern=["git", ["push"'), /can skip a malformed rules file and run commands/);
   });
 
   it('Given a deployed rules text that merely drops the trailing newline, when assertRulesIntegrity runs, then it still throws (byte-identical, not fuzzy)', () => {

@@ -21,8 +21,9 @@ const DISCLOSURE_COMMENT = `# Defence-in-depth only -- not a security boundary.
 # push\`, and \`bash -lc 'git push'\` all NO MATCH here -- matching is
 # token-prefix over argv, not an adversarial parser.
 #
-# A malformed .rules file does not fail closed: treat it as fail open
-# (unresolved) at runtime, the same as no rule matching at all.`;
+# A malformed .rules file is not a reliable denial: depending on the codex
+# entry point it either refuses to start or skips the rules and runs
+# commands. Treat it as fail open.`;
 
 /**
  * Never emit a rule that degenerates to a bare `pattern=["git"]` — that
@@ -75,15 +76,14 @@ export function buildExecpolicyRules() {
 
 /**
  * Verify a deployed `.rules` file is byte-identical to the text this binding
- * generates, throwing on any drift. Codex's runtime enforcement path fails OPEN
- * on a malformed/unparseable `.rules` file — it logs "Error parsing rules; custom
- * rules not applied." and runs the command anyway (pinned live against the codex
- * binary). A corrupted or truncated deployed rules file therefore silently voids
- * the whole execpolicy layer. This is the scriptable launch/install precondition
- * that catches that BEFORE relying on the layer: regenerate the expected text and
- * byte-compare — hermetic, deterministic, no codex subprocess, and it catches every
- * drift (malformed content included), not one probed variant. Refuse rather than
- * proceed with silently-void enforcement.
+ * generates, throwing on any drift. A malformed `.rules` file is not a reliable
+ * denial: depending on the codex entry point, codex either refuses to start, or
+ * skips the rules with only a warning and runs commands anyway — the latter
+ * voids the whole execpolicy layer. Regenerating the expected text and byte-comparing
+ * is hermetic and deterministic, needs no codex subprocess, and catches every
+ * drift (malformed content included), not one probed variant. Nothing in the
+ * binding calls this check yet: it protects only when a caller runs it before
+ * relying on the layer, and then refuses rather than proceed.
  *
  * @param {string} onDiskText - the contents of the deployed craft.rules file
  * @returns {{ intact: true }} when the text matches
@@ -93,7 +93,7 @@ export function assertRulesIntegrity(onDiskText) {
   const expected = buildExecpolicyRules();
   if (onDiskText !== expected) {
     throw new Error(
-      'craft execpolicy rules integrity check failed: the deployed .rules file does not match the generated rules — codex fails OPEN on a malformed rules file, so refuse rather than run with silently-void enforcement',
+      'craft execpolicy rules integrity check failed: the deployed .rules file does not match the generated rules — depending on the entry point, codex can skip a malformed rules file and run commands anyway, so refuse rather than run with silently-void enforcement',
     );
   }
   return { intact: true };
