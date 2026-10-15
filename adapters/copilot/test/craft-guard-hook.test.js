@@ -57,8 +57,8 @@ function stubbedCraftRoot(body) {
 }
 
 // Spawns OUR hook script under `node`, never the real `copilot` binary.
-function run(payload) {
-  return spawnSync(process.execPath, [HOOK], { input: payload, encoding: 'utf8' });
+function run(payload, env = process.env) {
+  return spawnSync(process.execPath, [HOOK], { input: payload, encoding: 'utf8', env });
 }
 
 function bashPayload(command) {
@@ -137,6 +137,43 @@ function assertDeniedOnStderr(sut, stderrPattern) {
   assert.match(sut.stderr, stderrPattern);
   assert.equal(sut.stdout, '');
 }
+
+const TEST_DEADLINE_MS = 300;
+// Parses for ~5 s on the reference box, an order of magnitude past TEST_DEADLINE_MS.
+const SLOW_PARSE_COMMAND = 'git' + ' -c git'.repeat(6000) + ' status';
+const TIMEOUT_REASON = 'craft: guard verdict timed out — denied fail-closed';
+const PROCESS_SPAWN_MARGIN_MS = 2000;
+
+describe('craft-guard hook — the verdict deadline', () => {
+  it('Given a command whose parse outlasts the deadline, when the hook process runs, then it denies with the timeout reason at the deadline', () => {
+    const env = { ...process.env, CRAFT_GUARD_DEADLINE_MS: String(TEST_DEADLINE_MS) };
+    const start = performance.now();
+
+    const sut = run(bashPayload(SLOW_PARSE_COMMAND), env);
+
+    const result = denialOf(sut);
+    assert.equal(result.permissionDecisionReason, TIMEOUT_REASON);
+    assert.ok(performance.now() - start < TEST_DEADLINE_MS + PROCESS_SPAWN_MARGIN_MS);
+  });
+
+  it('Given a realistic git status, when the hook process runs, then it allows well inside two seconds', () => {
+    const start = performance.now();
+
+    const sut = run(ALLOWED_PAYLOAD);
+
+    assert.equal(sut.status, 0);
+    assert.equal(sut.stdout, '');
+    assert.ok(performance.now() - start < 2000);
+  });
+
+  it('Given a deadline override longer than the default, when the hook process runs, then the default still bounds it', () => {
+    const env = { ...process.env, CRAFT_GUARD_DEADLINE_MS: '600000' };
+
+    const sut = run(bashPayload('git push'), env);
+
+    assert.match(denialOf(sut).permissionDecisionReason, /destructive git \(push\)/);
+  });
+});
 
 describe('craft-guard hook — a crash still denies', () => {
   it('Given a payload that is not valid JSON, when the hook process runs, then it exits 2 with a guard stderr line', () => {

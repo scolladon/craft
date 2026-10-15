@@ -9,8 +9,11 @@
  * the write callback (an earlier exit could truncate the pipe); every crash
  * path exits 2 with the reason on stderr.
  *
- * A hook that outlives its `timeoutSec` fails OPEN — that is copilot's
- * behaviour and no code here can change it. Also beyond this file's reach:
+ * A hook that outlives its `timeoutSec` (~30 s) fails OPEN — copilot's
+ * behaviour. This file therefore never lets a verdict run that long: the
+ * verdict is computed in a worker thread (a synchronous parse blocks its own
+ * event loop, so only another thread can enforce a deadline) and a main-thread
+ * timer denies fail-closed when none arrives in time. Beyond this file's reach:
  * node unable to run it (missing or unparseable), `node` missing from PATH, a
  * signal killing the process, a throwing preload in an inherited NODE_OPTIONS.
  *
@@ -31,6 +34,61 @@ const VERDICT_EXIT_CODE = 0;
 // indistinguishable from a crash in the copilot log.
 const FAIL_CLOSED_REASON = 'denied (fail-closed)';
 
+// Well under copilot's ~30 s hook timeout, far above the ~70 ms cold verdict.
+const VERDICT_DEADLINE_MS = 5000;
+const DEADLINE_REASON = 'craft: guard verdict timed out — denied fail-closed';
+const WORKER_URL = new URL('./craft-guard-worker.js', import.meta.url);
+
+// Read once; may only shorten the deadline, so tests stay fast and production
+// cannot be configured into failing open.
+function resolveDeadlineMs(override) {
+  const requested = Number(override);
+  if (!Number.isFinite(requested) || requested <= 0) {
+    return VERDICT_DEADLINE_MS;
+  }
+  return Math.min(requested, VERDICT_DEADLINE_MS);
+}
+
+const DEADLINE_MS = resolveDeadlineMs(process.env.CRAFT_GUARD_DEADLINE_MS);
+
+// Timer and worker race; the first to settle wins, the loser is ignored.
+class VerdictRace {
+  #settled = false;
+
+  settle(conclude) {
+    if (this.#settled) {
+      return;
+    }
+    this.#settled = true;
+    conclude();
+  }
+}
+
+function awaitVerdict(Worker, payload) {
+  const race = new VerdictRace();
+  const worker = new Worker(WORKER_URL, { workerData: payload });
+  const timer = setTimeout(() => {
+    race.settle(() => {
+      worker.terminate();
+      deny({ reason: DEADLINE_REASON });
+    });
+  }, DEADLINE_MS);
+  worker.once('message', (outcome) => race.settle(() => conclude(timer, outcome)));
+  // No verdict, by error or exit, is a crash: same exit-2 path as every other.
+  worker.once('error', (err) => race.settle(() => denyOnCrash(err)));
+  worker.once('exit', () => race.settle(denyWithoutVerdict));
+}
+
+function conclude(timer, { verdict, audit }) {
+  clearTimeout(timer);
+  process.stderr.write(`craft-guard: ${JSON.stringify(audit)}\n`);
+  if (verdict.block) {
+    deny(verdict);
+    return;
+  }
+  allow();
+}
+
 function denyWith(reason) {
   process.stderr.write(`craft-guard: ${reason}\n`);
   process.exit(DENY_EXIT_CODE);
@@ -44,18 +102,11 @@ async function main() {
     // exist) nor a top-level await (an unsettled one exits 13), so every load
     // failure reaches the catch below with its own message.
     const { resolveCraftRoot } = await import('../src/craft-root.js');
-    const { buildAuditEntry, decideGuard } = await import('../src/git-guard-adapter.js');
+    const { Worker } = await import('node:worker_threads');
     process.env.CRAFT_ROOT = resolveCraftRoot(import.meta.url);
     const raw = await readStdin();
     const payload = JSON.parse(raw);
-    const verdict = decideGuard(payload);
-    process.stderr.write(`craft-guard: ${JSON.stringify(buildAuditEntry(payload, verdict))}\n`);
-
-    if (verdict.block) {
-      deny(verdict);
-      return;
-    }
-    allow();
+    awaitVerdict(Worker, payload);
   } catch (err) {
     // A guard that cannot decide must fail CLOSED, never fall through to an
     // implicit success.

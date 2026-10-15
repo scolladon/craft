@@ -409,6 +409,7 @@ const GUARD_HOOK_PATH = join(
   'hooks',
   'craft-guard.js',
 );
+const GUARD_WORKER_PATH = join(dirname(GUARD_HOOK_PATH), 'craft-guard-worker.js');
 const PROVENANCE_REF = /\b(ADR-?\d+|P\d+|Part\s+\d+|backlog\s*#\d+)\b/i;
 
 function readGuardHookText() {
@@ -416,8 +417,8 @@ function readGuardHookText() {
 }
 
 describe('hooks/craft-guard.js — thin wrapper structure', () => {
-  it('Given the guard hook source text, when scanned, then it imports the tested adapter seam', () => {
-    const sut = readGuardHookText();
+  it('Given the guard worker source text, when scanned, then it imports the tested adapter seam', () => {
+    const sut = readFileSync(GUARD_WORKER_PATH, 'utf8');
 
     assert.match(sut, /\.\.\/src\/git-guard-adapter\.js/);
   });
@@ -449,8 +450,8 @@ describe('hooks/craft-guard.js — thin wrapper structure', () => {
     );
   });
 
-  it('Given the guard hook source text, when scanned, then it builds the audit line via the tested buildAuditEntry seam', () => {
-    const sut = readGuardHookText();
+  it('Given the guard worker source text, when scanned, then it builds the audit line via the tested buildAuditEntry seam', () => {
+    const sut = readFileSync(GUARD_WORKER_PATH, 'utf8');
 
     assert.match(sut, /buildAuditEntry/);
   });
