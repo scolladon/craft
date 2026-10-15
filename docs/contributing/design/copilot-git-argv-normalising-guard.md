@@ -7,7 +7,8 @@
 > behind a backslash escape, a subshell, a group, a prefix word or an assignment. Both need one
 > shell-segment splitter, one prefix stripper and one git global-option normaliser, designed as one
 > module in `engine/src/guards/`.
-> Status: draft → self-reviewed ×3 → revised against ADRs 590-593 → revised against ADR-594.
+> Status: draft → self-reviewed ×3 → revised against ADRs 590-593 → revised against ADR-594 →
+> revised against ADR-595 (copilot: plain-command gate + verdict deadline).
 
 ## Context
 
@@ -97,13 +98,14 @@ Re-probe on 1.0.98 (live probe 2026-10-15, same method):
   block it with a reason that names the parse failure (pinned: `git push\necho "x` runs the push
   before bash reports the syntax error, so a parse failure is not harmless). A construct the
   tokeniser does not model is read as dynamic or unparseable, never as literal text, and its work
-  is bounded so it cannot time the hook out (ADR-594).
+  is bounded so it cannot time the hook out (ADR-594). The shared predicates stay linear in the
+  input length, because a slow predicate stalls every binding's tool calls (ADR-595).
 - **R5.** The Copilot adapter accepts `toolArgs` as an object (1.0.92) or as a JSON-encoded string
   (1.0.63). Any other shape, and a `command` that is present but not a string, fails closed. Every
   fail-closed block carries a reason.
 - **R6.** On Copilot the `preToolUse` hook enforces: a block verdict denies, an allow verdict
-  executes, and a crash or a run with no verdict denies. `--deny-tool` and native containment stay as
-  layers.
+  executes, and a crash, a run with no verdict, or a verdict that misses the hook's deadline
+  denies. `--deny-tool` and native containment stay as layers.
 - **R7.** The living docs tell the truth after the change: `docs/contributing/specs/copilot-poc-record.md`
   rows 11, 20 and D5, the Copilot section of `docs/contributing/specs/gate.md`,
   `adapters/copilot/README.md` §Guard, `adapters/README.md` (copilot row), the header of
@@ -111,6 +113,8 @@ Re-probe on 1.0.98 (live probe 2026-10-15, same method):
   §Residuals is written down in them.
 - **R8.** No new npm dependency (`engine/package.json` has only `js-yaml`, and there is no shell
   tokeniser in the tree).
+- **R9.** On Copilot only, a command that mentions git (case-insensitive) must be plain, per the
+  ADR-595 allowlist, or it is denied with one fixed reason before any shell parse (ADR-595).
 
 ## Design
 
@@ -186,6 +190,7 @@ is tested directly. Every constant is named and frozen.
 export function parseShellCommands(command)            // tokenise + split + recurse into nested bodies → flattened SimpleCommands
 
 /** @typedef {{ kind: 'subcommand', subcommand: string, args: string[], configKeys: string[], dynamicArgCount: number }
+ *           // + non-enumerable `dynamicArgPositions: number[]` (indexes in args of dynamic words before `--`)
  *         | { kind: 'refused', option: string, rest: string[] }      // git itself refuses (Pinned C)
  *         | { kind: 'indeterminate', rest: string[] }                // a dynamic word where git expects an option or the subcommand
  *         | { kind: 'no-subcommand' }} GitInvocation */
@@ -193,9 +198,14 @@ export function normaliseGitArgv(words)                // words AFTER the git wo
 
 /** @returns {{ parsed: true, invocations: GitInvocation[] } | { parsed: false, reason: string }} */
 export function gitInvocations(command)                // parse → anchor → normalise; each invocation also carries
-                                                       // leadingWords (words before the anchor) and a non-enumerable injectsConfig
+                                                       // leadingWords (at most the first LEADING_WORDS_LIMIT words
+                                                       // before the anchor) and a non-enumerable injectsConfig
 
 export const INLINE_ALIAS_REASON, CONFIG_CHANNEL_REASON
+export const LEADING_WORDS_LIMIT                       // 2: enough for the `rtk proxy` prefix
+export const DESTRUCTIVE_VERBS                         // ['push', 'reset', 'clean', 'branch'], shared with the verb sniff
+export const DIFFING_VERBS                             // ['diff', 'show']
+export const optionWords = words => string[]           // the words before the first `--`
 export const hasInlineAlias = invocation => boolean
 export const configChannelReason = invocation => string | null   // INLINE_ALIAS_REASON, CONFIG_CHANNEL_REASON or null
 export function judgeInvocations(command, verdictFor)  // parse; first non-null verdictFor(invocation) blocks; unparseable blocks with the parser's reason
@@ -245,13 +255,34 @@ not hide them:
 Scanning a simple command stops at the first shell or `eval` word that re-parsed something: its
 string covers every later word.
 
-**Work bound (ADR-594).** The length cap, the nesting cap (8), first-`eval`-only re-parsing, and
-linear-time anchoring and option normalisation bound the work. There is no separate parse work
-budget. One was built and removed as unreachable: instrumented runs peaked at 7.9x the input length
-(8-level heredoc and `$()` nests over a 10k core), against a 16x budget.
+A shell word re-parses only when a non-option word follows it (`lastCommandWordAt > index`).
+
+**Work bound (ADR-594, ADR-595).** The length cap, the nesting cap (8), first-`eval`-only
+re-parsing, and linear-time anchoring and option normalisation bound the work. There is no separate
+parse work budget. One was built and removed as unreachable: instrumented runs peaked at 7.9x the
+input length (8-level heredoc and `$()` nests over a 10k core), against a 16x budget. Review cycle
+2 found quadratic paths that the length cap alone did not bound; ADR-595 makes each linear:
+
+- a git word inside an earlier anchor's global-option run (`git -c git -c git …`) is that
+  option's value, so it is skipped, not anchored again (`walkFrom` returns the run's `end`);
+- `leadingWords` copies at most `LEADING_WORDS_LIMIT` (2) words, however deep the anchor sits;
+- at most `MAX_ARGUMENT_READING_ANCHORS` (256) anchors per simple command may hand their later
+  words to a judge (every kind except `no-subcommand` and a `subcommand` outside `ANCHOR_VERBS`).
+  Past that the command is unparseable with
+  `craft: command not parseable (too many git invocations) — denied fail-closed`;
+- the brace scan skips a word already marked as a pattern and remembers where a failed brace run
+  stopped, and the shell/`eval`/`env` re-parser walk is one pass.
+
+Measured on the shared ext-diff predicate (review cycle 2 shapes, each 60k-130k characters):
+`git -c git ×18000 diff` 17 ms, 10000 anchors after 20000 words 63 ms (the cap fires), 60000 `{`
+4 ms, `env ×30000` 9 ms, `bash ×25000 -c` 28 ms, `eval ×6` + `git -c git ×18000` 55 ms. Every
+shape is under 70 ms.
 
 **Anchoring (`gitInvocations`).** A git invocation starts at **any** word of a simple command that is
-not dynamic and whose basename after the last `/` is exactly `git`. It also starts at a **dynamic
+not dynamic and whose basename after the last `/` is `git`, compared case-insensitively (ADR-595:
+`GIT push` runs git on a case-insensitive filesystem), unless that word sits inside an earlier
+anchor's global-option run, where it is the option's value (`git -c git status` has one anchor).
+It also starts at a **dynamic
 head**: the first word left after the head is stripped, when that word is dynamic (`$G push`,
 `"$(which git)" push`, `gi[t] push`), and normalisation then runs on the words after it. Because
 the anchor is any word, wrappers need no list (`env`, `command`, `exec`, `nohup`, `nice`, `timeout`, `xargs`, `sudo`,
@@ -259,9 +290,9 @@ the anchor is any word, wrappers need no list (`env`, `command`, `exec`, `nohup`
 
 ADR-594 adds three anchors. `ANCHOR_VERBS` is `push`, `reset`, `clean`, `branch`, `diff`, `show`.
 
-- **Dashed builtin.** A word whose basename is `git-<verb>` reads as `git <verb>` with the
-  following words as `args` (`git-push origin`, `/x/libexec/git-core/git-push`). A dynamic word
-  counts only when it holds a `/`.
+- **Dashed builtin.** A word whose basename is `git-<verb>`, matched case-insensitively with the
+  verb lowercased, reads as `git <verb>` with the following words as `args` (`git-push origin`,
+  `GIT-PUSH`, `/x/libexec/git-core/git-push`). A dynamic word counts only when it holds a `/`.
 - **Pattern word.** A `pattern` word with an anchor verb among its brace or bracket tokens
   (`{git,push}`, `x {push,}`) anchors an `indeterminate` invocation.
 - **Dynamic word before a verb word.** The first dynamic word after the head (`command $G push`),
@@ -308,7 +339,9 @@ see an inline `alias.*` or a `clean.requireforce`. `dynamicArgCount` counts the 
 - `configChannelReason` non-null → block with that reason;
 - a `subcommand` invocation whose subcommand is `diff`/`show` → block with the current
   `REASON_GIT_EXT_DIFF` unless its option words before `--` end on `--no-ext-diff`: the last of
-  `--ext-diff`/`--no-ext-diff` wins, and a word after `--` is a path. Exempt when the enclosing
+  `--ext-diff`/`--no-ext-diff` wins, and a word after `--` is a path. A dynamic option word after
+  the last `--no-ext-diff` also blocks, since it may expand to `--ext-diff`
+  (`git diff --no-ext-diff $X`; read from `dynamicArgPositions`). Exempt when the enclosing
   simple command starts with the words `rtk proxy` (the existing marker, now matched by word);
 - `indeterminate` → the same last-wins rule over `rest` (ADR-593: a verb carried by the dynamic
   word, as in `D=diff; git $D HEAD`, is invisible to the command string);
@@ -323,9 +356,9 @@ see an inline `alias.*` or a `clean.requireforce`. `dynamicArgCount` counts the 
 |---|---|
 | `push` | always |
 | `reset` | `--hard` or a unique-prefix abbreviation of it (`--har`, `--h`) is present, or `dynamicArgCount > 0` (ADR-590) |
-| `clean` | per DC-5: the option words are read in order and the last setting wins. `-n`, a cluster containing `n`, and `--dry-run` abbreviated no shorter than `--dry` set dry-run. `--no-dry-run` (from `--no-d`) resets it. `-e`/`--exclude` consume their value, so a value `-n` is not a flag. `--` ends the options. Block unless dry-run is set at the end. A dynamic flag cannot unblock it |
+| `clean` | per DC-5: the option words are read in order and the last setting wins. `-n`, a cluster containing `n`, and `--dry-run` abbreviated no shorter than `--dry` set dry-run. `--no-dry-run` (from `--no-d`) resets it. `-e`/`--exclude` consume their value, so a value `-n` is not a flag. `--` ends the options. Block unless dry-run is set at the end and no option word is dynamic: a dynamic word may expand to `--no-dry-run` (`git clean -n $F` blocks) |
 | `branch` | `-D`, or a cluster containing `D`; or (`-d`/`--delete`/a cluster containing `d`) together with (`-f`/`--force`/a cluster containing `f`), where `--delete`/`--force` match any unique-prefix abbreviation (`--del`, `--forc`); or `dynamicArgCount > 0` (ADR-590) |
-| `refused` | `rest` contains one of `push`, `reset`, `clean`, `branch` → block (verb sniffing, fail-closed against a future git option; ADR-581) |
+| `refused` | `rest` contains one of `DESTRUCTIVE_VERBS` (`push`, `reset`, `clean`, `branch`) → block (verb sniffing, fail-closed against a future git option; ADR-581) |
 | `indeterminate` | always (ADR-593: a verb carried by the dynamic word, as in `P=push; git $P HEAD`, is invisible to a sniff) |
 | config channel (`configChannelReason`) | block, checked before every row above (DC-3, ADR-594) |
 | not parsed | block with the parser's reason |
@@ -339,27 +372,87 @@ recognised from the prefix git itself resolves. Reasons are fixed named constant
 - **`adapters/copilot/src/git-guard-adapter.js`.** `parseToolArgs` accepts a plain object (not an
   array) as is. It accepts a string by `JSON.parse` followed by the same plain-object check. Anything
   else throws, and `decideGuard` turns the throw into a fail-closed block. A new export
-  `copilotGuard(event)` runs `gitDestructivePredicate(tool_input.command)` first for `Bash`, then
-  `toolCallGuard(event)`, and returns the first block. `decideGuard`'s default guard becomes
-  `copilotGuard`. A `command` that is present but not a string throws (it would otherwise be read
-  character by character and allowed). Every fail-closed block carries a reason:
+  `copilotGuard(event)` composes three stages and returns the first block (ADR-595):
+
+  ```
+  Bash:  gitPlainCommandGate(command) ─block→ COMPLEX_NEAR_GIT_REASON
+           │ allow
+           ▼
+         gitDestructivePredicate(command) ─block→ destructive reason
+           │ allow
+           ▼
+  all:   toolCallGuard(event) ─block→ ext-diff reason / CONTAINMENT_DENIED_REASON
+  ```
+
+  `decideGuard`'s default guard becomes `copilotGuard`. A `command` that is present but not a
+  string throws (it would otherwise be read character by character and allowed). Every fail-closed block carries a reason:
   `decideGuard` turns a throw into `craft: guard could not read the tool call (<message>) — denied fail-closed`,
   and a containment block from `toolCallGuard` (which has no reason) gets
-  `craft: write outside the working directory is denied in this binding`. The composition order
-  is unchanged.
+  `craft: write outside the working directory is denied in this binding`.
+- **Plain-command gate (ADR-595).** `engine/src/guards/git-plain-command-gate.js` exports
+  `gitPlainCommandGate(command) → { block, reason? }` and
+  `COMPLEX_NEAR_GIT_REASON = 'craft: command too complex to verify near git — spell it plainly'`.
+  It is binding-neutral code composed only by `copilotGuard`. It is a character scan, linear in
+  the input, and needs no shell tokeniser. A command that does not match `/git/i` passes untouched.
+  A command that does match passes only when all of these hold:
+  - outside quotes, every character is an ASCII letter, a digit, space, tab, or one of
+    `_ . / : = @ % + , ~ ^ -`, or a word break: the separators `;` `&&` `||` `|` `&` and newline,
+    and `>` (so `>`, `>>` and `2>&1` redirect to a literal target; `<` is not allowed);
+  - single-quoted text is data, up to the next `'`;
+  - double-quoted text holds none of `$`, backtick, `\` or `!`;
+  - no word in command position is an evaluator or wrapper: `sh bash zsh dash ksh eval env exec
+    command nohup time sudo nice timeout xargs source .`, compared by basename and
+    case-insensitively. Command position is the first word of a command, after any separator. A
+    `NAME=value` prefix keeps the position open, and a redirect target is not in command position
+    ("command position" amendment to ADR-595: `git log --format=time` and `echo time; git status`
+    pass, `nohup git push` does not);
+  - no `GIT_CONFIG_` text appears anywhere (case-insensitive).
+
+  Craft's commit idiom `"$(cat <<'DELIM'⏎…⏎DELIM⏎)"` is recognised exactly (`DELIM` is
+  `[A-Za-z_][A-Za-z0-9_]*`), and its body is data. Any other character, an unterminated quote, or
+  a wrapper word blocks with `COMPLEX_NEAR_GIT_REASON`. A command the gate passes is then judged by
+  the destructive predicate and `toolCallGuard` as before.
+- **Verdict deadline (ADR-595).** A synchronous parse blocks its own event loop, so only another
+  thread can enforce a deadline. The hook (below) computes the verdict in a worker thread,
+  `adapters/copilot/hooks/craft-guard-worker.js`. The worker imports `../src/git-guard-adapter.js`
+  dynamically, runs `decideGuard(workerData)`, and posts `{ verdict, audit }`. The main thread
+  races three events through a settle-once `VerdictRace`:
+  - the worker's `message` → clear the timer, then allow or JSON-deny as below;
+  - a timer at `VERDICT_DEADLINE_MS` (5000) → `worker.terminate()`, then a JSON deny with
+    `DEADLINE_REASON = 'craft: guard verdict timed out — denied fail-closed'`;
+  - the worker's `error` or `exit` before a message → the crash path (exit 2).
+
+  `CRAFT_GUARD_DEADLINE_MS` is read once. It may only shorten the deadline (`Math.min` with the
+  default). A non-numeric or non-positive value is ignored, so no environment can configure the
+  hook into the host's fail-open timeout. 5 s sits well under copilot's ~30 s hook timeout and far
+  above the ~70 ms cold verdict.
+
+  Review cycle 2 timing, reproduced on the payload `eval ×6` + `git -c git ×18000` + `push`
+  (126 KB) through the real hook: before the deadline, 56 s (re-measured at 61.5 s, ending in a
+  signal death); with the deadline only, a deny at 5.06 s with `DEADLINE_REASON` (re-measured
+  5.05 s); on the full
+  stack, a deny at 0.05 s with `COMPLEX_NEAR_GIT_REASON` (the gate answers before any parse).
+  Without the `eval` prefix, the linear anchoring denies the push in 0.06 s.
 - **Hook (DC-1, DC-2).** `adapters/copilot/hooks/craft-guard.js` (renamed per DC-6) mirrors the
   codex guard's crash contract: no static import, handlers registered first, then
   `await import()` inside `try`, and `uncaughtException`/`unhandledRejection`/`beforeExit` all deny.
   - A block writes `{"permissionDecision":"deny","permissionDecisionReason":<reason>}` on stdout and
     exits 0 in the write callback, so a pipe can never truncate the JSON (P2/P6, and the reason
     reaches the model).
-  - A crash or a run with no verdict exits 2 with a `craft-guard:` stderr line (P3/P4).
+  - A crash, a worker `error`/`exit` before a verdict, or a run with no verdict exits 2 with a
+    `craft-guard:` stderr line (P3/P4).
+  - A verdict that misses the deadline writes the JSON deny with `DEADLINE_REASON`.
   - An allow exits 0 with nothing on stdout (P5).
-  - The `buildAuditEntry` line stays on stderr for both verdicts.
+  - The `buildAuditEntry` line (built in the worker) stays on stderr for both verdicts.
 - **`config.template.json`.** The command points at the renamed hook. Its keys merge into
   `$COPILOT_HOME/settings.json`: 1.0.98 ignores a hook declared in `config.json` (1.0.92 migrated
   it; live probe 2026-10-15). `timeoutSec` stays unset: L7 pinned the default at about 30 s, and
-  the guard runs well under a second.
+  the verdict deadline (5 s) answers well before it.
+- **The ext-diff predicate on the other bindings** (pi, codex, cursor, antigravity, opencode) keeps
+  its rules, with no plain-command gate. It protects parsed output from an external diff; it is not
+  a sandbox boundary, so the exotic classes of review cycle 2 stay documented residuals there
+  (§Residuals). Its quadratic paths are made linear (§Module, Work bound), because those bindings
+  have no deadline and a slow predicate stalls every tool call.
 - **`DENY_TOOL_PATTERNS`** stays as is, as a second layer and as the floor for a Copilot older than
   the hook's deny support (DC-8). Its header comment is rewritten so it no longer claims the hook
   cannot deny.
@@ -368,10 +461,13 @@ recognised from the prefix git itself resolves. Reasons are fixed named constant
 
 | Situation | ext-diff | destructive | Copilot hook |
 |---|---|---|---|
-| unparseable command (including input over 131072 characters) | block | block | deny (JSON) |
+| command mentions git and is not plain (ADR-595 gate) | — (no gate) | — (no gate) | deny (JSON), `COMPLEX_NEAR_GIT_REASON` |
+| unparseable command (including input over 131072 characters, or more than 256 argument-reading anchors in one simple command) | block | block | deny (JSON) |
 | `toolArgs` neither an object nor an object-encoding string, or a non-string `command` | — | — | fail-closed block with a reason → deny (JSON) |
-| guard throws, import fails, or the loop drains with no verdict | — | — | exit 2 + stderr |
-| hook exceeds `timeoutSec` (default about 30 s) | — | — | **fails open** (P8). Residual. The length cap, the nesting cap and first-`eval`-only re-parsing bound the guard's work (ADR-594: before them, an 80 KB `eval` chain took 49 s, then SIGABRT) |
+| verdict misses the 5 s deadline (`VERDICT_DEADLINE_MS`) | — | — | worker terminated → deny (JSON), `DEADLINE_REASON` (timeout reason) |
+| worker crash: load failure, a throw, or `error`/`exit` before a verdict | — | — | exit 2 + stderr |
+| the main thread throws, an import fails, or the loop drains with no verdict | — | — | exit 2 + stderr |
+| hook exceeds `timeoutSec` (default about 30 s) | — | — | **fails open** (P8). The verdict deadline keeps the guard's own work inside 5 s (ADR-595; review cycle 2 drove the hook to 56 s before it). Residual only for what the hook file cannot reach: node failing to start or load the hook in time |
 | hook file missing | — | — | node exits 1 on a missing script (pinned locally, node 22.22.3), and exit 1 denies (P4). Fails closed |
 | `node` missing from PATH (127) | — | — | `(hook errored)`, denies (probe L6) |
 | SIGKILL | — | — | unpinned. Residual |
@@ -392,7 +488,21 @@ recognised from the prefix git itself resolves. Reasons are fixed named constant
   EOF (probed), so no text reaches the shell there. The interactive case is unprobed.
 - Closed, not a residual: state across tool calls. A function or variable defined in one `bash`
   call was not visible in the next (probe L9, 1.0.92 and 1.0.98).
-- A hook timeout (default about 30 s) fails open (P8). A signal death is unpinned.
+- A hook timeout (default about 30 s) fails open (P8). The verdict deadline bounds the guard's
+  own work to 5 s; node failing to start or load the hook in time, and a signal death, are outside
+  it. A signal death is unpinned.
+- **Review cycle 2 classes on the other bindings.** The shared ext-diff predicate has no
+  plain-command gate, so these stay residuals there (it protects parsed output; it is not a
+  security boundary). On Copilot the gate denies each of them:
+  - extglob: `@(git) diff`;
+  - `$[…]` arithmetic read as a heredoc that swallows the next line: `echo $[1<<2]⏎git diff`;
+  - `export GIT_CONFIG_*` in an earlier command, then git:
+    `export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.d GIT_CONFIG_VALUE_0=diff; git d`;
+  - a dynamic shell option or evaluator given a literal string: `C=-c; bash $C 'git diff'`;
+  - a brace word holding an expansion: `{$(:),git,diff}`.
+
+  The sixth class, `GIT push`/`GIT diff` on a case-insensitive filesystem, is closed in the shared
+  module (case-insensitive git word and `git-<verb>`).
 - Copilot persists no audit trail: the hook's stderr audit line reaches neither the
   `--output-format json` stream nor `$COPILOT_HOME/logs`.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
@@ -416,6 +526,11 @@ recognised from the prefix git itself resolves. Reasons are fixed named constant
     (`git log -- '*.js'`) is literal and passes.
 
   Each costs one re-issue with literal words.
+- The intended false blocks on Copilot only (ADR-595 gate): any non-plain command that mentions
+  git is denied with `COMPLEX_NEAR_GIT_REASON`, for example `bash -c 'git status'` (wrapper in
+  command position), `git commit -m "it's $HOME"` (`$` inside double quotes), `git log # c`
+  (`#`), and `git diff > o < i` (`<`). Plain spellings pass: `git status 2>&1 | head -5`,
+  `git log --format=time`, and craft's commit idiom. The remedy is one re-issue spelled plainly.
 
 ### Parts (pre-chewed context)
 
@@ -482,6 +597,26 @@ Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mut
 - `adapters/copilot/README.md` §Guard (L46-55) and the `adapters/README.md` copilot row (L33).
 - The `adapters/copilot/src/deny-tool-args.js` header (L1-26).
 - `BACKLOG.md` L216 and L1081: closed.
+- ADR-595, in `adapters/copilot/README.md` §Guard and the gate.md Copilot section (neither holds
+  "too complex" or the verdict deadline yet): the three-stage composition, the gate's allowlist
+  and its Copilot-only false blocks, the 5 s verdict deadline, and the review cycle 2 classes as
+  residuals of the shared ext-diff predicate on the other bindings.
+
+**Part 8. The plain-command gate (ADR-595).** New `engine/src/guards/git-plain-command-gate.js`
+(`gitPlainCommandGate`, `COMPLEX_NEAR_GIT_REASON`; private `commandWords`, `chunkAt`,
+`idiomEndAt`, `WRAPPER_WORDS`) + `engine/test/guards/git-plain-command-gate.test.js` (BLOCK and
+PASS tables, the no-git pass-through, a 131072-character linear-time row). Composed in
+`adapters/copilot/src/git-guard-adapter.js` by the private `bashBlock(command)` that
+`copilotGuard` calls before `toolCallGuard`. `adapters/copilot/test/git-guard-adapter.test.js`
+`describe('copilotGuard() — …')` pins that the gate reason wins on a wrapped push. The shared
+module gains the case-insensitive `isGitWord`/`DASHED_VERB`, and the predicates import
+`optionWords`, `DESTRUCTIVE_VERBS` and `DIFFING_VERBS` from it instead of keeping private copies.
+
+**Part 9. The verdict deadline (ADR-595).** New `adapters/copilot/hooks/craft-guard-worker.js`;
+`adapters/copilot/hooks/craft-guard.js` gains `VERDICT_DEADLINE_MS`, `DEADLINE_REASON`,
+`resolveDeadlineMs(override)`, `VerdictRace` and `awaitVerdict(Worker, payload)`, with
+`node:worker_threads` imported inside `main()` (no static import, ADR-518). Tests:
+`adapters/copilot/test/craft-guard-hook.test.js` `describe('craft-guard hook — the verdict deadline')`.
 
 ## Decision candidates
 
@@ -519,6 +654,20 @@ Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mut
   49 s and then SIGABRT, past the ~30 s timeout that fails open. Refines ADR-580, ADR-582 and
   ADR-584. It sets the tokeniser rules, the extra anchors, the config channels and the work bound
   described in §Module.
+- **ADR-595.** Copilot allows git only in plain commands and denies at a deadline. The user
+  ratified option 1, "allowlist + deadline", after review cycle 2 did not converge (over "deadline
+  plus patching the six classes" and "ship as defence-in-depth"). Review cycle 2 verified six new
+  bypass classes past the fail-closed tokeniser: extglob `@(git)`, `$[1<<2]` swallowing the next
+  line as a heredoc, `export GIT_CONFIG_*`, `GIT push` on a case-insensitive filesystem, a dynamic
+  shell option or evaluator given a literal string, and a brace word holding an expansion. It also
+  verified a timing fail-open: `git -c git …` took the real hook to 56 s, past copilot's ~30 s
+  timeout. Refines ADR-578 and ADR-594. It sets the plain-command gate and the verdict deadline
+  (§Copilot binding), the case-insensitive git word, and the linear shared predicate (§Module, Work
+  bound). After the fixes, the `eval ×6` + `git -c git ×18000` payload denied at 5.06 s through
+  the deadline (deadline alone), and every former quadratic shape runs in at most 70 ms.
+  - **"Command position" amendment.** The wrapper-word rule applies only to a word in command
+    position (the first word of a command, after any separator), not to every word. Otherwise
+    `git log --format=time` and `echo time; git status` would be denied.
 
 ## Test strategy
 
@@ -537,14 +686,32 @@ Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mut
   - Part 3 is §Pinned D, the `DENY_TOOL_PATTERNS` × §Pinned C parity, and the P9 calls and craft
     routine git as passes.
   - Part 4 covers both `toolArgs` shapes, the hostile shapes, a non-string `command`, the
-    containment reason, `copilotGuard` order (destructive reason wins), and the decoy test
-    unchanged.
+    containment reason, `copilotGuard` order (gate reason, then destructive reason, win), and the
+    decoy test unchanged.
+  - ADR-595 rows. Part 8: the gate's BLOCK table (each review cycle 2 class, each wrapper word in
+    command position, `GIT_CONFIG_`, `$`/backtick/`\`/`!` in double quotes, `#`, `<`, an
+    unterminated quote, the §Residuals false-block examples) and PASS table (craft's routine git,
+    the commit idiom, `2>&1`, a wrapper word outside command position such as
+    `git log --author time`), a command with no git passing whatever its syntax, and a
+    131072-character adversarial input answered well under a second. Shared module: `GIT push`
+    and a dashed builtin in upper case, a git word that is an earlier option's value (the push
+    after it still blocks), the anchor cap at exactly 256 vs 257, a bounded-time row per former
+    quadratic shape (brace runs, `env -S` chains, shell flag runs, `git -c git …`, many proxied
+    diffs), and the dynamic-word rows (`git diff --no-ext-diff $X` and `git clean -n -f $X` block;
+    `git diff $X --no-ext-diff` and `git diff --no-ext-diff -- "$F"` pass).
 - **Hook process tests (Part 5).** Spawn the real hook under `process.execPath`:
   - a block → stdout is exactly one JSON line with `permissionDecision:"deny"` and a non-empty
     reason, exit 0;
   - an allow → empty stdout, exit 0;
   - ADR-521-style crash fixtures → exit 2 plus a `craft-guard:` stderr line, for an unresolvable
     import, a throwing stdin listener, no verdict, and a floating rejection.
+  - Deadline (Part 9): a command whose parse outlasts a shortened `CRAFT_GUARD_DEADLINE_MS` →
+    a JSON deny with `DEADLINE_REASON` inside the deadline plus a spawn margin; a realistic
+    `git status` allows in under 2 s; an override above 5000 still yields the normal verdict, so
+    the default bounds it; a long `eval` chain before a push denies in under 5 s.
+  - The review cycle 2 timings are measurements recorded in §Copilot binding and §Module, not
+    CI assertions. A wall-clock bound in CI asserts only the deadline and the gate's linear-time
+    row.
 - **Differential fuzz (Part 6). Mandatory at review cycle 1.** It differentially fuzzes the
   hand-rolled tokeniser and normaliser against bash itself. The shape follows
   `adapters/codex/test/hook-trust-differential.test.js` (fixed `SEED`, `CAP`, an accepted-count
@@ -637,4 +804,8 @@ Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mut
 - **Aliases in the user's gitconfig, scripts, `make`, and remote `ssh` commands.** No string-level
   guard can see these. They are documented residuals.
 - **Hook timeout fail-open (P8).** This is Copilot's behaviour and craft cannot change it from
-  outside. It is documented.
+  outside. The verdict deadline keeps the guard's own work inside it (ADR-595); the rest is
+  documented.
+- **A plain-command gate on the other bindings.** ADR-595 scopes the gate to Copilot. The shared
+  ext-diff predicate is output protection, not a sandbox, so its review cycle 2 residuals stay
+  documented.
