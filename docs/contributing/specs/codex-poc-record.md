@@ -14,11 +14,11 @@
 | Question | Answer | Status |
 |---|---|---|
 | Which product is `codex`? | `@openai/codex` — OpenAI Codex CLI | CONFIRMED |
-| Binary self-report | `codex-cli 0.145.0` | CONFIRMED (0.145.0) |
-| npm package version | `@openai/codex@0.145.0` | CONFIRMED (0.145.0) |
-| Do they agree? | **Yes** — unlike the copilot binding, where the cask said 1.0.17 and the binary said 1.0.63. Re-check both on refresh; agreement today is not a guarantee. | CONFIRMED |
+| Binary self-report | `codex-cli 0.162.1` (was `codex-cli 0.145.0`) | CONFIRMED (0.162.1; first pinned 0.145.0) |
+| npm package version | `@openai/codex@0.162.1`, platform package `0.162.1-darwin-arm64`, read from the installed package (was `@openai/codex@0.145.0`) | CONFIRMED (0.162.1; first pinned 0.145.0) |
+| Do they agree? | **Yes** — unlike the copilot binding, where the cask said 1.0.17 and the binary said 1.0.63. Re-check both on refresh; agreement today is not a guarantee. | CONFIRMED (re-confirmed 0.162.1) |
 | Competing/legacy CLI shadowing the name? | **No.** No Homebrew formula or cask named `codex`; no `openai` CLI installed. (`aider` is an unrelated third-party tool.) Contrast the copilot run, where the Homebrew `copilot` formula was actually AWS ECS's tool. | CONFIRMED |
-| Install path | `<node-bin>/codex` → Node shim → vendored native binary at `…/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex`. Observed on 0.145.0. No 0.144.6 vendor path was ever recorded here, so this is a fresh observation and **not** a delta against a prior layout. | CONFIRMED (0.145.0) |
+| Install path | `<node-bin>/codex` → Node shim → vendored native binary at `…/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex`. Observed on 0.145.0; unchanged on 0.162.1. No 0.144.6 vendor path was ever recorded here, so this is a fresh observation and **not** a delta against a prior layout. | CONFIRMED (0.145.0; re-confirmed 0.162.1) |
 
 ## Probe method
 
@@ -48,8 +48,9 @@ config, or user data.
 
 ### 0.145.0 re-probe method
 
-**Scope — this record carries two version pins at once.** Only rows explicitly marked `(0.145.0)`
-and the `Re-probe — codex-cli 0.145.0` section below were observed on 0.145.0. Every other row
+**Scope — this record carries several version pins at once.** Each re-probed row names its
+version — rows marked `(0.145.0)`, `(0.161.0)` or `(0.162.1)`, and the matching
+`Re-probe — codex-cli <version>` sections below, were observed on that version. Every unmarked row
 remains a 0.144.6 observation and was not re-probed.
 
 Two throwaway `CODEX_HOME`s (auth copied in, never the real home) backed the 0.145.0 re-probe.
@@ -111,9 +112,9 @@ Isolation was proven by `find ~/.codex -newer <ref marker>` returning **0 entrie
 | Profiles | `-p <name>` layers `$CODEX_HOME/<name>.config.toml` over the base user config | CONFIRMED |
 | Instruction file auto-read | **`AGENTS.md` — CONFIRMED live.** A marker string in a project `AGENTS.md` was observed in `codex debug prompt-input` output as a `user` message. | CONFIRMED |
 | Skills | `$CODEX_HOME/skills/<name>/SKILL.md`; a plugin manifest may declare `"skills": "./skills/"` | CONFIRMED (mechanism) |
-| **Skills by reference?** | **DISPROVEN on 0.145.0.** `plugin add` copies into `$CODEX_HOME/plugins/cache/…`, and the cached `.codex-plugin/plugin.json` drops the out-of-tree `skills` (and `hooks`) field. Ground-truthed via the app-server `skills/list` method: **0 of 19** shared craft skills load without the symlink fallback; **19 of 19** load with it (`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`, registered as `craft:<name>`). | **DISPROVEN (0.145.0)** |
+| **Skills by reference?** | **DISPROVEN on 0.145.0.** `plugin add` copies into `$CODEX_HOME/plugins/cache/…`, and the cached `.codex-plugin/plugin.json` drops the out-of-tree `skills` (and `hooks`) field. Ground-truthed via the app-server `skills/list` method: **0 of 19** shared craft skills load without the symlink fallback; **19 of 19** load with it (`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`, registered as `craft:<name>`). Re-confirmed on 0.162.1: same 0 of 19 versus 19 of 19. | **DISPROVEN (0.145.0; re-confirmed 0.162.1)** |
 | Plugin manifest | `{name, version, description, author, skills, hooks, mcpServers, apps, interface{…}}` — `skills`/`hooks`/`mcpServers`/`apps` are all path-valued | CONFIRMED |
-| Plugin install | `codex plugin add` from a configured marketplace snapshot; `codex plugin marketplace add` supports local file-backed marketplaces | **CONFIRMED (0.145.0 — install exercised live):** marketplace registration plus `plugin add` for both entries; see the re-probe section for the source-form matrix and the cached-manifest outcome |
+| Plugin install | `codex plugin add` from a configured marketplace snapshot; `codex plugin marketplace add` supports local file-backed marketplaces | **CONFIRMED (0.145.0 — install exercised live; re-exercised 0.162.1 with `./adapters/codex`):** marketplace registration plus `plugin add` for both entries; see the re-probe section for the source-form matrix and the cached-manifest outcome |
 | MCP | `codex mcp` subcommand; `mcp_servers` config; Codex can also *be* an MCP server (`codex mcp-server`) | CONFIRMED (surface) |
 | **CRAFT_ROOT export** | Codex honours **`CLAUDE_PLUGIN_ROOT`**, `PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `PLUGIN_DATA` in hook command templates — a ready-made root-export lever | CONFIRMED (strings) / DEFERRED (not exercised live) |
 | Claude-config migration | Codex has a first-class importer for `CLAUDE.md`, `settings.json`, `hooks.json`, `agents`, MCP servers | CONFIRMED (surface) |
@@ -136,8 +137,8 @@ This is the highest-risk area, and it is where Codex differs most from Copilot.
 | `hooks.json` schema | `{"description": …, "hooks": {"<EventName>": [{"matcher": …, "hooks": [{"type":"command","command":"…"}]}]}}`. **Note the top-level `{description, hooks}` wrapper** — a flat Claude-style `{"PreToolUse": […]}` is rejected with `unknown field 'PreToolUse', expected 'description' or 'hooks'`. | CONFIRMED |
 | Handler types | `command`, `prompt`, `agent`; fields `timeoutSec`, `async`, `statusMessage`, `commandWindows` | CONFIRMED (schema) |
 | Hook trust | Hooks carry a trust model (`trusted`/`untrusted`/`modified`/`managed`). An `allow_managed_hooks_only` requirement exists. | CONFIRMED |
-| **What happens to an UNTRUSTED hook in headless mode?** | **It silently no-ops.** Proven live: the identical run *without* `--dangerously-bypass-hook-trust` produced no denial, no warning, and `command_execution` items — **the command executed**. There is no error and no signal. Re-confirmed on 0.145.0 with the real craft guard hook left untrusted. | **CONFIRMED (0.144.6; re-confirmed 0.145.0) — and this is the most dangerous behaviour found in this probe** |
-| Can trust be persisted? | **Yes — write path exercised headless on 0.145.0.** `hooks.state` is a `config.toml` key, not a state file or DB row. `codex app-server`'s `hooks/list` method returns each hook's `key` and `currentHash`; appending `[hooks.state."<key>"] trusted_hash = "<currentHash>"` to `$CODEX_HOME/config.toml` flips `trustStatus` to `trusted` on the next `hooks/list` call. The TUI's own `config/batchWrite` writes the same key. See the Re-probe section below for the full sequence. | CONFIRMED (0.145.0; write path exercised) |
+| **What happens to an UNTRUSTED hook in headless mode?** | **It silently no-ops.** Proven live: the identical run *without* `--dangerously-bypass-hook-trust` produced no denial, no warning, and `command_execution` items — **the command executed**. There is no error and no signal. Re-confirmed on 0.145.0 with the real craft guard hook left untrusted. | **CONFIRMED (0.144.6; re-confirmed 0.145.0; re-confirmed 0.162.1) — and this is the most dangerous behaviour found in this probe** |
+| Can trust be persisted? | **Yes — write path exercised headless on 0.145.0.** `hooks.state` is a `config.toml` key, not a state file or DB row. `codex app-server`'s `hooks/list` method returns each hook's `key` and `currentHash`; appending `[hooks.state."<key>"] trusted_hash = "<currentHash>"` to `$CODEX_HOME/config.toml` flips `trustStatus` to `trusted` on the next `hooks/list` call. The TUI's own `config/batchWrite` writes the same key. See the Re-probe section below for the full sequence. | CONFIRMED (0.145.0; write path exercised; re-exercised 0.162.1 via `bin/trust-hook.js`, byte-identical re-run) |
 
 ### Consequence for the binding — do not skip this
 
@@ -186,6 +187,11 @@ A malformed `.rules` file is a hard error (exit 1) in `execpolicy check`. Whethe
 path fails open is unresolved — the binary contains the string
 `Error parsing rules; custom rules not applied.`, which reads like a fail-open. **DEFERRED, and it
 should be treated as fail-open until proven otherwise.**
+
+That is the 0.144.6 statement. **Resolved on 0.162.1, split by surface:** `codex exec` refuses to
+start (exit 1, `Error loading rules: … starlark error`; it fails closed, 3/3); the app-server
+thread/turn path emits a `configWarning`, skips the rules and runs the command (it fails open,
+3/3); the interactive TUI was not probed. Still treat a malformed `.rules` file as fail open.
 
 ### Sandbox / containment — likely the strongest layer
 
@@ -307,12 +313,14 @@ They are not a whole-isolation proof, and this run is exactly the case that show
 copied `auth.json`, and a copied rotating credential is invisible to any mtime check. See
 *Isolation-method caveat* at the end of this record.
 
-## Open rows — closed / updated (rows 2–5: 2026-07-21 on 0.144.6; rows 0–1: revisited 2026-07-31 on 0.145.0)
+## Open rows — closed / updated (rows 2–5: 2026-07-21 on 0.144.6; rows 0–1: revisited 2026-07-31 on 0.145.0; rows 0, 1, 3: revisited 2026-10-15 on 0.162.1)
 
 Rows 2–5 were probed live against `codex-cli 0.144.6` in a throwaway `CODEX_HOME` (auth copied,
 never read; watchdog = background kill; isolation = `find ~/.codex -newer <marker>` empty per
 probe; trusted by independent re-run). Rows 0 and 1 carry verdicts revisited on `codex-cli 0.145.0`
-under the same protocol — see the re-probe section below for their evidence. Method note: wrap
+under the same protocol — see the re-probe section below for their evidence. Rows 0, 1 and 3 were
+revisited again on `codex-cli 0.162.1` under the same protocol; see
+`Re-probe — codex-cli 0.162.1`. Method note: wrap
 EVERY `codex` invocation — including
 bare `--version`/`--help` — in the throwaway env, or set the isolation marker AFTER them; a bare
 diagnostic touches the real `~/.codex` (version/cache/installation init) and false-alarms a
@@ -320,10 +328,10 @@ diagnostic touches the real `~/.codex` (version/cache/installation init) and fal
 
 | # | Row | Status | Evidence |
 |---|-----|--------|----------|
-| 0 | Launch-time hook-trust verification | **OPEN — the codex limitation is lifted, the verification is not wired** | The guard **over-blocked every command** (real payload is Claude-shaped `tool_input.command`, not `exec_command`/`cmd`) — fixed `fb4b922`, live-verified (benign `echo` ALLOWED, `git diff` DENIED with ext-diff reason). The untrusted-hook silent no-op is CONFIRMED (0.144.6, re-confirmed 0.145.0). codex 0.144.6 exposed no scriptable hook-trust write path; **0.145.0 lifts that limitation** — `codex app-server`'s `hooks/list` plus a `config.toml` write is a scriptable read/write trust path (see the Re-probe section). What is shipped is `bin/trust-hook.js --check`, an **on-demand** read-only check. Nothing verifies trust **at launch**: no launch path calls it, so an operator who never invokes it still gets the silent no-op. The row stays open until verification is wired into a launch. |
-| 1 | Shared skills load by reference | **DISPROVEN (re-pinned 0.144.6 → 0.145.0)** | Manifest-location bug fixed (`b204182`: codex reads `.claude-plugin/marketplace.json`, not root). But `codex plugin add` copies the plugin and DROPS the out-of-tree `../../../../skills` ref — the 19 shared skills do NOT load by reference; the symlink fallback loads all 19. Re-probed on 0.145.0 via the app-server `skills/list` method: same result, 0/19 versus 19/19. Still a codex limitation; stays OPEN. |
+| 0 | Launch-time hook-trust verification | **OPEN — the codex limitation is lifted, the verification is not wired** | The guard **over-blocked every command** (real payload is Claude-shaped `tool_input.command`, not `exec_command`/`cmd`) — fixed `fb4b922`, live-verified (benign `echo` ALLOWED, `git diff` DENIED with ext-diff reason). The untrusted-hook silent no-op is CONFIRMED (0.144.6, re-confirmed 0.145.0). codex 0.144.6 exposed no scriptable hook-trust write path; **0.145.0 lifts that limitation** — `codex app-server`'s `hooks/list` plus a `config.toml` write is a scriptable read/write trust path (see the Re-probe section). What is shipped is `bin/trust-hook.js --check`, an **on-demand** read-only check. Nothing verifies trust **at launch**: no launch path calls it, so an operator who never invokes it still gets the silent no-op. The row stays open until verification is wired into a launch. On 0.162.1 the untrusted-hook silent no-op was re-confirmed, and `bin/trust-hook.js` worked end to end (trust write, `--check`, byte-identical re-run, BLOCK and ALLOW by side effect). Still no launch path calls `--check`. |
+| 1 | Shared skills load by reference | **DISPROVEN (re-pinned 0.145.0 → 0.162.1)** | Manifest-location bug fixed (`b204182`: codex reads `.claude-plugin/marketplace.json`, not root). But `codex plugin add` copies the plugin and DROPS the out-of-tree `../../../../skills` ref — the 19 shared skills do NOT load by reference; the symlink fallback loads all 19. Re-probed on 0.145.0 via the app-server `skills/list` method: same result, 0/19 versus 19/19. Re-probed on 0.162.1 the same way: 0/19 versus 19/19, and both cached manifests are still `{description, name}`. Still a codex limitation; stays OPEN. |
 | 2 | Sandbox modes, per mode | **CONFIRMED (DELIVERED)** | Ground-truth 3×matrix: read-only blocks all writes+network; workspace-write allows cwd + `$TMPDIR`, BLOCKS genuinely-outside write + network; danger-full-access allows all. No fail-open. |
-| 3 | Malformed `.rules` fails open at runtime | **CONFIRMED fail-open (mitigated)** | Runtime loads `$CODEX_HOME/rules/`; binary carries `Error parsing rules; custom rules not applied.` → rules not applied on parse error. Mitigation `115bcce`: `assertRulesIntegrity` byte-compares deployed rules to the generator, refuses on drift. |
+| 3 | Malformed `.rules` fails open at runtime | **fail-open on the app-server path, fail-closed on `codex exec` (0.162.1) — treat as fail open** | Runtime loads `$CODEX_HOME/rules/`. 2026-07-21 (0.144.6): the recorded basis was the binary string `Error parsing rules; custom rules not applied.` alone; no runtime side effect was recorded. 0.162.1, by side effect: `codex exec` refuses to start (fail closed, 3/3); the app-server thread/turn path warns, skips the rules and runs the command (fail open, 3/3); the TUI is unprobed. `assertRulesIntegrity` (`115bcce`) byte-compares deployed rules to the generator and refuses on drift. It is an exported, unit-tested check with no caller in the binding, so it protects only when something invokes it. |
 | 4 | `CLAUDE_PLUGIN_ROOT` substitution | **CONFIRMED (DELIVERED)** | With `CRAFT_ROOT` unset + `CLAUDE_PLUGIN_ROOT` set, the hook command `node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/…/craft-guard.js` resolved — guard fired + denied `git diff`. codex expands `${CLAUDE_PLUGIN_ROOT}` AND the POSIX `:-` default, and runs hook commands through a shell. |
 | 5 | Rollout fixture + telemetry pin | **CONFIRMED gap (fixed)** | The persisted rollout does NOT carry the live `turn.completed` envelope — token record is `event_msg`/`token_count`/`info.last_token_usage`, session id on `session_meta`. The binding parsed only `turn.completed` → mined ZERO from real rollouts. Fixed `9accb03` (parse both envelopes, `last_token_usage` per-turn not cumulative), pinned by real fixture `engine/test/fixtures/codex/real-rollout.jsonl`. |
 
@@ -507,6 +515,11 @@ Rule for any refresh of this record: mtime-find proves *filesystem* isolation on
 credentials as consumed, keep probe windows short enough to stay inside the access token's lifetime,
 and expect a re-login may be needed afterwards.
 
+It happened. On 2026-10-15 a copy of the operator's `auth.json` — last written 2026-07-31, the day
+of the 0.145.0 re-probe — returned HTTP 401. The 0.162.1 re-probe avoided a second rotation by
+running `codex login` inside the throwaway `CODEX_HOME` instead of copying a credential (see
+`Re-probe — codex-cli 0.162.1`).
+
 ## Re-probe — codex-cli 0.161.0
 
 Method: an offline fake Responses provider (`model_providers`, `wire_api = "responses"`, no
@@ -524,3 +537,35 @@ the 0.145.0 section above, both stay, each pinned to its version.
 | Trust migration, unquoted to quoted (0.161.0) | **CONFIRMED (0.161.0).** A trusted unquoted hook edited to the quoted command reports `modified` with the same key; one `trust-hook` run re-trusts it. |
 | End to end (0.161.0) | **CONFIRMED (0.161.0).** Template block copied verbatim, spaced `CRAFT_ROOT`; `trust-hook` trusted the quoted command, `--check` reported trusted/noop; `codex exec` without `--dangerously-bypass-hook-trust` had the guard deny `git diff` with its `--no-ext-diff` reason, and no command executed. |
 | Hook exiting neither 0 nor 2 (0.161.0) | **CONFIRMED (0.161.0): fail-open.** Only exit 2 denies. Exit 1 (3/3 repeats), 3 and 127, `bash -c "exit 1"`, `sh -c "exit 1"`, an uncaught `node -e` throw, `node <missing>.js` and a self-SIGKILL each produced 2 `command_execution` items and turn-2 output `Process exited with code 0 … PROBE`. Controls: exit 0 ran the command; exit 2 + stderr produced 0 items and `Command blocked by PreToolUse hook: probe-deny. Command: echo PROBE`. Hook registered in a throwaway `config.toml`, trust bypassed there only, a marker file proving each hook ran. |
+
+## Re-probe — codex-cli 0.162.1
+
+Method: one throwaway `HOME`/`CODEX_HOME` (`<throwaway>`), with every `codex` invocation wrapped
+in it, `--version` included. Isolation proven by `find ~/.codex -newer <marker>` = 0 entries,
+while 185 entries landed in the throwaway. `--dangerously-bypass-hook-trust` was never used.
+Every block was verified by its ground-truth side effect, never by exit code. Target repo: a
+`git init` throwaway with one modified tracked file. Every row is pinned to 0.162.1; where it
+differs from the 0.145.0 or 0.161.0 sections above, both stay, each pinned to its version.
+
+| Probe | Result |
+|---|---|
+| Credentials (0.162.1) | **CONFIRMED (0.162.1).** The copied `auth.json` returned HTTP 401 `Could not parse your authentication token`; the real one was last written 2026-07-31 (the 0.145.0 re-probe used up that refresh token), as the isolation-method caveat predicted. Remedy: the operator ran `codex login` **inside** the throwaway `CODEX_HOME`, through the browser flow, because device-code sign-in is off for this account unless enabled in ChatGPT Security Settings. The real home was never touched and not rotated again. |
+| Identity (0.162.1) | **CONFIRMED (0.162.1).** `codex-cli 0.162.1`; npm `@openai/codex` package version `0.162.1`, platform package `0.162.1-darwin-arm64` (read from the installed package, no codex run); vendored binary at `…/@openai/codex/node_modules/@openai/codex-darwin-arm64/vendor/aarch64-apple-darwin/bin/codex`, the 0.145.0 layout. Binary and package agree. |
+| Plugin install (0.162.1) | **CONFIRMED (0.162.1).** `codex plugin marketplace add ./adapters/codex`, then `plugin add craft-codex@craft-codex-marketplace` and `plugin add craft@craft-codex-marketplace`. Both cached `.codex-plugin/plugin.json` are `{description, name}`: `skills` and `hooks` dropped — unchanged from 0.145.0. |
+| Skills by reference (0.162.1) | **DISPROVEN (0.162.1).** App-server `skills/list` with `{"cwds":[<worktree>],"forceReload":true}` lists **0 of 19** shared skills (6 in total: `craft-codex:craft-run` at scope user, plus 5 system skills). `forceReload` is present in the 0.162.1 generated schema `SkillsListParams`; the 0.145.0 section never captured the `skills/list` params, so this is a first observation, not a delta. |
+| Symlink fallback (0.162.1) | **CONFIRMED (0.162.1).** `ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>` ×19 gives **19 of 19**, registered `craft:<name>`, scope `user`, paths resolving to the repo. |
+| Untrusted hook (0.162.1) | **CONFIRMED (0.162.1), fail-open reproduced.** The template `[[hooks.PreToolUse]]` block copied verbatim into the throwaway `config.toml`, `CRAFT_ROOT=<worktree>`; `trust-hook.js --check` → exit 1, `from=untrusted`; `codex exec --json -s workspace-write -C <target>` told to run `git diff > OUT.txt` ran it (`/bin/zsh -lc 'git diff > OUT.txt'`, exit 0), `OUT.txt` exists (101 B), and the JSONL stream has **zero** hook or warning items. |
+| Trust write, check, idempotence (0.162.1) | **CONFIRMED (0.162.1).** `trust-hook.js` → exit 0, `trusted … from=untrusted hash=sha256:38713365…` (the 0.161.0 hash); `--check` → exit 0 `from=trusted action=noop`; a re-run → exit 0 `already trusted`, `config.toml` byte-identical (shasum unchanged). |
+| BLOCK and ALLOW (0.162.1) | **CONFIRMED (0.162.1).** Trusted, `git diff > OUT.txt` → `OUT.txt` **absent**, the agent reports the call blocked by craft-guard requiring `--no-ext-diff`, no `command_execution` item; `git diff --no-ext-diff > ALLOWED.txt` → 101 B, a real unified diff. |
+| Rules, well-formed control (0.162.1) | **CONFIRMED (0.162.1).** `adapters/codex/craft.rules` deployed to `$CODEX_HOME/rules/craft.rules` with the hook block removed; `codex execpolicy check` → `forbidden` (matchedPrefix `git clean`); `codex exec` told to run `git clean -f` → the untracked `VICTIM.txt` survived; app-server `thread/start` (`approvalPolicy` never, sandbox workspace-write) + `turn/start` → `VICTIM.txt` survived ("blocked by … safety policy"). |
+| Malformed rules, `execpolicy check` (0.162.1) | **CONFIRMED (0.162.1).** Last line `)` removed (a starlark parse error at line 15 of the file as deployed) → exit 1, a hard error. |
+| Malformed rules, `codex exec` (0.162.1) | **CONFIRMED (0.162.1), fails closed.** 3/3 exit 1 at startup with `Error loading rules: <path>:15: starlark error: … Parse error`; zero JSONL events; `VICTIM.txt` survived. This is the binding's own launch path (`codex exec`). |
+| Malformed rules, app-server thread/turn (0.162.1) | **CONFIRMED (0.162.1), fails open.** 3/3 a `configWarning` notification `{"summary":"Error parsing rules; custom rules not applied.", …}`, then `git clean -f` ran and `VICTIM.txt` was **deleted**. |
+| Binary string (0.162.1) | **CONFIRMED (0.162.1).** `Error parsing rules; custom rules not applied.` still sits beside app-server code. |
+| Interactive TUI rules path (0.162.1) | **DEFERRED (0.162.1).** Whether the TUI goes through the app-server path was not probed. |
+| Integrity check against the probed malformed text (0.162.1) | **CONFIRMED (0.162.1)** (hermetic, no codex run). `assertRulesIntegrity(<craft.rules minus its last line>)` throws `integrity check failed`; against the committed file it returns `{ intact: true }`. Nothing in the binding calls it. |
+
+The 2026-07-21 runtime fail-open verdict was planned as a `codex exec` run, but its only recorded
+evidence is the binary string; on 0.162.1 it holds on the app-server path and is false on
+`codex exec`, the binding's launch posture, where a malformed rules file now stops the whole run
+loudly. Treat a malformed `.rules` file as fail open.
