@@ -584,3 +584,7 @@ stryker-9-upgrade design turns=136 tool_calls=144 tokens=11059023 duration_ms=15
 stryker-9-upgrade implementation turns=22 tool_calls=24 tokens=421593 duration_ms=161484 cache_read=350377 cache_creation=70247 output=925 avg_ctx=19121 equiv=127515
 stryker-9-upgrade planning turns=50 tool_calls=51 tokens=3305451 duration_ms=538268 cache_read=3199012 cache_creation=105719 output=620 avg_ctx=66097 equiv=455250
 stryker-9-upgrade review turns=61 tool_calls=63 tokens=1682948 duration_ms=477015 cache_read=1539371 cache_creation=142237 output=1218 avg_ctx=27569 equiv=337945
+codex-0162-reprobe design turns=52 tool_calls=60 tokens=4619132 duration_ms=774827 cache_read=4483121 cache_creation=134068 output=1839 avg_ctx=88794 equiv=625196
+codex-0162-reprobe implementation turns=29 tool_calls=31 tokens=728610 duration_ms=276292 cache_read=620355 cache_creation=107277 output=920 avg_ctx=25093 equiv=200790
+codex-0162-reprobe planning turns=65 tool_calls=66 tokens=5400237 duration_ms=1200755 cache_read=5254071 cache_creation=144553 output=1483 avg_ctx=83058 equiv=713643
+codex-0162-reprobe review turns=42 tool_calls=43 tokens=1630452 duration_ms=462005 cache_read=1456829 cache_creation=172768 output=771 avg_ctx=38802 equiv=365582
