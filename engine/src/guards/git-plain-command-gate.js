@@ -19,11 +19,14 @@ const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
 const QUOTES = new Set([SINGLE_QUOTE, DOUBLE_QUOTE]);
 const OPAQUE_WORD_PART = '"';
-const WRAPPER_WORDS = new Set([
-  'sh', 'bash', 'zsh', 'dash', 'ksh', 'eval', 'env', 'exec', 'command', 'nohup',
-  'time', 'sudo', 'nice', 'timeout', 'xargs', 'source', '.',
+// Wrappers are an open set, so a shell or evaluator is denied at any word position, not only after a known wrapper.
+const SHELL_OR_EVALUATOR_WORDS = Object.freeze(new Set([
+  'sh', 'bash', 'zsh', 'dash', 'ksh', 'fish', 'csh', 'tcsh', 'mksh', 'yash', 'busybox', 'eval',
+]));
+const WRAPPER_WORDS = Object.freeze(new Set([
+  'env', 'exec', 'command', 'nohup', 'time', 'sudo', 'nice', 'timeout', 'xargs', 'source', '.',
   'trap', 'hash', 'builtin', 'enable', 'fc', 'coproc', 'alias',
-]);
+]));
 
 const IDIOM_HEADER_SOURCE = /"\$\(cat <<'([A-Za-z_][A-Za-z0-9_]*)'\n/.source;
 const IDIOM_OPEN = '"$(cat <<\'';
@@ -94,7 +97,9 @@ const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*\+?=/;
 const FILE_DESCRIPTOR = /^[0-9]+$/;
 const KEEPS_COMMAND_POSITION = new Set(['if', 'then', 'else', 'elif', 'while', 'until', 'do', 'time']);
 
-const isWrapperWord = word => WRAPPER_WORDS.has(word.split('/').pop().toLowerCase());
+const baseName = word => word.split('/').pop().toLowerCase();
+const isWrapperWord = word => WRAPPER_WORDS.has(baseName(word)) || SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
+const isShellOrEvaluator = word => SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
 const holdsOpaquePart = word => word.includes(OPAQUE_WORD_PART);
 const isOpaqueCommand = word => isWrapperWord(word) || holdsOpaquePart(word);
 const keepsCommandPosition = word => ASSIGNMENT.test(word) || KEEPS_COMMAND_POSITION.has(word);
@@ -191,6 +196,6 @@ export function gitPlainCommandGate(command) {
   if (!GIT_MENTION.test(command)) return ALLOWED;
   if (GIT_CONFIG_INJECTION.test(command)) return BLOCKED;
   const words = commandWords(command);
-  if (words === null || words.commands.some(isOpaqueCommand)) return BLOCKED;
+  if (words === null || words.commands.some(isOpaqueCommand) || words.words.some(isShellOrEvaluator)) return BLOCKED;
   return hasUnsafeConfig(words.words) ? BLOCKED : ALLOWED;
 }
