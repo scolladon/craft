@@ -435,3 +435,86 @@ describe('parseShellCommands() — nesting depth', () => {
     assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
   });
 });
+
+describe('parseShellCommands() — heredoc bodies', () => {
+  assertParses([
+    ['cat <<EOF\nit\'s\nEOF\ngit diff', [['cat'], ['git', 'diff']]],
+    ['cat <<EOF\n$(git diff)\nEOF', [['git', 'diff'], ['cat']]],
+    ["cat <<'EOF'\n$(git push)\nEOF", [['cat']]],
+    ['cat <<"EOF"\n$(git push)\nEOF', [['cat']]],
+    ['cat <<\\EOF\n$(git push)\nEOF', [['cat']]],
+    ['cat <<E"O"F\n$(git push)\nEOF', [['cat']]],
+  ]);
+});
+
+describe('parseShellCommands() — heredoc variants', () => {
+  assertParses([
+    ['cat <<-EOF\n\tbody\n\tEOF\ngit diff', [['cat'], ['git', 'diff']]],
+    ['cat <<EOF\nbody\ngit push', [['cat']]],
+    ['cat <<A <<B\na\nA\nb\nB\ngit diff', [['cat'], ['git', 'diff']]],
+  ]);
+
+  it('Given the commit idiom with a quoted heredoc, When parsed, Then the apostrophe does not break parsing', () => {
+    const sut = parseShellCommands;
+
+    const result = sut('git commit -m "$(cat <<\'EOF\'\nfix: don\'t break (x)\nEOF\n)"');
+
+    assert.deepEqual(
+      result,
+      parsed(cmd('cat'), cmdOf(['git', 'commit', '-m', dyn('$(cat <<\'EOF\'\nfix: don\'t break (x)\nEOF\n)')]))
+    );
+  });
+});
+
+describe('parseShellCommands() — here-strings', () => {
+  assertParses([
+    ['cat <<< "$(git diff)"', [['git', 'diff'], ['cat']]],
+    ["cat <<< 'git diff'", [['cat']]],
+    ['cat <<< word\ngit diff', [['cat'], ['git', 'diff']]],
+  ]);
+});
+
+describe('parseShellCommands() — re-parsed shell -c strings', () => {
+  assertParses([
+    ["bash -c 'git diff'", [['bash', '-c', 'git diff'], ['git', 'diff']]],
+    ['sh -lc "git diff"', [['sh', '-lc', 'git diff'], ['git', 'diff']]],
+    ["/bin/zsh -ec 'git diff'", [['/bin/zsh', '-ec', 'git diff'], ['git', 'diff']]],
+    ["env bash -c 'git diff; true'", [['env', 'bash', '-c', 'git diff; true'], ['git', 'diff'], ['true']]],
+    ["bash -x -c 'git diff'", [['bash', '-x', '-c', 'git diff'], ['git', 'diff']]],
+    ['bash script.sh', [['bash', 'script.sh']]],
+  ]);
+
+  assertParsesWords([
+    [
+      "bash -c '$(git diff)'",
+      [['bash', '-c', '$(git diff)'], ['git', 'diff'], [dyn('$(git diff)')]],
+    ],
+  ]);
+});
+
+describe('parseShellCommands() — re-parsed eval and env -S strings', () => {
+  assertParses([
+    ['eval git diff', [['eval', 'git', 'diff'], ['git', 'diff']]],
+    ["eval 'git diff; true'", [['eval', 'git diff; true'], ['git', 'diff'], ['true']]],
+    ["eval echo 'a;' git diff", [['eval', 'echo', 'a;', 'git', 'diff'], ['echo', 'a'], ['git', 'diff']]],
+    ["env -S 'git diff'", [['env', '-S', 'git diff'], ['git', 'diff']]],
+    ["env --split-string='git diff'", [['env', '--split-string=git diff'], ['git', 'diff']]],
+    ["env --split-string 'git diff'", [['env', '--split-string', 'git diff'], ['git', 'diff']]],
+  ]);
+
+  it('Given a re-parsed string at the nesting cap, When parsed, Then it is not parseable', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(`bash -c '${nest(PINNED_NESTING_CAP)}'`);
+
+    assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
+  });
+
+  it('Given a too-deep re-parsed string inside a substitution, When parsed, Then it is not parseable', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(`echo $(bash -c '${nest(PINNED_NESTING_CAP)}')`);
+
+    assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
+  });
+});

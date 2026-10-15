@@ -160,8 +160,69 @@ const HEAD_WORDS = new Set([
   'coproc',
 ]);
 
+const SHELL_NAMES = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh']);
+const COMMAND_STRING_CLUSTER = /^-[A-Za-z]*c[A-Za-z]*$/;
+
+const basename = text => text.slice(text.lastIndexOf('/') + 1);
+
+const isOption = ({ text }) => text.startsWith(OPTION_PREFIX);
+
+const shellCommandString = (words, index) => {
+  if (!SHELL_NAMES.has(basename(words[index].text))) return null;
+  const rest = words.slice(index + 1);
+  const targetIndex = rest.findIndex(word => !isOption(word));
+  const target = rest[targetIndex];
+  const options = targetIndex === -1 ? rest : rest.slice(0, targetIndex);
+  const hasCommandOption = options.some(word => COMMAND_STRING_CLUSTER.test(word.text));
+  return hasCommandOption && target !== undefined ? target.text : null;
+};
+
 const UNTERMINATED_SUBSTITUTION =
   'craft: command not parseable (unterminated substitution) — denied fail-closed';
+
+const EVAL_WORD = 'eval';
+const ENV_WORD = 'env';
+const SPLIT_STRING_SHORT = '-S';
+const SPLIT_STRING_LONG = '--split-string';
+const SPLIT_STRING_ATTACHED = `${SPLIT_STRING_LONG}=`;
+
+const evalString = (words, index) =>
+  words[index].text === EVAL_WORD && index + 1 < words.length
+    ? words
+        .slice(index + 1)
+        .map(({ text }) => text)
+        .join(' ')
+    : null;
+
+const splitStringValue = (words, index) => {
+  const { text } = words[index];
+  if (text.startsWith(SPLIT_STRING_ATTACHED)) return text.slice(SPLIT_STRING_ATTACHED.length);
+  const isSeparate = text === SPLIT_STRING_SHORT || text === SPLIT_STRING_LONG;
+  return isSeparate ? (words[index + 1]?.text ?? null) : null;
+};
+
+const envSplitString = (words, index) => {
+  if (words[index].text !== ENV_WORD) return null;
+  for (let option = index + 1; option < words.length && isOption(words[option]); option += 1) {
+    const value = splitStringValue(words, option);
+    if (value !== null) return value;
+  }
+  return null;
+};
+
+const asReparser = find =>
+  Object.freeze({ matches: (words, index) => find(words, index) !== null, stringAt: find });
+
+const REPARSERS = Object.freeze([
+  asReparser(shellCommandString),
+  asReparser(evalString),
+  asReparser(envSplitString),
+]);
+
+const reparsedStrings = words =>
+  words.flatMap((_, index) =>
+    REPARSERS.filter(({ matches }) => matches(words, index)).map(({ stringAt }) => stringAt(words, index))
+  );
 
 const createContext = (source, depth = 0) => ({
   source,
@@ -174,6 +235,7 @@ const createContext = (source, depth = 0) => ({
   piece: null,
   redirecting: false,
   timing: false,
+  heredocs: [],
   failure: null,
 });
 
@@ -207,16 +269,35 @@ const endWord = context => {
   pushWord(context, word);
 };
 
+const parseNested = (text, depth) => {
+  const child = createContext(text, depth);
+  runBody(child, null);
+  breakCommand(child);
+  return child;
+};
+
+const reparse = (context, words) => {
+  for (const text of reparsedStrings(words)) {
+    if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
+    const child = parseNested(text, context.depth + 1);
+    if (child.failure !== null) return fail(context, child.failure);
+    context.commands.push(...child.commands);
+  }
+};
+
 const breakCommand = context => {
   endWord(context);
-  if (context.words.length > 0) context.commands.push({ words: context.words });
+  if (context.words.length > 0) {
+    context.commands.push({ words: context.words });
+    reparse(context, context.words);
+  }
   context.words = [];
   context.redirecting = false;
   context.timing = false;
 };
 
 const fail = (context, reason) => {
-  context.failure = reason;
+  context.failure ??= reason;
 };
 
 const onLiteral = context => {
@@ -307,8 +388,7 @@ const runBody = (child, close) => {
   return close === null;
 };
 
-const absorb = (context, child, settle) => {
-  settle(child);
+const absorb = (context, child) => {
   context.commands.push(...child.commands);
 };
 
@@ -326,9 +406,10 @@ const enterConstruct = (context, { openLength, close, settle }) => {
   const child = createContext(context.source, context.depth + 1);
   child.index = start + openLength;
   const closed = runBody(child, close);
+  settle(child);
   if (child.failure !== null) return fail(context, child.failure);
   if (!closed) return fail(context, UNTERMINATED_SUBSTITUTION);
-  absorb(context, child, settle);
+  absorb(context, child);
   markExpansion(context, start, child.index + 1);
 };
 
@@ -348,8 +429,9 @@ const enterBacktick = context => {
   const body = context.source.slice(start + 1, end).replace(BACKTICK_ESCAPES, '$1');
   const child = createContext(body, context.depth + 1);
   runBody(child, null);
+  breakCommand(child);
   if (child.failure !== null) return fail(context, child.failure);
-  absorb(context, child, breakCommand);
+  absorb(context, child);
   markExpansion(context, start, end + 1);
 };
 
@@ -389,6 +471,105 @@ const onDollar = context =>
 const onDoubleQuotedDollar = context =>
   context.source[context.index + 1] === SINGLE_QUOTE ? onLiteral(context) : expandDollar(context);
 
+const HEREDOC_OPERATOR = '<<';
+const HERE_STRING_OPERATOR = '<<<';
+const STRIP_TABS_FLAG = '-';
+const LEADING_TABS = /^\t+/;
+const DELIMITER_END = new Set([' ', '\t', NEWLINE, ';', '|', '&', '<', '>', '(', ')']);
+
+const readQuotedPart = (context, delimiter) => {
+  const quote = context.source[context.index];
+  const close = context.source.indexOf(quote, context.index + 1);
+  if (close === -1) return fail(context, UNTERMINATED_QUOTE);
+  delimiter.text += context.source.slice(context.index + 1, close);
+  delimiter.quoted = true;
+  context.index = close + 1;
+};
+
+const readEscapedPart = (context, delimiter) => {
+  delimiter.text += context.source[context.index + 1] ?? '';
+  delimiter.quoted = true;
+  context.index += 2;
+};
+
+const readDelimiterPart = (context, delimiter) => {
+  const char = context.source[context.index];
+  if (char === SINGLE_QUOTE || char === DOUBLE_QUOTE) return readQuotedPart(context, delimiter);
+  if (char === BACKSLASH) return readEscapedPart(context, delimiter);
+  delimiter.text += char;
+  context.index += 1;
+};
+
+const readDelimiter = context => {
+  const delimiter = { text: '', quoted: false };
+  while (
+    context.index < context.source.length &&
+    context.failure === null &&
+    !DELIMITER_END.has(context.source[context.index])
+  ) {
+    readDelimiterPart(context, delimiter);
+  }
+  return delimiter;
+};
+
+const skipBlanks = context => {
+  while (context.source[context.index] === ' ' || context.source[context.index] === '\t') context.index += 1;
+};
+
+const onHeredoc = context => {
+  if (FILE_DESCRIPTOR.test(context.piece ?? '')) context.piece = null;
+  endWord(context);
+  context.index += HEREDOC_OPERATOR.length;
+  const stripTabs = context.source[context.index] === STRIP_TABS_FLAG;
+  if (stripTabs) context.index += 1;
+  skipBlanks(context);
+  const delimiter = readDelimiter(context);
+  if (context.failure === null) context.heredocs.push({ ...delimiter, stripTabs });
+};
+
+const readHeredocBody = (context, { text, stripTabs }) => {
+  const lines = [];
+  while (context.index < context.source.length) {
+    const lineEnd = context.source.indexOf(NEWLINE, context.index);
+    const end = lineEnd === -1 ? context.source.length : lineEnd;
+    const raw = context.source.slice(context.index, end);
+    const line = stripTabs ? raw.replace(LEADING_TABS, '') : raw;
+    context.index = lineEnd === -1 ? end : end + 1;
+    if (line === text) break;
+    lines.push(line);
+  }
+  return lines.join(NEWLINE);
+};
+
+const scanExpansions = (context, body) => {
+  const scratch = createContext(body, context.depth);
+  while (scratch.index < body.length && scratch.failure === null) consumeDoubleQuoted(scratch);
+  context.commands.push(...scratch.commands);
+  if (scratch.failure !== null) fail(context, scratch.failure);
+};
+
+const consumeHeredoc = (context, heredoc) => {
+  const body = readHeredocBody(context, heredoc);
+  if (!heredoc.quoted) scanExpansions(context, body);
+};
+
+const readHeredocBodies = context => {
+  for (const heredoc of context.heredocs.splice(0)) {
+    if (context.failure === null) consumeHeredoc(context, heredoc);
+  }
+};
+
+const onHereString = context => {
+  context.index += HERE_STRING_OPERATOR.length - 1;
+  onRedirect(context);
+};
+
+const onNewline = context => {
+  context.index += 1;
+  readHeredocBodies(context);
+  breakCommand(context);
+};
+
 const onHash = context => {
   if (context.piece !== null) return onLiteral(context);
   const lineEnd = context.source.indexOf(NEWLINE, context.index);
@@ -413,8 +594,14 @@ const onCloseParen = context => {
   onBreak(context);
 };
 
-const onAngle = context =>
-  context.source[context.index + 1] === OPEN_PAREN ? enterConstruct(context, SUBSTITUTION) : onRedirect(context);
+const startsWithAt = (context, token) => context.source.startsWith(token, context.index);
+
+const onAngle = context => {
+  if (context.source[context.index + 1] === OPEN_PAREN) return enterConstruct(context, SUBSTITUTION);
+  if (startsWithAt(context, HERE_STRING_OPERATOR)) return onHereString(context);
+  if (startsWithAt(context, HEREDOC_OPERATOR)) return onHeredoc(context);
+  onRedirect(context);
+};
 
 const onAmpersand = context =>
   context.source[context.index + 1] === '>' ? onAmpersandRedirect(context) : onBreak(context);
@@ -427,7 +614,7 @@ const onAmpersandRedirect = context => {
 const CHAR_HANDLERS = new Map([
   [' ', onWhitespace],
   ['\t', onWhitespace],
-  [NEWLINE, onBreak],
+  [NEWLINE, onNewline],
   [';', onBreak],
   ['|', onBreak],
   [OPEN_PAREN, onOpenParen],
@@ -448,7 +635,7 @@ const step = context => (CHAR_HANDLERS.get(context.source[context.index]) ?? onL
 export function parseShellCommands(command) {
   const context = createContext(command);
   while (context.index < command.length && context.failure === null) step(context);
-  if (context.failure !== null) return { parsed: false, reason: context.failure };
   breakCommand(context);
+  if (context.failure !== null) return { parsed: false, reason: context.failure };
   return { parsed: true, commands: context.commands };
 }
