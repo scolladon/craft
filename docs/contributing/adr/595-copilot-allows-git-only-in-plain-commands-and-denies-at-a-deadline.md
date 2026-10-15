@@ -40,8 +40,8 @@ grammar keeps losing to the next unmodelled construct, and every quadratic path 
   plain or it is denied with a fixed reason ("too complex to verify near git — spell it plainly"):
   outside quotes only letters, digits, space, tab and `_ . / : = @ % + , ~ ^ -`, the separators
   `;` `&&` `||` `|` `&` and newline, and `>`/`>>`/`2>&1`-style redirects to a literal target;
-  single-quoted text is data; double-quoted text excludes `$`, backtick, `\` and `!`; no word is an
-  evaluator or wrapper (`sh bash zsh dash ksh eval env exec command nohup time sudo nice timeout
+  single-quoted text is data; double-quoted text excludes `$`, backtick, `\` and `!`; no word in
+  command position (the first word of a command, after any separator) is an evaluator or wrapper (`sh bash zsh dash ksh eval env exec command nohup time sudo nice timeout
   xargs source .`); and no `GIT_CONFIG_` text appears. Craft's commit idiom
   `"$(cat <<'DELIM' … DELIM)"` is recognised exactly and its body treated as data.
 - A plain command is then judged by the destructive predicate and `toolCallGuard` as before. The git
