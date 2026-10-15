@@ -822,7 +822,7 @@ const ALIAS_KEY_PREFIX = 'alias.';
 export const INLINE_ALIAS_REASON =
   'craft: an inline git alias (-c alias.*) is denied — it can run any git verb';
 
-const isGitWord = word => !word.dynamic && word.text.split(PATH_SEPARATOR).pop() === GIT_COMMAND;
+const isGitWord = word => !word.dynamic && word.text.split(PATH_SEPARATOR).pop().toLowerCase() === GIT_COMMAND;
 
 const anchoredAt = (words, index) =>
   extend(normaliseFrom(words, index + 1), { leadingWords: () => texts(words.slice(0, index)) });
@@ -842,10 +842,10 @@ const patternAnchors = (words, flag) =>
     word.pattern === true && holdsAnchorVerb(word) ? [flag(indeterminateAt(words, index), index)] : []
   );
 
-const DASHED_VERB = /^git-([a-z][a-z-]*)$/;
+const DASHED_VERB = /^git-([a-z][a-z-]*)$/i;
 
 const dashedVerb = word => {
-  const verb = DASHED_VERB.exec(basename(word.text))?.[1] ?? null;
+  const verb = DASHED_VERB.exec(basename(word.text))?.[1]?.toLowerCase() ?? null;
   const spelledOut = !word.dynamic || word.text.includes(PATH_SEPARATOR);
   return spelledOut ? verb : null;
 };

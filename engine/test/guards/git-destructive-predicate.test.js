@@ -28,6 +28,18 @@ describe('gitDestructivePredicate() — push', () => {
   }
 });
 
+describe('gitDestructivePredicate() — git spelled in another case', () => {
+  for (const command of ['GIT push origin main', 'Git push', '/usr/bin/GIT push', 'GIT-push origin']) {
+    it(`Given "${command}", when checked, then blocks with the push reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_PUSH });
+    });
+  }
+});
+
 const REASON_RESET =
   'craft: destructive git (reset --hard) is denied in this binding — run it outside the agent';
 

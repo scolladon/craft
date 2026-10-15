@@ -286,10 +286,10 @@ describe('decideGuard() — non-object toolArgs shapes', () => {
 describe('copilotGuard() — destructive git first, then the tool-call guard', () => {
   const bashEvent = command => ({ tool: 'Bash', tool_input: { command }, working_dir: WORKING_DIR });
 
-  it('Given a git -C . push command, when copilotGuard runs, then it blocks with the push reason', () => {
+  it('Given a git -C ../wt push command, when copilotGuard runs, then it blocks with the push reason', () => {
     const sut = copilotGuard;
 
-    const result = sut(bashEvent('git -C . push'));
+    const result = sut(bashEvent('git -C ../wt push'));
 
     assert.equal(result.block, true);
     assert.match(result.reason, /push/);
@@ -301,6 +301,25 @@ describe('copilotGuard() — destructive git first, then the tool-call guard', (
     const result = sut(bashEvent('git push; git diff'));
 
     assert.match(result.reason, /push/);
+  });
+
+  it('Given a wrapped push, when copilotGuard runs, then the plain-command gate reason wins', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent("bash -c 'git push'"));
+
+    assert.deepEqual(result, {
+      block: true,
+      reason: 'craft: command too complex to verify near git — spell it plainly',
+    });
+  });
+
+  it('Given a plain status through the whole guard, when copilotGuard runs, then it passes', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git status --short && git log --oneline -5'));
+
+    assert.equal(result.block, false);
   });
 
   it('Given a Write out of tree, when copilotGuard runs, then the tool-call guard still blocks', () => {

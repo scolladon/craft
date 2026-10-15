@@ -4,6 +4,7 @@
  * and decides the guard verdict by composing the destructive-git predicate with
  * that guard. The hook script turns the verdict into the CLI response.
  */
+import { gitPlainCommandGate } from '../../../engine/src/guards/git-plain-command-gate.js';
 import { gitDestructivePredicate } from '../../../engine/src/guards/git-destructive-predicate.js';
 import { toolCallGuard, WRITE_TOOLS } from '../../../engine/src/guards/tool-call-guard.js';
 
@@ -100,17 +101,23 @@ function withContainmentReason(event, verdict) {
   return verdict;
 }
 
+// The plain-command gate, then the destructive-git predicate.
+function bashBlock(command) {
+  const gate = gitPlainCommandGate(command);
+  return gate.block ? gate : gitDestructivePredicate(command);
+}
+
 /**
- * Destructive git commands first, then the shared tool-call guard; the first
- * block wins.
+ * Plain-command gate, then destructive git commands, then the shared tool-call
+ * guard; the first block wins.
  * @param {{ tool: string, tool_input: object, working_dir: string }} event
  * @returns {{ block: boolean, reason?: string }}
  */
 export function copilotGuard(event) {
   if (event.tool === BASH_TOOL) {
-    const destructive = gitDestructivePredicate(commandOf(event.tool_input));
-    if (destructive.block) {
-      return destructive;
+    const bash = bashBlock(commandOf(event.tool_input));
+    if (bash.block) {
+      return bash;
     }
   }
   return withContainmentReason(event, toolCallGuard(event));
