@@ -175,6 +175,48 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-16 — follow-ups surfaced by the copilot-git-argv-normalising-guard run, not yet scheduled)
+
+**Compose the destructive-git predicate into the codex hook.** `adapters/codex/src/execpolicy-rules.js`
+discloses that `git -C . push` and `--git-dir=… push` bypass its `.rules` prefix match. The copilot binding
+now judges normalised argv with `gitDestructivePredicate`; the codex guard hook does not compose it
+(ADR-579 scoped it to copilot). Proof to run first: feed `adapters/codex/hooks/craft-guard.js` a
+`git -C . push origin main` payload and confirm it exits 0 (allows). Then decide whether codex also
+takes the plain-command gate.
+
+**The Claude ext-diff hook shares the anchor and global-option gaps.** `hooks/git-no-ext-diff.sh`
+(a separate bash matcher) allows `(git diff)`, `FOO=1 git diff`, `env/command/!/time git diff`,
+`{ git diff; }`, `git --no-pager diff`, `git -p diff` and `git --git-dir .git diff` (pinned read-only in
+the design doc's Pinned A table). Its crash contract (ADR-533…541) makes a rewrite its own change.
+
+**A copilot-level differential fuzz arm.** The committed fuzz
+(`engine/test/guards/shell-git-invocations.differential.test.js`) exercises the shared predicates only,
+never `copilotGuard` and its plain-command gate, so it could not find the gate's idiom-smuggling and
+command-position bypasses that review found by hand. Add a generator arm (idiom bodies, evaluator
+builtins, redirect/reserved-word prefixes, unlisted wrappers) judged through `copilotGuard`.
+
+**The fuzz goes red at scale on unclassified safe-direction false blocks.** With
+`GUARD_FUZZ_SEEDS` set to fresh seeds and `GUARD_FUZZ_COUNT=1500`, 5-6 commands per 5-10 seeds fail the
+census as "unexpected false block": git reached only through a short-circuited `&&`, a function defined
+in a pipeline subshell, or a `cat <(…)` log race. The default seed stays green. Classify them (or make
+the oracle wait for process substitutions) so the scale knob is usable as a gate.
+
+**Craft's heredoc commit idiom fails under macOS `/bin/bash` 3.2 when the message holds an apostrophe.**
+`git commit -m "$(cat <<'EOF' … don't … EOF)"` is a syntax error in bash 3.2 (reproduced locally and live
+on copilot, which runs `/bin/bash`); bash 5 accepts it. The copilot guard allows the idiom; bash rejects
+it. Document the workaround for bindings that shell out to bash 3.2 (multiple `-m "…"` with double
+quotes), or pick a commit form both shells parse.
+
+**Pre-existing test fixtures fail under machine load when the user signs commits.** Under two concurrent
+`scripts/ci.sh` runs, `test/run-ledger.test.js:136` and `test/worktree.test.js:146` fail with
+`gpg failed to sign the data: Cannot allocate memory`: their fixture commits inherit the user's global
+`commit.gpgsign=true`. Pass `-c commit.gpgsign=false` (or an empty `HOME`) in the fixtures.
+
+**Copilot `write_bash` into an interactive (pty) session is unprobed.** Copilot 1.0.98 ships a
+`write_bash` tool (`{shellId, input}`) the guard never sees. Headless sessions have stdin at EOF, so
+nothing reaches the shell (probed); an interactive session with a pty may differ. Probe it with a
+throwaway home and a stub git before relying on the guard interactively.
+
 ### Open (scoped 2026-10-15 — follow-ups surfaced by the codex-0162-reprobe run, not yet scheduled)
 
 **Does the interactive codex TUI apply a malformed `.rules` file like `codex exec` or like the
@@ -213,7 +255,15 @@ symlinks).
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the stryker-9-upgrade run, not yet scheduled)
 
-**The git ext-diff guard misses a diff/show its segment splitter or anchor never sees.**
+**The git ext-diff guard misses a diff/show its segment splitter or anchor never sees — delivered 2026-10-16**
+(feat/copilot-git-argv-normalising-guard). `gitExtDiffPredicate` is rebuilt on a shared bash tokeniser
+(`engine/src/guards/shell-tokeniser.js`), git global-option normaliser (`git-argv.js`) and invocation
+anchor (`shell-git-invocations.js`): escapes, `( )`, `{ }`, `!`, `time`, `env`/`command`/`exec`, `NAME=v`
+prefixes, quote removal and every git 2.54 global option are modelled, and a git invocation starts at
+any word named git (ADR-580). Unparseable or unmodelled shell fails closed (ADR-582, ADR-594); the
+parser is linear and capped at 131072 characters. Differentially fuzzed against `/bin/bash` and real git
+(0 false allows over 30000 generated commands). Exotic adversarial shapes stay ext-diff residuals on
+bindings other than copilot (the guard protects parsed output, not a sandbox). Original entry:
 `gitExtDiffPredicate` (`engine/src/guards/git-ext-diff-predicate.js`) splits a command into
 shell segments and blocks a segment that starts with `git … diff|show` and lacks `--no-ext-diff`.
 Two gaps let a non-compliant call through (each reproduced against the predicate; each returns
@@ -1078,7 +1128,15 @@ offenders positively and asserting a non-empty scan set), and all 15 comment ref
 `observability/skip-signals.js`) were reworded to prose without the numbered reference
 (comment-only, behaviour-preserving).
 
-**Stronger destructive-git denial for the Copilot binding.** `--deny-tool` is **prefix matching on the
+**Stronger destructive-git denial for the Copilot binding — delivered 2026-10-16**
+(feat/copilot-git-argv-normalising-guard). A live probe showed copilot >= 1.0.92 honours a
+`preToolUse` deny (`permissionDecision: "deny"`; the 1.0.63 probe used a key copilot ignores), so the
+hook now enforces (ADR-578): a plain-command gate (ADR-595, ADR-596) → `gitDestructivePredicate` over
+normalised argv (push, `reset --hard`, forced branch delete, non-dry-run clean, inline aliases and
+config channels; ADR-579/583/584/590) → the shared guard, with the verdict computed in a worker thread
+and denied at a 5 s deadline so copilot's ~30 s hook timeout cannot fail open. `--deny-tool` stays the
+floor. Ground truth on copilot 1.0.92 and 1.0.98 (bare-remote ref unmoved; allow direction executes).
+Original entry: `--deny-tool` is **prefix matching on the
 command string** (pinned live). `shell(git push)` blocks `git push --force origin main`, but
 `git -C . push` and reordered flags like `git clean -df` slip past a literal pattern. The shipped set
 enumerates realistic flag-order and long-form variants and documents the residual gap honestly, but
