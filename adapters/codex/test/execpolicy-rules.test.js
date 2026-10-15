@@ -66,7 +66,7 @@ describe('buildExecpolicyRules() — honesty disclosure', () => {
   it('Given the generated rules text, when scanned, then it carries no codex version string', () => {
     const sut = buildExecpolicyRules();
 
-    assert.doesNotMatch(sut, /\b\d+\.\d+\.\d+\b/);
+    assert.doesNotMatch(sut, /\d+\.\d+/);
   });
 });
 
