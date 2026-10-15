@@ -133,7 +133,7 @@ code 2 both block the tool, and the hook is the enforcing layer
 |---|---|---|
 | Containment | native path verification; `--add-dir <worktree>` required, `--allow-all-paths` forbidden | **Yes** — live-proven: an out-of-tree `create` was blocked with no `--allow-all-paths` supplied; with it, the hook alone still denied (file absent) |
 | Command policy | the `--deny-tool` pattern set from `adapters/copilot/src/deny-tool-args.js` | **Yes** — live-proven; denial rules take precedence even over `--allow-all-tools`; the floor on a copilot older than 1.0.92 |
-| Hook | the `preToolUse` hook (`adapters/copilot/hooks/craft-guard.js`) → `copilotGuard` in `adapters/copilot/src/git-guard-adapter.js` = the destructive-git predicate, then the shared `toolCallGuard` predicate | **Yes** (>= 1.0.92) — denied the destructive and ext-diff rows in the live probe |
+| Hook | the `preToolUse` hook (`adapters/copilot/hooks/craft-guard.js`) → `copilotGuard` in `adapters/copilot/src/git-guard-adapter.js` = the plain-command gate, then the destructive-git predicate, then the shared `toolCallGuard` predicate | **Yes** (>= 1.0.92) — denied the destructive and ext-diff rows in the live probe |
 
 **Deny and crash channel.** A block writes `{"permissionDecision":"deny","permissionDecisionReason":…}`
 on stdout and exits 0; the model sees the reason. A guard that throws, an unresolvable import and an
@@ -165,11 +165,25 @@ can never mask the field the tool actually executes on). It applies the shared `
 every binding. The ext-diff rule is therefore enforced for this binding: `git diff HEAD~1 > f`
 was denied (file absent) and `git diff --no-ext-diff HEAD~1 > f` executed.
 
+**Plain-command gate.** First stage of the hook. When a command mentions git, it must be plain:
+literal or quoted words; `;`, `&&`, `||`, `|`, `&` and newline separators; literal output redirects;
+none of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wrapper in command
+position; no `GIT_CONFIG_`. craft's `"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Otherwise the
+hook denies with `craft: command too complex to verify near git — spell it plainly`; the remedy is
+to re-issue the git part plainly. On macOS `/bin/bash` 3.2 an apostrophe inside the commit-idiom
+body fails bash's own parse (hook allows; bash syntax error) — a bash limitation, not the guard.
+
+**Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
+(`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s timeout
+fail open. Re-probe on 1.0.98 (live probe 2026-10-16): `git -C . push origin main` denied (ref
+unmoved); `git status --short && git tag allowed` executed; `bash -c 'git push origin main'` denied
+by the gate; the commit idiom executed; a forced deadline denied.
+
 **Residuals**, written down rather than papered over:
 
 - A hook timeout **fails open**. With no `timeoutSec`, a hook that denied after 20 s still denied;
-  at 40 s and 70 s the tool executed (1.0.98). The default is about 30 s; the guard runs well under
-  a second.
+  at 40 s and 70 s the tool executed (1.0.98). The default is about 30 s; the 5 s verdict deadline
+  is the guarantee, and a realistic command runs well under a second.
 - Copilot does not persist the hook's stderr audit line anywhere (the `--output-format json`
   stream, `$COPILOT_HOME/logs`): the hook yields no audit trail.
 - Git reached through channels a static guard cannot follow, accepted by design: `echo push | xargs git`;
@@ -185,14 +199,15 @@ was denied (file absent) and `git diff --no-ext-diff HEAD~1 > f` executed.
   `update-ref -d`, `filter-branch`, `send-pack`).
 - Closed, no longer residuals: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
   env channels and `-c include.path`, and brace/glob/`$'\…'`/`$"…"`/dashed `git-<verb>`/wrapper
-  dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap, so a crafted
-  command cannot drive the hook past the timeout: the 80 KB `eval` chain that took 49 s and then
+  dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap, backed by the
+  verdict deadline: the 80 KB `eval` chain that took 49 s and then
   aborted now denies in 0.06 s (live probe 2026-10-15). Every fail-closed denial carries a reason,
   including `craft: write outside the working directory is denied in this binding`.
 - Closed, not a residual: cross-call shell state. A function or variable defined in one `bash` call
   was not visible in the next, even with a reused `shellId`, and only `bash` executes shell text
   (`read_bash`, `stop_bash`, `list_bash` cannot inject input) — 1.0.92 and 1.0.98.
-- Intended false blocks, each costing one re-issue with a literal command: `echo git push` and
+- Intended false blocks, each costing one re-issue with a literal command: `bash -c 'git status'`;
+  `git commit -m "it's $HOME"`; `git log # c`; `git diff > o < i`; `echo git push` and
   `ls /x/git push` (any-word anchoring); a dynamic command head; a dynamic word at git's option or
   subcommand position (`git $OPTS status`); a dynamic `reset`/`branch` argument (`git reset $SHA`);
   pattern words (brace/glob) near a verb word; a dynamic word before a verb word; a file named

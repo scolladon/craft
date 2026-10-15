@@ -58,16 +58,34 @@ craft's git-guard binds to Copilot as three layers, all of which enforce on copi
 - **Command policy** (`--deny-tool` pattern set) — enforces, live-proven, and takes precedence
   even over `--allow-all-tools`. It is prefix matching, so it stays the floor on a copilot older
   than 1.0.92, where the hook cannot deny.
-- **`preToolUse` hook** (`hooks/craft-guard.js`) — judges normalised git argv for destructive
-  verbs and the `--no-ext-diff` rule, and writes a JSON deny on stdout (exit 0); a crash denies
-  by exit 2. A deny also fires for a missing hook file or a missing `node` (`hook errored`).
-  Verified on 1.0.92 and 1.0.98.
+- **`preToolUse` hook** (`hooks/craft-guard.js`) — three stages, in order: the **plain-command
+  gate**, the destructive-git predicate (normalised argv: destructive verbs and the
+  `--no-ext-diff` rule), then the shared `toolCallGuard`. A block writes a JSON deny on stdout
+  (exit 0); a crash denies by exit 2. A deny also fires for a missing hook file or a missing `node`
+  (`hook errored`). Verified on 1.0.92 and 1.0.98.
+
+**The plain-command gate.** When a command mentions git, it must be plain: literal or quoted words;
+`;`, `&&`, `||`, `|`, `&` and newline separators; literal output redirects (`> file`, `2>&1`); none
+of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wrapper in command
+position (`bash -c`, `eval`, `env`, `xargs`, `nohup`, `source`, …); no `GIT_CONFIG_`. craft's
+`"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Anything else is denied with `craft: command too
+complex to verify near git — spell it plainly`; the remedy is to re-issue the git part plainly. On
+macOS `/bin/bash` 3.2, an apostrophe inside the commit-idiom body fails bash's own parse (the hook
+allows it; bash reports a syntax error) — a bash limitation, not the guard.
+
+**Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
+(`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s hook
+timeout fail open.
+
+Re-probe on 1.0.98 (live probe 2026-10-16): `git -C . push origin main` denied (ref unmoved);
+`git status --short && git tag allowed` executed; `bash -c 'git push origin main'` denied by the
+gate; the commit idiom executed; a forced deadline (`CRAFT_GUARD_DEADLINE_MS=1`) denied.
 
 Residuals, stated as measured or designed:
 
 - **A hook timeout fails open.** With no `timeoutSec`, a hook that sleeps 20 s still denied; at 40 s
-  and 70 s the tool executed (1.0.98). The default is about 30 s; the guard itself runs well under
-  a second.
+  and 70 s the tool executed (1.0.98). The default is about 30 s. The 5 s verdict deadline is the
+  guarantee that the guard denies before then; a realistic command runs well under a second.
 - **No audit trail.** The hook's stderr audit line is not persisted anywhere copilot writes (the
   `--output-format json` stream, `$COPILOT_HOME/logs`).
 - **Git reached through channels a static guard cannot follow**, accepted by design:
@@ -83,9 +101,11 @@ Residuals, stated as measured or designed:
 - **Closed, not residuals**: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
   env channels, `-c include.path`, and brace/glob/`$'\…'`/`$"…"`/dashed `git-<verb>`/wrapper
   dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap: the 80 KB `eval`
-  chain that took 49 s then aborted now denies in 0.06 s, so a crafted command cannot push the hook
-  past its timeout. Every fail-closed denial carries a reason.
-- **Intended false blocks**, each costing one re-issue with a literal command: `echo git push`; a
+  chain that took 49 s then aborted now denies in 0.06 s, and the verdict deadline backs this up.
+  Every fail-closed denial carries a reason.
+- **Intended false blocks**, each costing one re-issue with a literal command: `bash -c 'git status'`;
+  an apostrophe plus `$` in a quoted word (`git commit -m "it's $HOME"`); a `#` comment
+  (`git log # c`); `<` input redirects (`git diff > o < i`); `echo git push`; a
   dynamic command head; a dynamic word at git's option or subcommand position (`git $OPTS status`);
   a dynamic `reset`/`branch` argument (`git reset $SHA`); pattern words (brace/glob) near a verb
   word; a dynamic word before a verb word; a file named `git-<verb>`; an opaque `$'\…'` passed to
