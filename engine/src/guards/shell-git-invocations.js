@@ -38,12 +38,12 @@ const PRINT_AND_EXIT_OPTIONS = Object.freeze([
   '--man-path',
   '--info-path',
 ]);
-const SUBCOMMAND_ALIASES = Object.freeze({
-  '-v': 'version',
-  '--version': 'version',
-  '-h': 'help',
-  '--help': 'help',
-});
+const SUBCOMMAND_ALIASES = new Map([
+  ['-v', 'version'],
+  ['--version', 'version'],
+  ['-h', 'help'],
+  ['--help', 'help'],
+]);
 const ARGS_END = '--';
 const OPTION_PREFIX = '-';
 const VALUE_SEPARATOR = '=';
@@ -95,7 +95,7 @@ const isSkippedFlag = text => FLAG_OPTIONS.includes(text) || text.startsWith(EXE
 
 const subcommandResult = (text, words, from, configKeys) =>
   extend(
-    { kind: 'subcommand', subcommand: SUBCOMMAND_ALIASES[text] ?? text, configKeys },
+    { kind: 'subcommand', subcommand: SUBCOMMAND_ALIASES.get(text) ?? text, configKeys },
     { args: () => texts(words.slice(from)), dynamicArgCount: () => countDynamic(words, from) }
   );
 
@@ -138,7 +138,7 @@ const advance = (words, cursor, configKeys) => {
 
 const lateExit = (words, cursor, configKeys) => {
   const { text } = words[cursor];
-  if (text.startsWith(OPTION_PREFIX) && !(text in SUBCOMMAND_ALIASES)) return refused(words, cursor);
+  if (text.startsWith(OPTION_PREFIX) && !SUBCOMMAND_ALIASES.has(text)) return refused(words, cursor);
   return subcommandResult(text, words, cursor + 1, configKeys);
 };
 
@@ -167,8 +167,6 @@ const DOUBLE_QUOTE = '"';
 const BACKSLASH = '\\';
 const MAX_COMMAND_LENGTH = 131072;
 const COMMAND_TOO_LONG = "craft: command not parseable (longer than the guard's limit) — denied fail-closed";
-const WORK_BUDGET_FACTOR = 16;
-const WORK_EXCEEDED = 'craft: command not parseable (too much nesting work) — denied fail-closed';
 const MAX_NESTING_DEPTH = 8;
 const NESTING_TOO_DEEP = `craft: command not parseable (nesting deeper than ${MAX_NESTING_DEPTH}) — denied fail-closed`;
 const BACKTICK = '`';
@@ -310,10 +308,9 @@ const reparsedWords = words => {
 
 const NO_ARITHMETIC = -1;
 
-const createContext = (source, depth, budget) => ({
+const createContext = (source, depth) => ({
   source,
   depth,
-  budget,
   parens: 0,
   dynamic: false,
   opaque: false,
@@ -374,16 +371,8 @@ const endWord = context => {
   pushWord(context, word);
 };
 
-// Bodies are scanned again from their own text; the shared budget caps that repeated work.
-const charge = (context, length) => {
-  context.budget.remaining -= length;
-  if (context.budget.remaining >= 0) return true;
-  fail(context, WORK_EXCEEDED);
-  return false;
-};
-
 const parseNested = (context, text) => {
-  const child = createContext(text, context.depth + 1, context.budget);
+  const child = createContext(text, context.depth + 1);
   runBody(child, null);
   breakCommand(child);
   return child;
@@ -393,7 +382,6 @@ const reparse = (context, words) => {
   for (const { text, opaque } of reparsedWords(words)) {
     if (opaque === true) return fail(context, OPAQUE_STRING);
     if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
-    if (!charge(context, text.length)) return;
     const child = parseNested(context, text);
     if (child.failure !== null) return fail(context, child.failure);
     context.commands.push(...child.commands);
@@ -570,7 +558,7 @@ const isTooDeep = context => context.depth >= MAX_NESTING_DEPTH;
 const enterConstruct = (context, { openLength, close, settle, parameter }) => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
-  const child = createContext(context.source, context.depth + 1, context.budget);
+  const child = createContext(context.source, context.depth + 1);
   child.index = start + openLength;
   child.parameter = parameter;
   const closed = runBody(child, close);
@@ -595,7 +583,6 @@ const enterBacktick = context => {
   const end = findBacktickEnd(context.source, start + 1);
   if (end === -1) return fail(context, UNTERMINATED_SUBSTITUTION);
   const body = context.source.slice(start + 1, end).replace(BACKTICK_ESCAPES, '$1');
-  if (!charge(context, body.length)) return;
   const child = parseNested(context, body);
   if (child.failure !== null) return fail(context, child.failure);
   absorb(context, child);
@@ -719,8 +706,7 @@ const readHeredocBody = (context, { text, stripTabs }) => {
 };
 
 const scanExpansions = (context, body) => {
-  if (!charge(context, body.length)) return;
-  const scratch = createContext(body, context.depth, context.budget);
+  const scratch = createContext(body, context.depth);
   while (scratch.index < body.length && scratch.failure === null) consumeDoubleQuoted(scratch);
   context.commands.push(...scratch.commands);
   if (scratch.failure !== null) fail(context, scratch.failure);
@@ -822,7 +808,7 @@ const step = context => (CHAR_HANDLERS.get(context.source[context.index]) ?? onL
 
 export function parseShellCommands(command) {
   if (command.length > MAX_COMMAND_LENGTH) return { parsed: false, reason: COMMAND_TOO_LONG };
-  const context = createContext(command, 0, { remaining: command.length * WORK_BUDGET_FACTOR });
+  const context = createContext(command, 0);
   while (context.index < command.length && context.failure === null) step(context);
   breakCommand(context);
   if (context.failure !== null) return { parsed: false, reason: context.failure };
@@ -950,3 +936,21 @@ export const configChannelReason = invocation => {
   if (hasInlineAlias(invocation)) return INLINE_ALIAS_REASON;
   return invocation.injectsConfig === true || holdsIncludeKey(invocation) ? CONFIG_CHANNEL_REASON : null;
 };
+
+/**
+ * Parses the command and returns the first reason `verdictFor` gives an invocation;
+ * a command that cannot be parsed is denied fail-closed with the parser's reason.
+ *
+ * @param {string} command
+ * @param {(invocation: object) => string|null} verdictFor
+ * @returns {{ block: boolean, reason?: string }}
+ */
+export function judgeInvocations(command, verdictFor) {
+  const result = gitInvocations(command);
+  if (!result.parsed) return { block: true, reason: result.reason };
+  for (const invocation of result.invocations) {
+    const reason = verdictFor(invocation);
+    if (reason !== null) return { block: true, reason };
+  }
+  return { block: false };
+}

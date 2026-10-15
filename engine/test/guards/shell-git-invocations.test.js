@@ -77,6 +77,18 @@ describe('normaliseGitArgv() — value-taking global options', () => {
   });
 });
 
+describe('normaliseGitArgv() — inherited object member names', () => {
+  for (const name of ['__proto__', 'constructor', 'toString', 'hasOwnProperty']) {
+    it(`Given the subcommand word ${name}, when normalised, then the subcommand is that string`, () => {
+      const sut = normaliseGitArgv;
+
+      const result = sut([name]);
+
+      assert.equal(result.subcommand, name);
+    });
+  }
+});
+
 describe('normaliseGitArgv() — flag global options', () => {
   for (const flag of [
     '--no-pager',

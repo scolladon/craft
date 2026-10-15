@@ -1,4 +1,4 @@
-import { configChannelReason, gitInvocations } from './shell-git-invocations.js';
+import { configChannelReason, judgeInvocations } from './shell-git-invocations.js';
 
 const REASONS = Object.freeze({
   push: 'craft: destructive git (push) is denied in this binding — run it outside the agent',
@@ -120,11 +120,5 @@ const verdictFor = invocation => configChannelReason(invocation) ?? judgeByKind(
  * @returns {{ block: boolean, reason?: string }}
  */
 export function gitDestructivePredicate(command) {
-  const result = gitInvocations(command);
-  if (!result.parsed) return { block: true, reason: result.reason };
-  for (const invocation of result.invocations) {
-    const reason = verdictFor(invocation);
-    if (reason !== null) return { block: true, reason };
-  }
-  return { block: false };
+  return judgeInvocations(command, verdictFor);
 }

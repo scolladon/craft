@@ -461,3 +461,53 @@ describe('hooks/craft-guard.js — thin wrapper structure', () => {
     assert.doesNotMatch(sut, PROVENANCE_REF);
   });
 });
+
+describe('decideGuard() — fail-closed reasons and command typing', () => {
+  it('Given unparseable toolArgs, when decideGuard runs, then it blocks with a reason naming the failure', () => {
+    const sut = decideGuard;
+
+    const result = sut({ toolName: 'bash', toolArgs: '{', cwd: '/tmp' });
+
+    assert.equal(result.block, true);
+    assert.match(result.reason, /^craft: guard could not read the tool call \(.+\) — denied fail-closed$/);
+  });
+
+  it('Given a non-Error throw from the guard, when decideGuard runs, then it blocks with a reason without a message', () => {
+    const sut = decideGuard;
+
+    const result = sut(objectPayload('bash', { command: 'ls' }), () => {
+      throw null;
+    });
+
+    assert.deepEqual(result, {
+      block: true,
+      reason: 'craft: guard could not read the tool call (unknown error) — denied fail-closed',
+    });
+  });
+
+  it('Given an array command in string toolArgs, when decideGuard runs, then it blocks', () => {
+    const sut = decideGuard;
+
+    const result = sut(payload('bash', { command: ['git push'] }));
+
+    assert.equal(result.block, true);
+    assert.match(result.reason, /command/);
+  });
+
+  it('Given an array command on a Bash event, when copilotGuard runs, then it throws', () => {
+    const sut = copilotGuard;
+
+    assert.throws(() => sut({ tool: 'Bash', tool_input: { command: ['git push'] }, working_dir: '/tmp' }), /command/);
+  });
+});
+
+describe('copilotGuard() — containment denial reason', () => {
+  it('Given a create outside the working directory, when copilotGuard runs, then the denial carries a reason', () => {
+    const sut = copilotGuard;
+
+    const result = sut({ tool: 'Write', tool_input: { file_path: '/etc/x' }, working_dir: '/repo' });
+
+    assert.equal(result.block, true);
+    assert.equal(result.reason, 'craft: write outside the working directory is denied in this binding');
+  });
+});

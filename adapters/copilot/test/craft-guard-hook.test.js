@@ -102,11 +102,14 @@ describe('craft-guard hook — verdict channel', () => {
     assert.match(result.permissionDecisionReason, /--no-ext-diff/);
   });
 
-  it('Given an out-of-tree create payload, when the hook process runs, then the deny reason is the fail-closed default', () => {
+  it('Given an out-of-tree create payload, when the hook process runs, then the deny reason names the containment', () => {
     const sut = run(toolPayload('create', { path: '/etc/passwd', file_text: 'x' }));
 
     const result = denialOf(sut);
-    assert.equal(result.permissionDecisionReason, 'denied (fail-closed)');
+    assert.equal(
+      result.permissionDecisionReason,
+      'craft: write outside the working directory is denied in this binding',
+    );
   });
 
   it('Given a blocking payload, when the hook process runs, then the audit line is on stderr under the guard prefix', () => {

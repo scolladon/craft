@@ -1,4 +1,4 @@
-import { configChannelReason, gitInvocations } from './shell-git-invocations.js';
+import { configChannelReason, judgeInvocations } from './shell-git-invocations.js';
 
 // Patterns that make a git diff/show invocation exempt from the ext-diff check.
 export const COMPLIANT_MARKERS = ['--no-ext-diff', 'rtk proxy'];
@@ -53,11 +53,5 @@ const verdictFor = invocation => {
  * @returns {{ block: boolean, reason?: string }}
  */
 export function gitExtDiffPredicate(command) {
-  const result = gitInvocations(command);
-  if (!result.parsed) return { block: true, reason: result.reason };
-  for (const invocation of result.invocations) {
-    const reason = verdictFor(invocation);
-    if (reason !== null) return { block: true, reason };
-  }
-  return { block: false };
+  return judgeInvocations(command, verdictFor);
 }

@@ -7,6 +7,10 @@
 import { gitDestructivePredicate } from '../../../engine/src/guards/git-destructive-predicate.js';
 import { toolCallGuard, WRITE_TOOLS } from '../../../engine/src/guards/tool-call-guard.js';
 
+const BASH_TOOL = 'Bash';
+const CONTAINMENT_DENIED_REASON = 'craft: write outside the working directory is denied in this binding';
+const UNKNOWN_ERROR = 'unknown error';
+
 // Maps Copilot's lowercase toolName to the Claude-cased names toolCallGuard
 // branches on — only the tools the shared predicate actually guards (Bash for
 // git-diff detection, Write/Edit for path containment). `view` is read-only
@@ -17,7 +21,7 @@ import { toolCallGuard, WRITE_TOOLS } from '../../../engine/src/guards/tool-call
 // an inherited Object.prototype member instead of falling through to the raw
 // name (the same own-property discipline as model-tier-map.js).
 const COPILOT_TOOL_NAME_CASING = Object.freeze(
-  Object.assign(Object.create(null), { bash: 'Bash', create: 'Write', edit: 'Edit' }),
+  Object.assign(Object.create(null), { bash: BASH_TOOL, create: 'Write', edit: 'Edit' }),
 );
 
 function normalizeToolName(rawName) {
@@ -77,6 +81,25 @@ export function adaptCopilotEvent(payload) {
   };
 }
 
+// A present, non-string command would be read char-by-char downstream and
+// allowed; throwing lets decideGuard fail it closed.
+function commandOf(toolInput) {
+  const command = toolInput.command ?? '';
+  if (typeof command !== 'string') {
+    throw new TypeError('tool_input.command is not a string');
+  }
+  return command;
+}
+
+// toolCallGuard's containment branch blocks without a reason, so the model
+// would only see the hook's generic fail-closed text.
+function withContainmentReason(event, verdict) {
+  if (verdict.block && verdict.reason === undefined && WRITE_TOOLS.has(event.tool)) {
+    return { ...verdict, reason: CONTAINMENT_DENIED_REASON };
+  }
+  return verdict;
+}
+
 /**
  * Destructive git commands first, then the shared tool-call guard; the first
  * block wins.
@@ -84,13 +107,13 @@ export function adaptCopilotEvent(payload) {
  * @returns {{ block: boolean, reason?: string }}
  */
 export function copilotGuard(event) {
-  if (event.tool === 'Bash') {
-    const destructive = gitDestructivePredicate(event.tool_input.command ?? '');
+  if (event.tool === BASH_TOOL) {
+    const destructive = gitDestructivePredicate(commandOf(event.tool_input));
     if (destructive.block) {
       return destructive;
     }
   }
-  return toolCallGuard(event);
+  return withContainmentReason(event, toolCallGuard(event));
 }
 
 /**
@@ -104,14 +127,28 @@ export function copilotGuard(event) {
 export function decideGuard(payload, guard = copilotGuard) {
   try {
     return guard(adaptCopilotEvent(payload));
-  } catch {
-    return { block: true };
+  } catch (error) {
+    return { block: true, reason: unreadableCallReason(error) };
   }
 }
 
-// Never throws: a payload that fails to adapt (malformed toolArgs, missing
-// path) still needs its verdict attributed, so path resolution here swallows
-// the throw rather than losing the audit line entirely.
+// A thrown value may be anything: reading its message must never throw.
+function messageOf(error) {
+  try {
+    const { message } = error;
+    return typeof message === 'string' && message !== '' ? message : UNKNOWN_ERROR;
+  } catch {
+    return UNKNOWN_ERROR;
+  }
+}
+
+function unreadableCallReason(error) {
+  return `craft: guard could not read the tool call (${messageOf(error)}) — denied fail-closed`;
+}
+
+// Documented fallback, not a swallowed error: a payload that fails to adapt
+// is already denied by decideGuard with the failure as its reason, so the
+// audit line only loses the path and returns `undefined` for it.
 function resolveAuditPath(payload) {
   try {
     return adaptCopilotEvent(payload).tool_input.file_path;

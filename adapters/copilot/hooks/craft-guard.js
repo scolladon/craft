@@ -23,7 +23,9 @@
  */
 
 const DENY_EXIT_CODE = 2;
-const ALLOW_EXIT_CODE = 0;
+// Exit 0 carries both verdicts: an allow, and a deny whose JSON body names the
+// reason. Only a crash exits 2.
+const VERDICT_EXIT_CODE = 0;
 
 // A fail-closed verdict carries no reason; an empty denial would be
 // indistinguishable from a crash in the copilot log.
@@ -103,7 +105,7 @@ function readStdin() {
 }
 
 function allow() {
-  process.exit(ALLOW_EXIT_CODE);
+  process.exit(VERDICT_EXIT_CODE);
 }
 
 function onDenyWritten(err) {
@@ -111,7 +113,7 @@ function onDenyWritten(err) {
     denyOnCrash(err);
     return;
   }
-  process.exit(ALLOW_EXIT_CODE);
+  process.exit(VERDICT_EXIT_CODE);
 }
 
 function deny(verdict) {
