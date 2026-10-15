@@ -53,8 +53,8 @@ craft's git-guard binds to Copilot as three layers, all of which enforce on copi
 
 - **Containment** (`--add-dir <worktree>`, never `--allow-all-paths`) — enforces, live-proven.
   With `--allow-all-paths` the hook alone still denied an out-of-tree `create` (file absent); the
-  model saw the generic `denied (fail-closed)` reason, because the containment branch carries no
-  reason (live probe 2026-10-15, 1.0.92).
+  model saw the reason `craft: write outside the working directory is denied in this binding`
+  (live probe 2026-10-15, 1.0.92).
 - **Command policy** (`--deny-tool` pattern set) — enforces, live-proven, and takes precedence
   even over `--allow-all-tools`. It is prefix matching, so it stays the floor on a copilot older
   than 1.0.92, where the hook cannot deny.
@@ -70,15 +70,27 @@ Residuals, stated as measured or designed:
   a second.
 - **No audit trail.** The hook's stderr audit line is not persisted anywhere copilot writes (the
   `--output-format json` stream, `$COPILOT_HOME/logs`).
-- **Git run from a file or tool the command names indirectly** (scripts, `make`, `npm run`,
-  `ssh host '…'`, `git rebase --exec`, gitconfig aliases) and a dynamic string passed to an
-  evaluator (`bash -c "$CMD"`, `eval "$X"`) are not seen.
+- **Git reached through channels a static guard cannot follow**, accepted by design:
+  `echo push | xargs git`; stdin into a shell (`bash <<< 'git push'`, `sh <<EOF … EOF`); `$((…))`
+  bodies; an interpreter given a literal string (`python3 -c 'import os; os.system("git push")'`);
+  scripts, `make`, `npm run`, `ssh host '…'`, `git rebase --exec`; gitconfig-file aliases; a dynamic
+  string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`); `git${IFS}diff`.
+- **`write_bash` into an interactive (pty) session** is unguarded: headless 1.0.98 sessions have
+  stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
 - **No cross-call shell state**: a function or variable defined in one `bash` call was not visible
   in the next, even with a reused `shellId`, and no tool other than `bash` takes shell text
   (1.0.92, 1.0.98).
-- **Intended false blocks**, each costing one re-issue with literal words: `echo git push`, a
-  dynamic command head followed by a verb word, a dynamic word at git's option or subcommand
-  position (`git $OPTS status`), and a dynamic `reset`/`branch` argument (`git reset $SHA`).
+- **Closed, not residuals**: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
+  env channels, `-c include.path`, and brace/glob/`$'\…'`/`$"…"`/dashed `git-<verb>`/wrapper
+  dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap: the 80 KB `eval`
+  chain that took 49 s then aborted now denies in 0.06 s, so a crafted command cannot push the hook
+  past its timeout. Every fail-closed denial carries a reason.
+- **Intended false blocks**, each costing one re-issue with a literal command: `echo git push`; a
+  dynamic command head; a dynamic word at git's option or subcommand position (`git $OPTS status`);
+  a dynamic `reset`/`branch` argument (`git reset $SHA`); pattern words (brace/glob) near a verb
+  word; a dynamic word before a verb word; a file named `git-<verb>`; an opaque `$'\…'` passed to
+  an evaluator; and control-flow-unreached git (`a && git push` is denied though it may
+  short-circuit).
 
 ## Usage
 

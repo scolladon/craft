@@ -172,21 +172,32 @@ was denied (file absent) and `git diff --no-ext-diff HEAD~1 > f` executed.
   a second.
 - Copilot does not persist the hook's stderr audit line anywhere (the `--output-format json`
   stream, `$COPILOT_HOME/logs`): the hook yields no audit trail.
-- The out-of-tree `create` denial reaches the model as the generic `denied (fail-closed)` reason,
-  because the containment branch carries no reason.
-- Git run from a file or a tool the command names indirectly (scripts, `make`, `npm run`, a heredoc
-  written to a file and run later, `watch`, `ssh host '…'`, `su -c`, `script -c`, `parallel`,
-  `git rebase --exec`, gitconfig aliases), and a dynamic string passed to an evaluator
-  (`bash -c "$CMD"`, `eval "$X"`) or word-splitting in the command word (`git${IFS}diff`).
+- Git reached through channels a static guard cannot follow, accepted by design: `echo push | xargs git`;
+  stdin into a shell (`bash <<< 'git push'`, `sh <<EOF … EOF`); `$((…))` bodies; an interpreter
+  given a literal string (`python3 -c 'import os; os.system("git push")'`); git run from a file or
+  a tool the command names indirectly (scripts, `make`, `npm run`, a heredoc written to a file and
+  run later, `watch`, `ssh host '…'`, `su -c`, `script -c`, `parallel`, `git rebase --exec`);
+  gitconfig-file aliases; a dynamic string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`);
+  word-splitting in the command word (`git${IFS}diff`).
+- Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions
+  have stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
   `update-ref -d`, `filter-branch`, `send-pack`).
+- Closed, no longer residuals: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
+  env channels and `-c include.path`, and brace/glob/`$'\…'`/`$"…"`/dashed `git-<verb>`/wrapper
+  dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap, so a crafted
+  command cannot drive the hook past the timeout: the 80 KB `eval` chain that took 49 s and then
+  aborted now denies in 0.06 s (live probe 2026-10-15). Every fail-closed denial carries a reason,
+  including `craft: write outside the working directory is denied in this binding`.
 - Closed, not a residual: cross-call shell state. A function or variable defined in one `bash` call
   was not visible in the next, even with a reused `shellId`, and only `bash` executes shell text
   (`read_bash`, `stop_bash`, `list_bash` cannot inject input) — 1.0.92 and 1.0.98.
-- Intended false blocks, each costing one re-issue with literal words: any-word anchoring
-  (`echo git push`, `ls /x/git push`), a dynamic command head followed by a verb word, a dynamic
-  word at git's option or subcommand position (`git $OPTS status`), and a dynamic `reset`/`branch`
-  argument before `--` (`git reset $SHA`).
+- Intended false blocks, each costing one re-issue with a literal command: `echo git push` and
+  `ls /x/git push` (any-word anchoring); a dynamic command head; a dynamic word at git's option or
+  subcommand position (`git $OPTS status`); a dynamic `reset`/`branch` argument (`git reset $SHA`);
+  pattern words (brace/glob) near a verb word; a dynamic word before a verb word; a file named
+  `git-<verb>`; an opaque `$'\…'` passed to an evaluator; and control-flow-unreached git (a static
+  guard cannot know `a && git push` short-circuits).
 
 **gate-command**: the resolved gate string runs as a normal subprocess; the never-commit-on-red
 invariant applies identically to the other three bindings.
