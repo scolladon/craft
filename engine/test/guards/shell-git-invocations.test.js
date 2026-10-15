@@ -178,7 +178,7 @@ describe('normaliseGitArgv() — dynamic words', () => {
 
     const result = sut([dyn('$OPTS'), 'push']);
 
-    assert.deepEqual(result, { kind: 'indeterminate', rest: ['$OPTS', 'push'], subcommandHidden: false });
+    assert.deepEqual(result, { kind: 'indeterminate', rest: ['$OPTS', 'push'] });
   });
 
   it('Given a dynamic option value, when normalised, then the value is consumed', () => {
@@ -194,15 +194,15 @@ describe('normaliseGitArgv() — dynamic words', () => {
 
     const result = sut(['-C', '.', dyn('$SUB')]);
 
-    assert.deepEqual(result, { kind: 'indeterminate', rest: ['$SUB'], subcommandHidden: true });
+    assert.deepEqual(result, { kind: 'indeterminate', rest: ['$SUB'] });
   });
 
-  it('Given only dynamic words after the global options, when normalised, then the subcommand is hidden', () => {
+  it('Given only dynamic words after the global options, when normalised, then it is indeterminate', () => {
     const sut = normaliseGitArgv;
 
     const result = sut([dyn('$A'), dyn('$B')]);
 
-    assert.deepEqual(result, { kind: 'indeterminate', rest: ['$A', '$B'], subcommandHidden: true });
+    assert.deepEqual(result, { kind: 'indeterminate', rest: ['$A', '$B'] });
   });
 });
 

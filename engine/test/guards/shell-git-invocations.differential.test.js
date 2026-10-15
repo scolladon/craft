@@ -40,8 +40,9 @@ const TAGS = Object.freeze({
   anyWordAnchor: 'any-word-anchor',
   dynamicHead: 'dynamic-head',
   dynamicArg: 'dynamic-arg',
+  dynamicSubcommand: 'dynamic-subcommand',
 });
-const FALSE_BLOCK_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg]);
+const FALSE_BLOCK_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand]);
 const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested]);
 
 // The stub is the only git a judged command can reach: it records argv and does nothing else.
@@ -130,6 +131,9 @@ const SPECIALS = Object.freeze([
   fragment('H=--soft; git reset $H', { tags: [TAGS.dynamicArg] }),
   fragment('D=-D; git branch $D x', { tags: [TAGS.dynamicArg] }),
   fragment('D=-d; git branch $D x', { tags: [TAGS.dynamicArg] }),
+  fragment('P=push; git $P HEAD', { tags: [TAGS.dynamicSubcommand] }),
+  fragment('D=diff; git $D HEAD', { tags: [TAGS.dynamicSubcommand] }),
+  fragment('S=status; git $S HEAD', { tags: [TAGS.dynamicSubcommand] }),
   fragment('G=git; $G push', { tags: [TAGS.dynamicHead] }),
   fragment('G=git; $G status', { tags: [TAGS.dynamicHead] }),
   fragment('X=echo; $X push', { tags: [TAGS.dynamicHead] }),

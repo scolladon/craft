@@ -4,7 +4,7 @@ import { gitDestructivePredicate } from '../../src/guards/git-destructive-predic
 import { gitInvocations, INLINE_ALIAS_REASON } from '../../src/guards/shell-git-invocations.js';
 
 const REASON_DYNAMIC_SUBCOMMAND =
-  'craft: the git subcommand comes from an expansion — spell the verb out; denied fail-closed in this binding';
+  'craft: an expansion sits where git expects an option or the subcommand — spell it out; denied fail-closed in this binding';
 const REASON_PUSH = 'craft: destructive git (push) is denied in this binding — run it outside the agent';
 
 describe('gitDestructivePredicate() — push', () => {
@@ -132,7 +132,7 @@ describe('gitDestructivePredicate() — unparseable, unclassifiable and dynamic 
     assert.match(result.reason, /unterminated/i);
   });
 
-  for (const command of ['git --frobnicate push', 'git -C. push', 'git $OPTS push', '$G push']) {
+  for (const command of ['git --frobnicate push', 'git -C. push', '$G push']) {
     it(`Given "${command}", when checked, then blocks with the push reason`, () => {
       const sut = gitDestructivePredicate;
 
@@ -209,7 +209,7 @@ describe('gitDestructivePredicate() — known over-blocking', () => {
 });
 
 describe('gitDestructivePredicate() — a subcommand carried by an expansion', () => {
-  for (const command of ['P=push; git $P', 'git $(echo push)', 'git -C . "$VERB"', 'git $A $B']) {
+  for (const command of ['P=push; git $P', 'git $(echo push)', 'git -C . "$VERB"', 'git $A $B', 'git $OPTS push', 'P=push; git $P HEAD', 'git $(echo push) origin']) {
     it(`Given "${command}", when checked, then blocks with the dynamic subcommand reason`, () => {
       const sut = gitDestructivePredicate;
 
@@ -219,11 +219,11 @@ describe('gitDestructivePredicate() — a subcommand carried by an expansion', (
     });
   }
 
-  it('Given a dynamic option followed by a literal safe subcommand, when checked, then it allows', () => {
+  it('Given a dynamic option followed by a literal safe subcommand, when checked, then it blocks', () => {
     const sut = gitDestructivePredicate;
 
     const result = sut('git $OPTS status');
 
-    assert.deepEqual(result, { block: false });
+    assert.deepEqual(result, { block: true, reason: REASON_DYNAMIC_SUBCOMMAND });
   });
 });

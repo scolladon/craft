@@ -3,7 +3,7 @@
  *  @typedef {{ parsed: true, commands: SimpleCommand[] } | { parsed: false, reason: string }} ParseResult
  *  @typedef {{ kind: 'subcommand', subcommand: string, args: string[], configKeys: string[], dynamicArgCount: number }
  *         | { kind: 'refused', option: string, rest: string[] }
- *         | { kind: 'indeterminate', rest: string[], subcommandHidden: boolean }
+ *         | { kind: 'indeterminate', rest: string[] }
  *         | { kind: 'no-subcommand' }} GitInvocation */
 
 const SHORT_VALUE_OPTIONS = Object.freeze(['-C', '-c']);
@@ -92,11 +92,10 @@ const consumeValueOption = (words, configKeys) => {
 
 const isValueOption = text => SHORT_VALUE_OPTIONS.includes(text) || isLongValueOption(text);
 
-// With no literal word after the first dynamic one, that word may itself be the subcommand.
+// A dynamic word where git expects an option or the subcommand may expand to anything.
 const indeterminate = remaining => ({
   kind: 'indeterminate',
   rest: texts(remaining),
-  subcommandHidden: remaining.every(word => word.dynamic),
 });
 
 export function normaliseGitArgv(words) {

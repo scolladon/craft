@@ -329,7 +329,7 @@ describe('gitExtDiffPredicate() — accepted residuals', () => {
 });
 
 describe('gitExtDiffPredicate() — a subcommand carried by an expansion', () => {
-  for (const command of ['D=diff; git $D', 'git $(echo show)', 'git -C . "$VERB"']) {
+  for (const command of ['D=diff; git $D', 'git $(echo show)', 'git -C . "$VERB"', 'D=diff; git $D HEAD']) {
     it(`Given "${command}", when checked, then it blocks with the ext-diff reason`, () => {
       const sut = gitExtDiffPredicate;
 
@@ -343,6 +343,14 @@ describe('gitExtDiffPredicate() — a subcommand carried by an expansion', () =>
     const sut = gitExtDiffPredicate;
 
     const result = sut('D=diff; git $D --no-ext-diff');
+
+    assert.deepEqual(result, { block: false });
+  });
+
+  it('Given a dynamic subcommand followed by a literal argument and --no-ext-diff, when checked, then it allows', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('D=diff; git $D HEAD --no-ext-diff');
 
     assert.deepEqual(result, { block: false });
   });

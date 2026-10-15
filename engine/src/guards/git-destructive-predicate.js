@@ -8,7 +8,7 @@ const REASONS = Object.freeze({
 });
 
 const REASON_DYNAMIC_SUBCOMMAND =
-  'craft: the git subcommand comes from an expansion — spell the verb out; denied fail-closed in this binding';
+  'craft: an expansion sits where git expects an option or the subcommand — spell it out; denied fail-closed in this binding';
 
 const OPTION_TERMINATOR = '--';
 
@@ -60,12 +60,9 @@ const sniffRest = rest => {
   return verb === undefined ? null : REASONS[verb];
 };
 
-const judgeIndeterminate = invocation =>
-  invocation.subcommandHidden ? REASON_DYNAMIC_SUBCOMMAND : sniffRest(invocation.rest);
-
 const judgeByKind = invocation => {
   if (invocation.kind === 'subcommand') return judgeSubcommand(invocation);
-  if (invocation.kind === 'indeterminate') return judgeIndeterminate(invocation);
+  if (invocation.kind === 'indeterminate') return REASON_DYNAMIC_SUBCOMMAND;
   if (invocation.kind === 'refused') return sniffRest(invocation.rest);
   return null;
 };
