@@ -7,7 +7,7 @@
 > behind a backslash escape, a subshell, a group, a prefix word or an assignment. Both need one
 > shell-segment splitter, one prefix stripper and one git global-option normaliser, designed as one
 > module in `engine/src/guards/`.
-> Status: draft → self-reviewed ×3 → revised against ADRs 590-593.
+> Status: draft → self-reviewed ×3 → revised against ADRs 590-593 → revised against ADR-594.
 
 ## Context
 
@@ -69,6 +69,14 @@ Other facts from the same probe:
 - PoC row 11 ("deny not achieved") and D5 are superseded on 1.0.92. Row 20 (prefix matching) was not
   re-probed and still describes the shipped layer.
 
+Re-probe on 1.0.98 (live probe 2026-10-15, same method):
+
+- The hook must be declared in `$COPILOT_HOME/settings.json`. 1.0.98 ignores a hook declared in
+  `config.json` (1.0.92 migrated it).
+- A headless session's shell has stdin at EOF, so a `write_bash` call cannot feed it text. An
+  interactive (pty) session was not probed.
+- With no `timeoutSec`, the default hook timeout is about 30 s, and a timeout fails open (P8).
+
 ## Requirements
 
 - **R1.** One module in `engine/src/guards/` turns a bash command string into the git invocations it
@@ -84,11 +92,15 @@ Other facts from the same probe:
   git (`status`, `add`, `commit`, `log`, `diff --no-ext-diff`, `worktree`, `rev-parse`, `branch -d`
   of a merged branch).
 - **R4.** A command the module cannot tokenise is a deny, never an allow: an unterminated quote, an
-  unterminated `$(`/backtick/`${`, or nesting past the depth cap. The predicates block it with a
-  reason that names the parse failure (pinned: `git push\necho "x` runs the push before bash reports
-  the syntax error, so a parse failure is not harmless).
+  unterminated `$(`/backtick/`${`, nesting past the depth cap, `<<` inside an arithmetic command,
+  an opaque string given to an evaluator, or an input longer than the length cap. The predicates
+  block it with a reason that names the parse failure (pinned: `git push\necho "x` runs the push
+  before bash reports the syntax error, so a parse failure is not harmless). A construct the
+  tokeniser does not model is read as dynamic or unparseable, never as literal text, and its work
+  is bounded so it cannot time the hook out (ADR-594).
 - **R5.** The Copilot adapter accepts `toolArgs` as an object (1.0.92) or as a JSON-encoded string
-  (1.0.63). Any other shape fails closed.
+  (1.0.63). Any other shape, and a `command` that is present but not a string, fails closed. Every
+  fail-closed block carries a reason.
 - **R6.** On Copilot the `preToolUse` hook enforces: a block verdict denies, an allow verdict
   executes, and a crash or a run with no verdict denies. `--deny-tool` and native containment stay as
   layers.
@@ -161,11 +173,15 @@ Each row ran `GIT_TRACE=1 /usr/bin/git <opts>` in a throwaway repo with an empty
 
 ### Module: `engine/src/guards/shell-git-invocations.js`
 
-One module with three exported seams. Each is tested directly. Every constant is named and frozen.
+One module with three exported seams, plus the shared judging helpers both predicates use. Each
+is tested directly. Every constant is named and frozen.
 
 ```js
-/** @typedef {{ text: string, dynamic: boolean }} ShellWord   // text after quote removal; dynamic = an unquoted $…, ${…}, $(…) or `…` contributed to it
- *  @typedef {{ words: ShellWord[] }} SimpleCommand
+/** @typedef {{ text: string, dynamic: boolean, opaque?: true, pattern?: true }} ShellWord
+ *    // text after quote removal; dynamic = an expansion the tokeniser does not compute contributed to it
+ *    // ($…, ${…}, $(…), `…`, $((…)), an escaped $'…', an unquoted glob or brace expression);
+ *    // opaque = an escaped $'…' (bash decodes it); pattern = an unquoted glob or brace expression
+ *  @typedef {{ words: ShellWord[] }} SimpleCommand            // + non-enumerable `assignments: string[]` (head NAME=v words)
  *  @typedef {{ parsed: true, commands: SimpleCommand[] } | { parsed: false, reason: string }} ParseResult */
 export function parseShellCommands(command)            // tokenise + split + recurse into nested bodies → flattened SimpleCommands
 
@@ -176,18 +192,29 @@ export function parseShellCommands(command)            // tokenise + split + rec
 export function normaliseGitArgv(words)                // words AFTER the git word; string[] or ShellWord[]
 
 /** @returns {{ parsed: true, invocations: GitInvocation[] } | { parsed: false, reason: string }} */
-export function gitInvocations(command)                // parse → anchor → normalise
+export function gitInvocations(command)                // parse → anchor → normalise; each invocation also carries
+                                                       // leadingWords (words before the anchor) and a non-enumerable injectsConfig
+
+export const INLINE_ALIAS_REASON, CONFIG_CHANNEL_REASON
+export const hasInlineAlias = invocation => boolean
+export const configChannelReason = invocation => string | null   // INLINE_ALIAS_REASON, CONFIG_CHANNEL_REASON or null
+export function judgeInvocations(command, verdictFor)  // parse; first non-null verdictFor(invocation) blocks; unparseable blocks with the parser's reason
 ```
 
 **Tokeniser (`parseShellCommands`).** This is a character state machine. It does not split by regex.
+Per ADR-594 its default is inverted: a word whose expansion it does not compute is `dynamic`, and a
+construct it cannot place is unparseable. Neither is ever read as literal text.
 
 | Construct | Rule |
 |---|---|
+| input longer than `MAX_COMMAND_LENGTH` (131072 characters) | `{ parsed: false }` with a fixed reason, before any scan |
 | `\x` outside quotes | the literal `x`. `\⏎` is a line continuation and is removed |
 | `'…'` | literal up to the next `'` |
-| `$'…'` | ANSI-C quoting: `\x` is literal, and the quote ends at an unescaped `'` |
+| `$'…'` | ANSI-C quoting, ending at an unescaped `'`. With no backslash inside, the text is literal. A backslash escape makes the word `dynamic` and `opaque`, because bash decodes `\xHH`, `\NNN` and `\uHHHH` (`$'\x67it' push` runs `git push`). Inside `"…"`, `$'` is literal |
+| `$"…"` | read as a double-quoted string |
 | `"…"` | `\` escapes only `$ \` `` ` `` `"` and newline. `$(`, backtick and `${` still nest inside |
-| `#` at the start of a word | a comment up to the newline |
+| unquoted `*` `?` `[`, or an unquoted brace expression (`{a,b}`, `{a..b}`) | the word is `dynamic` and a `pattern` word. A bare `[`, `[[` or `{` word stays literal |
+| `#` at the start of a word, outside `${…}` | a comment up to the newline |
 | `;` `&` `\|` `&&` `\|\|` `;;` `\|&` newline `(` `)` | command break |
 | `{` `}` `!` `time` `time -p` `if` `then` `elif` `else` `fi` `do` `done` `while` `until` `case` `esac` `coproc`, and a `NAME=value` word in command position | dropped from the head of a simple command |
 | redirection `[n]<` `>` `>>` `<&` `>&` `&>` `<>` `>\|` + target | dropped (a target may hold a substitution, which is parsed first) |
@@ -195,25 +222,65 @@ export function gitInvocations(command)                // parse → anchor → n
 | `<<<` word | data, but substitutions inside it are parsed |
 | `$(…)` · `` `…` `` · `<(…)` · `>(…)` | the body is parsed recursively and its SimpleCommands are appended. The word is marked `dynamic` |
 | `$((…))` | skipped (balanced parentheses). The word is marked `dynamic`. Arithmetic is not parsed for nesting (residual) |
-| `${…}` · `$NAME` · `$1` · `$@` … | the word is marked `dynamic` |
+| `<<` between `((` and `))` (an arithmetic command) | `{ parsed: false, reason }`: it is a shift, not a heredoc, and reading it as one would swallow text bash executes |
+| `${…}` | the word is marked `dynamic`. Substitutions in the body are parsed; `#` `%` `/` `:` inside are literal |
+| `$NAME` · `$1` · `$@` … | the word is marked `dynamic` |
 | unterminated quote / `$(` / backtick / `${` | `{ parsed: false, reason }` |
 | nesting depth > `MAX_NESTING_DEPTH` (named constant, 8) | `{ parsed: false, reason }` |
+| an `opaque` word in the string given to an evaluator (below) | `{ parsed: false, reason }`: the text bash evaluates is not in the command string |
 
 **Re-parsed string arguments.** These are matched at any word position, so a wrapper in front does
 not hide them:
 
-- a word whose basename is in `{sh, bash, zsh, dash, ksh}`, followed by option words of which one is
-  a short cluster containing `c` (`-c`, `-lc`, `-ec`): the next non-option word is parsed as a
-  command;
-- `eval`: its following words, joined with a space, are parsed as a command;
-- `env -S <s>` / `--split-string[=]<s>`: `<s>` is parsed as a command.
+- a word whose basename is in `{sh, bash, zsh, dash, ksh}`, followed anywhere later in the simple
+  command by a `-`/`+` cluster containing `c` (`-c`, `-lc`, `-ec`, `+ec`): **every** later
+  non-option word is parsed as a command. Shell option grammar (`-o pipefail`, `-O name`) is not
+  modelled, so any of them may be the command string;
+- `eval`: its following words, joined with a space, are parsed as a command. Only the first `eval`
+  of a simple command is re-parsed, because its string already holds the later ones;
+- `env`: its option run is walked. `-S`, a cluster containing `S`, and `--split-string`, each with
+  an attached or a following value, have that value parsed as a command. The values of `-u`, `-C`,
+  `-P`, `--unset` and `--chdir` are skipped, never read as a command.
+
+Scanning a simple command stops at the first shell or `eval` word that re-parsed something: its
+string covers every later word.
+
+**Work bound (ADR-594).** The length cap, the nesting cap (8), first-`eval`-only re-parsing, and
+linear-time anchoring and option normalisation bound the work. There is no separate parse work
+budget. One was built and removed as unreachable: instrumented runs peaked at 7.9x the input length
+(8-level heredoc and `$()` nests over a 10k core), against a 16x budget.
 
 **Anchoring (`gitInvocations`).** A git invocation starts at **any** word of a simple command that is
 not dynamic and whose basename after the last `/` is exactly `git`. It also starts at a **dynamic
 head**: the first word left after the head is stripped, when that word is dynamic (`$G push`,
-`"$(which git)" push`), and normalisation then runs on the words after it. Because the anchor is any
-word, wrappers need no list (`env`, `command`, `exec`, `nohup`, `nice`, `timeout`, `xargs`, `sudo`,
+`"$(which git)" push`, `gi[t] push`), and normalisation then runs on the words after it. Because
+the anchor is any word, wrappers need no list (`env`, `command`, `exec`, `nohup`, `nice`, `timeout`, `xargs`, `sudo`,
 `find -exec`, `/usr/bin/git`). DC-4 weighs this against a closed prefix list.
+
+ADR-594 adds three anchors. `ANCHOR_VERBS` is `push`, `reset`, `clean`, `branch`, `diff`, `show`.
+
+- **Dashed builtin.** A word whose basename is `git-<verb>` reads as `git <verb>` with the
+  following words as `args` (`git-push origin`, `/x/libexec/git-core/git-push`). A dynamic word
+  counts only when it holds a `/`.
+- **Pattern word.** A `pattern` word with an anchor verb among its brace or bracket tokens
+  (`{git,push}`, `x {push,}`) anchors an `indeterminate` invocation.
+- **Dynamic word before a verb word.** The first dynamic word after the head (`command $G push`),
+  when a literal anchor-verb word follows it later and no git spelling precedes it, anchors an
+  `indeterminate` invocation. A pattern word is dynamic, so `ls *.log push` anchors here too.
+  Once a literal git word precedes it, the dynamic word is that invocation's own argument and is
+  judged there.
+
+**Config channels (`configChannelReason`).** Both predicates check it first, so it overrides every
+verb rule:
+
+- an inline `alias.*` key from `-c`/`--config-env` gives `INLINE_ALIAS_REASON` (DC-3);
+- a `-c`/`--config-env` key `include.path` or `includeif.*` gives `CONFIG_CHANNEL_REASON`;
+- an assignment to `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>`,
+  `GIT_CONFIG_VALUE_<n>`, `GIT_CONFIG_GLOBAL` or `GIT_CONFIG_SYSTEM`, as a head word of the simple
+  command or as a word before the anchor (`env GIT_CONFIG_COUNT=1 … git status`), flags every
+  invocation it reaches (`injectsConfig`) and gives `CONFIG_CHANNEL_REASON`;
+- an `alias` builtin whose value holds a git spelling (`alias g='git push'`) gives a flagged
+  `no-subcommand` invocation, so it blocks with `CONFIG_CHANNEL_REASON`.
 
 **Normaliser (`normaliseGitArgv`).** It walks the words with a table taken from §Pinned C:
 
@@ -237,14 +304,15 @@ see an inline `alias.*` or a `clean.requireforce`. `dynamicArgCount` counts the 
 
 **`gitExtDiffPredicate(command)`** (same file, same export, rewritten on top of `gitInvocations`):
 
-- not parsed → `{ block: true, reason: REASON_UNPARSEABLE }`;
-- a `subcommand` invocation whose subcommand is `diff`/`show` and whose `args` contain no word equal
-  to `--no-ext-diff` → block with the current `REASON_GIT_EXT_DIFF`, unless the enclosing simple
-  command starts with the words `rtk proxy` (the existing marker, now matched by word);
-- `indeterminate` → block unless a word of `rest` is `--no-ext-diff` (ADR-593: a verb carried by
-  the dynamic word, as in `D=diff; git $D HEAD`, is invisible to the command string);
-- `refused` → allow (pinned: git runs nothing; keeps the existing PASS `git --no-ext-diff show HEAD`);
-- an inline `alias.*` config key → handled per DC-3.
+- not parsed → block with the parser's reason (`judgeInvocations`);
+- `configChannelReason` non-null → block with that reason;
+- a `subcommand` invocation whose subcommand is `diff`/`show` → block with the current
+  `REASON_GIT_EXT_DIFF` unless its option words before `--` end on `--no-ext-diff`: the last of
+  `--ext-diff`/`--no-ext-diff` wins, and a word after `--` is a path. Exempt when the enclosing
+  simple command starts with the words `rtk proxy` (the existing marker, now matched by word);
+- `indeterminate` → the same last-wins rule over `rest` (ADR-593: a verb carried by the dynamic
+  word, as in `D=diff; git $D HEAD`, is invisible to the command string);
+- `refused` → allow (pinned: git runs nothing; keeps the existing PASS `git --no-ext-diff show HEAD`).
 
 `COMPLIANT_MARKERS` stays exported, holding the same two values with word semantics.
 `GIT_DIFF_SHOW_RE` goes, per DC-7.
@@ -254,15 +322,16 @@ see an inline `alias.*` or a `clean.requireforce`. `dynamicArgCount` counts the 
 | Subcommand | Blocks when (option words before `--`) |
 |---|---|
 | `push` | always |
-| `reset` | `--hard` is present, or `dynamicArgCount > 0` (ADR-590) |
-| `clean` | per DC-5: no literal `-n`/`--dry-run`, where a short cluster containing `n` counts as dry-run (a dynamic flag cannot unblock it) |
-| `branch` | `-D`, or a cluster containing `D`; or (`-d`/`--delete`/a cluster containing `d`) together with (`-f`/`--force`/a cluster containing `f`); or `dynamicArgCount > 0` (ADR-590) |
+| `reset` | `--hard` or a unique-prefix abbreviation of it (`--har`, `--h`) is present, or `dynamicArgCount > 0` (ADR-590) |
+| `clean` | per DC-5: the option words are read in order and the last setting wins. `-n`, a cluster containing `n`, and `--dry-run` abbreviated no shorter than `--dry` set dry-run. `--no-dry-run` (from `--no-d`) resets it. `-e`/`--exclude` consume their value, so a value `-n` is not a flag. `--` ends the options. Block unless dry-run is set at the end. A dynamic flag cannot unblock it |
+| `branch` | `-D`, or a cluster containing `D`; or (`-d`/`--delete`/a cluster containing `d`) together with (`-f`/`--force`/a cluster containing `f`), where `--delete`/`--force` match any unique-prefix abbreviation (`--del`, `--forc`); or `dynamicArgCount > 0` (ADR-590) |
 | `refused` | `rest` contains one of `push`, `reset`, `clean`, `branch` → block (verb sniffing, fail-closed against a future git option; ADR-581) |
 | `indeterminate` | always (ADR-593: a verb carried by the dynamic word, as in `P=push; git $P HEAD`, is invisible to a sniff) |
-| inline `alias.*` key | block (DC-3 recommended) |
-| not parsed | block, `REASON_UNPARSEABLE` |
+| config channel (`configChannelReason`) | block, checked before every row above (DC-3, ADR-594) |
+| not parsed | block with the parser's reason |
 
-Reasons are fixed named constants, for example
+A guarded long option is matched from `--` plus one character (fail closed). A dry-run is only
+recognised from the prefix git itself resolves. Reasons are fixed named constants, for example
 `craft: destructive git (push) is denied in this binding — run it outside the agent`.
 
 ### Copilot binding
@@ -272,7 +341,12 @@ Reasons are fixed named constants, for example
   else throws, and `decideGuard` turns the throw into a fail-closed block. A new export
   `copilotGuard(event)` runs `gitDestructivePredicate(tool_input.command)` first for `Bash`, then
   `toolCallGuard(event)`, and returns the first block. `decideGuard`'s default guard becomes
-  `copilotGuard`.
+  `copilotGuard`. A `command` that is present but not a string throws (it would otherwise be read
+  character by character and allowed). Every fail-closed block carries a reason:
+  `decideGuard` turns a throw into `craft: guard could not read the tool call (<message>) — denied fail-closed`,
+  and a containment block from `toolCallGuard` (which has no reason) gets
+  `craft: write outside the working directory is denied in this binding`. The composition order
+  is unchanged.
 - **Hook (DC-1, DC-2).** `adapters/copilot/hooks/craft-guard.js` (renamed per DC-6) mirrors the
   codex guard's crash contract: no static import, handlers registered first, then
   `await import()` inside `try`, and `uncaughtException`/`unhandledRejection`/`beforeExit` all deny.
@@ -282,8 +356,10 @@ Reasons are fixed named constants, for example
   - A crash or a run with no verdict exits 2 with a `craft-guard:` stderr line (P3/P4).
   - An allow exits 0 with nothing on stdout (P5).
   - The `buildAuditEntry` line stays on stderr for both verdicts.
-- **`config.template.json`.** The command points at the renamed hook. `timeoutSec` stays unset
-  unless the plan's probe (L7) pins a default short enough to matter.
+- **`config.template.json`.** The command points at the renamed hook. Its keys merge into
+  `$COPILOT_HOME/settings.json`: 1.0.98 ignores a hook declared in `config.json` (1.0.92 migrated
+  it; live probe 2026-10-15). `timeoutSec` stays unset: L7 pinned the default at about 30 s, and
+  the guard runs well under a second.
 - **`DENY_TOOL_PATTERNS`** stays as is, as a second layer and as the floor for a Copilot older than
   the hook's deny support (DC-8). Its header comment is rewritten so it no longer claims the hook
   cannot deny.
@@ -292,36 +368,52 @@ Reasons are fixed named constants, for example
 
 | Situation | ext-diff | destructive | Copilot hook |
 |---|---|---|---|
-| unparseable command | block | block | deny (JSON) |
-| `toolArgs` neither an object nor an object-encoding string | — | — | fail-closed block → deny (JSON) |
+| unparseable command (including input over 131072 characters) | block | block | deny (JSON) |
+| `toolArgs` neither an object nor an object-encoding string, or a non-string `command` | — | — | fail-closed block with a reason → deny (JSON) |
 | guard throws, import fails, or the loop drains with no verdict | — | — | exit 2 + stderr |
-| hook exceeds `timeoutSec` | — | — | **fails open** (P8). Residual |
+| hook exceeds `timeoutSec` (default about 30 s) | — | — | **fails open** (P8). Residual. The length cap, the nesting cap and first-`eval`-only re-parsing bound the guard's work (ADR-594: before them, an 80 KB `eval` chain took 49 s, then SIGABRT) |
 | hook file missing | — | — | node exits 1 on a missing script (pinned locally, node 22.22.3), and exit 1 denies (P4). Fails closed |
-| `node` missing from PATH (127), SIGKILL | — | — | unpinned. Residual until probe L6 pins them |
+| `node` missing from PATH (127) | — | — | `(hook errored)`, denies (probe L6) |
+| SIGKILL | — | — | unpinned. Residual |
 
 ### Residuals (written into the docs per R7)
 
 - Git run from a file or a tool the command names indirectly: scripts, `make`, `npm run`, a heredoc
   written to a file and run later, `watch`, `ssh host '…'`, `su -c`, `script -c`, `parallel`,
   `git rebase --exec`, and aliases from the user's gitconfig.
-- State across tool calls, if Copilot's bash tool is a persistent session (a function or alias
-  defined in one call and used in the next). This is unpinned. Probe L9 settles it.
+- Verbs fed to git from outside the command string: `echo push | xargs git` (the verb arrives on
+  stdin), stdin into a shell (`bash <<< 'git push'`, `echo 'git push' | sh`), and interpreters
+  (`python3 -c 'import os; os.system("git push")'`, `node -e …`, `perl -e …`).
 - A dynamic string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`), and word-splitting inside
   the command word (`git${IFS}diff`). The text that runs is not in the command string.
 - `$((…))` bodies, and other shell syntax not listed in the tokeniser table (for example `[[ … ]]`
   holding a `$(…)` is covered, but `case` patterns are only split, not understood).
-- A hook timeout fails open (P8). A signal death is unpinned.
+- Copilot `write_bash` into an interactive (pty) session. Headless 1.0.98 sessions have stdin at
+  EOF (probed), so no text reaches the shell there. The interactive case is unprobed.
+- Closed, not a residual: state across tool calls. A function or variable defined in one `bash`
+  call was not visible in the next (probe L9, 1.0.92 and 1.0.98).
+- A hook timeout (default about 30 s) fails open (P8). A signal death is unpinned.
+- Copilot persists no audit trail: the hook's stderr audit line reaches neither the
+  `--output-format json` stream nor `$COPILOT_HOME/logs`.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
   `update-ref -d`, `filter-branch`, `send-pack`), unless DC-5 widens the set.
-- The intended false blocks (under DC-4 (a)):
+- The intended false blocks (under DC-4 (a) and ADR-594):
   - any-word anchoring: `echo git push`, `git log --grep git show`, or a path ending `/git` followed
     by a verb word (`ls /x/git push`);
   - a dynamic head followed by a verb word: `$HOME/bin/deploy push`;
   - a dynamic word at git's option or subcommand position (ADR-593): `git $OPTS status`,
     `git $X log`, and after a dynamic head `$HOME/bin/tool $ARG`. Destructive blocks always,
-    ext-diff unless a `--no-ext-diff` word is present;
+    ext-diff unless `--no-ext-diff` is the last ext-diff setting;
   - a dynamic `reset`/`branch` argument before `--` (ADR-590): `git reset $SHA`,
-    `git branch -d "$B"`.
+    `git branch -d "$B"`;
+  - a pattern word holding a verb, or a dynamic or pattern word before a verb word (ADR-594):
+    `ls *.log push`, `cp $SRC show`, `rm {a,b} diff`;
+  - a word naming a file `git-<verb>`: `ls git-push`, `echo git-push` (a script `./git-push.sh`
+    does not match the shape);
+  - an escaped `$'…'` string given to an evaluator: `eval $'echo \t'`, `bash -c $'echo a\nb'`;
+  - exotic quoting near git: an escaped `$'…'` word or an unquoted glob or brace expression in
+    git's option or subcommand position (`git $'\x6cog'`, `git {log,status}`). A quoted pattern
+    (`git log -- '*.js'`) is literal and passes.
 
   Each costs one re-issue with literal words.
 
@@ -359,7 +451,8 @@ Signature `gitDestructivePredicate(command) → { block, reason? }`. Fixtures:
 `adaptCopilotEvent` JSDoc type (`toolArgs: string|object`). Tests:
 `adapters/copilot/test/git-guard-adapter.test.js`. The `payload()` helper (L11) gains an
 object-shaped twin. The `describe('decideGuard() — fail-closed toolArgs parsing')` (L192) rows are
-re-expressed for both shapes, with an array and a number added as fail-closed rows.
+re-expressed for both shapes, with an array and a number added as fail-closed rows. A non-string
+`command` (`commandOf`) fails closed, and a containment block carries `CONTAINMENT_DENIED_REASON`.
 `adapters/copilot/test/git-guard-predicate.test.js` gains destructive BLOCK rows.
 
 **Part 5. The Copilot enforcing hook.** Rename `adapters/copilot/hooks/craft-observer.js` to
@@ -418,6 +511,14 @@ Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mut
   `indeterminate` only. The differential fuzz found the bypass that motivated it: under
   `/bin/bash` with a stub git, `P=push; git $P HEAD` ran `git push HEAD` while both predicates
   allowed it, and a patch for the bare `git $P` case left every `git $P <literal>` open.
+- **ADR-594.** The tokeniser fails closed on unmodelled shell constructs, and its work is bounded.
+  The user ratified the root-cause fix ("root-cause fail-closed") after review cycle 1 verified
+  about eighteen bypasses (ANSI-C escapes, `$"…"`, brace and glob words, `#` in `${…}`, `<<` in
+  `((…))`, shell and `env` option grammar, dynamic words behind wrappers, dashed builtins, config
+  channels outside `-c`) and a timeout/OOM fail-open: an 80 KB `eval` chain drove the real hook to
+  49 s and then SIGABRT, past the ~30 s timeout that fails open. Refines ADR-580, ADR-582 and
+  ADR-584. It sets the tokeniser rules, the extra anchors, the config channels and the work bound
+  described in §Module.
 
 ## Test strategy
 
@@ -425,12 +526,19 @@ Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mut
   - Part 1 runs §Pinned A and §Pinned C to the expected `SimpleCommand`/`GitInvocation`, plus the
     tokeniser edges: `\⏎`, `$'…'`, nested `$(` inside `"…"`, a backtick inside `$(…)`, quoted vs
     unquoted heredoc delimiter, `<<-` tab stripping, an unterminated heredoc, depth cap at 8 vs 9,
-    and an empty command.
+    and an empty command. ADR-594 adds rows, in the Part 1 suite or the predicate suites, for each
+    construct in the tokeniser table (an escaped `$'…'`, `$"…"`, glob and brace words, `#` in
+    `${…}`, `<<` in `((…))`, the length cap at 131072 vs 131073), each re-parser's option grammar,
+    first-`eval`-only re-parsing, the three new anchors, and each config channel.
+  - Parts 2 and 3 pin, per predicate, the long-option abbreviations (`--har`, `--forc`, `--del`,
+    `--dry`), the ordered `clean` parse (`-e` value, `--no-dry-run`, `--`), and the ext-diff
+    last-wins rule before `--`.
   - Part 2 is the ext-diff BLOCK/PASS matrix. The existing PASS lists stay as-is (regression).
   - Part 3 is §Pinned D, the `DENY_TOOL_PATTERNS` × §Pinned C parity, and the P9 calls and craft
     routine git as passes.
-  - Part 4 covers both `toolArgs` shapes, the hostile shapes, `copilotGuard` order (destructive
-    reason wins), and the decoy test unchanged.
+  - Part 4 covers both `toolArgs` shapes, the hostile shapes, a non-string `command`, the
+    containment reason, `copilotGuard` order (destructive reason wins), and the decoy test
+    unchanged.
 - **Hook process tests (Part 5).** Spawn the real hook under `process.execPath`:
   - a block → stdout is exactly one JSON line with `permissionDecision:"deny"` and a non-empty
     reason, exit 0;
@@ -441,22 +549,35 @@ Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mut
   hand-rolled tokeniser and normaliser against bash itself. The shape follows
   `adapters/codex/test/hook-trust-differential.test.js` (fixed `SEED`, `CAP`, an accepted-count
   floor, `{ concurrency: true }`, a mktemp tree rooted at its realpath).
-  - **Generator.** A seeded composition of: shell-grammar fragments (§Pinned A classes); separators;
-    quote and escape styles; nesting (`$(…)`, backticks, `<(…)`, `bash -c`, `eval`, `env -S`) up to
-    depth 3; §Pinned C global options; and verbs from §Pinned D plus `diff`/`show` with and without
-    `--no-ext-diff`. Fragments are tagged residual or covered.
+  - **Generator.** A seeded composition of: shell-grammar fragments (§Pinned A classes, plus one
+    fragment family per ADR-594 class); separators; quote and escape styles; nesting (`$(…)`,
+    backticks, `<(…)`, `bash -c`, `eval`, `env -S`) up to depth 3; §Pinned C global options; and
+    verbs from §Pinned D plus `diff`/`show` with and without `--no-ext-diff`. Fragments are tagged
+    with their intended-false-block or parse-failure class. A residual fragment carries the sentinel
+    argv word `residual-marker`, so the oracle drops exactly the argvs it produced.
   - **Leg A: tokeniser and anchor vs bash.** Each command runs as `/bin/bash -c <cmd>` in a per-command run dir. A PATH-first
-    stub `git` appends `printf '%s\0' "$#" "$@"` to `argv.log` and never runs real git. The ground
-    truth applies `normaliseGitArgv` plus the verb rules to each logged argv, which is the argv-level
-    judge with no shell parsing involved.
+    stub `git` appends `printf '%s\0' "$#" "$@"` to `argv.log` and never runs real git. The oracle
+    is independent of the tokeniser: a test-local argv judge (`judgeArgv`) applies
+    `normaliseGitArgv` plus a minimal verb table written in the test, per predicate, to each logged
+    argv. No shell parsing and no predicate code is involved.
   - **Assertions.**
-    - No covered command where the oracle saw a destructive or a non-compliant diff/show argv and
-      the predicate allowed it. A false allow fails with the command printed.
-    - Every `parsed:false` verdict falls on a command the generator tagged unterminated or
-      over-nested. An unparseable verdict on any other shape is a tokeniser gap and fails the test.
-    - False blocks are counted, and each must fall in a documented class. A new class fails.
+    - No command where the oracle saw a destructive or a non-compliant diff/show argv and the
+      predicate allowed it. A false allow fails with the command printed.
+    - Every `parsed:false` verdict falls on a command tagged unterminated, over-nested,
+      opaque-string or arithmetic-heredoc. An unparseable verdict on any other shape is a tokeniser
+      gap and fails the test.
+    - False blocks are counted, and each must fall in a documented class (any-word anchor, dynamic
+      head, dynamic arg, dynamic subcommand, pattern word, dashed builtin, config channel, dynamic
+      before verb, unterminated, over-nested). A new class fails. A command bash 3.2 rejects with
+      `bad substitution` runs nothing, so its block is not a false block.
+    - Every tag is reached at least once across the seeds.
     - Generator tags exclude the stub-blind shapes (`/usr/bin/git`, `command -p`, `bash -l`). Those
       are pinned by unit rows.
+  - **Scale.** `GUARD_FUZZ_SEEDS` (a comma list) and `GUARD_FUZZ_COUNT` override the CI defaults
+    (one seed, 400 commands) for on-demand runs. Review cycle 1 ran 15000 commands over several
+    seeds with 0 false allows. At that scale, safe-direction false blocks appear from static versus
+    runtime control flow (a short-circuited `&&`, a function defined inside a pipeline subshell, a
+    `<(…)` log race). They are inherent to a static guard.
   - **Leg B: normaliser vs real git.** Leg A's ground truth reuses `normaliseGitArgv`, so it cannot
     catch a wrong option table. Leg B can. It draws random sequences of §Pinned C options, valid and
     invalid, then the harmless sentinel subcommand `rev-parse`. Each sequence runs under
@@ -465,11 +586,14 @@ Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mut
     trace ⇒ no-subcommand. Per ADR-591, on git 2.54.x (the version §Pinned C was taken from) the
     test asserts that `normaliseGitArgv`'s `kind`/`subcommand` matches the trace exactly. On any
     other git it asserts only the unsafe direction: real git reaching a subcommand the normaliser
-    did not report fails; an older git refusing a newer flag the table accepts does not.
+    did not report fails; an older git refusing a newer flag the table accepts does not. The
+    comparison is a pure helper (`legBProblem(git, normalised, strict)`) pinned by its own table
+    rows, independent of any git on the machine.
   - **Shells.** `/bin/bash` (3.2 on macOS) always. A bash ≥5 on PATH runs too when present, and is
     skipped with a logged reason when absent.
 - **Live probe (specified for the plan; on demand, not CI; the user or orchestrator runs it).**
-  - **Setup.** Copilot ≥ 1.0.92; a throwaway HOME, XDG_CONFIG_HOME and COPILOT_HOME; `env -i`; a BYOK
+  - **Setup.** Copilot ≥ 1.0.92, the hook declared in `$COPILOT_HOME/settings.json`; a throwaway
+    HOME, XDG_CONFIG_HOME and COPILOT_HOME; `env -i`; a BYOK
     fake SSE provider emitting one tool call per run; zero credentials. A work repo with a local bare
     remote. Ground truth comes from side effects: the remote ref, a file's presence, a tag's
     presence. Isolation is proven by an mtime-find on `~/.copilot` and `~/.config` against a
