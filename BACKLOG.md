@@ -175,6 +175,26 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-15 — follow-ups surfaced by the codex-0162-reprobe run, not yet scheduled)
+
+**Does the interactive codex TUI apply a malformed `.rules` file like `codex exec` or like the
+app-server?** On codex 0.162.1 a malformed `$CODEX_HOME/rules/craft.rules` makes `codex exec`
+refuse to start (fails closed, 3/3) while the app-server thread/turn path skips the rules and
+runs the command (fails open, 3/3); record: `docs/contributing/specs/codex-poc-record.md`,
+*Re-probe — codex-cli 0.162.1*. Which path the TUI takes was not probed. How to prove it: in a
+throwaway `CODEX_HOME`, deploy the malformed rules, drive the TUI to run `git clean -f`
+against an untracked file, and check whether the file survives. Question only; no fix is
+scoped.
+
+**Should a launch or install path call `assertRulesIntegrity`?**
+`adapters/codex/src/execpolicy-rules.js` exports it and
+`adapters/codex/test/execpolicy-rules.test.js` tests it, but `grep -rn assertRulesIntegrity`
+matches nothing else: no bin, launch path or install step runs it, so a drifted or malformed
+deployed rules file is caught only when someone invokes the check. The design that introduced
+it (`docs/contributing/design/harden-prove-codex-binding.md`) asked for a launch precondition,
+and none was wired. Open question: wire it into a launch or install path, or keep it on
+demand. Question only; no fix is scoped.
+
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the stryker-9-upgrade run, not yet scheduled)
 
 **The git ext-diff guard misses a diff/show its segment splitter or anchor never sees.**
@@ -1089,9 +1109,18 @@ not be automated. It now can. Both findings, in order:
   exited having answered only `initialize`. Fixed by keeping stdin open and bounding the call with
   the timeout and kill instead; the fake child in the unit suite now models EOF-as-shutdown so the
   regression cannot return.
+- **Re-confirmed 2026-10-15 on codex 0.162.1 (codex-0162-reprobe).** The untrusted-hook
+  fail-open reproduced: with the template `[[hooks.PreToolUse]]` block copied verbatim and
+  `trust-hook.js --check` reporting `from=untrusted` (exit 1), `codex exec` ran
+  `git diff > OUT.txt` (exit 0, `OUT.txt` 101 B) and the JSONL stream carried zero hook or
+  warning items. `bin/trust-hook.js` then worked end to end: trust written (exit 0, the same
+  `sha256:38713365…` hash as on 0.161.0), `--check` reported trusted/noop, a re-run left
+  `config.toml` byte-identical, `git diff > OUT.txt` was blocked (`OUT.txt` absent, the guard's
+  `--no-ext-diff` reason) and `git diff --no-ext-diff > ALLOWED.txt` ran (101 B, a real diff).
+  The fail-open is still unchanged codex behaviour, so the entry stays MITIGATED, not closed.
 
-**Prove craft's shared skills load by reference on codex — re-probed 2026-07-31; STILL DISPROVEN,
-stays OPEN (codex-0.145.0 limitation).** Two findings: (1) **manifest location bug, FIXED
+**Prove craft's shared skills load by reference on codex — re-probed 2026-10-15; STILL DISPROVEN,
+stays OPEN (codex-0.162.1 limitation).** Two findings: (1) **manifest location bug, FIXED
 (`b204182`)** — codex 0.144.6 `plugin marketplace add <root>` only reads
 `<root>/.claude-plugin/marketplace.json`; the binding shipped a root `marketplace.json`, so the
 marketplace never registered ("marketplace root does not contain a supported manifest"). Relocated +
@@ -1109,6 +1138,14 @@ shared skills load by reference, **19 of 19** load via the symlink fallback (reg
 `craft:<name>`). The cached `.codex-plugin/plugin.json` drops **both** `skills` and `hooks`. The
 symlink fallback therefore stays documented as required, not optional. "Load by reference" is not
 achievable on codex 0.145.0; re-check on the next minor version.
+
+**Re-probe on 0.162.1 (2026-10-15): unchanged — re-pinned 0.145.0 → 0.162.1.**
+`codex plugin marketplace add ./adapters/codex` plus `plugin add` for both entries: both cached
+`.codex-plugin/plugin.json` are `{description, name}`, `skills` and `hooks` dropped. Through the
+app-server `skills/list` method (`forceReload: true`): **0 of 19** shared skills load by
+reference, **19 of 19** load via the symlink fallback (registered as `craft:<name>`, scope
+`user`). The symlink fallback stays documented as required, not optional. "Load by reference"
+is not achievable on codex 0.162.1; re-check on the next minor version.
 
 **Carry the credential-rotation caveat into every binding's probe record — scoped 2026-07-31,
 delivered 2026-10-12** (chore/backlog-sweep-six-entries). `cursor-poc-record.md` now carries a
@@ -1154,15 +1191,27 @@ genuinely-outside write (e.g. `~`) and BLOCKS network; **danger-full-access** al
 network. workspace-write is now a MEASURED containment posture: it contains genuinely-outside writes
 and network, not merely a documented selection.
 
-**Malformed `.rules` execpolicy fails OPEN at runtime — CONFIRMED + mitigated 2026-07-21**
+**Malformed `.rules` execpolicy — treat as fail open: on 0.162.1 the app-server path fails open and
+`codex exec` refuses to start — recorded 2026-07-21, re-probed 2026-10-15**
 (harden-prove-codex-binding, B9). Runtime auto-loads `$CODEX_HOME/rules/` (a directory of `.rules`
 files); `execpolicy check` treats a malformed file as a hard error, but the codex binary carries the
 literal runtime message `Error parsing rules; custom rules not applied.` — on a parse error the
 rules are **not applied** (fail-open), so a forbidden command runs. Mitigation (`115bcce`, DC-3):
 `assertRulesIntegrity(onDiskText)` byte-compares the deployed rules to `buildExecpolicyRules()` and
-refuses on any drift (malformed included) — a hermetic, scriptable install/launch precondition that
-catches a voided rules file before relying on the layer. (The committed-file drift-guard already
+refuses on any drift (malformed included). It is an exported, unit-tested check with no caller in
+the binding: it protects only when something invokes it. (The committed-file drift-guard already
 existed; this covers the deployed copy.)
+
+**Re-probe on 0.162.1 (2026-10-15): split by surface.** The 2026-07-21 verdict rested on the
+binary string alone; no runtime side effect was recorded. On 0.162.1, ground-truthed by side
+effect (`git clean -f` against an untracked `VICTIM.txt`, the deployed `craft.rules` with its
+last line `)` removed): `codex exec`, this binding's launch path, exits 1 at startup with
+`Error loading rules: … starlark error`, emits no events, and the file survives (fails closed,
+3/3); the app-server thread/turn path emits a `configWarning` (`Error parsing rules; custom
+rules not applied.`), runs the command, and the file is deleted (fails open, 3/3). With the
+well-formed file both paths block. The interactive TUI was not probed. Treat a malformed rules
+file as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
+*Re-probe — codex-cli 0.162.1*.
 
 **Clean up the orphaned `adapters/pi/stryker.conf.json` — delivered 2026-07-21**
 (harden-prove-codex-binding, A4). Removed; `engine/test/mutation-config.test.js` gained a positive
