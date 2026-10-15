@@ -42,7 +42,7 @@ const SUBCOMMAND_ALIASES = new Map([
   ['--help', 'help'],
 ]);
 const ARGS_END = '--';
-export const OPTION_PREFIX = '-';
+const OPTION_PREFIX = '-';
 export const VALUE_SEPARATOR = '=';
 
 export const NO_SUBCOMMAND = Object.freeze({ kind: 'no-subcommand' });

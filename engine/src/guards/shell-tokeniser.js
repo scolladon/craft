@@ -2,7 +2,8 @@
  *  @typedef {{ words: ShellWord[] }} SimpleCommand
  *  @typedef {{ parsed: true, commands: SimpleCommand[] } | { parsed: false, reason: string }} ParseResult */
 
-import { OPTION_PREFIX, VALUE_SEPARATOR } from './git-argv.js';
+const OPTION_PREFIX = '-';
+const VALUE_SEPARATOR = '=';
 
 const ARITHMETIC_HEREDOC =
   'craft: command not parseable (<< inside an arithmetic command) — denied fail-closed';
