@@ -365,3 +365,194 @@ describe('shell parsing — bounded work', () => {
     assert.equal(result.parsed, true);
   });
 });
+
+const ARITHMETIC_HEREDOC =
+  'craft: command not parseable (<< inside an arithmetic command) — denied fail-closed';
+const OPAQUE_STRING =
+  'craft: command not parseable (an escaped $\'…\' string is evaluated as shell) — denied fail-closed';
+
+const patternWord = text => ({ text, dynamic: true, pattern: true });
+
+const assertFails = rows => {
+  for (const [input, reason] of rows) {
+    it(`Given ${JSON.stringify(input)}, When parsed, Then it is not parseable for ${JSON.stringify(reason)}`, () => {
+      const sut = parseShellCommands;
+
+      const result = sut(input);
+
+      assert.deepEqual(result, { parsed: false, reason });
+    });
+  }
+};
+
+describe('parseShellCommands() — head words stay out of the command', () => {
+  assertParses([
+    ['{ git diff; }', [['git', 'diff']]],
+    ['! git diff', [['git', 'diff']]],
+    ['time git diff', [['git', 'diff']]],
+    ['if git diff; then git log; fi', [['git', 'diff'], ['git', 'log']]],
+    ['if a; then b; elif c; then d; else e; fi', [['a'], ['b'], ['c'], ['d'], ['e']]],
+    ['while git diff; do git log; done', [['git', 'diff'], ['git', 'log']]],
+    ['until git diff; do git log; done', [['git', 'diff'], ['git', 'log']]],
+    ['coproc git diff', [['git', 'diff']]],
+    ['-p git diff', [['-p', 'git', 'diff']]],
+    ['FOO=1 -p git diff', [['-p', 'git', 'diff']]],
+    ['true; -p git diff', [['true'], ['-p', 'git', 'diff']]],
+  ]);
+
+  assertParses([['case x in x) git diff;; esac', [['x', 'in', 'x'], ['git', 'diff']]]]);
+
+  it('Given an assignment before a command, When parsed, Then only the assignment is recorded on it', () => {
+    const sut = parseShellCommands;
+
+    const [first, second, third] = sut('git diff; FOO=1 BAR=2 git log; ! time git log').commands;
+
+    assert.deepEqual([first, second, third].map(command => command.assignments), [[], ['FOO=1', 'BAR=2'], []]);
+  });
+});
+
+describe('parseShellCommands() — shell words and literal operators', () => {
+  assertParsesWords([
+    ['[ -f x ]', [['[', '-f', 'x', ']']]],
+    ['[[ a ]]', [['[[', 'a', ']]']]],
+    ['echo *', [['echo', patternWord('*')]]],
+    ["echo $'\\{'", [['echo', { text: '{', dynamic: false, opaque: true }]]],
+  ]);
+
+  assertParses([
+    ["dash -c 'git diff'", [['dash', '-c', 'git diff'], ['git', 'diff']]],
+    ["ksh -c 'git diff'", [['ksh', '-c', 'git diff'], ['git', 'diff']]],
+    ['bash -x script.sh', [['bash', '-x', 'script.sh']]],
+    ['bash x-c script.sh', [['bash', 'x-c', 'script.sh']]],
+    ['bash -c1 script.sh', [['bash', '-c1', 'script.sh']]],
+    ["bash +e -c 'git diff'", [['bash', '+e', '-c', 'git diff'], ['git', 'diff']]],
+    ["bash -c 'git diff+'", [['bash', '-c', 'git diff+'], ['git', 'diff+']]],
+  ]);
+});
+
+describe('parseShellCommands() — eval and env option runs', () => {
+  assertParses([
+    ['eval', [['eval']]],
+    ['env -i git diff', [['env', '-i', 'git', 'diff']]],
+    ["echo -S 'git diff'", [['echo', '-S', 'git diff']]],
+    ['env --unset=FOO git diff', [['env', '--unset=FOO', 'git', 'diff']]],
+    ["env -u env -S 'git diff'", [['env', '-u', 'env', '-S', 'git diff'], ['git', 'diff']]],
+    [
+      "env -S 'git diff' env -S 'git log'",
+      [['env', '-S', 'git diff', 'env', '-S', 'git log'], ['git', 'diff'], ['git', 'log']],
+    ],
+    [
+      "bash script env -S 'git diff'",
+      [['bash', 'script', 'env', '-S', 'git diff'], ['git', 'diff']],
+    ],
+  ]);
+
+  it('Given a bare eval at the nesting cap, When parsed, Then it is parsed', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(`${'echo $('.repeat(PINNED_NESTING_CAP)}eval${')'.repeat(PINNED_NESTING_CAP)}`);
+
+    assert.equal(result.parsed, true);
+  });
+
+  assertFails([
+    ['eval git $\'a\\nb\'', OPAQUE_STRING],
+    ['( ((cat <<EOF))) ', ARITHMETIC_HEREDOC],
+  ]);
+});
+
+describe('parseShellCommands() — brace expressions', () => {
+  assertParsesWords([
+    ['echo {a, b}', [['echo', '{a,', 'b}']]],
+    ['echo {a,;}', [['echo', '{a,']]],
+    ['echo {a,|}', [['echo', '{a,']]],
+    ['echo {a,&}', [['echo', '{a,']]],
+    ['echo {a,)}', [['echo', '{a,']]],
+    ['echo {a,}', [['echo', patternWord('{a,}')]]],
+    ['echo {a}', [['echo', '{a}']]],
+    ['echo {a,b', [['echo', '{a,b']]],
+    ['echo {a{b,c', [['echo', '{a{b,c']]],
+    ['echo {a,"b c"}', [['echo', patternWord('{a,b c}')]]],
+    ["echo {a,'b c'}", [['echo', patternWord('{a,b c}')]]],
+    ['echo {a,"\\""}', [['echo', patternWord('{a,"}')]]],
+    ['echo {a,\\ b}', [['echo', patternWord('{a, b}')]]],
+    ['echo {a\\,b}', [['echo', '{a,b}']]],
+    ["echo {a,'\\'}", [['echo', patternWord('{a,\\}')]]],
+    ['echo {a\\..}', [['echo', '{a..}']]],
+    ['echo {1..3}', [['echo', patternWord('{1..3}')]]],
+  ]);
+
+  for (const terminator of ['\t', '(', '<', '>']) {
+    it(`Given a brace word cut by ${JSON.stringify(terminator)}, When parsed, Then it is not a brace expression`, () => {
+      const sut = parseShellCommands;
+
+      const result = sut(`echo {a,${terminator}}`);
+
+      assert.equal(JSON.stringify(result).includes('"pattern"'), false);
+    });
+  }
+});
+
+describe('parseShellCommands() — escapes and dollars', () => {
+  assertParsesWords([
+    ['echo a\\', [['echo', 'a\\']]],
+    ['echo "a\\\nb"', [['echo', 'ab']]],
+    ['echo "a\\`b"', [['echo', 'a`b']]],
+    ['echo "`git diff`"', [['git', 'diff'], ['echo', dyn('`git diff`')]]],
+    ['echo $', [['echo', '$']]],
+    ['echo "\'$X"', [['echo', dyn("'$X")]]],
+    ['echo $(echo a #c\n)', [['echo', 'a'], ['echo', dyn('$(echo a #c\n)')]]],
+    ['echo $( (git diff) | cat )', [['git', 'diff'], ['cat'], ['echo', dyn('$( (git diff) | cat )')]]],
+  ]);
+
+  it('Given a backtick at the nesting cap, When parsed, Then it is not parseable', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(`${'echo $('.repeat(PINNED_NESTING_CAP)}echo \`git diff\`${')'.repeat(PINNED_NESTING_CAP)}`);
+
+    assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
+  });
+});
+
+describe('parseShellCommands() — redirections and heredoc operators', () => {
+  assertParses([
+    ['echo >>(git diff)', [['echo'], ['git', 'diff']]],
+    ['echo a &>f g', [['echo', 'a', 'g']]],
+    ['echo a &>(git diff)', [['echo', 'a'], ['git', 'diff']]],
+    ['cat <<<(git diff)', [['cat'], ['git', 'diff']]],
+    ['echo 10>f', [['echo']]],
+    ['echo a1>f', [['echo', 'a1']]],
+    ['echo 1a>f', [['echo', '1a']]],
+    ['cat 3<<EOF\nx\nEOF\ngit diff', [['cat'], ['git', 'diff']]],
+    ['echo a<<EOF\nx\nEOF', [['echo', 'a']]],
+    ['true && (cat <<EOF\nx\nEOF\n)', [['true'], ['cat']]],
+    ['( (cat <<EOF\nx\nEOF\n) )\ngit diff', [['cat'], ['git', 'diff']]],
+    ['cat <<EOF', [['cat']]],
+    ['cat <<EOF\\', [['cat']]],
+  ]);
+});
+
+describe('parseShellCommands() — heredoc delimiters and bodies', () => {
+  assertParses([
+    ['cat << EOF\nx\nEOF\ngit diff', [['cat'], ['git', 'diff']]],
+    ['cat <<\tEOF\nx\nEOF\ngit diff', [['cat'], ['git', 'diff']]],
+    ['cat <<\\EOF\nx\nEOF\ngit diff', [['cat'], ['git', 'diff']]],
+    ["cat <<'E F'\nE F\ngit diff", [['cat'], ['git', 'diff']]],
+    ['cat <<-EOF\n\t\tEOF\ngit diff', [['cat'], ['git', 'diff']]],
+    ['cat <<-EOF\nE\tOF\ngit diff', [['cat']]],
+    ['cat <<EOF\tgit diff\nEOF\ngit log', [['cat', 'git', 'diff'], ['git', 'log']]],
+    ['cat <<EOF;git diff\nEOF\ngit log', [['cat'], ['git', 'diff'], ['git', 'log']]],
+    ['cat <<EOF|git diff\nEOF\ngit log', [['cat'], ['git', 'diff'], ['git', 'log']]],
+    ['cat <<EOF&git diff\nEOF\ngit log', [['cat'], ['git', 'diff'], ['git', 'log']]],
+    ['cat <<EOF<in\nEOF\ngit log', [['cat'], ['git', 'log']]],
+    ['cat <<EOF>out\nEOF\ngit log', [['cat'], ['git', 'log']]],
+    ['cat <<EOF(git diff)\nEOF\ngit log', [['cat'], ['git', 'diff'], ['git', 'log']]],
+    ['(cat <<EOF)\nEOF\ngit log', [['cat'], ['git', 'log']]],
+  ]);
+
+  assertFails([
+    ["cat <<'EOF\nx", UNTERMINATED_QUOTE],
+    ['echo `echo "x`', UNTERMINATED_QUOTE],
+    ['cat <<EOF\n$(git diff\nEOF', UNTERMINATED_SUBSTITUTION],
+  ]);
+});

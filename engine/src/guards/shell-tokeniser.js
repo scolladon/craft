@@ -67,6 +67,8 @@ const isCommandCluster = ({ text }) => CLUSTER_SHAPE.test(text) && text.includes
 
 // Shell option grammar (-o name, -O name, +e) is not modelled, so once a command option
 // exists every later non-option word may be the command string.
+// equivalent mutant (EqualityOperator scan.lastClusterAt >= index): a shell name is never a cluster word, so the two indices never meet
+// equivalent mutant (EqualityOperator scan.lastCommandWordAt >= index): when the shell is the last non-flag word the filtered tail is empty either way
 const shellCommandWords = (words, index, scan) =>
   SHELL_NAMES.has(basename(words[index].text)) && scan.lastClusterAt > index && scan.lastCommandWordAt > index
     ? words.slice(index + 1).filter(word => !isFlagWord(word))
@@ -79,6 +81,7 @@ const OPAQUE_STRING =
 
 const EVAL_WORD = 'eval';
 
+// equivalent mutant (BooleanLiteral dynamic true): reparse reads only the text and opaque fields of the joined word
 const evalWords = (words, index) => {
   if (words[index].text !== EVAL_WORD || index + 1 >= words.length) return [];
   const rest = words.slice(index + 1);
@@ -117,6 +120,7 @@ const longEnvOption = (words, cursor) => {
   return SKIPPED_LONG_OPTIONS.has(name) ? skippedEnvValue(words, cursor, from) : NO_ENV_VALUE;
 };
 
+// equivalent mutant (EqualityOperator at <= text.length): text[text.length] is undefined, which is neither the split letter nor a skipped-value letter
 const envOption = (words, cursor) => {
   const { text } = words[cursor];
   if (text.startsWith(LONG_OPTION_PREFIX)) return longEnvOption(words, cursor);
@@ -295,9 +299,15 @@ const BRACE_SEPARATOR = ',';
 const BRACE_RANGE = '..';
 const BRACE_CLOSE = '}';
 
+// A backslash escapes the next character inside double quotes only, so "\"" is one quoted word.
+// equivalent mutant (EqualityOperator at <= source.length): source[source.length] is undefined, so the extra pass falls through to the same source.length
 const quoteEnd = (source, index) => {
-  const close = source.indexOf(source[index], index + 1);
-  return close === -1 ? source.length : close;
+  const quote = source[index];
+  for (let at = index + 1; at < source.length; at += 1) {
+    if (quote === DOUBLE_QUOTE && source[at] === BACKSLASH) at += 1;
+    else if (source[at] === quote) return at;
+  }
+  return source.length;
 };
 
 const braceSkip = (source, index) => {
@@ -308,6 +318,7 @@ const braceSkip = (source, index) => {
 // A scan that finds no brace expression proves none exists later in the same word, so
 // remembering where it stopped keeps a run of braces linear; a word already marked as a
 // pattern needs no further scan.
+// equivalent mutant (EqualityOperator index <= source.length): the extra pass sees an undefined character and only moves braceFailedUntil, which gates indices below source.length
 const hasBraceExpression = context => {
   const { source } = context;
   if (context.pattern || context.index < context.braceFailedUntil) return false;
@@ -350,6 +361,7 @@ const consumeDoubleQuoted = context => {
   else onLiteral(context);
 };
 
+// equivalent mutant (EqualityOperator context.index <= context.source.length): the extra pass appends to a piece of a context that then fails with the same unterminated-quote reason
 const onDoubleQuote = context => {
   append(context, '');
   context.index += 1;
@@ -364,6 +376,7 @@ const onDoubleQuote = context => {
   fail(context, UNTERMINATED_QUOTE);
 };
 
+// equivalent mutant (EqualityOperator context.index <= context.source.length): the extra pass appends to a piece of a context that then fails with the same unterminated-quote reason
 const readAnsiC = context => {
   append(context, '');
   context.index += 2;
@@ -377,6 +390,7 @@ const readAnsiC = context => {
   fail(context, UNTERMINATED_QUOTE);
 };
 
+// equivalent mutant (ConditionalExpression true, ArithmeticOperator context.index - 1): a backslash ending the source takes either branch and the string is then unterminated, so the parse fails with the same reason
 const onBackslashOrLiteral = context =>
   context.source[context.index] === BACKSLASH && context.source[context.index + 1] !== undefined
     ? onEscapedChar(context)
@@ -393,6 +407,7 @@ const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCom
 
 const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true });
 
+// equivalent mutant (ConditionalExpression false): only parseNested passes a null close, and it ignores the returned flag
 const runBody = (child, close) => {
   while (child.index < child.source.length && child.failure === null) {
     if (child.parens === 0 && child.source[child.index] === close) return true;
@@ -427,6 +442,7 @@ const enterConstruct = (context, { openLength, close, settle, parameter }) => {
   markExpansion(context, start, child.index + 1);
 };
 
+// equivalent mutant (EqualityOperator index <= source.length): source[source.length] is undefined, neither a backslash nor a backtick, so the result is still -1
 const findBacktickEnd = (source, from) => {
   for (let index = from; index < source.length; index += 1) {
     if (source[index] === BACKSLASH) index += 1;
@@ -447,6 +463,7 @@ const enterBacktick = context => {
   markExpansion(context, start, end + 1);
 };
 
+// equivalent mutant (EqualityOperator index <= source.length): source[source.length] adds 0 to a level that is still positive, so the result is still -1
 const arithmeticEnd = (source, from) => {
   let level = ARITHMETIC_OPEN_LEVEL;
   for (let index = from; index < source.length; index += 1) {
@@ -477,6 +494,7 @@ const expandDollar = context => {
   onLiteral(context);
 };
 
+// equivalent mutant (CallExpression onDoubleQuote): the step loop hands the double quote left after the skipped $ to the same handler
 const onLocaleString = context => {
   context.index += 1;
   onDoubleQuote(context);
@@ -489,6 +507,7 @@ const onDollar = context => {
   expandDollar(context);
 };
 
+// equivalent mutant (ConditionalExpression false): expandDollar on a $ followed by a single quote falls through to onLiteral as well
 const onDoubleQuotedDollar = context =>
   context.source[context.index + 1] === SINGLE_QUOTE ? onLiteral(context) : expandDollar(context);
 
@@ -507,6 +526,7 @@ const readQuotedPart = (context, delimiter) => {
   context.index = close + 1;
 };
 
+// equivalent mutant (StringLiteral Stryker was here!): the delimiter text is compared only when a body line is read, and a backslash ending the source leaves no newline after it
 const readEscapedPart = (context, delimiter) => {
   delimiter.text += context.source[context.index + 1] ?? '';
   delimiter.quoted = true;
@@ -521,6 +541,7 @@ const readDelimiterPart = (context, delimiter) => {
   context.index += 1;
 };
 
+// equivalent mutant (EqualityOperator context.index <= context.source.length): the extra pass only lengthens a delimiter that ends the source, where no body line follows to match it
 const readDelimiter = context => {
   const delimiter = { text: '', quoted: false };
   while (
@@ -537,6 +558,9 @@ const skipBlanks = context => {
   while (context.source[context.index] === ' ' || context.source[context.index] === '\t') context.index += 1;
 };
 
+// equivalent mutant (StringLiteral Stryker was here!): neither the empty string nor the replacement is a file descriptor
+// equivalent mutant (CallExpression endWord): the delimiter ends at a character that flushes the word and onHeredoc leaves redirecting untouched, so the deferred flush emits the same word
+// equivalent mutant (ConditionalExpression true on the failure guard): a failed context discards its heredocs with the whole parse
 const onHeredoc = context => {
   if (context.arithmeticFloor !== NO_ARITHMETIC) return fail(context, ARITHMETIC_HEREDOC);
   if (FILE_DESCRIPTOR.test(context.piece ?? '')) context.piece = null;
@@ -549,6 +573,8 @@ const onHeredoc = context => {
   if (context.failure === null) context.heredocs.push({ ...delimiter, stripTabs });
 };
 
+// equivalent mutant (ArrayDeclaration seeded line): the seed holds no expansion, so scanning the body finds nothing more
+// equivalent mutant (ConditionalExpression false, UnaryOperator +1): without a final newline the index lands at or one past the end of the source, and both stop every loop
 const readHeredocBody = (context, { text, stripTabs }) => {
   const lines = [];
   while (context.index < context.source.length) {
@@ -563,6 +589,8 @@ const readHeredocBody = (context, { text, stripTabs }) => {
   return lines.join(NEWLINE);
 };
 
+// equivalent mutant (EqualityOperator scratch.index <= body.length): the extra pass consumes an undefined literal and records no command or failure
+// equivalent mutant (ConditionalExpression true on the failure guard): fail with a null reason leaves the failure unset
 const scanExpansions = (context, body) => {
   const scratch = createContext(body, context.depth);
   while (scratch.index < body.length && scratch.failure === null) consumeDoubleQuoted(scratch);
@@ -575,6 +603,7 @@ const consumeHeredoc = (context, heredoc) => {
   if (!heredoc.quoted) scanExpansions(context, body);
 };
 
+// equivalent mutant (ConditionalExpression true): fail keeps the first reason and the parse is discarded, so scanning later bodies changes nothing
 const readHeredocBodies = context => {
   for (const heredoc of context.heredocs.splice(0)) {
     if (context.failure === null) consumeHeredoc(context, heredoc);
@@ -599,6 +628,7 @@ const onHash = context => {
   context.index = lineEnd === -1 ? context.source.length : lineEnd;
 };
 
+// equivalent mutant (StringLiteral Stryker was here!): neither the empty string nor the replacement is a file descriptor
 const onRedirect = context => {
   if (FILE_DESCRIPTOR.test(context.piece ?? '')) context.piece = null;
   endWord(context);
@@ -609,6 +639,7 @@ const onRedirect = context => {
 
 const OPENS_ARITHMETIC = '((';
 
+// equivalent mutant (ConditionalExpression true, EqualityOperator context.index >= 0 on the index guard): at index 0 parens is 0, so an adjacent match there sets the floor to parens - 1, which is NO_ARITHMETIC
 const onOpenParen = context => {
   const adjacent = context.source.startsWith(OPENS_ARITHMETIC, context.index - 1) && context.index > 0;
   if (adjacent && context.arithmeticFloor === NO_ARITHMETIC) context.arithmeticFloor = context.parens - 1;

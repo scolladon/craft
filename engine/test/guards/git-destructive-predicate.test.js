@@ -308,6 +308,7 @@ describe('gitDestructivePredicate() — brace and glob words', () => {
     'x/g?t push',
     'git pus[h] origin',
     'git {a..b} push',
+    'git {push,"\\""}',
   ]);
 
   assertPasses(['git rev-parse HEAD@{upstream}', '[ -f x ] && git status', '[[ -n "$A" ]] && git status', 'ls {a}']);
