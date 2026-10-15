@@ -128,7 +128,7 @@ This is the highest-risk area, and it is where Codex differs most from Copilot.
 | Question | Answer | Status |
 |---|---|---|
 | Is there a pre-execution hook? | **Yes** — `PreToolUse`, plus `PermissionRequest`, `PostToolUse`, `PreCompact`, `PostCompact`, `SessionStart`, `UserPromptSubmit`, `SubagentStart`, `SubagentStop`, `Stop` | CONFIRMED |
-| **Can it DENY?** | **YES — proven live.** Contrast Copilot, whose hook fires but cannot deny. | **CONFIRMED** |
+| **Can it DENY?** | **YES — proven live.** Contrast Copilot 1.0.63, whose hook fired but could not deny (Copilot ≥ 1.0.92 denies; see the Copilot PoC record). | **CONFIRMED** |
 | Denial mechanism | A `command` handler exiting **code 2** with a reason on **stderr** blocks the call | CONFIRMED |
 | Observed evidence | `ERROR codex_core::tools::router: error=Command blocked by PreToolUse hook: craft-guard: denied. Command: echo CRAFT_HOOK_PROBE` | CONFIRMED |
 | Is the denial fed back to the model? | **Yes** — next turn's input carried `function_call_output: "Command blocked by PreToolUse hook: …"` | CONFIRMED |
