@@ -58,11 +58,33 @@ const optionName = text => text.split(VALUE_SEPARATOR)[0];
 
 const texts = words => words.map(word => word.text);
 
-const countDynamic = words => {
-  const end = words.findIndex(word => word.text === ARGS_END);
-  const counted = end === -1 ? words : words.slice(0, end);
-  return counted.filter(word => word.dynamic).length;
+const countDynamic = (words, from) => {
+  let count = 0;
+  for (let index = from; index < words.length && words[index].text !== ARGS_END; index += 1) {
+    if (words[index].dynamic) count += 1;
+  }
+  return count;
 };
+
+const UNSET = Symbol('unset');
+
+const memoise = compute => {
+  let value = UNSET;
+  return () => {
+    if (value === UNSET) value = compute();
+    return value;
+  };
+};
+
+// Derived arrays are computed on first read: copying the tail for every git word of a
+// long command would make anchoring quadratic, and most verdicts never read them.
+const lazyDescriptors = computations =>
+  Object.fromEntries(
+    Object.entries(computations).map(([name, compute]) => [name, { get: memoise(compute), enumerable: true }])
+  );
+
+const extend = (invocation, computations) =>
+  Object.defineProperties({}, { ...Object.getOwnPropertyDescriptors(invocation), ...lazyDescriptors(computations) });
 
 const isLongValueOption = text => LONG_VALUE_OPTIONS.includes(optionName(text));
 
@@ -71,63 +93,80 @@ const isPrintAndExit = text =>
 
 const isSkippedFlag = text => FLAG_OPTIONS.includes(text) || text.startsWith(EXEC_PATH_PREFIX);
 
-const subcommandResult = (text, rest, configKeys) => ({
-  kind: 'subcommand',
-  subcommand: SUBCOMMAND_ALIASES[text] ?? text,
-  args: texts(rest),
-  configKeys,
-  dynamicArgCount: countDynamic(rest),
-});
+const subcommandResult = (text, words, from, configKeys) =>
+  extend(
+    { kind: 'subcommand', subcommand: SUBCOMMAND_ALIASES[text] ?? text, configKeys },
+    { args: () => texts(words.slice(from)), dynamicArgCount: () => countDynamic(words, from) }
+  );
 
-// Consumes a value-taking option; returns the words left after it, or null when
-// the value is missing.
-const consumeValueOption = (words, configKeys) => {
-  const { text } = words[0];
+// Consumes a value-taking option; returns the cursor after it and the config keys it
+// declares, or null when the value is missing.
+const valueOptionAt = (words, cursor) => {
+  const { text } = words[cursor];
   const attached = text.includes(VALUE_SEPARATOR) && isLongValueOption(text);
-  const value = attached ? text.slice(text.indexOf(VALUE_SEPARATOR) + 1) : words[1]?.text;
+  const value = attached ? text.slice(text.indexOf(VALUE_SEPARATOR) + 1) : words[cursor + 1]?.text;
   if (value === undefined) return null;
-  if (CONFIG_OPTIONS.includes(optionName(text))) configKeys.push(configKey(value));
-  return words.slice(attached ? 1 : 2);
+  const keys = CONFIG_OPTIONS.includes(optionName(text)) ? [configKey(value)] : [];
+  return { next: cursor + (attached ? 1 : 2), keys };
 };
 
 const isValueOption = text => SHORT_VALUE_OPTIONS.includes(text) || isLongValueOption(text);
 
 // A dynamic word where git expects an option or the subcommand may expand to anything.
-const indeterminate = remaining => ({
-  kind: 'indeterminate',
-  rest: texts(remaining),
-});
+const indeterminate = (words, from) => extend({ kind: 'indeterminate' }, { rest: () => texts(words.slice(from)) });
 
-export function normaliseGitArgv(words) {
+const refused = (words, cursor) =>
+  extend({ kind: 'refused', option: words[cursor].text }, { rest: () => texts(words.slice(cursor + 1)) });
+
+const earlyExit = (words, cursor) => {
+  const head = words[cursor];
+  if (head.dynamic) return indeterminate(words, cursor);
+  return isPrintAndExit(head.text) ? NO_SUBCOMMAND : null;
+};
+
+// Returns the cursor past a global option, the same cursor when the word is not one,
+// or null when a value-taking option has no value.
+const advance = (words, cursor, configKeys) => {
+  const { text } = words[cursor];
+  if (isSkippedFlag(text)) return cursor + 1;
+  if (!isValueOption(text)) return cursor;
+  const consumed = valueOptionAt(words, cursor);
+  if (consumed === null) return null;
+  configKeys.push(...consumed.keys);
+  return consumed.next;
+};
+
+const lateExit = (words, cursor, configKeys) => {
+  const { text } = words[cursor];
+  if (text.startsWith(OPTION_PREFIX) && !(text in SUBCOMMAND_ALIASES)) return refused(words, cursor);
+  return subcommandResult(text, words, cursor + 1, configKeys);
+};
+
+const normaliseFrom = (words, start) => {
   const configKeys = [];
-  let remaining = words.map(toWord);
-  while (remaining.length > 0) {
-    const [head, ...tail] = remaining;
-    const { text } = head;
-    if (head.dynamic) return indeterminate(remaining);
-    if (isPrintAndExit(text)) return NO_SUBCOMMAND;
-    if (isSkippedFlag(text)) {
-      remaining = tail;
-      continue;
-    }
-    if (isValueOption(text)) {
-      remaining = consumeValueOption(remaining, configKeys);
-      if (remaining === null) return NO_SUBCOMMAND;
-      continue;
-    }
-    if (text.startsWith(OPTION_PREFIX) && !(text in SUBCOMMAND_ALIASES)) {
-      return { kind: 'refused', option: text, rest: texts(tail) };
-    }
-    return subcommandResult(text, tail, configKeys);
+  let cursor = start;
+  while (cursor < words.length) {
+    const early = earlyExit(words, cursor);
+    if (early !== null) return early;
+    const next = advance(words, cursor, configKeys);
+    if (next === null) return NO_SUBCOMMAND;
+    if (next === cursor) return lateExit(words, cursor, configKeys);
+    cursor = next;
   }
   return NO_SUBCOMMAND;
-}
+};
+
+export const normaliseGitArgv = words => normaliseFrom(words.map(toWord), 0);
 
 const UNTERMINATED_QUOTE = 'craft: command not parseable (unterminated quote) — denied fail-closed';
 const NEWLINE = '\n';
 const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
 const BACKSLASH = '\\';
+const MAX_COMMAND_LENGTH = 131072;
+const COMMAND_TOO_LONG = "craft: command not parseable (longer than the guard's limit) — denied fail-closed";
+const WORK_BUDGET_FACTOR = 16;
+const WORK_EXCEEDED = 'craft: command not parseable (too much nesting work) — denied fail-closed';
 const MAX_NESTING_DEPTH = 8;
 const NESTING_TOO_DEEP = `craft: command not parseable (nesting deeper than ${MAX_NESTING_DEPTH}) — denied fail-closed`;
 const BACKTICK = '`';
@@ -167,20 +206,33 @@ const HEAD_WORDS = new Set([
 ]);
 
 const SHELL_NAMES = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh']);
-const COMMAND_STRING_CLUSTER = /^-[A-Za-z]*c[A-Za-z]*$/;
+const CLUSTER_SHAPE = /^-[A-Za-z]+$/;
+const COMMAND_FLAG = 'c';
 
 const basename = text => text.slice(text.lastIndexOf('/') + 1);
 
 const isOption = ({ text }) => text.startsWith(OPTION_PREFIX);
 
+const isCommandCluster = text => CLUSTER_SHAPE.test(text) && text.includes(COMMAND_FLAG);
+
+const optionRunEnd = (words, from) => {
+  let end = from;
+  while (end < words.length && isOption(words[end])) end += 1;
+  return end;
+};
+
+const hasCommandOption = (words, from, to) => {
+  for (let index = from; index < to; index += 1) {
+    if (isCommandCluster(words[index].text)) return true;
+  }
+  return false;
+};
+
 const shellCommandString = (words, index) => {
   if (!SHELL_NAMES.has(basename(words[index].text))) return null;
-  const rest = words.slice(index + 1);
-  const targetIndex = rest.findIndex(word => !isOption(word));
-  const target = rest[targetIndex];
-  const options = targetIndex === -1 ? rest : rest.slice(0, targetIndex);
-  const hasCommandOption = options.some(word => COMMAND_STRING_CLUSTER.test(word.text));
-  return hasCommandOption && target !== undefined ? target.text : null;
+  const targetIndex = optionRunEnd(words, index + 1);
+  const target = words[targetIndex];
+  return target !== undefined && hasCommandOption(words, index + 1, targetIndex) ? target.text : null;
 };
 
 const UNTERMINATED_SUBSTITUTION =
@@ -216,23 +268,32 @@ const envSplitString = (words, index) => {
   return null;
 };
 
-const asReparser = find =>
-  Object.freeze({ matches: (words, index) => find(words, index) !== null, stringAt: find });
+const REPARSERS = Object.freeze([shellCommandString, evalString, envSplitString]);
 
-const REPARSERS = Object.freeze([
-  asReparser(shellCommandString),
-  asReparser(evalString),
-  asReparser(envSplitString),
-]);
+const stringAt = (words, index) => {
+  for (const find of REPARSERS) {
+    const string = find(words, index);
+    if (string !== null) return string;
+  }
+  return null;
+};
 
-const reparsedStrings = words =>
-  words.flatMap((_, index) =>
-    REPARSERS.filter(({ matches }) => matches(words, index)).map(({ stringAt }) => stringAt(words, index))
-  );
+// An eval string already holds every later word, so re-parsing past the first eval would
+// only repeat that work once per eval word.
+const reparsedStrings = words => {
+  const strings = [];
+  for (let index = 0; index < words.length; index += 1) {
+    const string = stringAt(words, index);
+    if (string !== null) strings.push(string);
+    if (string !== null && words[index].text === EVAL_WORD) break;
+  }
+  return strings;
+};
 
-const createContext = (source, depth = 0) => ({
+const createContext = (source, depth, budget) => ({
   source,
   depth,
+  budget,
   parens: 0,
   dynamic: false,
   index: 0,
@@ -275,8 +336,16 @@ const endWord = context => {
   pushWord(context, word);
 };
 
-const parseNested = (text, depth) => {
-  const child = createContext(text, depth);
+// Bodies are scanned again from their own text; the shared budget caps that repeated work.
+const charge = (context, length) => {
+  context.budget.remaining -= length;
+  if (context.budget.remaining >= 0) return true;
+  fail(context, WORK_EXCEEDED);
+  return false;
+};
+
+const parseNested = (context, text) => {
+  const child = createContext(text, context.depth + 1, context.budget);
   runBody(child, null);
   breakCommand(child);
   return child;
@@ -285,7 +354,8 @@ const parseNested = (text, depth) => {
 const reparse = (context, words) => {
   for (const text of reparsedStrings(words)) {
     if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
-    const child = parseNested(text, context.depth + 1);
+    if (!charge(context, text.length)) return;
+    const child = parseNested(context, text);
     if (child.failure !== null) return fail(context, child.failure);
     context.commands.push(...child.commands);
   }
@@ -409,7 +479,7 @@ const isTooDeep = context => context.depth >= MAX_NESTING_DEPTH;
 const enterConstruct = (context, { openLength, close, settle }) => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
-  const child = createContext(context.source, context.depth + 1);
+  const child = createContext(context.source, context.depth + 1, context.budget);
   child.index = start + openLength;
   const closed = runBody(child, close);
   settle(child);
@@ -433,9 +503,8 @@ const enterBacktick = context => {
   const end = findBacktickEnd(context.source, start + 1);
   if (end === -1) return fail(context, UNTERMINATED_SUBSTITUTION);
   const body = context.source.slice(start + 1, end).replace(BACKTICK_ESCAPES, '$1');
-  const child = createContext(body, context.depth + 1);
-  runBody(child, null);
-  breakCommand(child);
+  if (!charge(context, body.length)) return;
+  const child = parseNested(context, body);
   if (child.failure !== null) return fail(context, child.failure);
   absorb(context, child);
   markExpansion(context, start, end + 1);
@@ -548,7 +617,8 @@ const readHeredocBody = (context, { text, stripTabs }) => {
 };
 
 const scanExpansions = (context, body) => {
-  const scratch = createContext(body, context.depth);
+  if (!charge(context, body.length)) return;
+  const scratch = createContext(body, context.depth, context.budget);
   while (scratch.index < body.length && scratch.failure === null) consumeDoubleQuoted(scratch);
   context.commands.push(...scratch.commands);
   if (scratch.failure !== null) fail(context, scratch.failure);
@@ -639,7 +709,8 @@ const CHAR_HANDLERS = new Map([
 const step = context => (CHAR_HANDLERS.get(context.source[context.index]) ?? onLiteral)(context);
 
 export function parseShellCommands(command) {
-  const context = createContext(command);
+  if (command.length > MAX_COMMAND_LENGTH) return { parsed: false, reason: COMMAND_TOO_LONG };
+  const context = createContext(command, 0, { remaining: command.length * WORK_BUDGET_FACTOR });
   while (context.index < command.length && context.failure === null) step(context);
   breakCommand(context);
   if (context.failure !== null) return { parsed: false, reason: context.failure };
@@ -655,15 +726,14 @@ export const INLINE_ALIAS_REASON =
 
 const isGitWord = word => !word.dynamic && word.text.split(PATH_SEPARATOR).pop() === GIT_COMMAND;
 
-const invocationAfter = (words, index) => ({
-  ...normaliseGitArgv(words.slice(index + 1)),
-  leadingWords: texts(words.slice(0, index)),
-});
+const anchoredAt = (words, index) =>
+  extend(normaliseFrom(words, index + 1), { leadingWords: () => texts(words.slice(0, index)) });
+
+const dynamicHeadInvocation = words => extend(normaliseFrom(words, 1), { leadingWords: () => [] });
 
 const anchoredInvocations = ({ words }) => {
-  const anchors = words.flatMap((word, index) => (isGitWord(word) ? [invocationAfter(words, index)] : []));
-  if (words[0]?.dynamic !== true) return anchors;
-  return [{ ...normaliseGitArgv(words.slice(1)), leadingWords: [] }, ...anchors];
+  const anchors = words.flatMap((word, index) => (isGitWord(word) ? [anchoredAt(words, index)] : []));
+  return words[0]?.dynamic === true ? [dynamicHeadInvocation(words), ...anchors] : anchors;
 };
 
 export function gitInvocations(command) {

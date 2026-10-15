@@ -85,6 +85,16 @@ describe('craft-guard hook — verdict channel', () => {
     assert.match(result.permissionDecisionReason, /destructive git \(push\)/);
   });
 
+  it('Given a long eval chain before a push, when the hook process runs, then it denies well inside the host timeout', () => {
+    const start = performance.now();
+
+    const sut = run(bashPayload('eval '.repeat(16000) + 'x; git push origin main'));
+
+    const result = denialOf(sut);
+    assert.equal(result.permissionDecision, 'deny');
+    assert.ok(performance.now() - start < 5000);
+  });
+
   it('Given a git diff payload without --no-ext-diff, when the hook process runs, then the deny reason names the flag', () => {
     const sut = run(bashPayload('git diff'));
 

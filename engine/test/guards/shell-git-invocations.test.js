@@ -1,5 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
 import { gitInvocations, hasInlineAlias, normaliseGitArgv, parseShellCommands } from '../../src/guards/shell-git-invocations.js';
 
 const dyn = text => ({ text, dynamic: true });
@@ -590,5 +591,83 @@ describe('hasInlineAlias()', () => {
     const result = sut({ kind: 'no-subcommand' });
 
     assert.equal(result, false);
+  });
+});
+
+const REASON_PUSH = 'craft: destructive git (push) is denied in this binding — run it outside the agent';
+const LENGTH_REASON =
+  'craft: command not parseable (longer than the guard\'s limit) — denied fail-closed';
+const MAX_COMMAND_LENGTH = 131072;
+// Far below the host's ~30 s hook timeout yet loose enough for coverage-instrumented CI runs.
+const MAX_ELAPSED_MS = 3000;
+
+const timed = work => {
+  const start = performance.now();
+  const result = work();
+  return { result, elapsed: performance.now() - start };
+};
+
+describe('shell parsing — bounded work', () => {
+  it('Given many git words before a push, when checked, then blocks with the push reason in bounded time', () => {
+    const sut = gitDestructivePredicate;
+
+    const { result, elapsed } = timed(() => sut('echo ' + 'git '.repeat(25000) + '; git push'));
+
+    assert.deepEqual(result, { block: true, reason: REASON_PUSH });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long run of global flags before the subcommand, when normalised, then it finishes in bounded time', () => {
+    const sut = normaliseGitArgv;
+    const words = [...Array(15000).fill('--no-pager'), 'status'];
+
+    const { result, elapsed } = timed(() => sut(words));
+
+    assert.equal(result.subcommand, 'status');
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long run of global flags in a command, when checked, then it finishes in bounded time', () => {
+    const sut = gitInvocations;
+
+    const { result, elapsed } = timed(() => sut('git ' + '--no-pager '.repeat(11000) + 'status'));
+
+    assert.equal(result.invocations[0].subcommand, 'status');
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a chain of eval words before a push, when checked, then blocks in bounded time', () => {
+    const sut = gitDestructivePredicate;
+
+    const { result, elapsed } = timed(() => sut('eval '.repeat(16000) + 'x; git push origin main'));
+
+    assert.equal(result.block, true);
+    assert.match(result.reason, /^craft: /);
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long shell option cluster that is not a command string, when checked, then blocks the push in bounded time', () => {
+    const sut = gitDestructivePredicate;
+
+    const { result, elapsed } = timed(() => sut('sh -' + 'c'.repeat(100000) + '! x; git push'));
+
+    assert.deepEqual(result, { block: true, reason: REASON_PUSH });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a command longer than the limit, when parsed, then it is unparsed with the length reason', () => {
+    const sut = parseShellCommands;
+
+    const result = sut('a'.repeat(MAX_COMMAND_LENGTH + 1));
+
+    assert.deepEqual(result, { parsed: false, reason: LENGTH_REASON });
+  });
+
+  it('Given a command exactly at the limit, when parsed, then it is parsed', () => {
+    const sut = parseShellCommands;
+
+    const result = sut('a'.repeat(MAX_COMMAND_LENGTH));
+
+    assert.equal(result.parsed, true);
   });
 });
