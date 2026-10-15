@@ -8,10 +8,14 @@ import { normaliseGitArgv, gitInvocations } from '../../src/guards/shell-git-inv
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
 import { gitExtDiffPredicate } from '../../src/guards/git-ext-diff-predicate.js';
 
-const SEED = 20260;
-const CAP = 400;
-const LEG_B_CAP = 150;
+// Maintainers can scale the fuzz on demand: GUARD_FUZZ_SEEDS=1,2,3 (comma list) and GUARD_FUZZ_COUNT=2000 override these defaults, which keep CI under five seconds.
+const parseSeeds = text => text.split(',').map(Number);
+const SEEDS = Object.freeze(process.env.GUARD_FUZZ_SEEDS ? parseSeeds(process.env.GUARD_FUZZ_SEEDS) : [20260]);
+const CAP = Number(process.env.GUARD_FUZZ_COUNT ?? 400);
+const LEG_B_SHARE = 0.375;
+const LEG_B_CAP = Math.round(CAP * LEG_B_SHARE);
 const INVOKED_FLOOR = CAP / 2;
+const RESIDUAL_MARKER = 'residual-marker';
 const POOL_SIZE = 8;
 const SPAWN_TIMEOUT_MS = 5_000;
 const FUZZ_TIMEOUT_MS = 60_000;
@@ -108,6 +112,8 @@ const VERBS = Object.freeze([
   ['push', ''], ['push', 'origin main'], ['reset', '--hard'], ['reset', '--soft'], ['reset', ''], ['clean', '-fd'], ['clean', '-n'],
   ['clean', '-fdn'], ['branch', '-D x'], ['branch', '-d x'], ['branch', '-d -f x'], ['branch', '--delete --force x'], ['diff', ''],
   ['diff', '--no-ext-diff'], ['show', ''], ['show', '--no-ext-diff HEAD'], ['status', ''], ['log', '-1'],
+  ['reset', '--har'], ['clean', '--dry'], ['clean', '-fd --no-d'], ['branch', '--del --forc x'],
+  ['diff', '--no-ext-diff --ext-diff'], ['show', '--ext-diff --no-ext-diff'],
 ]);
 const EXTRA_ARGS = Object.freeze(['', '', '', 'x', '\\"', "\\'", "$'ab'", '"a b"', "'a b'", '--', '-q']);
 const COMMENT_SUFFIXES = Object.freeze(['', '', '', '', ' # git push', ' # git reset --hard']);
@@ -194,9 +200,9 @@ const SPECIALS = Object.freeze([
   fragment("echo $'hello'"),
   fragment('ls *.md'),
   fragment("bash -lc 'git status'"),
-  fragment('echo push | xargs git', { tags: [TAGS.residual] }),
-  fragment("echo 'git push' | sh", { tags: [TAGS.residual] }),
-  fragment("printf 'git reset --hard\\n' | bash", { tags: [TAGS.residual] }),
+  fragment(`echo push ${RESIDUAL_MARKER} | xargs git`, { tags: [TAGS.residual] }),
+  fragment(`echo 'git push ${RESIDUAL_MARKER}' | sh`, { tags: [TAGS.residual] }),
+  fragment(`printf 'git reset --hard ${RESIDUAL_MARKER}\\n' | bash`, { tags: [TAGS.residual] }),
 ]);
 
 // ---------------------------------------------------------------- composers
@@ -216,7 +222,7 @@ function sequence(generator, rng, depth) {
 const GROUPERS = Object.freeze([
   inner => fragment(`( ${closed(inner, ')')}`, { tags: inner.tags, status: inner.status }),
   inner => fragment(`{ ${closed(inner, '; }')}`, { tags: inner.tags, status: inner.status }),
-  inner => fragment(`! ${inner.text}`, { ...inner, status: inner.status === 0 ? 1 : 0, keywordLed: true }),
+  inner => fragment(`! { ${closed(inner, '; }')}`, { ...inner, status: inner.status === 0 ? 1 : 0, keywordLed: true }),
   inner => fragment(`time ${inner.text}`, { ...inner, keywordLed: true }),
   inner => fragment(`if true; then ${closed(inner, '; fi')}`, { tags: inner.tags, status: inner.status }),
   inner => fragment(`case x in (x) ${closed(inner, ';; esac')}`, { tags: inner.tags, status: inner.status }),
@@ -360,27 +366,102 @@ function runInShell(shell, command, tree, index) {
   });
 }
 
-const blocks = command => gitDestructivePredicate(command).block || gitExtDiffPredicate(command).block;
+// ---- independent argv-level judge: no shell parsing, no predicate code, a deliberately minimal verb table.
 
-const respelled = argv => `git ${argv.map(singleQuote).join(' ')}`;
+const ARGV_END = '--';
+const HARD_OPTION = '--hard';
+const hasOptionPrefix = (word, option) => word.length >= '--h'.length && word.startsWith('--') && option.startsWith(word);
+const beforeEnd = args => (args.includes(ARGV_END) ? args.slice(0, args.indexOf(ARGV_END)) : args);
+const clusterOf = word => (/^-[A-Za-z]+$/.test(word) ? word.slice(1) : '');
+const clusterHas = (args, letter) => args.some(word => clusterOf(word).includes(letter));
+const prefixHas = (args, option) => args.some(word => hasOptionPrefix(word, option));
 
-const oracleBlocks = argvs => argvs.some(argv => blocks(respelled(argv)));
+function cleanRuns(args) {
+  let dry = false;
+  let valueNext = false;
+  for (const word of args) {
+    if (valueNext) {
+      valueNext = false;
+      continue;
+    }
+    if (word.length >= '--no-d'.length && '--no-dry-run'.startsWith(word)) dry = false;
+    else if (word.length >= '--dry'.length && '--dry-run'.startsWith(word)) dry = true;
+    else if (hasOptionPrefix(word, '--exclude')) valueNext = true;
+    else if (clusterOf(word) !== '') {
+      const letters = clusterOf(word);
+      const cut = letters.indexOf('e');
+      const flags = cut === -1 ? letters : letters.slice(0, cut);
+      if (flags.includes('n')) dry = true;
+      valueNext = cut === letters.length - 1;
+    }
+  }
+  return !dry;
+}
+
+function branchDeletesHard(args) {
+  const deletes = clusterHas(args, 'd') || prefixHas(args, '--delete');
+  const forces = clusterHas(args, 'f') || prefixHas(args, '--force');
+  return clusterHas(args, 'D') || (deletes && forces);
+}
+
+const DESTRUCTIVE_VERBS = Object.freeze({
+  push: () => true,
+  reset: args => args.some(word => hasOptionPrefix(word, HARD_OPTION)),
+  clean: cleanRuns,
+  branch: branchDeletesHard,
+});
+const SNIFFED = Object.keys(DESTRUCTIVE_VERBS);
+const CONFIG_KEY = /^(alias\..*|include\.path|includeif\..*)$/;
+
+const injectsConfigKey = normalised => normalised.kind === 'subcommand' && normalised.configKeys.some(key => CONFIG_KEY.test(key));
+
+function lastExtDiffSetting(args) {
+  return beforeEnd(args).findLast(word => word === '--ext-diff' || word === '--no-ext-diff');
+}
+
+function judgeArgv(argv) {
+  const normalised = normaliseGitArgv(argv);
+  const configured = injectsConfigKey(normalised);
+  if (normalised.kind === 'refused') return { destructive: SNIFFED.some(verb => normalised.rest.includes(verb)), extDiff: false };
+  if (normalised.kind !== 'subcommand') return { destructive: false, extDiff: false };
+  const args = beforeEnd(normalised.args);
+  const destructive = DESTRUCTIVE_VERBS[normalised.subcommand]?.(args) ?? false;
+  const diffs = normalised.subcommand === 'diff' || normalised.subcommand === 'show';
+  return { destructive: configured || destructive, extDiff: configured || (diffs && lastExtDiffSetting(args) !== '--no-ext-diff') };
+}
+
+const survivingArgvs = argvs => argvs.filter(argv => !argv.includes(RESIDUAL_MARKER));
+
+const oracleVerdict = argvs =>
+  survivingArgvs(argvs).map(judgeArgv).reduce(
+    (total, one) => ({ destructive: total.destructive || one.destructive, extDiff: total.extDiff || one.extDiff }),
+    { destructive: false, extDiff: false }
+  );
+
+const predicateVerdict = command => ({ destructive: gitDestructivePredicate(command).block, extDiff: gitExtDiffPredicate(command).block });
+
+// A false block is judged on the union: an indeterminate command is denied fail-closed by both predicates.
+const anyBlocks = verdict => verdict.destructive || verdict.extDiff;
 
 function problemsOf(entry, run) {
   const problems = [];
-  const predicate = blocks(entry.text);
-  const oracle = oracleBlocks(run.argvs);
+  const predicate = predicateVerdict(entry.text);
+  const oracle = oracleVerdict(run.argvs);
   const tagged = tag => entry.tags.includes(tag);
+  const falseAllows = ['destructive', 'extDiff'].filter(kind => oracle[kind] && !predicate[kind]);
+  const falseBlock = anyBlocks(predicate) && !anyBlocks(oracle);
   if (run.signal !== null) problems.push(`shell was killed (${run.signal})`);
   if (SYNTAX_ERROR.test(run.stderr) && !tagged(TAGS.unterminated)) problems.push(`generator emitted invalid shell: ${run.stderr.trim().replaceAll('\n', ' / ')}`);
-  if (oracle && !predicate && !tagged(TAGS.residual)) problems.push('FALSE ALLOW: bash ran a blocked git argv and the predicate allowed it');
+  if (falseAllows.length > 0) problems.push(`FALSE ALLOW (${falseAllows.join(', ')}): bash ran a blocked git argv and the predicate allowed it`);
   if (!gitInvocations(entry.text).parsed && !PARSE_FAILURE_TAGS.some(tagged)) problems.push('parsed:false on a command that is not unterminated or over-nested');
-  if (predicate && !oracle && !SHELL_REJECTED.test(run.stderr) && !FALSE_BLOCK_TAGS.some(tagged)) problems.push('unexpected false block (no intended-false-block class)');
+  if (falseBlock && !SHELL_REJECTED.test(run.stderr) && !FALSE_BLOCK_TAGS.some(tagged)) problems.push('unexpected false block (no intended-false-block class)');
   return problems;
 }
 
 function judgeRun(entry, run) {
-  const falseBlock = blocks(entry.text) && !oracleBlocks(run.argvs);
+  const predicate = predicateVerdict(entry.text);
+  const oracle = oracleVerdict(run.argvs);
+  const falseBlock = anyBlocks(predicate) && !anyBlocks(oracle);
   return {
     problems: problemsOf(entry, run),
     invoked: run.argvs.length > 0,
@@ -506,66 +587,99 @@ function secondBash() {
   return null;
 }
 
-const COMMANDS = generateCommands(SEED, CAP);
+const COMMANDS_BY_SEED = SEEDS.map(seed => ({ seed, commands: generateCommands(seed, CAP) }));
 const SECOND_BASH = secondBash();
 
+describe('shell-git-invocations — Leg B comparison rule', () => {
+  const subcommand = name => ({ kind: 'subcommand', subcommand: name });
+  const rows = [
+    ['agree on the subcommand, strict', subcommand('rev-parse'), subcommand('rev-parse'), true, null],
+    ['disagree on the subcommand, strict', subcommand('rev-parse'), subcommand('push'), true, 'normaliser disagrees with git'],
+    ['disagree on the subcommand, unsafe-direction', subcommand('rev-parse'), subcommand('push'), false, 'git ran a subcommand the normaliser did not report'],
+    ['agree on refused, strict', { kind: 'refused' }, { kind: 'refused' }, true, null],
+    ['git refused but the normaliser reports a subcommand, strict', { kind: 'refused' }, subcommand('rev-parse'), true, 'normaliser disagrees with git'],
+    ['git refused but the normaliser reports a subcommand, unsafe-direction', { kind: 'refused' }, subcommand('rev-parse'), false, null],
+    ['git ran a subcommand the normaliser refused, strict', subcommand('rev-parse'), { kind: 'refused' }, true, 'normaliser disagrees with git'],
+    ['git ran a subcommand the normaliser refused, unsafe-direction', subcommand('rev-parse'), { kind: 'refused' }, false, 'git ran a subcommand the normaliser did not report'],
+    ['agree on no-subcommand, strict', { kind: 'no-subcommand' }, { kind: 'no-subcommand' }, true, null],
+    ['git ran nothing but the normaliser reports a subcommand, strict', { kind: 'no-subcommand' }, subcommand('push'), true, 'normaliser disagrees with git'],
+    ['git ran nothing but the normaliser reports a subcommand, unsafe-direction', { kind: 'no-subcommand' }, subcommand('push'), false, null],
+    ['git ran a subcommand the normaliser found none for, strict', subcommand('rev-parse'), { kind: 'no-subcommand' }, true, 'normaliser disagrees with git'],
+    ['git died, strict', { kind: 'died' }, subcommand('push'), true, null],
+    ['git died, unsafe-direction', { kind: 'died' }, { kind: 'refused' }, false, null],
+  ];
+  for (const [name, git, normalised, strict, expected] of rows) {
+    it(`Given ${name}, when compared, then the verdict is ${expected ?? 'agreement'}`, () => {
+      const sut = legBProblem;
+
+      const result = sut(git, normalised, strict);
+
+      assert.equal(result, expected);
+    });
+  }
+});
+
 describe('shell-git-invocations — differential fuzz against bash and git', { concurrency: true }, () => {
-  it('Given the fixed seed, when the commands are generated twice, then both lists are identical', () => {
+  it('Given the fixed seeds, when the commands are generated twice, then both lists are identical', () => {
     const sut = generateCommands;
 
-    const result = sut(SEED, CAP).map(entry => entry.text);
+    for (const { seed, commands } of COMMANDS_BY_SEED) {
+      const result = sut(seed, CAP).map(entry => entry.text);
 
-    assert.deepEqual(result, COMMANDS.map(entry => entry.text));
-    assert.equal(result.length, CAP);
+      assert.deepEqual(result, commands.map(entry => entry.text));
+      assert.equal(result.length, CAP);
+    }
   });
 
   it('Given the generated commands, when their tags are counted, then every false-block class and the residual class is reached', () => {
-    const sut = COMMANDS;
+    const sut = COMMANDS_BY_SEED.flatMap(({ commands }) => commands);
 
     const result = countBy(sut.flatMap(entry => entry.tags));
 
     for (const tag of Object.values(TAGS)) assert.ok((result[tag] ?? 0) > 0, `generator never reached ${tag}`);
   });
 
-  for (const [name, shell] of [['/bin/bash', SANITY_BASH], ['the first bash >= 5 on PATH', SECOND_BASH]]) {
+  for (const { seed, commands } of COMMANDS_BY_SEED) {
+    for (const [name, shell] of [['/bin/bash', SANITY_BASH], ['the first bash >= 5 on PATH', SECOND_BASH]]) {
+      it(
+        `Given every command of seed ${seed}, when ${name} runs it against a stub git, then the predicates never allow what bash ran`,
+        { timeout: FUZZ_TIMEOUT_MS, skip: shell === null ? 'no second bash >= 5 on PATH' : false },
+        async t => {
+          const sut = fuzzShell;
+
+          const result = await sut(shell, commands);
+
+          const invoked = result.filter(verdict => verdict.invoked).length;
+          t.diagnostic(`generated ${commands.length}, invoked ${invoked}, false blocks ${JSON.stringify(countBy(result.flatMap(verdict => verdict.falseBlockTags)))}`);
+          const report = failureReport(commands, result);
+          assert.ok(report === '', `\n${report}`);
+          assert.ok(invoked >= INVOKED_FLOOR, `only ${invoked} commands logged a git argv`);
+        }
+      );
+    }
+
     it(
-      `Given every generated command, when ${name} runs it against a stub git, then the predicates never allow what bash ran`,
-      { timeout: FUZZ_TIMEOUT_MS, skip: shell === null ? 'no second bash >= 5 on PATH' : false },
+      `Given random sequences of git global options from seed ${seed}, when real git traces them, then the normaliser never misses the subcommand git ran`,
+      { timeout: FUZZ_TIMEOUT_MS },
       async t => {
-        const sut = fuzzShell;
+        const gitPath = findOnPath('git');
+        const strict = STRICT_GIT_VERSION.test(execFileSync(gitPath, ['--version'], { encoding: 'utf8' }));
+        const sequences = legBSequences(seed, LEG_B_CAP);
 
-        const result = await sut(shell, COMMANDS);
+        const outcomes = await withTree(async tree => {
+          const env = makeRepo(gitPath, tree);
+          return mapPool(sequences, async argv => ({ argv, git: await runGit(gitPath, argv, tree, env) }));
+        });
 
-        const invoked = result.filter(verdict => verdict.invoked).length;
-        t.diagnostic(`generated ${COMMANDS.length}, invoked ${invoked}, false blocks ${JSON.stringify(countBy(result.flatMap(verdict => verdict.falseBlockTags)))}`);
-        const report = failureReport(COMMANDS, result);
-        assert.ok(report === '', `\n${report}`);
-        assert.ok(invoked >= INVOKED_FLOOR, `only ${invoked} commands logged a git argv`);
+        const problems = outcomes
+          .map(({ argv, git }) => ({ argv, problem: legBProblem(git, normaliseGitArgv(argv), strict) }))
+          .filter(({ problem }) => problem !== null)
+          .map(({ argv, problem }) => `${problem}: git ${JSON.stringify(argv)}`);
+        t.diagnostic(`strict ${strict}, git outcomes ${JSON.stringify(countBy(outcomes.map(({ git }) => git.kind)))}`);
+        assert.deepEqual(problems, []);
+        const kinds = new Set(outcomes.map(({ git }) => git.kind));
+        for (const kind of ['subcommand', 'refused', 'no-subcommand']) assert.ok(kinds.has(kind), `Leg B never reached ${kind}`);
       }
     );
   }
-
-  it(
-    'Given random sequences of git global options, when real git traces them, then the normaliser never misses the subcommand git ran',
-    { timeout: FUZZ_TIMEOUT_MS },
-    async t => {
-      const gitPath = findOnPath('git');
-      const strict = STRICT_GIT_VERSION.test(execFileSync(gitPath, ['--version'], { encoding: 'utf8' }));
-      const sequences = legBSequences(SEED, LEG_B_CAP);
-
-      const outcomes = await withTree(async tree => {
-        const env = makeRepo(gitPath, tree);
-        return mapPool(sequences, async argv => ({ argv, git: await runGit(gitPath, argv, tree, env) }));
-      });
-
-      const problems = outcomes
-        .map(({ argv, git }) => ({ argv, problem: legBProblem(git, normaliseGitArgv(argv), strict) }))
-        .filter(({ problem }) => problem !== null)
-        .map(({ argv, problem }) => `${problem}: git ${JSON.stringify(argv)}`);
-      t.diagnostic(`strict ${strict}, git outcomes ${JSON.stringify(countBy(outcomes.map(({ git }) => git.kind)))}`);
-      assert.deepEqual(problems, []);
-      const kinds = new Set(outcomes.map(({ git }) => git.kind));
-      for (const kind of ['subcommand', 'refused', 'no-subcommand']) assert.ok(kinds.has(kind), `Leg B never reached ${kind}`);
-    }
-  );
 });
