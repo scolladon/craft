@@ -1,4 +1,6 @@
 /** @typedef {{ text: string, dynamic: boolean }} ShellWord
+ *  @typedef {{ words: ShellWord[] }} SimpleCommand
+ *  @typedef {{ parsed: true, commands: SimpleCommand[] } | { parsed: false, reason: string }} ParseResult
  *  @typedef {{ kind: 'subcommand', subcommand: string, args: string[], configKeys: string[], dynamicArgCount: number }
  *         | { kind: 'refused', option: string, rest: string[] }
  *         | { kind: 'indeterminate', rest: string[] }
@@ -113,4 +115,212 @@ export function normaliseGitArgv(words) {
     return subcommandResult(text, tail, configKeys);
   }
   return NO_SUBCOMMAND;
+}
+
+const UNTERMINATED_QUOTE = 'craft: command not parseable (unterminated quote) — denied fail-closed';
+const NEWLINE = '\n';
+const SINGLE_QUOTE = "'";
+const DOUBLE_QUOTE = '"';
+const BACKSLASH = '\\';
+const DOUBLE_QUOTE_ESCAPABLE = Object.freeze(['$', '`', DOUBLE_QUOTE, BACKSLASH]);
+const REDIRECT_SUFFIXES = Object.freeze(['>', '&', '|']);
+const FILE_DESCRIPTOR = /^\d+$/;
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const TIME_KEYWORD = 'time';
+const TIME_FORMAT_FLAG = '-p';
+const HEAD_WORDS = new Set([
+  '{',
+  '}',
+  '!',
+  TIME_KEYWORD,
+  'if',
+  'then',
+  'elif',
+  'else',
+  'fi',
+  'do',
+  'done',
+  'while',
+  'until',
+  'case',
+  'esac',
+  'coproc',
+]);
+
+const createContext = source => ({
+  source,
+  index: 0,
+  commands: [],
+  words: [],
+  piece: null,
+  redirecting: false,
+  timing: false,
+  failure: null,
+});
+
+const append = (context, text) => {
+  context.piece = (context.piece ?? '') + text;
+};
+
+const isHeadWord = (context, text) =>
+  context.words.length === 0 &&
+  (HEAD_WORDS.has(text) ||
+    ASSIGNMENT.test(text) ||
+    (context.timing && text === TIME_FORMAT_FLAG));
+
+const pushWord = (context, text) => {
+  if (!isHeadWord(context, text)) {
+    context.words.push({ text, dynamic: false });
+    return;
+  }
+  context.timing = text === TIME_KEYWORD;
+};
+
+const endWord = context => {
+  if (context.piece === null) return;
+  const text = context.piece;
+  context.piece = null;
+  if (context.redirecting) {
+    context.redirecting = false;
+    return;
+  }
+  pushWord(context, text);
+};
+
+const breakCommand = context => {
+  endWord(context);
+  if (context.words.length > 0) context.commands.push({ words: context.words });
+  context.words = [];
+  context.redirecting = false;
+  context.timing = false;
+};
+
+const fail = (context, reason) => {
+  context.failure = reason;
+};
+
+const onLiteral = context => {
+  append(context, context.source[context.index]);
+  context.index += 1;
+};
+
+const onWhitespace = context => {
+  endWord(context);
+  context.index += 1;
+};
+
+const onBreak = context => {
+  breakCommand(context);
+  context.index += 1;
+};
+
+const onBackslash = context => {
+  const next = context.source[context.index + 1];
+  if (next === undefined) return onLiteral(context);
+  if (next !== NEWLINE) append(context, next);
+  context.index += 2;
+};
+
+const onSingleQuote = context => {
+  const close = context.source.indexOf(SINGLE_QUOTE, context.index + 1);
+  if (close === -1) return fail(context, UNTERMINATED_QUOTE);
+  append(context, context.source.slice(context.index + 1, close));
+  context.index = close + 1;
+};
+
+const consumeDoubleQuoted = context => {
+  const next = context.source[context.index + 1];
+  if (context.source[context.index] !== BACKSLASH) return onLiteral(context);
+  if (next === NEWLINE) context.index += 2;
+  else if (DOUBLE_QUOTE_ESCAPABLE.includes(next)) onBackslash(context);
+  else onLiteral(context);
+};
+
+const onDoubleQuote = context => {
+  append(context, '');
+  context.index += 1;
+  while (context.index < context.source.length) {
+    if (context.source[context.index] === DOUBLE_QUOTE) {
+      context.index += 1;
+      return;
+    }
+    consumeDoubleQuoted(context);
+  }
+  fail(context, UNTERMINATED_QUOTE);
+};
+
+const readAnsiC = context => {
+  append(context, '');
+  context.index += 2;
+  while (context.index < context.source.length) {
+    if (context.source[context.index] === SINGLE_QUOTE) {
+      context.index += 1;
+      return;
+    }
+    onBackslashOrLiteral(context);
+  }
+  fail(context, UNTERMINATED_QUOTE);
+};
+
+const onBackslashOrLiteral = context =>
+  context.source[context.index] === BACKSLASH && context.source[context.index + 1] !== undefined
+    ? onEscapedChar(context)
+    : onLiteral(context);
+
+const onEscapedChar = context => {
+  append(context, context.source[context.index + 1]);
+  context.index += 2;
+};
+
+const onDollar = context =>
+  context.source[context.index + 1] === SINGLE_QUOTE ? readAnsiC(context) : onLiteral(context);
+
+const onHash = context => {
+  if (context.piece !== null) return onLiteral(context);
+  const lineEnd = context.source.indexOf(NEWLINE, context.index);
+  context.index = lineEnd === -1 ? context.source.length : lineEnd;
+};
+
+const onRedirect = context => {
+  if (FILE_DESCRIPTOR.test(context.piece ?? '')) context.piece = null;
+  endWord(context);
+  context.index += 1;
+  if (REDIRECT_SUFFIXES.includes(context.source[context.index])) context.index += 1;
+  context.redirecting = true;
+};
+
+const onAmpersand = context =>
+  context.source[context.index + 1] === '>' ? onAmpersandRedirect(context) : onBreak(context);
+
+const onAmpersandRedirect = context => {
+  context.index += 1;
+  onRedirect(context);
+};
+
+const CHAR_HANDLERS = new Map([
+  [' ', onWhitespace],
+  ['\t', onWhitespace],
+  [NEWLINE, onBreak],
+  [';', onBreak],
+  ['|', onBreak],
+  ['(', onBreak],
+  [')', onBreak],
+  ['&', onAmpersand],
+  ['<', onRedirect],
+  ['>', onRedirect],
+  ['#', onHash],
+  ['$', onDollar],
+  [BACKSLASH, onBackslash],
+  [SINGLE_QUOTE, onSingleQuote],
+  [DOUBLE_QUOTE, onDoubleQuote],
+]);
+
+const step = context => (CHAR_HANDLERS.get(context.source[context.index]) ?? onLiteral)(context);
+
+export function parseShellCommands(command) {
+  const context = createContext(command);
+  while (context.index < command.length && context.failure === null) step(context);
+  if (context.failure !== null) return { parsed: false, reason: context.failure };
+  breakCommand(context);
+  return { parsed: true, commands: context.commands };
 }

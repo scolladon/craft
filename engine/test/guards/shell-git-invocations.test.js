@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseGitArgv } from '../../src/guards/shell-git-invocations.js';
+import { normaliseGitArgv, parseShellCommands } from '../../src/guards/shell-git-invocations.js';
 
 const dyn = text => ({ text, dynamic: true });
 
@@ -196,4 +196,121 @@ describe('normaliseGitArgv() — dynamic words', () => {
 
     assert.deepEqual(result, { kind: 'indeterminate', rest: ['$SUB'] });
   });
+});
+
+const word = text => ({ text, dynamic: false });
+const cmd = (...texts) => ({ words: texts.map(word) });
+const parsed = (...commands) => ({ parsed: true, commands });
+const UNTERMINATED_QUOTE =
+  'craft: command not parseable (unterminated quote) — denied fail-closed';
+
+const assertParses = rows => {
+  for (const [input, expected] of rows) {
+    it(`Given ${JSON.stringify(input)}, When parsed, Then the simple commands are ${JSON.stringify(expected)}`, () => {
+      const sut = parseShellCommands;
+
+      const result = sut(input);
+
+      assert.deepEqual(result, parsed(...expected.map(texts => cmd(...texts))));
+    });
+  }
+};
+
+describe('parseShellCommands() — command breaks', () => {
+  assertParses([
+    ['git -C x diff; ls', [['git', '-C', 'x', 'diff'], ['ls']]],
+    ['a && b || c', [['a'], ['b'], ['c']]],
+    ['a | b |& c', [['a'], ['b'], ['c']]],
+    ['a & b', [['a'], ['b']]],
+    ['a\nb', [['a'], ['b']]],
+    ['(git diff)', [['git', 'diff']]],
+    ['', []],
+    ['  ', []],
+  ]);
+});
+
+describe('parseShellCommands() — quoting and escapes', () => {
+  assertParses([
+    ["git -C '/a & b' diff", [['git', '-C', '/a & b', 'diff']]],
+    ['git -C "/a;b" diff', [['git', '-C', '/a;b', 'diff']]],
+    ['echo \\"; git diff', [['echo', '"'], ['git', 'diff']]],
+    ["echo \\'; git diff", [['echo', "'"], ['git', 'diff']]],
+    ["echo $'a\\'b'; git diff", [['echo', "a'b"], ['git', 'diff']]],
+    ['"git" diff', [['git', 'diff']]],
+    ["'git' diff", [['git', 'diff']]],
+    ['g\\it diff', [['git', 'diff']]],
+    ['git "diff"', [['git', 'diff']]],
+    ['git di""ff', [['git', 'diff']]],
+    ['git \\\n diff', [['git', 'diff']]],
+    ['echo "a\\$b\\x"', [['echo', 'a$b\\x']]],
+  ]);
+});
+
+describe('parseShellCommands() — comments', () => {
+  assertParses([
+    ['git diff HEAD #--no-ext-diff', [['git', 'diff', 'HEAD']]],
+    ['echo a#b', [['echo', 'a#b']]],
+    ["git -c c='#0f0' diff", [['git', '-c', 'c=#0f0', 'diff']]],
+    ['# only a comment', []],
+    ['# c\ngit diff', [['git', 'diff']]],
+  ]);
+});
+
+describe('parseShellCommands() — head words', () => {
+  const gitDiff = ['git', 'diff'];
+  for (const input of [
+    'FOO=1 git diff',
+    'FOO=1 BAR=2 git diff',
+    '! git diff',
+    'time git diff',
+    'time -p git diff',
+    '{ git diff; }',
+    'if true; then git diff; fi',
+    'while false; do git diff; done',
+    'f(){ git diff; }; f',
+    'case x in x) git diff;; esac',
+  ]) {
+    it(`Given ${JSON.stringify(input)}, When parsed, Then git diff is a command without head words`, () => {
+      const sut = parseShellCommands;
+
+      const result = sut(input);
+
+      assert.deepEqual(
+        result.commands.filter(command => command.words.some(w => w.text === 'git')),
+        [cmd(...gitDiff)]
+      );
+    });
+  }
+
+  assertParses([
+    ['git -c a=b diff', [['git', '-c', 'a=b', 'diff']]],
+    ['echo FOO=1', [['echo', 'FOO=1']]],
+  ]);
+});
+
+describe('parseShellCommands() — redirections', () => {
+  assertParses([
+    ['git diff > out.txt', [['git', 'diff']]],
+    ['git diff >out.txt', [['git', 'diff']]],
+    ['git diff 2>&1', [['git', 'diff']]],
+    ['git diff &>/dev/null', [['git', 'diff']]],
+    ['git diff >| f', [['git', 'diff']]],
+    ['git diff <> f', [['git', 'diff']]],
+    ['git diff >> f', [['git', 'diff']]],
+    ['cat < in.txt', [['cat']]],
+    ['>out git diff', [['git', 'diff']]],
+    ['echo a>b c', [['echo', 'a', 'c']]],
+  ]);
+});
+
+describe('parseShellCommands() — unterminated quotes', () => {
+  for (const input of ['echo "x', "echo 'x", "echo $'x", 'echo "x\\']) {
+    it(`Given ${JSON.stringify(input)}, When parsed, Then it is not parseable`, () => {
+      const sut = parseShellCommands;
+
+      const result = sut(input);
+
+      assert.deepEqual(result, { parsed: false, reason: UNTERMINATED_QUOTE });
+    });
+  }
 });
