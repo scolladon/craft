@@ -7,9 +7,13 @@ supersedes: []
 ---
 # 581 — An unknown git global option is judged by verb sniffing
 
-- **Status:** accepted
+- **Status:** superseded by ADR-593
 - **Date:** 2026-10-15
 - **Design:** docs/contributing/design/copilot-git-argv-normalising-guard.md
+
+> **Superseded by ADR-593** for `indeterminate` invocations only: verb sniffing cannot see a verb
+> carried by the variable (`P=push; git $P HEAD`), so every indeterminate invocation now blocks. The
+> `refused` rule below stands.
 
 ## Context
 
