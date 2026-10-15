@@ -168,10 +168,28 @@ was denied (file absent) and `git diff --no-ext-diff HEAD~1 > f` executed.
 **Plain-command gate.** First stage of the hook. When a command mentions git, it must be plain:
 literal or quoted words; `;`, `&&`, `||`, `|`, `&` and newline separators; literal output redirects;
 none of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wrapper in command
-position; no `GIT_CONFIG_`. craft's `"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Otherwise the
+position; no `GIT_CONFIG_`; see the near-git rules below. craft's `"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Otherwise the
 hook denies with `craft: command too complex to verify near git — spell it plainly`; the remedy is
 to re-issue the git part plainly. On macOS `/bin/bash` 3.2 an apostrophe inside the commit-idiom
 body fails bash's own parse (hook allows; bash syntax error) — a bash limitation, not the guard.
+
+**Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
+
+- `-c <key>=…` and `--config-env=<key>=…` keys must be in a safe set: `user.name`, `user.email`,
+  `commit.gpgsign`, `tag.gpgsign`, `core.quotepath`, `color.ui`, `init.defaultbranch`,
+  `format.pretty`, `diff.noprefix`, any `color.*`, `advice.*` or `log.*`, and `pager.<cmd>=false`.
+  Any other key denies: git runs the value of keys such as `core.fsmonitor`, `core.sshCommand`,
+  `credential.helper` and `core.pager` (proven with real git).
+- Any `GIT_<NAME>=` assignment near git denies, for the same reason.
+- Shells anywhere: `sh bash zsh dash ksh fish csh tcsh mksh yash busybox eval` deny at **any** word
+  position (an unlisted wrapper such as `caffeinate` or `stdbuf` could otherwise put a shell out of
+  command position), while `env exec command nohup time sudo nice timeout xargs source . trap hash
+  builtin enable fc coproc alias` deny in command position.
+
+**Guard modules.** The guard logic lives in `engine/src/guards/`: `shell-tokeniser.js` (bash
+tokeniser), `git-argv.js` (git global-option normaliser), `shell-git-invocations.js` (anchoring and
+judging), `git-plain-command-gate.js` (the copilot gate), `git-destructive-predicate.js` and
+`git-ext-diff-predicate.js`.
 
 **Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
 (`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s timeout
@@ -208,7 +226,7 @@ by the gate; the commit idiom executed; a forced deadline denied.
 - Closed, not a residual: cross-call shell state. A function or variable defined in one `bash` call
   was not visible in the next, even with a reused `shellId`, and only `bash` executes shell text
   (`read_bash`, `stop_bash`, `list_bash` cannot inject input) — 1.0.92 and 1.0.98.
-- Intended false blocks, each costing one re-issue with a literal command: `bash -c 'git status'`;
+- Intended false blocks, each costing one re-issue with a literal command: `git commit -c <rev>` (read as an unsafe `-c` key); `git add scripts/sh`; `bash -c 'git status'`;
   `git commit -m "it's $HOME"`; `git log # c`; `git diff > o < i`; `echo git push` and
   `ls /x/git push` (any-word anchoring); a dynamic command head; a dynamic word at git's option or
   subcommand position (`git $OPTS status`); a dynamic `reset`/`branch` argument (`git reset $SHA`);

@@ -67,11 +67,25 @@ craft's git-guard binds to Copilot as three layers, all of which enforce on copi
 **The plain-command gate.** When a command mentions git, it must be plain: literal or quoted words;
 `;`, `&&`, `||`, `|`, `&` and newline separators; literal output redirects (`> file`, `2>&1`); none
 of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wrapper in command
-position (`bash -c`, `eval`, `env`, `xargs`, `nohup`, `source`, …); no `GIT_CONFIG_`. craft's
+position (`bash -c`, `eval`, `env`, `xargs`, `nohup`, `source`, …); no `GIT_CONFIG_`; the near-git
+rules below. craft's
 `"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Anything else is denied with `craft: command too
 complex to verify near git — spell it plainly`; the remedy is to re-issue the git part plainly. On
 macOS `/bin/bash` 3.2, an apostrophe inside the commit-idiom body fails bash's own parse (the hook
 allows it; bash reports a syntax error) — a bash limitation, not the guard.
+
+**Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
+
+- `-c <key>=…` and `--config-env=<key>=…` keys must be in a safe set: `user.name`, `user.email`,
+  `commit.gpgsign`, `tag.gpgsign`, `core.quotepath`, `color.ui`, `init.defaultbranch`,
+  `format.pretty`, `diff.noprefix`, any `color.*`, `advice.*` or `log.*`, and `pager.<cmd>=false`.
+  Any other key denies: git runs the value of keys such as `core.fsmonitor`, `core.sshCommand`,
+  `credential.helper` and `core.pager` (proven with real git).
+- Any `GIT_<NAME>=` assignment near git denies, for the same reason.
+- Shells anywhere: `sh bash zsh dash ksh fish csh tcsh mksh yash busybox eval` deny at **any** word
+  position (an unlisted wrapper such as `caffeinate` or `stdbuf` could otherwise put a shell out of
+  command position), while `env exec command nohup time sudo nice timeout xargs source . trap hash
+  builtin enable fc coproc alias` deny in command position.
 
 **Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
 (`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s hook
@@ -105,7 +119,7 @@ Residuals, stated as measured or designed:
   dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap: the 80 KB `eval`
   chain that took 49 s then aborted now denies in 0.06 s, and the verdict deadline backs this up.
   Every fail-closed denial carries a reason.
-- **Intended false blocks**, each costing one re-issue with a literal command: `bash -c 'git status'`;
+- **Intended false blocks**, each costing one re-issue with a literal command: `git commit -c <rev>` (read as an unsafe `-c` key); `git add scripts/sh`; `bash -c 'git status'`;
   an apostrophe plus `$` in a quoted word (`git commit -m "it's $HOME"`); a `#` comment
   (`git log # c`); `<` input redirects (`git diff > o < i`); `echo git push`; a
   dynamic command head; a dynamic word at git's option or subcommand position (`git $OPTS status`);
