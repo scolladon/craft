@@ -77,9 +77,9 @@ export function buildExecpolicyRules() {
 /**
  * Verify a deployed `.rules` file is byte-identical to the text this binding
  * generates, throwing on any drift. A malformed `.rules` file is not a reliable
- * denial: depending on the codex entry point, codex either refuses to start or
- * skips the rules with a warning and runs commands anyway, which silently voids
- * the whole execpolicy layer. Regenerating the expected text and byte-comparing
+ * denial: depending on the codex entry point, codex either refuses to start, or
+ * skips the rules with only a warning and runs commands anyway — the latter
+ * voids the whole execpolicy layer. Regenerating the expected text and byte-comparing
  * is hermetic and deterministic, needs no codex subprocess, and catches every
  * drift (malformed content included), not one probed variant. Nothing in the
  * binding calls this check yet: it protects only when a caller runs it before

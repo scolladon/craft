@@ -1195,8 +1195,9 @@ and network, not merely a documented selection.
 `codex exec` refuses to start — recorded 2026-07-21, re-probed 2026-10-15**
 (harden-prove-codex-binding, B9). Runtime auto-loads `$CODEX_HOME/rules/` (a directory of `.rules`
 files); `execpolicy check` treats a malformed file as a hard error, but the codex binary carries the
-literal runtime message `Error parsing rules; custom rules not applied.` — on a parse error the
-rules are **not applied** (fail-open), so a forbidden command runs. Mitigation (`115bcce`, DC-3):
+literal runtime message `Error parsing rules; custom rules not applied.` — read on 2026-07-21, from
+that string alone, as: on a parse error the rules are **not applied** (fail-open), so a forbidden
+command runs; the 0.162.1 re-probe below splits that by surface. Mitigation (`115bcce`, DC-3):
 `assertRulesIntegrity(onDiskText)` byte-compares the deployed rules to `buildExecpolicyRules()` and
 refuses on any drift (malformed included). It is an exported, unit-tested check with no caller in
 the binding: it protects only when something invokes it. (The committed-file drift-guard already
