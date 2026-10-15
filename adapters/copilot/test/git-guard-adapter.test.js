@@ -326,6 +326,25 @@ describe('copilotGuard() — destructive git first, then the tool-call guard', (
     });
   });
 
+  it('Given an fsmonitor config running a push, when copilotGuard runs, then the gate blocks with its reason', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent("git -c core.fsmonitor='git push origin main' status"));
+
+    assert.deepEqual(result, {
+      block: true,
+      reason: COMPLEX_NEAR_GIT_REASON,
+    });
+  });
+
+  it('Given a safe inline identity config, when copilotGuard runs, then it passes', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git -c user.name=p -c user.email=p@p commit -m x'));
+
+    assert.equal(result.block, false);
+  });
+
   it('Given a plain status through the whole guard, when copilotGuard runs, then it passes', () => {
     const sut = copilotGuard;
 

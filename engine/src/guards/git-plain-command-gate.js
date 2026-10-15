@@ -118,14 +118,15 @@ function onWord(state, word) {
 function closeWord(state, word, breakChar, found) {
   if (word === '') return state;
   if (breakChar === REDIRECT && FILE_DESCRIPTOR.test(word)) return state;
+  found.words.push(word);
   const result = onWord(state, word);
-  if (result.word !== null) found.push(result.word);
+  if (result.word !== null) found.commands.push(result.word);
   return result.state;
 }
 
-// Returns the words in command position, or null as soon as something outside plain text is met.
+// Returns every word and those in command position, or null as soon as something outside plain text is met.
 function commandWords(command) {
-  const found = [];
+  const found = { words: [], commands: [] };
   let state = startingState();
   let word = '';
   for (let index = 0; index < command.length; ) {
@@ -142,6 +143,46 @@ function commandWords(command) {
   return found;
 }
 
+const GIT_ENVIRONMENT_ASSIGNMENT = /^GIT_[A-Z0-9_]*=/i;
+const CONFIG_FLAGS = new Set(['-c', '--config-env']);
+const ATTACHED_CONFIG = /^(?:--config-env=|-c)(.+)$/is;
+const SAFE_CONFIG_KEYS = Object.freeze(new Set([
+  'user.name', 'user.email', 'commit.gpgsign', 'tag.gpgsign', 'core.quotepath',
+  'color.ui', 'init.defaultbranch', 'format.pretty', 'diff.noprefix',
+]));
+const SAFE_CONFIG_PREFIXES = Object.freeze(['color.', 'advice.', 'log.']);
+const PAGER_KEY_PREFIX = 'pager.';
+const PAGER_OFF_VALUE = 'false';
+
+const splitAssignment = assignment => {
+  const at = assignment.indexOf('=');
+  return at === -1
+    ? { key: assignment.toLowerCase(), value: null }
+    : { key: assignment.slice(0, at).toLowerCase(), value: assignment.slice(at + 1) };
+};
+
+function isSafeConfig(assignment) {
+  const { key, value } = splitAssignment(assignment);
+  if (SAFE_CONFIG_KEYS.has(key)) return true;
+  if (SAFE_CONFIG_PREFIXES.some(prefix => key.startsWith(prefix))) return true;
+  return key.startsWith(PAGER_KEY_PREFIX) && value === PAGER_OFF_VALUE;
+}
+
+// A flag with no operand yields undefined, which is not a safe config.
+function configOperands(words) {
+  const operands = [];
+  words.forEach((word, index) => {
+    if (CONFIG_FLAGS.has(word)) operands.push(words[index + 1]);
+    const attached = ATTACHED_CONFIG.exec(word);
+    if (attached !== null) operands.push(attached[1]);
+  });
+  return operands;
+}
+
+const hasUnsafeConfig = words =>
+  words.some(word => GIT_ENVIRONMENT_ASSIGNMENT.test(word)) ||
+  configOperands(words).some(operand => operand === undefined || !isSafeConfig(operand));
+
 /**
  * @param {string} command raw shell command
  * @returns {{ block: boolean, reason?: string }}
@@ -150,5 +191,6 @@ export function gitPlainCommandGate(command) {
   if (!GIT_MENTION.test(command)) return ALLOWED;
   if (GIT_CONFIG_INJECTION.test(command)) return BLOCKED;
   const words = commandWords(command);
-  return words === null || words.some(isOpaqueCommand) ? BLOCKED : ALLOWED;
+  if (words === null || words.commands.some(isOpaqueCommand)) return BLOCKED;
+  return hasUnsafeConfig(words.words) ? BLOCKED : ALLOWED;
 }

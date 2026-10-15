@@ -85,6 +85,21 @@ const COMPLEX_COMMANDS = [
   'git commit -m "hi!"',
   'git log --format=%h,%s @{u}..HEAD',
   'git status; bash',
+  "git -c core.fsmonitor='git push origin main' status",
+  "git -c core.sshCommand='git push' fetch origin",
+  "git -c credential.helper='!git push origin main' fetch",
+  "git -c core.pager='git push' log",
+  "git -c core.editor='git push' commit",
+  "git -c diff.external=x diff --ext-diff",
+  "git -c filter.x.clean='git push' add .",
+  "git --config-env=core.pager=E log",
+  "git -ccore.fsmonitor=x status",
+  "GIT_SSH_COMMAND='git push' git fetch origin",
+  "git status && GIT_PAGER=x git log",
+  "git -c pager.log=less log",
+  "git -c",
+  "env GIT_SSH_COMMAND=x git fetch",
+  "git --config-env core.pager git log",
 ];
 
 const PLAIN_COMMANDS = [
@@ -118,6 +133,14 @@ const PLAIN_COMMANDS = [
   'git\tstatus',
   'git commit -m "$(cat <<\'EOF\'\nEOF\n)"',
   'git commit -m "$(cat <<\'EOF\'\nxEOF\nEOF\n)"',
+  "git -c user.email=p@p -c user.name=p commit -m x",
+  "git -c commit.gpgsign=false commit -m x",
+  "git -c color.ui=never log",
+  "git -c core.quotepath=false status",
+  "git -c pager.log=false log",
+  "git -c advice.detachedHead=false checkout x",
+  "ls -c",
+  "ps -c",
 ];
 
 describe('gitPlainCommandGate() — complex commands near git', () => {
