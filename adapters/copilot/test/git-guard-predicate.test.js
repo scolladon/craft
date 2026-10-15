@@ -25,6 +25,11 @@ const BLOCK_COMMANDS = [
   'git -c k=v show',
   'git --git-dir=.g diff',
   'git --work-tree=. show',
+  'git push',
+  'git -C . push',
+  'git clean -fd',
+  'git reset --hard',
+  'git branch -D x',
 ];
 
 const PASS_COMMANDS = [
@@ -58,6 +63,16 @@ describe('decideGuard() — reused gate.js predicate: git diff/show regex pin', 
       assert.equal(result.block, false);
     });
   }
+});
+
+describe('decideGuard() — object-shaped toolArgs', () => {
+  it('Given an object toolArgs running git push, when decideGuard runs, then it blocks', () => {
+    const sut = decideGuard;
+
+    const result = sut({ cwd: WORKING_DIR, toolName: 'bash', toolArgs: { command: 'git push' } });
+
+    assert.equal(result.block, true);
+  });
 });
 
 describe('decideGuard() — reused gate.js predicate: write-path containment', () => {

@@ -1,9 +1,10 @@
 /**
- * preToolUse event adapter for the Copilot binding: reshapes Copilot's lowercase,
- * string-encoded event into the shape `gate.js`'s toolCallGuard expects, then
- * applies that predicate unmodified. This layer is observational (see
- * hooks/craft-observer.js) — it never enforces, it only decides a verdict to record.
+ * preToolUse event adapter for the Copilot binding: reshapes Copilot's lowercase
+ * event (object or string-encoded toolArgs) into the shape toolCallGuard expects,
+ * and decides the guard verdict by composing the destructive-git predicate with
+ * that guard. The hook script turns the verdict into the CLI response.
  */
+import { gitDestructivePredicate } from '../../../engine/src/guards/git-destructive-predicate.js';
 import { toolCallGuard, WRITE_TOOLS } from '../../../engine/src/guards/tool-call-guard.js';
 
 // Maps Copilot's lowercase toolName to the Claude-cased names toolCallGuard
@@ -27,10 +28,15 @@ function isNonEmptyString(value) {
   return typeof value === 'string' && value.length > 0;
 }
 
+function isPlainObject(value) {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+// Copilot 1.0.63 sent toolArgs as a JSON-encoded string; 1.0.92 sends the object.
 function parseToolArgs(toolArgs) {
-  const parsed = JSON.parse(toolArgs);
-  if (parsed === null || typeof parsed !== 'object') {
-    throw new Error('toolArgs did not decode to a JSON object');
+  const parsed = typeof toolArgs === 'string' ? JSON.parse(toolArgs) : toolArgs;
+  if (!isPlainObject(parsed)) {
+    throw new Error('toolArgs did not decode to a plain JSON object');
   }
   return parsed;
 }
@@ -56,9 +62,9 @@ function bridgeExecutedPath(parsedArgs, normalizedTool) {
 
 /**
  * Adapts a Copilot preToolUse payload to toolCallGuard's event shape.
- * Throws on a payload whose toolArgs is missing or not a JSON object, and on
+ * Throws on a payload whose toolArgs is missing or not a plain JSON object, and on
  * a write-tool payload whose path is missing or empty (fail-closed).
- * @param {{ toolName: string, toolArgs: string, cwd: string }} payload
+ * @param {{ toolName: string, toolArgs: string|object, cwd: string }} payload
  * @returns {{ tool: string, tool_input: object, working_dir: string }}
  */
 export function adaptCopilotEvent(payload) {
@@ -72,14 +78,30 @@ export function adaptCopilotEvent(payload) {
 }
 
 /**
- * Decides the audit verdict for a Copilot preToolUse payload. Never throws:
+ * Destructive git commands first, then the shared tool-call guard; the first
+ * block wins.
+ * @param {{ tool: string, tool_input: object, working_dir: string }} event
+ * @returns {{ block: boolean, reason?: string }}
+ */
+export function copilotGuard(event) {
+  if (event.tool === 'Bash') {
+    const destructive = gitDestructivePredicate(event.tool_input.command ?? '');
+    if (destructive.block) {
+      return destructive;
+    }
+  }
+  return toolCallGuard(event);
+}
+
+/**
+ * Decides the guard verdict for a Copilot preToolUse payload. Never throws:
  * any structurally hostile payload (bad JSON, missing fields, a throwing
  * guard) fails CLOSED with a returned `{ block: true }` verdict.
  * @param {object} payload
  * @param {(event: object) => { block: boolean, reason?: string }} [guard]
  * @returns {{ block: boolean, reason?: string }}
  */
-export function decideGuard(payload, guard = toolCallGuard) {
+export function decideGuard(payload, guard = copilotGuard) {
   try {
     return guard(adaptCopilotEvent(payload));
   } catch {

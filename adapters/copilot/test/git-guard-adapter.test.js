@@ -3,13 +3,44 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { adaptCopilotEvent, buildAuditEntry, decideGuard } from '../src/git-guard-adapter.js';
+import { adaptCopilotEvent, buildAuditEntry, copilotGuard, decideGuard } from '../src/git-guard-adapter.js';
 
 const WORKING_DIR = '/repo';
 
 function payload(toolName, argsObj, cwd = WORKING_DIR) {
   return { sessionId: 's1', timestamp: 0, cwd, toolName, toolArgs: JSON.stringify(argsObj) };
 }
+
+function objectPayload(toolName, argsObj, cwd = WORKING_DIR) {
+  return { sessionId: 's1', timestamp: 0, cwd, toolName, toolArgs: argsObj };
+}
+
+describe('decideGuard() — object-shaped toolArgs', () => {
+  it('Given an object toolArgs running ls, when decideGuard runs, then it passes', () => {
+    const sut = decideGuard;
+
+    const result = sut(objectPayload('bash', { command: 'ls' }));
+
+    assert.equal(result.block, false);
+  });
+
+  it('Given an object toolArgs running git diff HEAD, when decideGuard runs, then it blocks with the ext-diff reason', () => {
+    const sut = decideGuard;
+
+    const result = sut(objectPayload('bash', { command: 'git diff HEAD' }));
+
+    assert.equal(result.block, true);
+    assert.ok(result.reason.includes('--no-ext-diff'));
+  });
+
+  it('Given an object toolArgs creating an in-tree file, when decideGuard runs, then it passes', () => {
+    const sut = decideGuard;
+
+    const result = sut(objectPayload('create', { path: '/repo/src/a.js', file_text: 'x' }));
+
+    assert.equal(result.block, false);
+  });
+});
 
 describe('decideGuard() — bash git diff/show without --no-ext-diff', () => {
   it('Given a lowercase bash call running git diff HEAD, when decideGuard runs, then it blocks with the ext-diff reason', () => {
@@ -226,6 +257,86 @@ describe('decideGuard() — fail-closed toolArgs parsing', () => {
     const sut = decideGuard;
 
     const result = sut({ cwd: WORKING_DIR, toolName: 'bash', toolArgs: 'null' });
+
+    assert.equal(result.block, true);
+  });
+});
+
+describe('decideGuard() — non-object toolArgs shapes', () => {
+  const HOSTILE_TOOL_ARGS = [
+    ['an empty JSON array string', '[]'],
+    ['a JSON array string holding a command object', '[{"command":"git diff"}]'],
+    ['an array', []],
+    ['a number', 42],
+    ['a boolean', true],
+    ['null', null],
+  ];
+
+  for (const [label, toolArgs] of HOSTILE_TOOL_ARGS) {
+    it(`Given a toolArgs that is ${label}, when decideGuard runs, then it blocks`, () => {
+      const sut = decideGuard;
+
+      const result = sut({ cwd: WORKING_DIR, toolName: 'bash', toolArgs });
+
+      assert.equal(result.block, true);
+    });
+  }
+});
+
+describe('copilotGuard() — destructive git first, then the tool-call guard', () => {
+  const bashEvent = command => ({ tool: 'Bash', tool_input: { command }, working_dir: WORKING_DIR });
+
+  it('Given a git -C . push command, when copilotGuard runs, then it blocks with the push reason', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git -C . push'));
+
+    assert.equal(result.block, true);
+    assert.match(result.reason, /push/);
+  });
+
+  it('Given a push chained before a git diff, when copilotGuard runs, then the push reason wins', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git push; git diff'));
+
+    assert.match(result.reason, /push/);
+  });
+
+  it('Given a Write out of tree, when copilotGuard runs, then the tool-call guard still blocks', () => {
+    const sut = copilotGuard;
+
+    const result = sut({
+      tool: 'Write',
+      tool_input: { file_path: '/etc/passwd' },
+      working_dir: WORKING_DIR,
+    });
+
+    assert.equal(result.block, true);
+  });
+
+  it('Given a harmless Bash command, when copilotGuard runs, then it passes', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('ls'));
+
+    assert.equal(result.block, false);
+  });
+
+  it('Given a Bash event without a command, when copilotGuard runs, then it passes', () => {
+    const sut = copilotGuard;
+
+    const result = sut({ tool: 'Bash', tool_input: {}, working_dir: WORKING_DIR });
+
+    assert.equal(result.block, false);
+  });
+});
+
+describe('decideGuard() — default guard composes the destructive-git predicate', () => {
+  it('Given a bash git push, when decideGuard runs with its default guard, then it blocks', () => {
+    const sut = decideGuard;
+
+    const result = sut(payload('bash', { command: 'git push' }));
 
     assert.equal(result.block, true);
   });
