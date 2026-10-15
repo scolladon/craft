@@ -195,6 +195,22 @@ it (`docs/contributing/design/harden-prove-codex-binding.md`) asked for a launch
 and none was wired. Open question: wire it into a launch or install path, or keep it on
 demand. Question only; no fix is scoped.
 
+**No install step deploys `craft.rules` to `$CODEX_HOME/rules/`.** `adapters/codex/README.md`
+lists the execpolicy `.rules` file as a guard layer (*Guard — honest enforcement profile* table),
+but neither *Load* nor *Configure* tells an operator to copy `adapters/codex/craft.rules` into
+`$CODEX_HOME/rules/`, the directory codex loads it from; `git grep 'CODEX_HOME/rules'` finds the
+path only in the POC record and this file. Unless someone copies it by hand, the layer is absent.
+Fix: one *Configure* step naming the copy, pinned like the other README instructions in
+`adapters/codex/test/native-surface.test.js`.
+
+**`native-surface.test.js` describe title claims the shared skills load by reference.**
+`adapters/codex/test/native-surface.test.js:84` reads `adapters/codex/skills/ — must not exist:
+shared craft skills load by reference`, while the record and README pin 0 of 19 by reference on
+0.145.0 and 0.162.1 (the symlink route is required). The assertion itself (no
+`adapters/codex/skills/` dir) is right; only the title states a disproven reason. Fix: retitle
+to the real reason (the shared skills live at the repository root and reach codex through the
+symlinks).
+
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the stryker-9-upgrade run, not yet scheduled)
 
 **The git ext-diff guard misses a diff/show its segment splitter or anchor never sees.**
