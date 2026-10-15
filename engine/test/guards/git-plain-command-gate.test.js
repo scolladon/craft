@@ -109,6 +109,38 @@ const COMPLEX_COMMANDS = [
   "caffeinate bash run.sh; git status",
   "env GIT_SSH_COMMAND=x git fetch",
   "git --config-env core.pager git log",
+  "git status; zsh",
+  "git status; dash",
+  "git status; ksh",
+  "git status; fish",
+  "git status; csh",
+  "git status; tcsh",
+  "git status; mksh",
+  "git status; yash",
+  "git status; busybox",
+  "git status;\texec x",
+  "git status; exec x",
+  "git status\nexec x",
+  "builtin git push",
+  'git commit -m "$(cat <<\'EOF\'\nmsg\n',
+  'git commit -m "$(cat <<\'1\'\nx\n1\n)"',
+  ">o exec git status",
+  ">&2 exec git status",
+  ">|o exec git status",
+  "2>o exec git status",
+  "12>o exec git status",
+  "git status &>o exec x",
+  "if exec git status; then true; fi",
+  "if true; then exec git status; fi",
+  "if true; then true; else exec git status; fi",
+  "if true; then true; elif exec git status; then true; fi",
+  "while exec git status; do true; done",
+  "until exec git status; do true; done",
+  "while true; do exec git status; done",
+  "FOO=1 exec git status",
+  "A=1 exec git status",
+  '"$(cat <<\'EOF\'\nx\nEOF\n)" git status',
+  "git -c core.fsmonitor=false status",
 ];
 
 const PLAIN_COMMANDS = [
@@ -151,6 +183,23 @@ const PLAIN_COMMANDS = [
   "git -c advice.detachedHead=false checkout x",
   "ls -c",
   "ps -c",
+  "git status\ngit log",
+  'git commit -m "$(cat <<\'EOF\'\nuse $VAR\nEOF\n)" -m \'plain\'',
+  'git -c "pager.log=false" log',
+  "git -c 'pager.log=false' log",
+  "./a=b exec git status",
+  "1=x exec git status",
+  "2a>o exec git status",
+  "a2>o exec git status",
+  "ls>o exec git status",
+  "1 exec git status",
+  "MYGIT_A=1 git status",
+  "git log --grep=a-cx",
+  "git -c tag.gpgsign=false tag x",
+  "git -c init.defaultBranch=main init",
+  "git -c format.pretty=oneline log",
+  "git -c diff.noprefix=true diff",
+  "git -c User.Name status",
 ];
 
 describe('gitPlainCommandGate() — complex commands near git', () => {
@@ -182,6 +231,14 @@ describe('gitPlainCommandGate() — plain commands', () => {
     const result = sut('echo $(date) `id`');
 
     assert.deepEqual(result, { block: false });
+  });
+});
+
+describe('COMPLEX_NEAR_GIT_REASON', () => {
+  it('Given the exported reason, when read, then it names craft and git', () => {
+    const sut = REASON;
+
+    assert.match(sut, /^craft: .*git/);
   });
 });
 
