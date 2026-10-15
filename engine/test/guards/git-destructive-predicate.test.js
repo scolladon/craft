@@ -489,3 +489,34 @@ describe('gitDestructivePredicate() — refused global option before a destructi
     assert.deepEqual(result, { block: false });
   });
 });
+
+describe('gitDestructivePredicate() — option and wrapper rows that guard the parsers', () => {
+  assertBlocks([
+    'git clean -f dir-n',
+    'git clean -fd build-n',
+    "env --chdir /x -S 'git push'",
+    "env --unset X -S 'git push'",
+    "bash +c 'git push'",
+    "bash +ec 'git push'",
+    '(( ((1)) << 2 ))\ngit push\n2',
+  ]);
+
+  assertPasses([
+    '[[ $b == main ]] && git status',
+    'git reset HEAD@{1}',
+    'git branch -d x@{u}',
+    'git log --grep GIT_CONFIG_COUNT=1',
+    'GIT_CONFIG_COUNTER=1 git status',
+    '(( x = 1 )); cat <<EOF\nhi\nEOF',
+    'git branch -d --no-force x',
+    'git branch -d x --sort=-refname',
+  ]);
+
+  it('Given key and value config variables without a count, when checked, then blocks with the config channel reason', () => {
+    const sut = gitDestructivePredicate;
+
+    const result = sut('GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0=push git x');
+
+    assert.deepEqual(result, { block: true, reason: REASON_CONFIG_CHANNEL });
+  });
+});

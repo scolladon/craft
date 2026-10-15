@@ -1,4 +1,4 @@
-import { configChannelReason, judgeInvocations } from './shell-git-invocations.js';
+import { configChannelReason, DIFFING_VERBS, judgeInvocations, optionWords } from './shell-git-invocations.js';
 
 // Patterns that make a git diff/show invocation exempt from the ext-diff check.
 export const COMPLIANT_MARKERS = ['--no-ext-diff', 'rtk proxy'];
@@ -10,16 +10,9 @@ const REASON_GIT_EXT_DIFF =
 
 const [NO_EXT_DIFF_WORD, PROXY_MARKER] = COMPLIANT_MARKERS;
 const PROXY_WORDS = Object.freeze(PROXY_MARKER.split(' '));
-const DIFFING_SUBCOMMANDS = Object.freeze(new Set(['diff', 'show']));
+const DIFFING_SUBCOMMANDS = new Set(DIFFING_VERBS);
 
 const EXT_DIFF_WORD = '--ext-diff';
-const OPTION_TERMINATOR = '--';
-
-const optionWords = words => {
-  const end = words.indexOf(OPTION_TERMINATOR);
-  return end === -1 ? words : words.slice(0, end);
-};
-
 const lacksNoExtDiff = words => {
   const last = optionWords(words).findLast(word => word === EXT_DIFF_WORD || word === NO_EXT_DIFF_WORD);
   return last !== NO_EXT_DIFF_WORD;

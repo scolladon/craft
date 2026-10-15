@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
+import { gitExtDiffPredicate } from '../../src/guards/git-ext-diff-predicate.js';
 import { gitInvocations, hasInlineAlias, normaliseGitArgv, parseShellCommands } from '../../src/guards/shell-git-invocations.js';
 
 const dyn = text => ({ text, dynamic: true });
@@ -551,7 +552,7 @@ describe('gitInvocations()', () => {
     ['env git diff', [invocation('diff', ['env'])]],
     ['/usr/bin/git diff', [invocation('diff')]],
     ['echo git push', [invocation('push', ['echo'])]],
-    ['git log --grep git show', [invocation('log', [], ['--grep', 'git', 'show']), invocation('show', ['git', 'log', '--grep'])]],
+    ['git log --grep git show', [invocation('log', [], ['--grep', 'git', 'show']), invocation('show', ['git', 'log'])]],
     ['ls /x/git push', [invocation('push', ['ls'])]],
     ['rtk proxy git diff', [invocation('diff', ['rtk', 'proxy'])]],
   ]) {
@@ -610,6 +611,9 @@ const REASON_PUSH = 'craft: destructive git (push) is denied in this binding —
 const LENGTH_REASON =
   'craft: command not parseable (longer than the guard\'s limit) — denied fail-closed';
 const MAX_COMMAND_LENGTH = 131072;
+const MAX_ANCHORS = 256;
+const TOO_MANY_REASON =
+  'craft: command not parseable (too many git invocations) — denied fail-closed';
 // Far below the host's ~30 s hook timeout yet loose enough for coverage-instrumented CI runs.
 const MAX_ELAPSED_MS = 3000;
 
@@ -665,6 +669,110 @@ describe('shell parsing — bounded work', () => {
 
     assert.deepEqual(result, { block: true, reason: REASON_PUSH });
     assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long run of braces closing as one expression, when checked, then it finishes in bounded time', () => {
+    const sut = gitExtDiffPredicate;
+
+    const { result, elapsed } = timed(() => sut('{'.repeat(65000) + ',}'));
+
+    assert.deepEqual(result, { block: false });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long run of braces that never close, when checked, then blocks the push in bounded time', () => {
+    const sut = gitDestructivePredicate;
+
+    const { result, elapsed } = timed(() => sut('{'.repeat(60000) + '; git push'));
+
+    assert.deepEqual(result, { block: true, reason: REASON_PUSH });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long chain of env split options, when checked, then blocks the push in bounded time', () => {
+    const sut = gitDestructivePredicate;
+
+    const { result, elapsed } = timed(() => sut('env -S '.repeat(18000) + '; git push'));
+
+    assert.deepEqual(result, { block: true, reason: REASON_PUSH });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long chain of shell command options, when checked, then blocks the push in bounded time', () => {
+    const sut = gitDestructivePredicate;
+
+    const { result, elapsed } = timed(() => sut('sh -c '.repeat(21000) + '; git push'));
+
+    assert.deepEqual(result, { block: true, reason: REASON_PUSH });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given git words that are values of earlier global options, when checked, then it finishes in bounded time', () => {
+    const sut = gitExtDiffPredicate;
+
+    const { result, elapsed } = timed(() => sut('git' + ' -c git'.repeat(18000) + ' status'));
+
+    assert.deepEqual(result, { block: false });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a git word that is the value of an earlier global option, when checked, then the push after it is blocked', () => {
+    const sut = gitDestructivePredicate;
+
+    const result = sut('git -C git push');
+
+    assert.deepEqual(result, { block: true, reason: REASON_PUSH });
+  });
+
+  it('Given a long run of shell words that are flags, when checked, then it finishes in bounded time', () => {
+    const sut = gitExtDiffPredicate;
+
+    const { result, elapsed } = timed(() => sut('+/sh '.repeat(26213) + '-c'));
+
+    assert.deepEqual(result, { block: false });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given more argument-reading git invocations than the cap, when checked, then it is denied fail-closed in bounded time', () => {
+    const sut = gitDestructivePredicate;
+
+    const { result, elapsed } = timed(() => sut('git branch '.repeat(11900)));
+
+    assert.deepEqual(result, { block: true, reason: TOO_MANY_REASON });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given many proxied diffs, when checked, then it is denied fail-closed in bounded time', () => {
+    const sut = gitExtDiffPredicate;
+
+    const { result, elapsed } = timed(() => sut('rtk proxy git diff '.repeat(6850)));
+
+    assert.deepEqual(result, { block: true, reason: TOO_MANY_REASON });
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given exactly the cap of argument-reading git invocations, when checked, then they are judged', () => {
+    const sut = gitDestructivePredicate;
+
+    const result = sut('git branch '.repeat(MAX_ANCHORS));
+
+    assert.deepEqual(result, { block: false });
+  });
+
+  it('Given one more than the cap, when checked, then it is denied fail-closed', () => {
+    const sut = gitDestructivePredicate;
+
+    const result = sut('git branch '.repeat(MAX_ANCHORS + 1));
+
+    assert.deepEqual(result, { block: true, reason: TOO_MANY_REASON });
+  });
+
+  it('Given more git words than the cap that read no arguments, when checked, then the push after them is blocked', () => {
+    const sut = gitDestructivePredicate;
+
+    const result = sut('echo ' + 'git '.repeat(MAX_ANCHORS + 1) + '; git push');
+
+    assert.deepEqual(result, { block: true, reason: REASON_PUSH });
   });
 
   it('Given a command longer than the limit, when parsed, then it is unparsed with the length reason', () => {

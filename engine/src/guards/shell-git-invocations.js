@@ -140,16 +140,15 @@ const earlyExit = (words, cursor) => {
   return isPrintAndExit(head.text) ? NO_SUBCOMMAND : null;
 };
 
-// Returns the cursor past a global option, the same cursor when the word is not one,
-// or null when a value-taking option has no value.
-const advance = (words, cursor, configKeys) => {
+const NO_KEYS = Object.freeze([]);
+
+// Returns the cursor past a global option and the config keys it declares, the same cursor
+// when the word is not one, or null when a value-taking option has no value.
+const advance = (words, cursor) => {
   const { text } = words[cursor];
-  if (isSkippedFlag(text)) return cursor + 1;
-  if (!isValueOption(text)) return cursor;
-  const consumed = valueOptionAt(words, cursor);
-  if (consumed === null) return null;
-  configKeys.push(...consumed.keys);
-  return consumed.next;
+  if (isSkippedFlag(text)) return { next: cursor + 1, keys: NO_KEYS };
+  if (!isValueOption(text)) return { next: cursor, keys: NO_KEYS };
+  return valueOptionAt(words, cursor);
 };
 
 const lateExit = (words, cursor, configKeys) => {
@@ -158,21 +157,30 @@ const lateExit = (words, cursor, configKeys) => {
   return subcommandResult(text, words, cursor + 1, configKeys);
 };
 
-const normaliseFrom = (words, start) => {
+// `end` is where the global option run stops: every word before it is an option or a value.
+const walkFrom = (words, start) => {
   const configKeys = [];
   let cursor = start;
   while (cursor < words.length) {
     const early = earlyExit(words, cursor);
-    if (early !== null) return early;
-    const next = advance(words, cursor, configKeys);
-    if (next === null) return NO_SUBCOMMAND;
-    if (next === cursor) return lateExit(words, cursor, configKeys);
-    cursor = next;
+    if (early !== null) return { invocation: early, end: cursor };
+    const consumed = advance(words, cursor);
+    if (consumed === null) return { invocation: NO_SUBCOMMAND, end: cursor };
+    if (consumed.next === cursor) return { invocation: lateExit(words, cursor, configKeys), end: cursor };
+    configKeys.push(...consumed.keys);
+    cursor = consumed.next;
   }
-  return NO_SUBCOMMAND;
+  return { invocation: NO_SUBCOMMAND, end: words.length };
 };
 
+const normaliseFrom = (words, start) => walkFrom(words, start).invocation;
+
 export const normaliseGitArgv = words => normaliseFrom(words.map(toWord), 0);
+
+export const optionWords = words => {
+  const end = words.indexOf(ARGS_END);
+  return end === -1 ? words : words.slice(0, end);
+};
 
 const ARITHMETIC_HEREDOC =
   'craft: command not parseable (<< inside an arithmetic command) — denied fail-closed';
@@ -237,7 +245,7 @@ const isCommandCluster = ({ text }) => CLUSTER_SHAPE.test(text) && text.includes
 // Shell option grammar (-o name, -O name, +e) is not modelled, so once a command option
 // exists every later non-option word may be the command string.
 const shellCommandWords = (words, index, scan) =>
-  SHELL_NAMES.has(basename(words[index].text)) && scan.lastClusterAt > index
+  SHELL_NAMES.has(basename(words[index].text)) && scan.lastClusterAt > index && scan.lastCommandWordAt > index
     ? words.slice(index + 1).filter(word => !isFlagWord(word))
     : [];
 
@@ -263,11 +271,18 @@ const LONG_OPTION_PREFIX = '--';
 const SKIPPED_LONG_OPTIONS = new Set(['--unset', '--chdir']);
 const NO_ENV_VALUE = Object.freeze({ split: [], consumed: 0 });
 
-const envValue = (words, cursor, from, splits) => {
-  const attached = words[cursor].text.slice(from);
-  const source = attached === '' ? words[cursor + 1] : { ...words[cursor], text: attached };
-  const consumed = attached === '' ? 1 : 0;
-  return { split: splits && source !== undefined ? [source] : [], consumed };
+// The value is either attached to the option word or the next word.
+const attachedAt = (words, cursor, from) => words[cursor].text.length > from;
+
+const consumedWords = (words, cursor, from) => (attachedAt(words, cursor, from) ? 0 : 1);
+
+const skippedEnvValue = (words, cursor, from) => ({ split: [], consumed: consumedWords(words, cursor, from) });
+
+const splitEnvValue = (words, cursor, from) => {
+  const source = attachedAt(words, cursor, from)
+    ? { ...words[cursor], text: words[cursor].text.slice(from) }
+    : words[cursor + 1];
+  return { split: source === undefined ? [] : [source], consumed: consumedWords(words, cursor, from) };
 };
 
 const longEnvOption = (words, cursor) => {
@@ -275,24 +290,24 @@ const longEnvOption = (words, cursor) => {
   const separator = text.indexOf(VALUE_SEPARATOR);
   const name = separator === -1 ? text : text.slice(0, separator);
   const from = separator === -1 ? text.length : separator + 1;
-  if (name === SPLIT_STRING_LONG) return envValue(words, cursor, from, true);
-  return SKIPPED_LONG_OPTIONS.has(name) ? envValue(words, cursor, from, false) : NO_ENV_VALUE;
+  if (name === SPLIT_STRING_LONG) return splitEnvValue(words, cursor, from);
+  return SKIPPED_LONG_OPTIONS.has(name) ? skippedEnvValue(words, cursor, from) : NO_ENV_VALUE;
 };
 
 const envOption = (words, cursor) => {
   const { text } = words[cursor];
   if (text.startsWith(LONG_OPTION_PREFIX)) return longEnvOption(words, cursor);
   for (let at = 1; at < text.length; at += 1) {
-    if (text[at] === SPLIT_LETTER) return envValue(words, cursor, at + 1, true);
-    if (SKIPPED_VALUE_LETTERS.has(text[at])) return envValue(words, cursor, at + 1, false);
+    if (text[at] === SPLIT_LETTER) return splitEnvValue(words, cursor, at + 1);
+    if (SKIPPED_VALUE_LETTERS.has(text[at])) return skippedEnvValue(words, cursor, at + 1);
   }
   return NO_ENV_VALUE;
 };
 
 // A word inside an earlier env's option run is a value, never an env command, so skipping it
 // keeps a chain of -S options from being scanned once per env word.
-const envSplitWords = (words, index, scan) => {
-  if (words[index].text !== ENV_WORD || index < scan.optionsEnd) return [];
+const envSplitWords = (words, index, optionsEnd) => {
+  if (words[index].text !== ENV_WORD || index < optionsEnd) return { words: [], optionsEnd };
   const found = [];
   let cursor = index + 1;
   for (; cursor < words.length && isOption(words[cursor]); cursor += 1) {
@@ -300,22 +315,25 @@ const envSplitWords = (words, index, scan) => {
     found.push(...split);
     cursor += consumed;
   }
-  scan.optionsEnd = cursor;
-  return found;
+  return { words: found, optionsEnd: cursor };
 };
 
 // Each of these re-parses every later word already, so scanning past one repeats that work.
 const STOPPING_WORDS = new Set([EVAL_WORD, ...SHELL_NAMES]);
 
-const REPARSERS = Object.freeze([shellCommandWords, evalWords, envSplitWords]);
-
 // An eval string already holds every later word, so re-parsing past the first eval would
 // only repeat that work once per eval word.
 const reparsedWords = words => {
   const found = [];
-  const scan = { lastClusterAt: words.findLastIndex(isCommandCluster), optionsEnd: 0 };
+  const scan = {
+    lastClusterAt: words.findLastIndex(isCommandCluster),
+    lastCommandWordAt: words.findLastIndex(word => !isFlagWord(word)),
+  };
+  let optionsEnd = 0;
   for (let index = 0; index < words.length; index += 1) {
-    const here = REPARSERS.flatMap(find => find(words, index, scan));
+    const env = envSplitWords(words, index, optionsEnd);
+    optionsEnd = env.optionsEnd;
+    const here = [...shellCommandWords(words, index, scan), ...evalWords(words, index), ...env.words];
     found.push(...here);
     if (here.length > 0 && STOPPING_WORDS.has(basename(words[index].text))) break;
   }
@@ -465,10 +483,11 @@ const braceSkip = (source, index) => {
 };
 
 // A scan that finds no brace expression proves none exists later in the same word, so
-// remembering where it stopped keeps a run of braces linear.
+// remembering where it stopped keeps a run of braces linear; a word already marked as a
+// pattern needs no further scan.
 const hasBraceExpression = context => {
   const { source } = context;
-  if (context.index < context.braceFailedUntil) return false;
+  if (context.pattern || context.index < context.braceFailedUntil) return false;
   let separated = false;
   let index = context.index + 1;
   for (; index < source.length && !BRACE_WORD_END.has(source[index]); index = braceSkip(source, index) + 1) {
@@ -840,18 +859,28 @@ export const INLINE_ALIAS_REASON =
 
 const isGitWord = word => !word.dynamic && word.text.split(PATH_SEPARATOR).pop().toLowerCase() === GIT_COMMAND;
 
-const anchoredAt = (words, index) =>
-  extend(normaliseFrom(words, index + 1), { leadingWords: () => texts(words.slice(0, index)) });
+// Judges read only the words that open the command (a proxy prefix), so the copy stays bounded
+// however far into a long command the git word sits.
+export const LEADING_WORDS_LIMIT = 2;
+
+const leadingOf = (words, index) => texts(words.slice(0, Math.min(index, LEADING_WORDS_LIMIT)));
+
+const anchoredAt = (words, index) => {
+  const { invocation, end } = walkFrom(words, index + 1);
+  return { anchor: extend(invocation, { leadingWords: () => leadingOf(words, index) }), end };
+};
 
 const dynamicHeadInvocation = words => extend(normaliseFrom(words, 1), { leadingWords: () => [] });
 
-const ANCHOR_VERBS = new Set(['push', 'reset', 'clean', 'branch', 'diff', 'show']);
+export const DESTRUCTIVE_VERBS = Object.freeze(['push', 'reset', 'clean', 'branch']);
+export const DIFFING_VERBS = Object.freeze(['diff', 'show']);
+const ANCHOR_VERBS = new Set([...DESTRUCTIVE_VERBS, ...DIFFING_VERBS]);
 const PATTERN_DELIMITERS = /[{},[\]]+/;
 
 const holdsAnchorVerb = ({ text }) => text.split(PATTERN_DELIMITERS).some(token => ANCHOR_VERBS.has(token));
 
 const indeterminateAt = (words, index) =>
-  extend(indeterminate(words, index + 1), { leadingWords: () => texts(words.slice(0, index)) });
+  extend(indeterminate(words, index + 1), { leadingWords: () => leadingOf(words, index) });
 
 const patternAnchors = (words, flag) =>
   words.flatMap((word, index) =>
@@ -867,7 +896,7 @@ const dashedVerb = word => {
 };
 
 const dashedAt = (words, index, verb) =>
-  extend(subcommandResult(verb, words, index + 1, []), { leadingWords: () => texts(words.slice(0, index)) });
+  extend(subcommandResult(verb, words, index + 1, []), { leadingWords: () => leadingOf(words, index) });
 
 const isAnchorVerb = word => !word.dynamic && ANCHOR_VERBS.has(word.text);
 
@@ -882,10 +911,27 @@ const wrapperAnchors = (words, flag) => {
   return verbAfter ? [flag(indeterminateAt(words, dynamicAt), dynamicAt)] : [];
 };
 
+const NO_ANCHOR = Object.freeze({ anchor: null, end: 0 });
+
 const spelledAnchor = (words, index) => {
-  if (isGitWord(words[index])) return [anchoredAt(words, index)];
+  if (isGitWord(words[index])) return anchoredAt(words, index);
   const verb = dashedVerb(words[index]);
-  return verb === null ? [] : [dashedAt(words, index, verb)];
+  return verb === null ? NO_ANCHOR : { anchor: dashedAt(words, index, verb), end: 0 };
+};
+
+// A git word inside an earlier anchor's option run is that option's value, never a command,
+// so skipping it keeps a chain of `git -c git -c git …` from being walked once per git word.
+const spelledAnchors = (words, flag) => {
+  const anchors = [];
+  let consumedUntil = 0;
+  for (let index = 0; index < words.length; index += 1) {
+    if (index < consumedUntil) continue;
+    const { anchor, end } = spelledAnchor(words, index);
+    if (anchor === null) continue;
+    anchors.push(flag(anchor, index));
+    consumedUntil = end;
+  }
+  return anchors;
 };
 
 const CONFIG_CHANNEL = /^GIT_CONFIG_(?:PARAMETERS|COUNT|GLOBAL|SYSTEM|KEY_\d+|VALUE_\d+)=/;
@@ -927,14 +973,33 @@ const anchoredInvocations = command => {
   const { words } = command;
   const flag = flaggerFor(command);
   const head = words[0]?.dynamic === true ? [flag(dynamicHeadInvocation(words), 0)] : [];
-  const anchors = words.flatMap((_, index) => spelledAnchor(words, index).map(anchor => flag(anchor, index)));
-  return [...head, ...anchors, ...patternAnchors(words, flag), ...wrapperAnchors(words, flag), ...aliasDefinition(command)];
+  return [
+    ...head,
+    ...spelledAnchors(words, flag),
+    ...patternAnchors(words, flag),
+    ...wrapperAnchors(words, flag),
+    ...aliasDefinition(command),
+  ];
 };
+
+const MAX_ARGUMENT_READING_ANCHORS = 256;
+const TOO_MANY_INVOCATIONS =
+  'craft: command not parseable (too many git invocations) — denied fail-closed';
+
+// A verb the judges inspect hands them every later word, so each such anchor costs a pass over
+// the command; capping them bounds the total work.
+const readsArguments = invocation =>
+  invocation.kind !== 'no-subcommand' && (invocation.kind !== 'subcommand' || ANCHOR_VERBS.has(invocation.subcommand));
+
+const exceedsAnchorCap = invocations =>
+  invocations.filter(readsArguments).length > MAX_ARGUMENT_READING_ANCHORS;
 
 export function gitInvocations(command) {
   const result = parseShellCommands(command);
   if (!result.parsed) return result;
-  return { parsed: true, invocations: result.commands.flatMap(anchoredInvocations) };
+  const perCommand = result.commands.map(anchoredInvocations);
+  if (perCommand.some(exceedsAnchorCap)) return { parsed: false, reason: TOO_MANY_INVOCATIONS };
+  return { parsed: true, invocations: perCommand.flat() };
 }
 
 export const CONFIG_CHANNEL_REASON = 'craft: git config injected outside -c is denied in this binding';

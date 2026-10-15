@@ -138,9 +138,10 @@ function assertDeniedOnStderr(sut, stderrPattern) {
   assert.equal(sut.stdout, '');
 }
 
-const TEST_DEADLINE_MS = 300;
-// Parses for ~5 s on the reference box, an order of magnitude past TEST_DEADLINE_MS.
-const SLOW_PARSE_COMMAND = 'git' + ' -c git'.repeat(6000) + ' status';
+// The parse is linear now, so the deadline sits below the worker's start-up time instead
+// of below a pathological parse.
+const TEST_DEADLINE_MS = 5;
+const SLOW_PARSE_COMMAND = 'git diff;'.repeat(14000);
 const TIMEOUT_REASON = 'craft: guard verdict timed out — denied fail-closed';
 const PROCESS_SPAWN_MARGIN_MS = 2000;
 

@@ -1,4 +1,4 @@
-import { configChannelReason, judgeInvocations } from './shell-git-invocations.js';
+import { configChannelReason, DESTRUCTIVE_VERBS, judgeInvocations, optionWords } from './shell-git-invocations.js';
 
 const REASONS = Object.freeze({
   push: 'craft: destructive git (push) is denied in this binding — run it outside the agent',
@@ -9,13 +9,6 @@ const REASONS = Object.freeze({
 
 const REASON_DYNAMIC_SUBCOMMAND =
   'craft: an expansion sits where git expects an option or the subcommand — spell it out; denied fail-closed in this binding';
-
-const OPTION_TERMINATOR = '--';
-
-const optionWords = args => {
-  const end = args.indexOf(OPTION_TERMINATOR);
-  return end === -1 ? args : args.slice(0, end);
-};
 
 const HARD = '--hard';
 const DRY_RUN = '--dry-run';
@@ -97,10 +90,8 @@ const JUDGES = new Map([
 
 const judgeSubcommand = invocation => JUDGES.get(invocation.subcommand)?.(invocation) ?? null;
 
-const SNIFFED_VERBS = Object.freeze(['push', 'reset', 'clean', 'branch']);
-
 const sniffRest = rest => {
-  const verb = SNIFFED_VERBS.find(candidate => rest.includes(candidate));
+  const verb = DESTRUCTIVE_VERBS.find(candidate => rest.includes(candidate));
   return verb === undefined ? null : REASONS[verb];
 };
 
