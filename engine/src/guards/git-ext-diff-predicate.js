@@ -39,7 +39,7 @@ const diffsWithoutMarker = invocation => {
   return false;
 };
 
-const verdictFor = invocation => {
+export const extDiffVerdictFor = invocation => {
   const reason = configChannelReason(invocation);
   if (reason !== null) return reason;
   return diffsWithoutMarker(invocation) && !isProxied(invocation.leadingWords) ? REASON_GIT_EXT_DIFF : null;
@@ -55,5 +55,5 @@ const verdictFor = invocation => {
  * @returns {{ block: boolean, reason?: string }}
  */
 export function gitExtDiffPredicate(command) {
-  return judgeInvocations(command, verdictFor);
+  return judgeInvocations(command, extDiffVerdictFor);
 }

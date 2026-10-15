@@ -315,6 +315,17 @@ describe('copilotGuard() — destructive git first, then the tool-call guard', (
     });
   });
 
+  it('Given a prefixed GIT_CONFIG_ variable, when copilotGuard runs, then the gate blocks with its reason', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('MY_GIT_CONFIG_COUNT=1 git status'));
+
+    assert.deepEqual(result, {
+      block: true,
+      reason: COMPLEX_NEAR_GIT_REASON,
+    });
+  });
+
   it('Given a plain status through the whole guard, when copilotGuard runs, then it passes', () => {
     const sut = copilotGuard;
 

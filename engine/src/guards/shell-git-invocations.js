@@ -1019,19 +1019,29 @@ export const configChannelReason = invocation => {
 };
 
 /**
- * Parses the command and returns the first reason `verdictFor` gives an invocation;
- * a command that cannot be parsed is denied fail-closed with the parser's reason.
+ * Returns the first reason `verdictFor` gives an invocation of an already parsed command;
+ * a command that could not be parsed is denied fail-closed with the parser's reason.
  *
- * @param {string} command
+ * @param {{ parsed: boolean, reason?: string, invocations?: object[] }} result
  * @param {(invocation: object) => string|null} verdictFor
  * @returns {{ block: boolean, reason?: string }}
  */
-export function judgeInvocations(command, verdictFor) {
-  const result = gitInvocations(command);
+export function judgeParsed(result, verdictFor) {
   if (!result.parsed) return { block: true, reason: result.reason };
   for (const invocation of result.invocations) {
     const reason = verdictFor(invocation);
     if (reason !== null) return { block: true, reason };
   }
   return { block: false };
+}
+
+/**
+ * Parses the command and judges its invocations with `verdictFor`.
+ *
+ * @param {string} command
+ * @param {(invocation: object) => string|null} verdictFor
+ * @returns {{ block: boolean, reason?: string }}
+ */
+export function judgeInvocations(command, verdictFor) {
+  return judgeParsed(gitInvocations(command), verdictFor);
 }

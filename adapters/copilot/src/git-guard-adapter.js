@@ -5,7 +5,9 @@
  * that guard. The hook script turns the verdict into the CLI response.
  */
 import { gitPlainCommandGate } from '../../../engine/src/guards/git-plain-command-gate.js';
-import { gitDestructivePredicate } from '../../../engine/src/guards/git-destructive-predicate.js';
+import { destructiveVerdictFor } from '../../../engine/src/guards/git-destructive-predicate.js';
+import { extDiffVerdictFor } from '../../../engine/src/guards/git-ext-diff-predicate.js';
+import { gitInvocations, judgeParsed } from '../../../engine/src/guards/shell-git-invocations.js';
 import { toolCallGuard, WRITE_TOOLS } from '../../../engine/src/guards/tool-call-guard.js';
 
 const BASH_TOOL = 'Bash';
@@ -101,10 +103,16 @@ function withContainmentReason(event, verdict) {
   return verdict;
 }
 
-// The plain-command gate, then the destructive-git predicate.
+// The plain-command gate, then the destructive-git and ext-diff verdicts over a
+// single parse of the command.
 function bashBlock(command) {
   const gate = gitPlainCommandGate(command);
-  return gate.block ? gate : gitDestructivePredicate(command);
+  if (gate.block) {
+    return gate;
+  }
+  const parsed = gitInvocations(command);
+  const destructive = judgeParsed(parsed, destructiveVerdictFor);
+  return destructive.block ? destructive : judgeParsed(parsed, extDiffVerdictFor);
 }
 
 /**
@@ -115,10 +123,7 @@ function bashBlock(command) {
  */
 export function copilotGuard(event) {
   if (event.tool === BASH_TOOL) {
-    const bash = bashBlock(commandOf(event.tool_input));
-    if (bash.block) {
-      return bash;
-    }
+    return bashBlock(commandOf(event.tool_input));
   }
   return withContainmentReason(event, toolCallGuard(event));
 }

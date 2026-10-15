@@ -102,7 +102,7 @@ const judgeByKind = invocation => {
   return null;
 };
 
-const verdictFor = invocation => configChannelReason(invocation) ?? judgeByKind(invocation);
+export const destructiveVerdictFor = invocation => configChannelReason(invocation) ?? judgeByKind(invocation);
 
 /**
  * Pure predicate: does this bash command run a destructive git verb?
@@ -111,5 +111,5 @@ const verdictFor = invocation => configChannelReason(invocation) ?? judgeByKind(
  * @returns {{ block: boolean, reason?: string }}
  */
 export function gitDestructivePredicate(command) {
-  return judgeInvocations(command, verdictFor);
+  return judgeInvocations(command, destructiveVerdictFor);
 }

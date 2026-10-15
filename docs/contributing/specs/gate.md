@@ -193,6 +193,8 @@ by the gate; the commit idiom executed; a forced deadline denied.
   run later, `watch`, `ssh host '…'`, `su -c`, `script -c`, `parallel`, `git rebase --exec`);
   gitconfig-file aliases; a dynamic string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`);
   word-splitting in the command word (`git${IFS}diff`).
+- A renamed or copied git binary (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
+  string guard; `hash -p` is blocked.
 - Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions
   have stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,

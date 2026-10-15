@@ -2,7 +2,7 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
 import { gitExtDiffPredicate } from '../../src/guards/git-ext-diff-predicate.js';
-import { gitInvocations, hasInlineAlias, normaliseGitArgv, parseShellCommands } from '../../src/guards/shell-git-invocations.js';
+import { gitInvocations, hasInlineAlias, judgeParsed, normaliseGitArgv, parseShellCommands } from '../../src/guards/shell-git-invocations.js';
 
 const dyn = text => ({ text, dynamic: true });
 
@@ -809,5 +809,33 @@ describe('parseShellCommands() — words the tokeniser does not compute', () => 
     const result = sut('$"git" push');
 
     assert.deepEqual(result, parsed(cmd('git', 'push')));
+  });
+});
+
+describe('judgeParsed', () => {
+  const denyPush = invocation => (invocation.subcommand === 'push' ? 'no push' : null);
+
+  it('Given a parsed command with a denied invocation, When judged, Then it blocks with the verdict reason', () => {
+    const parsed = gitInvocations('git status && git push');
+
+    const result = judgeParsed(parsed, denyPush);
+
+    assert.deepEqual(result, { block: true, reason: 'no push' });
+  });
+
+  it('Given a parsed command nobody denies, When judged, Then it is allowed', () => {
+    const parsed = gitInvocations('git status');
+
+    const result = judgeParsed(parsed, denyPush);
+
+    assert.deepEqual(result, { block: false });
+  });
+
+  it('Given an unparsed result, When judged, Then it blocks with the parser reason', () => {
+    const parsed = { parsed: false, reason: 'cannot parse' };
+
+    const result = judgeParsed(parsed, denyPush);
+
+    assert.deepEqual(result, { block: true, reason: 'cannot parse' });
   });
 });

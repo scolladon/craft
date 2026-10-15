@@ -34,53 +34,23 @@ const VERDICT_EXIT_CODE = 0;
 // indistinguishable from a crash in the copilot log.
 const FAIL_CLOSED_REASON = 'denied (fail-closed)';
 
-// Well under copilot's ~30 s hook timeout, far above the ~70 ms cold verdict.
-const VERDICT_DEADLINE_MS = 5000;
 const DEADLINE_REASON = 'craft: guard verdict timed out — denied fail-closed';
 const WORKER_URL = new URL('./craft-guard-worker.js', import.meta.url);
 
-// Read once; may only shorten the deadline, so tests stay fast and production
-// cannot be configured into failing open.
-function resolveDeadlineMs(override) {
-  const requested = Number(override);
-  if (!Number.isFinite(requested) || requested <= 0) {
-    return VERDICT_DEADLINE_MS;
-  }
-  return Math.min(requested, VERDICT_DEADLINE_MS);
-}
-
-const DEADLINE_MS = resolveDeadlineMs(process.env.CRAFT_GUARD_DEADLINE_MS);
-
-// Timer and worker race; the first to settle wins, the loser is ignored.
-class VerdictRace {
-  #settled = false;
-
-  settle(conclude) {
-    if (this.#settled) {
-      return;
-    }
-    this.#settled = true;
-    conclude();
-  }
-}
-
-function awaitVerdict(Worker, payload) {
-  const race = new VerdictRace();
+function awaitWorkerVerdict(awaitVerdict, Worker, deadlineMs, payload) {
   const worker = new Worker(WORKER_URL, { workerData: payload });
-  const timer = setTimeout(() => {
-    race.settle(() => {
-      worker.terminate();
-      deny({ reason: DEADLINE_REASON });
-    });
-  }, DEADLINE_MS);
-  worker.once('message', (outcome) => race.settle(() => conclude(timer, outcome)));
-  // No verdict, by error or exit, is a crash: same exit-2 path as every other.
-  worker.once('error', (err) => race.settle(() => denyOnCrash(err)));
-  worker.once('exit', () => race.settle(denyWithoutVerdict));
+  awaitVerdict(worker, {
+    deadlineMs,
+    startTimer: setTimeout,
+    clearTimer: clearTimeout,
+    onVerdict: conclude,
+    onTimeout: () => deny({ reason: DEADLINE_REASON }),
+    onCrash: denyOnCrash,
+    onExit: denyWithoutVerdict,
+  });
 }
 
-function conclude(timer, { verdict, audit }) {
-  clearTimeout(timer);
+function conclude({ verdict, audit }) {
   process.stderr.write(`craft-guard: ${JSON.stringify(audit)}\n`);
   if (verdict.block) {
     deny(verdict);
@@ -103,10 +73,12 @@ async function main() {
     // failure reaches the catch below with its own message.
     const { resolveCraftRoot } = await import('../src/craft-root.js');
     const { Worker } = await import('node:worker_threads');
+    const { resolveDeadlineMs } = await import('../src/verdict-deadline.js');
+    const { awaitVerdict } = await import('../src/verdict-race.js');
     process.env.CRAFT_ROOT = resolveCraftRoot(import.meta.url);
     const raw = await readStdin();
     const payload = JSON.parse(raw);
-    awaitVerdict(Worker, payload);
+    awaitWorkerVerdict(awaitVerdict, Worker, resolveDeadlineMs(process.env.CRAFT_GUARD_DEADLINE_MS), payload);
   } catch (err) {
     // A guard that cannot decide must fail CLOSED, never fall through to an
     // implicit success.

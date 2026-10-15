@@ -93,6 +93,8 @@ Residuals, stated as measured or designed:
   bodies; an interpreter given a literal string (`python3 -c 'import os; os.system("git push")'`);
   scripts, `make`, `npm run`, `ssh host '…'`, `git rebase --exec`; gitconfig-file aliases; a dynamic
   string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`); `git${IFS}diff`.
+- **A renamed or copied git binary** (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
+  string guard; `hash -p` is blocked.
 - **`write_bash` into an interactive (pty) session** is unguarded: headless 1.0.98 sessions have
   stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
 - **No cross-call shell state**: a function or variable defined in one `bash` call was not visible
