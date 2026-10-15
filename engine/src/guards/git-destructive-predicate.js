@@ -1,4 +1,4 @@
-import { gitInvocations, hasInlineAlias, INLINE_ALIAS_REASON } from './shell-git-invocations.js';
+import { configChannelReason, gitInvocations } from './shell-git-invocations.js';
 
 const REASONS = Object.freeze({
   push: 'craft: destructive git (push) is denied in this binding — run it outside the agent',
@@ -67,7 +67,7 @@ const judgeByKind = invocation => {
   return null;
 };
 
-const verdictFor = invocation => (hasInlineAlias(invocation) ? INLINE_ALIAS_REASON : judgeByKind(invocation));
+const verdictFor = invocation => configChannelReason(invocation) ?? judgeByKind(invocation);
 
 /**
  * Pure predicate: does this bash command run a destructive git verb?

@@ -41,9 +41,18 @@ const TAGS = Object.freeze({
   dynamicHead: 'dynamic-head',
   dynamicArg: 'dynamic-arg',
   dynamicSubcommand: 'dynamic-subcommand',
+  patternWord: 'pattern-word',
+  dashedBuiltin: 'dashed-builtin',
+  configChannel: 'config-channel',
+  dynamicBeforeVerb: 'dynamic-before-verb',
+  opaqueString: 'opaque-string',
+  arithmeticHeredoc: 'arithmetic-heredoc',
 });
-const FALSE_BLOCK_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand]);
-const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested]);
+const FALSE_BLOCK_TAGS = Object.freeze([
+  TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
+  TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb,
+]);
+const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc]);
 
 // The stub is the only git a judged command can reach: it records argv and does nothing else.
 const STUB_GIT = ['#!/bin/sh', `printf '%s\\0' "$#" "$@" >> "$FUZZ_LOG"`, ''].join('\n');
@@ -100,7 +109,7 @@ const VERBS = Object.freeze([
   ['clean', '-fdn'], ['branch', '-D x'], ['branch', '-d x'], ['branch', '-d -f x'], ['branch', '--delete --force x'], ['diff', ''],
   ['diff', '--no-ext-diff'], ['show', ''], ['show', '--no-ext-diff HEAD'], ['status', ''], ['log', '-1'],
 ]);
-const EXTRA_ARGS = Object.freeze(['', '', '', 'x', '\\"', "\\'", "$'a\\'b'", '"a b"', "'a b'", '--', '-q']);
+const EXTRA_ARGS = Object.freeze(['', '', '', 'x', '\\"', "\\'", "$'ab'", '"a b"', "'a b'", '--', '-q']);
 const COMMENT_SUFFIXES = Object.freeze(['', '', '', '', ' # git push', ' # git reset --hard']);
 const ASSIGNMENTS = Object.freeze(['', '', '', '', 'NAME=v ', 'x=$((1+2)) ', 'A=1 B=2 ']);
 const WRAPPERS = Object.freeze(['', '', '', 'env ', 'command ', 'nohup ']);
@@ -148,6 +157,43 @@ const SPECIALS = Object.freeze([
   fragment('git status "x', { tags: [TAGS.unterminated], status: 2 }),
   fragment('echo $(git push', { tags: [TAGS.unterminated], status: 2 }),
   fragment(`echo ${'$(echo '.repeat(OVER_NESTING)}git push${')'.repeat(OVER_NESTING)}`, { tags: [TAGS.overNested] }),
+  fragment("$'\\x67it' push origin main"),
+  fragment("$'\\147it' push"),
+  fragment("git $'pu\\163h'"),
+  fragment("git $'\\x64iff'"),
+  fragment('$"git" push'),
+  fragment("bash -c $'echo x\\ngit push'", { tags: [TAGS.opaqueString] }),
+  fragment("eval $'git\\x20push'", { tags: [TAGS.opaqueString] }),
+  fragment('{git,push} origin'),
+  fragment('git {push,x}'),
+  fragment('{git,-C,.,reset,--hard}'),
+  fragment('{git,diff}'),
+  fragment('git pus[h] origin', { tags: [TAGS.patternWord] }),
+  fragment('echo {push,x}', { tags: [TAGS.patternWord] }),
+  fragment('gi[t] push', { tags: [TAGS.patternWord] }),
+  fragment('echo ${#x}; git push\necho }'),
+  fragment('(( x = 1 << 2 ))\ngit push', { tags: [TAGS.arithmeticHeredoc] }),
+  fragment("bash -o pipefail -c 'git push'"),
+  fragment("bash -O extglob -c 'git push'"),
+  fragment("bash +e -c 'git push'"),
+  fragment("env -S'git push'"),
+  fragment("env -u X -S 'git push'"),
+  fragment('G=git; command $G push'),
+  fragment('G=git; exec $G push'),
+  fragment('G=git; nohup $G push'),
+  fragment('G=git; command $G diff'),
+  fragment('echo "$HOME" show', { tags: [TAGS.dynamicBeforeVerb] }),
+  fragment('git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),
+  fragment('"$(git --exec-path)"/git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),
+  fragment('GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0=push git x', { tags: [TAGS.configChannel] }),
+  fragment('git -c include.path=f status', { tags: [TAGS.configChannel] }),
+  fragment("alias p='git push'", { tags: [TAGS.configChannel] }),
+  fragment('git add src/*.js'),
+  fragment('git commit -m "fix {a,b}"'),
+  fragment("git log --grep '*'"),
+  fragment("echo $'hello'"),
+  fragment('ls *.md'),
+  fragment("bash -lc 'git status'"),
   fragment('echo push | xargs git', { tags: [TAGS.residual] }),
   fragment("echo 'git push' | sh", { tags: [TAGS.residual] }),
   fragment("printf 'git reset --hard\\n' | bash", { tags: [TAGS.residual] }),

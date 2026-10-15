@@ -1,4 +1,4 @@
-import { gitInvocations, hasInlineAlias, INLINE_ALIAS_REASON } from './shell-git-invocations.js';
+import { configChannelReason, gitInvocations } from './shell-git-invocations.js';
 
 // Patterns that make a git diff/show invocation exempt from the ext-diff check.
 export const COMPLIANT_MARKERS = ['--no-ext-diff', 'rtk proxy'];
@@ -27,9 +27,9 @@ const diffsWithoutMarker = invocation => {
 };
 
 const verdictFor = invocation => {
-  if (hasInlineAlias(invocation)) return INLINE_ALIAS_REASON;
-  if (diffsWithoutMarker(invocation) && !isProxied(invocation.leadingWords)) return REASON_GIT_EXT_DIFF;
-  return null;
+  const reason = configChannelReason(invocation);
+  if (reason !== null) return reason;
+  return diffsWithoutMarker(invocation) && !isProxied(invocation.leadingWords) ? REASON_GIT_EXT_DIFF : null;
 };
 
 /**

@@ -227,3 +227,150 @@ describe('gitDestructivePredicate() — a subcommand carried by an expansion', (
     assert.deepEqual(result, { block: true, reason: REASON_DYNAMIC_SUBCOMMAND });
   });
 });
+
+const assertBlocks = rows => {
+  for (const command of rows) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, true);
+    });
+  }
+};
+
+const assertPasses = rows => {
+  for (const command of rows) {
+    it(`Given ${JSON.stringify(command)}, when checked, then does not block`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+};
+
+describe('gitDestructivePredicate() — ANSI-C and locale quoting', () => {
+  assertBlocks([
+    "$'\\x67it' push origin main",
+    "$'\\147it' push",
+    "git $'pu\\163h'",
+    "bash -c $'echo x\\ngit push'",
+    "eval $'git\\x20push'",
+    '$"git" push',
+    "$'git' push",
+  ]);
+});
+
+describe('gitDestructivePredicate() — unmodelled constructs that stay passes', () => {
+  assertPasses([
+    'git status',
+    'git -C "$WT" status',
+    'git -C "$WT" branch --show-current',
+    'git log --oneline',
+    'git diff --no-ext-diff',
+    'FOO=1 git status',
+    'git add src/*.js',
+    'git log --grep \'*\'',
+    'git commit -m "fix {a,b}"',
+    "echo $'hello'",
+    'ls *.md',
+    'env FOO=1 node x.js',
+    "bash -c 'echo hi'",
+    "bash -lc 'git status'",
+    'git commit -m "$(cat <<\'EOF\'\nfeat: x\nEOF\n)"',
+  ]);
+});
+
+describe('gitDestructivePredicate() — brace and glob words', () => {
+  assertBlocks([
+    '{git,push} origin',
+    'git {push,x}',
+    '{git,-C,.,reset,--hard}',
+    'x/gi[t] push',
+    'x/g?t push',
+    'git pus[h] origin',
+    'git {a..b} push',
+  ]);
+
+  assertPasses(['git rev-parse HEAD@{upstream}', '[ -f x ] && git status', '[[ -n "$A" ]] && git status', 'ls {a}']);
+});
+
+describe('gitDestructivePredicate() — parameter expansion and arithmetic', () => {
+  assertBlocks([
+    'echo ${#x}; git push\necho }',
+    'echo ${x%%#*}; git push\necho }',
+    '(( x = 1 << 2 ))\ngit push',
+    '(( x = 1 << 2 ))\ngit push\n2',
+    'echo $(( 1 << 2 )); git push',
+  ]);
+
+  assertPasses(['echo ${#x}; git status', '( cat <<EOF\nx\nEOF\n)\ngit status', 'echo $(( 1 << 2 ))']);
+});
+
+describe('gitDestructivePredicate() — shell and env option grammar', () => {
+  assertBlocks([
+    "bash -o pipefail -c 'git push'",
+    "bash -O extglob -c 'git push'",
+    "bash +e -c 'git push'",
+    "env -S'git push'",
+    "env -u X -S 'git push'",
+    "env -C /x -S 'git push'",
+    "env -iS 'git push'",
+    "env --split-string='git push'",
+    "env -P /bin -S 'git push'",
+    "sh -c 'git push'",
+  ]);
+
+  assertPasses(["env -u X node x.js", "env -S 'node x.js'", "bash -o pipefail script.sh", "bash -c 'echo push'"]);
+});
+
+describe('gitDestructivePredicate() — wrappers and dashed builtins', () => {
+  assertBlocks([
+    'G=git; command $G push',
+    'G=git; exec $G push',
+    'G=git; nohup $G push',
+    'G=git; nohup $G reset --hard',
+    'git-push origin main',
+    '/x/libexec/git-core/git-reset --hard',
+    '"$(git --exec-path)"/git-push origin main',
+    'env git-push',
+  ]);
+
+  assertPasses([
+    'git-lfs ls-files',
+    'G=git; command $G status',
+    'rm git-push.txt',
+    'git-status',
+    'echo "$WT" log',
+  ]);
+});
+
+const REASON_CONFIG_CHANNEL = 'craft: git config injected outside -c is denied in this binding';
+
+describe('gitDestructivePredicate() — config channels outside -c', () => {
+  for (const command of [
+    `GIT_CONFIG_PARAMETERS="'alias.y=push'" git y`,
+    'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0=push git x',
+    `env GIT_CONFIG_PARAMETERS="'alias.y=push'" git x`,
+    'GIT_CONFIG_GLOBAL=/x git status',
+    'GIT_CONFIG_SYSTEM=/x git status',
+    'git -c include.path=f w',
+    'git -c includeIf.onbranch:x.path=f status',
+    'git --config-env include.path=E st',
+    "shopt -s expand_aliases\nalias p='git push'\np origin",
+    "alias g=git",
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the config channel reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_CONFIG_CHANNEL });
+    });
+  }
+
+  assertPasses(["alias ll='ls -l'", 'GIT_CONFIG_NOSYSTEM=1 git status', 'GIT_CONFIG_GLOBAL=/x ls', 'git -c core.pager=cat status']);
+});

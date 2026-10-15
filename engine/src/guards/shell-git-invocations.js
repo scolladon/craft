@@ -158,6 +158,8 @@ const normaliseFrom = (words, start) => {
 
 export const normaliseGitArgv = words => normaliseFrom(words.map(toWord), 0);
 
+const ARITHMETIC_HEREDOC =
+  'craft: command not parseable (<< inside an arithmetic command) — denied fail-closed';
 const UNTERMINATED_QUOTE = 'craft: command not parseable (unterminated quote) — denied fail-closed';
 const NEWLINE = '\n';
 const SINGLE_QUOTE = "'";
@@ -206,89 +208,107 @@ const HEAD_WORDS = new Set([
 ]);
 
 const SHELL_NAMES = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh']);
-const CLUSTER_SHAPE = /^-[A-Za-z]+$/;
+const CLUSTER_SHAPE = /^[-+][A-Za-z]+$/;
 const COMMAND_FLAG = 'c';
+const PLUS_PREFIX = '+';
 
 const basename = text => text.slice(text.lastIndexOf('/') + 1);
 
 const isOption = ({ text }) => text.startsWith(OPTION_PREFIX);
 
-const isCommandCluster = text => CLUSTER_SHAPE.test(text) && text.includes(COMMAND_FLAG);
+const isFlagWord = ({ text }) => text.startsWith(OPTION_PREFIX) || text.startsWith(PLUS_PREFIX);
 
-const optionRunEnd = (words, from) => {
-  let end = from;
-  while (end < words.length && isOption(words[end])) end += 1;
-  return end;
-};
+const isCommandCluster = ({ text }) => CLUSTER_SHAPE.test(text) && text.includes(COMMAND_FLAG);
 
-const hasCommandOption = (words, from, to) => {
-  for (let index = from; index < to; index += 1) {
-    if (isCommandCluster(words[index].text)) return true;
-  }
-  return false;
-};
-
-const shellCommandString = (words, index) => {
-  if (!SHELL_NAMES.has(basename(words[index].text))) return null;
-  const targetIndex = optionRunEnd(words, index + 1);
-  const target = words[targetIndex];
-  return target !== undefined && hasCommandOption(words, index + 1, targetIndex) ? target.text : null;
-};
+// Shell option grammar (-o name, -O name, +e) is not modelled, so once a command option
+// exists every later non-option word may be the command string.
+const shellCommandWords = (words, index, scan) =>
+  SHELL_NAMES.has(basename(words[index].text)) && scan.lastClusterAt > index
+    ? words.slice(index + 1).filter(word => !isFlagWord(word))
+    : [];
 
 const UNTERMINATED_SUBSTITUTION =
   'craft: command not parseable (unterminated substitution) — denied fail-closed';
+const OPAQUE_STRING =
+  'craft: command not parseable (an escaped $\'…\' string is evaluated as shell) — denied fail-closed';
 
 const EVAL_WORD = 'eval';
+
+const evalWords = (words, index) => {
+  if (words[index].text !== EVAL_WORD || index + 1 >= words.length) return [];
+  const rest = words.slice(index + 1);
+  const joined = { text: rest.map(({ text }) => text).join(' '), dynamic: false };
+  return [rest.some(({ opaque }) => opaque === true) ? { ...joined, opaque: true } : joined];
+};
+
 const ENV_WORD = 'env';
-const SPLIT_STRING_SHORT = '-S';
+const SPLIT_LETTER = 'S';
+const SKIPPED_VALUE_LETTERS = new Set(['u', 'C', 'P']);
 const SPLIT_STRING_LONG = '--split-string';
-const SPLIT_STRING_ATTACHED = `${SPLIT_STRING_LONG}=`;
+const LONG_OPTION_PREFIX = '--';
+const SKIPPED_LONG_OPTIONS = new Set(['--unset', '--chdir']);
+const NO_ENV_VALUE = Object.freeze({ split: [], consumed: 0 });
 
-const evalString = (words, index) =>
-  words[index].text === EVAL_WORD && index + 1 < words.length
-    ? words
-        .slice(index + 1)
-        .map(({ text }) => text)
-        .join(' ')
-    : null;
-
-const splitStringValue = (words, index) => {
-  const { text } = words[index];
-  if (text.startsWith(SPLIT_STRING_ATTACHED)) return text.slice(SPLIT_STRING_ATTACHED.length);
-  const isSeparate = text === SPLIT_STRING_SHORT || text === SPLIT_STRING_LONG;
-  return isSeparate ? (words[index + 1]?.text ?? null) : null;
+const envValue = (words, cursor, from, splits) => {
+  const attached = words[cursor].text.slice(from);
+  const source = attached === '' ? words[cursor + 1] : { ...words[cursor], text: attached };
+  const consumed = attached === '' ? 1 : 0;
+  return { split: splits && source !== undefined ? [source] : [], consumed };
 };
 
-const envSplitString = (words, index) => {
-  if (words[index].text !== ENV_WORD) return null;
-  for (let option = index + 1; option < words.length && isOption(words[option]); option += 1) {
-    const value = splitStringValue(words, option);
-    if (value !== null) return value;
+const longEnvOption = (words, cursor) => {
+  const { text } = words[cursor];
+  const separator = text.indexOf(VALUE_SEPARATOR);
+  const name = separator === -1 ? text : text.slice(0, separator);
+  const from = separator === -1 ? text.length : separator + 1;
+  if (name === SPLIT_STRING_LONG) return envValue(words, cursor, from, true);
+  return SKIPPED_LONG_OPTIONS.has(name) ? envValue(words, cursor, from, false) : NO_ENV_VALUE;
+};
+
+const envOption = (words, cursor) => {
+  const { text } = words[cursor];
+  if (text.startsWith(LONG_OPTION_PREFIX)) return longEnvOption(words, cursor);
+  for (let at = 1; at < text.length; at += 1) {
+    if (text[at] === SPLIT_LETTER) return envValue(words, cursor, at + 1, true);
+    if (SKIPPED_VALUE_LETTERS.has(text[at])) return envValue(words, cursor, at + 1, false);
   }
-  return null;
+  return NO_ENV_VALUE;
 };
 
-const REPARSERS = Object.freeze([shellCommandString, evalString, envSplitString]);
-
-const stringAt = (words, index) => {
-  for (const find of REPARSERS) {
-    const string = find(words, index);
-    if (string !== null) return string;
+// A word inside an earlier env's option run is a value, never an env command, so skipping it
+// keeps a chain of -S options from being scanned once per env word.
+const envSplitWords = (words, index, scan) => {
+  if (words[index].text !== ENV_WORD || index < scan.optionsEnd) return [];
+  const found = [];
+  let cursor = index + 1;
+  for (; cursor < words.length && isOption(words[cursor]); cursor += 1) {
+    const { split, consumed } = envOption(words, cursor);
+    found.push(...split);
+    cursor += consumed;
   }
-  return null;
+  scan.optionsEnd = cursor;
+  return found;
 };
+
+// Each of these re-parses every later word already, so scanning past one repeats that work.
+const STOPPING_WORDS = new Set([EVAL_WORD, ...SHELL_NAMES]);
+
+const REPARSERS = Object.freeze([shellCommandWords, evalWords, envSplitWords]);
 
 // An eval string already holds every later word, so re-parsing past the first eval would
 // only repeat that work once per eval word.
-const reparsedStrings = words => {
-  const strings = [];
+const reparsedWords = words => {
+  const found = [];
+  const scan = { lastClusterAt: words.findLastIndex(isCommandCluster), optionsEnd: 0 };
   for (let index = 0; index < words.length; index += 1) {
-    const string = stringAt(words, index);
-    if (string !== null) strings.push(string);
-    if (string !== null && words[index].text === EVAL_WORD) break;
+    const here = REPARSERS.flatMap(find => find(words, index, scan));
+    found.push(...here);
+    if (here.length > 0 && STOPPING_WORDS.has(basename(words[index].text))) break;
   }
-  return strings;
+  return found;
 };
+
+const NO_ARITHMETIC = -1;
 
 const createContext = (source, depth, budget) => ({
   source,
@@ -296,15 +316,24 @@ const createContext = (source, depth, budget) => ({
   budget,
   parens: 0,
   dynamic: false,
+  opaque: false,
+  pattern: false,
+  braceFailedUntil: 0,
+  parameter: false,
+  arithmeticFloor: NO_ARITHMETIC,
   index: 0,
   commands: [],
   words: [],
+  assignments: [],
   piece: null,
   redirecting: false,
   timing: false,
   heredocs: [],
   failure: null,
 });
+
+// Lone test and group operators are words bash never expands.
+const LITERAL_OPERATORS = new Set(['[', '[[', '{']);
 
 const append = (context, text) => {
   context.piece = (context.piece ?? '') + text;
@@ -321,14 +350,23 @@ const pushWord = (context, word) => {
     context.words.push(word);
     return;
   }
+  if (ASSIGNMENT.test(word.text)) context.assignments.push(word.text);
   context.timing = word.text === TIME_KEYWORD;
 };
 
 const endWord = context => {
   if (context.piece === null) return;
-  const word = { text: context.piece, dynamic: context.dynamic };
+  const literal = LITERAL_OPERATORS.has(context.piece);
+  const word = {
+    text: context.piece,
+    dynamic: context.dynamic && !literal,
+    ...(context.opaque && { opaque: true }),
+    ...(context.pattern && !literal && { pattern: true }),
+  };
   context.piece = null;
   context.dynamic = false;
+  context.opaque = false;
+  context.pattern = false;
   if (context.redirecting) {
     context.redirecting = false;
     return;
@@ -352,7 +390,8 @@ const parseNested = (context, text) => {
 };
 
 const reparse = (context, words) => {
-  for (const text of reparsedStrings(words)) {
+  for (const { text, opaque } of reparsedWords(words)) {
+    if (opaque === true) return fail(context, OPAQUE_STRING);
     if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
     if (!charge(context, text.length)) return;
     const child = parseNested(context, text);
@@ -361,13 +400,18 @@ const reparse = (context, words) => {
   }
 };
 
+// The assignments are not part of the command's shape; they are read only to catch config channels.
+const commandOf = ({ words, assignments }) =>
+  Object.defineProperty({ words }, 'assignments', { value: assignments, enumerable: false });
+
 const breakCommand = context => {
   endWord(context);
   if (context.words.length > 0) {
-    context.commands.push({ words: context.words });
+    context.commands.push(commandOf(context));
     reparse(context, context.words);
   }
   context.words = [];
+  context.assignments = [];
   context.redirecting = false;
   context.timing = false;
 };
@@ -389,6 +433,51 @@ const onWhitespace = context => {
 const onBreak = context => {
   breakCommand(context);
   context.index += 1;
+};
+
+const markPattern = context => {
+  context.dynamic = true;
+  context.pattern = true;
+};
+
+const onGlob = context => {
+  markPattern(context);
+  onLiteral(context);
+};
+
+const BRACE_WORD_END = new Set([' ', '\t', NEWLINE, ';', '|', '&', '(', ')', '<', '>']);
+const BRACE_SEPARATOR = ',';
+const BRACE_RANGE = '..';
+const BRACE_CLOSE = '}';
+
+const quoteEnd = (source, index) => {
+  const close = source.indexOf(source[index], index + 1);
+  return close === -1 ? source.length : close;
+};
+
+const braceSkip = (source, index) => {
+  if (source[index] === BACKSLASH) return index + 1;
+  return source[index] === SINGLE_QUOTE || source[index] === DOUBLE_QUOTE ? quoteEnd(source, index) : index;
+};
+
+// A scan that finds no brace expression proves none exists later in the same word, so
+// remembering where it stopped keeps a run of braces linear.
+const hasBraceExpression = context => {
+  const { source } = context;
+  if (context.index < context.braceFailedUntil) return false;
+  let separated = false;
+  let index = context.index + 1;
+  for (; index < source.length && !BRACE_WORD_END.has(source[index]); index = braceSkip(source, index) + 1) {
+    separated ||= source[index] === BRACE_SEPARATOR || source.startsWith(BRACE_RANGE, index);
+    if (separated && source[index] === BRACE_CLOSE) return true;
+  }
+  context.braceFailedUntil = index;
+  return false;
+};
+
+const onBrace = context => {
+  if (hasBraceExpression(context)) markPattern(context);
+  onLiteral(context);
 };
 
 const onBackslash = context => {
@@ -448,13 +537,15 @@ const onBackslashOrLiteral = context =>
     : onLiteral(context);
 
 const onEscapedChar = context => {
+  context.dynamic = true;
+  context.opaque = true;
   append(context, context.source[context.index + 1]);
   context.index += 2;
 };
 
-const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand });
+const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand, parameter: false });
 
-const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord });
+const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true });
 
 const runBody = (child, close) => {
   while (child.index < child.source.length && child.failure === null) {
@@ -476,11 +567,12 @@ const markExpansion = (context, start, end) => {
 
 const isTooDeep = context => context.depth >= MAX_NESTING_DEPTH;
 
-const enterConstruct = (context, { openLength, close, settle }) => {
+const enterConstruct = (context, { openLength, close, settle, parameter }) => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
   const child = createContext(context.source, context.depth + 1, context.budget);
   child.index = start + openLength;
+  child.parameter = parameter;
   const closed = runBody(child, close);
   settle(child);
   if (child.failure !== null) return fail(context, child.failure);
@@ -540,8 +632,17 @@ const expandDollar = context => {
   onLiteral(context);
 };
 
-const onDollar = context =>
-  context.source[context.index + 1] === SINGLE_QUOTE ? readAnsiC(context) : expandDollar(context);
+const onLocaleString = context => {
+  context.index += 1;
+  onDoubleQuote(context);
+};
+
+const onDollar = context => {
+  const next = context.source[context.index + 1];
+  if (next === SINGLE_QUOTE) return readAnsiC(context);
+  if (next === DOUBLE_QUOTE) return onLocaleString(context);
+  expandDollar(context);
+};
 
 const onDoubleQuotedDollar = context =>
   context.source[context.index + 1] === SINGLE_QUOTE ? onLiteral(context) : expandDollar(context);
@@ -592,6 +693,7 @@ const skipBlanks = context => {
 };
 
 const onHeredoc = context => {
+  if (context.arithmeticFloor !== NO_ARITHMETIC) return fail(context, ARITHMETIC_HEREDOC);
   if (FILE_DESCRIPTOR.test(context.piece ?? '')) context.piece = null;
   endWord(context);
   context.index += HEREDOC_OPERATOR.length;
@@ -646,8 +748,9 @@ const onNewline = context => {
   breakCommand(context);
 };
 
+// Inside ${…} a # is the length or trim operator; reading it as a comment would hide the rest of the line.
 const onHash = context => {
-  if (context.piece !== null) return onLiteral(context);
+  if (context.piece !== null || context.parameter) return onLiteral(context);
   const lineEnd = context.source.indexOf(NEWLINE, context.index);
   context.index = lineEnd === -1 ? context.source.length : lineEnd;
 };
@@ -660,13 +763,18 @@ const onRedirect = context => {
   context.redirecting = true;
 };
 
+const OPENS_ARITHMETIC = '((';
+
 const onOpenParen = context => {
+  const adjacent = context.source.startsWith(OPENS_ARITHMETIC, context.index - 1) && context.index > 0;
+  if (adjacent && context.arithmeticFloor === NO_ARITHMETIC) context.arithmeticFloor = context.parens - 1;
   context.parens += 1;
   onBreak(context);
 };
 
 const onCloseParen = context => {
   context.parens = Math.max(0, context.parens - 1);
+  if (context.parens <= context.arithmeticFloor) context.arithmeticFloor = NO_ARITHMETIC;
   onBreak(context);
 };
 
@@ -702,6 +810,10 @@ const CHAR_HANDLERS = new Map([
   ['#', onHash],
   [DOLLAR, onDollar],
   [BACKSLASH, onBackslash],
+  ['*', onGlob],
+  ['?', onGlob],
+  ['[', onGlob],
+  ['{', onBrace],
   [SINGLE_QUOTE, onSingleQuote],
   [DOUBLE_QUOTE, onDoubleQuote],
 ]);
@@ -731,9 +843,90 @@ const anchoredAt = (words, index) =>
 
 const dynamicHeadInvocation = words => extend(normaliseFrom(words, 1), { leadingWords: () => [] });
 
-const anchoredInvocations = ({ words }) => {
-  const anchors = words.flatMap((word, index) => (isGitWord(word) ? [anchoredAt(words, index)] : []));
-  return words[0]?.dynamic === true ? [dynamicHeadInvocation(words), ...anchors] : anchors;
+const ANCHOR_VERBS = new Set(['push', 'reset', 'clean', 'branch', 'diff', 'show']);
+const PATTERN_DELIMITERS = /[{},[\]]+/;
+
+const holdsAnchorVerb = ({ text }) => text.split(PATTERN_DELIMITERS).some(token => ANCHOR_VERBS.has(token));
+
+const indeterminateAt = (words, index) =>
+  extend(indeterminate(words, index + 1), { leadingWords: () => texts(words.slice(0, index)) });
+
+const patternAnchors = (words, flag) =>
+  words.flatMap((word, index) =>
+    word.pattern === true && holdsAnchorVerb(word) ? [flag(indeterminateAt(words, index), index)] : []
+  );
+
+const DASHED_VERB = /^git-([a-z][a-z-]*)$/;
+
+const dashedVerb = word => {
+  const verb = DASHED_VERB.exec(basename(word.text))?.[1] ?? null;
+  const spelledOut = !word.dynamic || word.text.includes(PATH_SEPARATOR);
+  return spelledOut ? verb : null;
+};
+
+const dashedAt = (words, index, verb) =>
+  extend(subcommandResult(verb, words, index + 1, []), { leadingWords: () => texts(words.slice(0, index)) });
+
+const isAnchorVerb = word => !word.dynamic && ANCHOR_VERBS.has(word.text);
+
+const isGitSpelling = word => isGitWord(word) || dashedVerb(word) !== null;
+
+// A dynamic word ahead of a verb word may be the git itself behind a wrapper (command $G push).
+// Once a literal git word precedes it, the dynamic word is that invocation's own argument.
+const wrapperAnchors = (words, flag) => {
+  const dynamicAt = words.findIndex((word, index) => index > 0 && word.dynamic);
+  if (dynamicAt === -1 || words.slice(0, dynamicAt).some(isGitSpelling)) return [];
+  const verbAfter = words.slice(dynamicAt + 1).some(isAnchorVerb);
+  return verbAfter ? [flag(indeterminateAt(words, dynamicAt), dynamicAt)] : [];
+};
+
+const spelledAnchor = (words, index) => {
+  if (isGitWord(words[index])) return [anchoredAt(words, index)];
+  const verb = dashedVerb(words[index]);
+  return verb === null ? [] : [dashedAt(words, index, verb)];
+};
+
+const CONFIG_CHANNEL = /^GIT_CONFIG_(?:PARAMETERS|COUNT|GLOBAL|SYSTEM|KEY_\d+|VALUE_\d+)=/;
+const ALIAS_BUILTIN = 'alias';
+const WHITESPACE = /\s+/;
+
+const isConfigChannel = text => CONFIG_CHANNEL.test(text);
+
+// Anchors are flagged once per command (the first channel word and whether the head holds one),
+// so flagging stays linear however many git words the command has.
+const channelCursor = ({ words, assignments }) => ({
+  headInjects: assignments.some(isConfigChannel),
+  firstWordAt: words.findIndex(({ text }) => isConfigChannel(text)),
+});
+
+const injectsAt = ({ headInjects, firstWordAt }, anchorAt) =>
+  headInjects || (firstWordAt !== -1 && firstWordAt < anchorAt);
+
+const flagged = (invocation, injects) => Object.defineProperty(invocation, 'injectsConfig', { value: injects, enumerable: false });
+
+const aliasValueWords = ({ text }) =>
+  text.includes(VALUE_SEPARATOR)
+    ? text.slice(text.indexOf(VALUE_SEPARATOR) + 1).split(WHITESPACE).map(toWord)
+    : [];
+
+const aliasesGit = word => aliasValueWords(word).some(isGitSpelling);
+
+const aliasDefinition = ({ words }) =>
+  words[0].text === ALIAS_BUILTIN && words.slice(1).some(aliasesGit)
+    ? [flagged(extend(NO_SUBCOMMAND, { leadingWords: () => [] }), true)]
+    : [];
+
+const flaggerFor = command => {
+  const cursor = channelCursor(command);
+  return (invocation, index) => flagged(invocation, injectsAt(cursor, index));
+};
+
+const anchoredInvocations = command => {
+  const { words } = command;
+  const flag = flaggerFor(command);
+  const head = words[0]?.dynamic === true ? [flag(dynamicHeadInvocation(words), 0)] : [];
+  const anchors = words.flatMap((_, index) => spelledAnchor(words, index).map(anchor => flag(anchor, index)));
+  return [...head, ...anchors, ...patternAnchors(words, flag), ...wrapperAnchors(words, flag), ...aliasDefinition(command)];
 };
 
 export function gitInvocations(command) {
@@ -742,5 +935,18 @@ export function gitInvocations(command) {
   return { parsed: true, invocations: result.commands.flatMap(anchoredInvocations) };
 }
 
+export const CONFIG_CHANNEL_REASON = 'craft: git config injected outside -c is denied in this binding';
+const INCLUDE_PATH_KEY = 'include.path';
+const INCLUDE_IF_PREFIX = 'includeif.';
+
+const holdsIncludeKey = invocation =>
+  invocation.kind === 'subcommand' &&
+  invocation.configKeys.some(key => key === INCLUDE_PATH_KEY || key.startsWith(INCLUDE_IF_PREFIX));
+
 export const hasInlineAlias = invocation =>
   invocation.kind === 'subcommand' && invocation.configKeys.some(key => key.startsWith(ALIAS_KEY_PREFIX));
+
+export const configChannelReason = invocation => {
+  if (hasInlineAlias(invocation)) return INLINE_ALIAS_REASON;
+  return invocation.injectsConfig === true || holdsIncludeKey(invocation) ? CONFIG_CHANNEL_REASON : null;
+};

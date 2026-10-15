@@ -244,7 +244,7 @@ describe('parseShellCommands() — quoting and escapes', () => {
     ['git -C "/a;b" diff', [['git', '-C', '/a;b', 'diff']]],
     ['echo \\"; git diff', [['echo', '"'], ['git', 'diff']]],
     ["echo \\'; git diff", [['echo', "'"], ['git', 'diff']]],
-    ["echo $'a\\'b'; git diff", [['echo', "a'b"], ['git', 'diff']]],
+    ["echo $'ab'; git diff", [['echo', 'ab'], ['git', 'diff']]],
     ['"git" diff', [['git', 'diff']]],
     ["'git' diff", [['git', 'diff']]],
     ['g\\it diff', [['git', 'diff']]],
@@ -669,5 +669,25 @@ describe('shell parsing — bounded work', () => {
     const result = sut('a'.repeat(MAX_COMMAND_LENGTH));
 
     assert.equal(result.parsed, true);
+  });
+});
+
+describe('parseShellCommands() — words the tokeniser does not compute', () => {
+  const escaped = text => ({ text, dynamic: true, opaque: true });
+
+  it('Given a $\'…\' word holding a backslash escape, When parsed, Then the word is dynamic and opaque', () => {
+    const sut = parseShellCommands;
+
+    const result = sut("echo $'a\\nb'");
+
+    assert.deepEqual(result, parsed({ words: [word('echo'), escaped('anb')] }));
+  });
+
+  it('Given a $"…" word, When parsed, Then it reads as a double-quoted string', () => {
+    const sut = parseShellCommands;
+
+    const result = sut('$"git" push');
+
+    assert.deepEqual(result, parsed(cmd('git', 'push')));
   });
 });

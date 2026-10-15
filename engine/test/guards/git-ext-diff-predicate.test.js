@@ -355,3 +355,60 @@ describe('gitExtDiffPredicate() — a subcommand carried by an expansion', () =>
     assert.deepEqual(result, { block: false });
   });
 });
+
+const assertBlocks = rows => {
+  for (const command of rows) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, true);
+    });
+  }
+};
+
+describe('gitExtDiffPredicate() — unmodelled constructs', () => {
+  assertBlocks(["git $'\\x64iff'"]);
+});
+
+describe('gitExtDiffPredicate() — brace and glob words', () => {
+  assertBlocks(['{git,diff}', 'git {diff,x}', 'git dif[f]']);
+
+  it('Given a brace word carrying --no-ext-diff, when checked, then does not block', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('{git,diff} --no-ext-diff');
+
+    assert.equal(result.block, false);
+  });
+});
+
+describe('gitExtDiffPredicate() — wrappers and dashed builtins', () => {
+  assertBlocks(['G=git; command $G diff', 'G=git; nohup $G show', 'git-diff', '/x/git-core/git-show HEAD']);
+
+  it('Given a dashed diff carrying --no-ext-diff, when checked, then does not block', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('git-diff --no-ext-diff');
+
+    assert.equal(result.block, false);
+  });
+});
+
+describe('gitExtDiffPredicate() — config channels outside -c', () => {
+  for (const command of [
+    `GIT_CONFIG_PARAMETERS="'alias.y=diff'" git y --no-ext-diff`,
+    'GIT_CONFIG_COUNT=1 git status',
+    'git -c include.path=f status',
+    "alias p='git diff --no-ext-diff'",
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the config channel reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: 'craft: git config injected outside -c is denied in this binding' });
+    });
+  }
+});
