@@ -512,11 +512,21 @@ describe('gitDestructivePredicate() — option and wrapper rows that guard the p
     'git branch -d x --sort=-refname',
   ]);
 
-  it('Given key and value config variables without a count, when checked, then blocks with the config channel reason', () => {
+  for (const command of ['GIT_CONFIG_KEY_0=alias.x git x', 'GIT_CONFIG_VALUE_0=push git x']) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the config channel reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_CONFIG_CHANNEL });
+    });
+  }
+
+  it('Given a variable that only ends in GIT_CONFIG_COUNT, when checked, then it passes', () => {
     const sut = gitDestructivePredicate;
 
-    const result = sut('GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0=push git x');
+    const result = sut('MY_GIT_CONFIG_COUNT=1 git status');
 
-    assert.deepEqual(result, { block: true, reason: REASON_CONFIG_CHANNEL });
+    assert.deepEqual(result, { block: false });
   });
 });

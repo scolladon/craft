@@ -1,8 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { gitPlainCommandGate } from '../../src/guards/git-plain-command-gate.js';
+import { gitPlainCommandGate, COMPLEX_NEAR_GIT_REASON as REASON } from '../../src/guards/git-plain-command-gate.js';
 
-const REASON = 'craft: command too complex to verify near git — spell it plainly';
+const smuggled = line => `git commit -m "$(cat <<'EOF'\nmsg\nEOF\n${line}\nEOF\n)"`;
 
 const COMPLEX_COMMANDS = [
   'shopt -s extglob\n/x/@(git) push origin main',
@@ -37,6 +37,54 @@ const COMPLEX_COMMANDS = [
   "\"bash\" -c 'git status'",
   "FOO=1 bash -c 'git status'",
   ">o bash -c 'git push'",
+  smuggled('{$(:),git,push} origin main'),
+  smuggled("bash $'-\\x63' 'git push'"),
+  smuggled("C=-c; bash $C 'git push'"),
+  smuggled('G=git V=push; command $G $V origin main'),
+  '"$(cat <<\'EOF\'\nbash\nEOF\n)" -c \'git push\'',
+  'git status; "$(cat <<\'EOF\'\nsh\nEOF\n)" -c x',
+  'A=1 "$(cat <<\'EOF\'\nsh\nEOF\n)" -c x; git status',
+  "trap 'git push origin main' EXIT",
+  "PS4='$(git push origin main)'; set -x; true",
+  "declare -i n='a[$(git push)]'",
+  "typeset -i n='a[$(git push)]'",
+  "let 'x=a[$(git push)]'",
+  "git status; echo 'a`id`'",
+  "2>/dev/null bash -c 'git status'",
+  "1>x eval 'git push'",
+  '2>>x sh -c x; git status',
+  '>&2 bash -c x; git status',
+  '2>&1 bash -c x; git status',
+  '>|x bash -c x; git status',
+  "a+=1 bash -c 'git status'",
+  "if true; then bash -c 'git status'; fi",
+  "while true; do bash -c 'git status'; break; done",
+  'until false; do sh -c x; done; git status',
+  'hash -p /tmp/git x; x push origin main',
+  "x; zsh -c 'git push'",
+  'exec git push',
+  'command git push',
+  'time git push',
+  'sudo git push',
+  'nice git push',
+  'timeout 5 git push',
+  "dash -c 'git status'",
+  "ksh -c 'git status'",
+  "builtin eval 'git push'",
+  "enable -f x y; git status",
+  "fc -s x; git status",
+  "coproc git push",
+  "alias p='git push'",
+  "git status\nbash -c 'git push'",
+  "git status;\tbash -c 'git push'",
+  "bash -c 'GIT push'",
+  "git status; BASH -c 'git push'",
+  'git commit -m "$(cat <<\'A\'\nx\nA\n)" -m "$(cat <<\'B\'\nB\n)"; bash -c \'echo MARKER-git\'\nA\n)"',
+  'git commit -m "x `bash -c y`"',
+  'git commit -m "a\\nb"',
+  'git commit -m "hi!"',
+  'git log --format=%h,%s @{u}..HEAD',
+  'git status; bash',
 ];
 
 const PLAIN_COMMANDS = [
@@ -60,6 +108,16 @@ const PLAIN_COMMANDS = [
   'git show --no-ext-diff HEAD:README.md',
   'ls -la && node --test x.js',
   'npm --prefix engine test 2>&1 | tail -5',
+  "git log --format='%h %s'",
+  'git status 2>&1 | tail -3',
+  'git diff --no-ext-diff > out.txt 2>&1',
+  'if git status; then echo ok; fi',
+  'git log --format=%h,%s HEAD~2..HEAD',
+  'git log -n +3',
+  'git config user.name',
+  'git\tstatus',
+  'git commit -m "$(cat <<\'EOF\'\nEOF\n)"',
+  'git commit -m "$(cat <<\'EOF\'\nxEOF\nEOF\n)"',
 ];
 
 describe('gitPlainCommandGate() — complex commands near git', () => {

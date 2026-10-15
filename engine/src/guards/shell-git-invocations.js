@@ -861,7 +861,7 @@ const isGitWord = word => !word.dynamic && word.text.split(PATH_SEPARATOR).pop()
 
 // Judges read only the words that open the command (a proxy prefix), so the copy stays bounded
 // however far into a long command the git word sits.
-export const LEADING_WORDS_LIMIT = 2;
+const LEADING_WORDS_LIMIT = 2;
 
 const leadingOf = (words, index) => texts(words.slice(0, Math.min(index, LEADING_WORDS_LIMIT)));
 

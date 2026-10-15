@@ -14,6 +14,7 @@ const GIT_CONFIG_INJECTION = /GIT_CONFIG_/i;
 const PLAIN_OUTSIDE_QUOTES = /^[A-Za-z0-9 \t_./:=@%+,~^-]$/;
 const WORD_BREAKS = new Set([' ', '\t', '\n', ';', '|', '&', '>']);
 const DOUBLE_QUOTE_FORBIDDEN = new Set(['$', '`', '\\', '!']);
+const SINGLE_QUOTE_FORBIDDEN = /[$`]/;
 const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
 const QUOTES = new Set([SINGLE_QUOTE, DOUBLE_QUOTE]);
@@ -21,20 +22,33 @@ const OPAQUE_WORD_PART = '"';
 const WRAPPER_WORDS = new Set([
   'sh', 'bash', 'zsh', 'dash', 'ksh', 'eval', 'env', 'exec', 'command', 'nohup',
   'time', 'sudo', 'nice', 'timeout', 'xargs', 'source', '.',
+  'trap', 'hash', 'builtin', 'enable', 'fc', 'coproc', 'alias',
 ]);
 
-const IDIOM_HEADER = /"\$\(cat <<'([A-Za-z_][A-Za-z0-9_]*)'\n/y;
+const IDIOM_HEADER_SOURCE = /"\$\(cat <<'([A-Za-z_][A-Za-z0-9_]*)'\n/.source;
 const IDIOM_OPEN = '"$(cat <<\'';
+const IDIOM_CLOSE = ')"';
+
+// Bash ends the heredoc at the first line equal to the delimiter, so only that line may close the idiom.
+function closingEnd(command, from, delimiter) {
+  for (let lineStart = from; lineStart < command.length; ) {
+    const lineEnd = command.indexOf('\n', lineStart);
+    if (lineEnd === -1) return -1;
+    if (command.slice(lineStart, lineEnd) === delimiter) {
+      return command.startsWith(IDIOM_CLOSE, lineEnd + 1) ? lineEnd + 1 + IDIOM_CLOSE.length : -1;
+    }
+    lineStart = lineEnd + 1;
+  }
+  return -1;
+}
 
 // Returns the index just past the idiom, or -1 when the text at `index` is not the idiom.
 function idiomEndAt(command, index) {
   if (!command.startsWith(IDIOM_OPEN, index)) return -1;
-  IDIOM_HEADER.lastIndex = index;
-  const header = IDIOM_HEADER.exec(command);
-  if (header === null) return -1;
-  const closing = `\n${header[1]}\n)"`;
-  const closeAt = command.indexOf(closing, IDIOM_HEADER.lastIndex - 1);
-  return closeAt === -1 ? -1 : closeAt + closing.length;
+  const headerPattern = new RegExp(IDIOM_HEADER_SOURCE, 'y');
+  headerPattern.lastIndex = index;
+  const header = headerPattern.exec(command);
+  return header === null ? -1 : closingEnd(command, headerPattern.lastIndex, header[1]);
 }
 
 function doubleQuotedEnd(command, from) {
@@ -45,9 +59,11 @@ function doubleQuotedEnd(command, from) {
   return -1;
 }
 
+// Builtins such as trap, let and declare -i evaluate single-quoted text, so it may not expand anything.
 function singleQuotedEnd(command, from) {
   const closeAt = command.indexOf(SINGLE_QUOTE, from);
-  return closeAt === -1 ? -1 : closeAt + 1;
+  if (closeAt === -1) return -1;
+  return SINGLE_QUOTE_FORBIDDEN.test(command.slice(from, closeAt)) ? -1 : closeAt + 1;
 }
 
 // Returns the index past the quoted run, or -1 when it is unterminated or not data.
@@ -73,23 +89,38 @@ function chunkAt(command, index) {
 
 const COMMAND_SEPARATORS = new Set([';', '|', '&', '\n']);
 const REDIRECT = '>';
-const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+const REDIRECT_JOINERS = new Set(['&', '|']);
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*\+?=/;
+const FILE_DESCRIPTOR = /^[0-9]+$/;
+const KEEPS_COMMAND_POSITION = new Set(['if', 'then', 'else', 'elif', 'while', 'until', 'do', 'time']);
 
 const isWrapperWord = word => WRAPPER_WORDS.has(word.split('/').pop().toLowerCase());
+const holdsOpaquePart = word => word.includes(OPAQUE_WORD_PART);
+const isOpaqueCommand = word => isWrapperWord(word) || holdsOpaquePart(word);
+const keepsCommandPosition = word => ASSIGNMENT.test(word) || KEEPS_COMMAND_POSITION.has(word);
 
 const startingState = () => ({ atCommand: true, redirect: false });
 
-function onBreak(state, char) {
-  if (COMMAND_SEPARATORS.has(char)) return { atCommand: true, redirect: false };
+// `>&` and `>|` belong to the redirect operator, so the character after `>` does not end the command.
+function onBreak(state, char, previous) {
+  if (previous === REDIRECT && REDIRECT_JOINERS.has(char)) return state;
+  if (COMMAND_SEPARATORS.has(char)) return startingState();
   return char === REDIRECT ? { ...state, redirect: true } : state;
 }
 
-// A redirect target is not the command; an assignment prefix leaves the command still to come.
-function onWord(state, word, found) {
-  if (state.redirect) return { ...state, redirect: false };
-  if (!state.atCommand) return state;
-  found.push(word);
-  return { ...state, atCommand: ASSIGNMENT.test(word) };
+// A redirect target is not the command; an assignment or reserved word leaves the command still to come.
+function onWord(state, word) {
+  if (state.redirect) return { state: { ...state, redirect: false }, word: null };
+  if (!state.atCommand) return { state, word: null };
+  return { state: { ...state, atCommand: keepsCommandPosition(word) }, word };
+}
+
+function closeWord(state, word, breakChar, found) {
+  if (word === '') return state;
+  if (breakChar === REDIRECT && FILE_DESCRIPTOR.test(word)) return state;
+  const result = onWord(state, word);
+  if (result.word !== null) found.push(result.word);
+  return result.state;
 }
 
 // Returns the words in command position, or null as soon as something outside plain text is met.
@@ -102,13 +133,12 @@ function commandWords(command) {
     if (chunk === null) return null;
     if (chunk.text !== null) word += chunk.text;
     else {
-      if (word !== '') state = onWord(state, word, found);
+      state = onBreak(closeWord(state, word, command[index], found), command[index], command[index - 1]);
       word = '';
-      state = onBreak(state, command[index]);
     }
     index = chunk.end;
   }
-  if (word !== '') onWord(state, word, found);
+  closeWord(state, word, null, found);
   return found;
 }
 
@@ -120,5 +150,5 @@ export function gitPlainCommandGate(command) {
   if (!GIT_MENTION.test(command)) return ALLOWED;
   if (GIT_CONFIG_INJECTION.test(command)) return BLOCKED;
   const words = commandWords(command);
-  return words === null || words.some(isWrapperWord) ? BLOCKED : ALLOWED;
+  return words === null || words.some(isOpaqueCommand) ? BLOCKED : ALLOWED;
 }

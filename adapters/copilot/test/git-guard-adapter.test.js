@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { COMPLEX_NEAR_GIT_REASON } from '../../../engine/src/guards/git-plain-command-gate.js';
 import { adaptCopilotEvent, buildAuditEntry, copilotGuard, decideGuard } from '../src/git-guard-adapter.js';
 
 const WORKING_DIR = '/repo';
@@ -310,7 +311,7 @@ describe('copilotGuard() — destructive git first, then the tool-call guard', (
 
     assert.deepEqual(result, {
       block: true,
-      reason: 'craft: command too complex to verify near git — spell it plainly',
+      reason: COMPLEX_NEAR_GIT_REASON,
     });
   });
 
