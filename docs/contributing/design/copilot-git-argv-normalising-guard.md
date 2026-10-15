@@ -7,7 +7,7 @@
 > behind a backslash escape, a subshell, a group, a prefix word or an assignment. Both need one
 > shell-segment splitter, one prefix stripper and one git global-option normaliser, designed as one
 > module in `engine/src/guards/`.
-> Status: draft → self-reviewed ×3.
+> Status: draft → self-reviewed ×3 → revised against ADRs 590-593.
 
 ## Context
 
@@ -169,7 +169,7 @@ One module with three exported seams. Each is tested directly. Every constant is
  *  @typedef {{ parsed: true, commands: SimpleCommand[] } | { parsed: false, reason: string }} ParseResult */
 export function parseShellCommands(command)            // tokenise + split + recurse into nested bodies → flattened SimpleCommands
 
-/** @typedef {{ kind: 'subcommand', subcommand: string, args: string[], configKeys: string[] }
+/** @typedef {{ kind: 'subcommand', subcommand: string, args: string[], configKeys: string[], dynamicArgCount: number }
  *         | { kind: 'refused', option: string, rest: string[] }      // git itself refuses (Pinned C)
  *         | { kind: 'indeterminate', rest: string[] }                // a dynamic word where git expects an option or the subcommand
  *         | { kind: 'no-subcommand' }} GitInvocation */
@@ -229,7 +229,9 @@ word, wrappers need no list (`env`, `command`, `exec`, `nohup`, `nice`, `timeout
 - otherwise the word is the subcommand, and the remaining words are `args`.
 
 `configKeys` holds the lowercased keys from `-c k=v` and `--config-env k=E`, so the predicates can
-see an inline `alias.*` or a `clean.requireforce`.
+see an inline `alias.*` or a `clean.requireforce`. `dynamicArgCount` counts the dynamic words among
+`args` before the first `--`, so the destructive predicate can see a flag carried by a variable
+(`H=--hard; git reset $H`, ADR-590).
 
 ### Predicates
 
@@ -239,7 +241,8 @@ see an inline `alias.*` or a `clean.requireforce`.
 - a `subcommand` invocation whose subcommand is `diff`/`show` and whose `args` contain no word equal
   to `--no-ext-diff` → block with the current `REASON_GIT_EXT_DIFF`, unless the enclosing simple
   command starts with the words `rtk proxy` (the existing marker, now matched by word);
-- `indeterminate` whose `rest` contains `diff`/`show` and no `--no-ext-diff` → block;
+- `indeterminate` → block unless a word of `rest` is `--no-ext-diff` (ADR-593: a verb carried by
+  the dynamic word, as in `D=diff; git $D HEAD`, is invisible to the command string);
 - `refused` → allow (pinned: git runs nothing; keeps the existing PASS `git --no-ext-diff show HEAD`);
 - an inline `alias.*` config key → handled per DC-3.
 
@@ -251,10 +254,11 @@ see an inline `alias.*` or a `clean.requireforce`.
 | Subcommand | Blocks when (option words before `--`) |
 |---|---|
 | `push` | always |
-| `reset` | `--hard` is present |
-| `clean` | per DC-5: (recommended) no `-n`/`--dry-run`, where a short cluster containing `n` counts as dry-run |
-| `branch` | `-D`, or a cluster containing `D`; or (`-d`/`--delete`/a cluster containing `d`) together with (`-f`/`--force`/a cluster containing `f`) |
-| `refused` / `indeterminate` | `rest` contains one of `push`, `reset`, `clean`, `branch` → block (fail-closed against a future git option, or against `$OPTS`) |
+| `reset` | `--hard` is present, or `dynamicArgCount > 0` (ADR-590) |
+| `clean` | per DC-5: no literal `-n`/`--dry-run`, where a short cluster containing `n` counts as dry-run (a dynamic flag cannot unblock it) |
+| `branch` | `-D`, or a cluster containing `D`; or (`-d`/`--delete`/a cluster containing `d`) together with (`-f`/`--force`/a cluster containing `f`); or `dynamicArgCount > 0` (ADR-590) |
+| `refused` | `rest` contains one of `push`, `reset`, `clean`, `branch` → block (verb sniffing, fail-closed against a future git option; ADR-581) |
+| `indeterminate` | always (ADR-593: a verb carried by the dynamic word, as in `P=push; git $P HEAD`, is invisible to a sniff) |
 | inline `alias.*` key | block (DC-3 recommended) |
 | not parsed | block, `REASON_UNPARSEABLE` |
 
@@ -312,9 +316,14 @@ Reasons are fixed named constants, for example
 - The intended false blocks (under DC-4 (a)):
   - any-word anchoring: `echo git push`, `git log --grep git show`, or a path ending `/git` followed
     by a verb word (`ls /x/git push`);
-  - a dynamic head followed by a verb word: `$HOME/bin/deploy push`.
+  - a dynamic head followed by a verb word: `$HOME/bin/deploy push`;
+  - a dynamic word at git's option or subcommand position (ADR-593): `git $OPTS status`,
+    `git $X log`, and after a dynamic head `$HOME/bin/tool $ARG`. Destructive blocks always,
+    ext-diff unless a `--no-ext-diff` word is present;
+  - a dynamic `reset`/`branch` argument before `--` (ADR-590): `git reset $SHA`,
+    `git branch -d "$B"`.
 
-  Each costs one re-issue.
+  Each costs one re-issue with literal words.
 
 ### Parts (pre-chewed context)
 
@@ -323,7 +332,7 @@ New files. The test style follows `engine/test/guards/git-ext-diff-predicate.tes
 `node:test` `describe`/`it`, Given/When/Then titles, `const sut = …`, table-driven
 `for (const command of …)` cases. The fixtures are §Pinned A/C rows (as the expected
 `SimpleCommand`/`GitInvocation`). Stryker picks it up automatically (`engine/src/**/*.js`,
-`engine/test/**/*.test.js` in `engine/stryker.conf.json`). Keep the `// equivalent mutant (…)`
+`engine/test/**/!(*.differential).test.js` in `engine/stryker.conf.json`, ADR-592). Keep the `// equivalent mutant (…)`
 comment convention for any proven-equivalent survivor.
 
 **Part 2. Rewrite `gitExtDiffPredicate` over Part 1.** `engine/src/guards/git-ext-diff-predicate.js`:
@@ -367,7 +376,9 @@ Crash fixtures follow ADR-521 (`adapters/codex/test/craft-guard-hook.test.js`): 
 `craft-guard:` stderr line. Verdict fixtures spawn the real hook with an object-shaped payload and
 assert the stdout JSON for a block and an empty stdout for an allow.
 
-**Part 6. The differential fuzz** (Test strategy). Its location is set by DC-9.
+**Part 6. The differential fuzz** (Test strategy).
+`engine/test/guards/shell-git-invocations.differential.test.js` (DC-9 (a), ADR-589), kept out of
+Stryker by the `tap.testFiles` extglob of ADR-592 and pinned by `engine/test/mutation-config.test.js`.
 
 **Part 7. Docs (R7).**
 - `docs/contributing/specs/copilot-poc-record.md`: rows 11, 20, D5 and the verdict paragraph,
@@ -393,6 +404,20 @@ assert the stdout JSON for a block and an empty stdout for an allow.
 | DC-8 | Copilot version floor for hook enforcement | (a) no version gate. `--deny-tool` stays as the floor, and the docs say the deny is proven on 1.0.92 while 1.0.63's exit 2 did not deny · (b) the acceptance probe refuses a `copilotVersion` below 1.0.92 · (c) drop `--deny-tool` once the hook enforces | **(a)** | The versions between 1.0.63 and 1.0.92 are unpinned, so a gate at 1.0.92 would be invented precision. The prefix layer costs nothing and covers the canonical spellings on any version. (c) removes the only layer known to work on older binaries. |
 | DC-9 | Where the differential fuzz lives | (a) `engine/test/guards/*.differential.test.js`, excluded from Stryker's `tap.testFiles` (the plan pins whether a negated glob works there) · (b) under `adapters/copilot/test/` (runs in CI through `scripts/ci.sh` L54 and is not in Stryker's list) · (c) a review-time script, not committed | **(a)** | It guards the shared engine module, so it belongs with it. Stryker's dry run executes every listed test file per run, so thousands of bash spawns per mutant must not join its corpus. If the negated glob is refused, fall back to (b). (c) loses the regression net that the codex trust-matcher fuzz precedent kept. |
 | DC-10 | Destructive judging: shared guard or Copilot-only | (a) a separate `gitDestructivePredicate`, composed only by the Copilot adapter · (b) inside `toolCallGuard`, so pi/codex/cursor/antigravity all start denying destructive git · (c) (a), plus the codex adapter composes it too | **(a)** | Inside the brief's scope. Pi, cursor and antigravity have no destructive-git rule today and craft's `push` policy action (`engine/src/policy.js` L25) is user-configurable, so (b) changes three bindings' behaviour unasked. Codex already forbids `push`/`clean`/`reset` through a bypassable `.rules` layer, so (c) is a pure strengthening, but it is a separate change (Out of scope). |
+
+**Settled.** DC-1..DC-10 were settled as recommended (ADRs 578-589). Later settlements:
+
+- **ADR-590.** A dynamic `reset`/`branch` argument before `--` blocks (`H=--hard; git reset $H`);
+  the normaliser reports `dynamicArgCount`.
+- **ADR-591.** Fuzz Leg B matches real git exactly on git 2.54.x only; elsewhere it checks the
+  unsafe direction only.
+- **ADR-592.** The fuzz is kept out of Stryker by the single pattern
+  `engine/test/**/!(*.differential).test.js`.
+- **ADR-593.** Every `indeterminate` invocation blocks: destructive always, ext-diff unless a
+  `--no-ext-diff` word is present; `refused` keeps verb sniffing. Supersedes ADR-581 for
+  `indeterminate` only. The differential fuzz found the bypass that motivated it: under
+  `/bin/bash` with a stub git, `P=push; git $P HEAD` ran `git push HEAD` while both predicates
+  allowed it, and a patch for the bare `git $P` case left every `git $P <literal>` open.
 
 ## Test strategy
 
@@ -436,8 +461,11 @@ assert the stdout JSON for a block and an empty stdout for an allow.
     catch a wrong option table. Leg B can. It draws random sequences of §Pinned C options, valid and
     invalid, then the harmless sentinel subcommand `rev-parse`. Each sequence runs under
     `GIT_TRACE=1 /usr/bin/git` in a throwaway repo with an empty HOME and `GIT_CONFIG_NOSYSTEM=1`.
-    The test asserts that `normaliseGitArgv`'s `kind`/`subcommand` matches the trace:
-    `built-in: git rev-parse` ⇒ subcommand; `unknown option` ⇒ refused; no trace ⇒ no-subcommand.
+    The trace reads as: `built-in: git rev-parse` ⇒ subcommand; `unknown option` ⇒ refused; no
+    trace ⇒ no-subcommand. Per ADR-591, on git 2.54.x (the version §Pinned C was taken from) the
+    test asserts that `normaliseGitArgv`'s `kind`/`subcommand` matches the trace exactly. On any
+    other git it asserts only the unsafe direction: real git reaching a subcommand the normaliser
+    did not report fails; an older git refusing a newer flag the table accepts does not.
   - **Shells.** `/bin/bash` (3.2 on macOS) always. A bash ≥5 on PATH runs too when present, and is
     skipped with a logged reason when absent.
 - **Live probe (specified for the plan; on demand, not CI; the user or orchestrator runs it).**
@@ -464,8 +492,11 @@ assert the stdout JSON for a block and an empty stdout for an allow.
     - **L9.** Cross-call state: call 1 defines `f(){ git push origin main; }`, call 2 runs `f`. The
       expected result is recorded honestly.
   - The results feed the PoC record rows.
-- **Coverage / mutation.** The new engine files fall under the existing Stryker `mutate` glob. Every
-  surviving mutant is checked by hand against its full covering set before a test is written.
+- **Coverage / mutation.** The new engine files fall under the existing Stryker `mutate` glob. The
+  differential fuzz stays out of Stryker's corpus through `tap.testFiles`
+  `engine/test/**/!(*.differential).test.js` (ADR-592; the tap runner ignores a `!`-prefixed entry),
+  pinned by `engine/test/mutation-config.test.js`. Every surviving mutant is checked by hand
+  against its full covering set before a test is written.
 
 ## Out of scope
 
