@@ -49,10 +49,12 @@ abort (exit 134, no verdict), past copilot's ~30 s hook timeout, which fails ope
   `include.path` and `includeif.*`, and assignments (as head words or `env` arguments) to
   `GIT_CONFIG_PARAMETERS`, `GIT_CONFIG_COUNT`, `GIT_CONFIG_KEY_<n>`, `GIT_CONFIG_VALUE_<n>`,
   `GIT_CONFIG_GLOBAL`, `GIT_CONFIG_SYSTEM`. An `alias` builtin whose value holds a git word blocks.
-- **Work is bounded**: a hard input-length cap and a parse work budget (characters scanned across
-  every nested and re-parsed body, as a multiple of the input length) both deny with a fixed
-  reason; only the first evaluator word of a simple command is re-parsed; anchoring and option
-  normalisation run in linear time.
+- **Work is bounded**: a hard input-length cap (131072 characters) denies with a fixed reason;
+  only the first `eval` of a simple command is re-parsed (its string already holds the later ones);
+  anchoring and option normalisation run in linear time; the nesting cap (8) stays. A separate
+  parse work budget was built and then removed as unreachable: instrumented runs peaked at 7.9x the
+  input length (8-level heredoc and `$()` nests over a 10k core) against a 16x budget, because the
+  nesting cap already bounds re-scanning to about one pass per level.
 
 ## Consequences
 
