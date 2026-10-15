@@ -21,7 +21,8 @@ const diffsWithoutMarker = invocation => {
     return DIFFING_SUBCOMMANDS.has(invocation.subcommand) && lacksNoExtDiff(invocation.args);
   }
   if (invocation.kind === 'indeterminate') {
-    return invocation.rest.some(word => DIFFING_SUBCOMMANDS.has(word)) && lacksNoExtDiff(invocation.rest);
+    const mayDiff = invocation.subcommandHidden || invocation.rest.some(word => DIFFING_SUBCOMMANDS.has(word));
+    return mayDiff && lacksNoExtDiff(invocation.rest);
   }
   return false;
 };

@@ -3,7 +3,7 @@
  *  @typedef {{ parsed: true, commands: SimpleCommand[] } | { parsed: false, reason: string }} ParseResult
  *  @typedef {{ kind: 'subcommand', subcommand: string, args: string[], configKeys: string[], dynamicArgCount: number }
  *         | { kind: 'refused', option: string, rest: string[] }
- *         | { kind: 'indeterminate', rest: string[] }
+ *         | { kind: 'indeterminate', rest: string[], subcommandHidden: boolean }
  *         | { kind: 'no-subcommand' }} GitInvocation */
 
 const SHORT_VALUE_OPTIONS = Object.freeze(['-C', '-c']);
@@ -92,13 +92,20 @@ const consumeValueOption = (words, configKeys) => {
 
 const isValueOption = text => SHORT_VALUE_OPTIONS.includes(text) || isLongValueOption(text);
 
+// With no literal word after the first dynamic one, that word may itself be the subcommand.
+const indeterminate = remaining => ({
+  kind: 'indeterminate',
+  rest: texts(remaining),
+  subcommandHidden: remaining.every(word => word.dynamic),
+});
+
 export function normaliseGitArgv(words) {
   const configKeys = [];
   let remaining = words.map(toWord);
   while (remaining.length > 0) {
     const [head, ...tail] = remaining;
     const { text } = head;
-    if (head.dynamic) return { kind: 'indeterminate', rest: texts(remaining) };
+    if (head.dynamic) return indeterminate(remaining);
     if (isPrintAndExit(text)) return NO_SUBCOMMAND;
     if (isSkippedFlag(text)) {
       remaining = tail;

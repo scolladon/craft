@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, matchesGlob } from 'node:path';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CONFIG_PATH = join(REPO_ROOT, 'engine', 'stryker.conf.json');
@@ -81,4 +81,27 @@ test('Given the known binding directories, when each is checked for its own stry
     .filter((path) => existsSync(path));
 
   assert.deepEqual(sut, [], 'no adapters/*/stryker.conf.json should exist; engine/stryker.conf.json is the single mutation config');
+});
+
+const DIFFERENTIAL_TEST = 'engine/test/guards/shell-git-invocations.differential.test.js';
+const PARSER_UNIT_TEST = 'engine/test/guards/shell-git-invocations.test.js';
+
+function matchingPatterns(config, path) {
+  return config.tap.testFiles.filter((pattern) => matchesGlob(path, pattern));
+}
+
+test('Given engine/stryker.conf.json, when its tap.testFiles patterns are matched against the differential fuzz file, then none matches', () => {
+  const sut = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+
+  const result = matchingPatterns(sut, DIFFERENTIAL_TEST);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given engine/stryker.conf.json, when its tap.testFiles patterns are matched against the parser unit test file, then exactly one matches', () => {
+  const sut = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+
+  const result = matchingPatterns(sut, PARSER_UNIT_TEST);
+
+  assert.equal(result.length, 1);
 });

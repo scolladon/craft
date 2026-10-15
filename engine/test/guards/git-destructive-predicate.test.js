@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
 import { gitInvocations, INLINE_ALIAS_REASON } from '../../src/guards/shell-git-invocations.js';
 
+const REASON_DYNAMIC_SUBCOMMAND =
+  'craft: the git subcommand comes from an expansion — spell the verb out; denied fail-closed in this binding';
 const REASON_PUSH = 'craft: destructive git (push) is denied in this binding — run it outside the agent';
 
 describe('gitDestructivePredicate() — push', () => {
@@ -204,4 +206,24 @@ describe('gitDestructivePredicate() — known over-blocking', () => {
       assert.equal(result.block, true);
     });
   }
+});
+
+describe('gitDestructivePredicate() — a subcommand carried by an expansion', () => {
+  for (const command of ['P=push; git $P', 'git $(echo push)', 'git -C . "$VERB"', 'git $A $B']) {
+    it(`Given "${command}", when checked, then blocks with the dynamic subcommand reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_DYNAMIC_SUBCOMMAND });
+    });
+  }
+
+  it('Given a dynamic option followed by a literal safe subcommand, when checked, then it allows', () => {
+    const sut = gitDestructivePredicate;
+
+    const result = sut('git $OPTS status');
+
+    assert.deepEqual(result, { block: false });
+  });
 });

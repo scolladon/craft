@@ -3,7 +3,7 @@
   "coverageAnalysis": "perTest",
   "tap": {
     "testFiles": [
-      "engine/test/**/*.test.js",
+      "engine/test/**/!(*.differential).test.js",
       "adapters/codex/test/apply-patch-paths.test.js",
       "adapters/codex/test/execpolicy-rules.test.js",
       "adapters/codex/test/git-guard-adapter.test.js",

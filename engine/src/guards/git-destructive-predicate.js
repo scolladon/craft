@@ -7,6 +7,9 @@ const REASONS = Object.freeze({
   clean: 'craft: destructive git (clean without --dry-run) is denied in this binding — run it outside the agent',
 });
 
+const REASON_DYNAMIC_SUBCOMMAND =
+  'craft: the git subcommand comes from an expansion — spell the verb out; denied fail-closed in this binding';
+
 const OPTION_TERMINATOR = '--';
 
 const optionWords = args => {
@@ -57,9 +60,13 @@ const sniffRest = rest => {
   return verb === undefined ? null : REASONS[verb];
 };
 
+const judgeIndeterminate = invocation =>
+  invocation.subcommandHidden ? REASON_DYNAMIC_SUBCOMMAND : sniffRest(invocation.rest);
+
 const judgeByKind = invocation => {
   if (invocation.kind === 'subcommand') return judgeSubcommand(invocation);
-  if (invocation.kind === 'refused' || invocation.kind === 'indeterminate') return sniffRest(invocation.rest);
+  if (invocation.kind === 'indeterminate') return judgeIndeterminate(invocation);
+  if (invocation.kind === 'refused') return sniffRest(invocation.rest);
   return null;
 };
 
