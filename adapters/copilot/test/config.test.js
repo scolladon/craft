@@ -79,6 +79,15 @@ describe('config.template.json — preToolUse hook declared at user level', () =
     assert.match(result, /<CRAFT_ROOT>/);
     assert.match(result, /substitut/i);
   });
+
+  it('Given the config template, when checking $comment, then it targets settings.json and not config.json', () => {
+    const sut = readConfig();
+
+    const result = sut.$comment;
+
+    assert.match(result, /\$COPILOT_HOME\/settings\.json/);
+    assert.doesNotMatch(result, /config\.json/);
+  });
 });
 
 describe('config.template.json — hooks stay enabled', () => {
