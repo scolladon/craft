@@ -412,3 +412,39 @@ describe('gitExtDiffPredicate() — config channels outside -c', () => {
     });
   }
 });
+
+const REASON_EXT_DIFF = 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
+
+describe('gitExtDiffPredicate() — option order follows git', () => {
+  for (const command of [
+    'git diff -- --no-ext-diff',
+    'git diff --no-ext-diff --ext-diff',
+    'git show --no-ext-diff --ext-diff HEAD',
+    'rtk git diff',
+    'proxy rtk git diff',
+    'echo rtk proxy; git diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the ext-diff reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_EXT_DIFF });
+    });
+  }
+
+  for (const command of [
+    'git diff --no-ext-diff',
+    'git show --no-ext-diff HEAD',
+    'git diff --no-ext-diff -- file',
+    'git diff --ext-diff --no-ext-diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then does not block`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+});

@@ -374,3 +374,103 @@ describe('gitDestructivePredicate() — config channels outside -c', () => {
 
   assertPasses(["alias ll='ls -l'", 'GIT_CONFIG_NOSYSTEM=1 git status', 'GIT_CONFIG_GLOBAL=/x ls', 'git -c core.pager=cat status']);
 });
+
+describe('gitDestructivePredicate() — long-option abbreviations follow git parse-options', () => {
+  for (const command of ['git reset --har HEAD~1', 'git reset --ha HEAD~1', 'git reset --h HEAD~1']) {
+    it(`Given "${command}", when checked, then blocks with the reset reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_RESET });
+    });
+  }
+
+  for (const command of ['git branch -d --forc z', 'git branch --del --force z', 'git branch --de --f z']) {
+    it(`Given "${command}", when checked, then blocks with the branch reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_BRANCH });
+    });
+  }
+
+  for (const command of ['git clean -f --dry', 'git clean -f --dry-', 'git clean -f --dry-r', 'git clean -f --dry-ru']) {
+    it(`Given "${command}", when checked, then counts the abbreviation as a dry run`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+
+  for (const command of ['git clean -f --d', 'git clean -f --dr']) {
+    it(`Given "${command}", when checked, then does not count the ambiguous abbreviation as a dry run`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_CLEAN });
+    });
+  }
+});
+
+describe('gitDestructivePredicate() — clean dry-run follows git option order', () => {
+  for (const command of [
+    'git clean -fen',
+    'git clean -f -e -n',
+    'git clean -fx --exclude -n',
+    'git clean -f --exclude=-n',
+    'git clean -f --exclude=a-n',
+    'git clean -n --no-dry-run -f',
+    'git clean -nf --no-dry',
+    'git clean -fd -- -n .',
+    'git clean -n --no-d',
+  ]) {
+    it(`Given "${command}", when checked, then blocks with the clean reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_CLEAN });
+    });
+  }
+
+  assertPasses([
+    'git clean -n',
+    'git clean -nd',
+    'git clean --dry-run -fd',
+    'git clean -fdn',
+    'git clean -f -n',
+    'git clean --no-dry-run -n -f',
+    'git clean -f -e x -n',
+    'git clean -fexn -n',
+  ]);
+});
+
+describe('gitDestructivePredicate() — refused global option before a destructive verb', () => {
+  const rows = [
+    ['git --frobnicate reset --hard', REASON_RESET],
+    ['git --frobnicate clean -fd', REASON_CLEAN],
+    ['git --frobnicate branch -D x', REASON_BRANCH],
+  ];
+  for (const [command, reason] of rows) {
+    it(`Given "${command}", when checked, then blocks with the verb reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason });
+    });
+  }
+
+  it('Given "git --frobnicate status", when checked, then does not block', () => {
+    const sut = gitDestructivePredicate;
+
+    const result = sut('git --frobnicate status');
+
+    assert.deepEqual(result, { block: false });
+  });
+});

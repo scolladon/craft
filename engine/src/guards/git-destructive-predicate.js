@@ -17,30 +17,74 @@ const optionWords = args => {
   return end === -1 ? args : args.slice(0, end);
 };
 
-const SHORT_CLUSTER = /^-[A-Za-z]+$/;
+const HARD = '--hard';
+const DRY_RUN = '--dry-run';
+const NO_DRY_RUN = '--no-dry-run';
+const DELETE = '--delete';
+const FORCE = '--force';
+const EXCLUDE = '--exclude';
+const DRY_RUN_SHORT = 'n';
+const DELETE_SHORT = 'd';
+const FORCE_SHORT = 'f';
+const FORCE_DELETE_SHORT = 'D';
+const EXCLUDE_SHORT = 'e';
 
-const shortClusterHolds = (word, letter) => SHORT_CLUSTER.test(word) && word.includes(letter);
+// git accepts any unambiguous prefix of a long option; each floor is the shortest prefix
+// counted. A guarded option is matched from "--" plus one character (fail closed); a
+// dry-run is only recognised from the prefix git itself resolves ("--dry", "--no-d").
+const GUARDED_MIN_LENGTH = 3;
+const DRY_RUN_MIN_LENGTH = '--dry'.length;
+const NO_DRY_RUN_MIN_LENGTH = '--no-d'.length;
+
+const SHORT_CLUSTER = /^-[^-]/;
+const LONG_OPTION = /^--[^=]*$/;
+
+const abbreviates = (word, option, minLength = GUARDED_MIN_LENGTH) =>
+  LONG_OPTION.test(word) && word.length >= minLength && option.startsWith(word);
+
+const shortLetters = word => (SHORT_CLUSTER.test(word) ? word.slice(1) : '');
+
+const shortClusterHolds = (word, letter) => /^-[A-Za-z]+$/.test(word) && word.includes(letter);
 
 const judgePush = () => REASONS.push;
 
 const judgeReset = invocation => {
-  const hard = optionWords(invocation.args).includes('--hard');
+  const hard = optionWords(invocation.args).some(word => abbreviates(word, HARD));
   return hard || invocation.dynamicArgCount > 0 ? REASONS.reset : null;
 };
 
-const isDryRun = word => word === '--dry-run' || shortClusterHolds(word, 'n');
+const afterWord = (state, word) => {
+  if (state.skipNext) return { ...state, skipNext: false };
+  if (abbreviates(word, NO_DRY_RUN, NO_DRY_RUN_MIN_LENGTH)) return { ...state, dry: false };
+  if (abbreviates(word, DRY_RUN, DRY_RUN_MIN_LENGTH)) return { ...state, dry: true };
+  if (abbreviates(word, EXCLUDE)) return { ...state, skipNext: true };
+  return afterCluster(state, shortLetters(word));
+};
 
-const judgeClean = invocation => (optionWords(invocation.args).some(isDryRun) ? null : REASONS.clean);
+const afterCluster = (state, letters) => {
+  const valueAt = letters.indexOf(EXCLUDE_SHORT);
+  const flags = valueAt === -1 ? letters : letters.slice(0, valueAt);
+  const dry = flags.includes(DRY_RUN_SHORT) ? true : state.dry;
+  const skipNext = valueAt !== -1 && valueAt === letters.length - 1;
+  return { dry, skipNext };
+};
+
+const INITIAL_CLEAN_STATE = Object.freeze({ dry: false, skipNext: false });
+
+const judgeClean = invocation => {
+  const { dry } = optionWords(invocation.args).reduce(afterWord, INITIAL_CLEAN_STATE);
+  return dry ? null : REASONS.clean;
+};
 
 const holdsShort = (words, letter) => words.some(word => shortClusterHolds(word, letter));
 
-const holdsLong = (words, name) => words.includes(name);
+const holdsLong = (words, name) => words.some(word => abbreviates(word, name));
 
 const judgeBranch = invocation => {
   const words = optionWords(invocation.args);
-  const deletes = holdsShort(words, 'd') || holdsLong(words, '--delete');
-  const forces = holdsShort(words, 'f') || holdsLong(words, '--force');
-  const blocked = holdsShort(words, 'D') || (deletes && forces) || invocation.dynamicArgCount > 0;
+  const deletes = holdsShort(words, DELETE_SHORT) || holdsLong(words, DELETE);
+  const forces = holdsShort(words, FORCE_SHORT) || holdsLong(words, FORCE);
+  const blocked = holdsShort(words, FORCE_DELETE_SHORT) || (deletes && forces) || invocation.dynamicArgCount > 0;
   return blocked ? REASONS.branch : null;
 };
 

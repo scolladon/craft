@@ -12,7 +12,18 @@ const [NO_EXT_DIFF_WORD, PROXY_MARKER] = COMPLIANT_MARKERS;
 const PROXY_WORDS = Object.freeze(PROXY_MARKER.split(' '));
 const DIFFING_SUBCOMMANDS = Object.freeze(new Set(['diff', 'show']));
 
-const lacksNoExtDiff = words => !words.includes(NO_EXT_DIFF_WORD);
+const EXT_DIFF_WORD = '--ext-diff';
+const OPTION_TERMINATOR = '--';
+
+const optionWords = words => {
+  const end = words.indexOf(OPTION_TERMINATOR);
+  return end === -1 ? words : words.slice(0, end);
+};
+
+const lacksNoExtDiff = words => {
+  const last = optionWords(words).findLast(word => word === EXT_DIFF_WORD || word === NO_EXT_DIFF_WORD);
+  return last !== NO_EXT_DIFF_WORD;
+};
 
 const isProxied = leadingWords => PROXY_WORDS.every((word, index) => leadingWords[index] === word);
 
