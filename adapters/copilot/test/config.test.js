@@ -55,12 +55,12 @@ describe('config.template.json — preToolUse hook declared at user level', () =
     assert.ok(result.length > 0);
   });
 
-  it('Given the parsed config, when checking the preToolUse hook command, then it references hooks/craft-observer.js', () => {
+  it('Given the parsed config, when checking the preToolUse hook command, then it references hooks/craft-guard.js', () => {
     const sut = readConfig();
 
     const result = sut.hooks.preToolUse[0].command;
 
-    assert.match(result, /hooks\/craft-observer\.js/);
+    assert.match(result, /hooks\/craft-guard\.js/);
   });
 
   it('Given the parsed config, when checking the preToolUse hook command, then it carries the <CRAFT_ROOT> placeholder', () => {

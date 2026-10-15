@@ -403,40 +403,40 @@ describe('adaptCopilotEvent() — working_dir mapping', () => {
   });
 });
 
-const OBSERVER_PATH = join(
+const GUARD_HOOK_PATH = join(
   dirname(fileURLToPath(import.meta.url)),
   '..',
   'hooks',
-  'craft-observer.js',
+  'craft-guard.js',
 );
 const PROVENANCE_REF = /\b(ADR-?\d+|P\d+|Part\s+\d+|backlog\s*#\d+)\b/i;
 
-function readObserverText() {
-  return readFileSync(OBSERVER_PATH, 'utf8');
+function readGuardHookText() {
+  return readFileSync(GUARD_HOOK_PATH, 'utf8');
 }
 
-describe('hooks/craft-observer.js — thin wrapper structure', () => {
-  it('Given the observer source text, when scanned, then it imports the tested adapter seam', () => {
-    const sut = readObserverText();
+describe('hooks/craft-guard.js — thin wrapper structure', () => {
+  it('Given the guard hook source text, when scanned, then it imports the tested adapter seam', () => {
+    const sut = readGuardHookText();
 
     assert.match(sut, /\.\.\/src\/git-guard-adapter\.js/);
   });
 
-  it('Given the observer source text, when scanned, then it imports the tested craft-root seam', () => {
-    const sut = readObserverText();
+  it('Given the guard hook source text, when scanned, then it imports the tested craft-root seam', () => {
+    const sut = readGuardHookText();
 
     assert.match(sut, /\.\.\/src\/craft-root\.js/);
     assert.match(sut, /resolveCraftRoot/);
   });
 
-  it('Given the observer source text, when scanned, then it sets process.env.CRAFT_ROOT', () => {
-    const sut = readObserverText();
+  it('Given the guard hook source text, when scanned, then it sets process.env.CRAFT_ROOT', () => {
+    const sut = readGuardHookText();
 
     assert.match(sut, /process\.env\.CRAFT_ROOT/);
   });
 
-  it('Given the observer source text, when scanned, then process.env.CRAFT_ROOT is assigned inside main()\'s try block, not at module top level', () => {
-    const sut = readObserverText();
+  it('Given the guard hook source text, when scanned, then process.env.CRAFT_ROOT is assigned inside main()\'s try block, not at module top level', () => {
+    const sut = readGuardHookText();
     const tryIndex = sut.indexOf('try {');
     const craftRootIndex = sut.indexOf('process.env.CRAFT_ROOT');
     const catchIndex = sut.indexOf('} catch');
@@ -449,14 +449,14 @@ describe('hooks/craft-observer.js — thin wrapper structure', () => {
     );
   });
 
-  it('Given the observer source text, when scanned, then it builds the audit line via the tested buildAuditEntry seam', () => {
-    const sut = readObserverText();
+  it('Given the guard hook source text, when scanned, then it builds the audit line via the tested buildAuditEntry seam', () => {
+    const sut = readGuardHookText();
 
     assert.match(sut, /buildAuditEntry/);
   });
 
-  it('Given the observer source text, when scanned, then it carries no phase/ADR/backlog reference', () => {
-    const sut = readObserverText();
+  it('Given the guard hook source text, when scanned, then it carries no phase/ADR/backlog reference', () => {
+    const sut = readGuardHookText();
 
     assert.doesNotMatch(sut, PROVENANCE_REF);
   });
