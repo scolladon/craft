@@ -79,6 +79,9 @@ describe('gitDestructivePredicate() — clean', () => {
     'git clean -d',
     'git clean -i',
     'git -c clean.requireForce=false clean',
+    'git clean -n -f $X',
+    'git clean -nf "$@"',
+    'git clean --dry-run -f ${A}',
   ]) {
     it(`Given "${command}", when checked, then blocks with the clean reason`, () => {
       const sut = gitDestructivePredicate;

@@ -66,6 +66,18 @@ const countDynamic = (words, from) => {
   return count;
 };
 
+// Positions, within the arguments, of the dynamic words ahead of the argument terminator.
+const dynamicPositions = (words, from) => {
+  const positions = [];
+  for (let index = from; index < words.length && words[index].text !== ARGS_END; index += 1) {
+    if (words[index].dynamic) positions.push(index - from);
+  }
+  return positions;
+};
+
+const VISIBLE = Object.freeze({ enumerable: true });
+const HIDDEN = Object.freeze({ enumerable: false });
+
 const UNSET = Symbol('unset');
 
 const memoise = compute => {
@@ -78,9 +90,9 @@ const memoise = compute => {
 
 // Derived arrays are computed on first read: copying the tail for every git word of a
 // long command would make anchoring quadratic, and most verdicts never read them.
-const lazyDescriptors = computations =>
+const lazyDescriptors = (computations, visibility = VISIBLE) =>
   Object.fromEntries(
-    Object.entries(computations).map(([name, compute]) => [name, { get: memoise(compute), enumerable: true }])
+    Object.entries(computations).map(([name, compute]) => [name, { get: memoise(compute), ...visibility }])
   );
 
 const extend = (invocation, computations) =>
@@ -93,10 +105,14 @@ const isPrintAndExit = text =>
 
 const isSkippedFlag = text => FLAG_OPTIONS.includes(text) || text.startsWith(EXEC_PATH_PREFIX);
 
+// Positions are read by one predicate only, so they stay out of the invocation's visible shape.
 const subcommandResult = (text, words, from, configKeys) =>
-  extend(
-    { kind: 'subcommand', subcommand: SUBCOMMAND_ALIASES.get(text) ?? text, configKeys },
-    { args: () => texts(words.slice(from)), dynamicArgCount: () => countDynamic(words, from) }
+  Object.defineProperties(
+    extend(
+      { kind: 'subcommand', subcommand: SUBCOMMAND_ALIASES.get(text) ?? text, configKeys },
+      { args: () => texts(words.slice(from)), dynamicArgCount: () => countDynamic(words, from) }
+    ),
+    lazyDescriptors({ dynamicArgPositions: () => dynamicPositions(words, from) }, HIDDEN)
   );
 
 // Consumes a value-taking option; returns the cursor after it and the config keys it

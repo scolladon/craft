@@ -25,11 +25,20 @@ const lacksNoExtDiff = words => {
   return last !== NO_EXT_DIFF_WORD;
 };
 
+// A dynamic option word after the last --no-ext-diff may expand to --ext-diff.
+const dynamicAfterNoExtDiff = invocation => {
+  const lastMarker = optionWords(invocation.args).lastIndexOf(NO_EXT_DIFF_WORD);
+  return invocation.dynamicArgPositions.some(position => position > lastMarker);
+};
+
 const isProxied = leadingWords => PROXY_WORDS.every((word, index) => leadingWords[index] === word);
 
 const diffsWithoutMarker = invocation => {
   if (invocation.kind === 'subcommand') {
-    return DIFFING_SUBCOMMANDS.has(invocation.subcommand) && lacksNoExtDiff(invocation.args);
+    return (
+      DIFFING_SUBCOMMANDS.has(invocation.subcommand) &&
+      (lacksNoExtDiff(invocation.args) || dynamicAfterNoExtDiff(invocation))
+    );
   }
   if (invocation.kind === 'indeterminate') {
     return lacksNoExtDiff(invocation.rest);

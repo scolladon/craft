@@ -448,3 +448,27 @@ describe('gitExtDiffPredicate() — option order follows git', () => {
     });
   }
 });
+
+describe('gitExtDiffPredicate() — dynamic words after --no-ext-diff', () => {
+  const REASON = 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
+
+  for (const command of ['git diff --no-ext-diff $X', 'git show --no-ext-diff "$@" HEAD']) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the ext-diff reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON });
+    });
+  }
+
+  for (const command of ['git diff --no-ext-diff -- "$F"', 'git diff $X --no-ext-diff']) {
+    it(`Given ${JSON.stringify(command)}, when checked, then does not block`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+});

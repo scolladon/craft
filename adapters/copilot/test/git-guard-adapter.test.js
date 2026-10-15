@@ -286,10 +286,10 @@ describe('decideGuard() — non-object toolArgs shapes', () => {
 describe('copilotGuard() — destructive git first, then the tool-call guard', () => {
   const bashEvent = command => ({ tool: 'Bash', tool_input: { command }, working_dir: WORKING_DIR });
 
-  it('Given a git -C ../wt push command, when copilotGuard runs, then it blocks with the push reason', () => {
+  it('Given a git -C . push command, when copilotGuard runs, then it blocks with the push reason', () => {
     const sut = copilotGuard;
 
-    const result = sut(bashEvent('git -C ../wt push'));
+    const result = sut(bashEvent('git -C . push'));
 
     assert.equal(result.block, true);
     assert.match(result.reason, /push/);

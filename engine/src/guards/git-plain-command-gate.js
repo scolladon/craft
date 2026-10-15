@@ -71,25 +71,45 @@ function chunkAt(command, index) {
   return PLAIN_OUTSIDE_QUOTES.test(char) ? { end: index + 1, text: char } : null;
 }
 
+const COMMAND_SEPARATORS = new Set([';', '|', '&', '\n']);
+const REDIRECT = '>';
+const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
+
 const isWrapperWord = word => WRAPPER_WORDS.has(word.split('/').pop().toLowerCase());
 
-// Returns the unquoted words, or null as soon as something outside plain text is met.
-function plainWords(command) {
-  const words = [];
+const startingState = () => ({ atCommand: true, redirect: false });
+
+function onBreak(state, char) {
+  if (COMMAND_SEPARATORS.has(char)) return { atCommand: true, redirect: false };
+  return char === REDIRECT ? { ...state, redirect: true } : state;
+}
+
+// A redirect target is not the command; an assignment prefix leaves the command still to come.
+function onWord(state, word, found) {
+  if (state.redirect) return { ...state, redirect: false };
+  if (!state.atCommand) return state;
+  found.push(word);
+  return { ...state, atCommand: ASSIGNMENT.test(word) };
+}
+
+// Returns the words in command position, or null as soon as something outside plain text is met.
+function commandWords(command) {
+  const found = [];
+  let state = startingState();
   let word = '';
-  let index = 0;
-  while (index < command.length) {
+  for (let index = 0; index < command.length; ) {
     const chunk = chunkAt(command, index);
     if (chunk === null) return null;
-    if (chunk.text !== null) {
-      word += chunk.text;
-    } else if (word !== '') {
-      words.push(word);
+    if (chunk.text !== null) word += chunk.text;
+    else {
+      if (word !== '') state = onWord(state, word, found);
       word = '';
+      state = onBreak(state, command[index]);
     }
     index = chunk.end;
   }
-  return word === '' ? words : [...words, word];
+  if (word !== '') onWord(state, word, found);
+  return found;
 }
 
 /**
@@ -99,6 +119,6 @@ function plainWords(command) {
 export function gitPlainCommandGate(command) {
   if (!GIT_MENTION.test(command)) return ALLOWED;
   if (GIT_CONFIG_INJECTION.test(command)) return BLOCKED;
-  const words = plainWords(command);
+  const words = commandWords(command);
   return words === null || words.some(isWrapperWord) ? BLOCKED : ALLOWED;
 }

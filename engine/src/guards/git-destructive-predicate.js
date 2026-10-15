@@ -73,7 +73,7 @@ const INITIAL_CLEAN_STATE = Object.freeze({ dry: false, skipNext: false });
 
 const judgeClean = invocation => {
   const { dry } = optionWords(invocation.args).reduce(afterWord, INITIAL_CLEAN_STATE);
-  return dry ? null : REASONS.clean;
+  return dry && invocation.dynamicArgCount === 0 ? null : REASONS.clean;
 };
 
 const holdsShort = (words, letter) => words.some(word => shortClusterHolds(word, letter));
