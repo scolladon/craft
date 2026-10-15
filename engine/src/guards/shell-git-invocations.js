@@ -122,6 +122,19 @@ const NEWLINE = '\n';
 const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
 const BACKSLASH = '\\';
+const MAX_NESTING_DEPTH = 8;
+const NESTING_TOO_DEEP = `craft: command not parseable (nesting deeper than ${MAX_NESTING_DEPTH}) — denied fail-closed`;
+const BACKTICK = '`';
+const DOLLAR = '$';
+const OPEN_PAREN = '(';
+const OPEN_BRACE = '{';
+const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
+const ARITHMETIC_OPEN_LEVEL = 2;
+const PAREN_LEVEL = new Map([
+  ['(', 1],
+  [')', -1],
+]);
+const BACKTICK_ESCAPES = /\\([$`\\])/g;
 const DOUBLE_QUOTE_ESCAPABLE = Object.freeze(['$', '`', DOUBLE_QUOTE, BACKSLASH]);
 const REDIRECT_SUFFIXES = Object.freeze(['>', '&', '|']);
 const FILE_DESCRIPTOR = /^\d+$/;
@@ -147,8 +160,14 @@ const HEAD_WORDS = new Set([
   'coproc',
 ]);
 
-const createContext = source => ({
+const UNTERMINATED_SUBSTITUTION =
+  'craft: command not parseable (unterminated substitution) — denied fail-closed';
+
+const createContext = (source, depth = 0) => ({
   source,
+  depth,
+  parens: 0,
+  dynamic: false,
   index: 0,
   commands: [],
   words: [],
@@ -162,29 +181,30 @@ const append = (context, text) => {
   context.piece = (context.piece ?? '') + text;
 };
 
-const isHeadWord = (context, text) =>
+const isHeadWord = (context, { text }) =>
   context.words.length === 0 &&
   (HEAD_WORDS.has(text) ||
     ASSIGNMENT.test(text) ||
     (context.timing && text === TIME_FORMAT_FLAG));
 
-const pushWord = (context, text) => {
-  if (!isHeadWord(context, text)) {
-    context.words.push({ text, dynamic: false });
+const pushWord = (context, word) => {
+  if (!isHeadWord(context, word)) {
+    context.words.push(word);
     return;
   }
-  context.timing = text === TIME_KEYWORD;
+  context.timing = word.text === TIME_KEYWORD;
 };
 
 const endWord = context => {
   if (context.piece === null) return;
-  const text = context.piece;
+  const word = { text: context.piece, dynamic: context.dynamic };
   context.piece = null;
+  context.dynamic = false;
   if (context.redirecting) {
     context.redirecting = false;
     return;
   }
-  pushWord(context, text);
+  pushWord(context, word);
 };
 
 const breakCommand = context => {
@@ -230,6 +250,8 @@ const onSingleQuote = context => {
 
 const consumeDoubleQuoted = context => {
   const next = context.source[context.index + 1];
+  if (context.source[context.index] === DOLLAR) return onDoubleQuotedDollar(context);
+  if (context.source[context.index] === BACKTICK) return enterBacktick(context);
   if (context.source[context.index] !== BACKSLASH) return onLiteral(context);
   if (next === NEWLINE) context.index += 2;
   else if (DOUBLE_QUOTE_ESCAPABLE.includes(next)) onBackslash(context);
@@ -245,6 +267,7 @@ const onDoubleQuote = context => {
       return;
     }
     consumeDoubleQuoted(context);
+    if (context.failure !== null) return;
   }
   fail(context, UNTERMINATED_QUOTE);
 };
@@ -272,8 +295,99 @@ const onEscapedChar = context => {
   context.index += 2;
 };
 
+const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand });
+
+const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord });
+
+const runBody = (child, close) => {
+  while (child.index < child.source.length && child.failure === null) {
+    if (child.parens === 0 && child.source[child.index] === close) return true;
+    step(child);
+  }
+  return close === null;
+};
+
+const absorb = (context, child, settle) => {
+  settle(child);
+  context.commands.push(...child.commands);
+};
+
+const markExpansion = (context, start, end) => {
+  append(context, context.source.slice(start, end));
+  context.index = end;
+  context.dynamic = true;
+};
+
+const isTooDeep = context => context.depth >= MAX_NESTING_DEPTH;
+
+const enterConstruct = (context, { openLength, close, settle }) => {
+  if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
+  const start = context.index;
+  const child = createContext(context.source, context.depth + 1);
+  child.index = start + openLength;
+  const closed = runBody(child, close);
+  if (child.failure !== null) return fail(context, child.failure);
+  if (!closed) return fail(context, UNTERMINATED_SUBSTITUTION);
+  absorb(context, child, settle);
+  markExpansion(context, start, child.index + 1);
+};
+
+const findBacktickEnd = (source, from) => {
+  for (let index = from; index < source.length; index += 1) {
+    if (source[index] === BACKSLASH) index += 1;
+    else if (source[index] === BACKTICK) return index;
+  }
+  return -1;
+};
+
+const enterBacktick = context => {
+  if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
+  const start = context.index;
+  const end = findBacktickEnd(context.source, start + 1);
+  if (end === -1) return fail(context, UNTERMINATED_SUBSTITUTION);
+  const body = context.source.slice(start + 1, end).replace(BACKTICK_ESCAPES, '$1');
+  const child = createContext(body, context.depth + 1);
+  runBody(child, null);
+  if (child.failure !== null) return fail(context, child.failure);
+  absorb(context, child, breakCommand);
+  markExpansion(context, start, end + 1);
+};
+
+const arithmeticEnd = (source, from) => {
+  let level = ARITHMETIC_OPEN_LEVEL;
+  for (let index = from; index < source.length; index += 1) {
+    level += PAREN_LEVEL.get(source[index]) ?? 0;
+    if (level === 0) return index + 1;
+  }
+  return -1;
+};
+
+const onArithmetic = context => {
+  const end = arithmeticEnd(context.source, context.index + 3);
+  if (end === -1) return fail(context, UNTERMINATED_SUBSTITUTION);
+  markExpansion(context, context.index, end);
+};
+
+const enterDollarParen = context =>
+  context.source[context.index + 2] === OPEN_PAREN ? onArithmetic(context) : enterConstruct(context, SUBSTITUTION);
+
+const onVariable = context => {
+  markExpansion(context, context.index, context.index + 2);
+};
+
+const expandDollar = context => {
+  const next = context.source[context.index + 1];
+  if (next === OPEN_PAREN) return enterDollarParen(context);
+  if (next === OPEN_BRACE) return enterConstruct(context, PARAMETER);
+  if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
+  onLiteral(context);
+};
+
 const onDollar = context =>
-  context.source[context.index + 1] === SINGLE_QUOTE ? readAnsiC(context) : onLiteral(context);
+  context.source[context.index + 1] === SINGLE_QUOTE ? readAnsiC(context) : expandDollar(context);
+
+const onDoubleQuotedDollar = context =>
+  context.source[context.index + 1] === SINGLE_QUOTE ? onLiteral(context) : expandDollar(context);
 
 const onHash = context => {
   if (context.piece !== null) return onLiteral(context);
@@ -289,6 +403,19 @@ const onRedirect = context => {
   context.redirecting = true;
 };
 
+const onOpenParen = context => {
+  context.parens += 1;
+  onBreak(context);
+};
+
+const onCloseParen = context => {
+  context.parens = Math.max(0, context.parens - 1);
+  onBreak(context);
+};
+
+const onAngle = context =>
+  context.source[context.index + 1] === OPEN_PAREN ? enterConstruct(context, SUBSTITUTION) : onRedirect(context);
+
 const onAmpersand = context =>
   context.source[context.index + 1] === '>' ? onAmpersandRedirect(context) : onBreak(context);
 
@@ -303,13 +430,14 @@ const CHAR_HANDLERS = new Map([
   [NEWLINE, onBreak],
   [';', onBreak],
   ['|', onBreak],
-  ['(', onBreak],
-  [')', onBreak],
+  [OPEN_PAREN, onOpenParen],
+  [')', onCloseParen],
   ['&', onAmpersand],
-  ['<', onRedirect],
-  ['>', onRedirect],
+  ['<', onAngle],
+  ['>', onAngle],
+  [BACKTICK, enterBacktick],
   ['#', onHash],
-  ['$', onDollar],
+  [DOLLAR, onDollar],
   [BACKSLASH, onBackslash],
   [SINGLE_QUOTE, onSingleQuote],
   [DOUBLE_QUOTE, onDoubleQuote],

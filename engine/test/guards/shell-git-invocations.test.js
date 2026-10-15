@@ -314,3 +314,124 @@ describe('parseShellCommands() — unterminated quotes', () => {
     });
   }
 });
+
+const wordOf = item => (typeof item === 'string' ? word(item) : item);
+const cmdOf = items => ({ words: items.map(wordOf) });
+
+const assertParsesWords = rows => {
+  for (const [input, expected] of rows) {
+    it(`Given ${JSON.stringify(input)}, When parsed, Then the simple commands are ${JSON.stringify(expected)}`, () => {
+      const sut = parseShellCommands;
+
+      const result = sut(input);
+
+      assert.deepEqual(result, parsed(...expected.map(cmdOf)));
+    });
+  }
+};
+
+describe('parseShellCommands() — command substitution', () => {
+  assertParsesWords([
+    ['echo $(git diff)', [['git', 'diff'], ['echo', dyn('$(git diff)')]]],
+    ['echo "$(git diff)"', [['git', 'diff'], ['echo', dyn('$(git diff)')]]],
+    [
+      'echo $(echo $(git diff))',
+      [['git', 'diff'], ['echo', dyn('$(git diff)')], ['echo', dyn('$(echo $(git diff))')]],
+    ],
+    ['true && echo "x$(git diff)y"', [['true'], ['git', 'diff'], ['echo', dyn('x$(git diff)y')]]],
+  ]);
+});
+
+describe('parseShellCommands() — backtick and process substitution', () => {
+  assertParsesWords([
+    ['echo `git diff`', [['git', 'diff'], ['echo', dyn('`git diff`')]]],
+    [
+      'echo $(echo `git diff`)',
+      [['git', 'diff'], ['echo', dyn('`git diff`')], ['echo', dyn('$(echo `git diff`)')]],
+    ],
+    [
+      'echo `echo \\`git diff\\``',
+      [['git', 'diff'], ['echo', dyn('`git diff`')], ['echo', dyn('`echo \\`git diff\\``')]],
+    ],
+    ['cat <(git diff)', [['git', 'diff'], ['cat', dyn('<(git diff)')]]],
+    ['tee >(git diff)', [['git', 'diff'], ['tee', dyn('>(git diff)')]]],
+  ]);
+});
+
+describe('parseShellCommands() — dynamic words and expansions', () => {
+  assertParsesWords([
+    ['$G push', [[dyn('$G'), 'push']]],
+    ['"$(which git)" push', [['which', 'git'], [dyn('$(which git)'), 'push']]],
+    ['git -C "$WT" status', [['git', '-C', dyn('$WT'), 'status']]],
+    ['echo ${x:-$(git diff)}', [['git', 'diff'], ['echo', dyn('${x:-$(git diff)}')]]],
+    ['x=$((1+2)) git diff', [['git', 'diff']]],
+    ['echo $((2*(3+4)))', [['echo', dyn('$((2*(3+4)))')]]],
+    ["echo '$(git diff)'", [['echo', '$(git diff)']]],
+    ["echo $'$(git diff)'", [['echo', '$(git diff)']]],
+    ['echo \\$X', [['echo', '$X']]],
+    ['git${IFS}diff', [[dyn('git${IFS}diff')]]],
+    ['echo $1 $@ $* $# $? $$ $! $-', [['echo', ...['$1', '$@', '$*', '$#', '$?', '$$', '$!', '$-'].map(dyn)]]],
+    ['echo "a $X b"', [['echo', dyn('a $X b')]]],
+    ['echo "cost: $"', [['echo', 'cost: $']]],
+  ]);
+});
+
+const UNTERMINATED_SUBSTITUTION =
+  'craft: command not parseable (unterminated substitution) — denied fail-closed';
+
+describe('parseShellCommands() — unterminated constructs', () => {
+  const rows = [
+    ['echo $(git diff', UNTERMINATED_SUBSTITUTION],
+    ['echo `git diff', UNTERMINATED_SUBSTITUTION],
+    ['echo ${x', UNTERMINATED_SUBSTITUTION],
+    ['echo $((1+2', UNTERMINATED_SUBSTITUTION],
+    ['cat <(git diff', UNTERMINATED_SUBSTITUTION],
+    ['tee >(git diff', UNTERMINATED_SUBSTITUTION],
+    ['echo "$(git diff', UNTERMINATED_SUBSTITUTION],
+    ['git push\necho "x', UNTERMINATED_QUOTE],
+    ['echo $(echo "x)', UNTERMINATED_QUOTE],
+  ];
+  for (const [input, reason] of rows) {
+    it(`Given ${JSON.stringify(input)}, When parsed, Then it is not parseable`, () => {
+      const sut = parseShellCommands;
+
+      const result = sut(input);
+
+      assert.deepEqual(result, { parsed: false, reason });
+    });
+  }
+});
+
+const PINNED_NESTING_CAP = 8;
+const NESTING_TOO_DEEP = 'craft: command not parseable (nesting deeper than 8) — denied fail-closed';
+
+const nest = depth =>
+  depth === 0 ? 'git diff' : `echo $(${nest(depth - 1)})`;
+
+describe('parseShellCommands() — nesting depth', () => {
+  it('Given substitutions nested at the cap, When parsed, Then the innermost command is listed', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(nest(PINNED_NESTING_CAP));
+
+    assert.equal(result.parsed, true);
+    assert.deepEqual(result.commands[0], cmd('git', 'diff'));
+    assert.equal(result.commands.length, PINNED_NESTING_CAP + 1);
+  });
+
+  it('Given substitutions nested one past the cap, When parsed, Then it is not parseable', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(nest(PINNED_NESTING_CAP + 1));
+
+    assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
+  });
+
+  it('Given parameter expansions nested one past the cap, When parsed, Then it is not parseable', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(`${'echo ${x:-'.repeat(PINNED_NESTING_CAP + 1)}x${'}'.repeat(PINNED_NESTING_CAP + 1)}`);
+
+    assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
+  });
+});
