@@ -4,7 +4,8 @@ import { execFileSync, spawn } from 'node:child_process';
 import { accessSync, constants, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
-import { normaliseGitArgv, gitInvocations } from '../../src/guards/shell-git-invocations.js';
+import { normaliseGitArgv } from '../../src/guards/git-argv.js';
+import { gitInvocations } from '../../src/guards/shell-git-invocations.js';
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
 import { gitExtDiffPredicate } from '../../src/guards/git-ext-diff-predicate.js';
 

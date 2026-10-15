@@ -1,4 +1,5 @@
-import { configChannelReason, DESTRUCTIVE_VERBS, judgeInvocations, optionWords } from './shell-git-invocations.js';
+import { configChannelReason, judgeInvocations } from './shell-git-invocations.js';
+import { DESTRUCTIVE_VERBS, optionWords } from './git-argv.js';
 
 const REASONS = Object.freeze({
   push: 'craft: destructive git (push) is denied in this binding — run it outside the agent',

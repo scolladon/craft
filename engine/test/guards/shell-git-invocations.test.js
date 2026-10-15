@@ -2,7 +2,9 @@ import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
 import { gitExtDiffPredicate } from '../../src/guards/git-ext-diff-predicate.js';
-import { gitInvocations, hasInlineAlias, judgeParsed, normaliseGitArgv, parseShellCommands } from '../../src/guards/shell-git-invocations.js';
+import { normaliseGitArgv } from '../../src/guards/git-argv.js';
+import { parseShellCommands } from '../../src/guards/shell-tokeniser.js';
+import { gitInvocations, hasInlineAlias, judgeParsed } from '../../src/guards/shell-git-invocations.js';
 
 const dyn = text => ({ text, dynamic: true });
 
