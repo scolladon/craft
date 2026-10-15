@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { DENY_TOOL_PATTERNS, buildLaunchArgs } from '../src/deny-tool-args.js';
+import { gitDestructivePredicate } from '../../../engine/src/guards/git-destructive-predicate.js';
 
 // Well-formedness only — never used as a substitute for the membership pin
 // below. The catch-all `[a-z0-9_-]+\([^()]+\)` alternative was deliberately
@@ -125,4 +126,40 @@ describe('buildLaunchArgs() — containment root validation', () => {
 
     assert.throws(() => sut({ workingDir: 'relative/path' }), /containment root/);
   });
+});
+
+const INTERPOSED_SPELLINGS = [
+  '',
+  '-C .',
+  '--git-dir=.git',
+  '--git-dir .git',
+  '-c k.v=1',
+  '--work-tree=.',
+  '--no-pager',
+  '-p',
+  '-P',
+  '--no-optional-locks',
+  '--namespace x',
+  '--config-env k.v=HOME',
+  '--attr-source HEAD',
+  '--exec-path=/x',
+  '--bare',
+];
+
+const SHELL_LITERAL = /^shell\((.*)\)$/;
+
+describe('DENY_TOOL_PATTERNS — parity with the destructive-git predicate', () => {
+  for (const pattern of DENY_TOOL_PATTERNS) {
+    const command = pattern.replace(SHELL_LITERAL, '$1');
+    for (const spelling of INTERPOSED_SPELLINGS) {
+      const spelled = command.replace(/^git/, `git ${spelling}`.trimEnd());
+      it(`Given "${spelled}", when checked, then the predicate blocks it`, () => {
+        const sut = gitDestructivePredicate;
+
+        const result = sut(spelled);
+
+        assert.equal(result.block, true);
+      });
+    }
+  }
 });
