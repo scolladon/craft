@@ -87,6 +87,7 @@ export function adaptCopilotEvent(payload) {
 // A present, non-string command would be read char-by-char downstream and
 // allowed; throwing lets decideGuard fail it closed.
 function commandOf(toolInput) {
+    // equivalent mutant (StringLiteral): any git-free fallback command passes exactly like '', and the stand-in text holds no git word
   const command = toolInput.command ?? '';
   if (typeof command !== 'string') {
     throw new TypeError('tool_input.command is not a string');
@@ -97,6 +98,7 @@ function commandOf(toolInput) {
 // toolCallGuard's containment branch blocks without a reason, so the model
 // would only see the hook's generic fail-closed text.
 function withContainmentReason(event, verdict) {
+    // equivalent mutant (ConditionalExpression true on reason === undefined): the only blocking verdict reaching here is toolCallGuard's reasonless containment block
   if (verdict.block && verdict.reason === undefined && WRITE_TOOLS.has(event.tool)) {
     return { ...verdict, reason: CONTAINMENT_DENIED_REASON };
   }

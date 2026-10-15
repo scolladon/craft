@@ -73,6 +73,7 @@ const dynamicPositions = (words, from) => {
 };
 
 const VISIBLE = Object.freeze({ enumerable: true });
+// equivalent mutant (ObjectLiteral {}): defineProperties defaults enumerable to false for a property it creates, so an empty descriptor hides the key identically
 const HIDDEN = Object.freeze({ enumerable: false });
 
 const UNSET = Symbol('unset');

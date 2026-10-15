@@ -472,3 +472,13 @@ describe('gitExtDiffPredicate() — dynamic words after --no-ext-diff', () => {
     });
   }
 });
+
+describe('gitExtDiffPredicate() — marker spelled through an escape', () => {
+  it("Given a --no-ext-diff marker that is itself an expansion-marked word, when checked, then it still counts as the marker", () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut("git diff --no-ext-d$'\\i'ff");
+
+    assert.equal(result.block, false);
+  });
+});

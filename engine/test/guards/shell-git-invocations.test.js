@@ -263,3 +263,155 @@ describe('judgeParsed', () => {
     assert.deepEqual(result, { block: true, reason: 'cannot parse' });
   });
 });
+
+describe('gitInvocations() — anchoring pins', () => {
+  const invocationsOf = command => gitInvocations(command).invocations;
+
+  it('Given a pattern word holding a verb, when anchored, then the rest starts after the word', () => {
+    const sut = invocationsOf;
+
+    const result = sut('echo a {push,x} b');
+
+    assert.deepEqual(result, [{ kind: 'indeterminate', rest: ['b'], leadingWords: ['echo', 'a'] }]);
+  });
+
+  it('Given a dashed git spelling, when anchored, then it carries no config keys', () => {
+    const sut = invocationsOf;
+
+    const result = sut('git-push origin');
+
+    assert.deepEqual(result, [{ ...subcommand('push', ['origin']), leadingWords: [] }]);
+  });
+
+  it('Given a word that merely ends in a dashed git spelling, when anchored, then it is not an anchor', () => {
+    const sut = invocationsOf;
+
+    const result = sut('echo xgit-push');
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given a dynamic dashed git word with no path, when anchored, then it is not an anchor', () => {
+    const sut = invocationsOf;
+
+    const result = sut("echo git-$'\\p' origin");
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given a dynamic word behind a dashed git spelling, when anchored, then no wrapper anchor is added', () => {
+    const sut = invocationsOf;
+
+    const result = sut('git-log $X push');
+
+    assert.deepEqual(result, [{ ...subcommand('log', ['$X', 'push'], [], 1), leadingWords: [] }]);
+  });
+
+  it('Given a git word after the first dynamic word, when anchored, then the wrapper anchor is still added', () => {
+    const sut = invocationsOf;
+
+    const result = sut('command $G git push');
+
+    assert.deepEqual(result, [
+      { ...subcommand('push'), leadingWords: ['command', '$G'] },
+      { kind: 'indeterminate', rest: ['git', 'push'], leadingWords: ['command'] },
+    ]);
+  });
+
+  for (const command of ['echo push $X', 'echo $X ls']) {
+    it(`Given ${JSON.stringify(command)}, when anchored, then no verb follows the dynamic word and nothing is anchored`, () => {
+      const sut = invocationsOf;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, []);
+    });
+  }
+
+  for (const command of ['GIT_CONFIG_KEY_10=alias.x git x', 'GIT_CONFIG_VALUE_10=push git x']) {
+    it(`Given ${JSON.stringify(command)}, when anchored, then the config channel is flagged`, () => {
+      const sut = invocationsOf;
+
+      const [result] = sut(command);
+
+      assert.equal(result.injectsConfig, true);
+    });
+  }
+
+  it('Given an anchor that is itself the first config channel word, when anchored, then it is not flagged as injected', () => {
+    const sut = invocationsOf;
+
+    const [result] = sut('echo GIT_CONFIG_COUNT=$X push');
+
+    assert.equal(result.injectsConfig, false);
+  });
+
+  it('Given an alias definition naming git, when anchored, then a flagged no-subcommand invocation with no leading words is returned', () => {
+    const sut = invocationsOf;
+
+    const result = sut('alias g=git');
+
+    assert.deepEqual(result, [{ kind: 'no-subcommand', leadingWords: [] }]);
+    assert.equal(result[0].injectsConfig, true);
+  });
+
+  it('Given an alias definition naming git among others, when anchored, then it is flagged', () => {
+    const sut = invocationsOf;
+
+    const result = sut('alias a=b g=git');
+
+    assert.equal(result.length, 1);
+  });
+
+  for (const command of ['alias ll', 'alias ll=ls', 'echo g=git']) {
+    it(`Given ${JSON.stringify(command)}, when anchored, then no alias is flagged`, () => {
+      const sut = invocationsOf;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, []);
+    });
+  }
+
+  it('Given an alias naming a dashed git spelling, when anchored, then it is flagged', () => {
+    const sut = invocationsOf;
+
+    const result = sut('alias g=git-push');
+
+    assert.equal(result.length, 1);
+  });
+});
+
+describe('gitInvocations() — anchor cap pins', () => {
+  const CAP = 256;
+  const repeated = (unit, times) => unit.repeat(times);
+
+  for (const [name, unit] of [
+    ['bare git', 'git --exec-path '],
+    ['non-destructive subcommands', 'git status '],
+  ]) {
+    it(`Given more than the cap of ${name}, when anchored, then they are not counted`, () => {
+      const sut = gitInvocations;
+
+      const result = sut(repeated(unit, CAP + 1));
+
+      assert.equal(result.parsed, true);
+    });
+  }
+
+  for (const [name, unit] of [
+    ['indeterminate invocations', 'git $X '],
+    ['destructive subcommands', 'git push '],
+  ]) {
+    it(`Given more than the cap of ${name}, when anchored, then the command is denied fail-closed`, () => {
+      const sut = gitInvocations;
+
+      const result = sut(repeated(unit, CAP + 1));
+
+      assert.deepEqual(result, {
+        parsed: false,
+        reason: 'craft: command not parseable (too many git invocations) — denied fail-closed',
+      });
+    });
+  }
+});

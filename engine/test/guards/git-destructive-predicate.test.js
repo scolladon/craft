@@ -530,3 +530,14 @@ describe('gitDestructivePredicate() — option and wrapper rows that guard the p
     assert.deepEqual(result, { block: false });
   });
 });
+
+describe('gitDestructivePredicate() — clean option parsing pins', () => {
+  assertPasses([
+    'git clean --dry-run --n',
+    'git clean --dry-run --no',
+    'git clean --dry-run --exclude x',
+    'git clean x -n',
+    'git clean -ne --no-dry-run',
+    'git branch -D5 x',
+  ]);
+});

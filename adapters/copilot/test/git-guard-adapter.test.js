@@ -573,3 +573,58 @@ describe('copilotGuard() — containment denial reason', () => {
     assert.equal(result.reason, 'craft: write outside the working directory is denied in this binding');
   });
 });
+
+describe('decideGuard() — fail-closed reasons', () => {
+  const failClosed = detail => ({
+    block: true,
+    reason: `craft: guard could not read the tool call (${detail}) — denied fail-closed`,
+  });
+
+  for (const [title, toolArgs] of [
+    ['null toolArgs', 'null'],
+    ['an array toolArgs', '[]'],
+    ['a number toolArgs', '5'],
+  ]) {
+    it(`Given ${title}, when decideGuard runs, then it fails closed naming the plain-object requirement`, () => {
+      const sut = decideGuard;
+
+      const result = sut({ cwd: WORKING_DIR, toolName: 'bash', toolArgs });
+
+      assert.deepEqual(result, failClosed('toolArgs did not decode to a plain JSON object'));
+    });
+  }
+
+  for (const [title, thrown] of [
+    ['an empty message', new Error('')],
+    ['a non-string message', { message: 5 }],
+    ['a nullish throw', null],
+  ]) {
+    it(`Given a guard throwing ${title}, when decideGuard runs, then the reason says unknown error`, () => {
+      const sut = decideGuard;
+
+      const result = sut(payload('bash', { command: 'ls' }), () => {
+        throw thrown;
+      });
+
+      assert.deepEqual(result, failClosed('unknown error'));
+    });
+  }
+});
+
+describe('copilotGuard() — verdict shapes', () => {
+  it('Given a create call inside the working directory, when guarded, then the verdict is exactly a pass', () => {
+    const sut = copilotGuard;
+
+    const result = sut({ tool: 'Write', tool_input: { file_path: `${WORKING_DIR}/a.js` }, working_dir: WORKING_DIR });
+
+    assert.deepEqual(result, { block: false });
+  });
+
+  it('Given a read-only tool, when guarded, then the verdict is exactly a pass', () => {
+    const sut = copilotGuard;
+
+    const result = sut({ tool: 'view', tool_input: { path: '/etc/passwd' }, working_dir: WORKING_DIR });
+
+    assert.deepEqual(result, { block: false });
+  });
+});

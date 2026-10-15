@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { normaliseGitArgv } from '../../src/guards/git-argv.js';
+import { normaliseGitArgv, subcommandResult, walkFrom } from '../../src/guards/git-argv.js';
 
 const dyn = text => ({ text, dynamic: true });
 
@@ -236,5 +236,55 @@ describe('git argv normalising — bounded work', () => {
 
     assert.equal(result.subcommand, 'status');
     assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+});
+
+describe('git argv normalising — mutation pins', () => {
+  it('Given a -c option with no value, when normalised, then no subcommand is found', () => {
+    const sut = normaliseGitArgv;
+
+    const result = sut(['-c']);
+
+    assert.deepEqual(result, { kind: 'no-subcommand' });
+  });
+
+  it('Given a dangling -C option, when walked, then the option run ends at the option', () => {
+    const sut = walkFrom;
+
+    const result = sut([{ text: '-C', dynamic: false }], 0);
+
+    assert.deepEqual(result, { invocation: { kind: 'no-subcommand' }, end: 0 });
+  });
+
+  it('Given a subcommand with dynamic arguments, when read, then the dynamic positions are relative to the arguments', () => {
+    const sut = subcommandResult('diff', [{ text: 'a', dynamic: false }, { text: 'b', dynamic: true }, { text: 'c', dynamic: true }], 0, []);
+
+    const result = sut.dynamicArgPositions;
+
+    assert.deepEqual(result, [1, 2]);
+  });
+
+  it('Given a subcommand with a dynamic argument after the terminator, when read, then the terminator ends the positions', () => {
+    const sut = subcommandResult('diff', [{ text: '--', dynamic: false }, { text: 'b', dynamic: true }], 0, []);
+
+    const result = sut.dynamicArgPositions;
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given a subcommand with no dynamic argument, when read, then there are no positions', () => {
+    const sut = subcommandResult('diff', [{ text: 'a', dynamic: false }], 0, []);
+
+    const result = sut.dynamicArgPositions;
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given a derived array, when read twice, then the same array is returned', () => {
+    const sut = subcommandResult('diff', [{ text: 'a', dynamic: false }], 0, []);
+
+    const first = sut.args;
+
+    assert.equal(sut.args, first);
   });
 });

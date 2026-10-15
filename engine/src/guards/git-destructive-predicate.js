@@ -31,11 +31,13 @@ const DRY_RUN_MIN_LENGTH = '--dry'.length;
 const NO_DRY_RUN_MIN_LENGTH = '--no-d'.length;
 
 const SHORT_CLUSTER = /^-[^-]/;
+// equivalent mutants (Regex without ^ or $): abbreviates() also requires the word to be a prefix of a guarded option, which holds no '=' and starts with '--'
 const LONG_OPTION = /^--[^=]*$/;
 
 const abbreviates = (word, option, minLength = GUARDED_MIN_LENGTH) =>
   LONG_OPTION.test(word) && word.length >= minLength && option.startsWith(word);
 
+// equivalent mutants (MethodExpression word for word.slice(1); StringLiteral for ''): '-' is neither 'n' nor 'e', and a stand-in without 'n' before its first non-final 'e' leaves the state unchanged
 const shortLetters = word => (SHORT_CLUSTER.test(word) ? word.slice(1) : '');
 
 const shortClusterHolds = (word, letter) => /^-[A-Za-z]+$/.test(word) && word.includes(letter);
@@ -49,6 +51,7 @@ const judgeReset = invocation => {
 
 const afterWord = (state, word) => {
   if (state.skipNext) return { ...state, skipNext: false };
+    // equivalent mutant (ObjectLiteral {}): state is only read for truthiness, and undefined dry/skipNext are falsy like false
   if (abbreviates(word, NO_DRY_RUN, NO_DRY_RUN_MIN_LENGTH)) return { ...state, dry: false };
   if (abbreviates(word, DRY_RUN, DRY_RUN_MIN_LENGTH)) return { ...state, dry: true };
   if (abbreviates(word, EXCLUDE)) return { ...state, skipNext: true };
@@ -63,6 +66,7 @@ const afterCluster = (state, letters) => {
   return { dry, skipNext };
 };
 
+// equivalent mutant (ObjectLiteral {}): state is only read for truthiness, and undefined dry/skipNext are falsy like false
 const INITIAL_CLEAN_STATE = Object.freeze({ dry: false, skipNext: false });
 
 const judgeClean = invocation => {
