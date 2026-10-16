@@ -603,3 +603,7 @@ native-surface-skills-title-fix design turns=15 tool_calls=15 tokens=483943 dura
 native-surface-skills-title-fix implementation turns=7 tool_calls=8 tokens=134685 duration_ms=39667 cache_read=117176 cache_creation=17251 output=244 avg_ctx=19206 equiv=34515
 native-surface-skills-title-fix planning turns=11 tool_calls=11 tokens=301325 duration_ms=124118 cache_read=267351 cache_creation=33807 output=145 avg_ctx=27380 equiv=69741
 native-surface-skills-title-fix review turns=18 tool_calls=19 tokens=378593 duration_ms=115430 cache_read=293382 cache_creation=84905 output=270 avg_ctx=21018 equiv=136855
+rules-integrity-launch-wiring design turns=60 tool_calls=69 tokens=5483999 duration_ms=666875 cache_read=5351795 cache_creation=130831 output=1253 avg_ctx=91379 equiv=705103
+rules-integrity-launch-wiring implementation turns=8 tool_calls=22 tokens=221712 duration_ms=88366 cache_read=188295 cache_creation=32511 output=888 avg_ctx=27603 equiv=63926
+rules-integrity-launch-wiring planning turns=76 tool_calls=81 tokens=6051012 duration_ms=666805 cache_read=5924312 cache_creation=125829 output=719 avg_ctx=79609 equiv=753464
+rules-integrity-launch-wiring review turns=30 tool_calls=41 tokens=781482 duration_ms=203231 cache_read=671594 cache_creation=109383 output=445 avg_ctx=26035 equiv=206173
