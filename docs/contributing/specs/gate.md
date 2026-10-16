@@ -121,50 +121,118 @@ invariant applies identically to the other bindings.
 
 ## Copilot binding
 
-**Enforcement profile: mixed — two layers enforce, the third is observational only.**
+**Enforcement profile: all three layers enforce on copilot >= 1.0.92.**
 
-Copilot exposes no denying hook (a live probe showed `git push --force origin main` executing
-unimpeded under a firing-but-observational hook), so the guard binds as **three layers**, only
-two of which actually enforce:
+Until 1.0.63 the `preToolUse` hook fired but could not deny (a live probe showed
+`git push --force origin main` executing unimpeded). On 1.0.92 a JSON deny on stdout and an exit
+code 2 both block the tool, and the hook is the enforcing layer
+(`docs/contributing/specs/copilot-poc-record.md` row 11, live probe 2026-10-15). The guard binds as
+**three layers**:
 
 | Layer | Mechanism | Enforcing? |
 |---|---|---|
-| Containment | native path verification; `--add-dir <worktree>` required, `--allow-all-paths` forbidden | **Yes** — live-proven: an out-of-tree `create` was blocked with no `--allow-all-paths` supplied |
-| Command policy | the `--deny-tool` pattern set from `adapters/copilot/src/deny-tool-args.js` | **Yes** — live-proven; denial rules take precedence even over `--allow-all-tools` |
-| Audit | the `preToolUse` hook (`adapters/copilot/hooks/craft-observer.js`) → `adapters/copilot/src/git-guard-adapter.js` → the shared `toolCallGuard` predicate | **No — observational** |
+| Containment | native path verification; `--add-dir <worktree>` required, `--allow-all-paths` forbidden | **Yes** — live-proven: an out-of-tree `create` was blocked with no `--allow-all-paths` supplied; with it, the hook alone still denied (file absent) |
+| Command policy | the `--deny-tool` pattern set from `adapters/copilot/src/deny-tool-args.js` | **Yes** — live-proven; denial rules take precedence even over `--allow-all-tools`; the floor on a copilot older than 1.0.92 |
+| Hook | the `preToolUse` hook (`adapters/copilot/hooks/craft-guard.js`) → `copilotGuard` in `adapters/copilot/src/git-guard-adapter.js` = the plain-command gate, then the destructive-git predicate, then the shared `toolCallGuard` predicate | **Yes** (>= 1.0.92) — denied the destructive and ext-diff rows in the live probe |
 
-**tool-guard**: the enforcing layers are launch-time, built by `buildLaunchArgs` in
+**Deny and crash channel.** A block writes `{"permissionDecision":"deny","permissionDecisionReason":…}`
+on stdout and exits 0; the model sees the reason. A guard that throws, an unresolvable import and an
+unadaptable payload deny too: exit 2 shows `hook exited with code 2`, a missing hook file or a
+missing `node` shows `(hook errored)`. `{"permission":"deny"}` is still ignored (the tool
+executes). The hook is declared in `$COPILOT_HOME/settings.json`: on 1.0.98 a hook in `config.json`
+is not loaded (1.0.92 migrated it).
+
+**tool-guard**: the launch-time layers are built by `buildLaunchArgs` in
 `adapters/copilot/src/deny-tool-args.js` — `--add-dir <workingDir>` (never `--allow-all-paths`)
 plus a `--deny-tool=shell(...)` pattern per entry in `DENY_TOOL_PATTERNS` (flag-order and
-long-form variants of `git push`, `git reset --hard`, `git clean -fd`, `git branch -D`). Because
-these enforce at the CLI boundary before a tool ever runs, they cover the destructive-git set and
-out-of-tree path access directly.
+long-form variants of `git push`, `git reset --hard`, `git clean -fd`, `git branch -D`).
 
 **`--deny-tool` is defence-in-depth, not an adversarial sandbox.** The matcher is live-pinned as
 **prefix matching on the command string** — it does not parse argv
-(`docs/contributing/specs/copilot-poc-record.md` row 20). Each pattern therefore only covers the
-literal flag orders it enumerates: an interposed global option (`git -C <dir> push`,
-`git --git-dir=… push`, `git -c k=v push`) bypasses
-every pattern in the set, live-confirmed for `git -C . push` against `shell(git push)`. A blanket
-`shell(git:*)` would close that gap but is deliberately rejected — it denies *all* git, which would
-break craft's own git-heavy workflow. This layer catches accidental destructive git; it is not a
-guarantee against an adversarial agent working around it.
+(`docs/contributing/specs/copilot-poc-record.md` row 20). An interposed global option
+(`git -C <dir> push`, `git --git-dir=… push`, `git -c k=v push`) bypasses every pattern in the set,
+live-confirmed for `git -C . push` against `shell(git push)`. A blanket `shell(git:*)` is
+deliberately rejected — it denies *all* git. The hook is the second layer that closes that gap: it
+tokenises the command, so `git -C . push origin main` was denied with the ref unmoved (1.0.92 and
+1.0.98).
 
-The `preToolUse` hook fires on every tool call and is wired for audit only: it reads the
-lowercase, string-encoded Copilot event, reshapes it (`adaptCopilotEvent` maps `bash`→`Bash`,
+The hook reads the lowercase Copilot event, whose `toolArgs` arrives as a JSON object on 1.0.92
+(a JSON-encoded string on 1.0.63), and reshapes it (`adaptCopilotEvent` maps `bash`→`Bash`,
 `create`→`Write`, `edit`→`Edit`, and bridges the executed `path` field — never `file_path`, which
 does not exist in Copilot's tool schemas — unconditionally onto `file_path` so an inspected decoy
-can never mask the field the tool actually executes on) and applies the shared `gate.js`
+can never mask the field the tool actually executes on). It applies the shared `gate.js`
 `toolCallGuard` predicate unmodified, single-sourcing the git-diff/`--no-ext-diff` rule across
-every binding. It records the verdict to stderr and **always exits 0** — this is deliberate:
-neither `{"permission":"deny"}` on stdout nor a non-zero exit blocked a tool call in the live
-probe, so the hook must never be read as, or "fixed" into, a blocking control.
+every binding. The ext-diff rule is therefore enforced for this binding: `git diff HEAD~1 > f`
+was denied (file absent) and `git diff --no-ext-diff HEAD~1 > f` executed.
 
-**The carve-out is written down, never papered over**: for this binding the ext-diff rule is
-**advisory**, because the mechanism that would enforce it — the `preToolUse` hook — cannot deny.
-The containment and destructive-git rules above are enforced natively and are strictly stronger
-than an advisory hook; only the ext-diff rule rides on the observational layer. Never imply the
-hook blocks.
+**Plain-command gate.** First stage of the hook. When a command mentions git, it must be plain:
+literal or quoted words; `;`, `&&`, `||`, `|`, `&` and newline separators; literal output redirects;
+none of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wrapper in command
+position; no `GIT_CONFIG_`; see the near-git rules below. craft's `"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Otherwise the
+hook denies with `craft: command too complex to verify near git — spell it plainly`; the remedy is
+to re-issue the git part plainly. On macOS `/bin/bash` 3.2 an apostrophe inside the commit-idiom
+body fails bash's own parse (hook allows; bash syntax error) — a bash limitation, not the guard.
+
+**Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
+
+- `-c <key>=…` and `--config-env=<key>=…` keys must be in a safe set: `user.name`, `user.email`,
+  `commit.gpgsign`, `tag.gpgsign`, `core.quotepath`, `color.ui`, `init.defaultbranch`,
+  `format.pretty`, `diff.noprefix`, any `color.*`, `advice.*` or `log.*`, and `pager.<cmd>=false`.
+  Any other key denies: git runs the value of keys such as `core.fsmonitor`, `core.sshCommand`,
+  `credential.helper` and `core.pager` (proven with real git).
+- Any `GIT_<NAME>=` assignment near git denies, for the same reason.
+- Shells anywhere: `sh bash zsh dash ksh fish csh tcsh mksh yash busybox eval` deny at **any** word
+  position (an unlisted wrapper such as `caffeinate` or `stdbuf` could otherwise put a shell out of
+  command position), while `env exec command nohup time sudo nice timeout xargs source . trap hash
+  builtin enable fc coproc alias` deny in command position.
+
+**Guard modules.** The guard logic lives in `engine/src/guards/`: `shell-tokeniser.js` (bash
+tokeniser), `git-argv.js` (git global-option normaliser), `shell-git-invocations.js` (anchoring and
+judging), `git-plain-command-gate.js` (the copilot gate), `git-destructive-predicate.js` and
+`git-ext-diff-predicate.js`.
+
+**Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
+(`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s timeout
+fail open. Re-probe on 1.0.98 (live probe 2026-10-16): `git -C . push origin main` denied (ref
+unmoved); `git status --short && git tag allowed` executed; `bash -c 'git push origin main'` denied
+by the gate; the commit idiom executed; a forced deadline denied.
+
+**Residuals**, written down rather than papered over:
+
+- A hook timeout **fails open**. With no `timeoutSec`, a hook that denied after 20 s still denied;
+  at 40 s and 70 s the tool executed (1.0.98). The default is about 30 s; the 5 s verdict deadline
+  is the guarantee, and a realistic command runs well under a second.
+- Copilot does not persist the hook's stderr audit line anywhere (the `--output-format json`
+  stream, `$COPILOT_HOME/logs`): the hook yields no audit trail.
+- Git reached through channels a static guard cannot follow, accepted by design: `echo push | xargs git`;
+  stdin into a shell (`bash <<< 'git push'`, `sh <<EOF … EOF`); `$((…))` bodies; an interpreter
+  given a literal string (`python3 -c 'import os; os.system("git push")'`); git run from a file or
+  a tool the command names indirectly (scripts, `make`, `npm run`, a heredoc written to a file and
+  run later, `watch`, `ssh host '…'`, `su -c`, `script -c`, `parallel`, `git rebase --exec`);
+  gitconfig-file aliases; a dynamic string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`);
+  word-splitting in the command word (`git${IFS}diff`).
+- A renamed or copied git binary (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
+  string guard; `hash -p` is blocked.
+- Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions
+  have stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
+- Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
+  `update-ref -d`, `filter-branch`, `send-pack`).
+- Closed, no longer residuals: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
+  env channels and `-c include.path`, and brace/glob/`$'\…'`/`$"…"`/dashed `git-<verb>`/wrapper
+  dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap, backed by the
+  verdict deadline: the 80 KB `eval` chain that took 49 s and then
+  aborted now denies in 0.06 s (live probe 2026-10-15). Every fail-closed denial carries a reason,
+  including `craft: write outside the working directory is denied in this binding`.
+- Closed, not a residual: cross-call shell state. A function or variable defined in one `bash` call
+  was not visible in the next, even with a reused `shellId`, and only `bash` executes shell text
+  (`read_bash`, `stop_bash`, `list_bash` cannot inject input) — 1.0.92 and 1.0.98.
+- Intended false blocks, each costing one re-issue with a literal command: `git commit -c <rev>` (read as an unsafe `-c` key); `git add scripts/sh`; `bash -c 'git status'`;
+  `git commit -m "it's $HOME"`; `git log # c`; `git diff > o < i`; `echo git push` and
+  `ls /x/git push` (any-word anchoring); a dynamic command head; a dynamic word at git's option or
+  subcommand position (`git $OPTS status`); a dynamic `reset`/`branch` argument (`git reset $SHA`);
+  pattern words (brace/glob) near a verb word; a dynamic word before a verb word; a file named
+  `git-<verb>`; an opaque `$'\…'` passed to an evaluator; and control-flow-unreached git (a static
+  guard cannot know `a && git push` short-circuits).
 
 **gate-command**: the resolved gate string runs as a normal subprocess; the never-commit-on-red
 invariant applies identically to the other three bindings.

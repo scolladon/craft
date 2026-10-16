@@ -1,8 +1,13 @@
 # 243 — Copilot git-guard: three layers, two enforcing and one advisory
 
-- **Status:** accepted
+- **Status:** superseded by ADR-578
 - **Date:** 2026-07-20
 - **Design:** docs/design/native-copilot-binding.md · **Supersedes/Refines:** Applies ADR-223 (per-binding event adapter)
+
+> **Superseded by ADR-578** for the preToolUse layer only: the hook is audit-only, the ext-diff rule is
+> advisory on copilot, and `toolArgs` is parsed as a JSON-encoded string only. On copilot 1.0.92 the hook
+> denies, so it enforces. The containment and `--deny-tool` layers, the tool-name map, the `path` bridge
+> and the decoy test stand.
 
 ## Context
 

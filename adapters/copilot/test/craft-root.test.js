@@ -52,7 +52,7 @@ describe('resolveCraftRoot() — up-walk depth pin', () => {
     const sut = resolveCraftRoot;
     const repoRoot = repoRootFromHere();
     const hooksModuleUrl = pathToFileURL(
-      join(repoRoot, 'adapters', 'copilot', 'hooks', 'craft-observer.js'),
+      join(repoRoot, 'adapters', 'copilot', 'hooks', 'craft-guard.js'),
     ).href;
     const expected = sut(import.meta.url);
 

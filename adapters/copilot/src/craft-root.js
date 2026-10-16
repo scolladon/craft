@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 // Both callers of this resolver — adapters/copilot/src/*.js and
-// adapters/copilot/hooks/craft-observer.js — sit exactly three directories
+// adapters/copilot/hooks/craft-guard.js — sit exactly three directories
 // below the repo root, so a single shared up-walk depth covers both.
 const UP_LEVELS_TO_REPO_ROOT = ['..', '..', '..'];
 

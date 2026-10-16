@@ -227,3 +227,258 @@ describe('gitExtDiffPredicate() — regex negatives', () => {
     assert.equal(result.block, false);
   });
 });
+
+describe('gitExtDiffPredicate() — shell grammar no longer hides a diff/show', () => {
+  for (const command of [
+    'echo \\"; git diff',
+    "echo \\'; git diff",
+    "echo $'a\\'b'; git diff",
+    "cat <<EOF\nit's\nEOF\ngit diff",
+    '(git diff)',
+    'true && (git diff)',
+    '{ git diff; }',
+    '! git diff',
+    'time git diff',
+    'if true; then git diff; fi',
+    'case x in x) git diff;; esac',
+    'f(){ git diff; }; f',
+    'FOO=1 git diff',
+    'x=$((1+2)) git diff',
+    'env git diff',
+    'command git diff',
+    'exec git diff',
+    'nohup git diff',
+    'echo x | xargs git diff',
+    '"git" diff',
+    "'git' diff",
+    'g\\it diff',
+    'git "diff"',
+    'git di""ff',
+    '/usr/bin/git diff',
+    'git --no-pager diff',
+    'git -p diff',
+    'git --git-dir .git diff',
+    'git --no-optional-locks diff',
+    '$(git diff)',
+    '`git diff`',
+    'cat <(git diff)',
+    'cat <<EOF\n$(git diff)\nEOF',
+    "bash -c 'git diff'",
+    'sh -c "git diff"',
+    'eval git diff',
+    "env -S 'git diff'",
+    'G=git; $G diff',
+    'echo git diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then it blocks`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, true);
+    });
+  }
+
+  it('Given an unterminated heredoc body holding git diff, when checked, then it is data and passes', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('cat <<EOF\nbody\ngit diff');
+
+    assert.equal(result.block, false);
+  });
+});
+
+describe('gitExtDiffPredicate() — fail-closed verdicts', () => {
+  for (const [command, reason] of [
+    ['echo "x', 'craft: command not parseable (unterminated quote) — denied fail-closed'],
+    ['echo $(x', 'craft: command not parseable (unterminated substitution) — denied fail-closed'],
+    ['git -c alias.d=diff d', 'craft: an inline git alias (-c alias.*) is denied — it can run any git verb'],
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then it blocks with the exact reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason });
+    });
+  }
+
+  it('Given a dynamic word before the subcommand and a diff word, when checked, then it blocks', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('git $OPTS diff');
+
+    assert.equal(result.block, true);
+  });
+});
+
+describe('gitExtDiffPredicate() — accepted residuals', () => {
+  for (const command of [
+    "cat <<'EOF'\n$(git diff)\nEOF",
+    'git${IFS}diff',
+    'git --frobnicate diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then it passes`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+});
+
+describe('gitExtDiffPredicate() — a subcommand carried by an expansion', () => {
+  for (const command of ['D=diff; git $D', 'git $(echo show)', 'git -C . "$VERB"', 'D=diff; git $D HEAD']) {
+    it(`Given "${command}", when checked, then it blocks with the ext-diff reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)' });
+    });
+  }
+
+  it('Given a dynamic subcommand and a literal --no-ext-diff, when checked, then it allows', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('D=diff; git $D --no-ext-diff');
+
+    assert.deepEqual(result, { block: false });
+  });
+
+  it('Given a dynamic subcommand followed by a literal argument and --no-ext-diff, when checked, then it allows', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('D=diff; git $D HEAD --no-ext-diff');
+
+    assert.deepEqual(result, { block: false });
+  });
+});
+
+const assertBlocks = rows => {
+  for (const command of rows) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, true);
+    });
+  }
+};
+
+describe('gitExtDiffPredicate() — unmodelled constructs', () => {
+  assertBlocks(["git $'\\x64iff'"]);
+});
+
+describe('gitExtDiffPredicate() — brace and glob words', () => {
+  assertBlocks(['{git,diff}', 'git {diff,x}', 'git dif[f]']);
+
+  it('Given a brace word carrying --no-ext-diff, when checked, then does not block', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('{git,diff} --no-ext-diff');
+
+    assert.equal(result.block, false);
+  });
+});
+
+describe('gitExtDiffPredicate() — wrappers and dashed builtins', () => {
+  assertBlocks(['G=git; command $G diff', 'G=git; nohup $G show', 'git-diff', '/x/git-core/git-show HEAD']);
+
+  it('Given a dashed diff carrying --no-ext-diff, when checked, then does not block', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('git-diff --no-ext-diff');
+
+    assert.equal(result.block, false);
+  });
+});
+
+describe('gitExtDiffPredicate() — config channels outside -c', () => {
+  for (const command of [
+    `GIT_CONFIG_PARAMETERS="'alias.y=diff'" git y --no-ext-diff`,
+    'GIT_CONFIG_COUNT=1 git status',
+    'git -c include.path=f status',
+    "alias p='git diff --no-ext-diff'",
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the config channel reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: 'craft: git config injected outside -c is denied in this binding' });
+    });
+  }
+});
+
+const REASON_EXT_DIFF = 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
+
+describe('gitExtDiffPredicate() — option order follows git', () => {
+  for (const command of [
+    'git diff -- --no-ext-diff',
+    'git diff --no-ext-diff --ext-diff',
+    'git show --no-ext-diff --ext-diff HEAD',
+    'rtk git diff',
+    'proxy rtk git diff',
+    'echo rtk proxy; git diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the ext-diff reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_EXT_DIFF });
+    });
+  }
+
+  for (const command of [
+    'git diff --no-ext-diff',
+    'git show --no-ext-diff HEAD',
+    'git diff --no-ext-diff -- file',
+    'git diff --ext-diff --no-ext-diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then does not block`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+});
+
+describe('gitExtDiffPredicate() — dynamic words after --no-ext-diff', () => {
+  const REASON = 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
+
+  for (const command of ['git diff --no-ext-diff $X', 'git show --no-ext-diff "$@" HEAD']) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the ext-diff reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON });
+    });
+  }
+
+  for (const command of ['git diff --no-ext-diff -- "$F"', 'git diff $X --no-ext-diff']) {
+    it(`Given ${JSON.stringify(command)}, when checked, then does not block`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+});
+
+describe('gitExtDiffPredicate() — marker spelled through an escape', () => {
+  it("Given a --no-ext-diff marker that is itself an expansion-marked word, when checked, then it still counts as the marker", () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut("git diff --no-ext-d$'\\i'ff");
+
+    assert.equal(result.block, false);
+  });
+});

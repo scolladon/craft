@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, existsSync } from 'node:fs';
+import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import { dirname, join, matchesGlob, relative } from 'node:path';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CONFIG_PATH = join(REPO_ROOT, 'engine', 'stryker.conf.json');
@@ -81,4 +81,51 @@ test('Given the known binding directories, when each is checked for its own stry
     .filter((path) => existsSync(path));
 
   assert.deepEqual(sut, [], 'no adapters/*/stryker.conf.json should exist; engine/stryker.conf.json is the single mutation config');
+});
+
+const DIFFERENTIAL_TEST = 'engine/test/guards/shell-git-invocations.differential.test.js';
+const PARSER_UNIT_TEST = 'engine/test/guards/shell-git-invocations.test.js';
+
+function matchingPatterns(config, path) {
+  return config.tap.testFiles.filter((pattern) => matchesGlob(path, pattern));
+}
+
+test('Given engine/stryker.conf.json, when its tap.testFiles patterns are matched against the differential fuzz file, then none matches', () => {
+  const sut = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+
+  const result = matchingPatterns(sut, DIFFERENTIAL_TEST);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given engine/stryker.conf.json, when its tap.testFiles patterns are matched against the parser unit test file, then exactly one matches', () => {
+  const sut = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+
+  const result = matchingPatterns(sut, PARSER_UNIT_TEST);
+
+  assert.equal(result.length, 1);
+});
+
+const ENGINE_TEST_DIR = join(REPO_ROOT, 'engine', 'test');
+const DIFFERENTIAL_SUFFIX = '.differential.test.js';
+
+function engineTestFiles(dir) {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    if (entry.isDirectory()) return engineTestFiles(path);
+    return entry.name.endsWith('.test.js') ? [relative(REPO_ROOT, path).split('\\').join('/')] : [];
+  });
+}
+
+test('Given every engine test file, when matched against the tap.testFiles patterns, then only the differential files are excluded', () => {
+  const sut = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+  const files = engineTestFiles(ENGINE_TEST_DIR);
+
+  const result = files.filter((file) => matchingPatterns(sut, file).length > 0);
+
+  assert.ok(files.some((file) => file.endsWith(DIFFERENTIAL_SUFFIX)), 'the enumeration found no differential file');
+  assert.deepEqual(
+    result.sort(),
+    files.filter((file) => !file.endsWith(DIFFERENTIAL_SUFFIX)).sort()
+  );
 });
