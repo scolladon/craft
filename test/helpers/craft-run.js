@@ -26,10 +26,16 @@ function git(cwd, args) {
 function createRunRepo() {
   const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'craft-run-')));
   const main = path.join(parent, 'repo');
-  fs.mkdirSync(main);
-  git(main, ['init', '-q']);
-  git(main, ['commit', '--allow-empty', '-q', '-m', 'init']);
   const cleanup = () => fs.rmSync(parent, { recursive: true, force: true });
+  // A half-built repo never reaches the caller, so no caller's finally can remove it.
+  try {
+    fs.mkdirSync(main);
+    git(main, ['init', '-q']);
+    git(main, ['commit', '--allow-empty', '-q', '-m', 'init']);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
   return { parent, main, cleanup };
 }
 
