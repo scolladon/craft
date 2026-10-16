@@ -1,0 +1,49 @@
+{"session": "083c6875", "project": "craft", "asks": 6, "prose_candidates": 0, "typed": 0, "headers": ["design:Paid evals", "decisions:D-1 wording,D-4 pin", "review:Sentence 3,Out-of-part", "propose:Push + PR", "integrate:Merge", "integrate:Push main"]}
+{"session": "14a5b487", "project": "craft", "asks": 3, "prose_candidates": 0, "typed": 5, "headers": ["decisions:Target,ADR form", "decisions:Target,ADR form", "review:qs advisory"]}
+{"session": "1ce51c10", "project": "craft", "asks": 2, "prose_candidates": 0, "typed": 0, "headers": ["pre-phase:Outcome", "decisions:DC-2"]}
+{"session": "1e51c089", "project": "craft", "asks": 7, "prose_candidates": 0, "typed": 1, "headers": ["design:Before run", "planning:Before opus", "review:Contract,Before haiku", "implementation:After haiku", "propose:Push + PR", "integrate:Merge", "integrate:Baseline,Bookkeeping"]}
+{"session": "1e75faf2", "project": "craft", "asks": 2, "prose_candidates": 0, "typed": 0, "headers": ["decisions:D1 method", "integrate:Push main"]}
+{"session": "268e97f6", "project": "craft", "asks": 0, "prose_candidates": 0, "typed": 0, "headers": []}
+{"session": "271dd1b7", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["decisions:E2 rule,E5 guard,E4 home"]}
+{"session": "2aa27a5f", "project": "craft", "asks": 0, "prose_candidates": 0, "typed": 0, "headers": []}
+{"session": "2b5b8ea7", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["design:D1 where,D3 no-sess,D7 relay"]}
+{"session": "2b897886", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 4, "headers": ["workspace:bats/yq"]}
+{"session": "3339301b", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 1, "headers": ["decisions:Helper home,Comparison"]}
+{"session": "3451f8e5", "project": "craft", "asks": 0, "prose_candidates": 0, "typed": 1, "headers": []}
+{"session": "37c8f86f", "project": "craft", "asks": 2, "prose_candidates": 0, "typed": 0, "headers": ["decisions:Liveness,\u00a70 probe,Discard,Exit/predicate", "integrate:Push main"]}
+{"session": "3934f374", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["decisions:DC-1,DC-2"]}
+{"session": "49eb06ad", "project": "craft", "asks": 5, "prose_candidates": 0, "typed": 0, "headers": ["implementation:Paid pilot", "implementation:Contract fix", "review:Haiku regr.", "review:Next step", "integrate:Push main,Baseline"]}
+{"session": "4e416282", "project": "craft", "asks": 4, "prose_candidates": 0, "typed": 2, "headers": ["decisions:Isolation", "planning:RED harness", "propose:Push + PR", "integrate:Main push"]}
+{"session": "637c8799", "project": "craft", "asks": 4, "prose_candidates": 2, "typed": 5, "headers": ["decisions:Fixtures,Sweep tier,Budget,Case count", "propose:Push + PR,Smoke", "integrate:Docker fix", "integrate:Merge,Metrics push,Baseline"]}
+{"session": "63e45f87", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["design:zsh on CI"]}
+{"session": "6507a149", "project": "craft", "asks": 3, "prose_candidates": 0, "typed": 0, "headers": ["design:D-1 form", "review:Paid eval", "review:Sweep"]}
+{"session": "66112101", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["decisions:Mechanism,Retry scope,Backoff"]}
+{"session": "6903d5c5", "project": "craft", "asks": 21, "prose_candidates": 0, "typed": 3, "headers": ["pre-phase:Haiku session", "decisions:D1 scale,D2 session,D3 git,D4 cwd", "decisions:D5 before,D6 columns", "decisions:P1 probe", "implementation:Route B fix,Rescore", "implementation:S1 reviewer", "implementation:S2 sonnet,Widen check", "implementation:S3 opus", "implementation:S3 re-run", "implementation:Rescore S3,S4 haiku", "implementation:S4 sonnet", "implementation:S4 opus", "implementation:Order", "review:Leave check", "review:S5 haiku", "review:Rescore S5h,S5 sonnet", "review:S5 opus", "review:Rescore S5o", "documentation:Push + PR", "propose:Merge,Baseline", "integrate:Bookkeeping"]}
+{"session": "6afa3874", "project": "craft", "asks": 4, "prose_candidates": 0, "typed": 2, "headers": ["design:Paid runs", "documentation:Push + PR", "integrate:Merge", "integrate:Push main"]}
+{"session": "6b4db928", "project": "craft", "asks": 0, "prose_candidates": 0, "typed": 2, "headers": []}
+{"session": "719003e0", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["workspace:Premise"]}
+{"session": "735006aa", "project": "craft", "asks": 3, "prose_candidates": 0, "typed": 0, "headers": ["decisions:API shape,Old Node,Test gating", "decisions:Test gating,Signature", "decisions:Release bump"]}
+{"session": "74d317f8", "project": "craft", "asks": 3, "prose_candidates": 0, "typed": 4, "headers": ["workspace:Cursor auth", "design:DC-1 prose", "integrate:Merge #58"]}
+{"session": "7d509bd5", "project": "craft", "asks": 6, "prose_candidates": 0, "typed": 0, "headers": ["pre-phase:Fix scope", "decisions:Matcher gaps", "review:Security fix", "review:Security fix", "review:Cycle 3", "review:Path identity"]}
+{"session": "80a50b01", "project": "craft", "asks": 5, "prose_candidates": 0, "typed": 3, "headers": ["workspace:Validation,Harness", "workspace:Residual", "documentation:Push + PR", "integrate:Merge", "integrate:Bookkeeping"]}
+{"session": "81515d6e", "project": "craft", "asks": 4, "prose_candidates": 0, "typed": 2, "headers": ["workspace:Probe turns", "design:Crash scope,Matcher gaps,Docs", "review:Signals", "documentation:Live proof"]}
+{"session": "81955715", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["decisions:Scrub scope,Guard,Source fix,Fixtures"]}
+{"session": "839203e5", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 1, "headers": ["design:Release cut,Security,Contrib"]}
+{"session": "8583ca32", "project": "craft", "asks": 3, "prose_candidates": 0, "typed": 0, "headers": ["workspace:Mechanism,Breadth", "decisions:DC-1 home,DC-2 indent,DC-3 reason,DC-4 fence", "review:DC-4 again"]}
+{"session": "978ec818", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["decisions:Join shape,EOF spelling"]}
+{"session": "99b4f964", "project": "craft", "asks": 8, "prose_candidates": 0, "typed": 0, "headers": ["pre-phase:Ext-diff fold,Resolve", "decisions:Placement,Scope,Anchor,Unknown opts", "decisions:Unparseable,clean rule,Aliases", "planning:Dynamic args", "implementation:Dynamic verb", "review:Fix strategy,Diff gate", "review:Posture", "propose:Security gate"]}
+{"session": "a218a657", "project": "craft", "asks": 3, "prose_candidates": 0, "typed": 2, "headers": ["pre-phase:Entries,Mechanism,Outward", "workspace:Spike fate,Loop runs", "workspace:Push branch"]}
+{"session": "a6aa8a98", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["workspace:Codex auth"]}
+{"session": "a7b0e3f0", "project": "craft", "asks": 0, "prose_candidates": 0, "typed": 0, "headers": []}
+{"session": "af78069f", "project": "craft", "asks": 13, "prose_candidates": 0, "typed": 1, "headers": ["pre-phase:Hook,Threshold,PreCompact,Sub-agents", "pre-phase:p22 floor", "implementation:Fix mode", "implementation:Security fix", "design:HIGH fix", "implementation:Cycle-2 fix", "implementation:Next step", "implementation:Commit", "propose:History,Push + PR", "integrate:Merge", "integrate:Baseline", "integrate:Calibration", "integrate:Refresh"]}
+{"session": "b5642f75", "project": "craft", "asks": 4, "prose_candidates": 0, "typed": 1, "headers": ["design:D-1 form", "review:Paid eval", "review:Sweep", "integrate:Push main,Baseline"]}
+{"session": "b624efe7", "project": "craft", "asks": 0, "prose_candidates": 0, "typed": 0, "headers": []}
+{"session": "b8bceece", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 0, "headers": ["design:More probes"]}
+{"session": "bbf89181", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 1, "headers": ["decisions:DC-1 R/F ids,DC-2 tests,DC-3 rename,DC-4 test ids"]}
+{"session": "be74b5e0", "project": "craft", "asks": 1, "prose_candidates": 0, "typed": 2, "headers": ["design:DC-1 source,DC-2 kinds,DC-3 gaps"]}
+{"session": "d3720456", "project": "craft", "asks": 2, "prose_candidates": 0, "typed": 0, "headers": ["decisions:DC-1 wording", "integrate:Bookkeeping"]}
+{"session": "d58c6b39", "project": "craft", "asks": 3, "prose_candidates": 1, "typed": 6, "headers": ["workspace:Codex auth", "workspace:Network", "design:craft.rules,BACKLOG"]}
+{"session": "e08994b5", "project": "craft", "asks": 9, "prose_candidates": 2, "typed": 6, "headers": ["pre-phase:Budget enforce,tools: knob,Bin vs prose,Budget keys", "pre-phase:harness-exec L4,Lint posture,tool_calls,Ceiling counts", "pre-phase:Budget source,Fix scope", "pre-phase:Auto-patch", "pre-phase:Red commit,Rule vs fact", "pre-phase:History,CLAUDE.md,Push + PR", "pre-phase:Merge,Teardown,Bookkeeping,Baseline", "pre-phase:Merge path,Signatures,Bookkeeping", "pre-phase:Baseline"]}
+{"session": "e5de0416", "project": "craft", "asks": 4, "prose_candidates": 0, "typed": 1, "headers": ["design:Paid runs", "design:D-2 pilot,D-3 reading", "documentation:Push + PR", "integrate:Merge,Bookkeeping"]}
+{"session": "f29d3570", "project": "craft", "asks": 2, "prose_candidates": 0, "typed": 0, "headers": ["pre-phase:Next step", "propose:Push main"]}
+{"runs": 48, "sessions_with_ask": 42, "totals": {"asks": 150, "prose": 5, "typed": 56, "silent": 4}, "asks_by_phase": {"design": 16, "decisions": 26, "review": 22, "propose": 8, "integrate": 23, "pre-phase": 17, "planning": 3, "implementation": 18, "workspace": 12, "documentation": 5}}

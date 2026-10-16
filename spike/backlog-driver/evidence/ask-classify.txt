@@ -1,0 +1,46 @@
+083c6875 craft                        [('outward', 3), ('judgment', 2), ('paid', 1)] prose 0
+14a5b487 craft                        [('judgment', 3)] prose 0
+1ce51c10 craft                        [('judgment', 2)] prose 0
+1e51c089 craft                        [('paid', 3), ('judgment', 2), ('outward', 2)] prose 0
+1e75faf2 craft                        [('judgment', 1), ('outward', 1)] prose 0
+268e97f6 craft                        [] prose 0
+271dd1b7 craft                        [('judgment', 1)] prose 0
+2b5b8ea7 craft                        [('judgment', 1)] prose 0
+2b897886 craft                        [('env', 1)] prose 0
+3339301b craft                        [('judgment', 1)] prose 0
+37c8f86f craft                        [('judgment', 1), ('outward', 1)] prose 0
+3934f374 craft                        [('judgment', 1)] prose 0
+49eb06ad craft                        [('judgment', 3), ('paid', 2)] prose 0
+4e416282 craft                        [('judgment', 2), ('outward', 2)] prose 0
+637c8799 craft                        [('judgment', 3), ('env', 1)] prose 2
+63e45f87 craft                        [('judgment', 1)] prose 0
+6507a149 craft                        [('judgment', 2), ('paid', 1)] prose 0
+66112101 craft                        [('judgment', 1)] prose 0
+6903d5c5 craft                        [('judgment', 19), ('outward', 2)] prose 0
+6afa3874 craft                        [('outward', 3), ('paid', 1)] prose 0
+6b4db928 craft                        [] prose 0
+719003e0 craft                        [('judgment', 1)] prose 0
+735006aa craft                        [('judgment', 3)] prose 0
+74d317f8 craft                        [('env', 1), ('judgment', 1), ('outward', 1)] prose 0
+7d509bd5 craft                        [('judgment', 6)] prose 0
+80a50b01 craft                        [('outward', 3), ('judgment', 2)] prose 0
+81515d6e craft                        [('judgment', 4)] prose 0
+81955715 craft                        [('judgment', 1)] prose 0
+839203e5 craft                        [('judgment', 1)] prose 0
+8583ca32 craft                        [('judgment', 3)] prose 0
+978ec818 craft                        [('judgment', 1)] prose 0
+99b4f964 craft                        [('judgment', 8)] prose 0
+a6aa8a98 craft                        [('env', 1)] prose 0
+a7b0e3f0 craft                        [] prose 0
+af78069f craft                        [('judgment', 12), ('outward', 1)] prose 0
+b5642f75 craft                        [('judgment', 3), ('paid', 1)] prose 0
+b624efe7 craft                        [] prose 0
+b8bceece craft                        [('judgment', 1)] prose 0
+bbf89181 craft                        [('judgment', 1)] prose 0
+be74b5e0 craft                        [('judgment', 1)] prose 0
+d3720456 craft                        [('judgment', 1), ('outward', 1)] prose 0
+d58c6b39 craft                        [('env', 2), ('judgment', 1)] prose 1
+e08994b5 craft                        [('judgment', 9)] prose 2
+e5de0416 craft                        [('outward', 2), ('paid', 1), ('judgment', 1)] prose 0
+f29d3570 craft                        [('judgment', 1), ('outward', 1)] prose 0
+{"runs": 45, "asks_by_class": {"paid": 10, "judgment": 108, "outward": 23, "env": 6}, "runs_with_a_non_outward_ask_or_prose_ask": 41}

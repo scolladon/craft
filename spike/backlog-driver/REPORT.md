@@ -4,20 +4,35 @@ Date 2026-10-16 · claude 2.1.301 · tmux 3.8 · Opus 5.5 (driven sessions) · H
 Learning-only branch (`feat/unattended-backlog-driver-spike`), not merged. Every claim below cites
 a recorded run under `evidence/`. Times are UTC (Paris = UTC+2).
 
-## Recommendation
+## Verdict
 
-**Use (b): an interactive session in tmux, driven by `driver.sh`.** It ran two real backlog
-entries end to end, with both PRs merged and CI green:
+**Proven: driving craft runs from outside the session works, and craft survives kills.**
+Two real entries were merged with no keystroke from a person. The run recovered from a SIGKILL of
+the driven session, and the loop recovered from a kill of the driver. The driver spends
+**0 model tokens** and hands off in **13 s**; the cost is the run itself.
 
-- no keystroke from a person;
-- a SIGKILL of the driven session in the middle of a run, recovered;
-- a kill and restart of the driver itself, recovered.
+**Not proven: that tmux is the road.** The two loop entries asked nothing, so tmux's one
+advantage, a person attaching to answer, was never used on a real run. Only the toy smoke used
+it. Candidate (a) never ran a full `/craft:run`.
 
-Keep (a) `claude -p` as the fallback for machines with no person attached. Asks there are
-invisible to exit codes, so the same status-file contract is mandatory, and the answer goes back
-through `claude -p --resume <id>`.
+**What the history says** (next section): 41 of 45 past craft runs stopped at least once for
+something no pre-approval policy covers. Asks are the norm, not the exception. So the channel
+to the person is a core path, not an edge case, and that favours a session a person can attach
+to. Of those 41, 28 needed the person only before implementation. That points at a split to
+test: an attended front half through planning, then an unattended back half.
 
-The cost is the run itself: the driver spends **0 model tokens**, and a hand-off takes **13 s**.
+**The deliverable is the contract, not the transport.** These pieces carry over to whichever
+transport wins:
+
+- the status file the run writes as its last action;
+- the hook-payload classifier (`Stop` ≠ idle; `background_tasks`; `PermissionRequest` for an ask);
+- the outward guard;
+- the restartable state (`entry-N.started` / `.status`);
+- driver-owned pre-approval.
+
+**Recommendation:** keep the contract. Decide the transport between tmux and `claude --bg` /
+`claude attach` after one probe of the latter, since it is native and might replace tmux. Fall
+back to (a) only for queues filtered to entries that will not ask.
 
 ```
 driver.sh ──tmux new-session──▶ claude (interactive, --settings driver hooks + outward guard)
@@ -55,6 +70,43 @@ Phase durations, in minutes, from the ledger snapshots (`evidence/loop/ledgers/`
 
 For both one-line-sized fixes, design + planning take about half the wall-clock. Integrate is
 mostly waiting for CI.
+
+## How often do craft runs stop for a person? (45 past runs)
+
+`probes/ask-frequency.py` reads every main-thread transcript under
+`~/.claude/projects/-Users-scolladon-workspace-perso-craft*/` that invoked `craft:run`, 48 sessions.
+It excludes this spike and the two driven loop runs, leaving **45 historical runs**. After the run
+starts it counts AskUserQuestion calls (attributed to the phase last announced), prose-ask
+candidates and typed user messages. `probes/ask-classify.py` sorts each ask by its question
+headers. Output: `evidence/ask-frequency.jsonl`, `evidence/ask-classify.txt`,
+`evidence/ask-by-phase.txt`.
+
+| | runs | share |
+|---|---|---|
+| no person needed (no ask, or only push/PR/merge confirmations a policy covers) | 4 | 9% |
+| needed a person, only before implementation (pre-phase, workspace, design, decisions, planning) | 28 | 62% |
+| needed a person after planning too (implementation, review, propose, integrate) | 13 | 29% |
+
+| ask class (147 asks) | count | covered by pre-approval? |
+|---|---|---|
+| outward: push / PR / merge / bookkeeping push | 23 | yes, `--policy …=always` + `PREAPPROVED:` |
+| paid: paid eval or paid model tier | 10 (undercount: tier asks such as "S3 opus" or "Rescore" fell into judgment) | only with a budget pre-approval |
+| env: auth, network, Docker, tooling | 6 | no |
+| judgment: design or decision fork, review fix strategy, scope, next step, baseline refresh | 108 | no |
+
+Non-outward asks by phase: decisions 26, review 22, implementation 18, design 16, pre-phase 16,
+workspace 10, integrate 8, propose 4, planning 3, documentation 1. There were also 53 typed user
+messages across the 45 runs. Only 5 turns before a typed message ended on a question, so prose
+asks are rare; nearly every ask used AskUserQuestion.
+
+Caveats:
+
+- **These runs were attended.** A run that knows a person is present may ask more freely. The
+  driver brief says "ask only for a genuine fork or a paid eval", and both loop entries asked 0
+  times, but they were hand-picked as trivial.
+- **The history is mostly feature-sized runs.** A backlog sweep of small follow-ups would ask less.
+- **The classifier keys on headers.** It is heuristic, but misfiling between paid, env and
+  judgment does not change "needs a person".
 
 ## Open questions — answered
 
@@ -108,9 +160,20 @@ without a PART line is verified") does not cover uncommitted edits, so that case
 | kill recovery | `--resume <id>` (the same mechanism, proven for answers) | proven: adopt or `--resume` |
 | first-call context floor | ≈21k (2026-09-21 spike) | not measured here |
 | full `/craft:run` per entry | **not run by this spike** | 2 real runs, merged |
+| fit with history (41/45 runs needed a person) | every such run stops, notifies, and needs an answer typed blind through `--resume` | the person attaches and answers in the native UI (proven on the toy smoke only) |
+| brittleness | low: flags + exit + transcript | higher: send-keys with `sleep 1` timings, the trust-dialog default, TUI behaviour, and hook payload fields I could not find documented |
 
 ## Unproven — and how to prove it
 
+- **A real ask answered by attaching.** Queue one entry with a known decisions fork; answer it
+  through `tmux attach`; check that the driver notifies, waits and resumes the loop.
+- **The front-half/back-half split.** Run design through planning attended, then hand the rest
+  to the driver. Measure how many of the 28 "early-only" runs it would have cleared.
+- **What a run asks when told the person is optional.** Re-run one historical feature brief with
+  the driver protocol and compare its ask count with the history.
+- **The driver's own fragility.** Every number above comes from one driver version on one CLI
+  version (2.1.301). The driver was also swapped to its resumable version in the middle of
+  entry 1.
 - **Kill mid-uncommitted-edit.** SIGKILL while a part-implementer has written but not committed;
   check whether the rebuild resets or reuses the dirty tree.
 - **BLOCKED and CI-red stops, live.** Feed an entry whose CI fails twice; check that
@@ -127,7 +190,7 @@ without a PART line is verified") does not cover uncommitted edits, so that case
 `driver.sh` (loop) · `hook-event.sh` + `driver-settings.sh` (hook recorders) · `classify.py`
 (verdicts) · `outward-guard.mjs` (hard pre-approval floor, reuses `engine/src/guards`) ·
 `budget.py` / `measure-loop.py` (tokens and time) · `driver-protocol.md` (the brief's contract) ·
-`queue/` (the two briefs) · `probes/` · `test/` (guard 10/10, classifier 9/9) · `evidence/`.
+`queue/` (the two briefs) · `probes/` (incl. `ask-frequency.py` + `ask-classify.py`) · `test/` (guard 10/10, classifier 9/9) · `evidence/`.
 
 Run it: `DRIVER_BUDGET_EQUIV=30000000 spike/backlog-driver/driver.sh <repo> <queue-dir> <state-dir>`,
 then `tmux attach -t craft-driver` to watch or answer.
