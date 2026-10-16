@@ -1,0 +1,11 @@
+2026-10-16T08:30:01Z launched tmux session drvresume in /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo fresh (attach: tmux attach -t drvresume)
+2026-10-16T08:30:09Z trust dialog shown (defaults to 'No, exit') -> Down Enter
+2026-10-16T08:30:15Z budget: spent 0 equiv of cap 2000000
+2026-10-16T08:30:16Z entry 1 started: 01-long.md -> /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo/.driver-state/entry-1.brief.md
+2026-10-16T08:31:58Z NOTIFY entry 1: session is gone — resuming (attempt 1/2)
+2026-10-16T08:31:58Z launched tmux session drvresume in /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo --resume b808b85c-ab8a-4db2-82e7-580ac99fc4d2 (attach: tmux attach -t drvresume)
+2026-10-16T08:32:07Z entry 1 resume prompt sent (mark 2)
+2026-10-16T08:34:15Z entry 1 FINISHED local
+2026-10-16T08:34:15Z finish detail is not a PR url (local) — no PR state to verify
+2026-10-16T08:34:15Z budget: spent 126888 equiv of cap 2000000
+2026-10-16T08:34:15Z NOTIFY backlog queue empty after 1 entries — loop done

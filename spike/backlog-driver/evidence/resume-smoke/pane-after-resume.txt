@@ -1,0 +1,60 @@
+
+❯ This session was killed while it ran /craft:run on /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo/.driver-state/entry-1.brief.md. Resume that same craft run: rebuild it from its ledger as the
+  craft:run skill's 'Rebuild after compaction' section says (run-ledger.sh locate), continue from where it stopped, and keep following the driver protocol in
+  /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo/.driver-state/entry-1.brief.md. Do not open a new run.
+
+⏺ Skill(craft:run)
+  ⎿  Successfully loaded skill
+
+  Listed 1 directory
+
+⏺ The ledger is the source of truth, so I'll find the run-id and the ledger location first. The driver-state files may name the run.
+
+  Ran 1 shell command
+
+⏺ The driver logs show this session was a resume-smoke entry, not a craft run. I'll check the ledger directory directly to confirm no craft run exists.
+
+  Ran 1 shell command
+
+⏺ No craft run ledger exists. There is no craft-runs/ directory, no run-id, and no feature worktree or branch, so there is nothing for locate to rebuild. The session's own protocol (the brief) is the only thing that
+  applies, and its first step is done. I'll continue the brief from the first missing step, which is step 2 (the interrupted sleep).
+
+  Ran 1 shell command
+
+⏺ Write(/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo/.driver-state/step3.txt)
+  ⎿  Wrote 1 line to ../../../../../../../../var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo/.driver-state/step3.txt
+      1 three
+  ⎿  Allowed by auto mode classifier
+
+⏺ Write(/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo/.driver-state/entry-1.status)
+  ⎿  Wrote 1 line to ../../../../../../../../var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo/.driver-state/entry-1.status
+      1 FINISHED local
+  ⎿  Allowed by auto mode classifier
+
+⏺ There was no craft run to resume, so I did not run the craft walk. I finished the driver brief instead.
+
+  Craft run: I found no run ledger. There is no craft-runs/ directory under the git common dir, no run-id, and the only worktree is main. The driver logs show this session was a resume-smoke entry for entry-1.brief.md,
+  not a /craft:run walk, so run-ledger.sh locate had nothing to rebuild from. I did not open a new run.
+
+  Brief (driver protocol):
+  - Step 1: .driver-state/step1.txt already existed with one, from the interrupted call.
+  - Step 2: I re-ran python3 -c 'import time; time.sleep(90)'. Its earlier result was lost in the kill, so I could not confirm it had run before. It completed with no output this time.
+  - Step 3: wrote .driver-state/step3.txt containing three.
+  - Step 4: wrote .driver-state/entry-1.status containing FINISHED local.
+
+  Files are in /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvresume.Vy1k/repo/.driver-state/.
+
+  Note: my first craft:run skill call passed a made-up resume argument. It loaded the skill, but I did not act on it past this point.
+
+✻ Brewed for 2m 4s · done 10:34 AM
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── Codex binding re-probe on 0.162.1 ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  [Haiku 5.5] │ repo +repo │ CC v2.1.301 │ ⏱️  4m │ Cost $0.0102
+  Context █░░░░░░░░░ 8% │ 5h: 6% (3h 46m) | 7d: 10% (6d 4h)
+  Cache ⏱ 5m 0s
+  Approx RAM ████░░░░░░ 7.4 GB / 18 GB (41%)
+  1 CLAUDE.md | 58 rules | 2 MCPs | 10 hooks
+  ✓ Bash ×5 | ✓ Write ×3 | ✓ Read ×1 | ✓ Skill ×1
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

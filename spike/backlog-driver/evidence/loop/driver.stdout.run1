@@ -1,0 +1,7 @@
+2026-10-16T08:13:37Z launched tmux session craft-driver in /Users/scolladon/workspace/perso/craft (attach: tmux attach -t craft-driver)
+2026-10-16T08:13:42Z budget: spent 0 equiv of cap 30000000
+2026-10-16T08:13:43Z entry 1 started: 01-gpg-fixture-flake.md -> /Users/scolladon/workspace/perso/craft/.claude/driver-state/entry-1.brief.md
+2026-10-16T08:17:30Z entry 1 waiting on a background task
+2026-10-16T08:27:37Z entry 1 waiting on a background task
+2026-10-16T08:34:33Z entry 1 waiting on a background task
+driver exit=143 at 2026-10-16T08:34:36Z
