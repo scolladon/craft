@@ -121,10 +121,8 @@ value = match.get(field)
 print("" if value is None else value)' "$1" "$2"
 }
 
-session_alive() {
-  local pid; pid="$(session_field "$1" pid)"
-  [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null
-}
+# alive | dead | unknown — a failed or incomplete listing is unknown, never dead.
+session_liveness() { claude agents --json --all 2>/dev/null | python3 "$HERE/liveness.py" "$1"; }
 
 started_file() { printf '%s/entry-%s.started' "$STATE" "$1"; }
 
@@ -182,10 +180,11 @@ resume_prompt() {
 # Wakes a session the supervisor left dead, on its own id; a fork is stopped and ends the loop.
 resume_dead() {
   local number="$1" id="$2" attempt_file="$STATE/entry-$1.resumes" attempts full output
+  full="$(session_field "$id" sessionId)"
+  [ -n "$full" ] || { log "entry $number: no session id for $id in the listing — not resuming on a lookup gap"; return 1; }
   attempts=$(( $(cat "$attempt_file" 2>/dev/null || echo 0) + 1 ))
   [ "$attempts" -le "$MAX_RESUMES" ] || stop_loop 7 "entry $number: session $id died again after $MAX_RESUMES resumes"
   printf '%s\n' "$attempts" > "$attempt_file"
-  full="$(session_field "$id" sessionId)"
   notify "entry $number: session $id stayed dead ${SUPERVISOR_GRACE_S}s — resuming it (attempt $attempts/$MAX_RESUMES)"
   output="$(cd "$REPO" && env -u ANTHROPIC_API_KEY -u CLAUDECODE claude --bg --resume "$full" "$(resume_prompt "$STATE/entry-$number.brief.md")" 2>&1)"
   printf '%s\n' "$output" >> "$STATE/driver.log"
@@ -199,17 +198,23 @@ resume_dead() {
 # Polls until the run finishes. Notifies once per new ask; leaves a dead session to the supervisor
 # for SUPERVISOR_GRACE_S before waking it itself.
 await_run() {
-  local number="$1" mark="$2" id="$3" status="$STATE/entry-$1.status" notified="" waited=0 dead_since=""
+  local number="$1" mark="$2" id="$3" status="$STATE/entry-$1.status" notified="" waited=0 dead_since="" gap=0
   local result verdict detail index waiting
   while [ "$waited" -lt "$ENTRY_TIMEOUT_S" ]; do
     verify_guard "$id"
-    if session_alive "$id"; then
-      [ -n "$dead_since" ] && log "entry $number: session $id is alive again (pid $(session_field "$id" pid)) — supervisor recovered it"
-      dead_since=""
-    else
-      [ -z "$dead_since" ] && { dead_since="$waited"; log "entry $number: session $id has no live pid (state $(session_field "$id" state)) — leaving it to the supervisor"; }
-      [ $((waited - dead_since)) -ge "$SUPERVISOR_GRACE_S" ] && { resume_dead "$number" "$id"; dead_since=""; mark="$(event_count)"; record_start "$number" "$mark" "$id"; }
-    fi
+    case "$(session_liveness "$id")" in
+      alive)
+        [ -n "$dead_since" ] && log "entry $number: session $id is alive again (pid $(session_field "$id" pid)) — supervisor recovered it"
+        dead_since=""; gap=0 ;;
+      dead)
+        gap=0
+        [ -z "$dead_since" ] && { dead_since="$waited"; log "entry $number: session $id has no live pid (state $(session_field "$id" state)) — leaving it to the supervisor"; }
+        [ $((waited - dead_since)) -ge "$SUPERVISOR_GRACE_S" ] && resume_dead "$number" "$id" \
+          && { dead_since=""; mark="$(event_count)"; record_start "$number" "$mark" "$id"; } ;;
+      *)
+        [ "$gap" = 0 ] && log "entry $number: session $id missing from claude agents --json — lookup gap, liveness unchanged"
+        gap=1 ;;
+    esac
     result="$(python3 "$HERE/classify.py" "$EVENTS" "$mark" "$status")"
     verdict="$(jq -r .verdict <<<"$result")"; detail="$(jq -r .detail <<<"$result" | head -c 300)"; index="$(jq -r .index <<<"$result")"
     waiting="$(session_field "$id" waitingFor)"
