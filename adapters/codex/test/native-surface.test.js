@@ -40,6 +40,8 @@ const PLUGIN_ROOT_TOKEN = /\$\{CLAUDE_PLUGIN_ROOT\}/;
 const PROVENANCE_REF = /\b(ADR-?\d+|P\d+|Part\s+\d+|backlog\s*#\d+)\b/i;
 const SHELL_INJECTION_PATTERN = /!`[^`]*`/;
 const ENTRYPOINT_LINE_BUDGET = 40;
+const CONFIGURE_HEADING = '## Configure';
+const LN_SYMLINK_INTO_RULES_DIR = /\bln[ \t]+-[A-Za-z]*s[A-Za-z]*[ \t]+\S+[ \t]+\S*\/rules\b/;
 
 /** Split a `---\n…\n---` frontmatter block into top-level attrs + body. No yaml dep. */
 function parseFrontmatter(content) {
@@ -71,6 +73,15 @@ function readDef(filePath) {
 /** Read just the body of a frontmatter-fenced file (dedup'd byte-identity reader). */
 function bodyOf(filePath) {
   return readDef(filePath).body;
+}
+
+/** The body between `heading` and the next `## ` heading, or null when `heading` is absent. */
+function sectionAfter(text, heading) {
+  const start = text.indexOf(heading);
+  if (start === -1) return null;
+  const body = text.slice(start + heading.length);
+  const next = body.search(/^## /m);
+  return next === -1 ? body : body.slice(0, next);
 }
 
 function agentPath(role) {
@@ -387,5 +398,43 @@ describe('README.md — honesty pins', () => {
 
     assert.match(sut, /bin\/trust-hook\.js/);
     assert.match(sut, /--check/);
+  });
+
+  function readConfigureSection() {
+    const section = sectionAfter(readFileSync(README_PATH, 'utf8'), CONFIGURE_HEADING);
+    assert.notEqual(section, null, `README.md has no "${CONFIGURE_HEADING}" heading`);
+    return section;
+  }
+
+  it('Given the Configure section of README.md, when scanned, then it names $CODEX_HOME/rules/ as the deploy target', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /\$CODEX_HOME\/rules\//);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it copies adapters/codex/craft.rules into the rules directory', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /cp adapters\/codex\/craft\.rules \S*\/rules\/craft\.rules/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it verifies the copy byte-for-byte against the committed file', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /cmp adapters\/codex\/craft\.rules \S*\/rules\/craft\.rules/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it says to copy and not symlink the rules file', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /do\s+not\s+symlink/i);
+  });
+
+  // A symlinked rules file is not loaded, yet every file-level check passes on it,
+  // so the README must never show one, in any section.
+  it('Given every ln -s README.md shows, when its target is inspected, then none lands in a rules directory', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    assert.doesNotMatch(sut, LN_SYMLINK_INTO_RULES_DIR);
   });
 });
