@@ -1,0 +1,5 @@
+backgrounded · fc418922
+  claude agents             list sessions
+  claude attach fc418922    open in this terminal
+  claude logs fc418922      show recent output
+  claude stop fc418922      stop this session

@@ -66,7 +66,7 @@ snapshot_approvals() {
   done
 }
 
-readonly GUARD_FILES='spike/backlog-driver/outward-guard.mjs spike/backlog-driver/hook-event.sh engine/src/guards/shell-tokeniser.js engine/src/guards/shell-git-invocations.js engine/src/guards/git-argv.js'
+readonly GUARD_FILES='spike/backlog-driver/outward-guard.mjs spike/backlog-driver/hook-event.sh spike/backlog-driver/worktree-approver.mjs engine/src/guards/shell-tokeniser.js engine/src/guards/shell-git-invocations.js engine/src/guards/git-argv.js'
 GUARD_DIR=""; GUARD_SUM=""
 
 guard_sum() { (cd "$1" && find . -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256 | cut -d' ' -f1); }
@@ -105,6 +105,8 @@ guard, state, approved = sys.argv[1:4]
 record = lambda name: [{'hooks': [{'type': 'command', 'command': f'env DRIVER_STATE={state} {guard}/spike/backlog-driver/hook-event.sh {name}', 'timeout': 10}]}]
 hooks = {name: record(name) for name in ('SessionStart', 'Stop', 'Notification', 'PermissionRequest', 'SessionEnd')}
 hooks['PreToolUse'] = [{'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': f'env DRIVER_PREAPPROVED={approved} {guard}/spike/backlog-driver/outward-guard.mjs', 'timeout': 10}]}]
+# A background session asks before moving its permission root into craft's ../<repo>-<slug> worktree.
+hooks['PermissionRequest'].append({'matcher': 'EnterWorktree', 'hooks': [{'type': 'command', 'command': f'{guard}/spike/backlog-driver/worktree-approver.mjs', 'timeout': 10}]})
 protected = [f'/{guard}/**', '**/.claude/settings.json', '**/.claude/settings.local.json']
 deny = [f'{tool}({path})' for tool in ('Edit', 'Write') for path in protected]
 print(json.dumps({'hooks': hooks, 'permissions': {'deny': deny}}))
