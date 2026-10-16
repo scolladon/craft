@@ -260,8 +260,17 @@ and only the byte check catches it, so revisit this decision then. The gap codex
 entry below. Pinned matrix and design context:
 [rules-integrity-launch-wiring](docs/contributing/design/rules-integrity-launch-wiring.md).
 
-**No install step deploys `craft.rules` to `$CODEX_HOME/rules/`.** `adapters/codex/README.md`
-lists the execpolicy `.rules` file as a guard layer (*Guard — honest enforcement profile* table),
+**No install step deploys `craft.rules` to `$CODEX_HOME/rules/` — delivered 2026-10-16**
+(docs/codex-rules-deploy-step). `adapters/codex/README.md` *Configure* now runs, from the repository
+root, `mkdir -p` / `rm -f` / `cp` / `cmp` / `test ! -L` on `${CODEX_HOME:-$HOME/.codex}/rules/craft.rules`;
+the last two lines are the verification (byte-identical to the committed file, and not a symlink).
+Copy, never symlink (ADR-601): on codex 0.162.1 a symlinked rules file is not loaded (5/5) yet passes
+`cmp` and `codex execpolicy check`, and `cp` onto an existing link writes through it, hence the `rm -f`
+(ADR-602). Pinned in `adapters/codex/test/native-surface.test.js`: Configure-scoped pins plus a
+README-wide no-symlink check with its spelling table (ADR-603); observations recorded in the POC
+record's 0.162.1 re-probe table (ADR-604). Design:
+[codex-rules-deploy-step](docs/contributing/design/codex-rules-deploy-step.md). Original entry:
+`adapters/codex/README.md` lists the execpolicy `.rules` file as a guard layer (*Guard — honest enforcement profile* table),
 but neither *Load* nor *Configure* tells an operator to copy `adapters/codex/craft.rules` into
 `$CODEX_HOME/rules/`, the directory codex loads it from; `git grep 'CODEX_HOME/rules'` finds the
 path only in the POC record and this file. Unless someone copies it by hand, the layer is absent.

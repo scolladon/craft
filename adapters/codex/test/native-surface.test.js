@@ -40,6 +40,23 @@ const PLUGIN_ROOT_TOKEN = /\$\{CLAUDE_PLUGIN_ROOT\}/;
 const PROVENANCE_REF = /\b(ADR-?\d+|P\d+|Part\s+\d+|backlog\s*#\d+)\b/i;
 const SHELL_INJECTION_PATTERN = /!`[^`]*`/;
 const ENTRYPOINT_LINE_BUDGET = 40;
+const CONFIGURE_HEADING = '## Configure';
+const SHELL_LINE_CONTINUATION = /\\\n[ \t]*/g;
+const LN_COMMAND = /(?:^|[\s;&|(`/])ln(?=\s)/;
+const SYMLINK_FLAG = /(?:^|\s)(?:-[A-Za-z]*s[A-Za-z]*|--symbolic)(?=\s|$)/;
+const RULES_MENTION = /\brules\b/;
+const SYMLINK_INTO_RULES_SPELLINGS = [
+  'ln -s adapters/codex/craft.rules "$CODEX_HOME/rules/craft.rules"',
+  'ln -sf adapters/codex/craft.rules "$CODEX_HOME/rules/craft.rules"',
+  'ln -s -f adapters/codex/craft.rules "$CODEX_HOME/rules/craft.rules"',
+  'ln --symbolic adapters/codex/craft.rules "$CODEX_HOME/rules/craft.rules"',
+  'ln -st "$CODEX_HOME/rules" adapters/codex/craft.rules',
+  'ln -s "$PWD/adapters/codex/craft.rules" \\\n  "$CODEX_HOME/rules/craft.rules"',
+  'cd "$CODEX_HOME" && ln -s "$OLDPWD/adapters/codex/craft.rules" rules/craft.rules',
+  'run `ln -s adapters/codex/craft.rules ~/.codex/rules/craft.rules` once',
+  '/bin/ln -s adapters/codex/craft.rules "$CODEX_HOME/rules/craft.rules"',
+];
+const SKILLS_SYMLINK_LINE = 'ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>   # once per shared skill';
 
 /** Split a `---\n…\n---` frontmatter block into top-level attrs + body. No yaml dep. */
 function parseFrontmatter(content) {
@@ -71,6 +88,30 @@ function readDef(filePath) {
 /** Read just the body of a frontmatter-fenced file (dedup'd byte-identity reader). */
 function bodyOf(filePath) {
   return readDef(filePath).body;
+}
+
+/** The lines under the line equal to `heading`, up to the next `## ` heading; null when no line equals it. */
+function sectionAfter(text, heading) {
+  const lines = text.split('\n');
+  const start = lines.indexOf(heading);
+  if (start === -1) return null;
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => line.startsWith('## '));
+  return (end === -1 ? rest : rest.slice(0, end)).join('\n');
+}
+
+function readConfigureSection() {
+  const section = sectionAfter(readFileSync(README_PATH, 'utf8'), CONFIGURE_HEADING);
+  assert.notEqual(section, null, `README.md has no "${CONFIGURE_HEADING}" line`);
+  return section;
+}
+
+/** True when one shell line of `text` runs `ln` with a symbolic flag and mentions a rules path. */
+function showsSymlinkIntoRules(text) {
+  return text
+    .replace(SHELL_LINE_CONTINUATION, ' ')
+    .split('\n')
+    .some((line) => LN_COMMAND.test(line) && SYMLINK_FLAG.test(line) && RULES_MENTION.test(line));
 }
 
 function agentPath(role) {
@@ -387,5 +428,72 @@ describe('README.md — honesty pins', () => {
 
     assert.match(sut, /bin\/trust-hook\.js/);
     assert.match(sut, /--check/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it names $CODEX_HOME/rules/ as the deploy target', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /copy\s+`craft\.rules`\s+into\s+`\$CODEX_HOME\/rules\/`/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it creates the rules directory', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /mkdir -p \S*\/rules"?$/m);
+  });
+
+  // cp writes through a symlink already at the target and leaves it a symlink.
+  it('Given the Configure section of README.md, when scanned, then it removes any existing rules file or link before the copy', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /rm -f \S*\/rules\/craft\.rules"?\ncp /);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it copies adapters/codex/craft.rules into the rules directory', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /cp adapters\/codex\/craft\.rules \S*\/rules\/craft\.rules/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it verifies the copy byte-for-byte against the committed file', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /cmp adapters\/codex\/craft\.rules \S*\/rules\/craft\.rules/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it verifies the deployed file is not a symlink', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /test ! -L \S*\/rules\/craft\.rules/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it says to copy and not symlink the rules file', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /do\s+not\s+symlink/i);
+  });
+
+  // A symlinked rules file is not loaded, yet every file-level check passes on it,
+  // so the README must never show one, in any section.
+  it('Given README.md, when every shell line is checked, then none symlinks into a rules path', () => {
+    const sut = showsSymlinkIntoRules(readFileSync(README_PATH, 'utf8'));
+
+    assert.equal(sut, false);
+  });
+});
+
+describe('showsSymlinkIntoRules — the README-wide no-symlink check', () => {
+  for (const spelling of SYMLINK_INTO_RULES_SPELLINGS) {
+    it(`Given the shell line ${JSON.stringify(spelling)}, when checked, then it is flagged`, () => {
+      const sut = showsSymlinkIntoRules(spelling);
+
+      assert.equal(sut, true);
+    });
+  }
+
+  it('Given the skills symlink line, when checked, then it is not flagged', () => {
+    const sut = showsSymlinkIntoRules(SKILLS_SYMLINK_LINE);
+
+    assert.equal(sut, false);
   });
 });
