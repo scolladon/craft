@@ -81,7 +81,7 @@ function sharedAgentPath(role) {
   return join(SHARED_AGENTS_DIR, `${role}.md`);
 }
 
-describe('adapters/codex/skills/ — must not exist: shared craft skills load by reference', () => {
+describe('adapters/codex/skills/ — must not exist: shared craft skills live at the repository root and load through the $CODEX_HOME/skills symlinks, not by reference', () => {
   it('Given the codex adapter tree, when checked, then adapters/codex/skills/ does not exist', () => {
     const sut = existsSync(SKILLS_DIR);
 
