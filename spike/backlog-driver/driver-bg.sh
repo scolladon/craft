@@ -38,8 +38,9 @@ log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$STATE/
 notify() {
   local message="$1"
   log "NOTIFY $message"
-  osascript -e "display notification \"${message//\"/\'}\" with title \"craft driver\" sound name \"Glass\"" 2>>"$STATE/driver.log" \
-    || log "notify: osascript failed"
+  # The text goes in as argv, never spliced into AppleScript source, so no character can break it.
+  osascript -e 'on run argv' -e 'display notification (item 1 of argv) with title "craft driver" sound name "Glass"' -e 'end run' \
+    "$message" 2>>"$STATE/driver.log" || log "notify: osascript failed"
 }
 
 stop_loop() { notify "$2"; exit "$1"; }
@@ -219,7 +220,7 @@ await_run() {
     esac
     waiting="$(session_field "$id" waitingFor)"
     result="$(python3 "$HERE/classify.py" "$EVENTS" "$mark" "$status" "$waiting")"
-    verdict="$(jq -r .verdict <<<"$result")"; detail="$(jq -r .detail <<<"$result" | head -c 300)"; index="$(jq -r .index <<<"$result")"
+    verdict="$(jq -r .verdict <<<"$result")"; detail="$(jq -r '.detail[0:300]' <<<"$result")"; index="$(jq -r .index <<<"$result")"
     case "$verdict" in
       FINISHED) log "entry $number FINISHED $detail"; verify_finished "$detail" || stop_loop 6 "entry $number claims FINISHED but $detail is not merged"; return 0 ;;
       BLOCKED) stop_loop 2 "entry $number BLOCKED: $detail" ;;

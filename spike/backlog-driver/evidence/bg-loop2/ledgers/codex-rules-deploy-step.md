@@ -11,3 +11,5 @@ codex-rules-deploy-step workspace PHASE-START(workspace): 2026-10-16T13:26:33Z
 codex-rules-deploy-step workspace PHASE-DONE(workspace): worktree ../craft-codex-rules-deploy-step on docs/codex-rules-deploy-step; npm deps installed (engine nested)
 codex-rules-deploy-step workspace POLICY(isolate): always -> proceed
 codex-rules-deploy-step design PHASE-START(design): 2026-10-16T13:26:57Z
+codex-rules-deploy-step design PHASE-DONE(design): a716287 docs/contributing/design/codex-rules-deploy-step.md (+README 73 design docs); 4 decision candidates
+codex-rules-deploy-step design PROBE(design): orchestrator re-ran copy-vs-symlink load detector on codex 0.162.1 in throwaway CODEX_HOME: copy -> Error loading rules 2/2, symlink -> not loaded (401) 2/2; ~/.codex untouched (0)
