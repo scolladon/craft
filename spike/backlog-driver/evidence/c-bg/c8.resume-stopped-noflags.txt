@@ -1,0 +1,6 @@
+note: woke session bb089d10 with its saved options (--settings, --model).
+backgrounded · bb089d10 · ping command write
+  claude agents             list sessions
+  claude attach bb089d10    open in this terminal
+  claude logs bb089d10      show recent output
+  claude stop bb089d10      stop this session

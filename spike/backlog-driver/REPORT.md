@@ -30,9 +30,18 @@ transport wins:
 - the restartable state (`entry-N.started` / `.status`);
 - driver-owned pre-approval.
 
-**Recommendation:** keep the contract. Decide the transport between tmux and `claude --bg` /
-`claude attach` after one probe of the latter, since it is native and might replace tmux. Fall
-back to (a) only for queues filtered to entries that will not ask.
+**Recommendation:** keep the contract. **Move the transport to (c) `claude --bg` +
+`claude attach`**, probed below on toy sessions.
+
+- It removes tmux's three brittle points: send-keys timing, the trust-dialog default, `/clear`.
+- It reports a pending ask natively (`claude agents --json` → `waiting / input needed`).
+- It restarted a SIGKILLed session on its own in 11 s.
+
+Its trap is the reverse of tmux's: the driver must **not** resume a session itself. A
+driver-side `--resume` forks a second orchestrator that runs the same work alongside the first.
+
+(c) is not yet proven on a real `/craft:run`; the next proof is the two-entry loop again under
+`--bg`. Fall back to (a) only for queues filtered to entries that will not ask.
 
 ```
 driver.sh ──tmux new-session──▶ claude (interactive, --settings driver hooks + outward guard)
@@ -163,6 +172,43 @@ without a PART line is verified") does not cover uncommitted edits, so that case
 | fit with history (41/45 runs needed a person) | every such run stops, notifies, and needs an answer typed blind through `--resume` | the person attaches and answers in the native UI (proven on the toy smoke only) |
 | brittleness | low: flags + exit + transcript | higher: send-keys with `sleep 1` timings, the trust-dialog default, TUI behaviour, and hook payload fields I could not find documented |
 
+## (c) `claude --bg` + `claude attach` — probed (toy sessions, haiku, 2026-10-16 09:34–09:40)
+
+Evidence: `evidence/c-bg/` (cNN files + `state/events.jsonl`). Same `--settings` hook recorder.
+
+| Question | Result | Evidence |
+|---|---|---|
+| Untrusted dir? | Refused: exit 1, `Workspace not trusted. Run claude in <dir> once and accept the trust prompt`. Fails closed, unlike tmux's dialog that defaults to exit. | `c0.untrusted.txt` |
+| Do `--settings` hooks fire? | Yes: SessionStart, PermissionRequest(AskUserQuestion), Notification(permission_prompt), Stop. | `state/events.jsonl` 09:34:27–09:35:18 |
+| Native ask detection? | **Yes.** `claude agents --json` shows `"status":"waiting","waitingFor":"input needed","state":"blocked"` while the question pends. `claude logs <id>` shows the question text (raw ANSI). | `c1.agents-waiting.json`, `c1.logs-waiting.txt` |
+| Can a person answer? | `claude attach <id>` showed the native question UI; Enter picked "Proceed"; the status file was written. | `c1.attach-pane.txt`, `state/c1.status` |
+| Detach? | Killing the attach client leaves the session running (pid alive). | `c2.detach.txt` |
+| After a turn ends | The process stays alive and idle: `status: idle`. | `c1` agents output |
+| Slash command as the initial prompt? | Yes: `claude --bg "/ping"` ran the project skill. | `state/c5.step1` |
+| Send a prompt to a **live** session? | **No.** `--resume <short id>`, `--resume <full id>` and `--resume` with flags each **fork a copy** (`SessionStart source=fork`, new id). | `c3`, `c4`, `c7` |
+| Send a prompt to a **stopped** session? | Yes, with no flags: `claude --bg --resume <full id> "<prompt>"` woke it under its own id with its saved `--settings`/`--model` (`source=resume`). | `c8` |
+| SIGKILL mid-turn | **Supervisor auto-restart:** killed 09:36:56, `SessionStart source=resume` on the **same id** at 09:37:07, new pid. With no prompt, the session re-checked the files, redid the interrupted step and FINISHED at 09:38:46. | `c6.kill.txt`, `c6.after-kill-18s.json`, `c6.all-events.txt`, transcript `bb089d10…` |
+| …and a driver-side resume on top | **Duplicated the work.** The fork `82589b9f` ran the same steps alongside the auto-restarted original. On a real run that would be two orchestrators on one worktree. | transcript `82589b9f…`, `c6.resume.txt` |
+| Is `agents --json` state reliable? | Not alone. 3 s after the SIGKILL it showed `pid: null, state: "working"`; after a finish it showed `status: idle, state: working`. Use the pid, `status`/`waitingFor` and the hooks. | `c6.after-kill.json` |
+
+What it changes in the driver:
+
+- **Per entry:** `claude --bg --settings <driver> "/craft:run <flags> <brief>"`, which gives a fresh
+  context with no `/clear`. When the entry is done, `claude stop <id>`.
+- **Asks:** poll `claude agents --json` plus the hooks. On `waiting`, notify
+  `claude attach <id>`.
+- **Death:** never `--resume` a session that is still listed with a pid, or one that respawned.
+  Wait for the supervisor first. Only a session that stays stopped (`pid: null`, `state: stopped`)
+  gets a bare `--resume <full id> "<rebuild prompt>"`.
+- **No tmux, no send-keys, no trust dialog.** Trust becomes a one-time preflight error.
+
+Not proven for (c):
+
+- a real `/craft:run`;
+- what the supervisor does if the session crashes in a loop;
+- whether it survives its own death or a reboot;
+- that auto-restart always happens: n=1.
+
 ## Unproven — and how to prove it
 
 - **A real ask answered by attaching.** Queue one entry with a known decisions fork; answer it
@@ -180,8 +226,9 @@ without a PART line is verified") does not cover uncommitted edits, so that case
   `BLOCKED ci-red-after-one-fix-round` stops the loop with a notification.
 - **A full `/craft:run` under (a).** One small entry headless with `--permission-prompts none`;
   compare its equiv and wall-clock with the table above.
-- **`claude --bg` / `claude attach` (2.1.301).** A native background session might replace tmux;
-  probe whether hooks and `/clear` behave the same.
+- **The two-entry loop under (c).** Port `driver.sh` to `claude --bg` per entry (section above).
+  Re-run one real entry with a known decisions fork, answered through `claude attach`. Then
+  SIGKILL mid-run and check that the supervisor, not the driver, recovers it.
 - **Budget is enforced between entries only.** An in-run overrun is unbounded. Check it per poll
   and send Escape to stop.
 

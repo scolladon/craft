@@ -1,0 +1,3 @@
+2026-10-16T09:41:13Z
+Workspace not trusted. Run `claude` in /private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvbg-untrusted.JL0G once and accept the trust prompt, then retry.
+exit=1

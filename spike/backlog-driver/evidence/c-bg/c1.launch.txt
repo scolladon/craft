@@ -1,0 +1,5 @@
+backgrounded · 87dfa60a
+  claude agents             list sessions
+  claude attach 87dfa60a    open in this terminal
+  claude logs 87dfa60a      show recent output
+  claude stop 87dfa60a      stop this session

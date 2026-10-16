@@ -1,0 +1,14 @@
+❯ Use the AskUserQuestion tool to ask me: 'Proceed with bg probe?' with options Proceed and Abort. If Proceed, write the file
+  /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/c-bg/state/c1.status containing FINISHED local. If Abort, write BLOCKED aborted there. Then
+  stop.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ☐ Bg probe
+Proceed with bg probe?
+❯ 1. Proceed
+     Write FINISHED local to c1.status
+  2. Abort
+     Write BLOCKED aborted to c1.status
+  3. Type something.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  4. Chat about this
+Enter to select · ↑/↓ to navigate · Esc to cancel

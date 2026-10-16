@@ -1,0 +1,6 @@
+note: session 87dfa60a is already running in the background, so this started a copy as fb4906ba. `claude attach 87dfa60a` opens the original.
+backgrounded · fb4906ba
+  claude agents             list sessions
+  claude attach fb4906ba    open in this terminal
+  claude logs fb4906ba      show recent output
+  claude stop fb4906ba      stop this session

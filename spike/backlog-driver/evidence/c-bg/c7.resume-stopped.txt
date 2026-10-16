@@ -1,0 +1,6 @@
+note: background session bb089d10 keeps its own saved options, so the flags you passed started a copy as 16a03a31. Without flags, the same command continues bb089d10 itself.
+backgrounded · 16a03a31
+  claude agents             list sessions
+  claude attach 16a03a31    open in this terminal
+  claude logs 16a03a31      show recent output
+  claude stop 16a03a31      stop this session

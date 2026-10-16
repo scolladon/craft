@@ -1,0 +1,43 @@
+[
+  {
+    "pid": 10244,
+    "cwd": "/Users/scolladon/workspace/perso/node/tsgit",
+    "kind": "interactive",
+    "startedAt": 1792050160956,
+    "sessionId": "7d175e06-d950-40a3-ac65-033fd225d3cf",
+    "name": "tsgit-5b",
+    "status": "busy"
+  },
+  {
+    "pid": 10628,
+    "cwd": "/Users/scolladon/workspace/perso/game/eggnoggreloaded",
+    "kind": "interactive",
+    "startedAt": 1792050183611,
+    "sessionId": "ffe1c8ca-75a3-437d-bd78-3e2e75ad15b5",
+    "name": "eggnoggreloaded-96",
+    "status": "busy"
+  },
+  {
+    "pid": 22391,
+    "id": "d58c6b39",
+    "cwd": "/Users/scolladon/workspace/perso/craft",
+    "kind": "background",
+    "startedAt": 1792053308457,
+    "sessionId": "a218a657-2381-4d7f-aa21-211c5bdfdbe4",
+    "name": "Codex binding re-probe on 0.162.1",
+    "status": "busy",
+    "state": "working"
+  },
+  {
+    "pid": 70991,
+    "id": "87dfa60a",
+    "cwd": "/private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvbg.cqqX",
+    "kind": "background",
+    "startedAt": 1792143267658,
+    "sessionId": "87dfa60a-4aeb-49de-973d-7f6f7c8ddafa",
+    "name": "Use the AskUserQuestion tool to ask me: 'Proceed with bg probe?' with options Proceed and Abort. If Proceed, write the file /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike",
+    "status": "waiting",
+    "waitingFor": "input needed",
+    "state": "blocked"
+  }
+]
