@@ -599,3 +599,7 @@ fixture-commits-skip-gpg-signing design turns=33 tool_calls=37 tokens=1727339 du
 fixture-commits-skip-gpg-signing implementation turns=8 tool_calls=9 tokens=211584 duration_ms=76178 cache_read=184516 cache_creation=26758 output=294 avg_ctx=26411 equiv=53385
 fixture-commits-skip-gpg-signing planning turns=29 tool_calls=30 tokens=1551289 duration_ms=370386 cache_read=1473993 cache_creation=76975 output=263 avg_ctx=53484 equiv=244991
 fixture-commits-skip-gpg-signing review turns=39 tool_calls=40 tokens=898269 duration_ms=280207 cache_read=784098 cache_creation=112887 output=1206 avg_ctx=23002 equiv=225627
+native-surface-skills-title-fix design turns=15 tool_calls=15 tokens=483943 duration_ms=163582 cache_read=441995 cache_creation=41790 output=128 avg_ctx=32254 equiv=97107
+native-surface-skills-title-fix implementation turns=7 tool_calls=8 tokens=134685 duration_ms=39667 cache_read=117176 cache_creation=17251 output=244 avg_ctx=19206 equiv=34515
+native-surface-skills-title-fix planning turns=11 tool_calls=11 tokens=301325 duration_ms=124118 cache_read=267351 cache_creation=33807 output=145 avg_ctx=27380 equiv=69741
+native-surface-skills-title-fix review turns=18 tool_calls=19 tokens=378593 duration_ms=115430 cache_read=293382 cache_creation=84905 output=270 avg_ctx=21018 equiv=136855
