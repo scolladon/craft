@@ -82,8 +82,8 @@ export function buildExecpolicyRules() {
  * voids the whole execpolicy layer. Regenerating the expected text and byte-comparing
  * is hermetic and deterministic, needs no codex subprocess, and catches every
  * drift (malformed content included), not one probed variant. Nothing in the
- * binding calls it: it is kept on demand because the binding has no launch
- * path of its own (operators start codex themselves), so it protects only when
+ * binding calls it: it is kept on demand because the binding launches nothing
+ * itself (operators start codex themselves), so it protects only when
  * a caller runs it before relying on the layer, and then refuses rather than
  * proceed.
  *

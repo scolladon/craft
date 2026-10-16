@@ -33,7 +33,7 @@ nowhere, and the open deploy-step entry is where it matters.
 ## Decision
 
 Option 1, ratified by the user. Every surface that describes the check states it is kept on demand
-because the binding has no launch path of its own; none implies a future wiring. The README stays
+because the binding launches nothing itself (operators run `codex exec`); none implies a future wiring. The README stays
 silent on the symbol.
 
 ## Consequences

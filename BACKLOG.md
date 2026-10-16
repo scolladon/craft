@@ -251,9 +251,11 @@ instruction to "wire it at the launch boundary"
 (`docs/contributing/design/harden-prove-codex-binding.md` L421–436, B9) has no boundary to land on.
 (ii) On that launch path, codex 0.162.1 already refuses to start on an unparseable rules file
 (3/3). (iii) No install step deploys `craft.rules`, so a wired check would find the file absent
-on every documented install. (iv) Byte drift on a valid file has not changed enforcement: the
-rule body has been identical since `06e1983`, while a refusing check would refuse such a copy.
-The one gap codex misses, an empty or comments-only copy that parses cleanly and forbids nothing
+on every documented install. (iv) Byte drift on a valid file has not changed enforcement so far:
+the rule body has been identical since `06e1983`, while a refusing check would refuse such a copy.
+That holds only while the rule body stays unchanged: once `FORBIDDEN_GIT_SUBCOMMANDS` or the
+generator changes, a stale deployed copy still parses and forbids less, codex warns about nothing,
+and only the byte check catches it, so revisit this decision then. The gap codex misses today, an empty or comments-only copy that parses cleanly and forbids nothing
 (`codex execpolicy check`, 0.162.1), comes from the copy step, so it moves to the deploy-step
 entry below. Pinned matrix and design context:
 [rules-integrity-launch-wiring](docs/contributing/design/rules-integrity-launch-wiring.md).
@@ -267,7 +269,7 @@ Fix: one *Configure* step naming the copy, pinned like the other README instruct
 `adapters/codex/test/native-surface.test.js`. Measured 2026-10-16 (`codex execpolicy check`,
 0.162.1): an empty or comments-only `craft.rules` parses cleanly and forbids nothing, so no
 codex parse error flags a void copy, and the step that copies the file owns verifying what it
-wrote.
+wrote. The same holds for a stale copy once the rule body changes: it parses and forbids less.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the stryker-9-upgrade run, not yet scheduled)
 
@@ -1290,8 +1292,8 @@ that string alone, as: on a parse error the rules are **not applied** (fail-open
 command runs; the 0.162.1 re-probe below splits that by surface. Mitigation (`115bcce`, DC-3):
 `assertRulesIntegrity(onDiskText)` byte-compares the deployed rules to `buildExecpolicyRules()` and
 refuses on any drift (malformed included). It is an exported, unit-tested check with no caller in
-the binding, kept on demand by decision (2026-10-16) because the binding has no launch path of its
-own: it protects only when something invokes it. (The committed-file drift-guard already
+the binding, kept on demand by decision (2026-10-16) because the binding launches nothing itself
+(operators run `codex exec`): it protects only when something invokes it. (The committed-file drift-guard already
 existed; this covers the deployed copy.)
 
 **Re-probe on 0.162.1 (2026-10-15): split by surface.** The 2026-07-21 verdict rested on the

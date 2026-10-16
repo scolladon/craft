@@ -44,3 +44,5 @@ no launch boundary. Verifying a deployed copy belongs to whichever deploy step l
 - A deploy step, when it lands, owns verifying what it writes: a post-copy `assertRulesIntegrity`, or a
   symlink to the committed file that the existing drift test already pins.
 - Revisit if the binding gains a launcher of its own.
+- Revisit if the rule body or `FORBIDDEN_GIT_SUBCOMMANDS` changes: a stale deployed copy then still
+  parses and forbids less, codex warns about nothing, and only the byte check catches it.
