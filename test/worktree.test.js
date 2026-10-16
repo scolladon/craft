@@ -5,6 +5,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { UNSIGNED_COMMIT_CONFIG, withFailingCommitSigner } = require('./helpers/commit-signing');
 
 const SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
 
@@ -25,7 +26,7 @@ function runCmd(cmd, args = [], opts = {}) {
 }
 
 function git(args, opts = {}) {
-  execFileSync('git', args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts });
+  execFileSync('git', [...UNSIGNED_COMMIT_CONFIG, ...args], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts });
 }
 
 function mkWorktreeNoRemote(repoDir, wtDir, branch) {
@@ -65,6 +66,44 @@ function teardown({ repo, wt }) {
   if (repo) fs.rmSync(repo, { recursive: true, force: true });
   if (wt) fs.rmSync(wt, { recursive: true, force: true });
 }
+
+// The suite's own checks must not depend on the ambient config a test swaps in.
+function hermeticGitEnv() {
+  return {
+    PATH: process.env.PATH,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_SYSTEM: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+  };
+}
+
+function headOf(dir) {
+  return execFileSync('git', ['-C', dir, 'rev-parse', '--verify', 'HEAD'], { encoding: 'utf8', env: hermeticGitEnv() });
+}
+
+// ---------------------------------------------------------------------------
+// fixture commits — independent of the ambient signer
+// ---------------------------------------------------------------------------
+
+test(
+  'Given a global git config whose signer always fails, when mkWorktreeNoRemote builds a repo and worktree, then both init commits land',
+  () => {
+    const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-repo-'));
+    const wtDir = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-wt-'));
+    fs.rmSync(wtDir, { recursive: true, force: true });
+    try {
+      const sut = mkWorktreeNoRemote;
+
+      withFailingCommitSigner(() => sut(repoDir, wtDir, 'craft-test-branch'));
+
+      assert.match(headOf(repoDir), /^[0-9a-f]+\n$/);
+      assert.match(headOf(wtDir), /^[0-9a-f]+\n$/);
+    } finally {
+      fs.rmSync(repoDir, { recursive: true, force: true });
+      fs.rmSync(wtDir, { recursive: true, force: true });
+    }
+  },
+);
 
 // ---------------------------------------------------------------------------
 // worktree-setup.sh — no lockfile branch

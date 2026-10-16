@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
+const { UNSIGNED_COMMIT_CONFIG } = require('./commit-signing');
 
 const LEDGER_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'run-ledger.sh');
 const LEDGER_HEADER = '# craft run record (append-only)';
@@ -14,7 +15,7 @@ const LEDGER_HEADER = '# craft run record (append-only)';
 function git(cwd, args) {
   return execFileSync(
     'git',
-    ['-C', cwd, '-c', 'user.email=craft-run@example.com', '-c', 'user.name=craft-run', ...args],
+    ['-C', cwd, ...UNSIGNED_COMMIT_CONFIG, '-c', 'user.email=craft-run@example.com', '-c', 'user.name=craft-run', ...args],
     { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
   );
 }
