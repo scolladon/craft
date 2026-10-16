@@ -234,8 +234,8 @@ throwaway `CODEX_HOME`, deploy the malformed rules, drive the TUI to run `git cl
 against an untracked file, and check whether the file survives. Question only; no fix is
 scoped.
 
-**Should a launch or install path call `assertRulesIntegrity`?**
-`adapters/codex/src/execpolicy-rules.js` exports it and
+**Should a launch or install path call `assertRulesIntegrity`? — closed by decision, kept on demand, 2026-10-16**
+(feat/rules-integrity-launch-wiring). `adapters/codex/src/execpolicy-rules.js` exports it and
 `adapters/codex/test/execpolicy-rules.test.js` tests it, but `grep -rn assertRulesIntegrity`
 matches nothing else: no bin, launch path or install step runs it, so a drifted or malformed
 deployed rules file is caught only when someone invokes the check. The design that introduced
@@ -243,13 +243,33 @@ it (`docs/contributing/design/harden-prove-codex-binding.md`) asked for a launch
 and none was wired. Open question: wire it into a launch or install path, or keep it on
 demand. Question only; no fix is scoped.
 
+**Decision (2026-10-16): kept on demand** (ADR-599, ADR-600).
+`git grep -n assertRulesIntegrity -- adapters bin engine scripts` still matches only the
+definition and its test. (i) The binding launches nothing: `buildLaunchArgs` builds argv only,
+its sole caller is the conformance probe, and operators run `codex exec` themselves, so the
+instruction to "wire it at the launch boundary"
+(`docs/contributing/design/harden-prove-codex-binding.md` L421–436, B9) has no boundary to land on.
+(ii) On that launch path, codex 0.162.1 already refuses to start on an unparseable rules file
+(3/3). (iii) No install step deploys `craft.rules`, so a wired check would find the file absent
+on every documented install. (iv) Byte drift on a valid file has not changed enforcement so far:
+the rule body has been identical since `06e1983`, while a refusing check would refuse such a copy.
+That holds only while the rule body stays unchanged: once `FORBIDDEN_GIT_SUBCOMMANDS` or the
+generator changes, a stale deployed copy still parses and forbids less, codex warns about nothing,
+and only the byte check catches it, so revisit this decision then. The gap codex misses today, an empty or comments-only copy that parses cleanly and forbids nothing
+(`codex execpolicy check`, 0.162.1), comes from the copy step, so it moves to the deploy-step
+entry below. Pinned matrix and design context:
+[rules-integrity-launch-wiring](docs/contributing/design/rules-integrity-launch-wiring.md).
+
 **No install step deploys `craft.rules` to `$CODEX_HOME/rules/`.** `adapters/codex/README.md`
 lists the execpolicy `.rules` file as a guard layer (*Guard — honest enforcement profile* table),
 but neither *Load* nor *Configure* tells an operator to copy `adapters/codex/craft.rules` into
 `$CODEX_HOME/rules/`, the directory codex loads it from; `git grep 'CODEX_HOME/rules'` finds the
 path only in the POC record and this file. Unless someone copies it by hand, the layer is absent.
 Fix: one *Configure* step naming the copy, pinned like the other README instructions in
-`adapters/codex/test/native-surface.test.js`.
+`adapters/codex/test/native-surface.test.js`. Measured 2026-10-16 (`codex execpolicy check`,
+0.162.1): an empty or comments-only `craft.rules` parses cleanly and forbids nothing, so no
+codex parse error flags a void copy, and the step that copies the file owns verifying what it
+wrote. The same holds for a stale copy once the rule body changes: it parses and forbids less.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the stryker-9-upgrade run, not yet scheduled)
 
@@ -1272,7 +1292,8 @@ that string alone, as: on a parse error the rules are **not applied** (fail-open
 command runs; the 0.162.1 re-probe below splits that by surface. Mitigation (`115bcce`, DC-3):
 `assertRulesIntegrity(onDiskText)` byte-compares the deployed rules to `buildExecpolicyRules()` and
 refuses on any drift (malformed included). It is an exported, unit-tested check with no caller in
-the binding: it protects only when something invokes it. (The committed-file drift-guard already
+the binding, kept on demand by decision (2026-10-16) because the binding launches nothing itself
+(operators run `codex exec`): it protects only when something invokes it. (The committed-file drift-guard already
 existed; this covers the deployed copy.)
 
 **Re-probe on 0.162.1 (2026-10-15): split by surface.** The 2026-07-21 verdict rested on the
