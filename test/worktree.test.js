@@ -54,12 +54,18 @@ function branchExists(repoDir, branchRef) {
   }
 }
 
-function setup() {
+// The worktree path is reserved then removed: `git worktree add` refuses an existing directory.
+function allocWorktreeDirs() {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-repo-'));
   const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-wt-'));
   fs.rmSync(wt, { recursive: true, force: true });
-  mkWorktree(repo, wt, 'craft-test-branch');
   return { repo, wt };
+}
+
+function setup() {
+  const dirs = allocWorktreeDirs();
+  mkWorktree(dirs.repo, dirs.wt, 'craft-test-branch');
+  return dirs;
 }
 
 function teardown({ repo, wt }) {
@@ -88,19 +94,16 @@ function headOf(dir) {
 test(
   'Given a global git config whose signer always fails, when mkWorktreeNoRemote builds a repo and worktree, then both init commits land',
   () => {
-    const repoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-repo-'));
-    const wtDir = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-wt-'));
-    fs.rmSync(wtDir, { recursive: true, force: true });
+    const dirs = allocWorktreeDirs();
     try {
       const sut = mkWorktreeNoRemote;
 
-      withFailingCommitSigner(() => sut(repoDir, wtDir, 'craft-test-branch'));
+      withFailingCommitSigner(() => sut(dirs.repo, dirs.wt, 'craft-test-branch'));
 
-      assert.match(headOf(repoDir), /^[0-9a-f]+\n$/);
-      assert.match(headOf(wtDir), /^[0-9a-f]+\n$/);
+      assert.match(headOf(dirs.repo), /^[0-9a-f]+\n$/);
+      assert.match(headOf(dirs.wt), /^[0-9a-f]+\n$/);
     } finally {
-      fs.rmSync(repoDir, { recursive: true, force: true });
-      fs.rmSync(wtDir, { recursive: true, force: true });
+      teardown(dirs);
     }
   },
 );
