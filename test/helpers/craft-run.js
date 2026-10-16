@@ -7,6 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { execFileSync, spawnSync } = require('node:child_process');
+const { UNSIGNED_COMMIT_CONFIG } = require('./commit-signing');
 
 const LEDGER_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'run-ledger.sh');
 const LEDGER_HEADER = '# craft run record (append-only)';
@@ -14,7 +15,7 @@ const LEDGER_HEADER = '# craft run record (append-only)';
 function git(cwd, args) {
   return execFileSync(
     'git',
-    ['-C', cwd, '-c', 'user.email=craft-run@example.com', '-c', 'user.name=craft-run', ...args],
+    ['-C', cwd, ...UNSIGNED_COMMIT_CONFIG, '-c', 'user.email=craft-run@example.com', '-c', 'user.name=craft-run', ...args],
     { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'] },
   );
 }
@@ -25,10 +26,16 @@ function git(cwd, args) {
 function createRunRepo() {
   const parent = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'craft-run-')));
   const main = path.join(parent, 'repo');
-  fs.mkdirSync(main);
-  git(main, ['init', '-q']);
-  git(main, ['commit', '--allow-empty', '-q', '-m', 'init']);
   const cleanup = () => fs.rmSync(parent, { recursive: true, force: true });
+  // A half-built repo never reaches the caller, so no caller's finally can remove it.
+  try {
+    fs.mkdirSync(main);
+    git(main, ['init', '-q']);
+    git(main, ['commit', '--allow-empty', '-q', '-m', 'init']);
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
   return { parent, main, cleanup };
 }
 

@@ -207,11 +207,6 @@ on copilot, which runs `/bin/bash`); bash 5 accepts it. The copilot guard allows
 it. Document the workaround for bindings that shell out to bash 3.2 (multiple `-m "…"` with double
 quotes), or pick a commit form both shells parse.
 
-**Pre-existing test fixtures fail under machine load when the user signs commits.** Under two concurrent
-`scripts/ci.sh` runs, `test/run-ledger.test.js:136` and `test/worktree.test.js:146` fail with
-`gpg failed to sign the data: Cannot allocate memory`: their fixture commits inherit the user's global
-`commit.gpgsign=true`. Pass `-c commit.gpgsign=false` (or an empty `HOME`) in the fixtures.
-
 **Copilot `write_bash` into an interactive (pty) session is unprobed.** Copilot 1.0.98 ships a
 `write_bash` tool (`{shellId, input}`) the guard never sees. Headless sessions have stdin at EOF, so
 nothing reaches the shell (probed); an interactive session with a pty may differ. Probe it with a

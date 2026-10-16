@@ -5,6 +5,7 @@ const { execFileSync, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { UNSIGNED_COMMIT_CONFIG, withFailingCommitSigner } = require('./helpers/commit-signing');
 
 const SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
 
@@ -25,7 +26,7 @@ function runCmd(cmd, args = [], opts = {}) {
 }
 
 function git(args, opts = {}) {
-  execFileSync('git', args, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts });
+  execFileSync('git', [...UNSIGNED_COMMIT_CONFIG, ...args], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts });
 }
 
 function mkWorktreeNoRemote(repoDir, wtDir, branch) {
@@ -53,18 +54,59 @@ function branchExists(repoDir, branchRef) {
   }
 }
 
-function setup() {
+// The worktree path is reserved then removed: `git worktree add` refuses an existing directory.
+function allocWorktreeDirs() {
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-repo-'));
   const wt = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-wt-'));
   fs.rmSync(wt, { recursive: true, force: true });
-  mkWorktree(repo, wt, 'craft-test-branch');
   return { repo, wt };
+}
+
+function setup() {
+  const dirs = allocWorktreeDirs();
+  mkWorktree(dirs.repo, dirs.wt, 'craft-test-branch');
+  return dirs;
 }
 
 function teardown({ repo, wt }) {
   if (repo) fs.rmSync(repo, { recursive: true, force: true });
   if (wt) fs.rmSync(wt, { recursive: true, force: true });
 }
+
+// The suite's own checks must not depend on the ambient config a test swaps in.
+function hermeticGitEnv() {
+  return {
+    PATH: process.env.PATH,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_SYSTEM: '/dev/null',
+    GIT_CONFIG_NOSYSTEM: '1',
+  };
+}
+
+function headOf(dir) {
+  return execFileSync('git', ['-C', dir, 'rev-parse', '--verify', 'HEAD'], { encoding: 'utf8', env: hermeticGitEnv() });
+}
+
+// ---------------------------------------------------------------------------
+// fixture commits — independent of the ambient signer
+// ---------------------------------------------------------------------------
+
+test(
+  'Given a global git config whose signer always fails, when mkWorktreeNoRemote builds a repo and worktree, then both init commits land',
+  () => {
+    const dirs = allocWorktreeDirs();
+    try {
+      const sut = mkWorktreeNoRemote;
+
+      withFailingCommitSigner(() => sut(dirs.repo, dirs.wt, 'craft-test-branch'));
+
+      assert.match(headOf(dirs.repo), /^[0-9a-f]+\n$/);
+      assert.match(headOf(dirs.wt), /^[0-9a-f]+\n$/);
+    } finally {
+      teardown(dirs);
+    }
+  },
+);
 
 // ---------------------------------------------------------------------------
 // worktree-setup.sh — no lockfile branch
