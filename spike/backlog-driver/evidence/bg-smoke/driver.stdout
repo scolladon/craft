@@ -1,0 +1,52 @@
+2026-10-16T09:45:28Z budget: spent 0 equiv of cap 2000000
+2026-10-16T09:45:29Z entry 1 started: 01-push-and-ask.md -> /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state/entry-1.brief.md in session c93395ea (attach: claude attach c93395ea)
+2026-10-16T09:45:56Z NOTIFY entry 1 needs you (ASKED, input needed) — claude attach c93395ea — Proceed with bg smoke entry 1?
+2026-10-16T09:46:02Z NOTIFY entry 1 needs you (RUNNING, input needed) — claude attach c93395ea — 
+2026-10-16T09:46:23Z entry 1 FINISHED local
+2026-10-16T09:46:23Z finish detail is not a PR url (local) — no PR state to verify
+2026-10-16T09:46:24Z entry 1: stopped session c93395ea
+2026-10-16T09:46:24Z budget: spent 71144 equiv of cap 2000000
+2026-10-16T09:46:25Z entry 2 started: 02-slow.md -> /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state/entry-2.brief.md in session 28f22a2e (attach: claude attach 28f22a2e)
+2026-10-16T09:46:41Z entry 2: session 28f22a2e has no live pid (state working) — leaving it to the supervisor
+2026-10-16T09:46:52Z entry 2: session 28f22a2e is alive again (pid 49407) — supervisor recovered it
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+2026-10-16T09:48:28Z entry 2: session 28f22a2e has no live pid (state ) — leaving it to the supervisor
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+2026-10-16T09:48:34Z entry 2: session 28f22a2e is alive again (pid 49407) — supervisor recovered it
+2026-10-16T09:48:34Z entry 2 FINISHED local
+2026-10-16T09:48:34Z finish detail is not a PR url (local) — no PR state to verify
+2026-10-16T09:48:34Z entry 2: stopped session 28f22a2e
+2026-10-16T09:48:34Z budget: spent 147975 equiv of cap 2000000
+2026-10-16T09:48:34Z NOTIFY backlog queue empty after 2 entries — loop done
+driver exit=0 at 2026-10-16T09:48:34Z

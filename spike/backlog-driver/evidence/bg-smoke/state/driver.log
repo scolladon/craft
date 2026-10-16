@@ -1,0 +1,30 @@
+2026-10-16T09:45:28Z budget: spent 0 equiv of cap 2000000
+backgrounded · c93395ea
+  claude agents             list sessions
+  claude attach c93395ea    open in this terminal
+  claude logs c93395ea      show recent output
+  claude stop c93395ea      stop this session
+2026-10-16T09:45:29Z entry 1 started: 01-push-and-ask.md -> /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state/entry-1.brief.md in session c93395ea (attach: claude attach c93395ea)
+2026-10-16T09:45:56Z NOTIFY entry 1 needs you (ASKED, input needed) — claude attach c93395ea — Proceed with bg smoke entry 1?
+2026-10-16T09:46:02Z NOTIFY entry 1 needs you (RUNNING, input needed) — claude attach c93395ea — 
+2026-10-16T09:46:23Z entry 1 FINISHED local
+2026-10-16T09:46:23Z finish detail is not a PR url (local) — no PR state to verify
+stopped c93395ea
+2026-10-16T09:46:24Z entry 1: stopped session c93395ea
+2026-10-16T09:46:24Z budget: spent 71144 equiv of cap 2000000
+backgrounded · 28f22a2e
+  claude agents             list sessions
+  claude attach 28f22a2e    open in this terminal
+  claude logs 28f22a2e      show recent output
+  claude stop 28f22a2e      stop this session
+2026-10-16T09:46:25Z entry 2 started: 02-slow.md -> /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state/entry-2.brief.md in session 28f22a2e (attach: claude attach 28f22a2e)
+2026-10-16T09:46:41Z entry 2: session 28f22a2e has no live pid (state working) — leaving it to the supervisor
+2026-10-16T09:46:52Z entry 2: session 28f22a2e is alive again (pid 49407) — supervisor recovered it
+2026-10-16T09:48:28Z entry 2: session 28f22a2e has no live pid (state ) — leaving it to the supervisor
+2026-10-16T09:48:34Z entry 2: session 28f22a2e is alive again (pid 49407) — supervisor recovered it
+2026-10-16T09:48:34Z entry 2 FINISHED local
+2026-10-16T09:48:34Z finish detail is not a PR url (local) — no PR state to verify
+stopped 28f22a2e
+2026-10-16T09:48:34Z entry 2: stopped session 28f22a2e
+2026-10-16T09:48:34Z budget: spent 147975 equiv of cap 2000000
+2026-10-16T09:48:34Z NOTIFY backlog queue empty after 2 entries — loop done

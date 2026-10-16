@@ -1,0 +1,71 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env DRIVER_STATE=/Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/hook-event.sh SessionStart",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env DRIVER_STATE=/Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/hook-event.sh Stop",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env DRIVER_STATE=/Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/hook-event.sh Notification",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PermissionRequest": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env DRIVER_STATE=/Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/hook-event.sh PermissionRequest",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env DRIVER_STATE=/Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/hook-event.sh SessionEnd",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "env DRIVER_BRIEF=/Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/bg-smoke/state/current-brief.md /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/outward-guard.mjs",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}
