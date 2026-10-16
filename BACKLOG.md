@@ -175,6 +175,17 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-16 — follow-ups surfaced by the native-surface-skills-title-fix run, not yet scheduled)
+
+**ADR-253 still records that codex loads the shared skills by reference.**
+`docs/contributing/adr/253-codex-shared-skills-by-reference.md:1` is titled "Codex loads shared craft
+skills by reference" with status `accepted`, and its Decision chose the by-reference marketplace entry.
+`docs/contributing/specs/codex-poc-record.md:332` marks that claim DISPROVEN on 0.145.0 and 0.162.1
+(0 of 19 by reference; 19 of 19 through the `$CODEX_HOME/skills` symlinks), and
+`adapters/codex/README.md:48` says the same. `git grep 'ADR-253'` finds no superseding ADR. Fix: a
+user-ratified ADR that supersedes 253 with the symlink route (its option 3), keeping the
+`adapters/codex/skills/` must-not-exist consequence.
+
 ### Open (scoped 2026-10-16 — follow-ups surfaced by the copilot-git-argv-normalising-guard run, not yet scheduled)
 
 **Compose the destructive-git predicate into the codex hook.** `adapters/codex/src/execpolicy-rules.js`
@@ -239,14 +250,6 @@ but neither *Load* nor *Configure* tells an operator to copy `adapters/codex/cra
 path only in the POC record and this file. Unless someone copies it by hand, the layer is absent.
 Fix: one *Configure* step naming the copy, pinned like the other README instructions in
 `adapters/codex/test/native-surface.test.js`.
-
-**`native-surface.test.js` describe title claims the shared skills load by reference.**
-`adapters/codex/test/native-surface.test.js:84` reads `adapters/codex/skills/ — must not exist:
-shared craft skills load by reference`, while the record and README pin 0 of 19 by reference on
-0.145.0 and 0.162.1 (the symlink route is required). The assertion itself (no
-`adapters/codex/skills/` dir) is right; only the title states a disproven reason. Fix: retitle
-to the real reason (the shared skills live at the repository root and reach codex through the
-symlinks).
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the stryker-9-upgrade run, not yet scheduled)
 
