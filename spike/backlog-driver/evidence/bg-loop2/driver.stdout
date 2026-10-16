@@ -1,0 +1,7 @@
+2026-10-16T13:25:28Z entry 1 pre-approved: push,propose,integrate
+2026-10-16T13:25:28Z entry 2 pre-approved: push,propose,integrate
+2026-10-16T13:25:28Z guard copy /private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/craft-driver-guard.04hc1X read-only, sha256 190fbe0d967872b565474d1ae3ca2f21cf26f272569c7fdefddce49cb024cd3e
+2026-10-16T13:25:28Z budget: spent 0 equiv of cap 30000000
+2026-10-16T13:25:29Z entry 1 started: 01-craft-rules-deploy-step.md -> /Users/scolladon/workspace/perso/craft/.claude/driver-state-bg2/entry-1.brief.md in session 01350b6e (attach: claude attach 01350b6e)
+2026-10-16T13:26:39Z NOTIFY entry 1 needs you (PERMISSION, no agents flag) — claude attach 01350b6e — EnterWorktree
+2026-10-16T13:27:39Z entry 1 waiting on a background task

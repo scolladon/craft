@@ -76,5 +76,21 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(sut['index'], 2)
 
 
+class AnsweredPermissionTest(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.events = os.path.join(self.dir, 'events.jsonl')
+        with open(self.events, 'w') as f:
+            f.write(event('PermissionRequest', tool_name='EnterWorktree') + '\n')
+
+    def test_given_permission_request_and_no_waiting_flag_when_classified_then_running(self):
+        sut = classify(self.events, 0, os.path.join(self.dir, 'none'), waiting='')
+        self.assertEqual(sut['verdict'], 'RUNNING')
+
+    def test_given_permission_request_and_a_waiting_flag_when_classified_then_permission(self):
+        sut = classify(self.events, 0, os.path.join(self.dir, 'none'), waiting='permission prompt')
+        self.assertEqual(sut['verdict'], 'PERMISSION')
+
+
 if __name__ == '__main__':
     unittest.main()

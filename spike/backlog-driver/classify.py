@@ -40,28 +40,32 @@ def on_stop(payload, status):
     return ('ASKED', payload.get('last_assistant_message') or '')
 
 
-def on_permission(payload):
+def on_permission(payload, waiting):
+    # A hook may already have answered the request; only a live waiting flag means a person is needed.
+    if waiting == '':
+        return ('RUNNING', '')
     if payload.get('tool_name') == ASK_TOOL:
         return ('ASKED', first_question(payload.get('tool_input')))
     return ('PERMISSION', payload.get('tool_name', ''))
 
 
-def verdict_of(last, status):
+def verdict_of(last, status, waiting):
     payload = last.get('payload') or {}
     if last['event'] == 'Stop':
         return on_stop(payload, status)
     if last['event'] == 'PermissionRequest':
-        return on_permission(payload)
+        return on_permission(payload, waiting)
     return ('RUNNING', '')
 
 
-def classify(events_path, mark, status_path):
+def classify(events_path, mark, status_path, waiting=None):
+    """waiting: the session's agents --json waitingFor ('' = none); None when unknown (tmux driver)."""
     events = events_after(events_path, mark)
     if not events:
         return {'verdict': 'RUNNING', 'detail': '', 'index': mark}
-    verdict, detail = verdict_of(events[-1], read_status(status_path))
+    verdict, detail = verdict_of(events[-1], read_status(status_path), waiting)
     return {'verdict': verdict, 'detail': detail, 'index': mark + len(events)}
 
 
 if __name__ == '__main__':
-    print(json.dumps(classify(sys.argv[1], int(sys.argv[2]), sys.argv[3])))
+    print(json.dumps(classify(sys.argv[1], int(sys.argv[2]), sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None)))

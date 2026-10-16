@@ -217,9 +217,9 @@ await_run() {
         [ "$gap" = 0 ] && log "entry $number: session $id missing from claude agents --json — lookup gap, liveness unchanged"
         gap=1 ;;
     esac
-    result="$(python3 "$HERE/classify.py" "$EVENTS" "$mark" "$status")"
-    verdict="$(jq -r .verdict <<<"$result")"; detail="$(jq -r .detail <<<"$result" | head -c 300)"; index="$(jq -r .index <<<"$result")"
     waiting="$(session_field "$id" waitingFor)"
+    result="$(python3 "$HERE/classify.py" "$EVENTS" "$mark" "$status" "$waiting")"
+    verdict="$(jq -r .verdict <<<"$result")"; detail="$(jq -r .detail <<<"$result" | head -c 300)"; index="$(jq -r .index <<<"$result")"
     case "$verdict" in
       FINISHED) log "entry $number FINISHED $detail"; verify_finished "$detail" || stop_loop 6 "entry $number claims FINISHED but $detail is not merged"; return 0 ;;
       BLOCKED) stop_loop 2 "entry $number BLOCKED: $detail" ;;

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // PermissionRequest hook for driven background sessions: answers the EnterWorktree
 // permission-root prompt for craft's own worktree, a git-registered sibling named <repo>-<slug>.
-// Anything else gets no answer, so the person sees the normal prompt.
+// Anything else gets no answer, so the person sees the normal prompt. A convenience for craft's
+// naming convention, not a security boundary: git's worktree registry is session-writable.
 import { execFileSync } from 'node:child_process';
 import { readFileSync, realpathSync } from 'node:fs';
 import path from 'node:path';
@@ -17,10 +18,12 @@ const isCraftSibling = (target, repoRoot) =>
   path.dirname(target) === path.dirname(repoRoot) &&
   path.basename(target).startsWith(`${path.basename(repoRoot)}-`);
 
-export const approves = (payload, repoRoot, listed) => {
+// A requested path that resolves elsewhere (a symlink anywhere on it) is refused, so the path
+// judged is the path EnterWorktree will use.
+export const approves = (payload, repoRoot, listed, resolved = payload.tool_input?.path) => {
   if (payload.tool_name !== 'EnterWorktree' || typeof payload.tool_input?.path !== 'string') return false;
   const target = path.resolve(payload.tool_input.path);
-  return listed.includes(target) && isCraftSibling(target, repoRoot);
+  return target === path.resolve(resolved) && listed.includes(target) && isCraftSibling(target, repoRoot);
 };
 
 const real = candidate => {
@@ -40,8 +43,7 @@ const main = () => {
     const commonDir = git(payload.cwd, ['rev-parse', '--path-format=absolute', '--git-common-dir']).trim();
     const repoRoot = path.dirname(real(commonDir));
     const listed = worktreePaths(git(payload.cwd, ['worktree', 'list', '--porcelain'])).map(real);
-    const resolved = { ...payload, tool_input: { ...payload.tool_input, path: real(payload.tool_input.path) } };
-    if (approves(resolved, repoRoot, listed)) process.stdout.write(JSON.stringify(ALLOW));
+    if (approves(payload, repoRoot, listed, real(payload.tool_input.path))) process.stdout.write(JSON.stringify(ALLOW));
   } catch (error) {
     process.stderr.write(`driver: worktree approver could not judge ${payload.tool_input?.path}: ${error.message}\n`);
   }
