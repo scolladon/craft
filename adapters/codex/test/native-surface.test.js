@@ -42,7 +42,7 @@ const SHELL_INJECTION_PATTERN = /!`[^`]*`/;
 const ENTRYPOINT_LINE_BUDGET = 40;
 const CONFIGURE_HEADING = '## Configure';
 const SHELL_LINE_CONTINUATION = /\\\n[ \t]*/g;
-const LN_COMMAND = /(?:^|[\s;&|(])ln(?=\s)/;
+const LN_COMMAND = /(?:^|[\s;&|(`/])ln(?=\s)/;
 const SYMLINK_FLAG = /(?:^|\s)(?:-[A-Za-z]*s[A-Za-z]*|--symbolic)(?=\s|$)/;
 const RULES_MENTION = /\brules\b/;
 const SYMLINK_INTO_RULES_SPELLINGS = [
@@ -53,6 +53,8 @@ const SYMLINK_INTO_RULES_SPELLINGS = [
   'ln -st "$CODEX_HOME/rules" adapters/codex/craft.rules',
   'ln -s "$PWD/adapters/codex/craft.rules" \\\n  "$CODEX_HOME/rules/craft.rules"',
   'cd "$CODEX_HOME" && ln -s "$OLDPWD/adapters/codex/craft.rules" rules/craft.rules',
+  'run `ln -s adapters/codex/craft.rules ~/.codex/rules/craft.rules` once',
+  '/bin/ln -s adapters/codex/craft.rules "$CODEX_HOME/rules/craft.rules"',
 ];
 const SKILLS_SYMLINK_LINE = 'ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>   # once per shared skill';
 
