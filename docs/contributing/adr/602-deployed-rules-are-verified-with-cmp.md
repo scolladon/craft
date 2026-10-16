@@ -30,9 +30,12 @@ byte-identical to the generator, so a byte compare against the committed file re
 
 Option 1, **adopted-as-recommended (no user judgment)**: it aligns with ADR-599 (the deploy step
 verifies what it writes) and ADR-600 (the README stays silent on the symbol). The README's verify line
-is `cmp` of the committed file against the deployed copy; silence and exit `0` is a pass.
+is `cmp` of the committed file against the deployed copy; silence and exit `0` is a pass. Review added
+`test ! -L` on the deployed path beside it, and an `rm -f` of that path before the copy: `cp` onto an
+existing symlink writes through it and leaves the link, which `cmp` then passes.
 
 ## Consequences
 
 - Neither check proves codex loads the file; that rests on the recorded 0.162.1 load observation.
-- `cmp` passes on a file symlink, so the copy-not-symlink rule (ADR-601) carries that case.
+- `cmp` passes on a file symlink, so `test ! -L` and the copy-not-symlink rule (ADR-601) carry that
+  case.

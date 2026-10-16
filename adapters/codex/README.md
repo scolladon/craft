@@ -97,17 +97,22 @@ From the repository root:
 
 ```
 mkdir -p "${CODEX_HOME:-$HOME/.codex}/rules"
+rm -f "${CODEX_HOME:-$HOME/.codex}/rules/craft.rules"
 cp adapters/codex/craft.rules "${CODEX_HOME:-$HOME/.codex}/rules/craft.rules"
 cmp adapters/codex/craft.rules "${CODEX_HOME:-$HOME/.codex}/rules/craft.rules"
+test ! -L "${CODEX_HOME:-$HOME/.codex}/rules/craft.rules"
 ```
 
-`cmp` printing nothing and exiting `0` is the verification: the deployed copy is
-byte-identical to the committed file. No codex error flags a bad copy — an empty or
-comments-only file parses cleanly and forbids nothing — so do not skip it. **Copy, do
-not symlink**: on codex 0.162.1 a symlinked file in `$CODEX_HOME/rules/` is not
-loaded, yet it passes `cmp` and `codex execpolicy check`, both of which follow the
-link. Re-run all three lines whenever `adapters/codex/craft.rules` changes; a stale
-copy still parses and may forbid less.
+The last two lines are the verification: `cmp` printing nothing and exiting `0` means
+the deployed copy is byte-identical to the committed file, and `test ! -L` exiting `0`
+means it is a regular file, not a symlink. Not every bad copy raises a codex error —
+an empty or comments-only file parses cleanly and forbids nothing — so do not skip
+them. **Copy, do not symlink**: on codex 0.162.1 a symlinked file in
+`$CODEX_HOME/rules/` is not loaded, yet it passes `cmp` and `codex execpolicy check`,
+both of which follow the link. The `rm -f` removes a link left by an earlier deploy
+(not the file it points at): `cp` onto a symlink writes through it and leaves the
+link in place. Re-run the whole block whenever `adapters/codex/craft.rules` changes;
+a stale copy still parses and may forbid less.
 
 ## Install-time hook trust — read this before running headlessly
 
