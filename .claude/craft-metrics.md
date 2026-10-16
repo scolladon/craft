@@ -588,3 +588,10 @@ codex-0162-reprobe design turns=52 tool_calls=60 tokens=4619132 duration_ms=7748
 codex-0162-reprobe implementation turns=29 tool_calls=31 tokens=728610 duration_ms=276292 cache_read=620355 cache_creation=107277 output=920 avg_ctx=25093 equiv=200790
 codex-0162-reprobe planning turns=65 tool_calls=66 tokens=5400237 duration_ms=1200755 cache_read=5254071 cache_creation=144553 output=1483 avg_ctx=83058 equiv=713643
 codex-0162-reprobe review turns=42 tool_calls=43 tokens=1630452 duration_ms=462005 cache_read=1456829 cache_creation=172768 output=771 avg_ctx=38802 equiv=365582
+copilot-git-argv-normalising-guard design turns=175 tool_calls=236 tokens=14583636 duration_ms=2015857 cache_read=14119868 cache_creation=459589 output=3829 avg_ctx=83313 equiv=2005968
+copilot-git-argv-normalising-guard documentation turns=7 tool_calls=7 tokens=216608 duration_ms=73065 cache_read=176335 cache_creation=40120 output=139 avg_ctx=30924 equiv=68493
+copilot-git-argv-normalising-guard implementation turns=448 tool_calls=483 tokens=20702911 duration_ms=7927534 cache_read=19431276 cache_creation=1260950 output=9787 avg_ctx=46190 equiv=3569148
+copilot-git-argv-normalising-guard planning turns=66 tool_calls=67 tokens=7578627 duration_ms=1289200 cache_read=7354047 cache_creation=223694 output=754 avg_ctx=114816 equiv=1018924
+copilot-git-argv-normalising-guard refactoring turns=32 tool_calls=34 tokens=934284 duration_ms=253445 cache_read=865584 cache_creation=68264 output=372 avg_ctx=29185 equiv=173812
+copilot-git-argv-normalising-guard review turns=336 tool_calls=356 tokens=19671398 duration_ms=6242518 cache_read=18710297 cache_creation=953098 output=7329 avg_ctx=58524 equiv=3099721
+copilot-git-argv-normalising-guard validation turns=79 tool_calls=82 tokens=5826535 duration_ms=1936349 cache_read=5565936 cache_creation=259243 output=1198 avg_ctx=73738 equiv=886795
