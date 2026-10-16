@@ -1,0 +1,11 @@
+2026-10-16T10:18:08Z entry 1 pre-approved: nothing
+2026-10-16T10:18:08Z guard copy /private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/craft-driver-guard.FxuG8m read-only, sha256 06b9d02e8e2a48b04d6eae16b58bbc703ec9cbfe908baa37a2c89798b2aaeb6a
+2026-10-16T10:18:08Z budget: spent 0 equiv of cap 2000000
+backgrounded · bcd2b5df
+  claude agents             list sessions
+  claude attach bcd2b5df    open in this terminal
+  claude logs bcd2b5df      show recent output
+  claude stop bcd2b5df      stop this session
+2026-10-16T10:18:11Z entry 1 started: 01-slow.md -> /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/guard-hash-check/state/entry-1.brief.md in session bcd2b5df (attach: claude attach bcd2b5df)
+stopped bcd2b5df
+2026-10-16T10:18:33Z NOTIFY guard copy /private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/craft-driver-guard.FxuG8m changed (b1ddb83523ad18e8962af3400cd3489e5d96e45a78e9bcf631dcc3a5c3bc98fc != 06b9d02e8e2a48b04d6eae16b58bbc703ec9cbfe908baa37a2c89798b2aaeb6a) — stopped session bcd2b5df

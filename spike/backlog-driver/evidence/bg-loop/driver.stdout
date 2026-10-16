@@ -1,0 +1,5 @@
+2026-10-16T09:49:39Z budget: spent 0 equiv of cap 30000000
+2026-10-16T09:49:40Z entry 1 started: 01-assert-rules-integrity.md -> /Users/scolladon/workspace/perso/craft/.claude/driver-state-bg/entry-1.brief.md in session 6da8b83c (attach: claude attach 6da8b83c)
+2026-10-16T09:50:45Z NOTIFY entry 1 needs you (PERMISSION, permission prompt) — claude attach 6da8b83c — EnterWorktree
+2026-10-16T09:54:13Z entry 1 waiting on a background task
+2026-10-16T10:05:53Z NOTIFY entry 1 needs you (ASKED, input needed) — claude attach 6da8b83c — Should `assertRulesIntegrity` be wired into a launch/install path, or kept on demand? Proof it's unwired: `git grep assertRulesIntegrity -- adapters bin engine scripts` → only execpolicy-rules.js:92 + its test; harden-prove-codex-binding.md L421–436 asked for a launch precondition. Facts: the bi

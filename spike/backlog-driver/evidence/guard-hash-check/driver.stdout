@@ -1,0 +1,17 @@
+2026-10-16T10:18:08Z entry 1 pre-approved: nothing
+2026-10-16T10:18:08Z guard copy /private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/craft-driver-guard.FxuG8m read-only, sha256 06b9d02e8e2a48b04d6eae16b58bbc703ec9cbfe908baa37a2c89798b2aaeb6a
+2026-10-16T10:18:08Z budget: spent 0 equiv of cap 2000000
+2026-10-16T10:18:11Z entry 1 started: 01-slow.md -> /Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/evidence/guard-hash-check/state/entry-1.brief.md in session bcd2b5df (attach: claude attach bcd2b5df)
+Traceback (most recent call last):
+  File "<string>", line 4, in <module>
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 293, in load
+    return loads(fp.read(),
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/__init__.py", line 346, in loads
+    return _default_decoder.decode(s)
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 337, in decode
+    obj, end = self.raw_decode(s, idx=_w(s, 0).end())
+  File "/Library/Developer/CommandLineTools/Library/Frameworks/Python3.framework/Versions/3.9/lib/python3.9/json/decoder.py", line 355, in raw_decode
+    raise JSONDecodeError("Expecting value", s, err.value) from None
+json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
+2026-10-16T10:18:33Z NOTIFY guard copy /private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/craft-driver-guard.FxuG8m changed (b1ddb83523ad18e8962af3400cd3489e5d96e45a78e9bcf631dcc3a5c3bc98fc != 06b9d02e8e2a48b04d6eae16b58bbc703ec9cbfe908baa37a2c89798b2aaeb6a) — stopped session bcd2b5df
+driver exit=8 at 2026-10-16T10:18:33Z

@@ -1,0 +1,1 @@
+2026-10-16T10:18:32Z out-of-band tamper of /private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/craft-driver-guard.FxuG8m/spike/backlog-driver/outward-guard.mjs

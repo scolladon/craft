@@ -1,6 +1,8 @@
 #!/usr/bin/env node
-// PreToolUse(Bash) hook for driven sessions: denies push, PR creation and merge unless the
-// brief file named by DRIVER_BRIEF pre-approves them. Hard floor under craft's soft policy.
+// PreToolUse(Bash) hook for driven sessions: denies push, PR creation and merge unless they are
+// pre-approved. Hard floor under craft's soft policy. Approval comes from DRIVER_PREAPPROVED, which
+// the driver bakes into the hook command so the guarded session cannot edit it; DRIVER_BRIEF (a file
+// the session can write) is the legacy tmux-driver source.
 import { readFileSync } from 'node:fs';
 import { parseShellCommands, basename } from '../../engine/src/guards/shell-tokeniser.js';
 import { gitInvocations } from '../../engine/src/guards/shell-git-invocations.js';
@@ -11,10 +13,12 @@ const UNPARSEABLE = 'driver: command not parseable and names push or gh — deni
 // An unparseable command is denied only when it could hide an outward action.
 const MAY_BE_OUTWARD = /\bpush\b|\bgh\b/;
 
+const actionList = list => new Set(list.split(',').map(action => action.trim()).filter(Boolean));
+
 export const approvedActions = brief => {
   const match = brief.match(PREAPPROVED_LINE);
   if (match === null) return new Set();
-  return new Set(match[1].split(',').map(action => action.trim()).filter(Boolean));
+  return actionList(match[1]);
 };
 
 const ghActionOf = words => {
@@ -43,6 +47,11 @@ export const judge = (command, approved) => {
   return { block: true, reason: `driver: '${missing}' is not pre-approved in the brief (PREAPPROVED: line)` };
 };
 
+export const approvalFrom = (env, readText) => {
+  if (env.DRIVER_PREAPPROVED !== undefined) return actionList(env.DRIVER_PREAPPROVED);
+  return env.DRIVER_BRIEF ? approvedActions(readText(env.DRIVER_BRIEF)) : new Set();
+};
+
 const readBrief = path => {
   try {
     return readFileSync(path, 'utf8');
@@ -58,7 +67,7 @@ const deny = reason =>
 const main = () => {
   const payload = JSON.parse(readFileSync(0, 'utf8'));
   const command = payload.tool_input?.command ?? '';
-  const approved = approvedActions(process.env.DRIVER_BRIEF ? readBrief(process.env.DRIVER_BRIEF) : '');
+  const approved = approvalFrom(process.env, readBrief);
   const verdict = judge(command, approved);
   if (verdict.block) process.stdout.write(deny(verdict.reason));
 };

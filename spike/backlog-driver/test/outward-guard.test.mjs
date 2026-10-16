@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { judge, approvedActions } from '../outward-guard.mjs';
+import { judge, approvedActions, approvalFrom } from '../outward-guard.mjs';
 
 const NONE = new Set();
 const ALL = new Set(['push', 'propose', 'integrate']);
@@ -56,4 +56,28 @@ test('Given no pre-approval, When an unparseable command never mentions push or 
 test('Given no pre-approval, When an unparseable command mentions push, Then it is denied fail-closed', () => {
   const sut = judge('echo "unterminated; git push', NONE);
   assert.equal(sut.block, true);
+});
+
+const failingRead = () => {
+  throw new Error('brief must not be read');
+};
+
+test('Given DRIVER_PREAPPROVED is set, When approval is resolved, Then its actions win and the brief is never read', () => {
+  const sut = approvalFrom({ DRIVER_PREAPPROVED: 'push, integrate', DRIVER_BRIEF: '/brief.md' }, failingRead);
+  assert.deepEqual([...sut].sort(), ['integrate', 'push']);
+});
+
+test('Given DRIVER_PREAPPROVED is empty, When approval is resolved, Then nothing is approved and the brief is never read', () => {
+  const sut = approvalFrom({ DRIVER_PREAPPROVED: '', DRIVER_BRIEF: '/brief.md' }, failingRead);
+  assert.equal(sut.size, 0);
+});
+
+test('Given only DRIVER_BRIEF, When approval is resolved, Then the brief PREAPPROVED line is used', () => {
+  const sut = approvalFrom({ DRIVER_BRIEF: '/brief.md' }, () => 'PREAPPROVED: push\n');
+  assert.deepEqual([...sut], ['push']);
+});
+
+test('Given neither variable, When approval is resolved, Then nothing is approved', () => {
+  const sut = approvalFrom({}, failingRead);
+  assert.equal(sut.size, 0);
 });

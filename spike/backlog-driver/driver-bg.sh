@@ -9,7 +9,10 @@
 #        DRIVER_COMMAND (template, {brief} is replaced), DRIVER_MAX_RESUMES (2, per entry),
 #        DRIVER_SUPERVISOR_GRACE_S (90 — how long a dead session is left to the supervisor)
 # exit:  0 queue empty · 2 blocked · 3 timeout · 4 budget cap · 5 preflight · 6 unverified finish
-#        7 resume cap or a resume that forked
+#        7 resume cap or a resume that forked · 8 guard copy modified
+# Nothing the guarded session can write decides what it may do: approvals are read from the queue
+# before any session starts and baked into the hook command, settings are passed inline, and the
+# hooks run from a read-only copy the driver re-hashes on every poll.
 # Restartable: entry-N.started holds "<event mark> <session id>"; a re-run skips finished entries
 # and re-attaches to the in-flight session. The driver never resumes a session that is alive or
 # that the supervisor may still restart: a driver-side resume of a live session forks a second run.
@@ -28,7 +31,6 @@ readonly PREAPPROVED_FLAGS='--policy push=always --policy propose=always --polic
 readonly DEFAULT_COMMAND="/craft:run $PREAPPROVED_FLAGS {brief}"
 readonly COMMAND_TEMPLATE="${DRIVER_COMMAND:-$DEFAULT_COMMAND}"
 readonly EVENTS="$STATE/events.jsonl"
-readonly CURRENT_BRIEF="$STATE/current-brief.md"
 readonly FORK_NOTE='started a copy'
 
 log() { printf '%s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*" | tee -a "$STATE/driver.log"; }
@@ -53,15 +55,59 @@ preflight() {
   [ -n "$(ls "$QUEUE"/*.md 2>/dev/null)" ] || stop_loop 0 "backlog queue empty — nothing to drive"
 }
 
-# Hook commands carry their env explicitly: a background session is not a child of this shell.
-write_settings() {
-  python3 - "$HERE" "$STATE" "$CURRENT_BRIEF" > "$STATE/settings.json" <<'EOF'
+# Approvals per entry, read once before any session can touch the queue.
+APPROVALS=()
+snapshot_approvals() {
+  local source number=0
+  for source in "$QUEUE"/*.md; do
+    APPROVALS[number]="$(sed -n 's/^PREAPPROVED:[[:space:]]*//p' "$source" | head -1 | tr -d ' ')"
+    log "entry $((number + 1)) pre-approved: ${APPROVALS[number]:-nothing}"
+    number=$((number + 1))
+  done
+}
+
+readonly GUARD_FILES='spike/backlog-driver/outward-guard.mjs spike/backlog-driver/hook-event.sh engine/src/guards/shell-tokeniser.js engine/src/guards/shell-git-invocations.js engine/src/guards/git-argv.js'
+GUARD_DIR=""; GUARD_SUM=""
+
+guard_sum() { (cd "$1" && find . -type f | LC_ALL=C sort | xargs shasum -a 256 | shasum -a 256 | cut -d' ' -f1); }
+
+# Copies the hooks and their imports into a read-only dir outside the repo. It is never removed:
+# a session left running after the loop stops would otherwise lose its guard and fail open.
+install_guard_copy() {
+  local root file; root="$(cd "$HERE/../.." && pwd)"
+  # Resolved path: tools see /private/var, so a deny rule on /var would never match.
+  GUARD_DIR="$(cd "$(mktemp -d "${TMPDIR%/}/craft-driver-guard.XXXXXX")" && pwd -P)"
+  for file in $GUARD_FILES; do mkdir -p "$GUARD_DIR/$(dirname "$file")"; cp "$root/$file" "$GUARD_DIR/$file"; done
+  printf '{"type":"module"}\n' > "$GUARD_DIR/engine/package.json"
+  chmod -R a-w "$GUARD_DIR"
+  GUARD_SUM="$(guard_sum "$GUARD_DIR")"
+  log "guard copy $GUARD_DIR read-only, sha256 $GUARD_SUM"
+}
+
+adopt_guard_copy() {
+  GUARD_DIR="$1"; GUARD_SUM="$(guard_sum "$GUARD_DIR")"
+  log "re-anchored on guard copy $GUARD_DIR (sha256 $GUARD_SUM) — a restarted driver trusts the copy as found"
+}
+
+verify_guard() {
+  local id="$1" now; now="$(guard_sum "$GUARD_DIR")"
+  [ "$now" = "$GUARD_SUM" ] && return 0
+  claude stop "$id" >> "$STATE/driver.log" 2>&1
+  stop_loop 8 "guard copy $GUARD_DIR changed ($now != $GUARD_SUM) — stopped session $id"
+}
+
+# Inline settings for one entry: hook env is explicit (a background session is not a child of this
+# shell) and Edit/Write are denied on the guard copy and on settings files that could disable hooks.
+settings_json() {
+  python3 - "$GUARD_DIR" "$STATE" "$1" <<'EOF'
 import json, sys
-here, state, brief = sys.argv[1:4]
-record = lambda name: [{'hooks': [{'type': 'command', 'command': f'env DRIVER_STATE={state} {here}/hook-event.sh {name}', 'timeout': 10}]}]
+guard, state, approved = sys.argv[1:4]
+record = lambda name: [{'hooks': [{'type': 'command', 'command': f'env DRIVER_STATE={state} {guard}/spike/backlog-driver/hook-event.sh {name}', 'timeout': 10}]}]
 hooks = {name: record(name) for name in ('SessionStart', 'Stop', 'Notification', 'PermissionRequest', 'SessionEnd')}
-hooks['PreToolUse'] = [{'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': f'env DRIVER_BRIEF={brief} {here}/outward-guard.mjs', 'timeout': 10}]}]
-print(json.dumps({'hooks': hooks}, indent=2))
+hooks['PreToolUse'] = [{'matcher': 'Bash', 'hooks': [{'type': 'command', 'command': f'env DRIVER_PREAPPROVED={approved} {guard}/spike/backlog-driver/outward-guard.mjs', 'timeout': 10}]}]
+protected = [f'/{guard}/**', '**/.claude/settings.json', '**/.claude/settings.local.json']
+deny = [f'{tool}({path})' for tool in ('Edit', 'Write') for path in protected]
+print(json.dumps({'hooks': hooks, 'permissions': {'deny': deny}}))
 EOF
 }
 
@@ -82,12 +128,11 @@ session_alive() {
 
 started_file() { printf '%s/entry-%s.started' "$STATE" "$1"; }
 
-record_start() { printf '%s %s\n' "$2" "$3" > "$(started_file "$1")"; }
+record_start() { printf '%s %s %s\n' "$2" "$3" "$GUARD_DIR" > "$(started_file "$1")"; }
 
 render_brief() {
   local source="$1" number="$2" rendered="$STATE/entry-$2.brief.md"
   sed -e "s|{{STATE}}|$STATE|g" -e "s|{{N}}|$number|g" "$source" > "$rendered"
-  cp "$rendered" "$CURRENT_BRIEF"
   printf '%s' "$rendered"
 }
 
@@ -119,11 +164,11 @@ verify_finished() {
 # Starts one background session; its short id lands in LAUNCHED_ID.
 LAUNCHED_ID=""
 launch_bg() {
-  local prompt="$1" model_flag="" output id
+  local prompt="$1" settings="$2" model_flag="" output id
   [ -n "${DRIVER_MODEL:-}" ] && model_flag="--model $DRIVER_MODEL"
   wait_for_claude_binary
   # shellcheck disable=SC2086
-  output="$(cd "$REPO" && env -u ANTHROPIC_API_KEY -u CLAUDECODE claude --bg $model_flag --settings "$STATE/settings.json" "$prompt" 2>&1)"
+  output="$(cd "$REPO" && env -u ANTHROPIC_API_KEY -u CLAUDECODE claude --bg $model_flag --settings "$settings" "$prompt" 2>&1)"
   printf '%s\n' "$output" >> "$STATE/driver.log"
   id="$(sed -n 's/^backgrounded · \([0-9a-f]\{8\}\).*/\1/p' <<<"$output")"
   [ -n "$id" ] || stop_loop 5 "claude --bg did not start: $(head -1 <<<"$output")"
@@ -157,6 +202,7 @@ await_run() {
   local number="$1" mark="$2" id="$3" status="$STATE/entry-$1.status" notified="" waited=0 dead_since=""
   local result verdict detail index waiting
   while [ "$waited" -lt "$ENTRY_TIMEOUT_S" ]; do
+    verify_guard "$id"
     if session_alive "$id"; then
       [ -n "$dead_since" ] && log "entry $number: session $id is alive again (pid $(session_field "$id" pid)) — supervisor recovered it"
       dead_since=""
@@ -188,7 +234,7 @@ run_entry() {
   brief="$(render_brief "$source" "$number")"
   check_budget
   mark="$(event_count)"
-  launch_bg "${COMMAND_TEMPLATE//"$placeholder"/$brief}"; id="$LAUNCHED_ID"
+  launch_bg "${COMMAND_TEMPLATE//"$placeholder"/$brief}" "$(settings_json "${APPROVALS[number - 1]}")"; id="$LAUNCHED_ID"
   record_start "$number" "$mark" "$id"
   log "entry $number started: $(basename "$source") -> $brief in session $id (attach: claude attach $id)"
   await_run "$number" "$mark" "$id"
@@ -196,9 +242,9 @@ run_entry() {
 }
 
 continue_entry() {
-  local number="$1" mark id
-  read -r mark id < "$(started_file "$number")"
-  cp "$STATE/entry-$number.brief.md" "$CURRENT_BRIEF"
+  local number="$1" mark id guard
+  read -r mark id guard < "$(started_file "$number")"
+  adopt_guard_copy "$guard"
   log "entry $number was in flight in session $id (mark $mark) — continuing"
   await_run "$number" "$mark" "$id"
   claude stop "$id" >> "$STATE/driver.log" 2>&1 && log "entry $number: stopped session $id"
@@ -209,7 +255,8 @@ entry_outcome() { [ -f "$STATE/entry-$1.status" ] && head -1 "$STATE/entry-$1.st
 main() {
   mkdir -p "$STATE"
   preflight
-  write_settings
+  snapshot_approvals
+  install_guard_copy
   local number=0 source
   for source in "$QUEUE"/*.md; do
     number=$((number + 1))
