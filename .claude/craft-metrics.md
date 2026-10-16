@@ -595,3 +595,7 @@ copilot-git-argv-normalising-guard planning turns=66 tool_calls=67 tokens=757862
 copilot-git-argv-normalising-guard refactoring turns=32 tool_calls=34 tokens=934284 duration_ms=253445 cache_read=865584 cache_creation=68264 output=372 avg_ctx=29185 equiv=173812
 copilot-git-argv-normalising-guard review turns=336 tool_calls=356 tokens=19671398 duration_ms=6242518 cache_read=18710297 cache_creation=953098 output=7329 avg_ctx=58524 equiv=3099721
 copilot-git-argv-normalising-guard validation turns=79 tool_calls=82 tokens=5826535 duration_ms=1936349 cache_read=5565936 cache_creation=259243 output=1198 avg_ctx=73738 equiv=886795
+fixture-commits-skip-gpg-signing design turns=33 tool_calls=37 tokens=1727339 duration_ms=528631 cache_read=1644640 cache_creation=82255 output=378 avg_ctx=52332 equiv=269239
+fixture-commits-skip-gpg-signing implementation turns=8 tool_calls=9 tokens=211584 duration_ms=76178 cache_read=184516 cache_creation=26758 output=294 avg_ctx=26411 equiv=53385
+fixture-commits-skip-gpg-signing planning turns=29 tool_calls=30 tokens=1551289 duration_ms=370386 cache_read=1473993 cache_creation=76975 output=263 avg_ctx=53484 equiv=244991
+fixture-commits-skip-gpg-signing review turns=39 tool_calls=40 tokens=898269 duration_ms=280207 cache_read=784098 cache_creation=112887 output=1206 avg_ctx=23002 equiv=225627
