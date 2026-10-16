@@ -19,6 +19,9 @@ Context for a cold session:
   (name where the idiom is taught). Put it to the user in the decisions phase through AskUserQuestion
   with your recommendation; do not adopt it silently. Land whichever is chosen and tick the entry.
 - Gate: `bash scripts/ci.sh`.
+- **Fold follow-ups, don't grow the backlog.** A finding with the same root cause or the same claim as this
+  entry (another surface, file or doc stating it) is fixed in this run. Only a proven, out-of-scope issue
+  gets a backlog entry, and it must name why it can't be folded. Amending an existing entry beats a new one.
 
 ## Driver protocol (this run is driven by an outer loop — read before anything else)
 
