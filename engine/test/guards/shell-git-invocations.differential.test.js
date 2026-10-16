@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { execFileSync, spawn } from 'node:child_process';
-import { accessSync, constants, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import { accessSync, constants, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { delimiter, join } from 'node:path';
 import { normaliseGitArgv } from '../../src/guards/git-argv.js';
@@ -28,6 +28,7 @@ const NUL = '\0';
 const EXECUTABLE_MODE = 0o755;
 const TREE_PREFIX = 'craft-git-fuzz-';
 const SANITY_BASH = '/bin/bash';
+const POSIX_SH = '/bin/dash';
 const MIN_SECOND_BASH_MAJOR = 5;
 const STRICT_GIT_VERSION = /^git version 2\.54\./;
 const SENTINEL_SUBCOMMAND = 'rev-parse';
@@ -237,7 +238,9 @@ function group(generator, rng, depth) {
   return pick(rng, GROUPERS)(inner);
 }
 
-const BASHISMS = /\$'|<\(|<<<|\btime\b|\[\[/;
+// `sh` is dash on Linux CI: a body carrying any bash-only construct (brace expansion, extglob,
+// `((`, `$[`, `$"`, `|&`, `&>`) would run differently there than the guard's bash model.
+const BASHISMS = /\$'|\$"|\$\[|<\(|<<<|\btime\b|\[\[|\(\(|\|&|&>|[?*+@!]\(|\{[^{}\s]*(,|\.\.)[^{}\s]*\}/;
 const canBacktick = inner => !inner.text.includes('`') && !inner.text.includes('\\$');
 const SPLIT_SAFE = /^[\w .=/'"-]*$/;
 const canDoubleQuote = inner => inner.simple && !/["$`\\!]/.test(inner.text);
@@ -314,11 +317,23 @@ function findOnPath(name) {
   return null;
 }
 
+// Linux CI resolves `sh` to dash while macOS resolves it to bash; pinning `sh` to dash where it
+// exists makes a local run judge `sh -c` bodies the way CI does.
+function linkPosixShell(bin) {
+  try {
+    accessSync(POSIX_SH, constants.X_OK);
+  } catch {
+    return;
+  }
+  symlinkSync(POSIX_SH, join(bin, 'sh'));
+}
+
 function withTree(act) {
   const base = realpathSync(mkdtempSync(join(tmpdir(), TREE_PREFIX)));
   const tree = { base, bin: join(base, 'bin'), home: join(base, 'home'), runs: join(base, 'runs'), repo: join(base, 'repo') };
   Object.values(tree).slice(1).forEach(dir => mkdirSync(dir));
   writeFileSync(join(tree.bin, 'git'), STUB_GIT, { mode: EXECUTABLE_MODE });
+  linkPosixShell(tree.bin);
   return act(tree).finally(() => rmSync(base, { recursive: true, force: true }));
 }
 
