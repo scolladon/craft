@@ -1,0 +1,29 @@
+2026-10-16T09:49:39Z budget: spent 0 equiv of cap 30000000
+backgrounded · 6da8b83c
+  claude agents             list sessions
+  claude attach 6da8b83c    open in this terminal
+  claude logs 6da8b83c      show recent output
+  claude stop 6da8b83c      stop this session
+2026-10-16T09:49:40Z entry 1 started: 01-assert-rules-integrity.md -> /Users/scolladon/workspace/perso/craft/.claude/driver-state-bg/entry-1.brief.md in session 6da8b83c (attach: claude attach 6da8b83c)
+2026-10-16T09:50:45Z NOTIFY entry 1 needs you (PERMISSION, permission prompt) — claude attach 6da8b83c — EnterWorktree
+2026-10-16T09:54:13Z entry 1 waiting on a background task
+2026-10-16T10:05:53Z NOTIFY entry 1 needs you (ASKED, input needed) — claude attach 6da8b83c — Should `assertRulesIntegrity` be wired into a launch/install path, or kept on demand? Proof it's unwired: `git grep assertRulesIntegrity -- adapters bin engine scripts` → only execpolicy-rules.js:92 + its test; harden-prove-codex-binding.md L421–436 asked for a launch precondition. Facts: the bi
+2026-10-16T11:44:14Z entry 1: session 6da8b83c has no live pid (state ) — leaving it to the supervisor
+2026-10-16T11:44:20Z entry 1: session 6da8b83c is alive again (pid 72808) — supervisor recovered it
+2026-10-16T12:10:21Z entry 1: session 6da8b83c has no live pid (state ) — leaving it to the supervisor
+2026-10-16T12:10:26Z entry 1: session 6da8b83c is alive again (pid 72808) — supervisor recovered it
+2026-10-16T12:14:15Z entry 1: session 6da8b83c has no live pid (state ) — leaving it to the supervisor
+2026-10-16T12:14:21Z entry 1: session 6da8b83c is alive again (pid 72808) — supervisor recovered it
+2026-10-16T12:28:58Z entry 1 waiting on a background task
+2026-10-16T12:40:55Z entry 1 waiting on a background task
+2026-10-16T12:42:02Z entry 1: session 6da8b83c has no live pid (state working) — leaving it to the supervisor
+2026-10-16T12:42:13Z entry 1: session 6da8b83c is alive again (pid 5917) — supervisor recovered it
+2026-10-16T12:44:19Z entry 1 waiting on a background task
+2026-10-16T12:44:42Z entry 1 waiting on a background task
+2026-10-16T12:45:14Z entry 1 waiting on a background task
+2026-10-16T12:54:34Z entry 1 FINISHED https://github.com/scolladon/craft/pull/69
+2026-10-16T12:54:35Z verify: https://github.com/scolladon/craft/pull/69 state=MERGED
+stopped 6da8b83c
+2026-10-16T12:54:35Z entry 1: stopped session 6da8b83c
+2026-10-16T12:54:36Z budget: spent 3764571 equiv of cap 30000000
+2026-10-16T12:54:36Z NOTIFY backlog queue empty after 1 entries — loop done

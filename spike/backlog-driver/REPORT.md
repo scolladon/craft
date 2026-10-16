@@ -40,8 +40,10 @@ transport wins:
 Its trap is the reverse of tmux's: the driver must **not** resume a session itself. A
 driver-side `--resume` forks a second orchestrator that runs the same work alongside the first.
 
-(c) is not yet proven on a real `/craft:run`; the next proof is the two-entry loop again under
-`--bg`. Fall back to (a) only for queues filtered to entries that will not ask.
+(c) has now driven **one real `/craft:run` end to end** (PR #69, section "(c) on a real entry").
+The run had a genuine decisions fork, which the person answered through `claude attach`. A
+SIGKILL in the middle of implementation was recovered by the supervisor alone. That is n=1,
+not a loop. Fall back to (a) only for queues filtered to entries that will not ask.
 
 ```
 driver.sh ──tmux new-session──▶ claude (interactive, --settings driver hooks + outward guard)
@@ -202,9 +204,47 @@ What it changes in the driver:
   gets a bare `--resume <full id> "<rebuild prompt>"`.
 - **No tmux, no send-keys, no trust dialog.** Trust becomes a one-time preflight error.
 
+### (c) on a real entry — PR #69 (2026-10-16 09:49–12:54 UTC)
+
+Entry: "Should a launch or install path call `assertRulesIntegrity`?" Driver: `driver-bg.sh` as of
+`d17e114`, which predates the guard hardening and the lookup fix (both landed mid-run, swapped
+atomically). Evidence: `evidence/bg-loop/` (`state/`, `ledgers/`, `session-kill.log`,
+`attended-answers.log`), transcript `6da8b83c…` under the worktree's project dir.
+
+| | |
+|---|---|
+| Result | PR #69 merged → `90dfdbd` (+ `5c1c6a9` metrics). CI green; ADR-599/600; backlog entry closed "kept on demand". No AI trace in the title, body or commits. |
+| Wall-clock | 09:49:40 → 12:54:34 = **184.9 min**, of which the decisions question waited **141 min** for the person (asked 10:05:50, answered 12:27:08). Machine time ≈ 44 min. |
+| Phases (min) | workspace 2.5 · design 14.8 · decisions 140.5 (the human wait) · planning 12.0 · implementation 2.8 · review 6.8 (4 opus reviewers) · propose 0.5 · integrate 4.1 |
+| Tokens (equiv) | main 2,035,904 + sub-agents 1,728,667 (7) = **3,764,571**. Craft's committed metrics rows sum to 1,728,666 for the sub-agents. |
+| Asks | 1 decisions fork (4 questions), answered by the person through `claude attach`. 1 `EnterWorktree` permission prompt (09:50:42), answered by the orchestrating session (logged). |
+| Notification | Both fired, through hooks + `agents --json` (`input needed` / `permission prompt`). |
+| SIGKILL mid-implementation | Killed 12:42:00 (pid 72808). The supervisor resumed the **same id** at 12:42:11 (pid 5917), with no driver action and no rebuild prompt. The background part-implementer **outlived its parent**: its hand-back reached the resumed session at 12:42:22. The orchestrator checked the diff, ran `ci.sh` green, committed part 1 (`7e007a1`) and went on to review. |
+| Person detaching | The viewer's shell was closed while the run was busy. The session kept its pid and carried on. |
+
+Compared with the tmux loop:
+
+- no `/clear`, no send-keys, no trust dialog;
+- crash recovery took no driver code at all;
+- the ask arrived as a native dialog through `claude attach`.
+
+The new cost is the `EnterWorktree` prompt that a background session raises for craft's own
+worktree.
+
+**Lookup gaps.** `claude agents --json` twice omitted the live session (12:10, 12:14); the pid
+stayed 72808 throughout. The run's driver logged these as deaths and recoveries. A gap longer
+than the 90 s grace would have made it resume a live session, which forks a second run; the
+driver detects the fork, stops the copy and exits 7. Fixed in `8b741ef`:
+
+- `liveness.py` returns alive, dead or unknown (6 tests);
+- `unknown` never starts the grace timer;
+- the driver never resumes when the listing has no session id.
+
+The fix is unit-tested only; a live lookup gap was not reproduced.
+
 Not proven for (c):
 
-- a real `/craft:run`;
+- more than one real entry in a row under `--bg`;
 - what the supervisor does if the session crashes in a loop;
 - whether it survives its own death or a reboot;
 - that auto-restart always happens: n=1.
@@ -265,8 +305,11 @@ background session.
   `BLOCKED ci-red-after-one-fix-round` stops the loop with a notification.
 - **A full `/craft:run` under (a).** One small entry headless with `--permission-prompts none`;
   compare its equiv and wall-clock with the table above.
-- **The two-entry loop under (c).** Port `driver.sh` to `claude --bg` per entry (section above).
-  Re-run one real entry with a known decisions fork, answered through `claude attach`. Then
+- **A multi-entry queue under (c), on the hardened driver.** Done for one entry (PR #69) on the
+  pre-hardening driver. Next: two or more entries in a row on `8b741ef`. Check the guard copy
+  and the inline settings live, and pre-approve the `EnterWorktree` prompt. Previously listed:
+  port `driver.sh` to `claude --bg` and re-run one real entry with a known decisions fork,
+  answered through `claude attach` (done). Then
   SIGKILL mid-run and check that the supervisor, not the driver, recovers it.
 - **Budget is enforced between entries only.** An in-run overrun is unbounded. Check it per poll
   and send Escape to stop.

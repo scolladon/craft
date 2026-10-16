@@ -109,3 +109,15 @@ Traceback (most recent call last):
 json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)
 2026-10-16T12:14:21Z entry 1: session 6da8b83c is alive again (pid 72808) — supervisor recovered it
 2026-10-16T12:28:58Z entry 1 waiting on a background task
+2026-10-16T12:40:55Z entry 1 waiting on a background task
+2026-10-16T12:42:02Z entry 1: session 6da8b83c has no live pid (state working) — leaving it to the supervisor
+2026-10-16T12:42:13Z entry 1: session 6da8b83c is alive again (pid 5917) — supervisor recovered it
+2026-10-16T12:44:19Z entry 1 waiting on a background task
+2026-10-16T12:44:42Z entry 1 waiting on a background task
+2026-10-16T12:45:14Z entry 1 waiting on a background task
+2026-10-16T12:54:34Z entry 1 FINISHED https://github.com/scolladon/craft/pull/69
+2026-10-16T12:54:35Z verify: https://github.com/scolladon/craft/pull/69 state=MERGED
+2026-10-16T12:54:35Z entry 1: stopped session 6da8b83c
+2026-10-16T12:54:36Z budget: spent 3764571 equiv of cap 30000000
+2026-10-16T12:54:36Z NOTIFY backlog queue empty after 1 entries — loop done
+driver exit=0 at 2026-10-16T12:54:36Z
