@@ -1,0 +1,60 @@
+
+  ⎿  Wrote 51 lines to .claude/driver-state/entry-2.next-elected.md
+       1 # Next elected item
+       2
+       3 **ADR-253 still records that codex loads the shared skills by reference.** This is the top entry of
+       4 BACKLOG.md, under "Open (scoped 2026-10-16 — follow-ups surfaced by the native-surface-skills-title-fix
+       5 run)". This run (PR #68) surfaced it.
+       6
+       7 Why this one:
+       8 - It is the top of the newest Open section, so it is next in top-down order.
+       9 - It is unblocked: no paid eval, no live codex session, no dependency on the driver spike.
+      10 - The contradiction is proven. `docs/contributing/adr/253-codex-shared-skills-by-reference.md:1` is
+     … +42 lines
+  ⎿  Allowed by auto mode classifier
+
+  Read 1 file
+
+⏺ PR #68 is merged as a310f8b: https://github.com/scolladon/craft/pull/68. The describe title at adapters/codex/test/native-surface.test.js:84 now gives the real reason the folder must not exist: the shared skills live
+  at the repo root and reach codex through the $CODEX_HOME/skills symlinks, not by reference.
+
+  - The change: one line. The test body and its check that adapters/codex/skills/ doesn't exist are unchanged. The new wording is taken from adapters/codex/README.md:190–191.
+  - Checks: the codex native-surface suite passed 132 tests before and after. bash scripts/ci.sh passed, and CI (ci, links, readme-drift) passed before the merge.
+  - Review: code, security, tests and perf reviews found nothing. Refactoring had nothing to do. Mutation testing and the architecture check were skipped because no mutable code and no imports changed.
+  - Backlog: the closed entry is removed. I added one follow-up: ADR-253 is still titled "Codex loads shared craft skills by reference" and marked accepted. codex-poc-record.md:332 disproves that, and no later ADR
+    replaces it.
+  - Resume: the session was killed during implementation. I rebuilt the run from its ledger, confirmed the commit had landed (46ca8f4) and re-ran the gate myself before going on.
+  - Bookkeeping: the memory store and the metrics rows are committed in chore(metrics) 07437ff and pushed to main, and the ledger is closed. The metrics script printed no Compactions: line.
+  - Driver files: the status file says FINISHED https://github.com/scolladon/craft/pull/68. The next item is written to /Users/scolladon/workspace/perso/craft/.claude/driver-state/entry-2.next-elected.md: it replaces
+    ADR-253 with the symlink route, and the runner-up is adding the destructive-git check to the codex hook.
+
+  Run record:
+  - workspace: done.
+  - design: done, no decisions needed.
+  - decisions: skipped.
+  - planning: plan check passed, 1 part.
+  - implementation: 1 of 1 parts done.
+  - review: 0 findings in the first round.
+  - refactoring: nothing to do.
+  - validation and architecture: skipped.
+  - documentation: backlog updated.
+  - propose: PR #68.
+  - integrate: merged, worktree and branch removed.
+  - Push, PR creation, merge and teardown were all pre-approved.
+
+  Out of scope: the timing test validatePhases … does not grow quadratically failed in 1 of 4 runs with nothing changed and passed in the other 3.
+
+✻ Churned for 9m 35s · done 11:05 AM
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── Codex binding re-probe on 0.162.1 ─
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  [Opus 5.5] │ craft git:(main) │ CC v2.1.301 │ ⏱️  18m │ Cost $2.93
+  Context ██░░░░░░░░ 16% │ 5h: 10% (3h 15m) | 7d: 11% (6d 3h)
+  Cache ⏱ 5m 0s
+  Approx RAM ████░░░░░░ 6.4 GB / 18 GB (36%)
+  1 CLAUDE.md | 58 rules | 2 MCPs | 10 hooks
+  ◐ Bash: .../... | ◐ Bash: .../... | ✓ Bash ×2 | ✓ Write ×1
+  ✓ craft:reviewer [opus]: Review: tests dimension (8s)
+  ✓ craft:reviewer [opus]: Review: perf dimension (<1s)
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← for agents

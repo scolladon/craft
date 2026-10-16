@@ -1,0 +1,4 @@
+
+[2026-10-16 10:22] USER:
+I want the workflow to be resilient, if the session is killed it must be able to resume cleanly
+---

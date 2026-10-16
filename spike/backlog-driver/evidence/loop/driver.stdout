@@ -1,3 +1,28 @@
 2026-10-16T08:34:47Z entry 1 was in flight (mark 1) — continuing
 2026-10-16T08:34:47Z adopted live tmux session craft-driver
 2026-10-16T08:34:47Z entry 1 waiting on a background task
+2026-10-16T08:37:34Z entry 1 waiting on a background task
+2026-10-16T08:38:10Z entry 1 waiting on a background task
+2026-10-16T08:38:50Z entry 1 waiting on a background task
+2026-10-16T08:39:11Z entry 1 waiting on a background task
+2026-10-16T08:47:17Z entry 1 FINISHED https://github.com/scolladon/craft/pull/67
+2026-10-16T08:47:18Z verify: https://github.com/scolladon/craft/pull/67 state=MERGED
+2026-10-16T08:47:18Z adopted live tmux session craft-driver
+2026-10-16T08:47:29Z context cleared
+2026-10-16T08:47:29Z budget: spent 2790228 equiv of cap 30000000
+2026-10-16T08:47:30Z entry 2 started: 02-codex-native-surface-title.md -> /Users/scolladon/workspace/perso/craft/.claude/driver-state/entry-2.brief.md
+2026-10-16T08:48:56Z entry 2 waiting on a background task
+2026-10-16T08:52:34Z entry 2 waiting on a background task
+2026-10-16T08:55:16Z entry 2 waiting on a background task
+2026-10-16T08:56:17Z NOTIFY entry 2: session is gone — resuming (attempt 1/2)
+2026-10-16T08:56:17Z launched tmux session craft-driver in /Users/scolladon/workspace/perso/craft --resume 3451f8e5-1a6c-4eb5-9334-a57745499a92 (attach: tmux attach -t craft-driver)
+2026-10-16T08:56:23Z entry 2 resume prompt sent (mark 14)
+2026-10-16T08:58:05Z entry 2 waiting on a background task
+2026-10-16T08:58:20Z entry 2 waiting on a background task
+2026-10-16T08:58:30Z entry 2 waiting on a background task
+2026-10-16T08:58:56Z entry 2 waiting on a background task
+2026-10-16T09:05:51Z entry 2 FINISHED https://github.com/scolladon/craft/pull/68
+2026-10-16T09:05:51Z verify: https://github.com/scolladon/craft/pull/68 state=MERGED
+2026-10-16T09:05:52Z budget: spent 4249917 equiv of cap 30000000
+2026-10-16T09:05:52Z NOTIFY backlog queue empty after 2 entries — loop done
+driver exit=0 at 2026-10-16T09:05:52Z
