@@ -1,0 +1,50 @@
+
+ ▐▛███▛█   Claude Code v2.1.301
+▝▜██████▀  Haiku 5.5 · Claude Max
+ ▝▝   ▝▝   /private/var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvprobe-b1.Ucu7
+
+  ⎿  SessionStart:startup hook error
+  ⎿  Failed with non-blocking status code: Traceback (most recent call last):
+
+❯ Use the AskUserQuestion tool to ask me which colour to write, red or blue. Then write colour.txt with the answer and stop.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ☐ Colour
+
+Which colour should I write to colour.txt?
+
+❯ 1. Red
+     Write "red" to colour.txt
+  2. Blue
+     Write "blue" to colour.txt
+  3. Type something.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  4. Chat about this
+
+Enter to select · ↑/↓ to navigate · Esc to cancel
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── Codex binding re-probe on 0.162.1 ─

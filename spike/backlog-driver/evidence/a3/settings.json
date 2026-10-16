@@ -1,0 +1,1 @@
+{"hooks":{"PreToolUse":[{"matcher":"Bash","hooks":[{"type":"command","command":"/Users/scolladon/workspace/perso/craft-unattended-backlog-driver-spike/spike/backlog-driver/outward-guard.mjs","timeout":10}]}]}}

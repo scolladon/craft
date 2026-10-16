@@ -1,0 +1,12 @@
+07:59:31Z launched in /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvprobe-b1.KphR
+07:59:39Z trust dialog shown -> Enter
+08:00:04Z events after start: 0
+08:00:05Z sent ask prompt
+08:01:41Z events after ask prompt: 0
+08:01:41Z sent Enter to pick first option
+08:03:15Z events after answer: 0
+08:03:16Z sent /clear
+08:03:48Z events after clear: 0
+08:03:49Z sent pong prompt
+08:04:52Z events after pong: 0
+08:04:52Z killed

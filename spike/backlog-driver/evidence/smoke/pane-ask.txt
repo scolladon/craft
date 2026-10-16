@@ -1,0 +1,15 @@
+❯ Read the file /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvsmoke.fLqg/repo/.driver-state/entry-2.brief.md and do exactly what it says.}
+  Read 1 file
+⏺ The brief says to ask first, so I'm asking before anything else.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ ☐ Smoke entry 2
+Proceed with smoke entry 2?
+❯ 1. Proceed
+     Continue; on completion write FINISHED local to entry-2.status
+  2. Abort
+     Stop; write BLOCKED user aborted to entry-2.status
+  3. Type something.
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  4. Chat about this
+Enter to select · ↑/↓ to navigate · Esc to cancel
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── Codex binding re-probe on 0.162.1 ─

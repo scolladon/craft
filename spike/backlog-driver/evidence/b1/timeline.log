@@ -1,0 +1,12 @@
+08:05:14Z launched in /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvprobe-b1.Ucu7
+08:05:22Z trust dialog shown -> Down Enter
+08:05:28Z events after start: 1
+08:05:29Z sent ask prompt
+08:05:40Z events after ask prompt: 2
+08:05:40Z sent Enter to pick first option
+08:05:49Z events after answer: 3
+08:05:50Z sent /clear
+08:05:53Z events after clear: 4
+08:05:54Z sent pong prompt
+08:06:00Z events after pong: 5
+08:06:00Z killed

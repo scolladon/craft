@@ -1,0 +1,14 @@
+2026-10-16T08:10:21Z launched tmux session drvsmoke in /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvsmoke.fLqg/repo (attach: tmux attach -t drvsmoke)
+2026-10-16T08:10:29Z trust dialog shown (defaults to 'No, exit') -> Down Enter
+2026-10-16T08:10:35Z budget: spent 0 equiv of cap 2000000
+2026-10-16T08:10:36Z entry 1 started: 01-write-and-push.md -> /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvsmoke.fLqg/repo/.driver-state/entry-1.brief.md
+2026-10-16T08:10:57Z entry 1 FINISHED local
+2026-10-16T08:10:57Z finish detail is not a PR url (local) — no PR state to verify
+2026-10-16T08:11:03Z context cleared
+2026-10-16T08:11:03Z budget: spent 56188 equiv of cap 2000000
+2026-10-16T08:11:04Z entry 2 started: 02-ask.md -> /var/folders/14/mbtb5mjx2js885cj0w6vkc940000gn/T/drvsmoke.fLqg/repo/.driver-state/entry-2.brief.md
+2026-10-16T08:11:14Z NOTIFY entry 2 ASKED — attach: tmux attach -t drvsmoke — Proceed with smoke entry 2?
+2026-10-16T08:11:29Z entry 2 FINISHED local
+2026-10-16T08:11:29Z finish detail is not a PR url (local) — no PR state to verify
+2026-10-16T08:11:29Z budget: spent 106994 equiv of cap 2000000
+2026-10-16T08:11:29Z NOTIFY backlog queue empty after 2 entries — loop done
