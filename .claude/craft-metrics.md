@@ -607,3 +607,7 @@ rules-integrity-launch-wiring design turns=60 tool_calls=69 tokens=5483999 durat
 rules-integrity-launch-wiring implementation turns=8 tool_calls=22 tokens=221712 duration_ms=88366 cache_read=188295 cache_creation=32511 output=888 avg_ctx=27603 equiv=63926
 rules-integrity-launch-wiring planning turns=76 tool_calls=81 tokens=6051012 duration_ms=666805 cache_read=5924312 cache_creation=125829 output=719 avg_ctx=79609 equiv=753464
 rules-integrity-launch-wiring review turns=30 tool_calls=41 tokens=781482 duration_ms=203231 cache_read=671594 cache_creation=109383 output=445 avg_ctx=26035 equiv=206173
+codex-rules-deploy-step design turns=41 tool_calls=49 tokens=2534297 duration_ms=486542 cache_read=2445902 cache_creation=87923 output=390 avg_ctx=61803 equiv=356526
+codex-rules-deploy-step implementation turns=18 tool_calls=24 tokens=437356 duration_ms=144166 cache_read=389040 cache_creation=47835 output=445 avg_ctx=24273 equiv=100959
+codex-rules-deploy-step planning turns=50 tool_calls=57 tokens=3689167 duration_ms=589460 cache_read=3568659 cache_creation=119438 output=970 avg_ctx=73764 equiv=511113
+codex-rules-deploy-step review turns=58 tool_calls=63 tokens=1464857 duration_ms=535339 cache_read=1300262 cache_creation=163700 output=779 avg_ctx=25243 equiv=338662
