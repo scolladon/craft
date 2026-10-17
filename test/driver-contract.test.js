@@ -40,7 +40,7 @@ test('Given the Rebuild section, when step 2 is read, then it re-runs driver-sta
 test('Given the cross-phase invariants, when the Driven stop bullet is read, then its last call writes BLOCKED through driver-state.sh blocked and §0 stops use phase id resolve', () => {
   const sut = sliceProse(run, DRIVEN_STOP_START, POLICY_CONSULT);
 
-  for (const phrase of ['"$driver" blocked <phase-id> - <<\'REASON\'', 'active >/dev/null &&', 'never expanded by the shell',
+  for (const phrase of ['"$driver" blocked <phase-id> - <<\'REASON\'', 'active >/dev/null &&', 'never expanded by the shell', 'starts at column 0',
     'phase id `resolve`', 'degrade-to-blocker', 'workspace collision']) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }

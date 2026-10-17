@@ -506,7 +506,8 @@ bring their own `procedure`, dispatched verbatim (step 2).
   REASON
   ```
   The reason travels on stdin through the quoted heredoc, so text from stderr, a branch name or
-  a backlog entry is never expanded by the shell.
+  a backlog entry is never expanded by the shell. In the Bash call, the closing `REASON` line
+  starts at column 0: an indented terminator does not close the heredoc.
   Every §0 stop uses phase id `resolve`. An escalation is still asked first; only a stop the
   run cannot continue from writes `BLOCKED`. The ledger stays open, so the run resumes as
   after any STOP. Undriven, `active` exits 1 and nothing is written; a non-zero exit from
@@ -634,7 +635,7 @@ paragraph. Driven (exit 0):
 - **PR merged** — elect the next item (below), write the rationale to `next.md` and the
   ready-to-paste prompt to `next.prompt` in a fresh `mktemp -d` dir outside the working tree,
   then call `driver-state.sh finished` with both. No election → `finished <pr-url>` alone.
-  Exit 3 (the prompt still held a bare `--policy` token) → re-run `finished <pr-url>` alone
+  Exit 3 (the prompt still held a token that reads as `--policy` — the bare flag, or a variant with invisible characters, Unicode dashes, homoglyphs, another case or glued punctuation) → re-run `finished <pr-url>` alone
   and say in the final message that the election was withheld and why.
 - **No merge** (`integrate` resolved to `never`, the merge ask declined, `integrate`
   skipped, or no remote) → `driver-state.sh blocked integrate -` with `not merged <pr-or-branch>` on stdin,

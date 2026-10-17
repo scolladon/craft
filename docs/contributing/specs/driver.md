@@ -54,7 +54,10 @@ checks the merge with its VCS host on reading `FINISHED`. Stops before the run s
 state dir and moved into place: `next.*` by rename, `status` by a hard link that fails when the
 target exists, so a `status` that appears between the check and the write is never replaced.
 `status` is the run's last tool call. It is never overwritten: an existing `status` (checked with
-`lstat` first, so a symlink counts) refuses the write.
+`lstat` first, so a symlink counts) refuses the write. The state dir must sit on a filesystem
+that supports hard links; elsewhere the link fails and the call exits 5 with no status written.
+Once `status` is linked it is published: a temp that cannot be removed afterwards is a warning
+on stderr and the call still exits 0.
 
 ## Exit codes
 
@@ -77,8 +80,9 @@ Before `next.prompt` is written, every bare whitespace-delimited `--policy <valu
 is the next token on the same line holding `=`) and every `--policy=…` token is removed.
 Pre-approval never travels through an election.
 
-A token the strip keeps but a reader could still take for the flag — invisible format characters
-inside it, Unicode dashes, another case, punctuation glued to it (`(--policy`, `--policy:`) — is
+A token the strip keeps but a reader could still take for the flag — invisible characters inside
+it, Unicode dashes, non-ASCII homoglyphs, another case, punctuation or markdown emphasis glued to
+it (`(--policy`, `--policy:`, `**--policy**`) — is
 not removed but reported: the call exits 3 and the run writes the status without an election.
 
 Quoted or backticked mentions are kept. Residual risk: an orchestrator could still read a quoted
