@@ -620,3 +620,7 @@ fold-in-scope-followups implementation turns=15 tool_calls=17 tokens=392351 dura
 fold-in-scope-followups planning turns=30 tool_calls=31 tokens=1558900 duration_ms=407463 cache_read=1475274 cache_creation=83120 output=446 avg_ctx=51948 equiv=253717
 fold-in-scope-followups review turns=56 tool_calls=61 tokens=1429125 duration_ms=445938 cache_read=1241772 cache_creation=184930 output=2311 avg_ctx=25479 equiv=367007
 supersede-adr-253-symlink-route design turns=53 tool_calls=55 tokens=3421948 duration_ms=561784 cache_read=3316137 cache_creation=105213 output=492 avg_ctx=64556 equiv=465696
+ledger-stamps-own-timestamps design turns=29 tool_calls=32 tokens=1666877 duration_ms=316565 cache_read=1583002 cache_creation=83537 output=280 avg_ctx=57469 equiv=264179
+ledger-stamps-own-timestamps implementation turns=21 tool_calls=23 tokens=580055 duration_ms=340912 cache_read=523672 cache_creation=55851 output=490 avg_ctx=27598 equiv=124673
+ledger-stamps-own-timestamps planning turns=30 tool_calls=33 tokens=1599928 duration_ms=529162 cache_read=1520987 cache_creation=78571 output=310 avg_ctx=53321 equiv=251922
+ledger-stamps-own-timestamps review turns=43 tool_calls=45 tokens=1063513 duration_ms=452815 cache_read=936038 cache_creation=126761 output=628 avg_ctx=24718 equiv=255281

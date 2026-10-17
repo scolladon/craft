@@ -220,7 +220,9 @@ Fix: when a driver env var names a state dir, `craft:run` writes `FINISHED <pr>`
 the election there, and strips `--policy` flags from the elected prompt. The workspace phase enters its
 worktree in a background session without a prompt.
 
-**The run ledger trusts the model for its timestamps.** `PHASE-START(<phase>): <iso>` lines carry a
+**The run ledger trusts the model for its timestamps — delivered 2026-10-17**
+([PR #74](https://github.com/scolladon/craft/pull/74), ADR-615–618: `run-ledger.sh append` stamps `PHASE-START` itself, overwriting a supplied time).
+`PHASE-START(<phase>): <iso>` lines carry a
 time the orchestrator writes into the text. In the spike's runs, late-phase stamps were round minutes
 that postdate the events: `PHASE-START(propose): 15:10:00Z` and `integrate: 15:15:00Z` after PR #70
 merged at 14:39:24Z, and `propose: 11:25:00Z` after PR #71 was created at 11:20:59Z (ledger snapshots on
