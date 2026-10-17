@@ -31,7 +31,9 @@ const VERDICT_PHRASES = ['to one verdict, folded or filed', '`Not folded: `',
   'It is never folded or filed silently',
   'the reason: out of scope, needs its own decision, needs a probe, waits on an external trigger, adds feature behaviour, or the fix did not pass its gate',
   'A triage EXCEPTION the background harness lands after this step gets the same triage before `propose`'];
-const PAYLOAD_DISCIPLINE_PHRASES = ['repo-relative', '<main-repo-dir>',
+const SKILL_PATH_DISCIPLINE_PHRASE = 'follows the same discipline as `<file>`: paths repo-relative';
+const SPEC_PATH_DISCIPLINE_PHRASE = '`<reason>` carry repo-relative paths';
+const PAYLOAD_DISCIPLINE_PHRASES = ['<main-repo-dir>',
   'no secret or env assignment'];
 const SOURCE_FOLD_SUFFIX = '(outside the executing-harness run)';
 const FILED_CARDINALITY_PHRASE = 'one line per locus file of each finding filed';
@@ -78,7 +80,7 @@ test('Given the documentation skill\'s synthesis step, when its sub-steps and th
 test('Given the documentation skill\'s synthesis step, when its record text is read, then it bounds the token payloads and marks a source fold', () => {
   const sut = synthesis;
 
-  for (const phrase of [...PAYLOAD_DISCIPLINE_PHRASES, SOURCE_FOLD_SUFFIX]) {
+  for (const phrase of [SKILL_PATH_DISCIPLINE_PHRASE, ...PAYLOAD_DISCIPLINE_PHRASES, SOURCE_FOLD_SUFFIX]) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
 });
@@ -114,7 +116,8 @@ test('Given the run-record spec, the run skill\'s token table and the documentat
 test('Given the run-record spec\'s fold-token bullets, when the vocabulary is read, then FILED is one line per locus file, a source fold is marked and the payloads are bounded', () => {
   const sut = sliceProse(spec, VOCABULARY_START, NEXT_H2);
 
-  for (const phrase of [FILED_CARDINALITY_PHRASE, SOURCE_FOLD_SUFFIX, ...PAYLOAD_DISCIPLINE_PHRASES]) {
+  for (const phrase of [FILED_CARDINALITY_PHRASE, SOURCE_FOLD_SUFFIX, SPEC_PATH_DISCIPLINE_PHRASE,
+    ...PAYLOAD_DISCIPLINE_PHRASES]) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
 });
