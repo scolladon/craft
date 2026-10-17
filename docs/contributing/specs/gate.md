@@ -168,10 +168,14 @@ was denied (file absent) and `git diff --no-ext-diff HEAD~1 > f` executed.
 **Plain-command gate.** First stage of the hook. When a command mentions git, it must be plain:
 literal or quoted words; `;`, `&&`, `||`, `|`, `&` and newline separators; literal output redirects;
 none of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wrapper in command
-position; no `GIT_CONFIG_`; see the near-git rules below. craft's `"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Otherwise the
-hook denies with `craft: command too complex to verify near git — spell it plainly`; the remedy is
-to re-issue the git part plainly. On macOS `/bin/bash` 3.2 an apostrophe inside the commit-idiom
-body fails bash's own parse (hook allows; bash syntax error) — a bash limitation, not the guard.
+position; no `GIT_CONFIG_`; see the near-git rules below. Otherwise the hook denies with
+`craft: command too complex to verify near git — spell it plainly`; the remedy is to re-issue the
+git part plainly. The `"$(cat <<'EOF' … EOF)"` commit idiom that some harnesses emit is denied. On
+macOS `/bin/bash` 3.2 it fails to parse when the body holds an odd quote, an odd backtick or a
+`(`, and a `)` in the body ends the substitution early and runs the rest as shell. Commit the way
+craft's core contract teaches: `git commit -m "<message>"` (one double-quoted `-m` per
+paragraph), or `git commit -F <file>` with the file written in a separate call when the message
+holds `` " $ ` \ ! ``.
 
 **Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
 
@@ -195,7 +199,7 @@ judging), `git-plain-command-gate.js` (the copilot gate), `git-destructive-predi
 (`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s timeout
 fail open. Re-probe on 1.0.98 (live probe 2026-10-16): `git -C . push origin main` denied (ref
 unmoved); `git status --short && git tag allowed` executed; `bash -c 'git push origin main'` denied
-by the gate; the commit idiom executed; a forced deadline denied.
+by the gate; the commit idiom executed (denied since this change); a forced deadline denied.
 
 **Residuals**, written down rather than papered over:
 

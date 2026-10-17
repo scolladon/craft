@@ -68,11 +68,13 @@ craft's git-guard binds to Copilot as three layers, all of which enforce on copi
 `;`, `&&`, `||`, `|`, `&` and newline separators; literal output redirects (`> file`, `2>&1`); none
 of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wrapper in command
 position (`bash -c`, `eval`, `env`, `xargs`, `nohup`, `source`, …); no `GIT_CONFIG_`; the near-git
-rules below. craft's
-`"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Anything else is denied with `craft: command too
-complex to verify near git — spell it plainly`; the remedy is to re-issue the git part plainly. On
-macOS `/bin/bash` 3.2, an apostrophe inside the commit-idiom body fails bash's own parse (the hook
-allows it; bash reports a syntax error) — a bash limitation, not the guard.
+rules below. Anything else is denied with `craft: command too complex to verify near git — spell it
+plainly`; the remedy is to re-issue the git part plainly. The `"$(cat <<'EOF' … EOF)"` commit
+idiom that some harnesses emit is denied. On macOS `/bin/bash` 3.2 it fails to parse when the
+body holds an odd quote, an odd backtick or a `(`, and a `)` in the body ends the substitution
+early and runs the rest as shell. Commit the way craft's core contract teaches:
+`git commit -m "<message>"` (one double-quoted `-m` per paragraph), or `git commit -F <file>`
+with the file written in a separate call when the message holds `` " $ ` \ ! ``.
 
 **Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
 
@@ -93,7 +95,8 @@ timeout fail open.
 
 Re-probe on 1.0.98 (live probe 2026-10-16): `git -C . push origin main` denied (ref unmoved);
 `git status --short && git tag allowed` executed; `bash -c 'git push origin main'` denied by the
-gate; the commit idiom executed; a forced deadline (`CRAFT_GUARD_DEADLINE_MS=1`) denied.
+gate; the commit idiom executed (denied since this change); a forced deadline
+(`CRAFT_GUARD_DEADLINE_MS=1`) denied.
 
 Residuals, stated as measured or designed:
 
