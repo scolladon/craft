@@ -122,11 +122,10 @@ export function findBarePolicyTokens(text) {
  * @returns {{ prompt: string, leftovers: string[] }}
  */
 export function stripPolicyFlags(prompt) {
-  // equivalent mutant (MethodExpression / ConditionalExpression / StringLiteral):
   // split yields '' only before a leading or after a trailing separator; an
-  // empty token is never a flag, holds no '=' to be taken as a value, and
-  // joins to nothing, so keeping it changes no output.
-  const tokens = prompt.split(SEPARATOR_SPLIT).filter((t) => t !== '');
+  // empty token is never a flag, holds no '=' to be read as a value, and
+  // joins to nothing.
+  const tokens = prompt.split(SEPARATOR_SPLIT);
   const kept = [];
   let i = 0;
   while (i < tokens.length) {
