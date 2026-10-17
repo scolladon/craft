@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const { execFileSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
-const { FROM_TOP, TO_END, normaliseWhitespace, sliceProse } = require('./helpers/region-slice');
+const { FROM_TOP, TO_END, normaliseWhitespace, sliceProse, sliceRegion } = require('./helpers/region-slice');
 
 const ROOT = path.resolve(__dirname, '..');
 const RUN_SKILL_PATH = path.join(ROOT, 'skills', 'run', 'SKILL.md');
@@ -96,6 +96,28 @@ test('Given skills/run/SKILL.md phase walk step 4, when the assemble region is r
   const result = sliceProse(runSkill, /^4\. \*\*Assemble the injected block\*\*/, /^5\. \*\*Execute\*\*/);
 
   assert.ok(result.includes('PHASE-START(<phase.id>):'));
+});
+
+test('Given skills/run/SKILL.md phase walk step 4, when the assemble region is read, then it no longer tells the orchestrator to compute the time and says append stamps it', () => {
+  const result = sliceProse(runSkill, /^4\. \*\*Assemble the injected block\*\*/, /^5\. \*\*Execute\*\*/);
+
+  assert.ok(!result.includes('date -u'));
+  assert.ok(result.includes('stamps'));
+});
+
+test('Given the run-record spec token table, when the PHASE-START row is read, then it names run-ledger.sh append as the time writer', () => {
+  const vocabulary = sliceRegion(runRecordSpec, /^## Token vocabulary/, /^## /);
+
+  const result = vocabulary.split('\n').find((line) => line.startsWith('| `PHASE-START('));
+
+  assert.ok(result);
+  assert.ok(result.includes('run-ledger.sh append'));
+});
+
+test('Given skills/run/SKILL.md §Done, when read, then the --since iso is the one run-ledger.sh stamped', () => {
+  const result = sliceProse(runSkill, /^## Done/, TO_END);
+
+  assert.ok(result.includes('the iso `run-ledger.sh` stamped on that phase'));
 });
 
 test('Given skills/run/SKILL.md phase walk step 7, when the record-outcome region is read, then it appends a PHASE-DONE marker and drops the phase-boundary-flush wording', () => {

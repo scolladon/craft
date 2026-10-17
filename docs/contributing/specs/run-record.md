@@ -82,7 +82,7 @@ Seven more fixed, greppable tokens join the existing run-record family (`NO-OP(<
 |---|---|---|
 | `RESOLVE: <craft flags verbatim, or none>` | `^RESOLVE: (.*)$` (not consumed by `run-state`) | run skill §0 step 4 |
 | `AWAITING(propose): <ids comma-joined, or none>` | `^AWAITING\(propose\): (.+)$` — trimmed; `none` → `[]`, else split on `,`, each id trimmed, empty ids dropped | run skill §0 step 1d, appended at step 4 |
-| `PHASE-START(<phase>): <iso8601>` | `^PHASE-START\(([a-z][a-z0-9-]*)\): (\S+)$` | run skill walk step 4 |
+| `PHASE-START(<phase>): <iso8601>` | `^PHASE-START\(([a-z][a-z0-9-]*)\): (\S+)$` | run skill walk step 4; the `<iso8601>` is stamped by `run-ledger.sh append` |
 | `PHASE-DONE(<phase>): <one-line outcome>` | `^PHASE-DONE\(([a-z][a-z0-9-]*)\): (.*)$` | run skill walk step 7 |
 | `PART(<n>): <sha> size=<size> outcome=<pass\|blocked>` | `^PART\((\d+)\): ([0-9a-f]{7,40}) size=(\S+) outcome=(pass\|blocked)$` | implementation procedure 2 |
 | `FINDINGS(<dimension>): c<cycle> <path> n=<count>` | `^FINDINGS\(([^():\s]+)\): c(\d+) (\S+) n=(\d+)$` | review procedure 2 |
@@ -184,9 +184,10 @@ very next tool call — never held longer than that.
    `Resolution.record[]` lines in the same call. It refuses — exit 3, nothing written — a
    run-id whose trusted pointer and ledger exist; see Inherited edges.
 2. **`append`, at every phase boundary and whenever a line is produced.** Phase walk
-   step 4 appends `PHASE-START(<phase.id>):` at phase entry; step 7 appends
-   `PHASE-DONE(<phase.id>):` together with the phase's `GATE`/`NO-OP`/`inline:` lines,
-   within the same flush-per-line window.
+   step 4 appends `PHASE-START(<phase.id>):` at phase entry — `append` writes the
+   time, never the orchestrator; step 7 appends `PHASE-DONE(<phase.id>):` together
+   with the phase's `GATE`/`NO-OP`/`inline:` lines, within the same flush-per-line
+   window.
 3. **`close`, at `Done`.** Removes the pointer and the ledger, once the run record has
    been read for the final message.
 
