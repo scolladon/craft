@@ -7,9 +7,12 @@ supersedes: []
 ---
 # 595 — Copilot allows git only in plain commands and denies at a deadline
 
-- **Status:** accepted
+- **Status:** superseded by ADR-606
 - **Date:** 2026-10-16
 - **Design:** docs/contributing/design/copilot-git-argv-normalising-guard.md · **Supersedes/Refines:** refines ADR-578, ADR-594
+
+> **Superseded by ADR-606** for the commit idiom: the gate no longer recognises it, because macOS `/bin/bash` 3.2
+> ends the `$(…)` at a `)` in the body and runs the rest as shell; the rest of this decision stands.
 
 ## Context
 
