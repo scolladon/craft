@@ -141,6 +141,13 @@ const COMPLEX_COMMANDS = [
   "A=1 exec git status",
   '"$(cat <<\'EOF\'\nx\nEOF\n)" git status',
   "git -c core.fsmonitor=false status",
+  'git commit -m "$(cat <<\'EOF\'\nfeat(x): don\'t break (really)\n\nbody with $VAR and `ticks`\nEOF\n)"',
+  'git commit -m "$(cat <<\'EOF\'\nEOF\n)"',
+  'git commit -m "$(cat <<\'EOF\'\nxEOF\nEOF\n)"',
+  'git commit -m "$(cat <<\'EOF\'\nuse $VAR\nEOF\n)" -m \'plain\'',
+  'git commit -m "$(cat <<\'EOF\'\nx)"; git branch -D victim; echo "\nEOF\n)"',
+  "'a\"b' x; git status",
+  "git status; 'a\"b' x",
 ];
 
 const PLAIN_COMMANDS = [
@@ -149,7 +156,6 @@ const PLAIN_COMMANDS = [
   'git -C ../wt status',
   'git add -A && git commit -m "feat(guards): x — y"',
   "git commit -m 'feat(guards): it works'",
-  'git commit -m "$(cat <<\'EOF\'\nfeat(x): don\'t break (really)\n\nbody with $VAR and `ticks`\nEOF\n)"',
   'git log --oneline -5 | head -3',
   'git diff --no-ext-diff HEAD~1 > /tmp/d.txt 2>&1',
   'git add .',
@@ -173,8 +179,6 @@ const PLAIN_COMMANDS = [
   'git log -n +3',
   'git config user.name',
   'git\tstatus',
-  'git commit -m "$(cat <<\'EOF\'\nEOF\n)"',
-  'git commit -m "$(cat <<\'EOF\'\nxEOF\nEOF\n)"',
   "git -c user.email=p@p -c user.name=p commit -m x",
   "git -c commit.gpgsign=false commit -m x",
   "git -c color.ui=never log",
@@ -184,7 +188,6 @@ const PLAIN_COMMANDS = [
   "ls -c",
   "ps -c",
   "git status\ngit log",
-  'git commit -m "$(cat <<\'EOF\'\nuse $VAR\nEOF\n)" -m \'plain\'',
   'git -c "pager.log=false" log',
   "git -c 'pager.log=false' log",
   "./a=b exec git status",
@@ -200,6 +203,10 @@ const PLAIN_COMMANDS = [
   "git -c format.pretty=oneline log",
   "git -c diff.noprefix=true diff",
   "git -c User.Name status",
+  "git commit -m \"fix: don't stop\"",
+  "git commit -m \"fix: don't stop\" -m \"body: it's fine\"",
+  'git commit -F /tmp/commit-msg.txt',
+  "echo 'a\"b'; git status",
 ];
 
 describe('gitPlainCommandGate() — complex commands near git', () => {

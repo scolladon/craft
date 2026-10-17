@@ -19,7 +19,6 @@ const SINGLE_QUOTE_FORBIDDEN = /[$`]/;
 const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
 const QUOTES = new Set([SINGLE_QUOTE, DOUBLE_QUOTE]);
-const OPAQUE_WORD_PART = '"';
 // Wrappers are an open set, so a shell or evaluator is denied at any word position, not only after a known wrapper.
 const SHELL_OR_EVALUATOR_WORDS = Object.freeze(new Set([
   'sh', 'bash', 'zsh', 'dash', 'ksh', 'fish', 'csh', 'tcsh', 'mksh', 'yash', 'busybox', 'eval',
@@ -28,35 +27,6 @@ const WRAPPER_WORDS = Object.freeze(new Set([
   'env', 'exec', 'command', 'nohup', 'time', 'sudo', 'nice', 'timeout', 'xargs', 'source', '.',
   'trap', 'hash', 'builtin', 'enable', 'fc', 'coproc', 'alias',
 ]));
-
-const IDIOM_HEADER_SOURCE = /"\$\(cat <<'([A-Za-z_][A-Za-z0-9_]*)'\n/.source;
-// equivalent mutant (StringLiteral ""): the sticky header pattern re-checks the same opening text, so the prefix test is only a fast path.
-const IDIOM_OPEN = '"$(cat <<\'';
-const IDIOM_CLOSE = ')"';
-
-// Bash ends the heredoc at the first line equal to the delimiter, so only that line may close the idiom.
-function closingEnd(command, from, delimiter) {
-  // equivalent mutant (EqualityOperator <=): at lineStart === length indexOf('\n') is -1 and returns -1, as falling out of the loop does.
-  for (let lineStart = from; lineStart < command.length; ) {
-    const lineEnd = command.indexOf('\n', lineStart);
-    if (lineEnd === -1) return -1;
-    if (command.slice(lineStart, lineEnd) === delimiter) {
-      return command.startsWith(IDIOM_CLOSE, lineEnd + 1) ? lineEnd + 1 + IDIOM_CLOSE.length : -1;
-    }
-    lineStart = lineEnd + 1;
-  }
-  return -1;
-}
-
-// Returns the index just past the idiom, or -1 when the text at `index` is not the idiom.
-function idiomEndAt(command, index) {
-  // equivalent mutant (ConditionalExpression false): the sticky header pattern below fails at any index that does not open the idiom.
-  if (!command.startsWith(IDIOM_OPEN, index)) return -1;
-  const headerPattern = new RegExp(IDIOM_HEADER_SOURCE, 'y');
-  headerPattern.lastIndex = index;
-  const header = headerPattern.exec(command);
-  return header === null ? -1 : closingEnd(command, headerPattern.lastIndex, header[1]);
-}
 
 function doubleQuotedEnd(command, from) {
   // equivalent mutant (EqualityOperator <=): command[length] is undefined, matches neither test, and the loop then returns -1 anyway.
@@ -81,9 +51,6 @@ function quotedEnd(command, index) {
 }
 
 function quoteChunk(command, index) {
-  // equivalent mutant (ConditionalExpression true): idiomEndAt returns -1 at a single quote because the idiom opens with a double quote.
-  const idiomEnd = command[index] === DOUBLE_QUOTE ? idiomEndAt(command, index) : -1;
-  if (idiomEnd !== -1) return { end: idiomEnd, text: OPAQUE_WORD_PART };
   const end = quotedEnd(command, index);
   // equivalent mutant (ConditionalExpression false, UnaryOperator +1): an end of -1 sends the next chunkAt to command[-1], undefined, which is not plain and yields null.
   return end === -1 ? null : { end, text: command.slice(index + 1, end - 1) };
@@ -108,8 +75,9 @@ const KEEPS_COMMAND_POSITION = new Set(['if', 'then', 'else', 'elif', 'while', '
 const baseName = word => word.split('/').pop().toLowerCase();
 const isWrapperWord = word => WRAPPER_WORDS.has(baseName(word)) || SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
 const isShellOrEvaluator = word => SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
-const holdsOpaquePart = word => word.includes(OPAQUE_WORD_PART);
-const isOpaqueCommand = word => isWrapperWord(word) || holdsOpaquePart(word);
+// A literal double quote in a command name can only come from a quoting trick, so the gate cannot tell what command runs.
+const holdsDoubleQuote = word => word.includes(DOUBLE_QUOTE);
+const isOpaqueCommand = word => isWrapperWord(word) || holdsDoubleQuote(word);
 const keepsCommandPosition = word => ASSIGNMENT.test(word) || KEEPS_COMMAND_POSITION.has(word);
 
 const startingState = () => ({ atCommand: true, redirect: false });

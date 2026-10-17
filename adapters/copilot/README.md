@@ -68,11 +68,16 @@ craft's git-guard binds to Copilot as three layers, all of which enforce on copi
 `;`, `&&`, `||`, `|`, `&` and newline separators; literal output redirects (`> file`, `2>&1`); none
 of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wrapper in command
 position (`bash -c`, `eval`, `env`, `xargs`, `nohup`, `source`, …); no `GIT_CONFIG_`; the near-git
-rules below. craft's
-`"$(cat <<'EOF' … EOF)"` commit idiom is accepted. Anything else is denied with `craft: command too
-complex to verify near git — spell it plainly`; the remedy is to re-issue the git part plainly. On
-macOS `/bin/bash` 3.2, an apostrophe inside the commit-idiom body fails bash's own parse (the hook
-allows it; bash reports a syntax error) — a bash limitation, not the guard.
+rules below. Anything else is denied with `craft: command too complex to verify near git — spell it
+plainly`; the remedy is to re-issue the git part plainly. The `"$(cat <<'EOF' … EOF)"` commit
+idiom that some harnesses emit is denied. On macOS `/bin/bash` 3.2 it fails to parse when the
+body holds an odd quote, an odd backtick or an unbalanced `(`, and an unbalanced `)` in the body
+ends the substitution early and runs the rest as shell. Commit the way craft's core contract
+teaches: `git commit -m "<message>"` (one double-quoted `-m` per paragraph), or
+`git commit -F <file>` when the message holds `` " $ ` \ ! ``. On copilot the file outside the
+working tree is written by a `bash` call that does not mention git (`printf '%s\n' '<message>' >
+/tmp/msg`): `create` outside the working directory is denied, and so is a write whose message
+names git and holds `$` or a backtick.
 
 **Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
 
@@ -93,7 +98,8 @@ timeout fail open.
 
 Re-probe on 1.0.98 (live probe 2026-10-16): `git -C . push origin main` denied (ref unmoved);
 `git status --short && git tag allowed` executed; `bash -c 'git push origin main'` denied by the
-gate; the commit idiom executed; a forced deadline (`CRAFT_GUARD_DEADLINE_MS=1`) denied.
+gate; the commit idiom executed (denied since 2026-10-17); a forced deadline
+(`CRAFT_GUARD_DEADLINE_MS=1`) denied.
 
 Residuals, stated as measured or designed:
 
@@ -120,7 +126,9 @@ Residuals, stated as measured or designed:
   chain that took 49 s then aborted now denies in 0.06 s, and the verdict deadline backs this up.
   Every fail-closed denial carries a reason.
 - **Intended false blocks**, each costing one re-issue with a literal command: `git commit -c <rev>` (read as an unsafe `-c` key); `git add scripts/sh`; `bash -c 'git status'`;
-  an apostrophe plus `$` in a quoted word (`git commit -m "it's $HOME"`); a `#` comment
+  an apostrophe plus `$` in a quoted word (`git commit -m "it's $HOME"`); a commit-message
+  write whose message names git and holds `$` or a backtick (`printf %s 'fix(git): costs $5' > /tmp/m`,
+  rephrase it); a `#` comment
   (`git log # c`); `<` input redirects (`git diff > o < i`); `echo git push`; a
   dynamic command head; a dynamic word at git's option or subcommand position (`git $OPTS status`);
   a dynamic `reset`/`branch` argument (`git reset $SHA`); pattern words (brace/glob) near a verb

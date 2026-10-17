@@ -212,7 +212,16 @@ census as "unexpected false block": git reached only through a short-circuited `
 in a pipeline subshell, or a `cat <(…)` log race. The default seed stays green. Classify them (or make
 the oracle wait for process substitutions) so the scale knob is usable as a gate.
 
-**Craft's heredoc commit idiom fails under macOS `/bin/bash` 3.2 when the message holds an apostrophe.**
+**Craft's heredoc commit idiom fails under macOS `/bin/bash` 3.2 when the message holds an apostrophe
+— delivered 2026-10-17** (fix/bash32-heredoc-commit-idiom). Craft never taught the idiom (harness
+defaults emit it); `contracts/core.md` now teaches a `Commit form:` both shells parse — double-quoted
+`git commit -m "…"`, or `git commit -F <file>` when the message holds `` " $ ` \ ! `` (ADR-605, ADR-607),
+pinned by `CORE_MARKERS` and a substance test. Pinned on bash 3.2.57: an odd quote, odd backtick or
+unbalanced `(` in the body is a syntax error, and an unbalanced `)` closes the substitution early and
+runs the rest as shell — `git commit -m "$(cat <<'EOF'⏎x)"; git branch -D victim; echo "⏎EOF⏎)"` was
+allowed by `copilotGuard` and deleted the branch. The copilot plain-command gate now denies the idiom
+(ADR-606), and the copilot README and gate spec state the taught form. Design:
+[bash32-heredoc-commit-idiom](docs/contributing/design/bash32-heredoc-commit-idiom.md). Original entry:
 `git commit -m "$(cat <<'EOF' … don't … EOF)"` is a syntax error in bash 3.2 (reproduced locally and live
 on copilot, which runs `/bin/bash`); bash 5 accepts it. The copilot guard allows the idiom; bash rejects
 it. Document the workaround for bindings that shell out to bash 3.2 (multiple `-m "…"` with double
@@ -222,6 +231,15 @@ quotes), or pick a commit form both shells parse.
 `write_bash` tool (`{shellId, input}`) the guard never sees. Headless sessions have stdin at EOF, so
 nothing reaches the shell (probed); an interactive session with a pty may differ. Probe it with a
 throwaway home and a stub git before relying on the guard interactively.
+
+**The copilot "intended false blocks" list understates the quoted-word rule.** `adapters/copilot/README.md`
+and `docs/contributing/specs/gate.md` list "an apostrophe plus `$` in a quoted word
+(`git commit -m "it's $HOME"`)", but the gate denies any `$` or backtick in a quoted word and any `\` or
+`!` in a double-quoted one, apostrophe or not (`DOUBLE_QUOTE_FORBIDDEN` / `SINGLE_QUOTE_FORBIDDEN` in
+`engine/src/guards/git-plain-command-gate.js`; matrix rows `'fix: costs $5'` and `"fix: stop!"` deny in
+[bash32-heredoc-commit-idiom](docs/contributing/design/bash32-heredoc-commit-idiom.md)). Not folded into
+that run: it is a claim about the false-block list, not about the commit idiom. Restate the item as the
+rule.
 
 ### Open (scoped 2026-10-15 — follow-ups surfaced by the codex-0162-reprobe run, not yet scheduled)
 
@@ -1158,7 +1176,7 @@ offenders positively and asserting a non-empty scan set), and all 15 comment ref
 **Stronger destructive-git denial for the Copilot binding — delivered 2026-10-16**
 (feat/copilot-git-argv-normalising-guard). A live probe showed copilot >= 1.0.92 honours a
 `preToolUse` deny (`permissionDecision: "deny"`; the 1.0.63 probe used a key copilot ignores), so the
-hook now enforces (ADR-578): a plain-command gate (ADR-595, ADR-596) → `gitDestructivePredicate` over
+hook now enforces (ADR-578): a plain-command gate (ADR-596, ADR-606) → `gitDestructivePredicate` over
 normalised argv (push, `reset --hard`, forced branch delete, non-dry-run clean, inline aliases and
 config channels; ADR-579/583/584/590) → the shared guard, with the verdict computed in a worker thread
 and denied at a 5 s deadline so copilot's ~30 s hook timeout cannot fail open. `--deny-tool` stays the
