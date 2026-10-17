@@ -615,3 +615,7 @@ bash32-heredoc-commit-idiom design turns=68 tool_calls=90 tokens=5511383 duratio
 bash32-heredoc-commit-idiom implementation turns=38 tool_calls=56 tokens=1102718 duration_ms=256338 cache_read=1014469 cache_creation=86357 output=1816 avg_ctx=28971 equiv=218549
 bash32-heredoc-commit-idiom planning turns=96 tool_calls=104 tokens=8941007 duration_ms=964159 cache_read=8768134 cache_creation=166821 output=5860 avg_ctx=93074 equiv=1114832
 bash32-heredoc-commit-idiom review turns=117 tool_calls=136 tokens=4700218 duration_ms=1015868 cache_read=4453731 cache_creation=243925 output=2328 avg_ctx=40153 equiv=762153
+fold-in-scope-followups design turns=53 tool_calls=55 tokens=3005267 duration_ms=528349 cache_read=2913005 cache_creation=91599 output=557 avg_ctx=56693 equiv=408690
+fold-in-scope-followups implementation turns=15 tool_calls=17 tokens=392351 duration_ms=141663 cache_read=334508 cache_creation=57191 output=622 avg_ctx=26115 equiv=108080
+fold-in-scope-followups planning turns=30 tool_calls=31 tokens=1558900 duration_ms=407463 cache_read=1475274 cache_creation=83120 output=446 avg_ctx=51948 equiv=253717
+fold-in-scope-followups review turns=56 tool_calls=61 tokens=1429125 duration_ms=445938 cache_read=1241772 cache_creation=184930 output=2311 avg_ctx=25479 equiv=367007
