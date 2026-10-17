@@ -37,6 +37,7 @@ const PAYLOAD_DISCIPLINE_PHRASES = ['<main-repo-dir>',
   'no secret or env assignment'];
 const SOURCE_FOLD_SUFFIX = '(outside the executing-harness run)';
 const FILED_CARDINALITY_PHRASE = 'one line per locus file of each finding filed';
+const NO_FILE_KEY_PHRASE = 'A finding with no locus file of its own keys on the run\'s design doc path';
 const SUB_STEP_MARKERS = ['**Inventory**', '**Triage**', '**Fold:**', '**File**'];
 const BOUNDARY_PHRASES = ['git diff --name-only <base>...HEAD',
   'in at most one file outside the diff', 'contradicts what the diff now makes true',
@@ -80,7 +81,8 @@ test('Given the documentation skill\'s synthesis step, when its sub-steps and th
 test('Given the documentation skill\'s synthesis step, when its record text is read, then it bounds the token payloads and marks a source fold', () => {
   const sut = synthesis;
 
-  for (const phrase of [SKILL_PATH_DISCIPLINE_PHRASE, ...PAYLOAD_DISCIPLINE_PHRASES, SOURCE_FOLD_SUFFIX]) {
+  for (const phrase of [SKILL_PATH_DISCIPLINE_PHRASE, ...PAYLOAD_DISCIPLINE_PHRASES, SOURCE_FOLD_SUFFIX,
+    NO_FILE_KEY_PHRASE]) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
 });
@@ -117,7 +119,7 @@ test('Given the run-record spec\'s fold-token bullets, when the vocabulary is re
   const sut = sliceProse(spec, VOCABULARY_START, NEXT_H2);
 
   for (const phrase of [FILED_CARDINALITY_PHRASE, SOURCE_FOLD_SUFFIX, SPEC_PATH_DISCIPLINE_PHRASE,
-    ...PAYLOAD_DISCIPLINE_PHRASES]) {
+    ...PAYLOAD_DISCIPLINE_PHRASES, NO_FILE_KEY_PHRASE]) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
 });

@@ -70,7 +70,8 @@ Runs in parallel with the validation phase's background run.
       discarded and is filed with
       `Not folded: the fix did not pass <gate> — <first failing line>`. After each fold
       commit, append `FOLDED(<file>): <finding> -> <sha>` to the ledger, one line per
-      locus file. A source fold's line ends with `(outside the executing-harness run)`,
+      locus file. A finding with no locus file of its own keys on the run's design doc
+      path. A source fold's line ends with `(outside the executing-harness run)`,
       which is how the PR trailer names it.
    4. **File** the rest as new backlog follow-up entries (full context, cross-links,
       placed per the repo's ordering convention); they are what a future craft run

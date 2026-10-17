@@ -133,7 +133,8 @@ The tokens below are greppable only: no regex row, and `run-state` does not cons
 - `FOLDED(<file>): <finding> -> <sha>` — emitted by the `documentation` phase's
   synthesis fold step, one line per folded finding, appended after its fold commit.
   `<file>` is the finding's repo-relative locus file; a fold that spans several files
-  writes one line per file. `<sha>` is the fold commit. Nothing splits on the ` -> `. A
+  writes one line per file. A finding with no locus file of its own keys on the run's
+  design doc path. `<sha>` is the fold commit. Nothing splits on the ` -> `. A
   source fold's line ends with `(outside the executing-harness run)`.
 - `FILED(<file>): <finding> — not folded: <reason>` — emitted by the same step, one line
   per locus file of each finding filed as a backlog entry, appended after the entry
