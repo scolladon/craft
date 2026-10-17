@@ -315,6 +315,17 @@ describe('copilotGuard() — destructive git first, then the tool-call guard', (
     });
   });
 
+  it('Given a heredoc commit idiom whose body closes the substitution before a forced branch delete, when copilotGuard runs, then the plain-command gate reason wins', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git commit -m "$(cat <<\'EOF\'\nx)"; git branch -D victim; echo "\nEOF\n)"'));
+
+    assert.deepEqual(result, {
+      block: true,
+      reason: COMPLEX_NEAR_GIT_REASON,
+    });
+  });
+
   it('Given a shell behind an unlisted wrapper, when copilotGuard runs, then the plain-command gate reason wins', () => {
     const sut = copilotGuard;
 
