@@ -83,7 +83,8 @@ Pre-approval never travels through an election.
 A token the strip keeps but a reader could still take for the flag — invisible characters inside
 it, Unicode dashes, non-ASCII homoglyphs, another case, punctuation or markdown emphasis glued to
 it (`(--policy`, `--policy:`, `**--policy**`) — is
-not removed but reported: the call exits 3 and the run writes the status without an election.
+not removed but reported. Detection fails closed: any non-ASCII letter may stand in for the
+letter at its place, so `--` followed by any six non-ASCII letters (`--привет`) is reported too. Either way the call exits 3 and the run writes the status without an election.
 
 Quoted or backticked mentions are kept. Residual risk: an orchestrator could still read a quoted
 mention as a flag, so the driver's own outward guard stays the real boundary.

@@ -18,7 +18,7 @@ const WHITESPACE_RUN = /\s+/g;
 // A reader that splits on NEL, ESC-sequences or NUL must still see one line.
 const UNPRINTABLE = /[\p{Cc}\p{Cf}\u2028\u2029]/gu;
 // Invisible code points a reader does not see inside the token.
-const INVISIBLE_CHARS = /[\p{Default_Ignorable_Code_Point}\u2800]/gu;
+const INVISIBLE_CHARS = /[\p{Cf}\p{Default_Ignorable_Code_Point}\u2800]/gu;
 const DASH_LIKE = /[\p{Pd}\u2212]/gu;
 const EDGE_PUNCTUATION = /^[()[\]{}<>.,:;!?*_~]+|[()[\]{}<>.,:;!?*_~]+$/g;
 // Any non-ASCII letter may stand for its ASCII homoglyph.

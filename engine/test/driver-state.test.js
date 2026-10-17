@@ -160,6 +160,11 @@ const LOOKALIKE_FLAGS = Object.freeze([
   'a --policy\u3164 push=always b',
   'a --policy\u2800 push=always b',
   'a --p\u043Elicy push=always b',
+  'a --\u0440olicy push=always b',
+  'a --po\u0406icy push=always b',
+  'a --polic\u0443 push=always b',
+  'the --привет flag',
+  'a --policy\uFFF9 push=always b',
 ]);
 
 for (const input of LOOKALIKE_FLAGS) {
