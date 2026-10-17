@@ -11,6 +11,7 @@
 #        run-ledger.sh locate --run <run-id>
 #        run-ledger.sh close <run-id>
 #        run-ledger.sh dir
+# append stamps each PHASE-START(<phase>): record with its own UTC clock.
 set -euo pipefail
 export LC_ALL=C
 
@@ -22,6 +23,7 @@ readonly RUN_ID_PATTERN='^[a-z0-9][a-z0-9-]*$'
 readonly PHASE_PATTERN='^[a-z][a-z0-9-]*$'
 readonly RUN_KEY_PATTERN='^[a-z0-9][a-z0-9-]*@[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 readonly UTC_STAMP_FORMAT='+%Y-%m-%dT%H:%M:%SZ'
+readonly PHASE_START_PATTERN='^(PHASE-START\([a-z][a-z0-9-]*\):)( .*)?$'
 readonly OPEN_RUN_EXIT=3
 
 usage_exit() {
@@ -185,6 +187,17 @@ cmd_open() {
   printf '%s %s\n' "$run_key" "$target"
 }
 
+# The caller never supplies a phase-start time: a model-written one has been
+# seen to postdate the very events it marks.
+stamp_record() {
+  local line="$1"
+  if [[ ! $line =~ $PHASE_START_PATTERN ]]; then printf '%s' "$line"; return; fi
+  [ -z "${BASH_REMATCH[2]}" ] || printf 'run-ledger: append: replaced a supplied PHASE-START time\n' >&2
+  local token="${BASH_REMATCH[1]}" now
+  now="$(utc_now)" || return
+  printf '%s %s' "$token" "$now"
+}
+
 cmd_append() {
   local run_id="${1:-}" phase="${2:-}"
   [ -n "$phase" ] || usage_exit
@@ -193,10 +206,11 @@ cmd_append() {
   resolve_git_common || die "not inside a git repository's work tree"
   require_trusted_pointer "$run_id"
   [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
-  local wrote=0 line
+  local wrote=0 line record
   while IFS= read -r line || [ -n "$line" ]; do
     [ -n "$line" ] || continue
-    printf '%s %s %s\n' "$run_id" "$phase" "$line" >> "$ledger"
+    record="$(stamp_record "$line")"
+    printf '%s %s %s\n' "$run_id" "$phase" "$record" >> "$ledger"
     wrote=1
   done
   [ "$wrote" -eq 1 ] || die "no non-blank input for $run_id $phase"

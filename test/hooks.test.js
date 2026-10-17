@@ -5,7 +5,7 @@ const { execFileSync, spawn, spawnSync } = require('node:child_process');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { bindRun, createRunRepo, writeTranscript } = require('./helpers/craft-run');
+const { bindRun, createRunRepo, runLedger, writeTranscript } = require('./helpers/craft-run');
 
 const ROOT = path.join(__dirname, '..');
 const HOOKS_DIR = path.join(ROOT, 'hooks');
@@ -911,6 +911,42 @@ test(
 
       assert.strictEqual(result.status, 0);
       assert.match(result.stdout, /phase\(s\) in flight: implementation;/);
+    } finally {
+      bound.cleanup();
+    }
+  },
+);
+
+test(
+  'Given a PHASE-START(design) appended through run-ledger.sh without a time, when steer-compact-summary runs, then design is reported in flight',
+  () => {
+    const bound = bindRun();
+    try {
+      runLedger(bound.main, ['append', 'demo', 'design'], 'PHASE-START(design):\n');
+      const sut = runHookWithPayload;
+
+      const result = sut('steer-compact-summary.sh', steerPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+
+      assert.strictEqual(result.status, 0);
+      assert.match(result.stdout, /phase\(s\) in flight: design;/);
+    } finally {
+      bound.cleanup();
+    }
+  },
+);
+
+test(
+  'Given a PHASE-START(design) appended through run-ledger.sh without a time, when reorient-after-compact runs, then the tail line carries the stamped ISO time',
+  () => {
+    const bound = bindRun();
+    try {
+      runLedger(bound.main, ['append', 'demo', 'design'], 'PHASE-START(design):\n');
+      const sut = runHookWithPayload;
+
+      const result = sut('reorient-after-compact.sh', compactionPayload({ transcriptPath: bound.transcriptPath, cwd: bound.worktree }));
+
+      assert.strictEqual(result.status, 0);
+      assert.match(result.stdout, /demo design PHASE-START\(design\): \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/);
     } finally {
       bound.cleanup();
     }

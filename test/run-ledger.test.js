@@ -328,6 +328,88 @@ test('Given an open run, when append demo design runs from a subdirectory of a l
   });
 });
 
+const ISO_SECOND = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const STAMPED_PHASE_START = /^demo design PHASE-START\(design\): (\S+)$/;
+const utcNowSeconds = () => new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+const ledgerRecordsOf = (ledgerPath) => fs.readFileSync(ledgerPath, 'utf8').split('\n').slice(1, -1);
+
+function assertStampedBetween(record, before, after) {
+  const match = record.match(STAMPED_PHASE_START);
+  assert.ok(match, `expected a stamped PHASE-START line, got ${record}`);
+  assert.match(match[1], ISO_SECOND);
+  assert.ok(before <= match[1] && match[1] <= after, `expected ${match[1]} within [${before}, ${after}]`);
+}
+
+test('Given an open run, when append receives PHASE-START(design): with no time, then the ledger line carries a UTC stamp taken between the call start and end', () => {
+  withRun({ worktree: false }, (run) => {
+    const sut = runLedger;
+    const before = utcNowSeconds();
+
+    const result = sut(run.main, ['append', 'demo', 'design'], 'PHASE-START(design):\n');
+
+    const after = utcNowSeconds();
+    assert.strictEqual(result.status, 0);
+    const records = ledgerRecordsOf(run.ledgerPath);
+    assert.strictEqual(records.length, 1);
+    assertStampedBetween(records[0], before, after);
+    assert.strictEqual(result.stderr, '');
+  });
+});
+
+test('Given an open run, when append receives PHASE-START(design): with a supplied time, then the written time is the script own and stderr names the replacement', () => {
+  withRun({ worktree: false }, (run) => {
+    const sut = runLedger;
+    const before = utcNowSeconds();
+
+    const result = sut(run.main, ['append', 'demo', 'design'], 'PHASE-START(design): 2000-01-01T00:00:00Z\n');
+
+    const after = utcNowSeconds();
+    const records = ledgerRecordsOf(run.ledgerPath);
+    assertStampedBetween(records[0], before, after);
+    assert.ok(!records[0].includes('2000-01-01'));
+    assert.match(result.stderr, /replaced a supplied PHASE-START time/);
+  });
+});
+
+test('Given an open run, when append receives a PHASE-START whose tail holds spaces, then the whole tail is replaced by one stamp', () => {
+  withRun({ worktree: false }, (run) => {
+    const sut = runLedger;
+    const before = utcNowSeconds();
+
+    sut(run.main, ['append', 'demo', 'design'], 'PHASE-START(design): 15:10:00Z soon\n');
+
+    const after = utcNowSeconds();
+    assertStampedBetween(ledgerRecordsOf(run.ledgerPath)[0], before, after);
+  });
+});
+
+test('Given a batch mixing a RESOLVE line and a PHASE-START line, when append runs, then only the PHASE-START line is stamped and the order is kept', () => {
+  withRun({ worktree: false }, (run) => {
+    const sut = runLedger;
+    const before = utcNowSeconds();
+
+    sut(run.main, ['append', 'demo', 'design'], 'RESOLVE: none\nPHASE-START(design):\n');
+
+    const after = utcNowSeconds();
+    const records = ledgerRecordsOf(run.ledgerPath);
+    assert.strictEqual(records.length, 2);
+    assert.strictEqual(records[0], 'demo design RESOLVE: none');
+    assertStampedBetween(records[1], before, after);
+  });
+});
+
+test('Given an open run, when append receives a malformed PHASE-START, a bad phase id, a PHASE-DONE and a HARNESS-BG, then each is written verbatim', () => {
+  withRun({ worktree: false }, (run) => {
+    const sut = runLedger;
+    const lines = ['PHASE-START(design):x', 'PHASE-START(Bad):', 'PHASE-DONE(design): ok', 'HARNESS-BG(validation:fuzz): pid=1 out=o spec=none'];
+
+    const result = sut(run.main, ['append', 'demo', 'design'], `${lines.join('\n')}\n`);
+
+    assert.deepStrictEqual(ledgerRecordsOf(run.ledgerPath), lines.map((line) => `demo design ${line}`));
+    assert.strictEqual(result.stderr, '');
+  });
+});
+
 test('Given no pointer, when append runs, then it exits 1 with a stderr reason', () => {
   withRepo(({ main }) => {
     const sut = runLedger;
