@@ -331,8 +331,9 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    - `harness` (`harness-exec ∈ contract`): start background run with the `phase.harness`
      tool/scope/incremental (`craft:validation` reads them); gate `propose`
      on triage completion (see invariants below)
-   - `delivery` (`documentation`): synthesis (follow-ups, backlog guard) — may
-     parallel a running executing-harness
+   - `delivery` (`documentation`): synthesis (fold in-scope findings into this PR, file
+     the rest as follow-ups, backlog guard) — may parallel a running
+     executing-harness
    - `delivery` (`propose`): pre-propose gate; body; PR creation per policy — does
      NOT start until every id in the in-session `awaitingHarnesses` set has landed
      and its gate is green
