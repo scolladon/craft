@@ -1,8 +1,11 @@
 # 252 — Codex binding home and load path
 
-- **Status:** accepted
+- **Status:** superseded by ADR-614
 - **Date:** 2026-07-20
 - **Design:** docs/design/native-codex-binding.md · **Supersedes/Refines:** Applies ADR-085 (adapters live in-place); parallels ADR-241 (copilot adapter home in-place)
+
+> **Superseded by ADR-614** for the symlink route as a contingency fallback: it is the working path
+> for the shared skills on every install.
 
 ## Context
 
