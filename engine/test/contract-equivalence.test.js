@@ -306,6 +306,16 @@ test('Given the core commit-form line, when a descriptor is assembled in agent a
   );
 });
 
+test('Given the core commit-form line, when a descriptor is assembled, then it teaches the file fallback and forbids the heredoc idiom', () => {
+  const descriptor = DESCRIPTORS.find(d => d.id === 'planning');
+  const sut = assembleContract;
+
+  const result = sut(descriptor, {}, FRAGMENTS, { execution: 'agent' });
+
+  assert.ok(hasCI(result, 'git commit -F <file>'), 'Descriptor "planning": commit-form line lost its -F fallback');
+  assert.ok(hasCI(result, `Never -m "$(cat <<'EOF'`), 'Descriptor "planning": commit-form line lost its heredoc-idiom ban');
+});
+
 // ─── construction GUARD phrase: exact casing ──────────────────────────────
 // The behavioural eval matches this phrase in the spawn prompt with a
 // case-sensitive pattern, so the case-insensitive marker loop cannot guard it.
