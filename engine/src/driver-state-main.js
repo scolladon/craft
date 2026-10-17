@@ -22,9 +22,17 @@ const PROMPT_FILE = 'next.prompt';
 const ELECTION_FLAG = '--election';
 const PROMPT_FLAG = '--prompt';
 const ENOENT = 'ENOENT';
+const EEXIST = 'EEXIST';
+const STDIN_MARK = '-';
 
 const USAGE =
-  'usage: driver-state active | finished <pr-url> [--election <md> --prompt <file>] | blocked <phase-id> <reason…>';
+  'usage: driver-state active | finished <pr-url> [--election <md> --prompt <file>] | blocked <phase-id> <reason…|->';
+
+const STDIN_FD = 0;
+
+function readProcessStdin() {
+  return nodeFs.readFileSync(STDIN_FD, 'utf8');
+}
 
 function fail(message, io) {
   io.stderr.write(`driver-state: ${message}\n`);
@@ -43,15 +51,21 @@ function resolveStateDir(env, fs) {
     if (!fs.statSync(value).isDirectory()) {
       return { error: `${ENV_VAR} is not a directory: ${value}` };
     }
-  } catch {
-    return { error: `${ENV_VAR} does not exist: ${value}` };
+  } catch (error) {
+    return { error: statError(value, error) };
   }
   try {
     fs.accessSync(value, nodeFs.constants.W_OK);
-  } catch {
-    return { error: `${ENV_VAR} is not writable: ${value}` };
+  } catch (error) {
+    return { error: `${ENV_VAR} is not writable: ${value}: ${error.message}` };
   }
   return { dir: value };
+}
+
+function statError(value, error) {
+  return error.code === ENOENT
+    ? `${ENV_VAR} does not exist: ${value}`
+    : `${ENV_VAR}: cannot stat ${value}: ${error.message}`;
 }
 
 function parseFinishedArgs(args) {
@@ -102,14 +116,43 @@ function removeTemp(tmp, fs) {
   }
 }
 
-function publish(ctx, name, content) {
-  const tmp = join(ctx.dir, `${name}.tmp.${ctx.pid}`);
+// `status` is linked into place, not renamed: a link refuses an existing
+// target atomically, so a status that appeared after the guard is never replaced.
+function moveIntoPlace(ctx, tmp, name) {
+  const target = join(ctx.dir, name);
+  if (name !== STATUS_FILE) {
+    ctx.fs.renameSync(tmp, target);
+    return;
+  }
+  ctx.fs.linkSync(tmp, target);
+  ctx.fs.unlinkSync(tmp);
+}
+
+function writeTemp(ctx, tmp, name, content) {
   try {
     ctx.fs.writeFileSync(tmp, content, { flag: 'wx' });
-    ctx.fs.renameSync(tmp, join(ctx.dir, name));
+    return EXIT_OK;
+  } catch (error) {
+    ctx.io.stderr.write(`driver-state: cannot write ${name}: ${error.message}\n`);
+    return EXIT_WRITE_FAILED;
+  }
+}
+
+function publish(ctx, name, content) {
+  const tmp = join(ctx.dir, `${name}.tmp.${ctx.pid}`);
+  const written = writeTemp(ctx, tmp, name, content);
+  if (written !== EXIT_OK) {
+    return written;
+  }
+  try {
+    moveIntoPlace(ctx, tmp, name);
     return EXIT_OK;
   } catch (error) {
     const cleanup = removeTemp(tmp, ctx.fs);
+    if (error.code === EEXIST) {
+      ctx.io.stderr.write(`driver-state: ${name} already exists${cleanup}\n`);
+      return EXIT_STATUS_EXISTS;
+    }
     ctx.io.stderr.write(`driver-state: cannot write ${name}: ${error.message}${cleanup}\n`);
     return EXIT_WRITE_FAILED;
   }
@@ -138,9 +181,15 @@ function guardStatus(ctx) {
   return EXIT_OK;
 }
 
+// `-` reads the reason from stdin, so free text never passes through a shell
+// command line where `$(…)` or backticks would expand.
+function reasonText(ctx, reason) {
+  return reason.length === 1 && reason[0] === STDIN_MARK ? ctx.readStdin() : reason.join(' ');
+}
+
 function runBlocked(ctx, args) {
   const [phaseId, ...reason] = args;
-  const built = blockedLine(phaseId ?? '', reason.join(' '));
+  const built = blockedLine(phaseId ?? '', reasonText(ctx, reason));
   if (built.error) {
     return fail(built.error, ctx.io);
   }
@@ -151,11 +200,11 @@ function runBlocked(ctx, args) {
   return publishAll(ctx, [[STATUS_FILE, `${built.line}\n`]]);
 }
 
-function electionFiles(inputs, strip) {
+function electionFiles(inputs) {
   if (inputs.electionText === undefined) {
     return { files: [], leftovers: [] };
   }
-  const stripped = strip(inputs.promptText);
+  const stripped = stripPolicyFlags(inputs.promptText);
   return {
     files: [[ELECTION_FILE, inputs.electionText], [PROMPT_FILE, stripped.prompt]],
     leftovers: stripped.leftovers,
@@ -187,7 +236,7 @@ function runFinished(ctx, args) {
   if (guard !== EXIT_OK) {
     return guard;
   }
-  const { files, leftovers } = electionFiles(valid.inputs, ctx.strip);
+  const { files, leftovers } = electionFiles(valid.inputs);
   if (leftovers.length > 0) {
     ctx.io.stderr.write(`driver-state: prompt carries policy flags: ${leftovers.join(' ')}\n`);
     return EXIT_POLICY_LEFTOVER;
@@ -205,7 +254,7 @@ const VERBS = Object.freeze({ active: runActive, finished: runFinished, blocked:
 /**
  * @param {string[]} argv
  * @param {{ stdout: { write(s: string): void }, stderr: { write(s: string): void } }} io
- * @param {{ env?: object, fs?: object, pid?: number, strip?: Function }} [deps]
+ * @param {{ env?: object, fs?: object, pid?: number, readStdin?: () => string }} [deps]
  * @returns {number} exit code
  */
 export function main(argv, io, deps = {}) {
@@ -222,7 +271,7 @@ export function main(argv, io, deps = {}) {
     return fail(resolved.error, io);
   }
   const ctx = {
-    io, fs, dir: resolved.dir, pid: deps.pid ?? process.pid, strip: deps.strip ?? stripPolicyFlags,
+    io, fs, dir: resolved.dir, pid: deps.pid ?? process.pid, readStdin: deps.readStdin ?? readProcessStdin,
   };
   return VERBS[verb](ctx, args);
 }
