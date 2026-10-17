@@ -175,6 +175,31 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-17 — follow-ups surfaced by the unattended-backlog-driver spike, not yet scheduled)
+
+**A driver contract in `craft:run`.** An outside driver
+([spike report](https://github.com/scolladon/craft/blob/feat/unattended-backlog-driver-spike/spike/backlog-driver/REPORT.md))
+learns that a run finished only from a status file it writes as its last action, and it needs the next-item
+election in a file rather than in chat. Today every driven brief had to ask for both by hand. Found in the
+spike's runs:
+- The election copied the run's `--policy …=always` pre-approval flags into the next prompt
+  (`evidence/loop/state/entry-1.next-elected.md`, PR #67's run), which would extend pre-approval
+  to an entry nobody approved.
+- In a `claude --bg` session, the workspace phase's move into `../<repo>-<slug>` raises an EnterWorktree
+  permission-root prompt (run #69, 09:50:42), because background sessions refuse edits in the shared checkout
+  until they enter a worktree. The spike's driver answers it with a narrow PermissionRequest hook.
+
+Fix: when a driver env var names a state dir, `craft:run` writes `FINISHED <pr>` / `BLOCKED <reason>` and
+the election there, and strips `--policy` flags from the elected prompt. The workspace phase enters its
+worktree in a background session without a prompt.
+
+**The run ledger trusts the model for its timestamps.** `PHASE-START(<phase>): <iso>` lines carry a
+time the orchestrator writes into the text. In the spike's runs, late-phase stamps were round minutes
+that postdate the events: `PHASE-START(propose): 15:10:00Z` and `integrate: 15:15:00Z` after PR #70
+merged at 14:39:24Z, and `propose: 11:25:00Z` after PR #71 was created at 11:20:59Z (ledger snapshots on
+the spike branch, `evidence/bg-loop2/ledgers/`). Any timing derived from them is wrong, including
+`emit-metrics --since`. Fix: `run-ledger.sh append` stamps the line itself.
+
 ### Open (scoped 2026-10-16 — follow-ups surfaced by the native-surface-skills-title-fix run, not yet scheduled)
 
 **ADR-253 still records that codex loads the shared skills by reference.**
@@ -1406,7 +1431,14 @@ P26 (auto-skip unnecessary phases) was the last promoted candidate and shipped 2
 
 ### Open (scoped 2026-10-11 — run last, after every other open entry)
 
-**Spike an unattended backlog driver.** Today each run ends by electing the next entry and
+**Spike an unattended backlog driver — delivered 2026-10-17** (branch
+`feat/unattended-backlog-driver-spike`, learning-only and never merged; report:
+[`spike/backlog-driver/REPORT.md`](https://github.com/scolladon/craft/blob/feat/unattended-backlog-driver-spike/spike/backlog-driver/REPORT.md)).
+An outside driver ran six real entries end to end (#67–#71, CI green). `claude --bg` + `claude attach`
+won over tmux: native ask state, attach-to-answer, and supervisor auto-restart after a SIGKILL. The run
+asked rather than finished when its status file was missing. Asks are the norm: 41 of 45 past runs needed
+a person, and the person, not the driver, bounds throughput. The craft-side gaps it found are the two
+entries in the 2026-10-17 section. Original entry: Today each run ends by electing the next entry and
 handing back a prompt, and a person types `/clear` and pastes it. The session cannot clear its
 own context, so a loop that clears the backlog has to drive it from outside. Two candidates to
 spike: a `claude -p "/craft:run <brief>"` process per entry, which is a fresh context every
