@@ -2,7 +2,7 @@
  * Driver-state grammar — pure, no I/O.
  *
  * Builds the status lines a driven run reports and strips `--policy` flags
- * from a prompt so a driver cannot smuggle policy overrides through it.
+ * from an elected prompt so pre-approval never travels from one run to the next.
  */
 
 /** @type {ReadonlyArray<string>} */
@@ -10,11 +10,17 @@ export const STATUS_VERBS = Object.freeze(['FINISHED', 'BLOCKED']);
 
 export const MAX_REASON_CHARS = 240;
 
-const URL_RE = /^https?:\/\/\S+$/;
+const URL_RE = /^https?:\/\/[\x21-\x7e]+$/;
 const PHASE_ID_RE = /^[a-z][a-z0-9-]*$/;
 const POLICY_FLAG = '--policy';
 const POLICY_FLAG_INLINE_PREFIX = '--policy=';
 const WHITESPACE_RUN = /\s+/g;
+// A reader that splits on NEL, ESC-sequences or NUL must still see one line.
+const UNPRINTABLE = /[\p{Cc}\p{Cf}\u2028\u2029]/gu;
+const FORMAT_CHARS = /\p{Cf}/gu;
+const DASH_LIKE = /[\p{Pd}\u2212]/gu;
+const EDGE_PUNCTUATION = /^[()[\]{}<>.,:;!?]+|[()[\]{}<>.,:;!?]+$/g;
+const LOOKALIKE_FLAG = /^-+policy(?:=|$)/;
 const SEPARATOR_SPLIT = /(\s+)/;
 const LINE_BREAK = /[\n\r]/;
 const FLAG_VALUE_MARK = '=';
@@ -31,7 +37,7 @@ export function finishedLine(prUrl) {
 }
 
 function normalizeReason(reason) {
-  const collapsed = reason.replace(WHITESPACE_RUN, ' ').trim();
+  const collapsed = reason.replace(UNPRINTABLE, ' ').replace(WHITESPACE_RUN, ' ').trim();
   return [...collapsed].slice(0, MAX_REASON_CHARS).join('').trimEnd();
 }
 
@@ -72,14 +78,27 @@ function consumedUntil(tokens, flagIndex) {
   return isSameLineSeparator(tokens[next]) ? next + 1 : next;
 }
 
+// Wider than the strip on purpose: a token a reader could still take for the
+// flag (invisible characters, Unicode dashes, case, glued punctuation) is not
+// removed but reported, so the election is withheld rather than published.
+function looksLikeFlag(token) {
+  const normalized = token
+    .replace(FORMAT_CHARS, '')
+    .normalize('NFKC')
+    .replace(DASH_LIKE, '-')
+    .toLowerCase()
+    .replace(EDGE_PUNCTUATION, '');
+  return LOOKALIKE_FLAG.test(normalized);
+}
+
 /**
- * Bare `--policy` / `--policy=…` whitespace-delimited tokens in `text`.
+ * Whitespace-delimited tokens in `text` that read as a `--policy` flag.
  *
  * @param {string} text
  * @returns {string[]}
  */
 export function findBarePolicyTokens(text) {
-  return text.split(WHITESPACE_RUN).filter(isFlag);
+  return text.split(WHITESPACE_RUN).filter(looksLikeFlag);
 }
 
 /**

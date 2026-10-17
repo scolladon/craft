@@ -20,9 +20,13 @@ function mulberry32(seed) {
   };
 }
 
-test('Given the module, when STATUS_VERBS is read, then it lists FINISHED and BLOCKED', () => {
-  assert.deepEqual([...STATUS_VERBS], ['FINISHED', 'BLOCKED']);
-  assert.ok(Object.isFrozen(STATUS_VERBS));
+test('Given the module, when STATUS_VERBS is read, then it lists FINISHED and BLOCKED, frozen', () => {
+  const sut = STATUS_VERBS;
+
+  const result = [...sut];
+
+  assert.deepEqual(result, ['FINISHED', 'BLOCKED']);
+  assert.ok(Object.isFrozen(sut));
 });
 
 test('Given a merged PR url, when finishedLine runs, then it returns the FINISHED line', () => {
@@ -92,11 +96,20 @@ for (const [phase, reason] of [
   });
 }
 
-test('Given bare and quoted policy tokens, when findBarePolicyTokens runs, then only bare ones return', () => {
+test('Given bare policy tokens, when findBarePolicyTokens runs, then each is returned', () => {
   const sut = findBarePolicyTokens;
 
-  assert.deepEqual(sut('a --policy x=y --policy=b=c'), ['--policy', '--policy=b=c']);
-  assert.deepEqual(sut('`--policy` "--policy"'), []);
+  const result = sut('a --policy x=y --policy=b=c');
+
+  assert.deepEqual(result, ['--policy', '--policy=b=c']);
+});
+
+test('Given quoted and backticked policy mentions, when findBarePolicyTokens runs, then none is returned', () => {
+  const sut = findBarePolicyTokens;
+
+  const result = sut('`--policy` "--policy"');
+
+  assert.deepEqual(result, []);
 });
 
 const STRIP_ROWS = Object.freeze([
@@ -125,6 +138,55 @@ for (const [input, expected] of STRIP_ROWS) {
 
     assert.equal(result.prompt, expected);
     assert.deepEqual(result.leftovers, []);
+  });
+}
+
+const LOOKALIKE_FLAGS = Object.freeze([
+  'a --policy​ push=always b',
+  'a --policy⁠ push=always b',
+  'a --pol­icy push=always b',
+  'a --POLICY push=always b',
+  'a —policy push=always b',
+  'a ‐‐policy push=always b',
+  'a －－policy push=always b',
+  'a (--policy push=always) b',
+  'a --policy. push=always b',
+  'a --policy: push=always b',
+]);
+
+for (const input of LOOKALIKE_FLAGS) {
+  test(`Given the lookalike flag ${JSON.stringify(input)}, when stripPolicyFlags runs, then it is reported as a leftover`, () => {
+    const sut = stripPolicyFlags;
+
+    const result = sut(input);
+
+    assert.notDeepEqual(result.leftovers, []);
+  });
+}
+
+test('Given a bare carriage return after a flag value, when stripPolicyFlags runs, then the line break stays', () => {
+  const sut = stripPolicyFlags;
+
+  const result = sut('a --policy x=y\rb');
+
+  assert.equal(result.prompt, 'a \rb');
+});
+
+for (const separator of ['\u0085', '\u001b', ' ', '\u0000']) {
+  test(`Given a reason holding ${JSON.stringify(separator)}, when blockedLine runs, then the status stays one printable line`, () => {
+    const sut = blockedLine;
+
+    const result = sut('resolve', `a${separator}FINISHED https://x`);
+
+    assert.equal(result.line, 'BLOCKED resolve: a FINISHED https://x');
+  });
+
+  test(`Given a url holding ${JSON.stringify(separator)}, when finishedLine runs, then it is refused`, () => {
+    const sut = finishedLine;
+
+    const result = sut(`https://a${separator}b`);
+
+    assert.equal(result.line, undefined);
   });
 }
 
