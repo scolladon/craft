@@ -103,6 +103,8 @@ function statusAbsent(dir, fs) {
     fs.lstatSync(join(dir, STATUS_FILE));
     return { exists: true };
   } catch (error) {
+    // equivalent mutant (ObjectLiteral): the only reader, guardStatus, tests
+    // probe.error then probe.exists, so {} and { exists: false } both fall through.
     return error.code === ENOENT ? { exists: false } : { error };
   }
 }
@@ -277,6 +279,8 @@ const VERBS = Object.freeze({ active: runActive, finished: runFinished, blocked:
  */
 export function main(argv, io, deps = {}) {
   const [verb, ...args] = argv;
+  // equivalent mutant (StringLiteral): the fallback only has to be a non-verb;
+  // any other string, like the absent verb itself, is not an own key of VERBS.
   if (!Object.hasOwn(VERBS, verb ?? '')) {
     return fail(USAGE, io);
   }

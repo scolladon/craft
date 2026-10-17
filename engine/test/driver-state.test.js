@@ -43,6 +43,14 @@ test('Given a merged PR url, when finishedLine runs, then it returns the FINISHE
   assert.deepEqual(result, { line: 'FINISHED https://example.test/pull/70' });
 });
 
+test('Given a plain http PR url, when finishedLine runs, then it returns the FINISHED line', () => {
+  const sut = finishedLine;
+
+  const result = sut('http://example.test/pull/70');
+
+  assert.deepEqual(result, { line: 'FINISHED http://example.test/pull/70' });
+});
+
 for (const url of ['', 'https://x y', 'example.test/pull/70', 'ftp://x', ' https://x']) {
   test(`Given the bad url ${visible(url)}, when finishedLine runs, then it returns an error naming it`, () => {
     const sut = finishedLine;
@@ -60,6 +68,14 @@ test('Given a multi-line reason, when blockedLine runs, then whitespace collapse
   const result = sut('resolve', 'a\n  b');
 
   assert.deepEqual(result, { line: 'BLOCKED resolve: a b' });
+});
+
+test('Given a reason with leading whitespace, when blockedLine runs, then the line carries no leading space', () => {
+  const sut = blockedLine;
+
+  const result = sut('resolve', '  \n x');
+
+  assert.deepEqual(result, { line: 'BLOCKED resolve: x' });
 });
 
 test('Given a 300-char reason, when blockedLine runs, then the reason is cut to the maximum', () => {
@@ -89,6 +105,8 @@ test('Given a space at the cut position, when blockedLine runs, then no trailing
 for (const [phase, reason] of [
   ['Bad-Phase', 'x'],
   ['1x', 'x'],
+  ['resolve now', 'x'],
+  ['resolve!', 'x'],
   ['', 'x'],
   ['resolve', '  \n '],
 ]) {
@@ -134,6 +152,10 @@ const STRIP_ROWS = Object.freeze([
     '--skip review --profile lean --harness review.passes=2 --config x',
   ],
   ['x --policy --policy=a=b y', 'x y'],
+  ['a --policy  x=y b', 'a b'],
+  ['a --policy=x b=c', 'a b=c'],
+  ['a --policy\nx=y b', 'a \nx=y b'],
+  ['run --policy ', 'run '],
 ]);
 
 for (const [input, expected] of STRIP_ROWS) {
@@ -190,6 +212,7 @@ const NOT_LOOKALIKES = Object.freeze([
   'a -- policy here',
   'see (`--policy`) here',
   'the --профиль flag',
+  'the --po.licy flag',
 ]);
 
 for (const input of NOT_LOOKALIKES) {

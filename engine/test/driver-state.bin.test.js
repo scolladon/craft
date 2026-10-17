@@ -56,3 +56,15 @@ test('Given no args, when the wrapper runs finished, then the exit code 2 passes
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('Given a reason on stdin, when the bin runs blocked with -, then status holds the stdin text', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'driver-state-bin-'));
+  try {
+    const result = spawnSync(process.execPath, [BIN, 'blocked', 'resolve', '-'], { encoding: 'utf8', env: envWith(dir), input: 'piped reason\n' });
+
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(readFileSync(join(dir, 'status'), 'utf8'), 'BLOCKED resolve: piped reason\n');
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

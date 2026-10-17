@@ -25,6 +25,9 @@ const EDGE_PUNCTUATION = /^[()[\]{}<>.,:;!?*_~]+|[()[\]{}<>.,:;!?*_~]+$/g;
 const NON_ASCII = /[^\x00-\x7f]/gu;
 const HOMOGLYPH_SLOT = '?';
 const LOOKALIKE_FLAG = /^-+[p?][o?][l?][i?][c?][y?](?:=|$)/;
+// equivalent mutant (Regex /(\S+)/): splitting on the captured word instead of
+// the captured whitespace yields the same alternating word/separator sequence,
+// and consumers classify tokens by content, never by index parity.
 const SEPARATOR_SPLIT = /(\s+)/;
 const LINE_BREAK = /[\n\r]/;
 const FLAG_VALUE_MARK = '=';
@@ -65,6 +68,11 @@ function isFlag(token) {
   return token === POLICY_FLAG || token.startsWith(POLICY_FLAG_INLINE_PREFIX);
 }
 
+// equivalent mutants (ConditionalExpression / LogicalOperator / Regex /\s+$/
+// and /^\s+/): split keeps every token either a whole whitespace run or
+// whitespace-free, so a defined token is whitespace iff it matches /^\s+$/,
+// and an undefined one stringifies to "undefined", which no variant matches.
+// Reaching past the last token only moves a loop index already out of range.
 function isSameLineSeparator(token) {
   return token !== undefined && /^\s+$/.test(token) && !LINE_BREAK.test(token);
 }
@@ -114,6 +122,10 @@ export function findBarePolicyTokens(text) {
  * @returns {{ prompt: string, leftovers: string[] }}
  */
 export function stripPolicyFlags(prompt) {
+  // equivalent mutant (MethodExpression / ConditionalExpression / StringLiteral):
+  // split yields '' only before a leading or after a trailing separator; an
+  // empty token is never a flag, holds no '=' to be taken as a value, and
+  // joins to nothing, so keeping it changes no output.
   const tokens = prompt.split(SEPARATOR_SPLIT).filter((t) => t !== '');
   const kept = [];
   let i = 0;
