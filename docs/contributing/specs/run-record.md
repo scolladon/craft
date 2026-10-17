@@ -91,22 +91,7 @@ Seven more fixed, greppable tokens join the existing run-record family (`NO-OP(<
 A record that starts with a new token's literal prefix but fails that token's full regex
 adds a `warnings[]` entry (`run-state`) instead of parsing.
 
-## Compaction survival
-
-Two hooks bind a session to a run and never write the ledger:
-
-- `hooks/reorient-after-compact.sh` (`SessionStart` `compact`) prints the ledger path and
-  the rebuild steps into the freshly-compacted session, so the summary is not the only
-  surviving memory of the run.
-- `hooks/steer-compact-summary.sh` (`PreCompact`, empty matcher) steers the summary the
-  compactor is about to write, so it keeps the run-id, ledger path and in-flight phases
-  verbatim.
-
-Both bind by run-key: they grep the transcript for the run-key `open` printed, and a
-transcript miss or a non-repo cwd is a silent no-op — no output, exit 0, never a block.
-A rebuild reads the ledger and re-runs `run-state` (see `skills/run/SKILL.md`
-"Rebuild after compaction") to restore
-`completed`/`inFlight`/`next`/`awaitingHarnesses`/`parts`/`findings`/`background`.
+These tokens are greppable only: no regex row, and `run-state` does not consume them.
 
 - `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` — `NNN` is the superseded
   target, `MMM` the superseding ADR, `<what changed>` is the `scope` string from the
@@ -145,6 +130,31 @@ A rebuild reads the ledger and re-runs `run-state` (see `skills/run/SKILL.md`
   whitespace; it is not a total rendering — a consumer whose paths do contain whitespace
   would need a different scheme, and any future concern's merge key must state its own
   rendering rather than assume this split.
+- `FOLDED(<file>): <finding> -> <sha>` — emitted by the `documentation` phase's
+  synthesis fold step, one line per folded finding, appended after its fold commit.
+  `<file>` is the finding's repo-relative locus file; a fold that spans several files
+  writes one line per file. `<sha>` is the fold commit. Nothing splits on the ` -> `.
+- `FILED(<file>): <finding> — not folded: <reason>` — emitted by the same step, one line
+  per finding filed as a backlog entry, appended after the entry commit. `<file>` is keyed
+  as for `FOLDED`, so both verdicts on one file grep by the same key; `<reason>` is the
+  entry's `Not folded: ` sentence. Both tokens reach the PR trailer as run-record lines.
+
+## Compaction survival
+
+Two hooks bind a session to a run and never write the ledger:
+
+- `hooks/reorient-after-compact.sh` (`SessionStart` `compact`) prints the ledger path and
+  the rebuild steps into the freshly-compacted session, so the summary is not the only
+  surviving memory of the run.
+- `hooks/steer-compact-summary.sh` (`PreCompact`, empty matcher) steers the summary the
+  compactor is about to write, so it keeps the run-id, ledger path and in-flight phases
+  verbatim.
+
+Both bind by run-key: they grep the transcript for the run-key `open` printed, and a
+transcript miss or a non-repo cwd is a silent no-op — no output, exit 0, never a block.
+A rebuild reads the ledger and re-runs `run-state` (see `skills/run/SKILL.md`
+"Rebuild after compaction") to restore
+`completed`/`inFlight`/`next`/`awaitingHarnesses`/`parts`/`findings`/`background`.
 
 ## The absent-file case
 

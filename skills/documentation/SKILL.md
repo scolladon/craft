@@ -66,12 +66,14 @@ Runs in parallel with the validation phase's background run.
       (`docs(<scope>):`, `fix(<scope>):`, `test(<scope>):`). A fold beyond prose commits
       only on a green `gates.part`. A fold that turns red is reverted and filed with
       `Not folded: the fix did not pass <gate> — <first failing line>`. The PR trailer
-      names any source fold as outside the executing-harness run.
+      names any source fold as outside the executing-harness run. After each fold commit, append
+      `FOLDED(<file>): <finding> -> <sha>` to the ledger, one line per locus file.
    4. **File** the rest as new backlog follow-up entries (full context, cross-links,
       placed per the repo's ordering convention); they are what a future craft run
       resolves from. Each entry carries one sentence that opens `Not folded: ` and gives
       the reason: out of scope, needs its own decision, needs a probe, or waits on an
-      external trigger.
+      external trigger. After each entry commit, append
+      `FILED(<file>): <finding> — not folded: <reason>` to the ledger.
 
    No findings → the fold step records nothing. The PR body drafts here
    too, per the default template (repo's own `templates/pr-body.md`, else

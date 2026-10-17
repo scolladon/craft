@@ -199,6 +199,7 @@ these are emitted elsewhere — full definitions in
 | `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` | the `decisions` phase, one line per `supersedes` entry authored that run |
 | `DECISION-CITE-WAIVE(<file>): <reason>` | the `adr-lint` C3 waiver, collected from the same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE` |
 | `MEMORY-RETRACT(<concern>): <merge-key>` | the phase that owns a concern's write surface, on a mechanical re-check that disproves a stored entry |
+| `FOLDED(<file>): <finding> -> <sha>`, `FILED(<file>): <finding> — not folded: <reason>` | the `documentation` phase's synthesis fold step, one line per finding and locus file |
 
 ## Phase walk (driven by Resolution.effective[])
 
