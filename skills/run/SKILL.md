@@ -199,6 +199,7 @@ these are emitted elsewhere — full definitions in
 | `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` | the `decisions` phase, one line per `supersedes` entry authored that run |
 | `DECISION-CITE-WAIVE(<file>): <reason>` | the `adr-lint` C3 waiver, collected from the same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE` |
 | `MEMORY-RETRACT(<concern>): <merge-key>` | the phase that owns a concern's write surface, on a mechanical re-check that disproves a stored entry |
+| `FOLDED(<file>): <finding> -> <sha>`, `FILED(<file>): <finding> — not folded: <reason>` | the `documentation` phase's synthesis fold step, one line per finding and locus file |
 
 ## Phase walk (driven by Resolution.effective[])
 
@@ -331,8 +332,9 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    - `harness` (`harness-exec ∈ contract`): start background run with the `phase.harness`
      tool/scope/incremental (`craft:validation` reads them); gate `propose`
      on triage completion (see invariants below)
-   - `delivery` (`documentation`): synthesis (follow-ups, backlog guard) — may
-     parallel a running executing-harness
+   - `delivery` (`documentation`): synthesis (fold in-scope findings into this PR, file
+     the rest as follow-ups, backlog guard) — may parallel a running
+     executing-harness
    - `delivery` (`propose`): pre-propose gate; body; PR creation per policy — does
      NOT start until every id in the in-session `awaitingHarnesses` set has landed
      and its gate is green

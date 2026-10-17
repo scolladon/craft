@@ -1,6 +1,6 @@
 ---
 name: documentation
-description: Craft phase 9 - refresh affected documentation pages, tick the backlog entry under guard, author follow-ups; runs in parallel with the background validation run.
+description: Craft phase 9 - refresh affected documentation pages, tick the backlog entry under guard, fold in-scope findings into the PR and file the rest as follow-ups; runs in parallel with the background validation run.
 ---
 
 # craft:documentation
@@ -42,9 +42,50 @@ Runs in parallel with the validation phase's background run.
      not framework-asserted.
 
    Commit `docs(<slug>): backlog flip`.
-3. **Synthesis — session-owned, never delegated:** new backlog follow-up entries
-   surfaced during the run (full context, cross-links, placed per the repo's ordering
-   convention); they are what a future craft run resolves from. The PR body drafts here
+3. **Synthesis — session-owned, never delegated.** Fold before file: every finding the
+   run surfaced is triaged before any backlog entry is authored.
+   1. **Inventory** every finding no phase resolved: out-of-scope lines in agent
+      handbacks, triage EXCEPTIONs, the session's own observations, and discoveries from
+      step 1. Read them from the ledger and the handbacks; nothing new is written for it.
+      A triage EXCEPTION the background harness lands after this step gets the same
+      triage before `propose`.
+   2. **Triage** each finding to one verdict, folded or filed:
+      - A finding the brief or the design lists as out of scope is filed, whatever the
+        boundary says.
+      - It is in scope when its locus file is in `git diff --name-only <base>...HEAD`, or
+        when it concerns a claim or behaviour the diff edits, or a statement that
+        contradicts what the diff now makes true, in at most one file outside the diff.
+        The run's own design, plan and ADR docs and `BACKLOG.md` are in the diff. A
+        finding out of scope is filed.
+      - An in-scope finding whose fix needs a new decision goes to the user through the
+        blocker protocol `{ unit, reason, ≤3 options }`: fold it with an ADR authored
+        through the decisions flow, or file it. It is never folded or filed silently.
+      - An in-scope finding whose fix needs a paid or live probe, waits on an external
+        trigger, or adds feature behaviour is filed.
+      - Every other finding is folded.
+   3. **Fold:** the session makes each fix itself, in prose, or in source and tests that
+      add no feature behaviour. One commit per fold, typed by what it changes
+      (`docs(<scope>):`, `fix(<scope>):`, `test(<scope>):`). A fold beyond prose commits
+      only on a green `gates.part`. A fold that turns red has its uncommitted edit
+      discarded and is filed with
+      `Not folded: the fix did not pass <gate> — <first failing line>`. After each fold
+      commit, append `FOLDED(<file>): <finding> -> <sha>` to the ledger, one line per
+      locus file. A finding with no locus file of its own keys on the run's design doc
+      path. A source fold's line ends with `(outside the executing-harness run)`,
+      which is how the PR trailer names it.
+   4. **File** the rest as new backlog follow-up entries (full context, cross-links,
+      placed per the repo's ordering convention); they are what a future craft run
+      resolves from. Each entry carries one sentence that opens `Not folded: ` and gives
+      the reason: out of scope, needs its own decision, needs a probe, waits on an
+      external trigger, adds feature behaviour, or the fix did not pass its gate. After
+      each entry commit, append `FILED(<file>): <finding> — not folded: <reason>` to the
+      ledger, one line per locus file.
+
+   The `<finding>` and `<reason>` text follows the same discipline as `<file>`: paths
+   repo-relative, an out-of-repo location named by placeholder (`<worktree>`,
+   `<main-repo-dir>`), and no secret or env assignment copied from a handback.
+
+   No findings → the fold step records nothing. The PR body drafts here
    too, per the default template (repo's own `templates/pr-body.md`, else
    `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/pr-body.md"`; a manifest `override:` replaces it):
    three reader-first narrative sections — **Background** (the system as it stands),
