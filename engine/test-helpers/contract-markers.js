@@ -13,6 +13,7 @@ export const CORE_MARKERS = [
   'Output digest',
   'Turn budget',
   'repo-relative paths',
+  'Commit form',
 ];
 
 /** Case-insensitive substring presence — the marker proves an invariant, not its casing. */
