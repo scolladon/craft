@@ -356,7 +356,7 @@ test('Given an open run, when append receives PHASE-START(design): with no time,
   });
 });
 
-test('Given an open run, when append receives PHASE-START(design): with a supplied time, then the written time is the script own and stderr names the replacement', () => {
+test('Given an open run, when append receives PHASE-START(design): with a supplied time, then the written time comes from the script and stderr names the replacement', () => {
   withRun({ worktree: false }, (run) => {
     const sut = runLedger;
     const before = utcNowSeconds();
@@ -364,6 +364,7 @@ test('Given an open run, when append receives PHASE-START(design): with a suppli
     const result = sut(run.main, ['append', 'demo', 'design'], 'PHASE-START(design): 2000-01-01T00:00:00Z\n');
 
     const after = utcNowSeconds();
+    assert.strictEqual(result.status, 0);
     const records = ledgerRecordsOf(run.ledgerPath);
     assertStampedBetween(records[0], before, after);
     assert.ok(!records[0].includes('2000-01-01'));
@@ -376,9 +377,46 @@ test('Given an open run, when append receives a PHASE-START whose tail holds spa
     const sut = runLedger;
     const before = utcNowSeconds();
 
-    sut(run.main, ['append', 'demo', 'design'], 'PHASE-START(design): 15:10:00Z soon\n');
+    const result = sut(run.main, ['append', 'demo', 'design'], 'PHASE-START(design): 15:10:00Z soon\n');
 
     const after = utcNowSeconds();
+    assert.strictEqual(result.status, 0);
+    assertStampedBetween(ledgerRecordsOf(run.ledgerPath)[0], before, after);
+    assert.match(result.stderr, /replaced a supplied PHASE-START time/);
+  });
+});
+
+test('Given an open run, when append receives PHASE-START(design): followed only by spaces, then the line is stamped and stderr stays silent', () => {
+  withRun({ worktree: false }, (run) => {
+    const sut = runLedger;
+    const before = utcNowSeconds();
+
+    const result = sut(run.main, ['append', 'demo', 'design'], 'PHASE-START(design):  \n');
+
+    const after = utcNowSeconds();
+    assert.strictEqual(result.status, 0);
+    assertStampedBetween(ledgerRecordsOf(run.ledgerPath)[0], before, after);
+    assert.strictEqual(result.stderr, '');
+  });
+});
+
+test('Given a date earlier on PATH that prints a fixed future time, when append stamps a PHASE-START, then the stamp comes from the system clock instead', () => {
+  withRun({ worktree: false }, (run) => {
+    const shimDir = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-date-shim-'));
+    fs.writeFileSync(path.join(shimDir, 'date'), '#!/bin/sh\necho 2099-01-01T00:00:00Z\n', { mode: 0o755 });
+    const sut = (input) => spawnSync('bash', [LEDGER_SCRIPT, 'append', 'demo', 'design'], {
+      cwd: run.main,
+      input,
+      encoding: 'utf8',
+      env: { ...process.env, PATH: `${shimDir}${path.delimiter}${process.env.PATH}` },
+    });
+    const before = utcNowSeconds();
+
+    const result = sut('PHASE-START(design):\n');
+
+    const after = utcNowSeconds();
+    fs.rmSync(shimDir, { recursive: true, force: true });
+    assert.strictEqual(result.status, 0);
     assertStampedBetween(ledgerRecordsOf(run.ledgerPath)[0], before, after);
   });
 });

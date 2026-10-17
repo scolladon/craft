@@ -20,7 +20,7 @@ Under ADR-615, `append` owns the time of a `PHASE-START` record. An orchestrator
 
 ## Decision
 
-The user ratified option 1. When a `PHASE-START` record has anything after the token, `append` replaces it with its own time and writes `run-ledger: append: replaced a supplied PHASE-START time` to stderr. The exit status stays 0. A record like `PHASE-START(design):x`, with no space after the colon, does not match the token form and is written verbatim, as today.
+The user ratified option 1. When a `PHASE-START` record has anything after the token, `append` replaces it with its own time. When that tail holds more than spaces, it also writes `run-ledger: append: replaced a supplied PHASE-START time` to stderr. The exit status stays 0. A record like `PHASE-START(design):x`, with no space after the colon, does not match the token form and is written verbatim, as today.
 
 ## Consequences
 

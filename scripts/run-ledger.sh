@@ -23,7 +23,9 @@ readonly RUN_ID_PATTERN='^[a-z0-9][a-z0-9-]*$'
 readonly PHASE_PATTERN='^[a-z][a-z0-9-]*$'
 readonly RUN_KEY_PATTERN='^[a-z0-9][a-z0-9-]*@[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
 readonly UTC_STAMP_FORMAT='+%Y-%m-%dT%H:%M:%SZ'
-readonly PHASE_START_PATTERN='^(PHASE-START\([a-z][a-z0-9-]*\):)( .*)?$'
+# Absolute, so neither PATH nor an exported function can choose the clock.
+readonly DATE_BIN='/bin/date'
+readonly PHASE_START_PATTERN='^(PHASE-START\([a-z][a-z0-9-]*\):)( +(.*))?$'
 readonly OPEN_RUN_EXIT=3
 
 usage_exit() {
@@ -76,7 +78,7 @@ require_run_id() {
 }
 
 utc_now() {
-  date -u "$UTC_STAMP_FORMAT"
+  "$DATE_BIN" -u "$UTC_STAMP_FORMAT"
 }
 
 runs_dir() {
@@ -192,7 +194,7 @@ cmd_open() {
 stamp_record() {
   local line="$1"
   if [[ ! $line =~ $PHASE_START_PATTERN ]]; then printf '%s' "$line"; return; fi
-  [ -z "${BASH_REMATCH[2]}" ] || printf 'run-ledger: append: replaced a supplied PHASE-START time\n' >&2
+  [ -z "${BASH_REMATCH[3]}" ] || printf 'run-ledger: append: replaced a supplied PHASE-START time\n' >&2
   local token="${BASH_REMATCH[1]}" now
   now="$(utc_now)" || return
   printf '%s %s' "$token" "$now"
