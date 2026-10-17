@@ -16,6 +16,14 @@ Input: `$ARGUMENTS`
 
 ## 0 — Resolve
 
+0-driver. **Driver probe.** Run
+   `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh" active` via Bash. Exit 0 =
+   this run is **driven**: an outside driver set `CRAFT_DRIVER_STATE` to a state dir and waits
+   for the run's status file there (`docs/contributing/specs/driver.md`). Exit 1 = not driven;
+   nothing below changes. Exit 2 = the variable is set but unusable: surface its stderr and
+   continue undriven — a broken env never stops a run. Nothing is held in session state: every
+   later use re-runs `driver-state.sh active`, so a compaction or a resume loses nothing.
+
 0a. **Parse craft flags from the input** first: strip any `--profile <name>`,
    `--skip <id,…>`, repeatable `--harness <phase>.<knob>=<value>`, and repeatable
    `--policy <action>=<verdict>` tokens (they may appear anywhere — lead or trail;
@@ -487,6 +495,19 @@ bring their own `procedure`, dispatched verbatim (step 2).
 - **Blockers** escalate to the user as `{ phase/part, reason, ≤3 candidate options }`
   — never spin, never silently abandon.
 
+- **Driven stop**: when the run is about to end its turn at a terminal stop it cannot
+  continue from — any STOP in §0 or in the walk error paths, the workspace collision STOP, an
+  escalation the user declined or left with no way forward, a `degrade-to-blocker` policy
+  surface — its last tool call is one Bash call:
+  ```
+  driver="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh"
+  "$driver" active >/dev/null && "$driver" blocked <phase-id> "<reason>"
+  ```
+  Every §0 stop uses phase id `resolve`. An escalation is still asked first; only a stop the
+  run cannot continue from writes `BLOCKED`. The ledger stays open, so the run resumes as
+  after any STOP. Undriven, `active` exits 1 and nothing is written; a non-zero exit from
+  `blocked` is surfaced to the user, never a blocker.
+
 - **Policy consult**: before any phase performs a nameable outward action (a member of
   `POLICY_ACTIONS` — see `docs/contributing/specs/policy.md`), the session calls
   `Policy.consult(action, { effectivePolicy: Resolution.policy, binding })` over the
@@ -527,7 +548,8 @@ instead of trusting the summary it just produced.
    re-derivable from the `/craft:run` message the summary keeps verbatim.
 2. **Re-derive the Resolution.** Re-run §0 steps 0b, 1 and 1b with the flags on the
    ledger's `RESOLVE:` line; re-`load()` the memory store (1c-mem) and re-`consult()`
-   the intention view (1c-int).
+   the intention view (1c-int), and re-run
+   `driver-state.sh active` (no ledger token records it: the env is the source of truth).
 3. **Pipe that Resolution into `run-state`:**
    ```
    node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/run-state.js" <ledger-path> --run <run-id>
@@ -600,8 +622,37 @@ line. A phase with no transcript records
 `transcript=na`. Never hand-assemble a row; never write metrics into the learnings store
 `.claude/craft-memory.md`.
 
-`run-ledger.sh close <run-id>` — the last action, once the run record has been read for
+`run-ledger.sh close <run-id>` — the last ledger action, once the run record has been read for
 the final message: it removes the pointer and the ledger.
+
+**Driver hand-off.** Once `close` has run, run `driver-state.sh active`; exit 1 skips this
+paragraph. Driven (exit 0):
+- **PR merged** — elect the next item (below), write the rationale to `next.md` and the
+  ready-to-paste prompt to `next.prompt` in a fresh `mktemp -d` dir outside the working tree,
+  then call `driver-state.sh finished` with both. No election → `finished <pr-url>` alone.
+  Exit 3 (the prompt still held a bare `--policy` token) → re-run `finished <pr-url>` alone
+  and say in the final message that the election was withheld and why.
+- **No merge** (`integrate` resolved to `never`, the merge ask declined, `integrate`
+  skipped, or no remote) → `driver-state.sh blocked integrate "not merged <pr-or-branch>"`,
+  no election.
+
+```
+driver="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh"
+"$driver" active
+"$driver" finished <pr-url> --election <tmp-dir>/next.md --prompt <tmp-dir>/next.prompt
+"$driver" finished <pr-url>
+"$driver" blocked integrate "not merged <pr-or-branch>"
+```
+Each Bash call starts with the `driver=` line. The status write is the run's last tool call:
+nothing follows it but the final message. Exit 4 (a status already exists) or any other
+non-zero exit is surfaced to the user, never a blocker.
+
+**Election (driven runs only).** With `backlog: { source: file }`: the first open entry
+top-down in the backlog file that is unblocked — no unmet dependency, no paid eval, no
+interactive-only step — with the context a cold session needs (decision points, gates, known
+traps). The prompt is `/craft:run <entry>`; the script strips any `--policy` flag, because
+pre-approval belongs to the driver, per entry. `source: custom` (no list operation) or no
+`backlog:` key: no election, the status alone. An undriven run elects nothing.
 
 Final message: the PR URL (or branch name if no remote) + one-line summary + the run
 record + the `Compactions:` line verbatim when the run-level `emit-metrics` call printed
