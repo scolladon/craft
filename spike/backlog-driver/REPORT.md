@@ -249,6 +249,58 @@ Not proven for (c):
 - whether it survives its own death or a reboot;
 - that auto-restart always happens: n=1.
 
+### Two-entry queue on the hardened driver — PRs #70 and #71 (2026-10-16 13:25 → 10-17 11:22 UTC)
+
+Driver: `driver-bg.sh` at `bf72aae`, with the guard copy, inline settings, approvals snapshotted
+from the queue, the EnterWorktree approver and tri-state liveness. Evidence: `evidence/bg-loop2/`
+(`state/`, `ledgers/`, `driver.stdout`); transcripts `01350b6e…` and `b49f5c4e…`.
+
+| | entry 1 — `craft.rules` deploy step | entry 2 — bash 3.2 heredoc idiom |
+|---|---|---|
+| PR | #70 → `a56c878` (+ `4c5b94b`) | #71 → `e7f39cf` (+ `98771b5`) |
+| CI / AI traces | green / none | green / none |
+| started → merged | 13:25:29 → 14:39:24 (finished 14:44:06) = **78.6 min** | 10-16 14:44:08 → 10-17 11:22:29 ≈ **20 h 38 min** |
+| ask → answer (the person) | 13:37:29 → 14:09:03 = **32 min** (1 question) | 10-16 14:59:38 → 10-17 10:35:59 = **19 h 36 min** (2 questions) |
+| machine time (wall − person wait) | ≈ 47 min | ≈ 62 min |
+| tokens (equiv) main / sub-agents (10 each) | 2,864,129 / 1,307,260 = **4,171,389** | 4,202,403 / 2,808,242 = **7,010,646** |
+| craft-metrics sub-agent sum | 1,307,260 (exact match) | 2,808,242 (exact match) |
+| BACKLOG effect | ticked its own entry, filed none | ticked its own entry, filed 1 (see fold rule) |
+
+What the hardened driver showed live:
+
+- **EnterWorktree pre-approval held.** Every move into `../craft-<slug>` went through with no
+  person: 13:26:38, 14:42:01, 14:45:21. Each time, the old classifier still raised a false
+  "needs you (PERMISSION, no agents flag)". `5b1f545` fixes that; this run predates the fix.
+- **Lookup gaps happen and are now harmless.** `claude agents --json` printed nothing 7 times
+  (2 in entry 1, 5 in entry 2). Each was logged as `lookup gap, liveness unchanged`, with no
+  resume. One more appeared right after launch: `pid: null` at 14:44:09, alive 6 s later. The
+  grace period absorbed it. The 9 Python tracebacks in `driver.stdout` came from
+  `session_field` choking on that empty output; fixed in `6bd7986` (empty or invalid → empty
+  field, checked against a stub `claude`).
+- **The driver's entry timeout is not the run's.** The driver gave up after 6 h at 21:14:22
+  (exit 3) while entry 2 waited for its answer. The session kept running, was answered the next
+  morning, finished and wrote its status file. Status file + `claude --bg` make the run
+  independent of the driver; only the hand-off to a next entry is lost.
+- **Both asks' notifications failed** (`osascript` syntax error). The text was cut at 300 bytes
+  in the middle of a multi-byte character. `97ee4c7` fixes it (argv form, character
+  truncation); this run predates the fix. The person learned of both asks from the
+  orchestrating session instead.
+- **The person is the long pole.** Machine time was 47 and 62 min. The person's wait was 32 min
+  and 19.6 h. Unattended throughput is bounded by how fast asks get answered, not by the driver.
+
+Two run-quality findings (evidence, not driver behaviour):
+
+1. **Late-phase ledger stamps are hand-written.** Entry 1's ledger has `PHASE-START(propose):
+   15:10:00Z` and `integrate: 15:15:00Z` after PR #70 merged at 14:39:24Z. Entry 2's `propose:
+   11:25:00Z` comes after PR #71 was created at 11:20:59Z. Round-minute stamps that postdate the
+   events mean the orchestrator wrote times instead of taking them from `date`. Phase durations
+   after review in these two ledgers are unreliable; use the driver log and the PR timestamps.
+2. **The fold rule worked once and partly.** With the brief's "fold, don't file" line, #70 filed
+   nothing. #71 filed one entry about `adapters/copilot/README.md`, a file it had itself edited,
+   on the reason "a claim about the false-block list, not about the commit idiom". The rule
+   needs a defined boundary; it is the subject of the next craft run
+   (`.claude/fold-followups.brief.md`, outside this branch).
+
 ## Guard self-modification — closed in `driver-bg.sh` (2026-10-16 10:00–10:18)
 
 The gap: the guard took its approval from a brief file and its hooks from a `--settings` file,
