@@ -9,6 +9,12 @@ import {
   stripPolicyFlags,
 } from '../src/driver-state.js';
 
+// Test titles go through TAP, where a raw line separator or invisible character
+// would break the line; titles show such characters as code points instead.
+const NON_PRINTABLE = /[^\x20-\x7e]/gu;
+const visible = (text) => JSON.stringify(text)
+  .replace(NON_PRINTABLE, (char) => `\\u{${char.codePointAt(0).toString(16)}}`);
+
 function mulberry32(seed) {
   let a = seed;
   return function next() {
@@ -38,7 +44,7 @@ test('Given a merged PR url, when finishedLine runs, then it returns the FINISHE
 });
 
 for (const url of ['', 'https://x y', 'example.test/pull/70', 'ftp://x', ' https://x']) {
-  test(`Given the bad url ${JSON.stringify(url)}, when finishedLine runs, then it returns an error naming it`, () => {
+  test(`Given the bad url ${visible(url)}, when finishedLine runs, then it returns an error naming it`, () => {
     const sut = finishedLine;
 
     const result = sut(url);
@@ -86,7 +92,7 @@ for (const [phase, reason] of [
   ['', 'x'],
   ['resolve', '  \n '],
 ]) {
-  test(`Given phase ${JSON.stringify(phase)} and reason ${JSON.stringify(reason)}, when blockedLine runs, then it returns an error`, () => {
+  test(`Given phase ${visible(phase)} and reason ${visible(reason)}, when blockedLine runs, then it returns an error`, () => {
     const sut = blockedLine;
 
     const result = sut(phase, reason);
@@ -131,7 +137,7 @@ const STRIP_ROWS = Object.freeze([
 ]);
 
 for (const [input, expected] of STRIP_ROWS) {
-  test(`Given ${JSON.stringify(input)}, when stripPolicyFlags runs, then the prompt is ${JSON.stringify(expected)}`, () => {
+  test(`Given ${visible(input)}, when stripPolicyFlags runs, then the prompt is ${visible(expected)}`, () => {
     const sut = stripPolicyFlags;
 
     const result = sut(input);
@@ -168,7 +174,7 @@ const LOOKALIKE_FLAGS = Object.freeze([
 ]);
 
 for (const input of LOOKALIKE_FLAGS) {
-  test(`Given the lookalike flag ${JSON.stringify(input)}, when stripPolicyFlags runs, then it is reported as a leftover`, () => {
+  test(`Given the lookalike flag ${visible(input)}, when stripPolicyFlags runs, then it is reported as a leftover`, () => {
     const sut = stripPolicyFlags;
 
     const result = sut(input);
@@ -187,7 +193,7 @@ const NOT_LOOKALIKES = Object.freeze([
 ]);
 
 for (const input of NOT_LOOKALIKES) {
-  test(`Given the near-miss ${JSON.stringify(input)}, when stripPolicyFlags runs, then nothing is reported`, () => {
+  test(`Given the near-miss ${visible(input)}, when stripPolicyFlags runs, then nothing is reported`, () => {
     const sut = stripPolicyFlags;
 
     const result = sut(input);
@@ -205,7 +211,7 @@ test('Given a bare carriage return after a flag value, when stripPolicyFlags run
 });
 
 for (const separator of ['\u0085', '\u001b', ' ', '\u0000']) {
-  test(`Given a reason holding ${JSON.stringify(separator)}, when blockedLine runs, then the status stays one printable line`, () => {
+  test(`Given a reason holding ${visible(separator)}, when blockedLine runs, then the status stays one printable line`, () => {
     const sut = blockedLine;
 
     const result = sut('resolve', `a${separator}FINISHED https://x`);
@@ -213,7 +219,7 @@ for (const separator of ['\u0085', '\u001b', ' ', '\u0000']) {
     assert.equal(result.line, 'BLOCKED resolve: a FINISHED https://x');
   });
 
-  test(`Given a url holding ${JSON.stringify(separator)}, when finishedLine runs, then it is refused`, () => {
+  test(`Given a url holding ${visible(separator)}, when finishedLine runs, then it is refused`, () => {
     const sut = finishedLine;
 
     const result = sut(`https://a${separator}b`);
