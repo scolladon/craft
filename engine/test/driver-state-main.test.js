@@ -409,6 +409,8 @@ test('Given a temp file this call did not create, when blocked, then it exits 5 
 
     assert.equal(result.code, 5);
     assert.equal(readFileSync(join(dir, 'status.tmp.4242'), 'utf8'), 'driver-owned');
+    assert.ok(!readdirSync(dir).includes('status'));
+    assert.match(result.stderr, /cannot write status/);
   });
 });
 
@@ -450,5 +452,60 @@ test('Given the reason on stdin, when blocked with -, then status holds the stdi
 
     assert.equal(result.code, 0, result.stderr);
     assert.equal(readFileSync(join(dir, 'status'), 'utf8'), 'BLOCKED resolve: stderr said $(touch x) and `y`\n');
+  });
+});
+
+test('Given a write failing after the temp was created, when blocked, then it exits 5 and no temp remains', () => {
+  const sut = main;
+  withDir((dir) => {
+    const fs = {
+      ...realFs,
+      writeFileSync: (file, content, options) => {
+        realFs.writeFileSync(file, content.slice(0, 3), options);
+        throw Object.assign(new Error('ENOSPC: no space'), { code: 'ENOSPC' });
+      },
+    };
+
+    const result = run(sut, ['blocked', 'resolve', 'x'], { env: envOf(dir), fs });
+
+    assert.equal(result.code, 5);
+    assert.deepEqual(readdirSync(dir), []);
+  });
+});
+
+test('Given the temp unlink failing after status is linked, when blocked, then it exits 0 and warns', () => {
+  const sut = main;
+  withDir((dir) => {
+    const fs = { ...realFs, unlinkSync: () => { throw Object.assign(new Error('busy'), { code: 'EBUSY' }); } };
+
+    const result = run(sut, ['blocked', 'resolve', 'x'], { env: envOf(dir), fs });
+
+    assert.equal(result.code, 0);
+    assert.equal(readFileSync(join(dir, 'status'), 'utf8'), 'BLOCKED resolve: x\n');
+    assert.match(result.stderr, /cannot remove .*status\.tmp\..*: busy/);
+  });
+});
+
+test('Given an empty stdin, when blocked with -, then it exits 2 and writes nothing', () => {
+  const sut = main;
+  withDir((dir) => {
+    const readStdin = () => '\n';
+
+    const result = run(sut, ['blocked', 'resolve', '-'], { env: envOf(dir), readStdin });
+
+    assert.equal(result.code, 2);
+    assert.deepEqual(readdirSync(dir), []);
+  });
+});
+
+test('Given - among other reason words, when blocked, then the words are taken literally', () => {
+  const sut = main;
+  withDir((dir) => {
+    const readStdin = () => { throw new Error('stdin must not be read'); };
+
+    const result = run(sut, ['blocked', 'resolve', '-', 'x'], { env: envOf(dir), readStdin });
+
+    assert.equal(result.code, 0, result.stderr);
+    assert.equal(readFileSync(join(dir, 'status'), 'utf8'), 'BLOCKED resolve: - x\n');
   });
 });

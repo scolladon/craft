@@ -17,10 +17,14 @@ const POLICY_FLAG_INLINE_PREFIX = '--policy=';
 const WHITESPACE_RUN = /\s+/g;
 // A reader that splits on NEL, ESC-sequences or NUL must still see one line.
 const UNPRINTABLE = /[\p{Cc}\p{Cf}\u2028\u2029]/gu;
-const FORMAT_CHARS = /\p{Cf}/gu;
+// Invisible code points a reader does not see inside the token.
+const INVISIBLE_CHARS = /[\p{Default_Ignorable_Code_Point}\u2800]/gu;
 const DASH_LIKE = /[\p{Pd}\u2212]/gu;
-const EDGE_PUNCTUATION = /^[()[\]{}<>.,:;!?]+|[()[\]{}<>.,:;!?]+$/g;
-const LOOKALIKE_FLAG = /^-+policy(?:=|$)/;
+const EDGE_PUNCTUATION = /^[()[\]{}<>.,:;!?*_~]+|[()[\]{}<>.,:;!?*_~]+$/g;
+// Any non-ASCII letter may stand for its ASCII homoglyph.
+const NON_ASCII = /[^\x00-\x7f]/gu;
+const HOMOGLYPH_SLOT = '?';
+const LOOKALIKE_FLAG = /^-+[p?][o?][l?][i?][c?][y?](?:=|$)/;
 const SEPARATOR_SPLIT = /(\s+)/;
 const LINE_BREAK = /[\n\r]/;
 const FLAG_VALUE_MARK = '=';
@@ -83,11 +87,12 @@ function consumedUntil(tokens, flagIndex) {
 // removed but reported, so the election is withheld rather than published.
 function looksLikeFlag(token) {
   const normalized = token
-    .replace(FORMAT_CHARS, '')
+    .replace(INVISIBLE_CHARS, '')
     .normalize('NFKC')
     .replace(DASH_LIKE, '-')
     .toLowerCase()
-    .replace(EDGE_PUNCTUATION, '');
+    .replace(EDGE_PUNCTUATION, '')
+    .replace(NON_ASCII, HOMOGLYPH_SLOT);
   return LOOKALIKE_FLAG.test(normalized);
 }
 

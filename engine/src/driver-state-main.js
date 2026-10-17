@@ -125,7 +125,18 @@ function moveIntoPlace(ctx, tmp, name) {
     return;
   }
   ctx.fs.linkSync(tmp, target);
-  ctx.fs.unlinkSync(tmp);
+}
+
+// Once `status` is linked it is published: a temp that will not go away is a
+// warning, never a failure the driver would misread.
+function dropLinkedTemp(ctx, tmp, name) {
+  if (name !== STATUS_FILE) {
+    return;
+  }
+  const cleanup = removeTemp(tmp, ctx.fs);
+  if (cleanup !== '') {
+    ctx.io.stderr.write(`driver-state: ${name} written${cleanup}\n`);
+  }
 }
 
 function writeTemp(ctx, tmp, name, content) {
@@ -133,7 +144,9 @@ function writeTemp(ctx, tmp, name, content) {
     ctx.fs.writeFileSync(tmp, content, { flag: 'wx' });
     return EXIT_OK;
   } catch (error) {
-    ctx.io.stderr.write(`driver-state: cannot write ${name}: ${error.message}\n`);
+    // `wx` failing with EEXIST means the temp is someone else's: leave it.
+    const cleanup = error.code === EEXIST ? '' : removeTemp(tmp, ctx.fs);
+    ctx.io.stderr.write(`driver-state: cannot write ${name}: ${error.message}${cleanup}\n`);
     return EXIT_WRITE_FAILED;
   }
 }
@@ -146,16 +159,21 @@ function publish(ctx, name, content) {
   }
   try {
     moveIntoPlace(ctx, tmp, name);
-    return EXIT_OK;
   } catch (error) {
-    const cleanup = removeTemp(tmp, ctx.fs);
-    if (error.code === EEXIST) {
-      ctx.io.stderr.write(`driver-state: ${name} already exists${cleanup}\n`);
-      return EXIT_STATUS_EXISTS;
-    }
-    ctx.io.stderr.write(`driver-state: cannot write ${name}: ${error.message}${cleanup}\n`);
-    return EXIT_WRITE_FAILED;
+    return reportMoveFailure(ctx, tmp, name, error);
   }
+  dropLinkedTemp(ctx, tmp, name);
+  return EXIT_OK;
+}
+
+function reportMoveFailure(ctx, tmp, name, error) {
+  const cleanup = removeTemp(tmp, ctx.fs);
+  if (error.code === EEXIST) {
+    ctx.io.stderr.write(`driver-state: ${name} already exists${cleanup}\n`);
+    return EXIT_STATUS_EXISTS;
+  }
+  ctx.io.stderr.write(`driver-state: cannot write ${name}: ${error.message}${cleanup}\n`);
+  return EXIT_WRITE_FAILED;
 }
 
 function publishAll(ctx, files) {

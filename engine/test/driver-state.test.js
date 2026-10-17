@@ -152,6 +152,14 @@ const LOOKALIKE_FLAGS = Object.freeze([
   'a (--policy push=always) b',
   'a --policy. push=always b',
   'a --policy: push=always b',
+  'a **--policy** push=always b',
+  'a _--policy_ push=always b',
+  'a ~~--policy~~ push=always b',
+  'a --policy\uFE0F push=always b',
+  'a --pol\u034Ficy push=always b',
+  'a --policy\u3164 push=always b',
+  'a --policy\u2800 push=always b',
+  'a --p\u043Elicy push=always b',
 ]);
 
 for (const input of LOOKALIKE_FLAGS) {
@@ -160,7 +168,26 @@ for (const input of LOOKALIKE_FLAGS) {
 
     const result = sut(input);
 
-    assert.notDeepEqual(result.leftovers, []);
+    assert.equal(result.leftovers.length, 1);
+  });
+}
+
+const NOT_LOOKALIKES = Object.freeze([
+  'use --policy-file here',
+  'use --policyx here',
+  'a policy here',
+  'a -- policy here',
+  'see (`--policy`) here',
+  'the --профиль flag',
+]);
+
+for (const input of NOT_LOOKALIKES) {
+  test(`Given the near-miss ${JSON.stringify(input)}, when stripPolicyFlags runs, then nothing is reported`, () => {
+    const sut = stripPolicyFlags;
+
+    const result = sut(input);
+
+    assert.deepEqual(result.leftovers, []);
   });
 }
 
