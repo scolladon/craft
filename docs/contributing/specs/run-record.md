@@ -91,7 +91,7 @@ Seven more fixed, greppable tokens join the existing run-record family (`NO-OP(<
 A record that starts with a new token's literal prefix but fails that token's full regex
 adds a `warnings[]` entry (`run-state`) instead of parsing.
 
-These tokens are greppable only: no regex row, and `run-state` does not consume them.
+The tokens below are greppable only: no regex row, and `run-state` does not consume them.
 
 - `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` — `NNN` is the superseded
   target, `MMM` the superseding ADR, `<what changed>` is the `scope` string from the
@@ -133,11 +133,15 @@ These tokens are greppable only: no regex row, and `run-state` does not consume 
 - `FOLDED(<file>): <finding> -> <sha>` — emitted by the `documentation` phase's
   synthesis fold step, one line per folded finding, appended after its fold commit.
   `<file>` is the finding's repo-relative locus file; a fold that spans several files
-  writes one line per file. `<sha>` is the fold commit. Nothing splits on the ` -> `.
+  writes one line per file. `<sha>` is the fold commit. Nothing splits on the ` -> `. A
+  source fold's line ends with `(outside the executing-harness run)`.
 - `FILED(<file>): <finding> — not folded: <reason>` — emitted by the same step, one line
-  per finding filed as a backlog entry, appended after the entry commit. `<file>` is keyed
-  as for `FOLDED`, so both verdicts on one file grep by the same key; `<reason>` is the
-  entry's `Not folded: ` sentence. Both tokens reach the PR trailer as run-record lines.
+  per locus file of each finding filed as a backlog entry, appended after the entry
+  commit. `<file>` is keyed as for `FOLDED`, so both verdicts on one file grep by the
+  same key; `<reason>` is the entry's `Not folded: ` sentence. Both tokens reach the PR
+  trailer as run-record lines, so `<finding>` and `<reason>` carry repo-relative paths,
+  a placeholder (`<worktree>`, `<main-repo-dir>`) for an out-of-repo location, and no
+  secret or env assignment.
 
 ## Compaction survival
 

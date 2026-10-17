@@ -47,6 +47,8 @@ Runs in parallel with the validation phase's background run.
    1. **Inventory** every finding no phase resolved: out-of-scope lines in agent
       handbacks, triage EXCEPTIONs, the session's own observations, and discoveries from
       step 1. Read them from the ledger and the handbacks; nothing new is written for it.
+      A triage EXCEPTION the background harness lands after this step gets the same
+      triage before `propose`.
    2. **Triage** each finding to one verdict, folded or filed:
       - A finding the brief or the design lists as out of scope is filed, whatever the
         boundary says.
@@ -64,16 +66,23 @@ Runs in parallel with the validation phase's background run.
    3. **Fold:** the session makes each fix itself, in prose, or in source and tests that
       add no feature behaviour. One commit per fold, typed by what it changes
       (`docs(<scope>):`, `fix(<scope>):`, `test(<scope>):`). A fold beyond prose commits
-      only on a green `gates.part`. A fold that turns red is reverted and filed with
-      `Not folded: the fix did not pass <gate> — <first failing line>`. The PR trailer
-      names any source fold as outside the executing-harness run. After each fold commit, append
-      `FOLDED(<file>): <finding> -> <sha>` to the ledger, one line per locus file.
+      only on a green `gates.part`. A fold that turns red has its uncommitted edit
+      discarded and is filed with
+      `Not folded: the fix did not pass <gate> — <first failing line>`. After each fold
+      commit, append `FOLDED(<file>): <finding> -> <sha>` to the ledger, one line per
+      locus file. A source fold's line ends with `(outside the executing-harness run)`,
+      which is how the PR trailer names it.
    4. **File** the rest as new backlog follow-up entries (full context, cross-links,
       placed per the repo's ordering convention); they are what a future craft run
       resolves from. Each entry carries one sentence that opens `Not folded: ` and gives
-      the reason: out of scope, needs its own decision, needs a probe, or waits on an
-      external trigger. After each entry commit, append
-      `FILED(<file>): <finding> — not folded: <reason>` to the ledger.
+      the reason: out of scope, needs its own decision, needs a probe, waits on an
+      external trigger, adds feature behaviour, or the fix did not pass its gate. After
+      each entry commit, append `FILED(<file>): <finding> — not folded: <reason>` to the
+      ledger, one line per locus file.
+
+   The `<finding>` and `<reason>` text follows the same discipline as `<file>`: paths
+   repo-relative, an out-of-repo location named by placeholder (`<worktree>`,
+   `<main-repo-dir>`), and no secret or env assignment copied from a handback.
 
    No findings → the fold step records nothing. The PR body drafts here
    too, per the default template (repo's own `templates/pr-body.md`, else

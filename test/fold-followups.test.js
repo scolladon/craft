@@ -24,13 +24,22 @@ const FRONTMATTER_END = /^---$/;
 const DOC_BULLET_START = /^\s+- `delivery` \(`documentation`\):/;
 const PROPOSE_BULLET_START = /^\s+- `delivery` \(`propose`\):/;
 const NOT_FOUND = -1;
-const VERDICT_PHRASES = ['folded', 'filed', '`Not folded: `', 'blocker protocol',
-  'the brief or the design lists as out of scope'];
+const VERDICT_PHRASES = ['to one verdict, folded or filed', '`Not folded: `',
+  'triaged before any backlog entry is authored',
+  'the brief or the design lists as out of scope is filed, whatever the boundary says',
+  'fold it with an ADR authored through the decisions flow, or file it',
+  'It is never folded or filed silently',
+  'the reason: out of scope, needs its own decision, needs a probe, waits on an external trigger, adds feature behaviour, or the fix did not pass its gate',
+  'A triage EXCEPTION the background harness lands after this step gets the same triage before `propose`'];
+const PAYLOAD_DISCIPLINE_PHRASES = ['repo-relative', '<main-repo-dir>',
+  'no secret or env assignment'];
+const SOURCE_FOLD_SUFFIX = '(outside the executing-harness run)';
+const FILED_CARDINALITY_PHRASE = 'one line per locus file of each finding filed';
+const SUB_STEP_MARKERS = ['**Inventory**', '**Triage**', '**Fold:**', '**File**'];
 const BOUNDARY_PHRASES = ['git diff --name-only <base>...HEAD',
   'in at most one file outside the diff', 'contradicts what the diff now makes true',
   'add no feature behaviour', 'gates.part', 'outside the executing-harness run',
   'Not folded: the fix did not pass'];
-const FOLD_STEP_PHRASE = 'Fold before file';
 const AUTHORING_PHRASE = 'new backlog follow-up entries';
 const FOLD_PHRASE = 'fold in-scope findings';
 const RETIRED_DESCRIPTION_PHRASE = 'author follow-ups';
@@ -57,21 +66,28 @@ test('Given the documentation skill\'s synthesis step, when its region is read, 
   }
 });
 
-test('Given the documentation skill\'s synthesis step, when the fold step and the entry-authoring phrase are located, then the fold step comes first', () => {
+test('Given the documentation skill\'s synthesis step, when its sub-steps and the entry-authoring phrase are located, then inventory, triage, fold and file come in that order', () => {
   const sut = synthesis;
 
-  const foldIdx = sut.indexOf(FOLD_STEP_PHRASE);
-  const authorIdx = sut.indexOf(AUTHORING_PHRASE);
+  const indices = [...SUB_STEP_MARKERS, AUTHORING_PHRASE].map((marker) => sut.indexOf(marker));
 
-  assert.notStrictEqual(foldIdx, NOT_FOUND);
-  assert.notStrictEqual(authorIdx, NOT_FOUND);
-  assert.ok(foldIdx < authorIdx);
+  assert.ok(!indices.includes(NOT_FOUND), `missing marker at ${indices}`);
+  assert.deepStrictEqual(indices, [...indices].sort((a, b) => a - b));
+});
+
+test('Given the documentation skill\'s synthesis step, when its record text is read, then it bounds the token payloads and marks a source fold', () => {
+  const sut = synthesis;
+
+  for (const phrase of [...PAYLOAD_DISCIPLINE_PHRASES, SOURCE_FOLD_SUFFIX]) {
+    assert.ok(sut.includes(phrase), `missing: ${phrase}`);
+  }
 });
 
 test('Given the documentation skill\'s frontmatter, when its description is read, then it names folding in-scope findings and no longer says author follow-ups', () => {
   const sut = sliceProse(doc, DESCRIPTION_START, FRONTMATTER_END);
 
   assert.ok(sut.includes(FOLD_PHRASE));
+  assert.ok(sut.includes(FILE_REST_PHRASE));
   assert.ok(!sut.includes(RETIRED_DESCRIPTION_PHRASE));
 });
 
@@ -92,6 +108,14 @@ test('Given the run-record spec, the run skill\'s token table and the documentat
   for (const [surface, region] of Object.entries(sut)) {
     assert.ok(region.includes(FOLDED_TOKEN), `${surface} lacks ${FOLDED_TOKEN}`);
     assert.ok(region.includes(FILED_TOKEN), `${surface} lacks ${FILED_TOKEN}`);
+  }
+});
+
+test('Given the run-record spec\'s fold-token bullets, when the vocabulary is read, then FILED is one line per locus file, a source fold is marked and the payloads are bounded', () => {
+  const sut = sliceProse(spec, VOCABULARY_START, NEXT_H2);
+
+  for (const phrase of [FILED_CARDINALITY_PHRASE, SOURCE_FOLD_SUFFIX, ...PAYLOAD_DISCIPLINE_PHRASES]) {
+    assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
 });
 
