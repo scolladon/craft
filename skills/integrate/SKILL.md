@@ -47,5 +47,5 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    Declining is fine (the offer is advisory, like the signal itself); never refresh
    silently.
 5. Deliver the final summary (PR URL, what shipped, record). `run-ledger.sh close` does
-   not run here: it is the last action of the run skill's `Done`, after `save` and
+   not run here: it is the last ledger action of the run skill's `Done`, after `save` and
    metrics have read the ledger.

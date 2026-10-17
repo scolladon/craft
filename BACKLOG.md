@@ -175,6 +175,32 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-17 — follow-ups surfaced by the driver-contract-in-craft-run run, not yet scheduled)
+
+**A driven run killed between `close` and its status write has no rebuild path.** In a driven run,
+`skills/run/SKILL.md` §Done writes the status after `run-ledger.sh close`. A kill in that window leaves
+a merged PR, no ledger and no `status`, and the "Rebuild after compaction" table has no row for a closed
+ledger, so a resumed session cannot tell it should only write `FINISHED`. Proof to run first: SIGKILL a
+driven toy run right after `close` and resume it. Not folded: it needs a probe, and the design
+(`docs/contributing/design/driver-contract-in-craft-run.md`) lists it as out of scope.
+
+**`CRAFT_DRIVER_STATE` through `claude --bg --resume` is unprobed.** The live probe showed the variable
+reaching a fresh `claude --bg` session (CLI 2.1.302); `docs/contributing/specs/driver.md` tells a driver to
+set it again on `--resume`, but whether a resumed or supervisor-restarted session sees the launcher's env
+was not tested. Proof: resume a stopped probe session with and without the variable and `printenv` it.
+Not folded: it needs a probe.
+
+**`strategy: in-place` cannot run in a `claude --bg` session.** A background session refuses Write/Edit in
+the shared checkout until it isolates (the guard message names `worktree.bgIsolation`), and the in-place
+strategy keeps every edit there. The workspace skill (`skills/workspace/SKILL.md` step 2) does not say so.
+Fix candidates: document the limit, or refuse `in-place` when the session is a background one. Not folded:
+it is out of scope (listed in the design) and needs its own decision.
+
+**`.craft-validation.lock` is not git-ignored.** The validation skill writes the run-lock into the
+worktree root while `documentation` agents commit in parallel; `git check-ignore .craft-validation.lock`
+prints nothing in this repo, so a broad `git add` could commit it. Fix: an ignore entry, or a lock under
+the git common dir. Not folded: it is out of scope (no file of this change holds the lock rule).
+
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the supersede-adr-253-symlink-route run, not yet scheduled)
 
 **The codex `craft` marketplace entry installs and loads nothing.** `adapters/codex/README.md:18`
@@ -204,7 +230,8 @@ commit plan is already landed. Not folded: it is out of scope, an engine change 
 
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the unattended-backlog-driver spike, not yet scheduled)
 
-**A driver contract in `craft:run`.** An outside driver
+**A driver contract in `craft:run` — delivered 2026-10-18**
+([PR #75](https://github.com/scolladon/craft/pull/75), ADR-619–630: `CRAFT_DRIVER_STATE` names a per-entry dir where `scripts/driver-state.sh` writes `next.md`, `next.prompt` with `--policy` stripped, then `status`; the workspace reaches its worktree by absolute path, no `EnterWorktree`). An outside driver
 ([spike report](https://github.com/scolladon/craft/blob/feat/unattended-backlog-driver-spike/spike/backlog-driver/REPORT.md))
 learns that a run finished only from a status file it writes as its last action, and it needs the next-item
 election in a file rather than in chat. Today every driven brief had to ask for both by hand. Found in the

@@ -101,6 +101,8 @@ The `ask` default for `integrate` reproduces today's merge confirmation exactly,
 unconfigured repo sees no behaviour change. An explicit `always: [integrate]` in any scope
 supersedes the confirmation and enables config-driven auto-merge (ADR-128).
 
+Pre-approval never travels through an election: a driven run's ready-to-paste next prompt has every `--policy` flag stripped (see `driver.md`).
+
 ## Pi binding
 
 `consult` is called identically — same `resolvePolicy`, same effective policy map — but

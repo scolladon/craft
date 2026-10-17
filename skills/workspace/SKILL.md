@@ -38,4 +38,10 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
 4. Apply the manifest's global/workspace `context:` file now: perform any tooling
    activation it declares (the session does this — agents will receive the same file
    and must find the tooling already active). Its teardown counterpart runs at integrate.
-5. All subsequent work happens ONLY in this worktree/branch.
+5. All subsequent work happens ONLY in this worktree/branch, reached by its **absolute path**:
+   Bash as `cd <abs-worktree-path> && …`, file tools at `<abs-worktree-path>/…`, agents spawned
+   with it as their working directory. Never move the session itself with a working-directory
+   relocation tool (Claude Code's `EnterWorktree`): for a worktree outside `.claude/worktrees/`
+   it raises a permission prompt that auto mode cannot approve, which halts a background
+   session, and a background session's edit guard already accepts edits at the worktree's
+   absolute path.
