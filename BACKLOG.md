@@ -230,7 +230,8 @@ commit plan is already landed. Not folded: it is out of scope, an engine change 
 
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the unattended-backlog-driver spike, not yet scheduled)
 
-**A driver contract in `craft:run`.** An outside driver
+**A driver contract in `craft:run` — delivered 2026-10-18**
+([PR #75](https://github.com/scolladon/craft/pull/75), ADR-619–630: `CRAFT_DRIVER_STATE` names a per-entry dir where `scripts/driver-state.sh` writes `next.md`, `next.prompt` with `--policy` stripped, then `status`; the workspace reaches its worktree by absolute path, no `EnterWorktree`). An outside driver
 ([spike report](https://github.com/scolladon/craft/blob/feat/unattended-backlog-driver-spike/spike/backlog-driver/REPORT.md))
 learns that a run finished only from a status file it writes as its last action, and it needs the next-item
 election in a file rather than in chat. Today every driven brief had to ask for both by hand. Found in the
