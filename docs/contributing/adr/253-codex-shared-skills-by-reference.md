@@ -1,8 +1,11 @@
 # 253 — Codex loads shared craft skills by reference
 
-- **Status:** accepted
+- **Status:** superseded by ADR-614
 - **Date:** 2026-07-20
 - **Design:** docs/design/native-codex-binding.md · **Supersedes/Refines:** Mirrors ADR-251 (copilot shared skills by reference)
+
+> **Superseded by ADR-614** for by-reference loading of the 19 shared skills: codex's cache copy
+> drops the out-of-tree `skills` reference, so they load through `$CODEX_HOME/skills` symlinks on every install.
 
 ## Context
 

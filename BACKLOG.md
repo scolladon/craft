@@ -175,6 +175,33 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-17 — follow-ups surfaced by the supersede-adr-253-symlink-route run, not yet scheduled)
+
+**The codex `craft` marketplace entry installs and loads nothing.** `adapters/codex/README.md:18`
+tells users to run `codex plugin add craft@craft-codex-marketplace`, but the cache copy drops the
+entry's only payload, its out-of-tree `skills` reference (`docs/contributing/specs/codex-poc-record.md`
+row 1: 0 of 19). ADR-614 keeps the entry declared, and `adapters/codex/test/native-surface.test.js`
+pins `['craft', 'craft-codex']`. Fix: retire the entry (`adapters/codex/.claude-plugin/marketplace.json`,
+`adapters/codex/plugins/craft/plugin.json`, the README install line, the pinning tests), or keep it with
+the README saying it loads nothing. Not folded: it needs its own decision and changes source and tests,
+outside a docs/ADR change ([design](docs/contributing/design/supersede-adr-253-symlink-route.md),
+candidate 1 (c)).
+
+**The codex binding-home ADR still says the marketplace carries hooks, skills and agents as one unit.**
+`docs/contributing/adr/252-codex-binding-home-and-load-path.md` option 1 claims the marketplace is "the
+only one that carries `hooks` + `skills` + agents as one installable unit". `adapters/codex/README.md`
+L31–46 pins that only `craft-run` arrives that way: the cached manifest drops `hooks`, and the nine
+agents are not carried. Fix: a user-ratified ADR superseding that claim. Not folded: it is out of scope
+for this change, a different claim (hooks and agents) from the shared-skills load path ADR-614 corrects.
+
+**Planning cannot record that no part remains.** `scripts/plan-lint.sh` requires at least one part,
+and `skills/planning/SKILL.md` has no no-op outcome. In the supersede-adr-253-symlink-route run, adr-lint
+C1/C3 forced the whole change (new ADR, status flips, the `BACKLOG.md` citation sweep, the README count)
+into the decisions phase's single commit, so planning and implementation had nothing to do. The
+orchestrator recorded `NO-OP(planning)` and `NO-OP(implementation)`, which neither skill documents.
+Fix: a documented `NO-OP(planning):` outcome (and its implementation counterpart) when the design's
+commit plan is already landed. Not folded: it is out of scope, an engine change to a docs/ADR run.
+
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the unattended-backlog-driver spike, not yet scheduled)
 
 **A driver contract in `craft:run`.** An outside driver
@@ -202,12 +229,12 @@ the spike branch, `evidence/bg-loop2/ledgers/`). Any timing derived from them is
 
 ### Open (scoped 2026-10-16 — follow-ups surfaced by the native-surface-skills-title-fix run, not yet scheduled)
 
-**ADR-253 still records that codex loads the shared skills by reference.**
+**The codex shared-skills ADR still records that codex loads the shared skills by reference.**
 `docs/contributing/adr/253-codex-shared-skills-by-reference.md:1` is titled "Codex loads shared craft
 skills by reference" with status `accepted`, and its Decision chose the by-reference marketplace entry.
 `docs/contributing/specs/codex-poc-record.md:332` marks that claim DISPROVEN on 0.145.0 and 0.162.1
 (0 of 19 by reference; 19 of 19 through the `$CODEX_HOME/skills` symlinks), and
-`adapters/codex/README.md:48` says the same. `git grep 'ADR-253'` finds no superseding ADR. Fix: a
+`adapters/codex/README.md:48` says the same. No ADR supersedes it. Fix: a
 user-ratified ADR that supersedes 253 with the symlink route (its option 3), keeping the
 `adapters/codex/skills/` must-not-exist consequence.
 
