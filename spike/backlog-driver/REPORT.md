@@ -244,7 +244,7 @@ The fix is unit-tested only; a live lookup gap was not reproduced.
 
 Not proven for (c):
 
-- more than one real entry in a row under `--bg`;
+- more than two real entries in a row under `--bg` (two done: #70, #71);
 - what the supervisor does if the session crashes in a loop;
 - whether it survives its own death or a reboot;
 - that auto-restart always happens: n=1.

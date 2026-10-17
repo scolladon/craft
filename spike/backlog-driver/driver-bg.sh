@@ -119,7 +119,11 @@ session_field() {
   claude agents --json --all 2>/dev/null | python3 -c '
 import json, sys
 wanted, field = sys.argv[1], sys.argv[2]
-match = next((s for s in json.load(sys.stdin) if s.get("id") == wanted), {})
+try:
+    sessions = json.load(sys.stdin)
+except json.JSONDecodeError:
+    sessions = []  # agents --json sometimes prints nothing: the lookup gap liveness.py calls unknown
+match = next((s for s in sessions if isinstance(s, dict) and s.get("id") == wanted), {})
 value = match.get(field)
 print("" if value is None else value)' "$1" "$2"
 }
