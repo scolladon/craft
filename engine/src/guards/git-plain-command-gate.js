@@ -19,7 +19,6 @@ const SINGLE_QUOTE_FORBIDDEN = /[$`]/;
 const SINGLE_QUOTE = "'";
 const DOUBLE_QUOTE = '"';
 const QUOTES = new Set([SINGLE_QUOTE, DOUBLE_QUOTE]);
-const OPAQUE_WORD_PART = '"';
 // Wrappers are an open set, so a shell or evaluator is denied at any word position, not only after a known wrapper.
 const SHELL_OR_EVALUATOR_WORDS = Object.freeze(new Set([
   'sh', 'bash', 'zsh', 'dash', 'ksh', 'fish', 'csh', 'tcsh', 'mksh', 'yash', 'busybox', 'eval',
@@ -76,8 +75,9 @@ const KEEPS_COMMAND_POSITION = new Set(['if', 'then', 'else', 'elif', 'while', '
 const baseName = word => word.split('/').pop().toLowerCase();
 const isWrapperWord = word => WRAPPER_WORDS.has(baseName(word)) || SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
 const isShellOrEvaluator = word => SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
-const holdsOpaquePart = word => word.includes(OPAQUE_WORD_PART);
-const isOpaqueCommand = word => isWrapperWord(word) || holdsOpaquePart(word);
+// A literal double quote in a command name can only come from a quoting trick, so the gate cannot tell what command runs.
+const holdsDoubleQuote = word => word.includes(DOUBLE_QUOTE);
+const isOpaqueCommand = word => isWrapperWord(word) || holdsDoubleQuote(word);
 const keepsCommandPosition = word => ASSIGNMENT.test(word) || KEEPS_COMMAND_POSITION.has(word);
 
 const startingState = () => ({ atCommand: true, redirect: false });

@@ -171,11 +171,14 @@ none of `$ \` \ ! ( ) { } [ ] * ? < #` outside single quotes; no evaluator or wr
 position; no `GIT_CONFIG_`; see the near-git rules below. Otherwise the hook denies with
 `craft: command too complex to verify near git — spell it plainly`; the remedy is to re-issue the
 git part plainly. The `"$(cat <<'EOF' … EOF)"` commit idiom that some harnesses emit is denied. On
-macOS `/bin/bash` 3.2 it fails to parse when the body holds an odd quote, an odd backtick or a
-`(`, and a `)` in the body ends the substitution early and runs the rest as shell. Commit the way
-craft's core contract teaches: `git commit -m "<message>"` (one double-quoted `-m` per
-paragraph), or `git commit -F <file>` with the file written in a separate call when the message
-holds `` " $ ` \ ! ``.
+macOS `/bin/bash` 3.2 it fails to parse when the body holds an odd quote, an odd backtick or an
+unbalanced `(`, and an unbalanced `)` in the body ends the substitution early and runs the rest as
+shell. Commit the way craft's core contract teaches: `git commit -m "<message>"` (one
+double-quoted `-m` per paragraph), or `git commit -F <file>` when the message holds
+`` " $ ` \ ! ``. On copilot the file outside the working tree is written by a `bash` call that
+does not mention git (`printf '%s\n' '<message>' > /tmp/msg`): `create` outside the working
+directory is denied by containment, and so is a write whose message names git and holds `$` or a
+backtick.
 
 **Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
 
@@ -199,7 +202,7 @@ judging), `git-plain-command-gate.js` (the copilot gate), `git-destructive-predi
 (`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s timeout
 fail open. Re-probe on 1.0.98 (live probe 2026-10-16): `git -C . push origin main` denied (ref
 unmoved); `git status --short && git tag allowed` executed; `bash -c 'git push origin main'` denied
-by the gate; the commit idiom executed (denied since this change); a forced deadline denied.
+by the gate; the commit idiom executed (denied since ADR-606); a forced deadline denied.
 
 **Residuals**, written down rather than papered over:
 
@@ -231,7 +234,8 @@ by the gate; the commit idiom executed (denied since this change); a forced dead
   was not visible in the next, even with a reused `shellId`, and only `bash` executes shell text
   (`read_bash`, `stop_bash`, `list_bash` cannot inject input) — 1.0.92 and 1.0.98.
 - Intended false blocks, each costing one re-issue with a literal command: `git commit -c <rev>` (read as an unsafe `-c` key); `git add scripts/sh`; `bash -c 'git status'`;
-  `git commit -m "it's $HOME"`; `git log # c`; `git diff > o < i`; `echo git push` and
+  `git commit -m "it's $HOME"`; a commit-message write whose message names git and holds `$` or a
+  backtick (`printf %s 'fix(git): costs $5' > /tmp/m` — rephrase it); `git log # c`; `git diff > o < i`; `echo git push` and
   `ls /x/git push` (any-word anchoring); a dynamic command head; a dynamic word at git's option or
   subcommand position (`git $OPTS status`); a dynamic `reset`/`branch` argument (`git reset $SHA`);
   pattern words (brace/glob) near a verb word; a dynamic word before a verb word; a file named

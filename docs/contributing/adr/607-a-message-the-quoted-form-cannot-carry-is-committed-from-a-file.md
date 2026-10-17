@@ -21,8 +21,8 @@ A double-quoted `-m "…"` expands `$` and backtick in every shell, needs a `\` 
 
 ## Decision
 
-Adopted-as-recommended (no user judgment): option 1. It keeps the exact-message rule and passes every shell and the copilot gate. Writing the file and committing in one command is denied on copilot (`<` near git), so the write is a separate call.
+Adopted-as-recommended (no user judgment): option 1. It keeps the exact-message rule, and `git commit -F <file>` parses the same in every shell and passes the copilot gate. Writing the file and committing in one command is denied on copilot (`<` near git), so the write is a separate call.
 
 ## Consequences
 
-The core `Commit form:` line (ADR-605) names this fallback and its trigger characters.
+The core `Commit form:` line (ADR-605) names this fallback and its trigger characters. On copilot the write itself is constrained (pinned against `copilotGuard`): `create` outside the working directory is denied by containment, so the file is written by a `bash` call that does not mention git; a write whose message names git and holds `$` or a backtick is denied by the gate, so that message is rephrased — an intended false block.
