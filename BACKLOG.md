@@ -229,7 +229,8 @@ the spike branch, `evidence/bg-loop2/ledgers/`). Any timing derived from them is
 
 ### Open (scoped 2026-10-16 — follow-ups surfaced by the native-surface-skills-title-fix run, not yet scheduled)
 
-**The codex shared-skills ADR still records that codex loads the shared skills by reference.**
+**The codex shared-skills ADR still records that codex loads the shared skills by reference — delivered 2026-10-17**
+([PR #73](https://github.com/scolladon/craft/pull/73), ADR-614: the `$CODEX_HOME/skills` symlink route, scope ratified as the by-reference mechanism only).
 `docs/contributing/adr/253-codex-shared-skills-by-reference.md:1` is titled "Codex loads shared craft
 skills by reference" with status `accepted`, and its Decision chose the by-reference marketplace entry.
 `docs/contributing/specs/codex-poc-record.md:332` marks that claim DISPROVEN on 0.145.0 and 0.162.1

@@ -619,3 +619,4 @@ fold-in-scope-followups design turns=53 tool_calls=55 tokens=3005267 duration_ms
 fold-in-scope-followups implementation turns=15 tool_calls=17 tokens=392351 duration_ms=141663 cache_read=334508 cache_creation=57191 output=622 avg_ctx=26115 equiv=108080
 fold-in-scope-followups planning turns=30 tool_calls=31 tokens=1558900 duration_ms=407463 cache_read=1475274 cache_creation=83120 output=446 avg_ctx=51948 equiv=253717
 fold-in-scope-followups review turns=56 tool_calls=61 tokens=1429125 duration_ms=445938 cache_read=1241772 cache_creation=184930 output=2311 avg_ctx=25479 equiv=367007
+supersede-adr-253-symlink-route design turns=53 tool_calls=55 tokens=3421948 duration_ms=561784 cache_read=3316137 cache_creation=105213 output=492 avg_ctx=64556 equiv=465696
