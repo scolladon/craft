@@ -185,8 +185,9 @@ very next tool call — never held longer than that.
    run-id whose trusted pointer and ledger exist; see Inherited edges.
 2. **`append`, at every phase boundary and whenever a line is produced.** Phase walk
    step 4 appends `PHASE-START(<phase.id>):` at phase entry — `append` writes the
-   time, never the orchestrator; step 7 appends `PHASE-DONE(<phase.id>):` together with the phase's `GATE`/`NO-OP`/`inline:` lines,
-   within the same flush-per-line window.
+   time, never the orchestrator; step 7 appends `PHASE-DONE(<phase.id>):` together
+   with the phase's `GATE`/`NO-OP`/`inline:` lines, within the same flush-per-line
+   window.
 3. **`close`, at `Done`.** Removes the pointer and the ledger, once the run record has
    been read for the final message.
 
