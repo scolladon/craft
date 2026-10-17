@@ -1158,7 +1158,7 @@ offenders positively and asserting a non-empty scan set), and all 15 comment ref
 **Stronger destructive-git denial for the Copilot binding — delivered 2026-10-16**
 (feat/copilot-git-argv-normalising-guard). A live probe showed copilot >= 1.0.92 honours a
 `preToolUse` deny (`permissionDecision: "deny"`; the 1.0.63 probe used a key copilot ignores), so the
-hook now enforces (ADR-578): a plain-command gate (ADR-595, ADR-596) → `gitDestructivePredicate` over
+hook now enforces (ADR-578): a plain-command gate (ADR-596, ADR-606) → `gitDestructivePredicate` over
 normalised argv (push, `reset --hard`, forced branch delete, non-dry-run clean, inline aliases and
 config channels; ADR-579/583/584/590) → the shared guard, with the verdict computed in a worker thread
 and denied at a 5 s deadline so copilot's ~30 s hook timeout cannot fail open. `--deny-tool` stays the
