@@ -40,7 +40,7 @@ test('Given the Rebuild section, when step 2 is read, then it re-runs driver-sta
 test('Given the cross-phase invariants, when the Driven stop bullet is read, then its last call writes BLOCKED through driver-state.sh blocked and §0 stops use phase id resolve', () => {
   const sut = sliceProse(run, DRIVEN_STOP_START, POLICY_CONSULT);
 
-  for (const phrase of ['"$driver" blocked <phase-id>', 'active >/dev/null &&',
+  for (const phrase of ['"$driver" blocked <phase-id> - <<\'REASON\'', 'active >/dev/null &&', 'never expanded by the shell',
     'phase id `resolve`', 'degrade-to-blocker', 'workspace collision']) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
@@ -52,7 +52,9 @@ test('Given the Done section, when read, then the ledger close precedes the hand
   const close = sut.indexOf('run-ledger.sh close');
   const handoff = sut.indexOf('Driver hand-off');
   const finished = sut.indexOf('"$driver" finished');
-  assert.ok(close !== NOT_FOUND && close < handoff && handoff < finished);
+  assert.notEqual(close, NOT_FOUND, 'missing: run-ledger.sh close');
+  assert.ok(close < handoff, 'the hand-off must follow the ledger close');
+  assert.ok(handoff < finished, 'the status write must follow the hand-off heading');
   assert.ok(sut.includes('the last ledger action'));
   assert.ok(sut.includes('last tool call'));
 });
@@ -60,7 +62,7 @@ test('Given the Done section, when read, then the ledger close precedes the hand
 test('Given the hand-off paragraph, when read, then it covers the no-merge status, the election files and the exit codes', () => {
   const sut = sliceProse(run, HANDOFF_START, FINAL_MESSAGE);
 
-  for (const phrase of ['blocked integrate "not merged <pr-or-branch>"', 'next.md', 'next.prompt',
+  for (const phrase of ['blocked integrate - <<\'REASON\'', 'not merged <pr-or-branch>', 'next.md', 'next.prompt',
     'mktemp -d', 'Exit 3', 'Exit 4']) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
@@ -90,17 +92,17 @@ const DRIVER_SPEC = fs.readFileSync(path.join(ROOT, 'docs', 'contributing', 'spe
 const policySpec = fs.readFileSync(path.join(ROOT, 'docs', 'contributing', 'specs', 'policy.md'), 'utf8');
 const ANY_H2 = /^## /;
 
-test('Given the driver spec, when read, then it carries the status grammar lines and the exit-code rows for 2, 3 and 4', () => {
+test('Given the driver spec, when read, then it carries the status grammar lines and every exit-code row', () => {
   const grammar = sliceProse(DRIVER_SPEC, /^## Status grammar/, ANY_H2);
   const exits = sliceRegion(DRIVER_SPEC, /^## Exit codes/, ANY_H2);
 
-  for (const phrase of ['finished = "FINISHED " url', 'phase = ^[a-z][a-z0-9-]*$', 'reason = 1..240 chars']) {
+  for (const phrase of ['finished = "FINISHED " url', 'phase = ^[a-z][a-z0-9-]*$', 'reason = 1..240 code points', 'truncated, not refused']) {
     assert.ok(grammar.includes(phrase), `missing: ${phrase}`);
   }
-  for (const row of ['| 2 |', '| 3 |', '| 4 |']) {
+  for (const row of ['| 0 |', '| 1 |', '| 2 |', '| 3 |', '| 4 |', '| 5 |']) {
     assert.ok(exits.split('\n').some((line) => line.startsWith(row)), `missing row: ${row}`);
   }
-  for (const phrase of ['CRAFT_DRIVER_STATE', '--resume', 'PermissionRequest']) {
+  for (const phrase of ['CRAFT_DRIVER_STATE', '--resume', 'PermissionRequest', 'blocked <phase-id> -']) {
     assert.ok(DRIVER_SPEC.includes(phrase), `missing: ${phrase}`);
   }
 });

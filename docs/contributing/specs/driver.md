@@ -34,43 +34,52 @@ verified.
 ## Status grammar
 
 ```
-finished = "FINISHED " url            url   = ^https?://\S+$
+finished = "FINISHED " url            url   = ^https?://[\x21-\x7e]+$  (printable ASCII)
 blocked  = "BLOCKED " phase ": " reason   phase = ^[a-z][a-z0-9-]*$
-reason   = 1..240 chars, whitespace runs (incl. newlines) collapsed to one space, trimmed
+reason   = 1..240 code points; control, format and line-separator characters become spaces,
+           whitespace runs collapse to one space, trimmed; a longer reason is truncated, not refused
 ```
 
 The file is one `\n`-terminated line; split it on the first space. Example:
 `FINISHED https://example.test/org/repo/pull/70`.
 
-`FINISHED` means merged. An unmerged run writes `BLOCKED integrate: not merged <pr-or-branch>`;
-verify the merge with the VCS host before writing `FINISHED`. Stops before the run starts
+`FINISHED` means merged: the run writes it only after its own integrate phase merged the PR, and
+an unmerged run writes `BLOCKED integrate: not merged <pr-or-branch>`. A driver that must be sure
+checks the merge with its VCS host on reading `FINISHED`. Stops before the run starts
 (manifest or scope resolution) use phase `resolve`.
 
 ## Write order and atomicity
 
 `next.md`, then `next.prompt`, then `status`. Each file is written to `<file>.tmp.<pid>` in the
-state dir and renamed into place. `status` is the run's last tool call. It is never
-overwritten: an existing `status` (checked with `lstat`, so a symlink counts) refuses the write.
+state dir and moved into place: `next.*` by rename, `status` by a hard link that fails when the
+target exists, so a `status` that appears between the check and the write is never replaced.
+`status` is the run's last tool call. It is never overwritten: an existing `status` (checked with
+`lstat` first, so a symlink counts) refuses the write.
 
 ## Exit codes
 
 `scripts/driver-state.sh finished <pr-url> [--election <md> --prompt <prompt>]` and
-`blocked <phase-id> <reason…>`:
+`blocked <phase-id> <reason…>`, or `blocked <phase-id> -` to read the reason from stdin (the run
+passes free text this way, through a quoted heredoc, so no shell expands it):
 
 | Exit | Verb | Meaning |
 |---|---|---|
 | 0 | all | written (`active`: driven, directory printed) |
 | 1 | `active` only | not driven |
 | 2 | all | bad env, bad grammar, missing or extra args, unreadable election or prompt file; nothing written |
-| 3 | `finished` | the prompt still holds a bare `--policy` token after stripping; nothing written |
-| 4 | `finished`, `blocked` | `status` already exists; nothing written |
-| 5 | `finished`, `blocked` | a filesystem write failed; the call's temp file is removed and `status` is never written after a failure |
+| 3 | `finished` | after stripping, the prompt still holds a token that reads as `--policy` (see Strip rule); nothing written |
+| 4 | `finished`, `blocked` | `status` already exists, before or during the call; it is never replaced |
+| 5 | `finished`, `blocked` | a filesystem write failed; a temp file this call created is removed (a pre-existing one is left alone) and `status` is never written after a failure |
 
 ## Strip rule
 
 Before `next.prompt` is written, every bare whitespace-delimited `--policy <value>` (the value
 is the next token on the same line holding `=`) and every `--policy=…` token is removed.
 Pre-approval never travels through an election.
+
+A token the strip keeps but a reader could still take for the flag — invisible format characters
+inside it, Unicode dashes, another case, punctuation glued to it (`(--policy`, `--policy:`) — is
+not removed but reported: the call exits 3 and the run writes the status without an election.
 
 Quoted or backticked mentions are kept. Residual risk: an orchestrator could still read a quoted
 mention as a flag, so the driver's own outward guard stays the real boundary.

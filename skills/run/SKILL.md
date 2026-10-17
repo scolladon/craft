@@ -501,8 +501,12 @@ bring their own `procedure`, dispatched verbatim (step 2).
   surface — its last tool call is one Bash call:
   ```
   driver="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh"
-  "$driver" active >/dev/null && "$driver" blocked <phase-id> "<reason>"
+  "$driver" active >/dev/null && "$driver" blocked <phase-id> - <<'REASON'
+  <reason>
+  REASON
   ```
+  The reason travels on stdin through the quoted heredoc, so text from stderr, a branch name or
+  a backlog entry is never expanded by the shell.
   Every §0 stop uses phase id `resolve`. An escalation is still asked first; only a stop the
   run cannot continue from writes `BLOCKED`. The ledger stays open, so the run resumes as
   after any STOP. Undriven, `active` exits 1 and nothing is written; a non-zero exit from
@@ -633,7 +637,7 @@ paragraph. Driven (exit 0):
   Exit 3 (the prompt still held a bare `--policy` token) → re-run `finished <pr-url>` alone
   and say in the final message that the election was withheld and why.
 - **No merge** (`integrate` resolved to `never`, the merge ask declined, `integrate`
-  skipped, or no remote) → `driver-state.sh blocked integrate "not merged <pr-or-branch>"`,
+  skipped, or no remote) → `driver-state.sh blocked integrate -` with `not merged <pr-or-branch>` on stdin,
   no election.
 
 ```
@@ -641,7 +645,9 @@ driver="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh"
 "$driver" active
 "$driver" finished <pr-url> --election <tmp-dir>/next.md --prompt <tmp-dir>/next.prompt
 "$driver" finished <pr-url>
-"$driver" blocked integrate "not merged <pr-or-branch>"
+"$driver" blocked integrate - <<'REASON'
+not merged <pr-or-branch>
+REASON
 ```
 Each Bash call starts with the `driver=` line. The status write is the run's last tool call:
 nothing follows it but the final message. Exit 4 (a status already exists) or any other
