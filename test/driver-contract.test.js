@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { TO_END, sliceProse } = require('./helpers/region-slice');
+const { TO_END, sliceProse, sliceRegion } = require('./helpers/region-slice');
 
 const ROOT = path.resolve(__dirname, '..');
 const run = fs.readFileSync(path.join(ROOT, 'skills', 'run', 'SKILL.md'), 'utf8');
@@ -84,4 +84,30 @@ test('Given the workspace skill step 5, when read, then the worktree is reached 
     'Never move the session']) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
+});
+
+const DRIVER_SPEC = fs.readFileSync(path.join(ROOT, 'docs', 'contributing', 'specs', 'driver.md'), 'utf8');
+const policySpec = fs.readFileSync(path.join(ROOT, 'docs', 'contributing', 'specs', 'policy.md'), 'utf8');
+const ANY_H2 = /^## /;
+
+test('Given the driver spec, when read, then it carries the status grammar lines and the exit-code rows for 2, 3 and 4', () => {
+  const grammar = sliceProse(DRIVER_SPEC, /^## Status grammar/, ANY_H2);
+  const exits = sliceRegion(DRIVER_SPEC, /^## Exit codes/, ANY_H2);
+
+  for (const phrase of ['finished = "FINISHED " url', 'phase = ^[a-z][a-z0-9-]*$', 'reason = 1..240 chars']) {
+    assert.ok(grammar.includes(phrase), `missing: ${phrase}`);
+  }
+  for (const row of ['| 2 |', '| 3 |', '| 4 |']) {
+    assert.ok(exits.split('\n').some((line) => line.startsWith(row)), `missing row: ${row}`);
+  }
+  for (const phrase of ['CRAFT_DRIVER_STATE', '--resume', 'PermissionRequest']) {
+    assert.ok(DRIVER_SPEC.includes(phrase), `missing: ${phrase}`);
+  }
+});
+
+test("Given the policy spec's Claude binding, when read, then it links the driver spec", () => {
+  const sut = sliceRegion(policySpec, /^## Claude binding/, /^## Pi binding/);
+
+  assert.ok(sut.includes('driver.md'));
+  assert.ok(sut.includes('--policy'));
 });

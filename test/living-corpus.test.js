@@ -26,6 +26,7 @@ const EXPECTED = new Set([
   'docs/contributing/specs/codex-poc-record.md',
   'docs/contributing/specs/copilot-poc-record.md',
   'docs/contributing/specs/cursor-poc-record.md',
+  'docs/contributing/specs/driver.md',
   'docs/contributing/specs/execution.md',
   'docs/contributing/specs/gate.md',
   'docs/contributing/specs/intention.md',
