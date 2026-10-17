@@ -297,9 +297,10 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    means the phase runs its own probes. See `docs/contributing/specs/intention.md`.
 
    **Phase-start marker.** At phase entry, in the same Bash call as the
-   contract-assemble invocation above, append `PHASE-START(<phase.id>): <iso8601>`
-   (`date -u +%Y-%m-%dT%H:%M:%SZ`) via `run-ledger.sh append <run-id> <phase.id>`. Skip
-   this append when the phase is already in flight — a resumed phase keeps its first
+   contract-assemble invocation above, append `PHASE-START(<phase.id>):` via
+   `run-ledger.sh append <run-id> <phase.id>`, with no time: `append` stamps the line
+   with its own UTC clock and replaces any time written after the token. Skip this
+   append when the phase is already in flight — a resumed phase keeps its first
    `PHASE-START`, so a later `--since` derivation stays right.
 
 5. **Execute** via the resolved execution mode (`phase.execution`).
@@ -592,7 +593,7 @@ When this session compacted, it then prints one advisory line,
 `Compactions: <n> (main <m>, sub-agent <s>) — estimated summary-call cost <lo>k–<hi>k equiv (estimate; not in totals)`
 — stdout only, never a ledger row. A phase that ran twice in
 one session (a revision round, or validation and architecture sharing one role) needs its
-own call with `--phase <phase-id> --since <iso8601> --session "$CLAUDE_CODE_SESSION_ID"`, where `--since` is the iso on that
+own call with `--phase <phase-id> --since <iso8601> --session "$CLAUDE_CODE_SESSION_ID"`, where `--since` is the iso `run-ledger.sh` stamped on that
 phase's latest `PHASE-START(<phase>):` line in the ledger, or its
 row re-counts the first run of that phase; a `--phase` call never prints the `Compactions:`
 line. A phase with no transcript records
