@@ -624,3 +624,8 @@ ledger-stamps-own-timestamps design turns=29 tool_calls=32 tokens=1666877 durati
 ledger-stamps-own-timestamps implementation turns=21 tool_calls=23 tokens=580055 duration_ms=340912 cache_read=523672 cache_creation=55851 output=490 avg_ctx=27598 equiv=124673
 ledger-stamps-own-timestamps planning turns=30 tool_calls=33 tokens=1599928 duration_ms=529162 cache_read=1520987 cache_creation=78571 output=310 avg_ctx=53321 equiv=251922
 ledger-stamps-own-timestamps review turns=43 tool_calls=45 tokens=1063513 duration_ms=452815 cache_read=936038 cache_creation=126761 output=628 avg_ctx=24718 equiv=255281
+driver-contract-in-craft-run design turns=61 tool_calls=62 tokens=6057122 duration_ms=896226 cache_read=5876716 cache_creation=179519 output=765 avg_ctx=99285 equiv=816017
+driver-contract-in-craft-run implementation turns=27 tool_calls=30 tokens=697277 duration_ms=406786 cache_read=579416 cache_creation=114827 output=2980 avg_ctx=25715 equiv=216429
+driver-contract-in-craft-run planning turns=57 tool_calls=60 tokens=4702569 duration_ms=865876 cache_read=4553667 cache_creation=147426 output=1362 avg_ctx=82477 equiv=646573
+driver-contract-in-craft-run review turns=67 tool_calls=72 tokens=2028419 duration_ms=629535 cache_read=1747883 cache_creation=279341 output=1061 avg_ctx=30259 equiv=529404
+driver-contract-in-craft-run validation turns=33 tool_calls=34 tokens=1898183 duration_ms=481280 cache_read=1815703 cache_creation=82111 output=303 avg_ctx=57512 equiv=285790
