@@ -6,6 +6,10 @@ import { makeCaptureIo } from '../test-helpers/capture-io.js';
 const EXT_DIFF_REASON = 'craft: git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
 const CONFIG_CHANNEL_REASON = 'craft: git config injected outside -c is denied in this binding';
 const UNTERMINATED_SUBSTITUTION_REASON = 'craft: command not parseable (unterminated substitution) \u2014 denied fail-closed';
+const INLINE_ALIAS_REASON = 'craft: an inline git alias (-c alias.*) is denied \u2014 it can run any git verb';
+const OVER_LIMIT_REASON = "craft: command not parseable (longer than the guard's limit) \u2014 denied fail-closed";
+// past the tokeniser's 131 072-character cap
+const OVER_LIMIT_PADDING = 131_100;
 const UNREADABLE_EXIT = 1;
 
 function ioReading(stdinText) {
@@ -96,6 +100,8 @@ describe('claude ext-diff hook main - reason prefix', () => {
   for (const { label, command, reason } of [
     { label: 'a config channel assignment', command: 'GIT_CONFIG_COUNT=1 git status', reason: CONFIG_CHANNEL_REASON },
     { label: 'an unterminated substitution', command: 'echo "$(', reason: UNTERMINATED_SUBSTITUTION_REASON },
+    { label: 'an inline alias for diff', command: 'git -c alias.d=diff d', reason: INLINE_ALIAS_REASON },
+    { label: 'a command over the length cap', command: `git diff ${'x'.repeat(OVER_LIMIT_PADDING)}`, reason: OVER_LIMIT_REASON },
   ]) {
     it(`Given ${label}, when main judges the payload, then the engine reason keeps its single craft prefix`, () => {
       const io = ioFor(command);

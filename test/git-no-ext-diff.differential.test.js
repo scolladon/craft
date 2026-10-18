@@ -18,8 +18,8 @@ const PIPE_BUFFER_OVERFLOW_LINES = 14000;
 const HOOK = path.join(__dirname, '..', 'hooks', 'git-no-ext-diff.sh');
 // Strings whose JSON round trip differs from a plain one: escapes the payload encoder must emit and node must decode.
 const DECODE_EDGE_COMMANDS = Object.freeze([
-  'git diff ',
-  'echo a ; git diff',
+  'git diff \u2028',
+  'echo a \u2029; git diff',
   'git diff \u0000x',
   'git diff \ud800',
   'echo "\udfff"; git show',
