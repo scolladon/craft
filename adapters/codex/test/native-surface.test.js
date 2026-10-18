@@ -101,9 +101,9 @@ function sectionAfter(text, heading) {
   return (end === -1 ? rest : rest.slice(0, end)).join('\n');
 }
 
-function readConfigureSection() {
-  const section = sectionAfter(readFileSync(README_PATH, 'utf8'), CONFIGURE_HEADING);
-  assert.notEqual(section, null, `README.md has no "${CONFIGURE_HEADING}" line`);
+function readReadmeSection(heading) {
+  const section = sectionAfter(readFileSync(README_PATH, 'utf8'), heading);
+  assert.notEqual(section, null, `README.md has no "${heading}" line`);
   return section;
 }
 
@@ -445,44 +445,44 @@ describe('README.md — honesty pins', () => {
   });
 
   it('Given the Configure section of README.md, when scanned, then it names $CODEX_HOME/rules/ as the deploy target', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /copy\s+`craft\.rules`\s+into\s+`\$CODEX_HOME\/rules\/`/);
   });
 
   it('Given the Configure section of README.md, when scanned, then it creates the rules directory', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /mkdir -p \S*\/rules"?$/m);
   });
 
   // cp writes through a symlink already at the target and leaves it a symlink.
   it('Given the Configure section of README.md, when scanned, then it removes any existing rules file or link before the copy', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /rm -f \S*\/rules\/craft\.rules"?\ncp /);
   });
 
   it('Given the Configure section of README.md, when scanned, then it copies adapters/codex/craft.rules into the rules directory', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /cp adapters\/codex\/craft\.rules \S*\/rules\/craft\.rules/);
   });
 
   it('Given the Configure section of README.md, when scanned, then it verifies the copy byte-for-byte against the committed file', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /cmp adapters\/codex\/craft\.rules \S*\/rules\/craft\.rules/);
   });
 
   it('Given the Configure section of README.md, when scanned, then it verifies the deployed file is not a symlink', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /test ! -L \S*\/rules\/craft\.rules/);
   });
 
   it('Given the Configure section of README.md, when scanned, then it says to copy and not symlink the rules file', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /do\s+not\s+symlink/i);
   });
@@ -517,12 +517,6 @@ const STILL_OPEN_BULLET = '- Still open:';
 const BULLET_START = '- ';
 const SENTENCE_END = /(?<=\.)\s+/;
 
-function readGuardSection() {
-  const section = sectionAfter(readFileSync(README_PATH, 'utf8'), GUARD_HEADING);
-  assert.notEqual(section, null, `README.md has no "${GUARD_HEADING}" line`);
-  return section;
-}
-
 /** The lines of the bullet opening with `opening`, up to the next bullet or blank line. */
 function bulletOpening(text, opening) {
   const lines = text.split('\n');
@@ -536,39 +530,33 @@ function bulletOpening(text, opening) {
 const USAGE_HEADING = '## Usage';
 const CODEX_EXEC_COMMAND = 'codex exec ';
 
-function readUsageSection() {
-  const section = sectionAfter(readFileSync(README_PATH, 'utf8'), USAGE_HEADING);
-  assert.notEqual(section, null, `README.md has no "${USAGE_HEADING}" line`);
-  return section;
-}
-
 function sentencesOf(text) {
   return text.replace(/\s+/g, ' ').split(SENTENCE_END);
 }
 
 describe('README.md - tty sessions off', () => {
   it('Given the Configure section of README.md, when scanned, then it states the template switches tty sessions off in a [features] table', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /`\[features\]`/);
     assert.match(sut, /unified_exec_tty = false/);
   });
 
   it('Given the Configure section of README.md, when scanned, then it names the launch flag that forces tty sessions off', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /-c features\.unified_exec_tty=false/);
   });
 
   it('Given the Configure section of README.md, when scanned, then it says a second [features] header is invalid TOML', () => {
-    const sut = readConfigureSection();
+    const sut = readReadmeSection(CONFIGURE_HEADING);
 
     assert.match(sut, /second `\[features\]` header/);
     assert.match(sut, /invalid TOML/);
   });
 
   it('Given the Guard section of README.md, when its sentences are read, then one says dropping the setting reopens the write_stdin channel', () => {
-    const sut = sentencesOf(readGuardSection());
+    const sut = sentencesOf(readReadmeSection(GUARD_HEADING));
 
     const result = sut.some((sentence) => sentence.includes('write_stdin') && /reopens/.test(sentence));
 
@@ -576,7 +564,7 @@ describe('README.md - tty sessions off', () => {
   });
 
   it('Given the Usage section of README.md, when its codex exec command is read, then it passes the tty-off launch flag', () => {
-    const sut = readUsageSection();
+    const sut = readReadmeSection(USAGE_HEADING);
 
     const result = sut.split('\n').find((line) => line.startsWith(CODEX_EXEC_COMMAND));
 
@@ -585,7 +573,7 @@ describe('README.md - tty sessions off', () => {
   });
 
   it('Given the Guard section of README.md, when its sentences are read, then one says a trusted project config can turn tty sessions back on', () => {
-    const sut = sentencesOf(readGuardSection());
+    const sut = sentencesOf(readReadmeSection(GUARD_HEADING));
 
     const result = sut.some((sentence) => sentence.includes('.codex/config.toml') && /unified_exec_tty = true/.test(sentence));
 
@@ -593,7 +581,7 @@ describe('README.md - tty sessions off', () => {
   });
 
   it('Given the Still open bullet of README.md, when scanned, then it no longer lists write_stdin as open', () => {
-    const sut = bulletOpening(readGuardSection(), STILL_OPEN_BULLET);
+    const sut = bulletOpening(readReadmeSection(GUARD_HEADING), STILL_OPEN_BULLET);
 
     assert.doesNotMatch(sut, /write_stdin/);
   });
