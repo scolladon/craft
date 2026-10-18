@@ -63,6 +63,12 @@ describe('buildExecpolicyRules() — honesty disclosure', () => {
     assert.doesNotMatch(sut, /does not fail closed/i);
   });
 
+  it('Given the generated rules text, when its comment lines are joined, then it names the PreToolUse guard hook as the layer that denies the listed bypasses', () => {
+    const sut = buildExecpolicyRules().replace(/\n#\s?/g, ' ');
+
+    assert.match(sut, /The PreToolUse guard hook denies all three; this file does not\./);
+  });
+
   it('Given the generated rules text, when scanned, then it carries no codex version string', () => {
     const sut = buildExecpolicyRules();
 

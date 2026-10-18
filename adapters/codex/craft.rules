@@ -1,9 +1,10 @@
 # Defence-in-depth only -- not a security boundary.
 #
-# Known bypasses (verified, not hypothetical): interposed global options
-# defeat the prefix match entirely. `git -C . push`, `git --git-dir=.git
+# Known bypasses of this layer (verified, not hypothetical): interposed global
+# options defeat the prefix match entirely. `git -C . push`, `git --git-dir=.git
 # push`, and `bash -lc 'git push'` all NO MATCH here -- matching is
-# token-prefix over argv, not an adversarial parser.
+# token-prefix over argv, not an adversarial parser. The PreToolUse guard
+# hook denies all three; this file does not.
 #
 # A malformed .rules file is not a reliable denial: depending on the codex
 # entry point it either refuses to start or skips the rules and runs
