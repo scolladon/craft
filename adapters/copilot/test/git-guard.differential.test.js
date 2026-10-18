@@ -29,14 +29,16 @@ const parseSeeds = text => text.split(',').map(Number);
 const SEEDS = Object.freeze(process.env.GUARD_FUZZ_SEEDS ? parseSeeds(process.env.GUARD_FUZZ_SEEDS) : [20260]);
 const CAP = Number(process.env.GUARD_FUZZ_COUNT ?? 400);
 const FUZZ_TIMEOUT_MS = 120_000;
-// Measured on the default seed: 356 under /bin/bash 3.2, 390 under bash 5.2.
-const INVOKED_FLOOR = 300;
+// Measured on the default seed: 356 of 400 under /bin/bash 3.2, 390 under bash 5.2; a share keeps the floor valid when GUARD_FUZZ_COUNT scales.
+const INVOKED_SHARE = 0.75;
+const INVOKED_FLOOR = Math.floor(CAP * INVOKED_SHARE);
 const SECOND_BASH = secondBash();
 const SYNTAX_ERROR = /syntax error|unexpected EOF/;
 const ACCEPTED_BLOCK_TAGS = Object.freeze([...PLAIN_GATE_FALSE_BLOCK_TAGS, PLAIN_GATE_TAGS.residual]);
 // The gate reads a -c or --config-env word as a git config key, so such a word would block for a reason other than the rule under test.
 const ATTACHED_CONFIG_WORD = /^(?:--config-env|-c.)/is;
 const readsAsConfigFlag = word => word === '-c' || ATTACHED_CONFIG_WORD.test(word);
+const STUBBED_CLASSES = Object.freeze([PLAIN_GATE_TAGS.argvWrapper, PLAIN_GATE_TAGS.residual]);
 const COINCIDENCE_FREE_CLASSES = Object.freeze([PLAIN_GATE_TAGS.evaluatorWord, PLAIN_GATE_TAGS.argvWrapper, PLAIN_GATE_TAGS.residual]);
 const STUBBED_NAMES = Object.freeze([
   'arch', 'caffeinate', 'chrt', 'doas', 'flock', 'nice', 'nohup', 'parallel', 'setsid', 'ssh', 'stdbuf', 'strace', 'sudo', 'taskset',
@@ -123,7 +125,15 @@ describe('plain gate generator - deterministic, coincidence-free, every class re
     assert.deepEqual(result, []);
   });
 
-  it('Given the stubs, when listed, then every external wrapper and runner the generator names is stubbed', () => {
+  it('Given every argv wrapper and string runner shape, when its command word is read, then a stub of that name exists', () => {
+    const sut = CORE_SHAPES.filter(core => core.tags.some(tag => STUBBED_CLASSES.includes(tag)));
+
+    const result = sut.map(core => wordsOf(core.render('git push'))[0]).filter(name => !Object.hasOwn(STUBS, name));
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the stubs, when listed, then they are exactly the pinned external wrapper and runner names', () => {
     const sut = STUBS;
 
     const result = Object.keys(sut).sort();
