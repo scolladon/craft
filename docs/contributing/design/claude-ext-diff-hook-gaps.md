@@ -32,7 +32,7 @@ with `craft git-no-ext-diff: failed (exit <n>), call denied` (or `no verdict rea
 because Claude Code runs the call on every other exit status. The contract has three pieces: an
 inline EXIT trap (ADR-539), a TERM/HUP trap that exits through it (ADR-541), and a feed sentinel
 that turns a command substitution that never started into a crash. Allow happens only on grep's
-exit 1 with a printed zero count (ADR-536). Residual fail-open: `/bin/bash` missing, the hook file
+exit 1 with a printed zero count (ADR-542). Residual fail-open: `/bin/bash` missing, the hook file
 missing or not executable, SIGKILL or any other untrapped signal, and the 600 s hook timeout
 (SIGTERM to the whole tree). ADR-538 requires the contract to be written in three places: the hook
 header (L1-22), `docs/contributing/specs/gate.md` "Claude binding" (L44-81), and the README
@@ -155,7 +155,7 @@ string would change.
   copilot's Bash paths use for that rule. There is no second matcher in bash.
 - **R6.** The living docs tell the truth after the change: the hook header, `gate.md` "Claude
   binding", and the README requirement sentence (ADR-538's three places). A new ADR records the
-  contract change and supersedes ADR-536. The BACKLOG entry leaves the Open list.
+  contract change and supersedes ADR-542. The BACKLOG entry leaves the Open list.
 - **R7.** `bash scripts/ci.sh` is green, and the new engine module meets the repo's mutation bar.
 
 ## Design
@@ -258,9 +258,9 @@ verdict_reached=1
 
 ### Part 3 — ADR and living docs
 
-- **New ADR** (next free number, 646): "The Claude ext-diff hook delegates its verdict to the
+- **New ADR** (ADR-646): "The Claude ext-diff hook delegates its verdict to the
   engine". Subjects: `hooks/git-no-ext-diff.sh`, `docs/contributing/specs/gate.md`, `README.md`,
-  `engine/src/claude-ext-diff-hook-main.js`. Options are DC-1's three. **Supersedes ADR-536**:
+  `engine/src/claude-ext-diff-hook-main.js`. Options are DC-1's three. **Supersedes ADR-542**:
   the allow condition becomes "node printed the allow token", and grep is gone. ADR-533/534/535
   (the trap, exit 2, deny-all on crash), ADR-539 (inline trap), ADR-540 (no verdict denies) and
   ADR-541 (TERM/HUP) stay in force unchanged. ADR-535's realistic trigger moves from `jq` to
@@ -292,7 +292,7 @@ verdict_reached=1
 
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
 |---|---|---|---|---|
-| DC-1 **(user's escalation)** | How the hook closes the gaps | (a) **Patch the bash matcher**: extend `GIT_RE` anchors, wrappers, globals and terminator plus the `sed` mirror; crash contract untouched. (b1) **Node entrypoint** replaces the bash hook (codex-style handlers); `hooks.json` command changes. (b2) **Bash crash shell + node verdict** (Design): traps and sentinel stay, verdict from `gitExtDiffPredicate` | (b2) | (a) closes the 10 pinned forms (prototype, Pinned H), but a regex has no quote state. It keeps 6 measured ext-diff bypass rows open (quote removal, `sh -c`/`eval`, `/usr/bin/git`/`GIT`, `xargs`/dynamic head, the substring bypasses, `--no-ext-diff --ext-diff`) and keeps the false denies, whose corrected command corrupts data (seen live twice while writing this design). Each future form needs a hand edit in two regexes. (b1) adds fail-open residuals bash denies today (`node` missing → 127 → call runs; node killed → no deny) and changes `hooks.json`. (b2) keeps every residual as it is (node missing, SIGKILLed, non-JSON stdin: all exit 2, 3/3), and an explicit verdict token closes the one new hole it has, node exiting 0 with no verdict. Cost: about 22 ms per Bash call (11 → 33 ms), node replaces jq as the hard prerequisite, and one ADR supersedes ADR-536 |
+| DC-1 **(user's escalation)** | How the hook closes the gaps | (a) **Patch the bash matcher**: extend `GIT_RE` anchors, wrappers, globals and terminator plus the `sed` mirror; crash contract untouched. (b1) **Node entrypoint** replaces the bash hook (codex-style handlers); `hooks.json` command changes. (b2) **Bash crash shell + node verdict** (Design): traps and sentinel stay, verdict from `gitExtDiffPredicate` | (b2) | (a) closes the 10 pinned forms (prototype, Pinned H), but a regex has no quote state. It keeps 6 measured ext-diff bypass rows open (quote removal, `sh -c`/`eval`, `/usr/bin/git`/`GIT`, `xargs`/dynamic head, the substring bypasses, `--no-ext-diff --ext-diff`) and keeps the false denies, whose corrected command corrupts data (seen live twice while writing this design). Each future form needs a hand edit in two regexes. (b1) adds fail-open residuals bash denies today (`node` missing → 127 → call runs; node killed → no deny) and changes `hooks.json`. (b2) keeps every residual as it is (node missing, SIGKILLed, non-JSON stdin: all exit 2, 3/3), and an explicit verdict token closes the one new hole it has, node exiting 0 with no verdict. Cost: about 22 ms per Bash call (11 → 33 ms), node replaces jq as the hard prerequisite, and one ADR supersedes ADR-542 |
 | DC-2 | Verdict scope under (b) | (a) **Ext-diff only**: `gitExtDiffPredicate`, today's scope. (b) **Full `plainGitCommandVerdict`**: adds destructive git and the plain-command gate to Claude | (a) | (b) is a scope change the backlog entry does not ask for. The gate denies any git-mentioning command that holds `$`, `\"` or a wrapper (codex design pins `echo $HOME; git status` and `git commit -m "fix: \"q\""` as false blocks), and ADR-606 records that it also denies the heredoc commit idiom (`git commit -m "$(cat <<'EOF' …)"`), which Claude agents use all the time. Claude's destructive-git posture is set by its permission system, not this hook. (a) already brings two small extra deny classes (config channel, inline alias; Pinned H). Revisit (b) only with a measured Claude destructive-git gap |
 | DC-3 | Deny reason under (b) | (a) **Engine reason**, `craft: `-prefixed; drop "Re-issue exactly". (b) Engine verdict + `sed`-derived corrected command when the old regex finds a site. (c) Add source offsets to the tokeniser so the verdict can return a parse-derived rewrite | (a) | The parse carries no source positions (`gitInvocations` returns normalised words only), so (c) is a tokeniser change across every binding for a hint. (b) puts the regex back, and its "exactly" claim is wrong on the forms the regex misreads (the data rows rewrite quoted text) and missing on the forms it cannot see (`sh -c`). Config, alias and parse-failure denies have no insertion fix anyway. The engine reason says what to add (`git diff/show must carry --no-ext-diff`), and that is the reason codex and copilot agents already act on. Cost: three reason assertions and three crash-path assertions in `test/hooks.test.js` change from the corrected command to the engine reason |
 
@@ -335,7 +335,7 @@ Collaborator: `gitExtDiffPredicate` is used for real (pure). The London-school s
 - Allow matrix (L114-151): keep the five. Add the quoted-text row (`git commit -m "wip; git diff
   fix"`) and the heredoc-body row → empty stdout. These are Red today.
 - Crash contract (L268-415). Remove the cat/jq/sed/grep-only tests (those tools are gone), and
-  the "grep exits 1 without a count" test (ADR-536 superseded). Add:
+  the "grep exits 1 without a count" test (ADR-542 superseded). Add:
   - Given PATH without node → exit 2, `crashReason(127)`, stdout empty (`withToolsOnly([])`).
   - Given a stub `node` that exits 0 silently (a PATH-first stub dir) → exit 2,
     `no verdict reached, call denied`.
