@@ -629,3 +629,7 @@ driver-contract-in-craft-run implementation turns=27 tool_calls=30 tokens=697277
 driver-contract-in-craft-run planning turns=57 tool_calls=60 tokens=4702569 duration_ms=865876 cache_read=4553667 cache_creation=147426 output=1362 avg_ctx=82477 equiv=646573
 driver-contract-in-craft-run review turns=67 tool_calls=72 tokens=2028419 duration_ms=629535 cache_read=1747883 cache_creation=279341 output=1061 avg_ctx=30259 equiv=529404
 driver-contract-in-craft-run validation turns=33 tool_calls=34 tokens=1898183 duration_ms=481280 cache_read=1815703 cache_creation=82111 output=303 avg_ctx=57512 equiv=285790
+driver-rebuild-bg-lock-gaps design turns=36 tool_calls=40 tokens=2026386 duration_ms=437657 cache_read=1885269 cache_creation=140399 output=646 avg_ctx=56271 equiv=367328
+driver-rebuild-bg-lock-gaps implementation turns=24 tool_calls=27 tokens=678541 duration_ms=242794 cache_read=581085 cache_creation=96957 output=451 avg_ctx=28254 equiv=181608
+driver-rebuild-bg-lock-gaps planning turns=38 tool_calls=40 tokens=2638716 duration_ms=405737 cache_read=2525322 cache_creation=112932 output=386 avg_ctx=69430 equiv=395703
+driver-rebuild-bg-lock-gaps review turns=47 tool_calls=48 tokens=1364467 duration_ms=381312 cache_read=1186333 cache_creation=177470 output=570 avg_ctx=29019 equiv=343415
