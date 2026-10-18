@@ -336,6 +336,30 @@ test('Given a node that prints an unknown token, when git-no-ext-diff runs, then
   });
 });
 
+test('Given a node that prints a truncated deny token, when git-no-ext-diff runs, then it exits 2 with no verdict reached', () => {
+  withStubNode("printf '{\"hookSpecificOutput\":junk'", (toolsDir) => {
+    const sut = runGitHook;
+    const result = sut(DENY_DIFF_PAYLOAD, { PATH: toolsDir });
+    assert.strictEqual(result.status, CRASH_DENY_EXIT_CODE, result.stderr);
+    assert.match(result.stderr, NO_VERDICT_REASON);
+    assert.strictEqual(result.stdout, '');
+  });
+});
+
+test('Given the hook reached through a symlink in another directory, when it runs on a git diff, then it denies with the engine reason', () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'craft-hook-link-')));
+  try {
+    const link = path.join(dir, 'git-no-ext-diff.sh');
+    fs.symlinkSync(GIT_HOOK, link);
+    const sut = () => spawnSync('/bin/bash', [link], { input: DENY_DIFF_PAYLOAD, encoding: 'utf8' });
+    const result = sut();
+    assert.strictEqual(result.status, 0, result.stderr);
+    assert.strictEqual(JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason, EXT_DIFF_DENY_REASON);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('Given a node that prints the allow token with a trailing newline, when git-no-ext-diff runs, then it exits 2 with no verdict reached', () => {
   withStubNode("printf 'allow\\n'", (toolsDir) => {
     const sut = runGitHook;
@@ -370,12 +394,14 @@ test('Given stdin that is not JSON, when git-no-ext-diff runs, then it exits 2 w
   const sut = runGitHook;
   const result = sut('not json');
   assertCrashDeny(result, NODE_UNCAUGHT_ERROR_STATUS);
+  assert.match(result.stderr, /SyntaxError/);
 });
 
 test('Given a numeric command, when git-no-ext-diff runs, then it exits 2 with the crash reason on stderr', () => {
   const sut = runGitHook;
   const result = sut('{"tool_input":{"command":5}}');
   assertCrashDeny(result, NODE_UNCAUGHT_ERROR_STATUS);
+  assert.match(result.stderr, /^claude-ext-diff-verdict: tool_input\.command is not a string/m);
 });
 
 test('Given PATH without node and stderr closed, when git-no-ext-diff runs, then it still exits 2', () => {
@@ -458,6 +484,7 @@ test(
     const sut = runGitHook;
     const result = sut('{"tool_input":{"command":"git diff"}} {"tool_input":{"command":"ls"}}');
     assertCrashDeny(result, NODE_UNCAUGHT_ERROR_STATUS);
+    assert.match(result.stderr, /SyntaxError/);
   },
 );
 

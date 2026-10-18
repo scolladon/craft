@@ -36,6 +36,7 @@ readonly SIGHUP_EXIT_STATUS=129
 readonly NO_VERDICT_STATUS=0
 readonly ALLOW_VERDICT='allow'
 readonly DENY_VERDICT_PREFIX='{"hookSpecificOutput":'
+readonly DENY_VERDICT_SUFFIX='"}}'
 
 # bash 3.2 ends a syntax error below the trap with status 0, so only a reached verdict
 # may exit clean.
@@ -61,9 +62,21 @@ trap 'deny_on_crash "$?"' EXIT
 trap 'exit "$SIGTERM_EXIT_STATUS"' TERM
 trap 'exit "$SIGHUP_EXIT_STATUS"' HUP
 
-hook_dir=${BASH_SOURCE[0]%/*}
-[ "$hook_dir" = "${BASH_SOURCE[0]}" ] && hook_dir=.
-readonly VERDICT_BIN="$hook_dir/../engine/bin/claude-ext-diff-verdict.js"
+# The verdict bin sits beside the real hook, so a symlinked hook is followed to its target first.
+# A bare name gets a ./ so its directory is always the part before the last slash.
+hook_path=${BASH_SOURCE[0]}
+case "$hook_path" in
+  */*) ;;
+  *)   hook_path=./$hook_path ;;
+esac
+while [ -L "$hook_path" ]; do
+  link=$(readlink "$hook_path")
+  case "$link" in
+    /*) hook_path=$link ;;
+    *)  hook_path=${hook_path%/*}/$link ;;
+  esac
+done
+readonly VERDICT_BIN="${hook_path%/*}/../engine/bin/claude-ext-diff-verdict.js"
 
 # A command substitution that cannot start (no pipe or fork left) expands to nothing with
 # status 0, which reads as a silent verdict. Only a node run that exited 0 appends the
@@ -74,7 +87,7 @@ VERDICT=$(node "$VERDICT_BIN" && printf '%s' "$FEED_SENTINEL")
 VERDICT=${VERDICT%"$FEED_SENTINEL"}
 case "$VERDICT" in
   "$ALLOW_VERDICT")        allow ;;
-  "$DENY_VERDICT_PREFIX"*) printf '%s\n' "$VERDICT" ;;
+  "$DENY_VERDICT_PREFIX"*"$DENY_VERDICT_SUFFIX") printf '%s\n' "$VERDICT" ;;
   *)                       exit "$NO_VERDICT_STATUS" ;;
 esac
 verdict_reached=1
