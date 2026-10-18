@@ -12,6 +12,15 @@
 sandbox_mode = "workspace-write"
 approval_policy = "on-request"
 
+# Interactive tty sessions are off. codex fires no PreToolUse hook for `write_stdin`, and
+# only a tty session keeps stdin open for it to type into, so with tty sessions off the
+# text it would type reaches no shell. Removing this line reopens that channel. Cost: the
+# model gets no interactive shell, REPL or prompt-answering session. If your config.toml
+# already has a [features] table, add the key there: a second [features] header is
+# invalid TOML.
+[features]
+unified_exec_tty = false
+
 # The guard registration. `codex plugin add` drops a plugin manifest's `hooks` field, so
 # this block — not the marketplace install — is what wires the PreToolUse guard. Omit it
 # and codex registers no hook at all, a state indistinguishable at runtime from the
