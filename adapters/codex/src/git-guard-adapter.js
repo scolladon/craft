@@ -1,8 +1,9 @@
 /**
  * PreToolUse event adapter for the Codex binding: reshapes a Codex PreToolUse
- * HOOK PAYLOAD (`tool_name` / `tool_input`) into the event shape
- * `engine/src/guards/tool-call-guard.js`'s toolCallGuard expects, then applies
- * that predicate unmodified. Keys off the hook payload, never a request-body
+ * HOOK PAYLOAD (`tool_name` / `tool_input`) into the shared event
+ * shape, then judges a Bash call with the shared git verdict (plain-command
+ * gate, destructive git, ext-diff), an apply_patch call with per-path
+ * containment, and passes any other tool to toolCallGuard. Keys off the hook payload, never a request-body
  * tool list — the tool surface varies by model (an unknown model id can drop
  * `apply_patch` entirely, and `gpt-5.6-sol` sends no `tools` key at all), so
  * the hook payload is the only surface present across every model case.
@@ -13,10 +14,11 @@
  */
 import { toolCallGuard, WRITE_TOOLS } from '../../../engine/src/guards/tool-call-guard.js';
 import { extractPatchPaths } from './apply-patch-paths.js';
+import { plainGitCommandVerdict } from '../../../engine/src/guards/git-bash-verdict.js';
 
 const BASH_TOOL_NAME = 'Bash';
 
-// Only the tool names the shared predicate branches on get an entry — every
+// Only the tool names codexGuard branches on get an entry — every
 // other Codex tool (write_stdin, update_plan, view_image, web_search,
 // tool_search, request_user_input, the multi_agent_v1 verbs, the goal verbs)
 // passes through unchanged and hits the predicate's { block: false } tail.
@@ -61,8 +63,9 @@ function requireWorkingDir(cwd) {
 // wins because that is the field the live tool actually executes from. A missing or
 // non-string command in BOTH fields is a malformed payload, not an alternate
 // encoding, so it throws and decideGuard's catch converts that into the documented
-// fail-closed verdict. The 0.145.0 payload additionally carries `model`,
-// `permission_mode`, `tool_use_id` and `turn_id`; they are additive and ignored —
+// fail-closed verdict. The payload was re-pinned on codex 0.162.1 and is still
+// Claude-shaped; it additionally carries `model`, `permission_mode`, `tool_use_id`,
+// `turn_id`, `session_id`, `transcript_path` and `hook_event_name`; they are additive and ignored —
 // adaptCodexEvent destructures only { tool_name, tool_input, cwd }, so a later
 // reader should not "add support" for fields nothing here consumes.
 function bridgeExecutedCommand(toolInput) {
@@ -158,18 +161,30 @@ function decideWriteContainment({ tool, tool_input, working_dir }, guard) {
 }
 
 /**
+ * Bash: the shared git verdict; apply_patch: per-path containment; any other
+ * tool: toolCallGuard.
+ * @param {{ tool: string, tool_input: object, working_dir: string }} event
+ * @returns {{ block: boolean, reason?: string }}
+ */
+export function codexGuard(event) {
+  if (event.tool === BASH_TOOL_NAME) {
+    return plainGitCommandVerdict(event.tool_input.command);
+  }
+  return WRITE_TOOLS.has(event.tool) ? decideWriteContainment(event, toolCallGuard) : toolCallGuard(event);
+}
+
+/**
  * Decides the enforcement verdict for a Codex PreToolUse payload. Never
  * throws: any structurally hostile payload (missing cwd, a malformed
  * exec_command or apply_patch shape, a throwing guard) fails CLOSED with a
  * returned `{ block: true }` verdict.
  * @param {object} payload
- * @param {(event: object) => { block: boolean, reason?: string }} [guard]
+ * @param {(event: object) => { block: boolean, reason?: string }} [guard] the whole event judge (defaults to codexGuard)
  * @returns {{ block: boolean, reason?: string }}
  */
-export function decideGuard(payload, guard = toolCallGuard) {
+export function decideGuard(payload, guard = codexGuard) {
   try {
-    const event = adaptCodexEvent(payload);
-    return WRITE_TOOLS.has(event.tool) ? decideWriteContainment(event, guard) : guard(event);
+    return guard(adaptCodexEvent(payload));
   } catch {
     // This bare catch collapses every rejection path onto one indistinguishable
     // verdict, which is why the throw-site message and shape-check mutants below

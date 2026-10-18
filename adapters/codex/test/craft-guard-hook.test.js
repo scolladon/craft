@@ -5,6 +5,8 @@ import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writ
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { preToolUseBash } from './fixtures/pre-tool-use-payload.js';
+import { COMPLEX_NEAR_GIT_REASON } from '../../../engine/src/guards/git-plain-command-gate.js';
 
 const HOOK = join(dirname(fileURLToPath(import.meta.url)), '..', 'hooks', 'craft-guard.js');
 const WORKING_DIR = '/repo';
@@ -186,5 +188,30 @@ describe('craft-guard hook — a crash still denies', () => {
     const sut = withGuardCopy(stubbedCraftRoot(NEVER_ENDING_STDIN));
 
     assertDeniedOnStderr(sut, /^craft-guard: denied \(fail-closed\)$/m);
+  });
+});
+
+describe('craft-guard hook - destructive git and the plain-command gate on the live payload', () => {
+  const runCommand = (command) => run(JSON.stringify(preToolUseBash(command)));
+
+  for (const command of ['git -C . push origin main', 'git --git-dir=.git push origin main']) {
+    it(`Given the live payload running ${command}, when the hook process runs, then it exits 2 with the push reason`, () => {
+      const sut = runCommand(command);
+
+      assertDeniedOnStderr(sut, /^craft-guard: craft: destructive git \(push\)/m);
+    });
+  }
+
+  it('Given the live payload running a wrapped shell push, when the hook process runs, then it exits 2 with the gate reason', () => {
+    const sut = runCommand('bash -lc "git push"');
+
+    assertDeniedOnStderr(sut, new RegExp(COMPLEX_NEAR_GIT_REASON.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  });
+
+  it('Given the live payload running git status, when the hook process runs, then it exits 0 with empty stdout', () => {
+    const sut = runCommand('git status');
+
+    assert.equal(sut.status, 0);
+    assert.equal(sut.stdout, '');
   });
 });
