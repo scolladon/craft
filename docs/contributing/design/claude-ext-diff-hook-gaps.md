@@ -195,8 +195,9 @@ export function main(argv, io) {
 - `commandOf(payload)` reads `payload.tool_input.command`. An absent, `null` or `''` command
   becomes `''` (allow, as `// empty` does today). A non-string command returns `null` (exit 1 →
   crash deny). Today `jq -r` prints a number as text and allows it, so this is a tightening, and
-  nobody depends on it. A payload that is not an object, or has no `tool_input`, gives `''`, to
-  match today's `// empty`.
+  nobody depends on it. An absent or `null` payload step gives `''`, as `// empty` does today; a
+  string, array, number or boolean payload or `tool_input` is unreadable (exit 1 → crash deny),
+  as jq's exit 5 is today.
 - `denyJson(reason)` → `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"craft: <reason>"}}`
   (DC-3 a). It skips the `craft: ` prefix when the reason already starts with it (the engine's
   config-channel, alias and parse-failure reasons do).
@@ -355,8 +356,8 @@ Collaborator: `gitExtDiffPredicate` is used for real (pure). The London-school s
 `tap.testFiles`). It reuses `engine/test-helpers/git-differential-harness.js` (`generateCommands`,
 `mapPool`, the seed/cap env `GUARD_FUZZ_SEEDS`/`GUARD_FUZZ_COUNT`) and checks one oracle: for every
 generated command, the real hook's verdict (stdout deny ⇔ exit 0 with JSON) equals in-process
-`gitExtDiffPredicate(command).block`, and no generated command ever exits with a status other
-than 0 or 2. That catches payload decode divergence between `JSON.stringify` → node `JSON.parse`
+`gitExtDiffPredicate(command).block`, every generated command exits 0, and stdout is byte for
+byte the in-process verdict (an exit 2 on a valid payload is a crash, never an allow). That catches payload decode divergence between `JSON.stringify` → node `JSON.parse`
 and the in-process string (U+2028, NUL, lone surrogates, long payloads). The engine's own
 shell-oracle fuzz already covers the predicate against real bash. Cost ≈ 400 × 33 ms / 8 ≈ 2 s.
 Generated commands never appear in titles.
