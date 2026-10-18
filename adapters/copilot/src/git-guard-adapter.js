@@ -103,8 +103,8 @@ function withContainmentReason(event, verdict) {
 }
 
 /**
- * Plain-command gate, then destructive git commands, then the shared tool-call
- * guard; the first block wins.
+ * Bash: the shared git verdict (plain-command gate, destructive git, ext-diff);
+ * any other tool: toolCallGuard, with the containment reason on a write block.
  * @param {{ tool: string, tool_input: object, working_dir: string }} event
  * @returns {{ block: boolean, reason?: string }}
  */

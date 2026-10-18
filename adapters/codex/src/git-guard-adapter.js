@@ -1,10 +1,10 @@
 /**
  * PreToolUse event adapter for the Codex binding: reshapes a Codex PreToolUse
- * HOOK PAYLOAD (`tool_name` / `tool_input`) into the shared event
- * shape, then judges a Bash call with the shared git verdict (plain-command
- * gate, destructive git, ext-diff), an apply_patch call with per-path
- * containment, and passes any other tool to toolCallGuard. Keys off the hook payload, never a request-body
- * tool list — the tool surface varies by model (an unknown model id can drop
+ * HOOK PAYLOAD (`tool_name` / `tool_input`) into the shared event shape, then
+ * judges a Bash call with the shared git verdict (plain-command gate,
+ * destructive git, ext-diff), an apply_patch call with per-path containment,
+ * and passes any other tool to toolCallGuard. Keys off the hook payload, never
+ * a request-body tool list — the tool surface varies by model (an unknown model id can drop
  * `apply_patch` entirely, and `gpt-5.6-sol` sends no `tools` key at all), so
  * the hook payload is the only surface present across every model case.
  *
@@ -58,15 +58,15 @@ function requireWorkingDir(cwd) {
 
 // The real codex 0.145.0 PreToolUse payload is Claude-shaped: a Bash call carries
 // its command in `tool_input.command` (pinned by dumping the live hook stdin), the
-// exact field toolCallGuard reads. `cmd` is retained only as a defensive fallback
+// field codexGuard hands to the shared git verdict. `cmd` is retained only as a defensive fallback
 // for any variant that might carry the executed string there instead; `command`
 // wins because that is the field the live tool actually executes from. A missing or
 // non-string command in BOTH fields is a malformed payload, not an alternate
 // encoding, so it throws and decideGuard's catch converts that into the documented
 // fail-closed verdict. The payload was re-pinned on codex 0.162.1 and is still
-// Claude-shaped; it additionally carries `model`, `permission_mode`, `tool_use_id`,
-// `turn_id`, `session_id`, `transcript_path` and `hook_event_name`; they are additive and ignored —
-// adaptCodexEvent destructures only { tool_name, tool_input, cwd }, so a later
+// Claude-shaped; it additionally carries `model`, `permission_mode`,
+// `tool_use_id`, `turn_id`, `session_id`, `transcript_path` and
+// `hook_event_name`; they are additive and ignored — adaptCodexEvent destructures only { tool_name, tool_input, cwd }, so a later
 // reader should not "add support" for fields nothing here consumes.
 function bridgeExecutedCommand(toolInput) {
   // equivalent mutant (OptionalChaining): a nullish toolInput throws TypeError
@@ -141,7 +141,7 @@ export function adaptCodexEvent(payload) {
 // "nothing to contain" — both fail closed here rather than falling through
 // to guardWritePath, which would resolve an empty path to the working dir
 // root and pass it.
-function decideWriteContainment({ tool, tool_input, working_dir }, guard) {
+function decideWriteContainment({ tool, tool_input, working_dir }) {
   const paths = extractPatchPaths(tool_input.patchText);
   if (paths.length === 0) {
     return { block: true };
@@ -151,7 +151,7 @@ function decideWriteContainment({ tool, tool_input, working_dir }, guard) {
     if (path === '') {
       return { block: true };
     }
-    const verdict = guard({ tool, tool_input: { file_path: path }, working_dir });
+    const verdict = toolCallGuard({ tool, tool_input: { file_path: path }, working_dir });
     if (verdict.block) {
       return verdict;
     }
@@ -170,7 +170,7 @@ export function codexGuard(event) {
   if (event.tool === BASH_TOOL_NAME) {
     return plainGitCommandVerdict(event.tool_input.command);
   }
-  return WRITE_TOOLS.has(event.tool) ? decideWriteContainment(event, toolCallGuard) : toolCallGuard(event);
+  return WRITE_TOOLS.has(event.tool) ? decideWriteContainment(event) : toolCallGuard(event);
 }
 
 /**
