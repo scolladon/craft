@@ -223,10 +223,6 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   string guard; `hash -p` is blocked.
 - Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions
   have stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
-- Codex `write_stdin` into a tty session is unguarded: on 0.162.1 `exec_command` with `tty: true`
-  reaches the hook as `{ command }` only, `write_stdin` fires no PreToolUse hook at all, and the
-  text it types runs (offline probe 2026-10-18, benign marker). A shell opened without a git
-  mention therefore takes any git typed into it.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
   `update-ref -d`, `filter-branch`, `send-pack`).
 - Closed, no longer residuals: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
@@ -235,6 +231,13 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   verdict deadline: the 80 KB `eval` chain that took 49 s and then
   aborted now denies in 0.06 s (live probe 2026-10-15). Every fail-closed denial carries a reason,
   including `craft: write outside the working directory is denied in this binding`.
+  Codex `write_stdin` into a tty session is closed too: `[features] unified_exec_tty = false` in
+  the template and `-c features.unified_exec_tty=false` in the documented `codex exec` command
+  make codex refuse `tty: true`, and a non-tty session's stdin is closed, so `write_stdin` fails
+  (offline probe 2026-10-18, 0.162.1). Closed only while that config holds: without the flag, a
+  trusted project's `.codex/config.toml` setting `unified_exec_tty = true` overrides the template
+  key and reopens it. Only `codex exec` was probed (not the TUI or app-server turns), and a codex
+  release that ignores the key would reopen it silently.
 - Closed, not a residual: cross-call shell state. A function or variable defined in one `bash` call
   was not visible in the next, even with a reused `shellId`, and only `bash` executes shell text
   (`read_bash`, `stop_bash`, `list_bash` cannot inject input) — 1.0.92 and 1.0.98.

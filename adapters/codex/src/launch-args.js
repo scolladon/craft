@@ -11,6 +11,9 @@
  *   - `-C <workingDir>` is emitted as two discrete argv elements (flag, then
  *     value) — never one interpolated string. Same argv-array discipline as
  *     `adapters/pi/src/execution.js`.
+ *   - Interactive tty sessions are always switched off. Text typed into one
+ *     through `write_stdin` fires no guard hook, and this override also wins
+ *     over a config.toml that turns tty sessions back on.
  */
 
 import { isAbsolute } from 'node:path';
@@ -19,6 +22,8 @@ const FLAG_SANDBOX = '-s';
 const SANDBOX_WORKSPACE_WRITE = 'workspace-write';
 const FLAG_WORKING_DIR = '-C';
 const FLAG_BYPASS_HOOK_TRUST = '--dangerously-bypass-hook-trust';
+const FLAG_CONFIG_OVERRIDE = '-c';
+const DISABLE_TTY_SESSIONS = 'features.unified_exec_tty=false';
 
 /**
  * `workingDir` doubles as the containment root the guard hook and the
@@ -29,7 +34,7 @@ const FLAG_BYPASS_HOOK_TRUST = '--dangerously-bypass-hook-trust';
  * @param {string} workingDir
  */
 function assertAbsoluteWorkingDir(workingDir) {
-  if (typeof workingDir !== 'string' || workingDir === '' || !isAbsolute(workingDir)) {
+  if (typeof workingDir !== 'string' || !isAbsolute(workingDir)) {
     throw new Error(
       `buildLaunchArgs: workingDir "${workingDir}" must be a non-empty absolute path — refusing to emit an unbounded containment root`,
     );
@@ -50,6 +55,8 @@ export function buildLaunchArgs({ workingDir, bypassHookTrust = false }) {
     SANDBOX_WORKSPACE_WRITE,
     FLAG_WORKING_DIR,
     workingDir,
+    FLAG_CONFIG_OVERRIDE,
+    DISABLE_TTY_SESSIONS,
     // `--ephemeral` is deliberately never emitted: it suppresses the session
     // files `--source codex` telemetry mines, turning telemetry into a silent
     // zero that reads as success. Do not add it "for hygiene".

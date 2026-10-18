@@ -85,3 +85,36 @@ describe('buildLaunchArgs() — failure contract', () => {
     });
   }
 });
+
+const FLAG_CONFIG_OVERRIDE = '-c';
+const TTY_SESSIONS_OFF = 'features.unified_exec_tty=false';
+
+describe('buildLaunchArgs() - tty-session posture', () => {
+  it('Given a working dir, when buildLaunchArgs runs, then -c is emitted as its own element immediately followed by features.unified_exec_tty=false', () => {
+    const sut = buildLaunchArgs;
+
+    const result = sut({ workingDir: WORKING_DIR });
+
+    const flagIndex = result.indexOf(FLAG_CONFIG_OVERRIDE);
+    assert.notEqual(flagIndex, -1, 'the config override flag must be emitted');
+    assert.equal(result[flagIndex + 1], TTY_SESSIONS_OFF);
+  });
+
+  it('Given bypassHookTrust true, when buildLaunchArgs runs, then -c is still immediately followed by features.unified_exec_tty=false', () => {
+    const sut = buildLaunchArgs;
+
+    const result = sut({ workingDir: WORKING_DIR, bypassHookTrust: true });
+
+    const flagIndex = result.indexOf(FLAG_CONFIG_OVERRIDE);
+    assert.notEqual(flagIndex, -1, 'the config override flag must be emitted');
+    assert.equal(result[flagIndex + 1], TTY_SESSIONS_OFF);
+  });
+
+  it('Given a working dir, when buildLaunchArgs runs, then features.unified_exec_tty=false appears exactly once', () => {
+    const sut = buildLaunchArgs;
+
+    const result = sut({ workingDir: WORKING_DIR });
+
+    assert.equal(result.filter((element) => element === TTY_SESSIONS_OFF).length, 1);
+  });
+});

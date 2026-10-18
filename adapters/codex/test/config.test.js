@@ -142,3 +142,39 @@ describe('the registered guard command — run by a shell from a plugin root con
     });
   }
 });
+
+const FEATURES_HEADER = '[features]';
+const TABLE_HEADER_PATTERN = /^\s*\[/;
+const TTY_OFF_LINE_PATTERN = /^\s*unified_exec_tty\s*=\s*false\s*$/;
+
+function templateLines() {
+  return readConfigTemplate().split('\n');
+}
+
+// Line-scoped on purpose: a whole-file match would also accept the key commented out
+// or sitting under another table, where codex ignores it.
+function featuresTableLines(lines) {
+  const start = lines.findIndex((line) => line.trim() === FEATURES_HEADER);
+  assert.notEqual(start, -1, `config.template.toml has no ${FEATURES_HEADER} table header`);
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => TABLE_HEADER_PATTERN.test(line));
+  return end === -1 ? rest : rest.slice(0, end);
+}
+
+describe('config.template.toml - tty sessions off', () => {
+  it('Given config.template.toml, when the [features] table is read up to the next table header, then it holds unified_exec_tty = false', () => {
+    const sut = featuresTableLines(templateLines());
+
+    const result = sut.some((line) => TTY_OFF_LINE_PATTERN.test(line));
+
+    assert.ok(result, `the ${FEATURES_HEADER} table carries no unified_exec_tty = false line`);
+  });
+
+  it('Given config.template.toml, when every table header is collected, then [features] appears exactly once', () => {
+    const sut = templateLines();
+
+    const result = sut.filter((line) => line.trim() === FEATURES_HEADER);
+
+    assert.equal(result.length, 1);
+  });
+});

@@ -177,7 +177,9 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open (scoped 2026-10-18 — follow-ups surfaced by the codex-git-destructive-predicate-hook run, not yet scheduled)
 
-**Close codex's `write_stdin` channel past the guard hook.** On codex-cli 0.162.1, `exec_command` with
+**Close codex's `write_stdin` channel past the guard hook — delivered 2026-10-18**
+([PR #80](https://github.com/scolladon/craft/pull/80), ADR-642: the config template sets `[features] unified_exec_tty = false` and the documented `codex exec` command passes `-c features.unified_exec_tty=false`, so codex refuses `tty: true` and `write_stdin` finds stdin closed).
+On codex-cli 0.162.1, `exec_command` with
 `tty: true` reaches the PreToolUse hook as `{ command }` only, and `write_stdin` fires no hook at all: a
 shell opened without mentioning git runs whatever is typed into it (offline probe, benign marker; see
 `docs/contributing/specs/codex-poc-record.md` and the residual in `docs/contributing/specs/gate.md`). No

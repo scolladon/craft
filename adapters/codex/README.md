@@ -91,6 +91,15 @@ mode is a posture, not a measured containment claim: per-sandbox-mode blocking w
 never measured against this binding) and per-agent model/effort entries drawn only
 from this binding's own tier map (`src/model-tier-map.js`).
 
+The template also switches interactive tty sessions off: a `[features]` table holding
+`unified_exec_tty = false`. A trusted project's own `.codex/config.toml` can set it back to
+`true`, so the launch flag `-c features.unified_exec_tty=false` is the layer that holds: it
+wins over every `config.toml`. The Usage command below passes it, and so does
+`buildLaunchArgs` (the acceptance probe's launch). Codex fires no PreToolUse hook for `write_stdin`, and only a tty session keeps stdin open for
+it to type into. The cost: the model gets no interactive shell, REPL or prompt-answering
+session. If your `config.toml` already has a `[features]` table, add the key to that table: a
+second `[features]` header is a duplicate table, which is invalid TOML.
+
 Deploy the execpolicy rules file: copy `craft.rules` into `$CODEX_HOME/rules/` (default
 `~/.codex/rules/`, created if absent), the directory codex loads `*.rules` files from.
 From the repository root:
@@ -188,11 +197,19 @@ written down now:
 - The model picks the tool shell per call (`exec_command`'s `shell` argument, the
   bash 3.2 at /bin/bash included), and the hook payload does not carry it, so the gate
   denies the constructs whose meaning depends on the shell.
+- `write_stdin` is closed on 0.162.1 by the template's `unified_exec_tty = false` and the
+  launch flag `-c features.unified_exec_tty=false`. Codex refuses `tty: true` with
+  `TTY execution is disabled by config`, and a non-tty session's stdin is closed, so
+  `write_stdin` fails with `stdin is closed for this session`. `write_stdin` stays in the
+  tool list. Without the launch flag, a trusted project's `.codex/config.toml` holding
+  `[features] unified_exec_tty = true` overrides the template key and turns tty sessions
+  back on. Running `codex exec` without the flag and without the key also reopens the
+  `write_stdin` channel. Only `codex exec` was probed: the interactive TUI and app-server
+  turns were not, and a later codex release that ignores `unified_exec_tty`, as 0.162.1
+  already ignores `unified_exec = false`, would reopen it silently.
 - Still open: git reached through channels no string guard follows (scripts, `make`,
   `npm run`, an interpreter given a literal string, gitconfig-file aliases, a renamed or
-  copied git binary). Text typed into a tty session through `write_stdin` is one of them:
-  codex fires no PreToolUse hook for `write_stdin`, so a shell opened without mentioning
-  git runs whatever is typed into it. A hook that runs past its `timeout` also fails open. craft sets no
+  copied git binary). A hook that runs past its `timeout` also fails open. craft sets no
   `timeout`, codex's default exceeded 90 s when measured on 0.162.1, and the slowest
   measured verdict took about 190 ms, so no verdict deadline is added. An operator who sets a low
   `timeout` reopens that path.
@@ -225,8 +242,11 @@ into a zero that reads as success.
 Once installed, invoke the entrypoint headlessly:
 
 ```
-codex exec "/craft-run <backlog-id | file | description>"
+codex exec -c features.unified_exec_tty=false "/craft-run <backlog-id | file | description>"
 ```
+
+The `-c` flag keeps tty sessions off even when a project config turns them back on (see the
+Guard section).
 
 `plugins/craft-codex/skills/craft-run/SKILL.md` is the thin, adapter-authored entry
 point: it names the input, defers verbatim to the shared `skills/run/SKILL.md` at the
