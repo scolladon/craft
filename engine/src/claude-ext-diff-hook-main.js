@@ -5,6 +5,7 @@ export const ALLOW_VERDICT = 'allow';
 const UNREADABLE_COMMAND_EXIT = 1;
 const UNREADABLE_COMMAND_MESSAGE = 'claude-ext-diff-verdict: tool_input.command is not a string inside JSON objects\n';
 const REASON_PREFIX = 'craft: ';
+// equivalent mutant (StringLiteral "Stryker was here!"): the ext-diff rule allows any non-git command, so any such string yields the same allow verdict as ''.
 const NO_COMMAND = '';
 const UNREADABLE = null;
 const COMMAND_PATH = Object.freeze(['tool_input', 'command']);
