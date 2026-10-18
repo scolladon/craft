@@ -41,7 +41,7 @@ describe('gitDestructivePredicate() — git spelled in another case', () => {
 });
 
 describe('gitDestructivePredicate() - git named through zsh equals expansion', () => {
-  for (const command of ['=git push origin main', 'git status && =git push', '=G\\it push']) {
+  for (const command of ['=git push origin main', 'git status && =git push', '=G\\it push', "=bash -c 'git push'", "=env -S 'git push'", '=git-push origin', "/usr/bin/env -S 'git push'"]) {
     it(`Given ${JSON.stringify(command)}, when checked, then blocks with the push reason`, () => {
       const sut = gitDestructivePredicate;
 

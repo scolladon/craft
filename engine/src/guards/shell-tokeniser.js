@@ -57,7 +57,10 @@ const CLUSTER_SHAPE = /^[-+][A-Za-z]+$/;
 const COMMAND_FLAG = 'c';
 const PLUS_PREFIX = '+';
 
-export const basename = text => text.slice(text.lastIndexOf('/') + 1);
+// zsh expands a word that opens with `=` to the path of the command it names, so `=git` runs git.
+const ZSH_EQUALS_PREFIX = /^=/;
+
+export const basename = text => text.slice(text.lastIndexOf('/') + 1).replace(ZSH_EQUALS_PREFIX, '');
 
 const isOption = ({ text }) => text.startsWith(OPTION_PREFIX);
 
@@ -134,7 +137,7 @@ const envOption = (words, cursor) => {
 // A word inside an earlier env's option run is a value, never an env command, so skipping it
 // keeps a chain of -S options from being scanned once per env word.
 const envSplitWords = (words, index, optionsEnd) => {
-  if (words[index].text !== ENV_WORD || index < optionsEnd) return { words: [], optionsEnd };
+  if (basename(words[index].text) !== ENV_WORD || index < optionsEnd) return { words: [], optionsEnd };
   const found = [];
   let cursor = index + 1;
   for (; cursor < words.length && isOption(words[cursor]); cursor += 1) {
