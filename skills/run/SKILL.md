@@ -229,7 +229,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    After an implementation no-op (the run record holds `NO-OP(implementation):`), the
    `review`, `refactoring`, `validation` and `architecture` signals are evaluated over
    `<base>...HEAD` instead of "since `implementation`", so source that an earlier phase
-   committed is still probed. A run whose only commits are the design doc, its ADRs and
+   committed is still probed. `<base>` is the default branch the workspace phase probed (`origin/HEAD` → `main` → `master`). A run whose only commits are the design doc, its ADRs and
    their citation sweeps still auto-skips all four.
 
    When provably empty: (a) append the fixed token
@@ -588,7 +588,7 @@ instead of trusting the summary it just produced.
    | any agent phase except review | the phase's committed artifact (design doc, plan, ADRs, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
    | `workspace` | `../<repo>-<slug>` exists on `<type>/<slug>` but setup may have failed part-way: re-run `worktree-setup.sh <abs-worktree-path> [manifest scripts.post-setup]`; escalate if it fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
    | `decisions` | ADRs are committed one at a time; the user's answers survive as verbatim user messages. |
-   | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. No plan and the ledger holds `NO-OP(planning):`: append `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` if absent, run `gates.phase` once, then close the phase (`GATE` and `PHASE-DONE` lines). |
+   | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. No plan and the ledger holds `NO-OP(planning):`: append `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` if absent, run `gates.phase` (fixing a red one first), and close the phase only on a green gate (`GATE(implementation): green` and `PHASE-DONE` in one append). |
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
    | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |

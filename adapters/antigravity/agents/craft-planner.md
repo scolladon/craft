@@ -39,8 +39,10 @@ Contract:
   GREEN that satisfies it. No step breaks code to watch a test fail.
 - Commit with the message your invocation names.
 - No-op: when every design requirement (and every ADR consequence the design commits
-  to) is already delivered by a commit on the branch, write no plan and commit
-  nothing. Any doubt produces a plan; a requirement that is only partly landed still
-  gets a part.
+  to) is already delivered by a commit this run landed after its base, write no plan
+  and commit nothing. Map every requirement id; cite full or abbreviated hex shas only,
+  never the design-doc commit. A requirement already true before the run is planned,
+  never mapped. Any doubt produces a plan; a requirement that is only partly landed
+  still gets a part.
 - Final message: the plan path + part count, nothing else — or, on a no-op, exactly
   `NO-OP: no part remains — <R1 → <sha>, R2 → <sha>, …>`.

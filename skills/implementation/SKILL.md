@@ -18,10 +18,13 @@ description: Craft phase 5 - execute the plan part by part, one part-implementer
    reorient block yields). Then the phase is a no-op: spawn nothing, append no `PART`
    line, skip Procedure 1–2, and run `gates.phase` once in-session (the Procedure 3
    gate — the phase is never gateless, even here; a manifest `override:` cannot skip
-   it). One `run-ledger.sh append <run-id> implementation` call carries
+   it). On green, one `run-ledger.sh append <run-id> implementation` call carries
    `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)`,
-   `GATE(implementation): <green|red>` and `PHASE-DONE(implementation): no-op — no plan
-   parts`. A red gate is handled as Procedure 3 states: fix and commit before review.
+   `GATE(implementation): green` and `PHASE-DONE(implementation): no-op — no plan
+   parts`. On red, append the `NO-OP` line and `GATE(implementation): red` without `PHASE-DONE`,
+   fix and commit as Procedure 3 states, re-run the gate, and append its result:
+   `PHASE-DONE` lands only with a green gate, so a rebuild never reads a red phase as
+   closed.
    A plan file that exists next to a `NO-OP(planning):` line is a contradiction:
    escalate `{ implementation, reason, ≤3 options }`, never guess which wins. No plan
    and no `NO-OP(planning):` line (standalone included): refuse, as before.
