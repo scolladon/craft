@@ -43,8 +43,9 @@ subjects:
   - **post**: the branch is merged; the PR is closed.
 
 - `teardown(workspacePath) → void` — remove the isolated workspace after `integrate` completes;
-  lock-aware: refuses while `.craft-validation.lock` holds a live PID; auto-clears a dead-PID lock;
-  a live PID requires `--force`.
+  lock-aware: refuses while the run-lock (see Teardown lock protocol) holds a live PID; auto-clears
+  a dead-PID lock; a live PID requires `--force`; exits 2, removing nothing, when the lock path
+  cannot be resolved.
   - **pre**: `integrate` has completed (teardown only after integrate — core ordering); the
     workspace exists.
   - **post**: the worktree directory is removed; the branch is pruned from the local repo; if
@@ -52,15 +53,22 @@ subjects:
 
 ## Teardown lock protocol
 
-The validation phase writes `<worktree-root>/.craft-validation.lock` containing `<pid> <iso-timestamp>`
-when background runs start, and removes it when the run lands. `worktree-teardown.sh` reads this
-lock on entry:
+The validation phase writes the run-lock, containing `<pid> <iso-timestamp>`, when background runs
+start, and removes it when the run lands. The lock path is what
+`git -C <worktree-root> rev-parse --path-format=absolute --git-path craft-validation.lock` prints
+(`--path-format=absolute` is mandatory: the main checkout's answer is otherwise cwd-relative). The
+file lives in the per-worktree git dir, so it is never committable and `git worktree remove` deletes
+it with the worktree. `worktree-teardown.sh` resolves the same path from the worktree before removing
+anything, then reads the lock on entry:
 
 - **Dead PID**: lock is stale — auto-cleared, teardown continues.
 - **Live PID, no `--force`**: exits 3, emits `REFUSED — validation run alive (pid=... since ...)` to
   stderr; the lock is left intact.
 - **Live PID, `--force`**: emits `FORCED past live validation run (pid=... since ...)`, removes the
   lock, proceeds with teardown.
+- **Unresolvable path**: exit 2, nothing removed.
+
+A lock file left at a pre-change in-tree location is not read.
 
 ## Binding set
 
