@@ -641,3 +641,8 @@ planning-no-op-outcome design turns=46 tool_calls=47 tokens=2567479 duration_ms=
 planning-no-op-outcome implementation turns=12 tool_calls=13 tokens=291768 duration_ms=104740 cache_read=234236 cache_creation=57134 output=374 avg_ctx=24283 equiv=96735
 planning-no-op-outcome planning turns=41 tool_calls=42 tokens=2472400 duration_ms=468866 cache_read=2377322 cache_creation=94554 output=442 avg_ctx=60292 equiv=358217
 planning-no-op-outcome review turns=62 tool_calls=64 tokens=1807269 duration_ms=422656 cache_read=1563534 cache_creation=242145 output=1466 avg_ctx=29126 equiv=466489
+codex-git-destructive-predicate-hook design turns=65 tool_calls=66 tokens=6138663 duration_ms=1271751 cache_read=5984925 cache_creation=152954 output=654 avg_ctx=94431 equiv=793085
+codex-git-destructive-predicate-hook implementation turns=50 tool_calls=54 tokens=1758168 duration_ms=421831 cache_read=1602088 cache_creation=155096 output=884 avg_ctx=35146 equiv=358599
+codex-git-destructive-predicate-hook planning turns=63 tool_calls=65 tokens=5884232 duration_ms=753860 cache_read=5727643 cache_creation=155407 output=1056 avg_ctx=93384 equiv=772429
+codex-git-destructive-predicate-hook review turns=57 tool_calls=61 tokens=2133286 duration_ms=594651 cache_read=1893233 cache_creation=238984 output=955 avg_ctx=37409 equiv=492942
+codex-git-destructive-predicate-hook validation turns=10 tool_calls=10 tokens=231955 duration_ms=90801 cache_read=204900 cache_creation=26851 output=184 avg_ctx=23177 equiv=54994
