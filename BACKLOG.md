@@ -307,8 +307,12 @@ judged normalised argv with `gitDestructivePredicate`; the codex guard hook did 
 `git -C . push origin main` payload and confirm it exits 0 (allows). Then decide whether codex also
 takes the plain-command gate.
 
-**The Claude ext-diff hook shares the anchor and global-option gaps.** `hooks/git-no-ext-diff.sh`
-(a separate bash matcher) allows `(git diff)`, `FOO=1 git diff`, `env/command/!/time git diff`,
+**The Claude ext-diff hook shares the anchor and global-option gaps — delivered 2026-10-18**
+(fix/claude-ext-diff-hook-gaps, ADR-646, ADR-647, ADR-648: the bash hook keeps its crash contract and
+takes its verdict from a node CLI running `gitExtDiffPredicate`, so every form below is denied and quoted
+text is no longer falsely denied). Design:
+[claude-ext-diff-hook-gaps](docs/contributing/design/claude-ext-diff-hook-gaps.md). Original entry:
+`hooks/git-no-ext-diff.sh` (a separate bash matcher) allows `(git diff)`, `FOO=1 git diff`, `env/command/!/time git diff`,
 `{ git diff; }`, `git --no-pager diff`, `git -p diff` and `git --git-dir .git diff` (pinned read-only in
 the design doc's Pinned A table). Its crash contract (ADR-533…541) makes a rewrite its own change.
 
@@ -352,6 +356,14 @@ and `docs/contributing/specs/gate.md` list "an apostrophe plus `$` in a quoted w
 [bash32-heredoc-commit-idiom](docs/contributing/design/bash32-heredoc-commit-idiom.md)). Not folded into
 that run: it is a claim about the false-block list, not about the commit idiom. Restate the item as the
 rule.
+
+**The shared ext-diff rule allows `--ext-diff` on a non-diff verb and a config-defined diff alias.**
+`gitExtDiffPredicate` judges only `diff`/`show` (`DIFFING_VERBS`) and inline `-c alias.*`, so
+`git log -p --ext-diff` and `git config alias.x diff; git x` both return `block: false` (reproduced in-process
+on the claude-ext-diff-hook-gaps branch; the old Claude regex allowed both too, so no binding regressed).
+Every binding that composes the rule (Claude, codex, copilot) shares it. Not folded: widening the shared
+rule changes the verdict on every binding and needs its own decision (deny `--ext-diff` on any git verb?
+judge `git config alias.*` writes?), outside that run's ext-diff-hook scope.
 
 ### Open (scoped 2026-10-15 — follow-ups surfaced by the codex-0162-reprobe run, not yet scheduled)
 

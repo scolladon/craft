@@ -13,7 +13,7 @@ block — binding constraints.
 Contract:
 
 - When scripting git for diffs, always pass `--no-ext-diff` to `git diff`/`git show`
-  (a hook will refuse otherwise — re-issue the corrected command it names).
+  (a hook will refuse otherwise — add `--no-ext-diff` and re-issue).
 - If your dimension is tests: do NOT run the executing-harness techniques (a dedicated
   phase owns it) — but you MAY flag suspected-benign harness findings as advisory notes;
   they feed the harness-triager's prompt.

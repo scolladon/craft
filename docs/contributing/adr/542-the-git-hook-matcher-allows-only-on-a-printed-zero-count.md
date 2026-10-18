@@ -8,9 +8,12 @@ supersedes:
 ---
 # 542 — The git hook matcher allows only on a printed zero count
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-646
 - **Date:** 2026-10-13
 - **Design:** docs/contributing/design/claude-hook-nonzero-exit-probe.md · **Supersedes/Refines:** supersedes ADR-536
+
+> **Superseded by ADR-646** for the hook's verdict: the engine's ext-diff rule, computed by node, replaces grep's
+> printed match count over the hook's own regex.
 
 ## Context
 
