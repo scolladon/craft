@@ -58,9 +58,10 @@ craft's git-guard binds to Copilot as three layers, all of which enforce on copi
 - **Command policy** (`--deny-tool` pattern set) — enforces, live-proven, and takes precedence
   even over `--allow-all-tools`. It is prefix matching, so it stays the floor on a copilot older
   than 1.0.92, where the hook cannot deny.
-- **`preToolUse` hook** (`hooks/craft-guard.js`) — three stages, in order: the **plain-command
-  gate**, the destructive-git predicate (normalised argv: destructive verbs and the
-  `--no-ext-diff` rule), then the shared `toolCallGuard`. A block writes a JSON deny on stdout
+- **`preToolUse` hook** (`hooks/craft-guard.js`) — a `bash` call is judged in order by the
+  **plain-command gate**, then the destructive-git predicate (normalised argv: destructive verbs and
+  the `--no-ext-diff` rule), through the shared verdict the codex binding also enforces; a
+  `create`/`edit` call by the shared `toolCallGuard` containment. A block writes a JSON deny on stdout
   (exit 0); a crash denies by exit 2. A deny also fires for a missing hook file or a missing `node`
   (`hook errored`). Verified on 1.0.92 and 1.0.98.
 
@@ -79,7 +80,7 @@ working tree is written by a `bash` call that does not mention git (`printf '%s\
 /tmp/msg`): `create` outside the working directory is denied, and so is a write whose message
 names git and holds `$` or a backtick.
 
-**Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
+**Near-git rules.** Beyond plainness, four rules apply to any command that mentions git:
 
 - `-c <key>=…` and `--config-env=<key>=…` keys must be in a safe set: `user.name`, `user.email`,
   `commit.gpgsign`, `tag.gpgsign`, `core.quotepath`, `color.ui`, `init.defaultbranch`,
@@ -91,6 +92,7 @@ names git and holds `$` or a backtick.
   position (an unlisted wrapper such as `caffeinate` or `stdbuf` could otherwise put a shell out of
   command position), while `env exec command nohup time sudo nice timeout xargs source . trap hash
   builtin enable fc coproc alias` deny in command position.
+- A command word that opens with `=` denies: zsh expands `=git` to git's path.
 
 **Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
 (`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s hook

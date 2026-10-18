@@ -72,12 +72,16 @@ const FILE_DESCRIPTOR = /^[0-9]+$/;
 // equivalent mutant (StringLiteral "" for 'time'): a command-position `time` is also a wrapper word, so it blocks before this set is consulted.
 const KEEPS_COMMAND_POSITION = new Set(['if', 'then', 'else', 'elif', 'while', 'until', 'do', 'time']);
 
-const baseName = word => word.split('/').pop().toLowerCase();
+// zsh expands a word that opens with `=` to the path of the command it names.
+const ZSH_EQUALS_PREFIX = /^=/;
+const baseName = word => word.split('/').pop().replace(ZSH_EQUALS_PREFIX, '').toLowerCase();
 const isWrapperWord = word => WRAPPER_WORDS.has(baseName(word)) || SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
 const isShellOrEvaluator = word => SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
 // A literal double quote in a command name can only come from a quoting trick, so the gate cannot tell what command runs.
 const holdsDoubleQuote = word => word.includes(DOUBLE_QUOTE);
-const isOpaqueCommand = word => isWrapperWord(word) || holdsDoubleQuote(word);
+// The gate cannot tell which path a zsh `=` expansion resolves to.
+const isZshEqualsExpansion = word => ZSH_EQUALS_PREFIX.test(word);
+const isOpaqueCommand = word => isWrapperWord(word) || holdsDoubleQuote(word) || isZshEqualsExpansion(word);
 const keepsCommandPosition = word => ASSIGNMENT.test(word) || KEEPS_COMMAND_POSITION.has(word);
 
 const startingState = () => ({ atCommand: true, redirect: false });

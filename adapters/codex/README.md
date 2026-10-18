@@ -166,7 +166,7 @@ craft's git-guard binds to Codex as three layers, of markedly different strength
 
 | Layer | Mechanism | Strength |
 |---|---|---|
-| PreToolUse hook (`hooks/craft-guard.js`) | Exits code 2 with the reason on stderr. Any crash inside the guard (a module that fails to load, a throw, a rejected promise) also exits 2. codex 0.161.0 runs the call on every other exit status, so a failure before the guard runs fails open (see below) | **Enforcing** — live-proven: the command never runs, and the denial is fed back to the model as `function_call_output` |
+| PreToolUse hook (`hooks/craft-guard.js`) | For a Bash call, three stages in order: the **plain-command gate**, then, over one parse, the destructive-git predicate (push, `reset --hard`, forced branch delete, `clean` without `--dry-run`, config and alias injection), then the `--no-ext-diff` rule; for `apply_patch`, per-path containment. Exits code 2 with the reason on stderr. Any crash inside the guard (a module that fails to load, a throw, a rejected promise) also exits 2. codex 0.161.0 runs the call on every other exit status, so a failure before the guard runs fails open (see below) | **Enforcing** — live-proven: the command never runs, and the denial is fed back to the model as `function_call_output` |
 | Execpolicy `.rules` (`craft.rules`) | Starlark `prefix_rule` matching over argv | **Partial** — defence-in-depth only |
 | Sandbox (`-s workspace-write`) | Codex's own sandbox mode | **Unmeasured** — a posture, not a containment guarantee |
 
@@ -175,7 +175,27 @@ written down now:
 
 - `git -C . push`, `git --git-dir=.git push`, and `bash -lc 'git push'` all **bypass**
   the execpolicy `.rules` layer — it matches a token-prefix over argv, not an
-  adversarial parse, and an interposed global option defeats it.
+  adversarial parse, and an interposed global option defeats it. The PreToolUse hook
+  denies all three: the first two with the destructive-git reason, `bash -lc` with the
+  gate's.
+- The gate has a cost. A command that mentions git must be plain (no `$`, backslash,
+  wrapper or evaluator near git), or it is denied with
+  `craft: command too complex to verify near git — spell it plainly`. Re-issue the git
+  part plainly: commit with `git commit -m "<message>"`, or `git commit -F <file>` when
+  the message holds `` " $ ` \ ! `` . Two blocks are intended false positives:
+  `echo $HOME; git status` and `git commit -m "fix: \"q\""`. A command word that opens with
+  `=` (zsh expands `=git` to git's path) is denied the same way.
+- The model picks the tool shell per call (`exec_command`'s `shell` argument, the
+  bash 3.2 at /bin/bash included), and the hook payload does not carry it, so the gate
+  denies the constructs whose meaning depends on the shell.
+- Still open: git reached through channels no string guard follows (scripts, `make`,
+  `npm run`, an interpreter given a literal string, gitconfig-file aliases, a renamed or
+  copied git binary). Text typed into a tty session through `write_stdin` is one of them:
+  codex fires no PreToolUse hook for `write_stdin`, so a shell opened without mentioning
+  git runs whatever is typed into it. A hook that runs past its `timeout` also fails open. craft sets no
+  `timeout`, codex's default exceeded 90 s when measured on 0.162.1, and the slowest
+  measured verdict took about 190 ms, so no verdict deadline is added. An operator who sets a low
+  `timeout` reopens that path.
 - A malformed `craft.rules` file **may fail open** at runtime, so treat it as fail open.
   On codex 0.162.1 the outcome depends on how codex is driven: `codex exec`, this
   binding's launch path, refuses to start, so the run stops loudly; the app-server

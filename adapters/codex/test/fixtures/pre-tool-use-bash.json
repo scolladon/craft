@@ -1,0 +1,1 @@
+{"session_id":"<session-id>","turn_id":"<turn-id>","transcript_path":"<codex-home>/sessions/rollout.jsonl","cwd":"/repo","hook_event_name":"PreToolUse","model":"gpt-5.4","permission_mode":"bypassPermissions","tool_name":"Bash","tool_input":{"command":"<command>"},"tool_use_id":"call_0"}

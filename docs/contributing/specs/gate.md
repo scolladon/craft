@@ -195,8 +195,9 @@ backtick.
 
 **Guard modules.** The guard logic lives in `engine/src/guards/`: `shell-tokeniser.js` (bash
 tokeniser), `git-argv.js` (git global-option normaliser), `shell-git-invocations.js` (anchoring and
-judging), `git-plain-command-gate.js` (the copilot gate), `git-destructive-predicate.js` and
-`git-ext-diff-predicate.js`.
+judging), `git-plain-command-gate.js` (the plain-command gate), `git-destructive-predicate.js`,
+`git-ext-diff-predicate.js` and `git-bash-verdict.js` (the shared Bash verdict copilot and codex
+call: gate, then destructive git, then ext-diff over one parse).
 
 **Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
 (`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s timeout
@@ -222,6 +223,10 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   string guard; `hash -p` is blocked.
 - Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions
   have stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
+- Codex `write_stdin` into a tty session is unguarded: on 0.162.1 `exec_command` with `tty: true`
+  reaches the hook as `{ command }` only, `write_stdin` fires no PreToolUse hook at all, and the
+  text it types runs (offline probe 2026-10-18, benign marker). A shell opened without a git
+  mention therefore takes any git typed into it.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
   `update-ref -d`, `filter-branch`, `send-pack`).
 - Closed, no longer residuals: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
@@ -253,23 +258,25 @@ Three layers, with distinct enforcement strength:
 
 | Layer | Mechanism | Enforcing? |
 |---|---|---|
-| PreToolUse hook | `hooks.json` → `hooks/craft-guard.js` → the shared engine guard; exit 2 + stderr reason | **Yes — live-proven; the command never runs and the denial is fed back to the model** |
+| PreToolUse hook | `hooks.json` → `hooks/craft-guard.js` → the shared Bash verdict (`plainGitCommandVerdict`) for Bash, `toolCallGuard` containment per path for `apply_patch`; exit 2 + stderr reason | **Yes — live-proven; the command never runs and the denial is fed back to the model** |
 | Execpolicy `.rules` | `prefix_rule` with nested-list alternation | Partially — token-prefix over argv; defence-in-depth only |
 | Sandbox | `-s workspace-write` + `writable_roots` | Unmeasured — claims nothing |
 
 **tool-guard**: `hooks.json`'s `PreToolUse` entry runs `hooks/craft-guard.js` on every tool call.
 The hook reads the payload from stdin, keys off `tool_name`/`tool_input` (never the request
 body — the tool surface varies by model, and the hook payload is the only surface present across
-every model case), reshapes it through `adaptCodexEvent`, and applies the shared engine guard
-(`engine/src/guards/tool-call-guard.js`) unmodified — the same predicate the Claude, Pi, and
-Copilot bindings enforce. A block exits **code 2** with the reason on stderr: the command never
+every model case), reshapes it through `adaptCodexEvent`, and judges it: a Bash call by
+`plainGitCommandVerdict` (`engine/src/guards/git-bash-verdict.js`), the same verdict the Copilot
+binding enforces; an `apply_patch` call by `toolCallGuard`, once per extracted path. A block exits **code 2** with the reason on stderr: the command never
 runs, and Codex feeds the denial back to the model as `function_call_output` on the next turn. A
 pass exits 0 and writes nothing to stdout. Any throw — malformed JSON, an unrecognised
 `apply_patch` payload shape, an absent `cwd` — is treated as fail-closed, denying rather than
 guessing.
 
 **Because this hook genuinely denies, the git-ext-diff rule ships ENFORCED here — the Copilot
-binding's advisory carve-out does not carry over.** This is the strongest guard profile recorded
+binding's advisory carve-out does not carry over; destructive git and the plain-command gate ship
+enforced too.** Unlike Copilot, codex takes the gate without a verdict deadline: its default hook
+timeout exceeded 90 s when measured and the slowest measured verdict took about 190 ms (ADR-641). This is the strongest guard profile recorded
 across the five bindings.
 
 `apply_patch` is Codex's write tool, and it is freeform: a Lark-grammar tool with **no structured
@@ -282,7 +289,7 @@ patch that yields no parsable path fails **closed**.
 Four statements ship here unsoftened, honesty over a stronger-sounding claim:
 
 - `git -C . push` and `git --git-dir=.git push` **bypass** the execpolicy layer entirely —
-  live-pinned NO MATCH. Enumerating more flag orders cannot close this gap, and a blanket
+  live-pinned NO MATCH; the PreToolUse hook denies both forms with the destructive-git push reason. Enumerating more flag orders cannot close this gap, and a blanket
   `pattern=["git"]` rule would deny *all* git, breaking craft's own git-heavy workflow.
 - A malformed `.rules` file **may fail open** at runtime — treated as fail-open until proven
   otherwise.

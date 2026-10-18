@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { decideGuard } from '../src/git-guard-adapter.js';
+import { codexGuard, decideGuard } from '../src/git-guard-adapter.js';
+import { preToolUseBash } from './fixtures/pre-tool-use-payload.js';
+import { COMPLEX_NEAR_GIT_REASON } from '../../../engine/src/guards/git-plain-command-gate.js';
 
 const WORKING_DIR = '/repo';
 
@@ -320,5 +322,117 @@ describe('decideGuard() — containment is resolution-based, not string-prefix-b
     const result = sut(patchPayload(NORMALIZED_IN_TREE));
 
     assert.equal(result.block, false);
+  });
+});
+
+const destructiveReason = (what) =>
+  `craft: destructive git (${what}) is denied in this binding — run it outside the agent`;
+const PUSH = { block: true, reason: destructiveReason('push') };
+const RESET = { block: true, reason: destructiveReason('reset --hard') };
+const CLEAN = { block: true, reason: destructiveReason('clean without --dry-run') };
+const BRANCH = { block: true, reason: destructiveReason('forced branch delete') };
+const GATE = { block: true, reason: COMPLEX_NEAR_GIT_REASON };
+const ALLOW = { block: false };
+
+describe('decideGuard() - default guard composes the git verdict on the live 0.162.1 payload', () => {
+  const rows = [
+    ['a push behind a global -C option', 'git -C . push origin main', PUSH],
+    ['a push behind a global --git-dir option', 'git --git-dir=.git push origin main', PUSH],
+    ['a wrapped shell push', "bash -lc 'git push'", GATE],
+    ['a hard reset', 'git reset --hard', RESET],
+    ['a plain status', 'git status', ALLOW],
+  ];
+
+  for (const [label, command, expected] of rows) {
+    it(`Given ${label}, when decideGuard runs with its default guard, then it returns the shared verdict`, () => {
+      const sut = decideGuard;
+
+      const result = sut(preToolUseBash(command));
+
+      assert.deepEqual(result, expected);
+    });
+  }
+});
+
+describe('codexGuard() - git verdict on Bash, containment on apply_patch', () => {
+  const bashEvent = (command) => ({ tool: 'Bash', tool_input: { command }, working_dir: WORKING_DIR });
+  const EXT_DIFF_REASON = 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
+  const UNPARSEABLE_REASON = 'craft: command not parseable (unterminated substitution) \u2014 denied fail-closed';
+  const HEREDOC_IDIOM = 'git commit -m "$(cat <<\'EOF\'\nx)"; git branch -D victim; echo "\nEOF\n)"';
+
+  const rows = [
+    ['a push', 'git push origin main', PUSH],
+    ['a push behind a global -C option', 'git -C . push origin main', PUSH],
+    ['a push behind a global --git-dir option', 'git --git-dir=.git push origin main', PUSH],
+    ['an uppercase git push', 'GIT push', PUSH],
+    ['a push behind the rtk prefix', 'rtk git push', PUSH],
+    ['a push chained before a diff', 'git push; git diff', PUSH],
+    ['a hard reset', 'git reset --hard', RESET],
+    ['a clean without dry run', 'git clean -fd', CLEAN],
+    ['a forced branch delete', 'git branch -D x', BRANCH],
+    ['a wrapped shell push', "bash -lc 'git push'", GATE],
+    ['a push behind command', 'command git push', GATE],
+    ['a push behind env', 'env git push', GATE],
+    ['a push through a variable', 'G=git; $G push', GATE],
+    ['an exported git config count before a push', 'export GIT_CONFIG_COUNT=1; git push', GATE],
+    ['an extglob command word', '@(git) push', GATE],
+    ['an extglob command word after shopt', 'shopt -s extglob\n@(git) push', GATE],
+    ['a shell option smuggled through a variable', "C=-c; bash $C 'git push'", GATE],
+    ['a brace expansion building the command', '{$(:),git,push}', GATE],
+    ['an arithmetic expansion swallowing the next line', 'echo $[1<<2]\ngit push', GATE],
+    ['a push piped into sh', "echo 'git push' | sh", GATE],
+    ['a push piped into xargs', 'echo push | xargs git', GATE],
+    ['a reset piped into bash', "printf 'git reset --hard\\n' | bash", GATE],
+    ['an alias config running a push', 'git -c alias.p=push p', GATE],
+    ['the heredoc commit idiom smuggling a branch delete', HEREDOC_IDIOM, GATE],
+    ['a variable expansion before a status', 'echo $HOME; git status', GATE],
+    ['an escaped quote in a commit message', 'git commit -m "fix: \\"q\\""', GATE],
+    ['a push named through zsh equals expansion', '=git push origin main', GATE],
+    ['a diff without no-ext-diff', 'git diff', { block: true, reason: EXT_DIFF_REASON }],
+    ['an unterminated substitution', 'echo "$(', { block: true, reason: UNPARSEABLE_REASON }],
+    ['a plain status', 'git status', ALLOW],
+    ['a plain commit', 'git commit -m "feat: add x"', ALLOW],
+    ['a piped log', 'git log --oneline -3 | head -5', ALLOW],
+    ['an absolute git path', '/usr/bin/git -C /w status', ALLOW],
+    ['a commit from a message file', 'git commit -F /tmp/msg', ALLOW],
+    ['a safe inline config', 'git -c core.quotepath=false status', ALLOW],
+    ['a diff with no-ext-diff', 'git diff --no-ext-diff | grep x', ALLOW],
+    ['a proxied diff', 'rtk proxy git diff', ALLOW],
+    ['an echo', 'echo hello', ALLOW],
+    ['an ls', 'ls', ALLOW],
+  ];
+
+  for (const [label, command, expected] of rows) {
+    it(`Given ${label}, when codexGuard runs, then it returns the shared git verdict`, () => {
+      const sut = codexGuard;
+
+      const result = sut(bashEvent(command));
+
+      assert.deepEqual(result, expected);
+    });
+  }
+
+  it('Given an apply_patch event escaping the working dir, when codexGuard runs, then it blocks', () => {
+    const sut = codexGuard;
+
+    const result = sut({ tool: 'Write', tool_input: { patchText: DECOY_MULTI_HUNK }, working_dir: WORKING_DIR });
+
+    assert.equal(result.block, true);
+  });
+
+  it('Given an in-tree apply_patch event, when codexGuard runs, then it passes', () => {
+    const sut = codexGuard;
+
+    const result = sut({ tool: 'Write', tool_input: { patchText: IN_TREE_ADD }, working_dir: WORKING_DIR });
+
+    assert.deepEqual(result, ALLOW);
+  });
+
+  it('Given an unmapped tool, when codexGuard runs, then it passes', () => {
+    const sut = codexGuard;
+
+    const result = sut({ tool: 'update_plan', tool_input: {}, working_dir: WORKING_DIR });
+
+    assert.deepEqual(result, ALLOW);
   });
 });
