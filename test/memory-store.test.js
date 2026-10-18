@@ -143,7 +143,7 @@ const CONCERN_FLOORS = Object.freeze({
   'gate-cmd': 2,
   'validation-tool': 1,
   findings: 0,
-  'part-sizing': 2,
+  'part-sizing': 1,
 });
 
 test(

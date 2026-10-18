@@ -651,3 +651,8 @@ codex-write-stdin-tty-close implementation turns=15 tool_calls=18 tokens=343489 
 codex-write-stdin-tty-close planning turns=35 tool_calls=36 tokens=2501519 duration_ms=586603 cache_read=2392586 cache_creation=108473 output=390 avg_ctx=71461 equiv=376870
 codex-write-stdin-tty-close refactoring turns=4 tool_calls=4 tokens=70743 duration_ms=54093 cache_read=51497 cache_creation=19165 output=73 avg_ctx=17668 equiv=29479
 codex-write-stdin-tty-close review turns=35 tool_calls=37 tokens=896275 duration_ms=250073 cache_read=719666 cache_creation=176030 output=509 avg_ctx=25593 equiv=294619
+claude-ext-diff-hook-gaps design turns=44 tool_calls=49 tokens=2998478 duration_ms=575207 cache_read=2884825 cache_creation=113081 output=484 avg_ctx=68136 equiv=432342
+claude-ext-diff-hook-gaps implementation turns=31 tool_calls=37 tokens=841757 duration_ms=270317 cache_read=728535 cache_creation=111293 output=1867 avg_ctx=27093 equiv=221367
+claude-ext-diff-hook-gaps planning turns=97 tool_calls=98 tokens=11841216 duration_ms=1303388 cache_read=11617223 cache_creation=222835 output=964 avg_ctx=122064 equiv=1445280
+claude-ext-diff-hook-gaps review turns=70 tool_calls=73 tokens=2409064 duration_ms=698030 cache_read=2172851 cache_creation=235311 output=762 avg_ctx=34404 equiv=515374
+claude-ext-diff-hook-gaps validation turns=8 tool_calls=9 tokens=167910 duration_ms=95361 cache_read=144442 cache_creation=23327 output=125 avg_ctx=20973 equiv=44244
