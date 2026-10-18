@@ -30,8 +30,24 @@ description: Craft phase 4 - produce the parted TDD implementation plan via the 
    `gates.part`, or probe: the repo's test runner over touched files, falling back to
    `gates.phase`); the commit message `docs(plan): <slug>`; global + planning-phase
    `context:` files verbatim.
-2. When it returns: run `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/plan-lint.sh" <plan-path>` —
+2. When it returns: a final message starting `NO-OP: no part remains — ` takes the
+   **no-op branch** below; any other return runs
+   `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/plan-lint.sh" <plan-path>` —
    **the phase cannot close red**. On failure, respawn fresh with the lint output; ≤2
    respawns, then escalate.
+
+   **No-op branch** (every design requirement is already delivered by a commit on the
+   branch; no plan file exists, so plan-lint is not run). For every sha the planner
+   cites, with `<base>` the branch the run's worktree was cut from:
+   `git merge-base --is-ancestor <sha> HEAD` must succeed (the sha is on the branch) and
+   `git merge-base --is-ancestor <sha> <base>` must fail (the sha landed this run, not
+   before it). Any failing sha: respawn fresh with the failing shas — the same ≤2
+   respawns — then escalate `{ planning, reason, ≤3 options }`. All pass: append
+   `NO-OP(planning): no part remains — <justification>` (the planner's requirement → sha
+   list verbatim) and `PHASE-DONE(planning): no-op — no part remains` in one
+   `run-ledger.sh append <run-id> planning` call (walk step 7). Commit nothing.
+   Standalone (no open run): report the planner's line and stop — there is no ledger to
+   receive it and no commit.
 3. Read the plan; verify part sizing (no test-only parts) and that part contexts
-   reference real files/symbols (spot-check). Record in the run record.
+   reference real files/symbols (spot-check). Record in the run record. Skipped on the
+   no-op branch: there are no parts.
