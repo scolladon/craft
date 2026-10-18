@@ -511,3 +511,64 @@ describe('showsSymlinkIntoRules — the README-wide no-symlink check', () => {
     assert.equal(sut, false);
   });
 });
+
+const GUARD_HEADING = '## Guard — honest enforcement profile';
+const STILL_OPEN_BULLET = '- Still open:';
+const BULLET_START = '- ';
+const SENTENCE_END = /(?<=\.)\s+/;
+
+function readGuardSection() {
+  const section = sectionAfter(readFileSync(README_PATH, 'utf8'), GUARD_HEADING);
+  assert.notEqual(section, null, `README.md has no "${GUARD_HEADING}" line`);
+  return section;
+}
+
+/** The lines of the bullet opening with `opening`, up to the next bullet or blank line. */
+function bulletOpening(text, opening) {
+  const lines = text.split('\n');
+  const start = lines.findIndex((line) => line.startsWith(opening));
+  assert.notEqual(start, -1, `README.md has no bullet opening with "${opening}"`);
+  const rest = lines.slice(start + 1);
+  const end = rest.findIndex((line) => line.startsWith(BULLET_START) || line.trim() === '');
+  return [lines[start], ...(end === -1 ? rest : rest.slice(0, end))].join('\n');
+}
+
+function sentencesOf(text) {
+  return text.replace(/\s+/g, ' ').split(SENTENCE_END);
+}
+
+describe('README.md - tty sessions off', () => {
+  it('Given the Configure section of README.md, when scanned, then it states the template switches tty sessions off in a [features] table', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /`\[features\]`/);
+    assert.match(sut, /unified_exec_tty = false/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it names the launch flag that forces tty sessions off', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /-c features\.unified_exec_tty=false/);
+  });
+
+  it('Given the Configure section of README.md, when scanned, then it says a second [features] header is invalid TOML', () => {
+    const sut = readConfigureSection();
+
+    assert.match(sut, /second `\[features\]` header/);
+    assert.match(sut, /invalid TOML/);
+  });
+
+  it('Given the Guard section of README.md, when its sentences are read, then one says dropping the setting reopens the write_stdin channel', () => {
+    const sut = sentencesOf(readGuardSection());
+
+    const result = sut.some((sentence) => sentence.includes('write_stdin') && /reopens/.test(sentence));
+
+    assert.ok(result, 'no Guard sentence names write_stdin and what reopens it');
+  });
+
+  it('Given the Still open bullet of README.md, when scanned, then it no longer lists write_stdin as open', () => {
+    const sut = bulletOpening(readGuardSection(), STILL_OPEN_BULLET);
+
+    assert.doesNotMatch(sut, /write_stdin/);
+  });
+});
