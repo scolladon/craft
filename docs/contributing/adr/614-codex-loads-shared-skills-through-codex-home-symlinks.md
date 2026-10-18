@@ -12,9 +12,12 @@ supersedes:
 ---
 # 614 — Codex loads the shared craft skills through `$CODEX_HOME/skills` symlinks
 
-- **Status:** accepted
+- **Status:** superseded by ADR-635
 - **Date:** 2026-10-17
 - **Design:** docs/contributing/design/supersede-adr-253-symlink-route.md · **Supersedes/Refines:** supersedes ADR-253, ADR-252
+
+> **Superseded by ADR-635** for the kept `craft` marketplace entry: it is retired, and the
+> marketplace declares `craft-codex` only.
 
 ## Context
 
