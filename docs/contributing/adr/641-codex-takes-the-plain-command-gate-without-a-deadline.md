@@ -20,7 +20,8 @@ Without the plain-command gate, bypass classes the predicate allows stay open on
 3.2 through the `exec_command` `shell` argument, which the hook payload does not carry; the hook
 allowed; bash ran `git branch -D victim` and only the workspace-write sandbox's `.git` lock stopped
 it. A codex hook that runs past its `timeout` fails open, but the default exceeds 90 s and craft sets
-none; the slowest sampled verdict took 50 ms on a 57k-character command.
+none; the slowest measured verdict took about 190 ms, at the tokeniser's 131072-character cap, and
+time grows linearly with length.
 
 ## Options considered
 

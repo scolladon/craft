@@ -223,6 +223,10 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   string guard; `hash -p` is blocked.
 - Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions
   have stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
+- Codex `write_stdin` into a tty session is unguarded: on 0.162.1 `exec_command` with `tty: true`
+  reaches the hook as `{ command }` only, `write_stdin` fires no PreToolUse hook at all, and the
+  text it types runs (offline probe 2026-10-18, benign marker). A shell opened without a git
+  mention therefore takes any git typed into it.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
   `update-ref -d`, `filter-branch`, `send-pack`).
 - Closed, no longer residuals: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
@@ -272,7 +276,7 @@ guessing.
 **Because this hook genuinely denies, the git-ext-diff rule ships ENFORCED here — the Copilot
 binding's advisory carve-out does not carry over; destructive git and the plain-command gate ship
 enforced too.** Unlike Copilot, codex takes the gate without a verdict deadline: its default hook
-timeout exceeded 90 s when measured and the slowest sampled verdict took 50 ms (ADR-641). This is the strongest guard profile recorded
+timeout exceeded 90 s when measured and the slowest measured verdict took about 190 ms (ADR-641). This is the strongest guard profile recorded
 across the five bindings.
 
 `apply_patch` is Codex's write tool, and it is freeform: a Lark-grammar tool with **no structured
