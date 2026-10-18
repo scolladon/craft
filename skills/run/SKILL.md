@@ -496,9 +496,9 @@ bring their own `procedure`, dispatched verbatim (step 2).
   — never spin, never silently abandon.
 
 - **Driven stop**: when the run is about to end its turn at a terminal stop it cannot
-  continue from — any STOP in §0 or in the walk error paths, the workspace collision STOP, the workspace in-place
-  background STOP, an escalation the user declined or left with no way forward, a `degrade-to-blocker` policy
-  surface — its last tool call is one Bash call:
+  continue from — any STOP in §0 or in the walk error paths, the workspace collision STOP,
+  the workspace in-place background STOP, an escalation the user declined or left with no
+  way forward, a `degrade-to-blocker` policy surface — its last tool call is one Bash call:
   ```
   driver="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh"
   "$driver" active >/dev/null && "$driver" blocked <phase-id> - <<'REASON'
@@ -551,8 +551,9 @@ instead of trusting the summary it just produced.
    `Ledger:` line. Without a block (non-Claude harness, the hook absent), run
    `run-ledger.sh locate --run <run-id>`, where the run-id is the topic slug
    re-derivable from the `/craft:run` message the summary keeps verbatim.
-   When `locate` prints nothing, the run is **closed**: `close` already ran and removed the
-   ledger. Skip steps 2–6 and follow **Closed run** below. Never re-`open` the run.
+   When `locate` prints nothing, the run is **closed** (`close` already ran and removed the
+   ledger) or was never opened. Skip steps 2–6 and follow **Closed run** below. Never
+   re-`open` the run.
 2. **Re-derive the Resolution.** Re-run §0 steps 0b, 1 and 1b with the flags on the
    ledger's `RESOLVE:` line; re-`load()` the memory store (1c-mem) and re-`consult()`
    the intention view (1c-int), and re-run
@@ -584,19 +585,22 @@ instead of trusting the summary it just produced.
 6. **Walk from `next`.**
 
 **Closed run.** The ledger is gone, so the summary is all that is left; never guess the
-outcome from it. Run `driver-state.sh active`. Exit 1 (undriven): tell the user the run is
-already closed and stop, writing nothing. Driven (exit 0): query the state of the PR whose
-head is `<type>/<run-id>`, for `<type>` in `feat`, `fix`, `chore`, through the VCS port, as
-the resume table does for `propose`/`integrate`. The VCS host outranks the summary, as the
-ledger does on the normal path.
-- **Exactly one merged PR** — run the election of §Done's **Driver hand-off** (rules in
+outcome from it. Run `driver-state.sh active`. Exit 1 (undriven): tell the user no open
+ledger exists for `<run-id>` (closed, or never opened) and stop, writing nothing. Driven
+(exit 0): list, through the VCS port, every same-repository PR (never one from a fork) in
+any state whose head is `<type>/<run-id>`, for `<type>` in `feat`, `fix`, `chore`, as the
+resume table queries PR state for `propose`/`integrate`. The VCS host outranks the summary,
+as the ledger does on the normal path.
+- **Exactly one such PR, merged** — run the election of §Done's **Driver hand-off** (rules in
   **Election (driven runs only)**) from `<main-repo-dir>`, since the worktree went at
   `integrate`: write `next.md` and `next.prompt` in a fresh `mktemp -d` dir outside every
   working tree, then call `finished <pr-url>` with both. No election, or exit 3 → `finished
   <pr-url>` alone; on exit 3 the final message says the election was withheld and why.
-- **None merged** (open, closed unmerged, or no PR) → `blocked integrate -` with
+- **No such PR, or exactly one not merged** → `blocked integrate -` with
   `not merged <pr-or-branch>` on stdin.
-- **More than one merged** → blocker `{ rebuild, reason, ≤3 options }`, never a guess.
+- **More than one such PR** — a reused slug leaves an earlier run's PR on the same head, so
+  the run cannot tell which is its own → `blocked integrate -` with
+  `ambiguous PR history <branch>` on stdin; never `finished`.
 
 ```
 driver="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh"

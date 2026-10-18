@@ -27,8 +27,9 @@ a background session's Bash env and absent in a foreground one. `CLAUDE_CODE_SES
 ## Decision
 
 The user ratified option 1. Under strategy `in-place`, when `CLAUDE_JOB_DIR` is non-empty, the workspace
-phase STOPs before `git switch`. The reason names the ways out: strategy `worktree`, running attended,
-or `worktree.bgIsolation: none` in the repo's Claude settings. The Driven stop invariant lists this STOP
+phase STOPs before `git switch`. The reason names the only ways out that clear the STOP: strategy
+`worktree` or running attended. Turning `worktree.bgIsolation` off does not clear it, because craft
+cannot read that setting. The Driven stop invariant lists this STOP
 beside the workspace collision STOP.
 
 ## Consequences

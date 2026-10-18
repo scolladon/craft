@@ -31,14 +31,16 @@ nothing, and the rebuild table had no row for that.
 ## Decision
 
 The user ratified option 1 and chose to re-elect. When `locate` prints nothing at rebuild step 1, the
-run is closed. Never re-`open` it. Undriven: tell the user the run is closed and stop. Driven: query the
-PR for the run's branch through the VCS port.
-- **Exactly one merged PR:** run the normal Driver hand-off election from the merged default branch,
-  then `finished <pr-url> --election … --prompt …`. When nothing is elected, call `finished <pr-url>`
-  alone.
-- **None merged** (open, closed unmerged, or no PR): `blocked integrate` with
-  `not merged <pr-or-branch>`.
-- **More than one merged:** blocker `{ rebuild, reason, ≤3 options }`.
+run is closed, or it was never opened. Never re-`open` it. Undriven: tell the user and stop. Driven:
+list, through the VCS port, every same-repository PR (none from a fork), in any state, whose head is
+the run's branch.
+- **Exactly one such PR, merged:** run the normal Driver hand-off election from the merged default
+  branch, then `finished <pr-url> --election … --prompt …`. When nothing is elected, call
+  `finished <pr-url>` alone.
+- **No such PR, or exactly one not merged:** `blocked integrate` with `not merged <pr-or-branch>`.
+- **More than one such PR:** a reused slug leaves an earlier run's PR on the same head, so the run
+  cannot tell which PR is its own. `blocked integrate` with `ambiguous PR history <branch>`, never
+  `finished`.
 
 The status write stays the last tool call. Exit 4 means the status already exists, for example because
 a transcript-intact restart already wrote it. Exit 4 and every other non-zero exit are surfaced, never

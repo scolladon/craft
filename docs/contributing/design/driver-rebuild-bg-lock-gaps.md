@@ -237,6 +237,19 @@ orchestrator's bookkeeping commit on the default branch ticks each one in the ho
 `**<title> — delivered <date>**` followed by `([PR #<n>](<url>), ADR-631–634: <one-line outcome>)`,
 as the entries delivered on 2026-10-17 are.
 
+### 6. Review amendments (supersede §1 and §3 where they differ)
+
+- **§1, PR match.** The head name alone can match another run's PR. A reused slug leaves an earlier
+  merged PR on `<type>/<run-id>`, and the VCS host's head filter also matches forks. The rebuild
+  therefore lists every same-repository PR, in any state, on the three heads. Exactly one PR, merged,
+  means `finished`. No PR, or exactly one that is not merged, means `blocked integrate` with
+  `not merged <pr-or-branch>`. More than one PR means `blocked integrate` with
+  `ambiguous PR history <branch>`, never `finished`. This replaces the "more than one merged →
+  blocker" rule. An empty `locate` also covers a run that was never opened.
+- **§3, ways out.** The STOP reason names only the ways out that clear it: strategy `worktree`, or
+  running attended. `worktree.bgIsolation: none` does not clear it, because the check reads
+  `CLAUDE_JOB_DIR` and never the setting.
+
 ### Files touched
 
 | File | Change |

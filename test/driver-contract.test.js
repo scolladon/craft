@@ -128,7 +128,7 @@ const runRecordSpec = fs.readFileSync(path.join(ROOT, 'docs', 'contributing', 's
 test('Given the Rebuild section, when step 1 is read, then a locate that prints nothing routes to Closed run and never re-opens', () => {
   const sut = sliceProse(run, REBUILD_STEP_1, REBUILD_STEP_2);
 
-  for (const phrase of ['prints nothing', '**Closed run**', 'Never re-`open`']) {
+  for (const phrase of ['prints nothing', 'never opened', '**Closed run**', 'Never re-`open`']) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
 });
@@ -141,11 +141,20 @@ test('Given the Closed run paragraph, when read, then a driven session writes on
     'Election (driven runs only)', '<main-repo-dir>',
     '"$driver" finished <pr-url> --election <tmp-dir>/next.md --prompt <tmp-dir>/next.prompt',
     '"$driver" finished <pr-url>', "blocked integrate - <<'REASON'", 'not merged <pr-or-branch>',
-    '{ rebuild, reason, \u22643 options }', 'Exit 4', 'exit 3', 'last tool call']) {
+    'Exit 4', 'exit 3', 'last tool call']) {
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
   assert.ok(!sut.includes(PRE_APPROVAL_FLAG_VALUE));
   assert.ok(rebuild.includes('**Closed run.**'));
+});
+
+test('Given the Closed run paragraph, when read, then only a sole same-repository PR on the head can yield finished and a reused head blocks', () => {
+  const sut = sliceProse(run, CLOSED_RUN_START, DONE_HEADING);
+
+  for (const phrase of ['same-repository', 'fork', 'any state', 'Exactly one such PR, merged',
+    'More than one such PR', 'reused slug', 'ambiguous PR history <branch>', 'never `finished`']) {
+    assert.ok(sut.includes(phrase), `missing: ${phrase}`);
+  }
 });
 
 test('Given the Done close paragraph and the run-record write cadence, when read, then close on an already-closed run is a silent exit 0', () => {
@@ -168,6 +177,15 @@ test('Given the workspace skill step 2, when the in-place strategy is read, then
     assert.ok(sut.includes(phrase), `missing: ${phrase}`);
   }
   assert.ok(!sut.includes('run-lock location included'));
+});
+
+test('Given the workspace skill step 2, when the background STOP reason is read, then it offers only ways out that clear the STOP', () => {
+  const sut = sliceProse(workspace, WORKSPACE_STEP_2, WORKSPACE_STEP_3);
+
+  const result = sut.includes('set worktree.bgIsolation: none');
+
+  assert.strictEqual(result, false);
+  assert.ok(sut.includes('use strategy worktree or run attended'), 'missing: the two ways out');
 });
 
 test('Given the cross-phase invariants, when the Driven stop bullet is read, then it lists the workspace in-place background STOP', () => {
