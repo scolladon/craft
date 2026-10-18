@@ -237,7 +237,7 @@ orchestrator's bookkeeping commit on the default branch ticks each one in the ho
 `**<title> — delivered <date>**` followed by `([PR #<n>](<url>), ADR-631–634: <one-line outcome>)`,
 as the entries delivered on 2026-10-17 are.
 
-### 6. Review amendments (supersede §1 and §3 where they differ)
+### 6. Review amendments (supersede §1, §3 and the D-3 row where they differ)
 
 - **§1, PR match.** The head name alone can match another run's PR. A reused slug leaves an earlier
   merged PR on `<type>/<run-id>`, and the VCS host's head filter also matches forks. The rebuild
