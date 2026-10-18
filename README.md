@@ -198,7 +198,7 @@ in code where a silent regression is expensive to discover later.
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
 receipts: [79 design docs](docs/contributing/design/), [76 parted plans](docs/contributing/plan/),
-[633 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
+[634 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
