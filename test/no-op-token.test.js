@@ -3,9 +3,11 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { TO_END, sliceProse } = require('./helpers/region-slice');
+const { TO_END, sliceRegion, sliceProse } = require('./helpers/region-slice');
 
 const ROOT = path.resolve(__dirname, '..');
+const IMPLEMENTATION_ROW = /^\s*\| `implementation` \|/;
+const REVIEW_ROW = /^\s*\| `review` \|/;
 
 test('NO-OP(decisions): spelling pinned in decisions skill', () => {
   const content = fs.readFileSync(path.join(ROOT, 'skills', 'decisions', 'SKILL.md'), 'utf8');
@@ -74,4 +76,49 @@ test('Given the run-record spec, when the greppable-only list is read, then it n
 
   assert.ok(result.includes('NO-OP(planning): no part remains — <justification>'));
   assert.ok(result.includes('NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)'));
+});
+
+test('Given the implementation Preamble, when read, then it names the NO-OP(implementation) idiom and keys on NO-OP(planning)', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'skills', 'implementation', 'SKILL.md'), 'utf8');
+
+  const result = sliceProse(content, /^## Preamble/, /^## Procedure/);
+
+  assert.ok(result.includes('NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)'));
+  assert.ok(result.includes("grep -F 'NO-OP(planning):'"));
+});
+
+test('Given the implementation Preamble, when the no-op branch is read, then it still runs the phase gate', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'skills', 'implementation', 'SKILL.md'), 'utf8');
+
+  const result = sliceProse(content, /^## Preamble/, /^## Procedure/);
+
+  assert.ok(result.includes('GATE(implementation): <green|red>'));
+  assert.ok(result.includes('`gates.phase` once'));
+});
+
+test('Given walk step 7, when read, then both planning and implementation no-ops are produced outcomes', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'skills', 'run', 'SKILL.md'), 'utf8');
+
+  const result = sliceProse(content, /^7\. \*\*Record outcome\*\*/, /^8\. \*\*On blocker\*\*/);
+
+  assert.ok(result.includes('NO-OP(planning): no part remains'));
+  assert.ok(result.includes('NO-OP(implementation): no plan parts'));
+});
+
+test('Given walk step 1, when the necessity-probe region is read, then an implementation no-op evaluates the downstream signals over base...HEAD', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'skills', 'run', 'SKILL.md'), 'utf8');
+
+  const result = sliceProse(content, /^1\. \*\*Necessity probe/, /^2\. \*\*Resolve the skill\*\*/);
+
+  assert.ok(result.includes('NO-OP(implementation):'));
+  assert.ok(result.includes('<base>...HEAD'));
+});
+
+test('Given the implementation resume row, when read, then it covers a missing plan with a NO-OP(planning) line', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'skills', 'run', 'SKILL.md'), 'utf8');
+
+  const result = sliceRegion(content, IMPLEMENTATION_ROW, REVIEW_ROW);
+
+  assert.ok(result.includes('NO-OP(planning):'));
+  assert.ok(result.includes('NO-OP(implementation)'));
 });

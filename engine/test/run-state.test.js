@@ -472,3 +472,32 @@ test('Given a propose gate decision with no awaitingHarnesses field, when derive
   assert.equal(result.kind, 'state');
   assert.deepEqual(result.state.warnings, ['no AWAITING(propose) line for run demo']);
 });
+
+test('Given planning-no-op.md, when deriveRunState runs for demo, then planning and implementation complete and review is next with no parts and no warnings', () => {
+  const sut = deriveRunState;
+
+  const result = sut(readFixture('planning-no-op.md'), RUN_ID, DEFAULT_RESOLUTION);
+
+  assert.equal(result.kind, 'state');
+  assert.deepEqual(result.state.completed, ['workspace', 'design', 'decisions', 'planning', 'implementation']);
+  assert.deepEqual(result.state.inFlight, []);
+  assert.equal(result.state.next, 'review');
+  assert.deepEqual(result.state.awaitingHarnesses, ['validation']);
+  assert.deepEqual(result.state.parts, []);
+  assert.deepEqual(result.state.warnings, []);
+});
+
+const IMPLEMENTATION_START_RECORD = 'PHASE-START(implementation)';
+
+test('Given planning-no-op.md cut after PHASE-START(implementation), when deriveRunState runs for demo, then implementation is in flight and review is next', () => {
+  const sut = deriveRunState;
+  const lines = readFixture('planning-no-op.md');
+  const cut = lines.findIndex((line) => line.includes(IMPLEMENTATION_START_RECORD));
+
+  const result = sut(lines.slice(0, cut + 1), RUN_ID, DEFAULT_RESOLUTION);
+
+  assert.deepEqual(result.state.completed, ['workspace', 'design', 'decisions', 'planning']);
+  assert.deepEqual(result.state.inFlight, [{ phase: 'implementation', since: '2026-10-18T10:12:00Z' }]);
+  assert.equal(result.state.next, 'review');
+  assert.deepEqual(result.state.warnings, []);
+});

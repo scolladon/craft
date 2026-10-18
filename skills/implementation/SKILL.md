@@ -12,7 +12,19 @@ description: Craft phase 5 - execute the plan part by part, one part-implementer
    never gateless) and `gates.phase` (else: repo validate/check/test script; **if
    nothing exists, REFUSE to run this phase** — a workflow without any gate is not
    this workflow).
-2. The plan must exist and pass `plan-lint.sh` (re-run it; cheap).
+2. The plan must exist and pass `plan-lint.sh` (re-run it; cheap) — **unless** no plan
+   exists at `<plan-dir>/<slug>.md` and the run record holds a `NO-OP(planning):` line
+   (`grep -F 'NO-OP(planning):'` on the ledger path that `run-ledger.sh locate` or the
+   reorient block yields). Then the phase is a no-op: spawn nothing, append no `PART`
+   line, skip Procedure 1–2, and run `gates.phase` once in-session (the Procedure 3
+   gate — the phase is never gateless, even here; a manifest `override:` cannot skip
+   it). One `run-ledger.sh append <run-id> implementation` call carries
+   `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)`,
+   `GATE(implementation): <green|red>` and `PHASE-DONE(implementation): no-op — no plan
+   parts`. A red gate is handled as Procedure 3 states: fix and commit before review.
+   A plan file that exists next to a `NO-OP(planning):` line is a contradiction:
+   escalate `{ implementation, reason, ≤3 options }`, never guess which wins. No plan
+   and no `NO-OP(planning):` line (standalone included): refuse, as before.
 3. **Memory read/write surface (advisory).**
    READS: `gate-cmd` entry for this repo as an advisory hint — if a gate command was
    previously recorded, skip re-discovery but **still run it** (the gate is sacred; the
