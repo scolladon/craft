@@ -97,8 +97,8 @@ Then, in any repo that has a test command:
 ```
 
 Requirement: **a discoverable test command** (`pytest`, `go test`, `cargo test`,
-`make test`, …) and `jq` on `PATH` (the Claude Code guard hook denies every Bash
-call without it). No test command → craft refuses to run, by design.
+`make test`, …) and `node` (^22.18 or ≥24.2) on `PATH` (the Claude Code guard hook denies
+every Bash call without it, or with an older one). No test command → craft refuses to run, by design.
 
 No local setup: open a Codespace from the badge above, then run `claude --plugin-dir .` and
 try `/craft:review` on a branch, or `/craft:run` on a brief.

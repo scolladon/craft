@@ -44,13 +44,21 @@ section below states its own enforcement profile explicitly.**
 the tool input on stdin as JSON and emits a `hookSpecificOutput` JSON object on stdout. The current
 hook set:
 
-- `hooks/git-no-ext-diff.sh` — matched to `Bash` tool calls. Detects `git diff` or `git show`
-  invocations (allowing global options `-C`, `-c`, `--git-dir`, `--work-tree` between `git` and
-  the subcommand) that do not carry `--no-ext-diff`. On a match: emits
+- `hooks/git-no-ext-diff.sh` — matched to `Bash` tool calls. A bash crash shell around a node
+  verdict: it runs `node engine/bin/claude-ext-diff-verdict.js` (`engine/src/claude-ext-diff-hook-main.js`),
+  which reads the payload on the inherited stdin and judges `tool_input.command` with
+  `gitExtDiffPredicate`, the engine's ext-diff rule and the module codex's and copilot's Bash
+  paths use for that rule. The parse sees through wrappers, assignments, subshells, groups,
+  reserved words, quote removal, `sh -c`/`eval` and git global options, judges `--no-ext-diff`
+  and `rtk proxy` per invocation, and reads quoted text and heredoc bodies as data. Node prints
+  exactly one token: `allow`, on which the hook exits 0 with no output, or
   `{ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny",
-  permissionDecisionReason: "... Re-issue exactly: <fixed-command>" } }` — the corrected command
-  is included in the denial so the caller can retry immediately. Passes through: already-compliant
-  calls (`*--no-ext-diff*`) and explicitly proxied raw calls (`*rtk proxy*`).
+  permissionDecisionReason: "craft: <engine reason>" } }`, which the hook prints as given. The
+  reason is the engine's with one `craft: ` prefix:
+  `craft: git diff/show must carry --no-ext-diff (external diff mangles parsed output)`, or the
+  config-channel, inline-alias or parse-failure reason (an over-long command included). A
+  `tool_input.command` that is absent, `null` or empty is allowed; one that is not a string
+  inside JSON objects makes node exit 1, a crash.
   Rationale for deny-over-rewrite: two `updatedInput` hooks on one event do not compose (same
   snapshot, last writer wins); a deny beats a concurrent rewrite deterministically — one corrected
   retry, no clobber.
@@ -61,10 +69,13 @@ hook set:
   hook turns any failure bash can see into exit 2 with
   `craft git-no-ext-diff: failed (exit <n>), call denied` on stderr, where `<n>` is the status
   it would have exited with, or `craft git-no-ext-diff: no verdict reached, call denied` when
-  it would have exited 0 before reaching a verdict. The JSON deny stays the matcher's verdict,
-  and a grep failure is a crash, never a no-match: only grep's exit 1 with a printed zero count
-  allows. TERM and HUP deny the same way, through traps that hand their status to the crash
-  path. With `jq` missing from `PATH`, every Bash call is denied. Still fail-open, because no
+  it would have exited 0 before reaching a verdict. The JSON deny stays the verdict,
+  and only node's exact `allow` token allows: a node that is missing, older than the engine's
+  range, crashes, is killed by a signal, or exits 0 without a token is a crash, as are stdin that
+  is not JSON, a missing feed sentinel and a feed that cannot start. Node's own stderr precedes
+  the craft line. TERM and HUP deny the same way, through traps that hand their status to the crash
+  path. With `node` missing from `PATH`, or older than the engine's supported range
+  (`^22.18.0 || >=24.2.0`), every Bash call is denied. Still fail-open, because no
   code in the hook can catch them: `/bin/bash` missing, the hook file missing or not
   executable, and SIGKILL or any other untrapped signal. The probe matrix is in
   [the design doc](../design/claude-hook-nonzero-exit-probe.md).
@@ -94,7 +105,7 @@ call and returns `{ block: true, reason }` to veto it. The veto shape is exactly
 there is no `permission: "deny"` field. Handler errors block fail-safe (an unhandled throw in the
 handler is treated as a veto). Pi has no harness-hook concept — the `pi.on("tool_call", ...)` hook
 is Pi's equivalent of the PreToolUse mechanism, not a hook file on disk. The deterministic
-`tool_call` predicate (the Pi-side equivalent of `git-no-ext-diff.sh`'s regex logic) is
+`tool_call` predicate (the Pi-side equivalent of `git-no-ext-diff.sh`'s ext-diff verdict) is
 unit-tested separately (part 5).
 
 **gate-command**: Pi has no harness-hook concept for gate execution; the resolved gate string is
