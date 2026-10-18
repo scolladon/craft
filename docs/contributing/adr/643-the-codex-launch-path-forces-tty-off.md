@@ -30,5 +30,8 @@ with no config key, and overrides a config `unified_exec_tty = true`.
 
 ## Consequences
 
-Every `codex exec` the binding launches runs without tty, independent of `config.toml`. Codex run
-by hand outside the binding still depends on the template key.
+Every `codex exec` the binding launches runs without tty, independent of `config.toml`. The only
+such launch is the acceptance probe, so the README's documented `codex exec` command passes the same
+flag: a trusted project's `.codex/config.toml` setting `unified_exec_tty = true` overrides the
+template key (probed on 0.162.1), and only the flag beats it. Codex run without the flag depends on
+the template key and on no project config turning tty back on.
