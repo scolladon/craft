@@ -88,10 +88,12 @@ counts as **one** file against the ceiling (`--file-ceiling 1` reported 2 for th
 - R3. Implementation has a counterpart. When the run record holds `NO-OP(planning):` and no
   plan exists, implementation records
   `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)`, spawns nothing,
-  appends no `PART` line, and still runs `gates.phase` once (`GATE(implementation): <green|red>`).
+  appends no `PART` line, and still runs `gates.phase` once, re-run after a red fix
+  (`GATE(implementation): <green|red>`).
 - R4. Standalone implementation (no run record) with no plan still refuses, as it does today.
-- R5. Both phases record `PHASE-DONE(<phase>):` in the same `run-ledger.sh append` call as their
-  `NO-OP` line. Walk step 7 lists both as produced outcomes, never as gaps.
+- R5. Planning records `PHASE-DONE(planning):` in the same `run-ledger.sh append` call as its
+  `NO-OP` line; implementation joins `PHASE-DONE(implementation):` to its `NO-OP` line only with
+  a green gate (on red, `PHASE-DONE` follows the green re-run). Walk step 7 lists both as produced outcomes, never as gaps.
 - R6. A rebuild after compaction resumes correctly from any ledger cut. The engine is unchanged,
   as the pinned matrix shows.
 - R7. The review/refactoring/validation/architecture necessity probes do not auto-skip a source
