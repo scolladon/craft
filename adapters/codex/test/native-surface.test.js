@@ -16,7 +16,7 @@ const HOOKS_JSON_PATH = join(ADAPTER_DIR, 'hooks.json');
 const CRAFT_RULES_PATH = join(ADAPTER_DIR, 'craft.rules');
 const MARKETPLACE_PATH = join(ADAPTER_DIR, '.claude-plugin', 'marketplace.json');
 const LEGACY_MARKETPLACE_PATH = join(ADAPTER_DIR, 'marketplace.json');
-const CRAFT_PLUGIN_PATH = join(ADAPTER_DIR, 'plugins', 'craft', 'plugin.json');
+const PLUGINS_DIR = join(ADAPTER_DIR, 'plugins');
 const CRAFT_CODEX_PLUGIN_PATH = join(ADAPTER_DIR, 'plugins', 'craft-codex', 'plugin.json');
 const CRAFT_CODEX_SKILLS_DIR = join(ADAPTER_DIR, 'plugins', 'craft-codex', 'skills');
 const ENTRYPOINT_SKILL_PATH = join(CRAFT_CODEX_SKILLS_DIR, 'craft-run', 'SKILL.md');
@@ -56,6 +56,7 @@ const SYMLINK_INTO_RULES_SPELLINGS = [
   'run `ln -s adapters/codex/craft.rules ~/.codex/rules/craft.rules` once',
   '/bin/ln -s adapters/codex/craft.rules "$CODEX_HOME/rules/craft.rules"',
 ];
+const PLUGIN_ADD_SELECTOR = /codex plugin add (\S+)/g;
 const SKILLS_SYMLINK_LINE = 'ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>   # once per shared skill';
 
 /** Split a `---\n…\n---` frontmatter block into top-level attrs + body. No yaml dep. */
@@ -138,20 +139,13 @@ describe('plugins/craft-codex/skills/ — the entrypoint dir, never a copy of th
   });
 });
 
-describe('plugins/craft/plugin.json — by-reference skills path', () => {
-  it("Given the craft plugin manifest, when its declared skills path is resolved from the manifest's own directory, then it resolves to the repo-root skills/ directory", () => {
-    const manifest = JSON.parse(readFileSync(CRAFT_PLUGIN_PATH, 'utf8'));
-    const resolved = join(dirname(CRAFT_PLUGIN_PATH), manifest.skills);
+describe('plugins/ — the craft-codex plugin dir only', () => {
+  it('Given the codex adapter plugins directory, when its plugin dirs are listed, then it contains exactly craft-codex', () => {
+    const sut = readdirSync(PLUGINS_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
 
-    const sut = realpathSync(resolved);
-
-    assert.equal(sut, realpathSync(join(REPO_ROOT, 'skills')));
-  });
-
-  it('Given the repository-root skills tree, when skills/run/SKILL.md is checked, then it exists', () => {
-    const sut = existsSync(SHARED_RUN_SKILL_PATH);
-
-    assert.ok(sut, 'skills/run/SKILL.md must exist so the entrypoint citation does not drift');
+    assert.deepEqual(sut, ['craft-codex']);
   });
 });
 
@@ -166,7 +160,7 @@ describe('plugins/craft-codex/plugin.json — hooks path resolution', () => {
   });
 });
 
-describe('marketplace.json — local file-backed, two entries', () => {
+describe('marketplace.json — local file-backed, one entry', () => {
   it('Given the marketplace manifest, when its location is checked, then it lives at .claude-plugin/marketplace.json (the path codex reads), not the adapter root', () => {
     // codex 0.144.6 `plugin marketplace add <root>` only recognises a manifest at
     // <root>/.claude-plugin/marketplace.json; a root-level marketplace.json is
@@ -180,15 +174,24 @@ describe('marketplace.json — local file-backed, two entries', () => {
 
     const sut = parsed.plugins.map((p) => p.source.source);
 
-    assert.deepEqual(sut, ['local', 'local']);
+    assert.deepEqual(sut, ['local']);
   });
 
-  it('Given marketplace.json, when parsed, then it declares exactly the two entries craft and craft-codex', () => {
+  it('Given marketplace.json, when parsed, then it declares exactly the craft-codex entry', () => {
     const parsed = JSON.parse(readFileSync(MARKETPLACE_PATH, 'utf8'));
 
-    const sut = parsed.plugins.map((p) => p.name).sort();
+    const sut = parsed.plugins.map((p) => p.name);
 
-    assert.deepEqual(sut, ['craft', 'craft-codex']);
+    assert.deepEqual(sut, ['craft-codex']);
+  });
+
+  it('Given README.md and marketplace.json, when every plugin add selector is collected, then they name exactly the declared entries of the declared marketplace', () => {
+    const parsed = JSON.parse(readFileSync(MARKETPLACE_PATH, 'utf8'));
+    const declared = parsed.plugins.map((p) => `${p.name}@${parsed.name}`).sort();
+
+    const sut = [...readFileSync(README_PATH, 'utf8').matchAll(PLUGIN_ADD_SELECTOR)].map((match) => match[1]).sort();
+
+    assert.deepEqual(sut, declared);
   });
 });
 
@@ -253,6 +256,12 @@ describe('craft-<role>.md — model/effort tier consistency with model-tier-map.
 });
 
 describe('entrypoint skill — plugins/craft-codex/skills/craft-run/SKILL.md', () => {
+  it('Given the repository-root skills tree, when skills/run/SKILL.md is checked, then it exists', () => {
+    const sut = existsSync(SHARED_RUN_SKILL_PATH);
+
+    assert.ok(sut, 'skills/run/SKILL.md must exist so the entrypoint citation does not drift');
+  });
+
   it('Given the entrypoint skill, when frontmatter is parsed, then it carries a non-empty name', () => {
     const sut = readDef(ENTRYPOINT_SKILL_PATH);
 
@@ -309,7 +318,6 @@ function authoredSurfaces() {
     { label: 'hooks.json', text: readFileSync(HOOKS_JSON_PATH, 'utf8') },
     { label: 'craft.rules', text: readFileSync(CRAFT_RULES_PATH, 'utf8') },
     { label: 'marketplace.json', text: readFileSync(MARKETPLACE_PATH, 'utf8') },
-    { label: 'plugins/craft/plugin.json', text: readFileSync(CRAFT_PLUGIN_PATH, 'utf8') },
     { label: 'plugins/craft-codex/plugin.json', text: readFileSync(CRAFT_CODEX_PLUGIN_PATH, 'utf8') },
     { label: 'plugins/craft-codex/skills/craft-run/SKILL.md', text: readFileSync(ENTRYPOINT_SKILL_PATH, 'utf8') },
   ];
@@ -346,6 +354,12 @@ describe('hygiene — ${CLAUDE_PLUGIN_ROOT} confined to the CRAFT_ROOT shim, ove
 });
 
 describe('README.md — honesty pins', () => {
+  it('Given README.md, when scanned, then it shows the shared-skills symlink line', () => {
+    const sut = readFileSync(README_PATH, 'utf8');
+
+    assert.ok(sut.includes(SKILLS_SYMLINK_LINE));
+  });
+
   it('Given README.md, when scanned, then it discloses the git -C . push execpolicy bypass', () => {
     const sut = readFileSync(README_PATH, 'utf8');
 

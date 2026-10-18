@@ -1,7 +1,0 @@
-{
-  "name": "craft",
-  "version": "0.1.0",
-  "description": "Shared craft skills. Installing this entry does NOT load them: codex drops the out-of-tree skills reference below, so symlink them into $CODEX_HOME/skills as the adapter README documents.",
-  "author": { "name": "craft" },
-  "skills": "../../../../skills"
-}

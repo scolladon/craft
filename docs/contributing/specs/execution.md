@@ -147,11 +147,12 @@ the-handoff and dead-worker-respawn hold unchanged.
 the copilot and opencode bindings (one invocation walks every phase), not one invocation per
 phase.
 
-**Native discoverable surface.** A local file-backed marketplace (`"source": "local"`) carries
-two plugin entries: `craft`, resolving the shared `skills/` directory **by reference** at the
-repo root (no adapter-local copy, so drift between the shared source and a copy is structurally
-impossible), and `craft-codex`, supplying this binding's own `hooks/`, `agents/`, and entrypoint.
-Installed via `codex plugin marketplace add` then `codex plugin add`.
+**Native discoverable surface.** A local file-backed marketplace (`"source": "local"`) declares
+one plugin entry, `craft-codex`, installed via `codex plugin marketplace add` then `codex plugin
+add`. Only the `craft-run` entrypoint arrives that way: `codex plugin add` copies the plugin into
+its cache and drops every out-of-tree reference. The shared `skills/` load through one
+`$CODEX_HOME/skills/<name>` symlink per skill (no adapter-local copy), the guard hook is wired by
+hand into `$CODEX_HOME/config.toml`, and the marketplace does not carry the role agents.
 
 Artifact-is-the-handoff and dead-worker-respawn hold unchanged.
 

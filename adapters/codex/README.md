@@ -10,23 +10,23 @@ three arrives through the marketplace entry — read *Load* before assuming othe
 Register the local file-backed marketplace (its manifest lives at
 `.claude-plugin/marketplace.json` — the only location `codex plugin marketplace add`
 recognises; pass the marketplace ROOT directory, not the manifest file), then install
-both entries with the `<plugin>@<marketplace>` selector:
+its one entry with the `<plugin>@<marketplace>` selector:
 
 ```
 codex plugin marketplace add ./adapters/codex
 codex plugin add craft-codex@craft-codex-marketplace
-codex plugin add craft@craft-codex-marketplace
 ```
 
 The leading `./` is required: a bare `adapters/codex` matches codex's `owner/repo`
 shorthand and resolves against a remote host instead of the local directory. An
 absolute path also works but is not shown here, because it differs per checkout.
 
-`marketplace.json` declares two entries. `craft-codex` is this binding's own plugin
+`marketplace.json` declares one entry, `craft-codex`: this binding's own plugin
 directory, and it holds exactly one thing: the delegating `craft-run` entrypoint skill
 under `plugins/craft-codex/skills/`. Its manifest also declares
-`hooks: "../../hooks.json"` — a path pointing OUT of the plugin directory. `craft` is
-the second entry, whose `skills` field points at the repository-root `skills/` tree.
+`hooks: "../../hooks.json"` — a path pointing OUT of the plugin directory. No entry
+carries the shared skills: an entry whose `skills` field points at the repository-root
+`skills/` tree installs and loads nothing (below).
 
 `codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and rewrites its
 manifest, and the cached `.codex-plugin/plugin.json` observed on 0.145.0 and again on 0.162.1 is just
@@ -48,9 +48,9 @@ named above, exactly one arrives this way:
 **The 19 shared skills do NOT load by reference on Codex 0.162.1 (pinned live;
 first pinned on 0.145.0).**
 `codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and, in doing
-so, drops the `craft` entry's out-of-tree `../../../../skills` reference — the cached
+so, drops an out-of-tree `skills` reference such as `../../../../skills` — the cached
 plugin manifest carries no `skills` field, so `run`/`review`/`validation`/`init`/… are
-absent. Measured through the app-server's own skills-listing method: **0 of 19** load
+absent. Measured, with such an entry installed, through the app-server's own skills-listing method: **0 of 19** load
 without the symlinks below, **19 of 19** load with them. Load them with the symlink
 route — this IS the working path for the shared skills, required on every install, not
 a contingency to fall back on:

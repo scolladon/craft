@@ -211,22 +211,25 @@ the git common dir. Not folded: it is out of scope (no file of this change holds
 
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the supersede-adr-253-symlink-route run, not yet scheduled)
 
-**The codex `craft` marketplace entry installs and loads nothing.** `adapters/codex/README.md:18`
+**The codex `craft` marketplace entry installs and loads nothing — delivered 2026-10-18**
+([PR #77](https://github.com/scolladon/craft/pull/77), ADR-635: the entry is retired; the marketplace declares `craft-codex` only).
+`adapters/codex/README.md:18`
 tells users to run `codex plugin add craft@craft-codex-marketplace`, but the cache copy drops the
 entry's only payload, its out-of-tree `skills` reference (`docs/contributing/specs/codex-poc-record.md`
-row 1: 0 of 19). ADR-614 keeps the entry declared, and `adapters/codex/test/native-surface.test.js`
+row 1: 0 of 19). The codex symlink-route ADR keeps the entry declared, and `adapters/codex/test/native-surface.test.js`
 pins `['craft', 'craft-codex']`. Fix: retire the entry (`adapters/codex/.claude-plugin/marketplace.json`,
 `adapters/codex/plugins/craft/plugin.json`, the README install line, the pinning tests), or keep it with
 the README saying it loads nothing. Not folded: it needs its own decision and changes source and tests,
 outside a docs/ADR change ([design](docs/contributing/design/supersede-adr-253-symlink-route.md),
 candidate 1 (c)).
 
-**The codex binding-home ADR still says the marketplace carries hooks, skills and agents as one unit.**
+**The codex binding-home ADR still says the marketplace carries hooks, skills and agents as one unit — delivered 2026-10-18**
+([PR #77](https://github.com/scolladon/craft/pull/77), ADR-635: only `craft-run` arrives through the marketplace; the guard is wired by hand in `$CODEX_HOME/config.toml`, and the agents are not carried).
 `docs/contributing/adr/252-codex-binding-home-and-load-path.md` option 1 claims the marketplace is "the
 only one that carries `hooks` + `skills` + agents as one installable unit". `adapters/codex/README.md`
 L31–46 pins that only `craft-run` arrives that way: the cached manifest drops `hooks`, and the nine
 agents are not carried. Fix: a user-ratified ADR superseding that claim. Not folded: it is out of scope
-for this change, a different claim (hooks and agents) from the shared-skills load path ADR-614 corrects.
+for this change, a different claim (hooks and agents) from the shared-skills load path the codex symlink-route ADR corrects.
 
 **Planning cannot record that no part remains.** `scripts/plan-lint.sh` requires at least one part,
 and `skills/planning/SKILL.md` has no no-op outcome. In the supersede-adr-253-symlink-route run, adr-lint
@@ -267,7 +270,7 @@ the spike branch, `evidence/bg-loop2/ledgers/`). Any timing derived from them is
 ### Open (scoped 2026-10-16 — follow-ups surfaced by the native-surface-skills-title-fix run, not yet scheduled)
 
 **The codex shared-skills ADR still records that codex loads the shared skills by reference — delivered 2026-10-17**
-([PR #73](https://github.com/scolladon/craft/pull/73), ADR-614: the `$CODEX_HOME/skills` symlink route, scope ratified as the by-reference mechanism only).
+([PR #73](https://github.com/scolladon/craft/pull/73): the `$CODEX_HOME/skills` symlink route, scope ratified as the by-reference mechanism only; ADR-635 later retired the `craft` entry it kept).
 `docs/contributing/adr/253-codex-shared-skills-by-reference.md:1` is titled "Codex loads shared craft
 skills by reference" with status `accepted`, and its Decision chose the by-reference marketplace entry.
 `docs/contributing/specs/codex-poc-record.md:332` marks that claim DISPROVEN on 0.145.0 and 0.162.1

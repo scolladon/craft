@@ -1,11 +1,15 @@
 # 252 — Codex binding home and load path
 
 - **Status:** superseded by ADR-614
+- **Status:** superseded by ADR-635
 - **Date:** 2026-07-20
 - **Design:** docs/design/native-codex-binding.md · **Supersedes/Refines:** Applies ADR-085 (adapters live in-place); parallels ADR-241 (copilot adapter home in-place)
 
 > **Superseded by ADR-614** for the symlink route as a contingency fallback: it is the working path
 > for the shared skills on every install.
+>
+> **Superseded by ADR-635** for the marketplace as one installable unit carrying hooks, skills and
+> agents: only the `craft-run` entrypoint arrives through it.
 
 ## Context
 
