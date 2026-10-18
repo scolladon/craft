@@ -84,6 +84,7 @@ test('Given the known binding directories, when each is checked for its own stry
 });
 
 const DIFFERENTIAL_TEST = 'engine/test/guards/shell-git-invocations.differential.test.js';
+const CODEX_DIFFERENTIAL_TEST = 'adapters/codex/test/git-guard.differential.test.js';
 const PARSER_UNIT_TEST = 'engine/test/guards/shell-git-invocations.test.js';
 
 function matchingPatterns(config, path) {
@@ -94,6 +95,14 @@ test('Given engine/stryker.conf.json, when its tap.testFiles patterns are matche
   const sut = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
 
   const result = matchingPatterns(sut, DIFFERENTIAL_TEST);
+
+  assert.deepEqual(result, []);
+});
+
+test('Given engine/stryker.conf.json, when its tap.testFiles patterns are matched against the codex guard differential fuzz file, then none matches', () => {
+  const sut = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+
+  const result = matchingPatterns(sut, CODEX_DIFFERENTIAL_TEST);
 
   assert.deepEqual(result, []);
 });
