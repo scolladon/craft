@@ -192,7 +192,7 @@ does not mention git (`printf '%s\n' '<message>' > /tmp/msg`): `create` outside 
 directory is denied by containment, and so is a write whose message names git and holds `$` or a
 backtick.
 
-**Near-git rules.** Beyond plainness, three rules apply to any command that mentions git:
+**Near-git rules.** Beyond plainness, four rules apply to any command that mentions git:
 
 - `-c <key>=…` and `--config-env=<key>=…` keys must be in a safe set: `user.name`, `user.email`,
   `commit.gpgsign`, `tag.gpgsign`, `core.quotepath`, `color.ui`, `init.defaultbranch`,
@@ -203,7 +203,9 @@ backtick.
 - Shells anywhere: `sh bash zsh dash ksh fish csh tcsh mksh yash busybox eval` deny at **any** word
   position (an unlisted wrapper such as `caffeinate` or `stdbuf` could otherwise put a shell out of
   command position), while `env exec command nohup time sudo nice timeout xargs source . trap hash
-  builtin enable fc coproc alias` deny in command position.
+  builtin enable fc coproc alias mapfile readarray compgen` deny in command position (the last
+  three run their `-C` callback as shell text).
+- A command word that opens with `=` denies: zsh expands `=git` to git's path.
 
 **Guard modules.** The guard logic lives in `engine/src/guards/`: `shell-tokeniser.js` (bash
 tokeniser), `git-argv.js` (git global-option normaliser), `shell-git-invocations.js` (anchoring and
@@ -254,7 +256,9 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   was not visible in the next, even with a reused `shellId`, and only `bash` executes shell text
   (`read_bash`, `stop_bash`, `list_bash` cannot inject input) — 1.0.92 and 1.0.98.
 - Intended false blocks, each costing one re-issue with a literal command: `git commit -c <rev>` (read as an unsafe `-c` key); `git add scripts/sh`; `bash -c 'git status'`;
-  `git commit -m "it's $HOME"`; a commit-message write whose message names git and holds `$` or a
+  a `$` or backtick in any quoted word, or a backslash or exclamation mark in a double-quoted one
+  (`git commit -m 'cost $5'`, `git commit -m "stop!"`); a callback builtin in command position
+  (`git log | mapfile -t a`); a commit-message write whose message names git and holds `$` or a
   backtick (`printf %s 'fix(git): costs $5' > /tmp/m` — rephrase it); `git log # c`; `git diff > o < i`; `echo git push` and
   `ls /x/git push` (any-word anchoring); a dynamic command head; a dynamic word at git's option or
   subcommand position (`git $OPTS status`); a dynamic `reset`/`branch` argument (`git reset $SHA`);
