@@ -304,6 +304,7 @@ describe('parseShellCommands() — re-parsed eval and env -S strings', () => {
     ["eval echo 'a;' git diff", [['eval', 'echo', 'a;', 'git', 'diff'], ['echo', 'a'], ['git', 'diff']]],
     ["env -S 'git diff'", [['env', '-S', 'git diff'], ['git', 'diff']]],
     ["env --split-string='git diff'", [['env', '--split-string=git diff'], ['git', 'diff']]],
+    ["echo e=nv -S 'git diff'", [['echo', 'e=nv', '-S', 'git diff']]],
     ["env --split-string 'git diff'", [['env', '--split-string', 'git diff'], ['git', 'diff']]],
   ]);
 
