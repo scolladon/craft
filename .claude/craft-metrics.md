@@ -637,3 +637,7 @@ codex-marketplace-entry-adr-252 design turns=48 tool_calls=49 tokens=3831305 dur
 codex-marketplace-entry-adr-252 implementation turns=8 tool_calls=9 tokens=220350 duration_ms=59394 cache_read=186967 cache_creation=32991 output=376 avg_ctx=27497 equiv=61831
 codex-marketplace-entry-adr-252 planning turns=12 tool_calls=14 tokens=498722 duration_ms=159934 cache_read=443232 cache_creation=55311 output=155 avg_ctx=41547 equiv=114261
 codex-marketplace-entry-adr-252 review turns=21 tool_calls=21 tokens=526113 duration_ms=129332 cache_read=413399 cache_creation=112118 output=554 avg_ctx=25027 equiv=184299
+planning-no-op-outcome design turns=46 tool_calls=47 tokens=2567479 duration_ms=451017 cache_read=2483797 cache_creation=83085 output=505 avg_ctx=55804 equiv=354853
+planning-no-op-outcome implementation turns=12 tool_calls=13 tokens=291768 duration_ms=104740 cache_read=234236 cache_creation=57134 output=374 avg_ctx=24283 equiv=96735
+planning-no-op-outcome planning turns=41 tool_calls=42 tokens=2472400 duration_ms=468866 cache_read=2377322 cache_creation=94554 output=442 avg_ctx=60292 equiv=358217
+planning-no-op-outcome review turns=62 tool_calls=64 tokens=1807269 duration_ms=422656 cache_read=1563534 cache_creation=242145 output=1466 avg_ctx=29126 equiv=466489
