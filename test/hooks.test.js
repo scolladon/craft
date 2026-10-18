@@ -369,8 +369,11 @@ test('Given the hook reached through a relative symlink, when it runs on a git d
     fs.mkdirSync(linkDir);
     const link = path.join(linkDir, 'git-no-ext-diff.sh');
     fs.symlinkSync(path.relative(linkDir, GIT_HOOK), link);
+    // deeper than the link's directory, so a target joined to the cwd instead misses the hook
+    const deeperCwd = path.join(linkDir, 'a', 'b', 'c');
+    fs.mkdirSync(deeperCwd, { recursive: true });
     const sut = () =>
-      spawnSync('/bin/bash', [link], { input: DENY_DIFF_PAYLOAD, encoding: 'utf8', timeout: LINK_FOLLOW_TIMEOUT_MS });
+      spawnSync('/bin/bash', [link], { cwd: deeperCwd, input: DENY_DIFF_PAYLOAD, encoding: 'utf8', timeout: LINK_FOLLOW_TIMEOUT_MS });
     const result = sut();
     assert.strictEqual(result.status, 0, result.stderr);
     assert.strictEqual(JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason, EXT_DIFF_DENY_REASON);
