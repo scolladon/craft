@@ -158,7 +158,7 @@ What the matrix proves:
 - **R8.** The living docs tell the truth after the change: the README residual list matches
   `gate.md`, the command-position lists name the three new words, `gate.md` gains the zsh `=`
   bullet, and both intended-false-block lists state the real quoted-word rule. The two BACKLOG
-  entries (L319 and L351) leave the Open list, and no new entry is filed.
+  entries (L319 and L351) are rewritten in place as delivered, and no new entry is filed.
 
 ## Design
 
@@ -301,8 +301,10 @@ function problemsOf(entry, run) {
     or `!` in a double-quoted one (`git commit -m 'cost $5'`, `git commit -m "stop!"`)".
   - `gate.md` "Near-git rules" gains the zsh `=` bullet and says "four rules", matching the README
     and the code.
-- `BACKLOG.md`: delete "A copilot-level differential fuzz arm." and "The copilot intended false
-  blocks list understates the quoted-word rule." from the Open list. Nothing is added.
+- `BACKLOG.md`: rewrite "A copilot-level differential fuzz arm." and "The copilot intended false
+  blocks list understates the quoted-word rule." in place as delivered, following the repo
+  convention: a bold title ending "— delivered <date>", then (branch, ADRs: what changed),
+  `Design: [..](..)`, and `Original entry:` followed by the original text. Nothing is added.
 - ADR (orchestrator's numbering) recording DC-1 and DC-2.
 
 ### Edge behaviour (deliberate changes)
@@ -324,7 +326,10 @@ function problemsOf(entry, run) {
 | DC-3 | Where the generator lives | (a) **New `engine/test-helpers/plain-gate-generator.js`**, binding-neutral, importing the harness primitives. (b) Extend `git-differential-harness.js` (479 lines). (c) A helper under `adapters/copilot/test/` | (a) | The gate is engine code shared with codex, so a generator for its classes belongs beside the harness, not inside one binding. (b) pushes a single file past 600 lines with two unrelated generators. (c) hides a gate-level tool in an adapter. Adapters already import `engine/test-helpers/` (codex arm, `test/git-no-ext-diff.differential.test.js`), and `test/architecture-boundaries.test.js` does not police it |
 | DC-4 | How stubs reach the run tree | (a) **`installStubs(tree.bin)`** called inside the arm's `withTree` act; `withTree` is unchanged. (b) A `withTree(act, { stubs })` option | (a) | `tree.bin` is already exposed, and three arms call `withTree`. (a) touches none of them. (b) changes a shared signature for one caller |
 | DC-5 | Copilot hook-process leg | (a) **In-process `decideGuard` only**, with a JSON-string `toolArgs` payload. (b) Also spawn `adapters/copilot/hooks/craft-guard.js` per command, like the codex arm's parity leg | (a) | The brief asks for the verdict judged through `copilotGuard`. `decideGuard` reaches it through the payload decode at no cost. Hook-process parity (exit, stdout, worker deadline) is owned by `adapters/copilot/test/craft-guard-hook.test.js`. (b) adds about 6 s per seed (the codex leg measured 6.0 s for 400 commands) for transport coverage that already exists |
-| DC-6 | Doc folds in this change | (a) **Fold all four**: README residual sync, command-position lists, the `gate.md` zsh `=` bullet, and the quoted-word restatement. Delete both BACKLOG entries. (b) Fold the first three and leave the quoted-word entry open | (a) | The arm's census tags encode the real quoted-word rule (R6), so the restatement is what keeps the docs and the tags in agreement, which is the point of (a) in DC-1. User policy is fold, not file. The zsh bullet is in the same bullet list this change already edits |
+| DC-6 | Doc folds in this change | (a) **Fold all four**: README residual sync, command-position lists, the `gate.md` zsh `=` bullet, and the quoted-word restatement. Mark both BACKLOG entries delivered in place. (b) Fold the first three and leave the quoted-word entry open | (a), ratified as ADR-654: mark delivered in place | The arm's census tags encode the real quoted-word rule (R6), so the restatement is what keeps the docs and the tags in agreement, which is the point of (a) in DC-1. User policy is fold, not file. The zsh bullet is in the same bullet list this change already edits |
+
+Ratified: the user chose DC-1 option (a) (ADR-649); DC-2..DC-6 were adopted as recommended
+(ADR-650..ADR-654).
 
 Adopted as recommended, without a user decision: one judged fragment per command (Pinned E point
 4); the `-tc1` spelling and the R4 self-test against the `-c` coincidence; shared seed/count
@@ -347,7 +352,7 @@ body. No provenance references (phase, ADR or backlog numbers) in source or test
    bash ≥ 5, and a local bash ≥ 5 on PATH (`secondBash()`) shows it locally.
 2. **Red, unit.** Add the Part 1 `COMPLEX_COMMANDS` rows, which fail before the word-list change.
 3. **Green.** Change `WRAPPER_WORDS`. The unit rows and both shells' arm runs pass.
-4. **Docs** (Part 4), then the BACKLOG deletions.
+4. **Docs** (Part 4), then the BACKLOG entries rewritten in place as delivered.
 
 ### Generator self-tests (in the arm file, deterministic, no shell)
 
