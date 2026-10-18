@@ -49,7 +49,7 @@ const PASS_COMMANDS = [
   'ls -la',
 ];
 
-describe('decideGuard() — reused tool-call-guard.js predicate: git diff/show regex pin', () => {
+describe('decideGuard() — shared git Bash verdict: git diff/show ext-diff pin', () => {
   for (const command of BLOCK_COMMANDS) {
     it(`Given exec_command "${command}", when decideGuard runs, then it blocks`, () => {
       const sut = decideGuard;

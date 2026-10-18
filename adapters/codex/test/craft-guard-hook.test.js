@@ -205,7 +205,7 @@ describe('craft-guard hook - destructive git and the plain-command gate on the l
   it('Given the live payload running a wrapped shell push, when the hook process runs, then it exits 2 with the gate reason', () => {
     const sut = runCommand('bash -lc "git push"');
 
-    assertDeniedOnStderr(sut, new RegExp(COMPLEX_NEAR_GIT_REASON.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    assertDeniedOnStderr(sut, new RegExp(`^craft-guard: ${COMPLEX_NEAR_GIT_REASON.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'm'));
   });
 
   it('Given the live payload running git status, when the hook process runs, then it exits 0 with empty stdout', () => {
