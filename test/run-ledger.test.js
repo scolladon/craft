@@ -866,6 +866,31 @@ test('Given an open run, when close demo runs, then the pointer and the ledger a
   });
 });
 
+test('Given a closed run, when close runs again, then it exits 0 with empty stdout and stderr', () => {
+  withRun({}, (run) => {
+    runLedger(run.main, ['close', 'demo']);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['close', 'demo']);
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, '');
+    assert.strictEqual(result.stderr, '');
+  });
+});
+
+test('Given a closed run, when locate --run runs, then stdout is empty and exit is 0', () => {
+  withRun({}, (run) => {
+    runLedger(run.main, ['close', 'demo']);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['locate', '--run', 'demo']);
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, '');
+  });
+});
+
 test('Given a bound run, when dir runs from the checkout and from the worktree, then both print the run directory inside the git common dir', () => {
   withRun({}, (run) => {
     const sut = runLedger;

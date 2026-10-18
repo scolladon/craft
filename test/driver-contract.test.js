@@ -19,6 +19,11 @@ const HANDOFF_START = /^\*\*Driver hand-off\.\*\*/;
 const FINAL_MESSAGE = /^Final message:/;
 const ELECTION_START = /^\*\*Election \(driven runs only\)\.\*\*/;
 const REBUILD_START = /^## Rebuild after compaction/;
+const REBUILD_STEP_1 = /^1\. \*\*The ledger outranks the summary\.\*\*/;
+const REBUILD_STEP_2 = /^2\. \*\*Re-derive the Resolution\.\*\*/;
+const CLOSED_RUN_START = /^\*\*Closed run\.\*\*/;
+const CLOSE_LINE = /^`run-ledger\.sh close <run-id>`/;
+const WRITE_CADENCE = /^## Write cadence and the single-writer rule/;
 const WORKSPACE_STEP_5 = /^5\. All subsequent work/;
 const NOT_FOUND = -1;
 const PRE_APPROVAL_FLAG_VALUE = '=always';
@@ -112,4 +117,40 @@ test("Given the policy spec's Claude binding, when read, then it links the drive
 
   assert.ok(sut.includes('driver.md'));
   assert.ok(sut.includes('--policy'));
+});
+
+const runRecordSpec = fs.readFileSync(path.join(ROOT, 'docs', 'contributing', 'specs', 'run-record.md'), 'utf8');
+
+test('Given the Rebuild section, when step 1 is read, then a locate that prints nothing routes to Closed run and never re-opens', () => {
+  const sut = sliceProse(run, REBUILD_STEP_1, REBUILD_STEP_2);
+
+  for (const phrase of ['prints nothing', '**Closed run**', 'Never re-`open`']) {
+    assert.ok(sut.includes(phrase), `missing: ${phrase}`);
+  }
+});
+
+test('Given the Closed run paragraph, when read, then a driven session writes one status from the PR state through driver-state.sh and re-elects only when merged', () => {
+  const sut = sliceProse(run, CLOSED_RUN_START, DONE_HEADING);
+  const rebuild = sliceProse(run, REBUILD_START, DONE_HEADING);
+
+  for (const phrase of ['driver-state.sh active', 'VCS port', '<type>/<run-id>', 'Driver hand-off',
+    'Election (driven runs only)', '<main-repo-dir>',
+    '"$driver" finished <pr-url> --election <tmp-dir>/next.md --prompt <tmp-dir>/next.prompt',
+    '"$driver" finished <pr-url>', "blocked integrate - <<'REASON'", 'not merged <pr-or-branch>',
+    '{ rebuild, reason, \u22643 options }', 'Exit 4', 'exit 3', 'last tool call']) {
+    assert.ok(sut.includes(phrase), `missing: ${phrase}`);
+  }
+  assert.ok(!sut.includes(PRE_APPROVAL_FLAG_VALUE));
+  assert.ok(rebuild.includes('**Closed run.**'));
+});
+
+test('Given the Done close paragraph and the run-record write cadence, when read, then close on an already-closed run is a silent exit 0', () => {
+  const sut = sliceProse(run, CLOSE_LINE, HANDOFF_START);
+  const cadence = sliceProse(runRecordSpec, WRITE_CADENCE, ANY_H2);
+
+  for (const region of [sut, cadence]) {
+    for (const phrase of ['already-closed run', 'silent exit 0']) {
+      assert.ok(region.includes(phrase), `missing: ${phrase}`);
+    }
+  }
 });

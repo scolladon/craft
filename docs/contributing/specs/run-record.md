@@ -189,7 +189,8 @@ very next tool call — never held longer than that.
    with the phase's `GATE`/`NO-OP`/`inline:` lines, within the same flush-per-line
    window.
 3. **`close`, at `Done`.** Removes the pointer and the ledger, once the run record has
-   been read for the final message.
+   been read for the final message. On an already-closed
+   run it is a silent exit 0, so a restarted session that re-runs it loses nothing.
 
 **R4 — one writer.** Only the orchestrator appends to the ledger — through its own tool
 calls, foreground or background. No role agent writes it, in any phase, including phases
