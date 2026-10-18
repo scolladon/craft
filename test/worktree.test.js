@@ -30,11 +30,22 @@ function git(args, opts = {}) {
   execFileSync('git', [...UNSIGNED_COMMIT_CONFIG, ...args], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts });
 }
 
-function mkWorktreeNoRemote(repoDir, wtDir, branch) {
+function initRepo(repoDir) {
   git(['init', '-q', repoDir]);
   git(['-C', repoDir, 'config', 'user.email', 'test@craft']);
   git(['-C', repoDir, 'config', 'user.name', 'craft-test']);
   git(['-C', repoDir, 'commit', '--allow-empty', '-q', '-m', 'init']);
+}
+
+function initInPlaceRepo() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-inplace-'));
+  initRepo(repo);
+  git(['-C', repo, 'branch', '-M', 'main']);
+  return repo;
+}
+
+function mkWorktreeNoRemote(repoDir, wtDir, branch) {
+  initRepo(repoDir);
   git(['-C', repoDir, 'worktree', 'add', '-q', '--orphan', wtDir, '-b', branch]);
   git(['-C', wtDir, 'commit', '--allow-empty', '-q', '-m', 'wt-init']);
 }
@@ -337,13 +348,8 @@ test(
 test(
   'Given WT and MAIN that resolve to the same path via different spellings, when teardown runs, then it does not attempt a worktree remove',
   () => {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-same-'));
+    const repo = initInPlaceRepo();
     try {
-      git(['init', '-q', repo]);
-      git(['-C', repo, 'config', 'user.email', 'test@craft']);
-      git(['-C', repo, 'config', 'user.name', 'craft-test']);
-      git(['-C', repo, 'commit', '--allow-empty', '-q', '-m', 'init']);
-      git(['-C', repo, 'branch', '-M', 'main']);
       const r = runCmd('bash', [
         path.join(SCRIPTS_DIR, 'worktree-teardown.sh'),
         repo,
@@ -366,16 +372,6 @@ test(
 // ---------------------------------------------------------------------------
 
 const TEARDOWN_SCRIPT = path.join(SCRIPTS_DIR, 'worktree-teardown.sh');
-
-function initInPlaceRepo() {
-  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-inplace-'));
-  git(['init', '-q', repo]);
-  git(['-C', repo, 'config', 'user.email', 'test@craft']);
-  git(['-C', repo, 'config', 'user.name', 'craft-test']);
-  git(['-C', repo, 'commit', '--allow-empty', '-q', '-m', 'init']);
-  git(['-C', repo, 'branch', '-M', 'main']);
-  return repo;
-}
 
 // A reaped child PID is provably dead — more reliable than a fixed high number.
 function deadLockLine() {
