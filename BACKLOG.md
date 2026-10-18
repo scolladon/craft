@@ -175,6 +175,18 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open (scoped 2026-10-18 — follow-ups surfaced by the codex-git-destructive-predicate-hook run, not yet scheduled)
+
+**Close codex's `write_stdin` channel past the guard hook.** On codex-cli 0.162.1, `exec_command` with
+`tty: true` reaches the PreToolUse hook as `{ command }` only, and `write_stdin` fires no hook at all: a
+shell opened without mentioning git runs whatever is typed into it (offline probe, benign marker; see
+`docs/contributing/specs/codex-poc-record.md` and the residual in `docs/contributing/specs/gate.md`). No
+string guard can see that text. The candidate fix is to switch off codex's tty/unified-exec sessions in
+`adapters/codex/config.template.toml`, then re-read the tool list off the fake provider's request body
+and re-dump the hook payload, since the shell tool's name and shape may change. Not folded: it removes
+interactive sessions from the binding, which needs its own decision, and the config change needs its own
+probe of the resulting tool surface.
+
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the driver-contract-in-craft-run run, not yet scheduled)
 
 **A driven run killed between `close` and its status write has no rebuild path — delivered 2026-10-18**
@@ -283,9 +295,12 @@ user-ratified ADR that supersedes 253 with the symlink route (its option 3), kee
 
 ### Open (scoped 2026-10-16 — follow-ups surfaced by the copilot-git-argv-normalising-guard run, not yet scheduled)
 
-**Compose the destructive-git predicate into the codex hook.** `adapters/codex/src/execpolicy-rules.js`
+**Compose the destructive-git predicate into the codex hook — delivered 2026-10-18**
+(fix/codex-git-destructive-predicate-hook, ADR-640, ADR-641: the codex hook judges a Bash call with the
+shared verdict — plain-command gate, then destructive git, then ext-diff — and `git -C . push origin main`
+now exits 2). `adapters/codex/src/execpolicy-rules.js`
 discloses that `git -C . push` and `--git-dir=… push` bypass its `.rules` prefix match. The copilot binding
-now judges normalised argv with `gitDestructivePredicate`; the codex guard hook does not compose it
+judged normalised argv with `gitDestructivePredicate`; the codex guard hook did not compose it
 (scoped to copilot until ADR-640). Proof to run first: feed `adapters/codex/hooks/craft-guard.js` a
 `git -C . push origin main` payload and confirm it exits 0 (allows). Then decide whether codex also
 takes the plain-command gate.
