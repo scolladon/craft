@@ -646,3 +646,8 @@ codex-git-destructive-predicate-hook implementation turns=50 tool_calls=54 token
 codex-git-destructive-predicate-hook planning turns=63 tool_calls=65 tokens=5884232 duration_ms=753860 cache_read=5727643 cache_creation=155407 output=1056 avg_ctx=93384 equiv=772429
 codex-git-destructive-predicate-hook review turns=57 tool_calls=61 tokens=2133286 duration_ms=594651 cache_read=1893233 cache_creation=238984 output=955 avg_ctx=37409 equiv=492942
 codex-git-destructive-predicate-hook validation turns=10 tool_calls=10 tokens=231955 duration_ms=90801 cache_read=204900 cache_creation=26851 output=184 avg_ctx=23177 equiv=54994
+codex-write-stdin-tty-close design turns=14 tool_calls=15 tokens=595387 duration_ms=197743 cache_read=538592 cache_creation=56618 output=149 avg_ctx=42517 equiv=125405
+codex-write-stdin-tty-close implementation turns=15 tool_calls=18 tokens=343489 duration_ms=163638 cache_read=275535 cache_creation=67387 output=537 avg_ctx=22863 equiv=114502
+codex-write-stdin-tty-close planning turns=35 tool_calls=36 tokens=2501519 duration_ms=586603 cache_read=2392586 cache_creation=108473 output=390 avg_ctx=71461 equiv=376870
+codex-write-stdin-tty-close refactoring turns=4 tool_calls=4 tokens=70743 duration_ms=54093 cache_read=51497 cache_creation=19165 output=73 avg_ctx=17668 equiv=29479
+codex-write-stdin-tty-close review turns=35 tool_calls=37 tokens=896275 duration_ms=250073 cache_read=719666 cache_creation=176030 output=509 avg_ctx=25593 equiv=294619
