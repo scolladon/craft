@@ -49,8 +49,10 @@ description: Craft phase 4 - produce the parted TDD implementation plan via the 
      `git merge-base --is-ancestor <sha> <base>` must exit exactly 1; any other exit
      (128 included) escalates.
    - **Not the run's own paperwork:** a sha whose
-     `git diff-tree --no-commit-id --name-only -r <sha>` touches only the design doc or the plan directory
-     fails — the design commit always lands before planning and delivers no requirement.
+     `git diff-tree --no-commit-id --name-only -r <sha>` touches only the design directory, the plan directory and `README.md`
+     fails — the design commit (with its README corpus-count bump) always lands before
+     planning and delivers no requirement. An ADR commit is not rejected here: a decision
+     can be the deliverable, so the spot-check below judges it.
    - **Delivers what it claims:** read each cited commit's `git show --stat` and confirm it
      delivers the requirement mapped to it (the same spot-check Procedure 3 runs on parts).
 

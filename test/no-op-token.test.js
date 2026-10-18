@@ -96,14 +96,14 @@ test('Given the planning skill Procedure, when the no-op branch is read, then ev
   assert.ok(result.includes('an empty or partial mapping fails'));
 });
 
-test('Given the planning skill Procedure, when the no-op branch is read, then a commit touching only the design doc or plan directory is rejected', () => {
+test('Given the planning skill Procedure, when the no-op branch is read, then a commit touching only the design dir, plan dir and README is rejected', () => {
   const content = read('skills', 'planning', 'SKILL.md');
   const sut = sliceProse;
 
   const result = sut(content, /^## Procedure/, TO_END);
 
   assert.ok(result.includes('git diff-tree --no-commit-id --name-only -r'));
-  assert.ok(result.includes('touches only the design doc or the plan directory'));
+  assert.ok(result.includes('touches only the design directory, the plan directory and `README.md`'));
 });
 
 test('Given the planning skill and walk step 1, when base is read, then both define it as the workspace default-branch probe', () => {
@@ -148,6 +148,15 @@ test('Given the run-record spec, when the greppable-only list is read, then it n
   assert.ok(result.includes('NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)'));
 });
 
+test('Given the run-record spec, when the implementation idiom is read, then PHASE-DONE joins it only with a green gate', () => {
+  const content = read('docs', 'contributing', 'specs', 'run-record.md');
+  const sut = sliceProse;
+
+  const result = sut(content, /^The tokens below are greppable only/, /^## /);
+
+  assert.ok(result.includes('joins its `PHASE-DONE` line only with a green gate'));
+});
+
 test('Given the implementation Preamble, when read, then it names the NO-OP(implementation) idiom and keys on NO-OP(planning)', () => {
   const content = read('skills', 'implementation', 'SKILL.md');
   const sut = sliceProse;
@@ -186,6 +195,15 @@ test('Given walk step 7, when read, then both planning and implementation no-ops
 
   assert.ok(result.includes('NO-OP(planning): no part remains'));
   assert.ok(result.includes('NO-OP(implementation): no plan parts'));
+});
+
+test('Given walk step 7, when the implementation no-op is read, then it bundles PHASE-DONE only on a green gate', () => {
+  const content = read('skills', 'run', 'SKILL.md');
+  const sut = sliceProse;
+
+  const result = sut(content, /^7\. \*\*Record outcome\*\*/, /^8\. \*\*On blocker\*\*/);
+
+  assert.ok(result.includes('with its `PHASE-DONE` line only on a green gate'));
 });
 
 test('Given walk step 1, when the necessity-probe region is read, then an implementation no-op evaluates the downstream signals over base...HEAD', () => {

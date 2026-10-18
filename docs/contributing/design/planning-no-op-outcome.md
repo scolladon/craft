@@ -111,9 +111,15 @@ planning ── spawn planner ──► planner returns either:
    │                            (i)  plan path + part count  → today's path, plan-lint gates
    │                            (ii) "NO-OP: no part remains — <req → sha, …>"
    │                                      │
-   │                     orchestrator verifies every sha:
-   │                       git merge-base --is-ancestor <sha> HEAD      (on the branch)
-   │                       ! git merge-base --is-ancestor <sha> <base>  (landed this run)
+   │                     orchestrator resolves <base> (rev-parse --verify; fail → escalate)
+   │                     and verifies the mapping:
+   │                       every requirement id mapped           (coverage)
+   │                       each sha ^[0-9a-f]{7,40}$, resolves    (shape)
+   │                       --is-ancestor <sha> HEAD   exit 0      (on the branch)
+   │                       --is-ancestor <sha> <base> exit 1      (landed this run;
+   │                                                  other exit → escalate)
+   │                       not design dir/plan dir/README only    (not paperwork)
+   │                       git show --stat delivers the mapped R  (spot-check)
    │                     fail → respawn with the failure (counts toward ≤2) → escalate
    │                     pass → one append: NO-OP(planning) + PHASE-DONE(planning)
    ▼
@@ -121,8 +127,10 @@ implementation preamble 1: gate probe (unchanged, refuses with no gates.phase)
 implementation preamble 2: plan at <plan-dir>/<slug>.md?
    yes                         → plan-lint, procedure as today
    no + ledger NO-OP(planning) → skip procedure 1–2, run procedure 3 (gates.phase once)
-                                 one append: NO-OP(implementation) + GATE(implementation)
-                                             + PHASE-DONE(implementation)
+                                 green: one append NO-OP(implementation)
+                                        + GATE(implementation): green + PHASE-DONE
+                                 red:   NO-OP + GATE red, fix, re-gate;
+                                        PHASE-DONE only with a green GATE
    no + no NO-OP(planning)     → refuse (today's behaviour; standalone included)
 ```
 
@@ -130,13 +138,15 @@ implementation preamble 2: plan at <plan-dir>/<slug>.md?
 
 - **Planner contract.** Add one bullet and widen the final-message line. When every design
   requirement (and every ADR consequence the design commits to) is already delivered by a
-  commit on the branch, the planner writes no plan and commits nothing. Its final message is
+  commit this run landed after its base, the planner writes no plan and commits nothing. A
+  requirement already true before the run is planned, never mapped. Its final message is
   then exactly `NO-OP: no part remains — <R1 → <sha>, R2 → <sha>, …>`. Any doubt produces a plan,
   in the same way that doubt runs a phase. A requirement that is only partly landed still gets
   a part.
 - **Planning Procedure 2** gains a branch ahead of plan-lint. A `NO-OP:` return skips plan-lint,
-  because no plan file exists. Each cited sha passes the two `merge-base --is-ancestor` checks
-  above. On a pass, append `NO-OP(planning): no part remains — <justification>` in one call
+  because no plan file exists. The mapping passes every check in the diagram above: coverage,
+  shape, both `merge-base --is-ancestor` exits, the paperwork rejection and the spot-check. An
+  ADR commit is not rejected mechanically, because a decision can be the deliverable. On a pass, append `NO-OP(planning): no part remains — <justification>` in one call
   (walk step 7 adds `PHASE-DONE(planning): no-op — no part remains` to it). On a fail, respawn
   fresh with the failing shas, using the existing ≤2-respawn budget, then escalate
   `{ planning, reason, ≤3 options }`.
@@ -160,8 +170,9 @@ guessed.
 
 The phase gate still runs. Implementation is a floor phase (ADR-144), so "never gateless"
 holds. The gate also proves that the decisions-phase commit left the branch green before
-review. A red gate follows Procedure 3 as it stands: fix and commit before
-review. Because the walk-step-1 rule
+review. On a red gate the `NO-OP` and `GATE(implementation): red` lines land without
+`PHASE-DONE`; the fix is committed, the gate re-runs, and `PHASE-DONE` lands only with a green
+gate, so a rebuild never reads a red phase as closed. Because the walk-step-1 rule
 below uses `<base>...HEAD`, review sees that fix.
 
 ### Run record lines
@@ -202,7 +213,7 @@ The engine reads every cut correctly (pinned matrix). Two cuts need prose:
 |---|---|---|
 | planning in flight, no `NO-OP(planning)`, no plan | `inFlight: planning` | existing row: fresh planner respawn from the design. It returns the same no-op. |
 | `NO-OP(planning)` without `PHASE-DONE` | cannot happen | walk step 7 puts both in one append call |
-| implementation in flight, no plan, ledger holds `NO-OP(planning):` | `inFlight: implementation` | **new clause in the `implementation` row**: append `NO-OP(implementation)` if absent, run the phase gate, close the phase |
+| implementation in flight, no plan, ledger holds `NO-OP(planning):` | `inFlight: implementation` | **new clause in the `implementation` row**: append `NO-OP(implementation)` if absent, run the phase gate (fixing a red one first), close the phase only on a green gate |
 
 ### ADR, README and corpus counts
 

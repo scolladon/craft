@@ -147,12 +147,13 @@ The tokens below are greppable only: no regex row, and `run-state` does not cons
   `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` — the two
   fixed reason idioms of the generic `NO-OP(<phase>):` token for a run whose earlier
   phases already landed every deliverable. The first is emitted by the `planning`
-  procedure's no-op branch once every cited sha is on the branch and after `<base>`;
+  procedure's no-op branch once every check in that branch passes (coverage, sha shape,
+  landed this run, not the run's own paperwork, spot-check);
   `<justification>` maps each design requirement to the commit that delivered it
   (`R1 → <sha>, R2 → <sha>, …`). The second is emitted by the `implementation`
-  preamble when no plan exists and the run record holds the first. Each is appended in
-  one call with its phase's `PHASE-DONE` line; `run-state` consumes only the generic
-  prefix.
+  preamble when no plan exists and the run record holds the first. The first is
+  appended in one call with its `PHASE-DONE` line; the second joins its `PHASE-DONE` line only with a green gate (on red, `PHASE-DONE` follows the green re-run).
+  `run-state` consumes only the generic prefix.
 
 ## Compaction survival
 

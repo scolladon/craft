@@ -385,9 +385,12 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    escalates as a gap.
    `planning` and `implementation` record `NO-OP(planning): no part remains — …` and
    `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` under the
-   same convention when an earlier phase already landed every deliverable: each is
-   appended in one call with its `PHASE-DONE` line, has produced its outcome, is NOT a
-   missing artifact and never re-runs or escalates as a gap.
+   same convention when an earlier phase already landed every deliverable. Each has
+   produced its outcome, is NOT a missing artifact and never re-runs or escalates as a
+   gap. `NO-OP(planning):` is appended in one call with its `PHASE-DONE` line;
+   `NO-OP(implementation):` is appended with its `PHASE-DONE` line only on a green gate —
+   on red it lands with `GATE(implementation): red`, and `PHASE-DONE` follows the green
+   re-run (implementation Preamble 2).
 
 8. **On blocker**: escalate `{ phase/part, reason, ≤3 candidate options }`. Never
    spin, never silently abandon.
