@@ -74,7 +74,6 @@ const KEEPS_COMMAND_POSITION = new Set(['if', 'then', 'else', 'elif', 'while', '
 
 // zsh expands a word that opens with `=` to the path of the command it names.
 const ZSH_EQUALS_PREFIX = /^=/;
-// equivalent mutant (StringLiteral at the ZSH_EQUALS_PREFIX replacement): a word opening with `=` is opaque through isZshEqualsExpansion whatever baseName returns for it.
 const baseName = word => word.split('/').pop().replace(ZSH_EQUALS_PREFIX, '').toLowerCase();
 const isWrapperWord = word => WRAPPER_WORDS.has(baseName(word)) || SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
 const isShellOrEvaluator = word => SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
