@@ -1,10 +1,14 @@
 #!/bin/bash
 # craft — merge-phase cleanup. REFUSES while a validation run-lock is alive.
 #
-# Lock protocol: the validation phase writes <root>/.craft-validation.lock containing
-# "<pid> <iso-timestamp>" when it backgrounds a run, and removes it when the run lands.
+# Lock protocol: the validation phase writes the run-lock, containing "<pid> <iso-timestamp>",
+# when it backgrounds a run, and removes it when the run lands. The lock sits in the worktree's
+# own git dir, at the path
+# `git -C <root> rev-parse --path-format=absolute --git-path craft-validation.lock` prints, so
+# no commit can carry it and `git worktree remove` deletes it with the worktree.
 # Teardown auto-clears a dead-PID lock; a live PID requires an explicit --force, whose
 # use is echoed (pipeline mode records it in the run record).
+# A lock path that cannot be resolved exits 2, nothing removed.
 #
 # Usage: worktree-teardown.sh <main-repo-dir> <worktree-path> [--pre-teardown <script>] [--force]
 set -euo pipefail
@@ -22,7 +26,14 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-LOCK="$WT/.craft-validation.lock"
+readonly LOCK_NAME='craft-validation.lock'
+
+# Absolute even from the main checkout, where a bare --git-path answer is cwd-relative.
+resolve_lock() {
+  git -c safe.bareRepository=explicit -C "$1" rev-parse --path-format=absolute --git-path "$LOCK_NAME"
+}
+
+LOCK="$(resolve_lock "$WT")" || { echo "craft-teardown: cannot resolve the run-lock path from $WT" >&2; exit 2; }
 if [ -f "$LOCK" ]; then
   read -r PID TS < "$LOCK" || true
   # Numeric guard before kill -0: a non-numeric or negative PID (e.g. "-1", which

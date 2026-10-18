@@ -129,8 +129,11 @@ sub-concern also no-op'd.
      `mode: triage` bullet's two `mktemp` files, below) in a foreground call that prints
      their paths: shell variables do not survive between Bash calls, so the background
      call needs those literal paths. Then start the technique in the background; write
-     the run-lock (`<root>/.craft-validation.lock` ← `<pid> <iso-timestamp>`); clear the
-     lock when the run lands. The documentation phase may proceed in parallel while it
+     the run-lock (`<pid> <iso-timestamp>`) at the path
+     `git -c safe.bareRepository=explicit -C <root> rev-parse --path-format=absolute --git-path craft-validation.lock`
+     prints, in the same background Bash call (a shell variable does not survive between
+     calls). It sits in the worktree's own git dir, so no commit can carry it; clear it at
+     that path when the run lands. The documentation phase may proceed in parallel while it
      grinds.
 
      The backgrounded command's first statement, before the technique starts, appends

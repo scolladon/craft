@@ -6,6 +6,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { UNSIGNED_COMMIT_CONFIG, withFailingCommitSigner } = require('./helpers/commit-signing');
+const { sliceProse } = require('./helpers/region-slice');
 
 const SCRIPTS_DIR = path.join(__dirname, '..', 'scripts');
 
@@ -29,11 +30,22 @@ function git(args, opts = {}) {
   execFileSync('git', [...UNSIGNED_COMMIT_CONFIG, ...args], { encoding: 'utf8', stdio: ['pipe', 'pipe', 'pipe'], ...opts });
 }
 
-function mkWorktreeNoRemote(repoDir, wtDir, branch) {
+function initRepo(repoDir) {
   git(['init', '-q', repoDir]);
   git(['-C', repoDir, 'config', 'user.email', 'test@craft']);
   git(['-C', repoDir, 'config', 'user.name', 'craft-test']);
   git(['-C', repoDir, 'commit', '--allow-empty', '-q', '-m', 'init']);
+}
+
+function initInPlaceRepo() {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-inplace-'));
+  initRepo(repo);
+  git(['-C', repo, 'branch', '-M', 'main']);
+  return repo;
+}
+
+function mkWorktreeNoRemote(repoDir, wtDir, branch) {
+  initRepo(repoDir);
   git(['-C', repoDir, 'worktree', 'add', '-q', '--orphan', wtDir, '-b', branch]);
   git(['-C', wtDir, 'commit', '--allow-empty', '-q', '-m', 'wt-init']);
 }
@@ -52,6 +64,20 @@ function branchExists(repoDir, branchRef) {
   } catch {
     return false;
   }
+}
+
+const LOCK_NAME = 'craft-validation.lock';
+
+function lockPathOf(worktree) {
+  return execFileSync(
+    'git',
+    ['-C', worktree, 'rev-parse', '--path-format=absolute', '--git-path', LOCK_NAME],
+    { encoding: 'utf8' },
+  ).trim();
+}
+
+function liveLockLine() {
+  return `${process.pid} ${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}\n`;
 }
 
 // The worktree path is reserved then removed: `git worktree add` refuses an existing directory.
@@ -186,13 +212,12 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  'Given a live-PID lock in the worktree, when teardown runs without --force, then it exits 3 and reports REFUSED',
+  'Given a live-PID lock at the worktree git-path lock, when teardown runs without --force, then it exits 3, reports REFUSED and leaves the lock intact',
   () => {
     const dirs = setup();
     try {
-      const ts = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-      const lockPath = path.join(dirs.wt, '.craft-validation.lock');
-      fs.writeFileSync(lockPath, `${process.pid} ${ts}\n`);
+      const lockPath = lockPathOf(dirs.wt);
+      fs.writeFileSync(lockPath, liveLockLine());
       const r = runCmd('bash', [path.join(SCRIPTS_DIR, 'worktree-teardown.sh'), dirs.repo, dirs.wt]);
       assert.strictEqual(r.status, 3);
       assert.ok(r.output.includes('REFUSED'), `Expected 'REFUSED' in output:\n${r.output}`);
@@ -212,13 +237,12 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  'Given a live-PID lock in the worktree, when teardown runs with --force, then it exits 0, reports FORCED, and removes the lock',
+  'Given a live-PID lock at the worktree git-path lock, when teardown runs with --force, then it exits 0, reports FORCED, and removes the lock and the worktree',
   () => {
     const dirs = setup();
     try {
-      const ts = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-      const lockPath = path.join(dirs.wt, '.craft-validation.lock');
-      fs.writeFileSync(lockPath, `${process.pid} ${ts}\n`);
+      const lockPath = lockPathOf(dirs.wt);
+      fs.writeFileSync(lockPath, liveLockLine());
       const r = runCmd('bash', [
         path.join(SCRIPTS_DIR, 'worktree-teardown.sh'),
         dirs.repo,
@@ -243,7 +267,7 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  'Given a stale-PID lock in the worktree, when teardown runs, then it reports stale lock auto-cleared and removes the worktree',
+  'Given a dead-PID lock at the worktree git-path lock, when teardown runs, then it reports stale lock auto-cleared and removes the worktree and branch',
   () => {
     const dirs = setup();
     try {
@@ -251,7 +275,7 @@ test(
       const child = spawnSync('sh', ['-c', 'exit 0']);
       const deadPid = child.pid;
       const ts = new Date().toISOString().replace(/\.\d+Z$/, 'Z');
-      const lockPath = path.join(dirs.wt, '.craft-validation.lock');
+      const lockPath = lockPathOf(dirs.wt);
       fs.writeFileSync(lockPath, `${deadPid} ${ts}\n`);
       const r = runCmd('bash', [path.join(SCRIPTS_DIR, 'worktree-teardown.sh'), dirs.repo, dirs.wt]);
       assert.strictEqual(r.status, 0);
@@ -300,11 +324,11 @@ test(
 // ---------------------------------------------------------------------------
 
 test(
-  'Given a lock whose PID is -1 (kill -0 -1 signals a process group), when teardown runs, then the numeric guard treats it as stale, not live',
+  'Given a git-path lock whose PID is -1 (kill -0 -1 signals a process group), when teardown runs, then the numeric guard treats it as stale, not live',
   () => {
     const dirs = setup();
     try {
-      const lockPath = path.join(dirs.wt, '.craft-validation.lock');
+      const lockPath = lockPathOf(dirs.wt);
       fs.writeFileSync(lockPath, '-1 2026-01-01T00:00:00Z\n');
       const r = runCmd('bash', [path.join(SCRIPTS_DIR, 'worktree-teardown.sh'), dirs.repo, dirs.wt]);
       assert.strictEqual(r.status, 0);
@@ -324,13 +348,8 @@ test(
 test(
   'Given WT and MAIN that resolve to the same path via different spellings, when teardown runs, then it does not attempt a worktree remove',
   () => {
-    const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-same-'));
+    const repo = initInPlaceRepo();
     try {
-      git(['init', '-q', repo]);
-      git(['-C', repo, 'config', 'user.email', 'test@craft']);
-      git(['-C', repo, 'config', 'user.name', 'craft-test']);
-      git(['-C', repo, 'commit', '--allow-empty', '-q', '-m', 'init']);
-      git(['-C', repo, 'branch', '-M', 'main']);
       const r = runCmd('bash', [
         path.join(SCRIPTS_DIR, 'worktree-teardown.sh'),
         repo,
@@ -345,5 +364,175 @@ test(
     } finally {
       fs.rmSync(repo, { recursive: true, force: true });
     }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// worktree-teardown.sh — the run-lock lives in the per-worktree git dir
+// ---------------------------------------------------------------------------
+
+const TEARDOWN_SCRIPT = path.join(SCRIPTS_DIR, 'worktree-teardown.sh');
+
+// A reaped child PID is provably dead — more reliable than a fixed high number.
+function deadLockLine() {
+  const child = spawnSync('sh', ['-c', 'exit 0']);
+  return `${child.pid} ${new Date().toISOString().replace(/\.\d+Z$/, 'Z')}\n`;
+}
+
+test(
+  'Given a live-PID lock only at the old in-tree path, when teardown runs, then it exits 0 and removes the worktree',
+  () => {
+    // Arrange
+    const dirs = setup();
+    const sut = TEARDOWN_SCRIPT;
+    try {
+      fs.writeFileSync(path.join(dirs.wt, '.craft-validation.lock'), liveLockLine());
+
+      // Act
+      const result = runCmd('bash', [sut, dirs.repo, dirs.wt]);
+
+      // Assert
+      assert.strictEqual(result.status, 0);
+      assert.ok(!result.output.includes('REFUSED'), `Expected no REFUSED in output:\n${result.output}`);
+      assert.ok(!fs.existsSync(dirs.wt), 'Worktree directory should be removed');
+    } finally {
+      teardown(dirs);
+    }
+  },
+);
+
+test(
+  'Given an in-place checkout with a live-PID lock in its git dir, when teardown runs with WT equal to MAIN, then it exits 3, reports REFUSED and keeps the checkout and the lock',
+  () => {
+    // Arrange
+    const repo = initInPlaceRepo();
+    const sut = TEARDOWN_SCRIPT;
+    try {
+      const lockPath = lockPathOf(repo);
+      fs.writeFileSync(lockPath, liveLockLine());
+
+      // Act
+      const result = runCmd('bash', [sut, repo, repo]);
+
+      // Assert
+      assert.strictEqual(result.status, 3);
+      assert.ok(result.output.includes('REFUSED'), `Expected 'REFUSED' in output:\n${result.output}`);
+      assert.ok(fs.existsSync(repo), 'Checkout should remain');
+      assert.ok(fs.existsSync(lockPath), 'Lock should remain');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'Given an in-place checkout with a dead-PID lock in its git dir, when teardown runs with WT equal to MAIN, then it auto-clears the lock and keeps the checkout',
+  () => {
+    // Arrange
+    const repo = initInPlaceRepo();
+    const sut = TEARDOWN_SCRIPT;
+    try {
+      const lockPath = lockPathOf(repo);
+      fs.writeFileSync(lockPath, deadLockLine());
+
+      // Act
+      const result = runCmd('bash', [sut, repo, repo]);
+
+      // Assert
+      assert.strictEqual(result.status, 0);
+      assert.ok(result.output.includes('auto-cleared'), `Expected 'auto-cleared' in output:\n${result.output}`);
+      assert.ok(!fs.existsSync(lockPath), 'Lock should be removed');
+      assert.ok(fs.existsSync(repo), 'Checkout should remain');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'Given an in-place checkout with a live-PID lock in its git dir, when teardown runs with --force and WT equal to MAIN, then it removes the lock and keeps the checkout',
+  () => {
+    // Arrange
+    const repo = initInPlaceRepo();
+    const sut = TEARDOWN_SCRIPT;
+    try {
+      const lockPath = lockPathOf(repo);
+      fs.writeFileSync(lockPath, liveLockLine());
+
+      // Act
+      const result = runCmd('bash', [sut, repo, repo, '--force']);
+
+      // Assert
+      assert.strictEqual(result.status, 0);
+      assert.ok(result.output.includes('FORCED'), `Expected 'FORCED' in output:\n${result.output}`);
+      assert.ok(!fs.existsSync(lockPath), 'Lock should be removed');
+      assert.ok(fs.existsSync(repo), 'Checkout should remain');
+    } finally {
+      fs.rmSync(repo, { recursive: true, force: true });
+    }
+  },
+);
+
+test(
+  'Given a worktree path that is not a git worktree, when teardown runs, then it exits 2, reports it cannot resolve the run-lock path, and removes nothing',
+  () => {
+    // Arrange
+    const dirs = setup();
+    const notGit = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-not-git-'));
+    const sut = TEARDOWN_SCRIPT;
+    try {
+      // Act
+      const result = runCmd('bash', [sut, dirs.repo, notGit]);
+
+      // Assert
+      assert.strictEqual(result.status, 2);
+      assert.ok(
+        result.output.includes('cannot resolve the run-lock path'),
+        `Expected 'cannot resolve the run-lock path' in output:\n${result.output}`,
+      );
+      assert.ok(fs.existsSync(notGit), 'Non-git directory should remain');
+      assert.ok(fs.existsSync(dirs.wt), 'Worktree directory should remain');
+      assert.ok(branchExists(dirs.repo, 'refs/heads/craft-test-branch'), 'Branch should remain');
+    } finally {
+      fs.rmSync(notGit, { recursive: true, force: true });
+      teardown(dirs);
+    }
+  },
+);
+
+// ---------------------------------------------------------------------------
+// Prose — the run-lock path is the git-path lock, never the working tree
+// ---------------------------------------------------------------------------
+
+const REPO_ROOT = path.join(__dirname, '..');
+const IN_TREE_LOCK = '.craft-validation.lock';
+
+test(
+  'Given the validation skill background run bullet, when read, then the run-lock is written at the git-path lock and never in the working tree',
+  () => {
+    const text = fs.readFileSync(path.join(REPO_ROOT, 'skills', 'validation', 'SKILL.md'), 'utf8');
+
+    const sut = sliceProse(text, /^\s+- \*\*`run-style: background`\*\*/, /^\s+The backgrounded command's first statement/);
+
+    assert.ok(sut.includes('--git-path craft-validation.lock'));
+    assert.ok(sut.includes('--path-format=absolute'));
+    assert.ok(!sut.includes(IN_TREE_LOCK));
+  },
+);
+
+test(
+  'Given the vcs spec teardown bullet and lock protocol, when read, then the protocol names the git-path lock and the exit 2 case and neither names the in-tree lock',
+  () => {
+    const text = fs.readFileSync(path.join(REPO_ROOT, 'docs', 'contributing', 'specs', 'vcs.md'), 'utf8');
+
+    const bullet = sliceProse(text, /^- `teardown\(workspacePath\)/, /^## Teardown lock protocol/);
+    const sut = sliceProse(text, /^## Teardown lock protocol/, /^## /);
+
+    assert.ok(sut.includes('--git-path craft-validation.lock'));
+    assert.ok(sut.includes('--path-format=absolute'));
+    assert.ok(sut.includes('exit 2'));
+    assert.ok(sut.includes('git worktree remove'));
+    assert.ok(!bullet.includes(IN_TREE_LOCK));
+    assert.ok(!sut.includes(IN_TREE_LOCK));
   },
 );

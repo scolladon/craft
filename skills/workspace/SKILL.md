@@ -33,7 +33,15 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
    Strategy `in-place` (manifest `workspace: { strategy: in-place }`): create the branch
    in the current checkout (`git switch -c <type>/<slug>`); deps assumed present or
    installed in place; later phases use the checkout root wherever they'd use the
-   worktree (run-lock location included).
+   worktree (the run-lock path resolves from it too). **In a Claude Code background
+   session (`CLAUDE_JOB_DIR` set) → STOP before `git switch`**: the Bash call that would run
+   it tests `[ -n "${CLAUDE_JOB_DIR:-}" ]` first. The session's edit guard refuses
+   Write/Edit in the shared checkout until the session isolates (`worktree.bgIsolation`), so
+   an in-place run could not edit. Reason: `in-place strategy cannot run in a background
+   session; use strategy worktree or run attended`. The STOP holds even where a repo turned
+   `worktree.bgIsolation` off: Craft does not read that setting, because it merges across
+   the user, project, local, managed and `--settings` layers, so the session's effective
+   value is not observable from the run. Nothing was switched, so nothing needs undoing.
 3. Branch or worktree path collision → STOP and ask; never reuse silently.
 4. Apply the manifest's global/workspace `context:` file now: perform any tooling
    activation it declares (the session does this — agents will receive the same file
