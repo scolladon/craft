@@ -3,11 +3,6 @@
   "owner": { "name": "craft" },
   "plugins": [
     {
-      "name": "craft",
-      "source": { "source": "local", "path": "./plugins/craft" },
-      "description": "Shared craft skills. Installing this entry does NOT load them — codex drops the out-of-tree skills reference; symlink them into $CODEX_HOME/skills per the adapter README."
-    },
-    {
       "name": "craft-codex",
       "source": { "source": "local", "path": "./plugins/craft-codex" },
       "description": "Codex-native surface for craft. Installing this entry delivers the craft-run skill only — codex drops the hooks reference, so wire the enforcing PreToolUse guard by hand in config.toml per the adapter README."
