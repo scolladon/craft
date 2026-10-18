@@ -633,3 +633,7 @@ driver-rebuild-bg-lock-gaps design turns=36 tool_calls=40 tokens=2026386 duratio
 driver-rebuild-bg-lock-gaps implementation turns=24 tool_calls=27 tokens=678541 duration_ms=242794 cache_read=581085 cache_creation=96957 output=451 avg_ctx=28254 equiv=181608
 driver-rebuild-bg-lock-gaps planning turns=38 tool_calls=40 tokens=2638716 duration_ms=405737 cache_read=2525322 cache_creation=112932 output=386 avg_ctx=69430 equiv=395703
 driver-rebuild-bg-lock-gaps review turns=47 tool_calls=48 tokens=1364467 duration_ms=381312 cache_read=1186333 cache_creation=177470 output=570 avg_ctx=29019 equiv=343415
+codex-marketplace-entry-adr-252 design turns=48 tool_calls=49 tokens=3831305 duration_ms=595410 cache_read=3701873 cache_creation=128771 output=565 avg_ctx=79807 equiv=534072
+codex-marketplace-entry-adr-252 implementation turns=8 tool_calls=9 tokens=220350 duration_ms=59394 cache_read=186967 cache_creation=32991 output=376 avg_ctx=27497 equiv=61831
+codex-marketplace-entry-adr-252 planning turns=12 tool_calls=14 tokens=498722 duration_ms=159934 cache_read=443232 cache_creation=55311 output=155 avg_ctx=41547 equiv=114261
+codex-marketplace-entry-adr-252 review turns=21 tool_calls=21 tokens=526113 duration_ms=129332 cache_read=413399 cache_creation=112118 output=554 avg_ctx=25027 equiv=184299

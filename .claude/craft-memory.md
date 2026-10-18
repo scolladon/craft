@@ -5,8 +5,8 @@ toolchain:
     lockfileFingerprint: 86b6f717303422e2
     confidence: 5
     provenance:
-      run: driver-rebuild-bg-lock-gaps
-      commit: 40ba833
+      run: codex-marketplace-entry-adr-252
+      commit: eab55ee
       date: '2026-10-18'
 gate-cmd:
   - concern: gate-cmd
@@ -14,22 +14,22 @@ gate-cmd:
     command: bash scripts/ci.sh
     confidence: 5
     provenance:
-      run: driver-rebuild-bg-lock-gaps
-      commit: 40ba833
+      run: codex-marketplace-entry-adr-252
+      commit: eab55ee
       date: '2026-10-18'
   - concern: gate-cmd
     phase: phase
     command: bash scripts/ci.sh
     confidence: 5
     provenance:
-      run: driver-rebuild-bg-lock-gaps
-      commit: 40ba833
+      run: codex-marketplace-entry-adr-252
+      commit: eab55ee
       date: '2026-10-18'
 validation-tool:
   - concern: validation-tool
     id: mutation
     configFingerprint: 2db140e15f9341eb
-    confidence: 2
+    confidence: 1
     provenance:
       run: driver-rebuild-bg-lock-gaps
       commit: 40ba833
@@ -41,16 +41,16 @@ part-sizing:
     outcome: pass
     confidence: 5
     provenance:
-      run: driver-rebuild-bg-lock-gaps
-      commit: 40ba833
+      run: codex-marketplace-entry-adr-252
+      commit: eab55ee
       date: '2026-10-18'
   - concern: part-sizing
-    size: shell-script
+    size: test-and-config
     outcome: pass
     confidence: 1
     provenance:
-      run: driver-rebuild-bg-lock-gaps
-      commit: 40ba833
+      run: codex-marketplace-entry-adr-252
+      commit: eab55ee
       date: '2026-10-18'
 ---
 
@@ -58,18 +58,18 @@ part-sizing:
 > Machine-maintained. Edit the YAML frontmatter above, not this body.
 
 ## toolchain
-- confidence: 5 | provenance: 40ba833 / 2026-10-18
+- confidence: 5 | provenance: eab55ee / 2026-10-18
 
 ## gate-cmd
-- confidence: 5 | provenance: 40ba833 / 2026-10-18
-- confidence: 5 | provenance: 40ba833 / 2026-10-18
+- confidence: 5 | provenance: eab55ee / 2026-10-18
+- confidence: 5 | provenance: eab55ee / 2026-10-18
 
 ## validation-tool
-- confidence: 2 | provenance: 40ba833 / 2026-10-18
+- confidence: 1 | provenance: 40ba833 / 2026-10-18
 
 ## findings
 _(none)_
 
 ## part-sizing
-- confidence: 5 | provenance: 40ba833 / 2026-10-18
-- confidence: 1 | provenance: 40ba833 / 2026-10-18
+- confidence: 5 | provenance: eab55ee / 2026-10-18
+- confidence: 1 | provenance: eab55ee / 2026-10-18

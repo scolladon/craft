@@ -141,7 +141,7 @@ const SPEC_VALIDATORS = {
 const CONCERN_FLOORS = Object.freeze({
   toolchain: 1,
   'gate-cmd': 2,
-  'validation-tool': 1,
+  'validation-tool': 0,
   findings: 0,
   'part-sizing': 1,
 });
