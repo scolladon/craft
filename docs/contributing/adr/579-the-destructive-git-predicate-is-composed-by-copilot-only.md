@@ -6,9 +6,12 @@ supersedes: []
 ---
 # 579 — The destructive-git predicate is composed by copilot only
 
-- **Status:** accepted
+- **Status:** superseded by ADR-640
 - **Date:** 2026-10-15
 - **Design:** docs/contributing/design/copilot-git-argv-normalising-guard.md
+
+> **Superseded by ADR-640** for the copilot-only composition: codex now composes the predicate too,
+> through a shared engine export; the rest of this decision stands.
 
 ## Context
 

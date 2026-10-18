@@ -286,7 +286,7 @@ user-ratified ADR that supersedes 253 with the symlink route (its option 3), kee
 **Compose the destructive-git predicate into the codex hook.** `adapters/codex/src/execpolicy-rules.js`
 discloses that `git -C . push` and `--git-dir=… push` bypass its `.rules` prefix match. The copilot binding
 now judges normalised argv with `gitDestructivePredicate`; the codex guard hook does not compose it
-(ADR-579 scoped it to copilot). Proof to run first: feed `adapters/codex/hooks/craft-guard.js` a
+(scoped to copilot until ADR-640). Proof to run first: feed `adapters/codex/hooks/craft-guard.js` a
 `git -C . push origin main` payload and confirm it exits 0 (allows). Then decide whether codex also
 takes the plain-command gate.
 
@@ -1273,7 +1273,7 @@ offenders positively and asserting a non-empty scan set), and all 15 comment ref
 `preToolUse` deny (`permissionDecision: "deny"`; the 1.0.63 probe used a key copilot ignores), so the
 hook now enforces (ADR-578): a plain-command gate (ADR-596, ADR-606) → `gitDestructivePredicate` over
 normalised argv (push, `reset --hard`, forced branch delete, non-dry-run clean, inline aliases and
-config channels; ADR-579/583/584/590) → the shared guard, with the verdict computed in a worker thread
+config channels; ADR-583/584/590/640) → the shared guard, with the verdict computed in a worker thread
 and denied at a 5 s deadline so copilot's ~30 s hook timeout cannot fail open. `--deny-tool` stays the
 floor. Ground truth on copilot 1.0.92 and 1.0.98 (bare-remote ref unmoved; allow direction executes).
 Original entry: `--deny-tool` is **prefix matching on the
