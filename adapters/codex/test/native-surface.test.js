@@ -533,6 +533,15 @@ function bulletOpening(text, opening) {
   return [lines[start], ...(end === -1 ? rest : rest.slice(0, end))].join('\n');
 }
 
+const USAGE_HEADING = '## Usage';
+const CODEX_EXEC_COMMAND = 'codex exec ';
+
+function readUsageSection() {
+  const section = sectionAfter(readFileSync(README_PATH, 'utf8'), USAGE_HEADING);
+  assert.notEqual(section, null, `README.md has no "${USAGE_HEADING}" line`);
+  return section;
+}
+
 function sentencesOf(text) {
   return text.replace(/\s+/g, ' ').split(SENTENCE_END);
 }
@@ -564,6 +573,23 @@ describe('README.md - tty sessions off', () => {
     const result = sut.some((sentence) => sentence.includes('write_stdin') && /reopens/.test(sentence));
 
     assert.ok(result, 'no Guard sentence names write_stdin and what reopens it');
+  });
+
+  it('Given the Usage section of README.md, when its codex exec command is read, then it passes the tty-off launch flag', () => {
+    const sut = readUsageSection();
+
+    const result = sut.split('\n').find((line) => line.startsWith(CODEX_EXEC_COMMAND));
+
+    assert.ok(result, `the Usage section shows no "${CODEX_EXEC_COMMAND}" command line`);
+    assert.match(result, /^codex exec -c features\.unified_exec_tty=false /);
+  });
+
+  it('Given the Guard section of README.md, when its sentences are read, then one says a trusted project config can turn tty sessions back on', () => {
+    const sut = sentencesOf(readGuardSection());
+
+    const result = sut.some((sentence) => sentence.includes('.codex/config.toml') && /unified_exec_tty = true/.test(sentence));
+
+    assert.ok(result, 'no Guard sentence names the project config that turns tty sessions back on');
   });
 
   it('Given the Still open bullet of README.md, when scanned, then it no longer lists write_stdin as open', () => {

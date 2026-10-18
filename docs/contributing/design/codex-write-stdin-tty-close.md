@@ -165,6 +165,9 @@ call; nothing else changes there. The flag goes after `exec`, as the consumer co
 - The closure depends on config. Codex run outside the binding's launch path without the template
   key is exposed again.
 - `write_stdin` stays in the tool list; it just cannot reach any stdin.
+- A trusted project's `.codex/config.toml` setting `[features] unified_exec_tty = true` overrides
+  the template key (probed in review, 0.162.1); only the `-c` flag beats it. `buildLaunchArgs` has
+  one caller, the acceptance probe, so the documented Usage command carries the flag too.
 - The interactive TUI and the app-server thread/turn path were not probed with the key set; the
   probes ran `codex exec`.
 - Codex versions after 0.162.1 are unprobed; a release that makes `unified_exec_tty` a no-op, as
