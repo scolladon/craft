@@ -5,6 +5,8 @@ import { gitPlainCommandGate, COMPLEX_NEAR_GIT_REASON as REASON } from '../../sr
 const smuggled = line => `git commit -m "$(cat <<'EOF'\nmsg\nEOF\n${line}\nEOF\n)"`;
 
 const COMPLEX_COMMANDS = [
+  '=git status',
+  'git log; =git push',
   'shopt -s extglob\n/x/@(git) push origin main',
   'git @(push) origin',
   'echo $[1<<2]\ngit push origin main',

@@ -77,7 +77,10 @@ const isWrapperWord = word => WRAPPER_WORDS.has(baseName(word)) || SHELL_OR_EVAL
 const isShellOrEvaluator = word => SHELL_OR_EVALUATOR_WORDS.has(baseName(word));
 // A literal double quote in a command name can only come from a quoting trick, so the gate cannot tell what command runs.
 const holdsDoubleQuote = word => word.includes(DOUBLE_QUOTE);
-const isOpaqueCommand = word => isWrapperWord(word) || holdsDoubleQuote(word);
+// A command name opening with `=` is a zsh expansion to a path, not the word as written.
+const ZSH_EQUALS = '=';
+const isZshEqualsExpansion = word => word.startsWith(ZSH_EQUALS);
+const isOpaqueCommand = word => isWrapperWord(word) || holdsDoubleQuote(word) || isZshEqualsExpansion(word);
 const keepsCommandPosition = word => ASSIGNMENT.test(word) || KEEPS_COMMAND_POSITION.has(word);
 
 const startingState = () => ({ atCommand: true, redirect: false });

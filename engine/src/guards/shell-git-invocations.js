@@ -8,7 +8,10 @@ const ALIAS_KEY_PREFIX = 'alias.';
 export const INLINE_ALIAS_REASON =
   'craft: an inline git alias (-c alias.*) is denied — it can run any git verb';
 
-const isGitWord = word => !word.dynamic && basename(word.text).toLowerCase() === GIT_COMMAND;
+// zsh expands a word that opens with `=` to the path of the command it names, so `=git` runs git.
+const ZSH_EQUALS_PREFIX = /^=/;
+
+const isGitWord = word => !word.dynamic && basename(word.text.replace(ZSH_EQUALS_PREFIX, '')).toLowerCase() === GIT_COMMAND;
 
 // Judges read only the words that open the command (a proxy prefix), so the copy stays bounded
 // however far into a long command the git word sits.

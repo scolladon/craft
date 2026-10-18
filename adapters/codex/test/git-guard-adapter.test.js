@@ -387,6 +387,7 @@ describe('codexGuard() - git verdict on Bash, containment on apply_patch', () =>
     ['the heredoc commit idiom smuggling a branch delete', HEREDOC_IDIOM, GATE],
     ['a variable expansion before a status', 'echo $HOME; git status', GATE],
     ['an escaped quote in a commit message', 'git commit -m "fix: \\"q\\""', GATE],
+    ['a push named through zsh equals expansion', '=git push origin main', GATE],
     ['a diff without no-ext-diff', 'git diff', { block: true, reason: EXT_DIFF_REASON }],
     ['an unterminated substitution', 'echo "$(', { block: true, reason: UNPARSEABLE_REASON }],
     ['a plain status', 'git status', ALLOW],

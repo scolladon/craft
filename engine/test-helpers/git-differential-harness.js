@@ -33,10 +33,11 @@ const TAGS = Object.freeze({
   dynamicBeforeVerb: 'dynamic-before-verb',
   opaqueString: 'opaque-string',
   arithmeticHeredoc: 'arithmetic-heredoc',
+  zshEquals: 'zsh-equals',
 });
 const FALSE_BLOCK_TAGS = Object.freeze([
   TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
-  TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb,
+  TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb, TAGS.zshEquals,
 ]);
 const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc]);
 
@@ -139,6 +140,8 @@ const SPECIALS = Object.freeze([
   fragment('$(echo true) push', { tags: [TAGS.dynamicHead] }),
   fragment('P=push; git $P'),
   fragment('git $(echo push)'),
+  fragment('=git push', { tags: [TAGS.zshEquals] }),
+  fragment('=git status', { tags: [TAGS.zshEquals] }),
   fragment('echo git push', { tags: [TAGS.anyWordAnchor] }),
   fragment('echo git status', { tags: [TAGS.anyWordAnchor] }),
   fragment('git push \'x', { tags: [TAGS.unterminated], status: 2 }),
