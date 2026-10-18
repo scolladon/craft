@@ -184,6 +184,8 @@ const STUB_MODE = 0o755;
 const SYNTAX_ERROR_LINE = 'if then fi';
 const SIGNAL_EXIT_STATUS = { SIGTERM: 143, SIGHUP: 129 };
 const CHILD_POLL_TIMEOUT_MS = 5000;
+// a link-following loop that never ends must fail the test, not stall it
+const LINK_FOLLOW_TIMEOUT_MS = 10000;
 const CHILD_POLL_INTERVAL_MS = 20;
 // every directory bash may pick for a here-document temp file, the cwd included
 const NO_TEMP_WRITE_PROFILE = [
@@ -358,6 +360,31 @@ test('Given the hook reached through a symlink in another directory, when it run
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('Given the hook reached through a relative symlink, when it runs on a git diff, then it denies with the engine reason', () => {
+  const dir = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'craft-hook-rel-link-')));
+  try {
+    const linkDir = path.join(dir, 'sub');
+    fs.mkdirSync(linkDir);
+    const link = path.join(linkDir, 'git-no-ext-diff.sh');
+    fs.symlinkSync(path.relative(linkDir, GIT_HOOK), link);
+    const sut = () =>
+      spawnSync('/bin/bash', [link], { input: DENY_DIFF_PAYLOAD, encoding: 'utf8', timeout: LINK_FOLLOW_TIMEOUT_MS });
+    const result = sut();
+    assert.strictEqual(result.status, 0, result.stderr);
+    assert.strictEqual(JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason, EXT_DIFF_DENY_REASON);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Given the hook run by its bare name from its own directory, when it runs on a git diff, then it denies with the engine reason', () => {
+  const sut = () =>
+    spawnSync('/bin/bash', [path.basename(GIT_HOOK)], { cwd: path.dirname(GIT_HOOK), input: DENY_DIFF_PAYLOAD, encoding: 'utf8' });
+  const result = sut();
+  assert.strictEqual(result.status, 0, result.stderr);
+  assert.strictEqual(JSON.parse(result.stdout).hookSpecificOutput.permissionDecisionReason, EXT_DIFF_DENY_REASON);
 });
 
 test('Given a node that prints the allow token with a trailing newline, when git-no-ext-diff runs, then it exits 2 with no verdict reached', () => {
