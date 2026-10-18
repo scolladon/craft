@@ -6,8 +6,8 @@
 > the probe shows it is wrong. (3) `strategy: in-place` cannot work in a `claude --bg` session, and
 > the workspace skill does not say so. (4) `.craft-validation.lock` sits untracked in the
 > consumer's worktree root, so a broad `git add` can commit it. All four are folded into this one
-> change, and the four BACKLOG entries are removed.
-> Status: draft → self-reviewed ×3
+> change. The four BACKLOG entries are ticked in the post-merge bookkeeping commit, not on this branch.
+> Status: draft → self-reviewed ×3 → revised against ADR-631–634
 
 ## Context
 
@@ -84,6 +84,8 @@ the run itself.
 - **R1, closed-run rebuild.** A session that rebuilds after `close` (the ledger is gone) never
   guesses. When driven, it writes exactly one status that matches the PR's real state at the VCS
   host: `FINISHED <url>` when merged, `BLOCKED integrate: not merged <pr-or-branch>` otherwise.
+  When merged, it re-elects exactly as §Done "Driver hand-off" does, so the status carries
+  `next.md`/`next.prompt` whenever a normal run's would.
   It goes through `driver-state.sh`, so an existing `status` is never replaced (exit 4 is surfaced).
   When undriven, it writes nothing and tells the user the run is already closed.
 - **R2, `close` idempotence is pinned.** `run-ledger.sh close <id>` on a closed run exits 0 with
@@ -98,12 +100,14 @@ the run itself.
 - **R5, the lock is never committable.** No craft step writes the run-lock inside any working tree.
   Writer and teardown resolve the same per-worktree path from the worktree, according to D-4.
   Teardown's dead/live/`--force` semantics and messages are unchanged.
-- **R6, zero new BACKLOG entries.** The four entries at `BACKLOG.md:178-201` are deleted in the same
-  change.
+- **R6, BACKLOG follows the house convention.** This branch does not edit `BACKLOG.md`. The four
+  entries at `BACKLOG.md:178-201` are ticked `— delivered <date>` with the PR link and the ADR range
+  (ADR-631–634) in the orchestrator's post-merge bookkeeping commit, as the entries delivered on
+  2026-10-17 are. No new entry is filed.
 
 ## Design
 
-### 1. Closed-run rebuild (shape follows the D-1 recommendation)
+### 1. Closed-run rebuild (ADR-631)
 
 **`skills/run/SKILL.md` "Rebuild after compaction", step 1** gains a branch:
 
@@ -116,7 +120,9 @@ the run itself.
 driver="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh"
 "$driver" active            # exit 1 → undriven: tell the user the run is closed; stop here
 # driven: query the PR whose head is <type>/<run-id>, type ∈ {feat, fix, chore} (VCS port)
-"$driver" finished <pr-url>                         # merged
+# merged: run the §Done election from <main-repo-dir>, writing <tmp>/next.{md,prompt}
+"$driver" finished <pr-url> --election <tmp>/next.md --prompt <tmp>/next.prompt
+"$driver" finished <pr-url>                         # merged, no election, or exit 3 above
 "$driver" blocked integrate - <<'REASON'            # open, closed unmerged, or no PR
 not merged <pr-or-branch>
 REASON
@@ -126,9 +132,14 @@ REASON
   under the Claude binding). That is the same "query the PR's state (VCS port)" wording the resume table
   already uses for `propose`/`integrate`. No new port operation, no new state file. The VCS host
   outranks the summary, the same way the ledger outranks it on the normal path.
-- No election is rebuilt: `finished <pr-url>` goes alone, and the final message says the election
-  was not rebuilt. The election's inputs (the backlog on the merged main) may have moved, and the
-  driver already accepts a status without `next.*` (spec: `source: custom` writes none).
+- Merged → the normal §Done "Driver hand-off" election, unchanged. It reads the backlog from the
+  merged default branch, i.e. the main checkout `<main-repo-dir>`, because the worktree was removed
+  at `integrate`. `<tmp>` is a fresh `mktemp -d` outside every working tree. Then
+  `finished <pr-url> --election <tmp>/next.md --prompt <tmp>/next.prompt`. No election (`source:
+  custom`, no `backlog:` key, or no eligible entry) → `finished <pr-url>` alone. Exit 3 (the prompt
+  still reads as `--policy`) → `finished <pr-url>` alone, and the final message says the election
+  was withheld and why, as §Done. The paragraph points at §Done's Election rules; it does not
+  restate them.
 - Exactly one merged PR across the three heads → `finished`. None merged (open, closed unmerged,
   or no PR) → `blocked integrate`. More than one merged → blocker `{ rebuild, reason, ≤3 options }`,
   never a guess. Exit 4 (E1's transcript-intact path already wrote the status) or any other
@@ -142,7 +153,7 @@ nothing. **`docs/contributing/specs/run-record.md`** ("Write cadence and the sin
 ### 2. Env channel: `docs/contributing/specs/driver.md` (decided)
 
 §Activation is rewritten as follows. ADR-620 ("env only, no craft flag") still holds, because the
-channel is still env. A new ADR refines its consequence line "re-set it on `--resume`":
+channel is still env. ADR-634 refines its consequence line "re-set it on `--resume`":
 
 - Pass the variable as **`claude --bg --settings <file>`**, with `<file>` =
   `{"env":{"CRAFT_DRIVER_STATE":"<abs-dir>"}}`. It reaches hooks and the Bash tool, wins over the
@@ -164,7 +175,7 @@ channel is still env. A new ADR refines its consequence line "re-set it on `--re
   (E3).
 - One line on the in-place outcome from §3 below.
 
-### 3. In-place under `--bg`: `skills/workspace/SKILL.md` step 2 (shape follows the D-3 recommendation)
+### 3. In-place under `--bg`: `skills/workspace/SKILL.md` step 2 (ADR-632)
 
 The "Strategy `in-place`" sentence becomes:
 
@@ -185,7 +196,7 @@ The "Strategy `in-place`" sentence becomes:
 - The trailing "later phases use the checkout root … (run-lock location included)" becomes
   "(the run-lock resolves from it, §4)".
 
-### 4. Run-lock location (shape follows the D-4 recommendation)
+### 4. Run-lock location (ADR-633)
 
 The lock moves from `<root>/.craft-validation.lock` to the **per-worktree git dir**, resolved from the
 worktree root:
@@ -220,8 +231,11 @@ Edge behaviour:
 
 ### 5. BACKLOG
 
-The four entries under "Open (scoped 2026-10-17 — follow-ups surfaced by the
-driver-contract-in-craft-run run …)" are deleted, and so is that sub-heading, since it becomes empty.
+This branch does not edit `BACKLOG.md`. The four entries under "Open (scoped 2026-10-17 —
+follow-ups surfaced by the driver-contract-in-craft-run run …)" stay in place. After the merge, the
+orchestrator's bookkeeping commit on the default branch ticks each one in the house form:
+`**<title> — delivered <date>**` followed by `([PR #<n>](<url>), ADR-631–634: <one-line outcome>)`,
+as the entries delivered on 2026-10-17 are.
 
 ### Files touched
 
@@ -237,13 +251,15 @@ driver-contract-in-craft-run run …)" are deleted, and so is that sub-heading, 
 | `test/worktree.test.js` | lock fixtures move to the git path; new cases (Test strategy) |
 | `test/run-ledger.test.js` | `close` idempotence |
 | `test/driver-contract.test.js` | prose pins for closed-run rebuild, in-place STOP, driver spec channel |
-| `BACKLOG.md` | four entries removed |
+| `BACKLOG.md` | none on this branch: the four entries are ticked in the post-merge bookkeeping commit (§5) |
 | `docs/guides/*` | none: grep finds no mention of the lock, `in-place`, `--bg` or the driver var |
 | `skills/integrate/SKILL.md` | none (no path named) |
 
-**ADR impact (decisions phase).** D-1, D-3 and D-4 each get an ADR. Decided, no user judgment:
-"the driver env travels through `--settings`" refines ADR-620. D-4 refines ADR-153 (lock name and
-location) and, through it, ADR-036. No ADR is superseded. ADR-624 and ADR-629 hold unchanged.
+**ADR impact (decisions phase).** ADR-631 (D-1, closed-run rebuild keyed on the PR state, with
+re-election) refines ADR-624. ADR-632 (D-3, in-place refused in a background session) is new.
+ADR-633 (D-4, validation lock in the per-worktree git dir) refines ADR-153 (lock name and location)
+and, through it, ADR-036. ADR-634 (the driver env travels through `--settings`, adopted with no user
+judgment) refines ADR-620. No ADR is superseded. ADR-624 and ADR-629 hold unchanged.
 
 ### Parts (pre-chewed)
 
@@ -260,7 +276,8 @@ location) and, through it, ADR-036. No ADR is superseded. ADR-624 and ADR-629 ho
 
 **Part 2, closed-run rebuild + `close` pin.**
 - `skills/run/SKILL.md`: step 1 of "Rebuild after compaction", new "Closed run" paragraph before
-  `## Done`, and the `close` paragraph in §Done.
+  `## Done` (its merged branch points at "Driver hand-off" and "Election (driven runs only)" in
+  §Done), and the `close` paragraph in §Done.
 - `docs/contributing/specs/run-record.md` "Write cadence and the single-writer rule" item 3.
 - `test/run-ledger.test.js`: reuse `withRun`, `runLedger`, `pointerOf`; place it beside the existing
   "Given an open run, when close demo runs" test.
@@ -272,15 +289,16 @@ location) and, through it, ADR-036. No ADR is superseded. ADR-624 and ADR-629 ho
   `docs/contributing/specs/driver.md` §Activation and §Background sessions.
 - `test/driver-contract.test.js`: new `WORKSPACE_STEP_2 = /^2\. \*\*Consult `isolate` action\*\*/`
   sliced to `/^3\. /`. The existing spec test's phrase list keeps `--resume`, which still appears.
-- `BACKLOG.md` deletion.
 
 ## Decision candidates
 
-| # | Choice | Alternatives (≤3) | Recommendation | Why |
-|---|---|---|---|---|
-| D-1 | How a rebuilt session detects "ledger closed, no status" | (a) **Rebuild branch keyed on the PR state through the VCS port**: `locate` prints nothing → query the PR for `<type>/<run-id>`; merged → `finished <url>`, else `blocked integrate`; no new state. (b) A closed-run marker in the git common dir (`craft-runs/<run-id>.closed` holding the PR url + outcome), written by `close` and read by the rebuild. (c) Reorder §Done: write the status (an intent) **before** `close`. | (a) | `close` is already idempotent (E1) and a status is never overwritten (ADR-629), so (a) is safe to repeat. The VCS host is the authority on "merged", the same source the driver checks. (b) adds a file that only the status write could remove. But the status write is the last tool call, so the marker would outlive every run, and ADR-450's "open until close" semantics would need a third state. (c) supersedes ADR-624 and opens the reverse window: the driver sees `FINISHED` and starts the next entry while this one still holds an open ledger. |
-| D-3 | `strategy: in-place` in a `claude --bg` session | (a) **Refuse: STOP at workspace step 2 before `git switch` when `CLAUDE_JOB_DIR` is set**. The reason names strategy `worktree`, attended runs and `worktree.bgIsolation`; driven runs get `BLOCKED workspace: …`. (b) Document the limit only and let the guard refuse the first Write. (c) Fall back to strategy `worktree` in a bg session, with a recorded note. | (a) | E3 gives a reliable signal. Failing before any mutation beats failing mid-implementation with a switched branch and a half-run pipeline, which is what (b) gives. Cost: a repo that set `bgIsolation: none` is refused too, because craft cannot observe the merged setting. The reason names the way out (run attended or use `worktree`). (c) silently overrides a manifest choice and produces a worktree the user did not ask for. |
-| D-4 | Where the run-lock lives | (a) **The per-worktree git dir**: `git -C <root> rev-parse --path-format=absolute --git-path craft-validation.lock`, resolved the same way by writer and teardown. (b) Keep `<root>/.craft-validation.lock` and add a `.gitignore` entry (craft's repo only, or written into the consumer's `.gitignore` at workspace). (c) The git common dir beside the ledger (`craft-runs/<run-id>.validation.lock`). | (a) | Never committable in any consumer repo, invisible to `git status` (E4'), and removed with the worktree, with no cleanup code. (b) protects only craft itself, or makes craft edit the consumer's `.gitignore`, a committed file and a diff in every PR. (c) is shared by all worktrees, so the lock would need the run-id threaded into teardown's argv, a signature change at `skills/integrate/SKILL.md:32`. |
+All three rows are resolved. The env channel, decided without a user choice, is ADR-634 (adopted).
+
+| # | Choice | Alternatives (≤3) | Recommendation | Why | Resolution |
+|---|---|---|---|---|---|
+| D-1 | How a rebuilt session detects "ledger closed, no status" | (a) **Rebuild branch keyed on the PR state through the VCS port**: `locate` prints nothing → query the PR for `<type>/<run-id>`; merged → `finished <url>`, else `blocked integrate`; no new state. (b) A closed-run marker in the git common dir (`craft-runs/<run-id>.closed` holding the PR url + outcome), written by `close` and read by the rebuild. (c) Reorder §Done: write the status (an intent) **before** `close`. | (a) | `close` is already idempotent (E1) and a status is never overwritten (ADR-629), so (a) is safe to repeat. The VCS host is the authority on "merged", the same source the driver checks. (b) adds a file that only the status write could remove. But the status write is the last tool call, so the marker would outlive every run, and ADR-450's "open until close" semantics would need a third state. (c) supersedes ADR-624 and opens the reverse window: the driver sees `FINISHED` and starts the next entry while this one still holds an open ledger. | Resolved: ADR-631 (a), re-elect |
+| D-3 | `strategy: in-place` in a `claude --bg` session | (a) **Refuse: STOP at workspace step 2 before `git switch` when `CLAUDE_JOB_DIR` is set**. The reason names strategy `worktree`, attended runs and `worktree.bgIsolation`; driven runs get `BLOCKED workspace: …`. (b) Document the limit only and let the guard refuse the first Write. (c) Fall back to strategy `worktree` in a bg session, with a recorded note. | (a) | E3 gives a reliable signal. Failing before any mutation beats failing mid-implementation with a switched branch and a half-run pipeline, which is what (b) gives. Cost: a repo that set `bgIsolation: none` is refused too, because craft cannot observe the merged setting. The reason names the way out (run attended or use `worktree`). (c) silently overrides a manifest choice and produces a worktree the user did not ask for. | Resolved: ADR-632 (a), refuse |
+| D-4 | Where the run-lock lives | (a) **The per-worktree git dir**: `git -C <root> rev-parse --path-format=absolute --git-path craft-validation.lock`, resolved the same way by writer and teardown. (b) Keep `<root>/.craft-validation.lock` and add a `.gitignore` entry (craft's repo only, or written into the consumer's `.gitignore` at workspace). (c) The git common dir beside the ledger (`craft-runs/<run-id>.validation.lock`). | (a) | Never committable in any consumer repo, invisible to `git status` (E4'), and removed with the worktree, with no cleanup code. (b) protects only craft itself, or makes craft edit the consumer's `.gitignore`, a committed file and a diff in every PR. (c) is shared by all worktrees, so the lock would need the run-id threaded into teardown's argv, a signature change at `skills/integrate/SKILL.md:32`. | Resolved: ADR-633 (a), per-worktree git dir |
 
 ## Test strategy
 
@@ -303,7 +321,7 @@ spawned script or the sliced region.
 | lock prose | `test/worktree.test.js` (prose block) | Given the validation skill's run-lock bullet and the vcs spec's lock protocol, when read, then both name `--git-path craft-validation.lock` and neither names `<root>/.craft-validation.lock` |
 | `close` idempotent | `test/run-ledger.test.js` | Given a closed run, when close runs again, then exit 0 with empty stdout and stderr |
 | closed-run branch | `test/driver-contract.test.js` | Given the Rebuild section, when step 1 is read, then a `locate` that prints nothing routes to Closed run and never re-opens |
-| closed-run writes | same | Given the Closed run paragraph, when read, then it names `driver-state.sh` `active`, `finished <pr-url>`, `blocked integrate`, `not merged <pr-or-branch>`, the VCS port, and the election not being rebuilt |
+| closed-run writes | same | Given the Closed run paragraph, when read, then it names `driver-state.sh` `active`, `finished <pr-url>`, `blocked integrate`, `not merged <pr-or-branch>`, the VCS port, a pointer to §Done's election, `--election`/`--prompt`, and `finished <pr-url>` alone on no election or exit 3 |
 | `close` sentence | same (Done region) | Given §Done, when read, then `close` on an already-closed run is named a silent exit 0. The existing order pins (`close` < hand-off < `finished`) stay green |
 | in-place STOP | same | Given workspace step 2, when read, then it names `CLAUDE_JOB_DIR`, STOP before `git switch`, `worktree.bgIsolation`, and why craft cannot read it |
 | driven in-place STOP | same (reuses `DRIVEN_STOP_START`/`POLICY_CONSULT`) | Given the Driven stop bullet, when read, then it lists the workspace in-place background STOP |
@@ -322,8 +340,6 @@ spawned script or the sliced region.
 - **Craft-side defence against a contaminated service env** (an undriven bg session that sees a
   leaked `CRAFT_DRIVER_STATE`): craft cannot tell a leaked value from a real one. The spec warning
   and `--settings` are the fix, and the status never-overwrite rule limits the damage.
-- **Rebuilding the election after a closed-run rebuild:** its inputs moved with the merge, and the
-  driver accepts a status without one.
 - **Reading `worktree.bgIsolation` or `CLAUDE_BG_ISOLATION`:** the merged settings are not
   observable, and the env knob is a static, unproven read.
 - **Editing the prior design doc's `CLAUDE_CODE_SESSION_KIND` line:** design docs are dated
