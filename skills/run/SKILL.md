@@ -226,6 +226,12 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    | `validation` | no mutable code changed in scope — the technique no-op signal, evaluated *before* spawning the run |
    | `architecture` | no dependency-graph-affecting change (no import/module-boundary edits) since `implementation` |
 
+   After an implementation no-op (the run record holds `NO-OP(implementation):`), the
+   `review`, `refactoring`, `validation` and `architecture` signals are evaluated over
+   `<base>...HEAD` instead of "since `implementation`", so source that an earlier phase
+   committed is still probed. `<base>` is the default branch the workspace phase probed (`origin/HEAD` → `main` → `master`). A run whose only commits are the design doc, its ADRs and
+   their citation sweeps still auto-skips all four.
+
    When provably empty: (a) append the fixed token
    `auto-skip: <phase> — evaluated unnecessary (<signal>)` to the run record (e.g.
    `auto-skip: review — evaluated unnecessary (no source diff in scope)`) — distinct from `WAIVER:`
@@ -377,6 +383,14 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    records a `NO-OP(verify): no DoD declared — …` line under the same convention:
    it has produced its outcome; it is NOT a missing artifact and never re-runs or
    escalates as a gap.
+   `planning` and `implementation` record `NO-OP(planning): no part remains — …` and
+   `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` under the
+   same convention when an earlier phase already landed every deliverable. Each has
+   produced its outcome, is NOT a missing artifact and never re-runs or escalates as a
+   gap. `NO-OP(planning):` is appended in one call with its `PHASE-DONE` line;
+   `NO-OP(implementation):` is appended with its `PHASE-DONE` line only on a green gate —
+   on red it lands with `GATE(implementation): red`, and `PHASE-DONE` follows the green
+   re-run (implementation Preamble 2).
 
 8. **On blocker**: escalate `{ phase/part, reason, ≤3 candidate options }`. Never
    spin, never silently abandon.
@@ -577,7 +591,7 @@ instead of trusting the summary it just produced.
    | any agent phase except review | the phase's committed artifact (design doc, plan, ADRs, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
    | `workspace` | `../<repo>-<slug>` exists on `<type>/<slug>` but setup may have failed part-way: re-run `worktree-setup.sh <abs-worktree-path> [manifest scripts.post-setup]`; escalate if it fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
    | `decisions` | ADRs are committed one at a time; the user's answers survive as verbatim user messages. |
-   | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. |
+   | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. No plan and the ledger holds `NO-OP(planning):`: append `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` if absent, run `gates.phase` (fixing a red one first), and close the phase only on a green gate (`GATE(implementation): green` and `PHASE-DONE` in one append). |
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
    | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |

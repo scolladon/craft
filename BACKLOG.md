@@ -231,7 +231,9 @@ L31–46 pins that only `craft-run` arrives that way: the cached manifest drops 
 agents are not carried. Fix: a user-ratified ADR superseding that claim. Not folded: it is out of scope
 for this change, a different claim (hooks and agents) from the shared-skills load path the codex symlink-route ADR corrects.
 
-**Planning cannot record that no part remains.** `scripts/plan-lint.sh` requires at least one part,
+**Planning cannot record that no part remains — delivered 2026-10-18**
+([PR #78](https://github.com/scolladon/craft/pull/78), ADR-636–639: the planner declares `NO-OP: no part remains — <R → sha, …>`, the orchestrator verifies coverage, sha shape, landed-this-run and a spot-check, no plan file is committed, and implementation records `NO-OP(implementation):` while still running the phase gate).
+`scripts/plan-lint.sh` requires at least one part,
 and `skills/planning/SKILL.md` has no no-op outcome. In the supersede-adr-253-symlink-route run, adr-lint
 C1/C3 forced the whole change (new ADR, status flips, the `BACKLOG.md` citation sweep, the README count)
 into the decisions phase's single commit, so planning and implementation had nothing to do. The
