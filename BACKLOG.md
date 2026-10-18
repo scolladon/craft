@@ -357,6 +357,14 @@ and `docs/contributing/specs/gate.md` list "an apostrophe plus `$` in a quoted w
 that run: it is a claim about the false-block list, not about the commit idiom. Restate the item as the
 rule.
 
+**The shared ext-diff rule allows `--ext-diff` on a non-diff verb and a config-defined diff alias.**
+`gitExtDiffPredicate` judges only `diff`/`show` (`DIFFING_VERBS`) and inline `-c alias.*`, so
+`git log -p --ext-diff` and `git config alias.x diff; git x` both return `block: false` (reproduced in-process
+on the claude-ext-diff-hook-gaps branch; the old Claude regex allowed both too, so no binding regressed).
+Every binding that composes the rule (Claude, codex, copilot) shares it. Not folded: widening the shared
+rule changes the verdict on every binding and needs its own decision (deny `--ext-diff` on any git verb?
+judge `git config alias.*` writes?), outside that run's ext-diff-hook scope.
+
 ### Open (scoped 2026-10-15 — follow-ups surfaced by the codex-0162-reprobe run, not yet scheduled)
 
 **Does the interactive codex TUI apply a malformed `.rules` file like `codex exec` or like the
