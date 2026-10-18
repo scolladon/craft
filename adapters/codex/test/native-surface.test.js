@@ -140,8 +140,10 @@ describe('plugins/craft-codex/skills/ — the entrypoint dir, never a copy of th
 });
 
 describe('plugins/ — the craft-codex plugin dir only', () => {
-  it('Given the codex adapter plugins directory, when its entries are listed, then it contains exactly craft-codex', () => {
-    const sut = readdirSync(PLUGINS_DIR);
+  it('Given the codex adapter plugins directory, when its plugin dirs are listed, then it contains exactly craft-codex', () => {
+    const sut = readdirSync(PLUGINS_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
 
     assert.deepEqual(sut, ['craft-codex']);
   });
