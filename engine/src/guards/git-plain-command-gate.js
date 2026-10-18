@@ -26,6 +26,8 @@ const SHELL_OR_EVALUATOR_WORDS = Object.freeze(new Set([
 const WRAPPER_WORDS = Object.freeze(new Set([
   'env', 'exec', 'command', 'nohup', 'time', 'sudo', 'nice', 'timeout', 'xargs', 'source', '.',
   'trap', 'hash', 'builtin', 'enable', 'fc', 'coproc', 'alias',
+  // Their -C callback is shell text the builtin evaluates.
+  'mapfile', 'readarray', 'compgen',
 ]));
 
 function doubleQuotedEnd(command, from) {
