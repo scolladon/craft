@@ -496,8 +496,8 @@ bring their own `procedure`, dispatched verbatim (step 2).
   — never spin, never silently abandon.
 
 - **Driven stop**: when the run is about to end its turn at a terminal stop it cannot
-  continue from — any STOP in §0 or in the walk error paths, the workspace collision STOP, an
-  escalation the user declined or left with no way forward, a `degrade-to-blocker` policy
+  continue from — any STOP in §0 or in the walk error paths, the workspace collision STOP, the workspace in-place
+  background STOP, an escalation the user declined or left with no way forward, a `degrade-to-blocker` policy
   surface — its last tool call is one Bash call:
   ```
   driver="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/driver-state.sh"

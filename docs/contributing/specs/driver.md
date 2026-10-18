@@ -18,9 +18,17 @@ driver creates. Unset or empty means not driven: craft writes nothing.
 driven, exit 2 means the variable is set but unusable (relative, missing, not a directory, not
 writable).
 
-Set `CRAFT_DRIVER_STATE` again on `claude --bg --resume`. Only the launch path was probed: the
-variable set on the `claude --bg` launcher reaches the session; the resume path was not
-verified.
+Pass the variable as `claude --bg --settings <file>`, with `<file>` holding
+`{"env":{"CRAFT_DRIVER_STATE":"<abs-dir>"}}`. The settings env reaches hooks and the Bash
+tool, wins over the background service's env, and is restored on `claude --bg --resume`
+from the session's saved options. Keep the file in place until the entry ends: whether a
+resume re-reads it or uses a saved copy is not pinned.
+
+Never export `CRAFT_DRIVER_STATE` in a shell that may start the background service. A
+background session's env is the service's env, fixed when the service starts: an export
+there leaks into every later background session, driven or not, until the service
+restarts. A plain launcher export reaches the session only when that launch starts the
+service.
 
 ## State dir layout
 
@@ -98,3 +106,11 @@ shared checkout was refused (CLI 2.1.302).
 Fallback for CLI versions where this does not hold: a driver-side `PermissionRequest` hook that
 allows `EnterWorktree` only for a git-registered sibling `<repo>-<slug>` worktree whose path
 holds no symlink.
+
+A background session is recognised by `CLAUDE_JOB_DIR` being set; `CLAUDE_CODE_SESSION_KIND`
+is not set. `claude stop` and `claude attach` take the 8-character short id
+(`basename "$CLAUDE_JOB_DIR"`); `stop` with the full id finds no job. Resume only a stopped
+session: `--resume <full-id>` on a live one forks a copy.
+
+Strategy `in-place` cannot run in a background session: the workspace phase stops before
+`git switch`, and a driven run reports `BLOCKED workspace: …`. Use strategy `worktree`.
