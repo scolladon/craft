@@ -20,7 +20,7 @@ last-verified: <YYYY-MM-DD>
 ---
 ```
 
-The body has four sections: Context, Lesson, How to apply, Evidence. **How to apply is at most 6 non-empty lines**: it is the part that gets injected. `lesson-lint` checks the format and fails a draft that breaks it.
+The body has four sections: Context, Lesson, How to apply, Evidence. **How to apply is at most 6 non-empty lines of at most 160 characters each**: it is the part that gets injected. The title is capped at 120 characters and the trigger at 200. `lesson-lint` checks the format and fails a draft that breaks it.
 
 ## Where it lives
 
@@ -45,7 +45,7 @@ Drafts land in the PR diff and the PR body carries a `Lessons` line. Reviewing a
 
 Injection reads only the default branch, so a lesson takes effect for runs after its PR merges; drafts committed on the current branch are not injected into the current run.
 
-At each phase entry, `consult` selects active lessons by **frontmatter filters only** (`subjects` against the touched paths, `phases` against the phase). It prepends them to the phase's slot-1 contract block, after memory and intention hints. Each lesson contributes an index line plus its How to apply section.
+At each phase entry, the `lessons-hint` bin selects active lessons by **frontmatter filters only** (`subjects` against the touched paths, `phases` against the phase) and prints the block the run prepends to the phase's slot-1 contract block, after memory and intention hints. Each lesson contributes an index line plus its How to apply section; the frontmatter itself is never injected.
 
 `lessons.max_injected` caps how many lessons one phase receives. It defaults to `3`, counted per phase.
 
