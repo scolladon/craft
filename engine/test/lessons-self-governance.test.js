@@ -63,6 +63,7 @@ test('Given the seed lesson, when its How to apply is counted, then it holds at 
 test('Given the seed lesson, when sliced for the design phase, then the slice is empty', () => {
   const sut = sliceLessons;
   const view = consult(['engine/src/intention.js'], deps);
+  assert.equal(view.lessons.length, 1);
 
   const result = sut(view.lessons, { phase: 'design', max: MAX_SLICE });
 
@@ -71,6 +72,7 @@ test('Given the seed lesson, when sliced for the design phase, then the slice is
 
 test('Given a scope outside the lesson subjects, when consult runs, then lessons is empty', () => {
   const sut = consult;
+  assert.equal(sut(['engine/src/intention.js'], deps).lessons.length, 1);
 
   const result = sut(['docs/guides/lessons.md'], deps).lessons;
 

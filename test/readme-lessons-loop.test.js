@@ -4,6 +4,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
+const { sliceRegion } = require('./helpers/region-slice');
 
 const ROOT = path.join(__dirname, '..');
 const live = fs.readFileSync(path.join(ROOT, 'README.md'), 'utf8');
@@ -17,15 +18,10 @@ const MERMAID_FENCE = '```mermaid';
 const ANY_DIGIT = /\d/;
 const ANY_HTTP = /https?:/;
 
-function sectionOf(text, heading) {
-  const start = text.indexOf(heading);
-  if (start === -1) return '';
-  const bodyStart = start + heading.length;
-  const next = text.indexOf('\n## ', bodyStart);
-  return text.slice(start, next === -1 ? text.length : next);
-}
+const NEXT_SECTION = /^## /;
+const sectionOf = heading => sliceRegion(live, new RegExp(`^${heading}$`), NEXT_SECTION);
 
-const section = sectionOf(live, SECTION_HEADING);
+const section = sectionOf(SECTION_HEADING);
 const linkTargets = text => [...text.matchAll(/\]\(([^)]+)\)/g)].map(m => m[1]);
 
 test('Given the README, when its sections are located, then the loop section sits between What a run looks like and What it costs, measured', () => {
@@ -81,7 +77,7 @@ test('Given the default pipeline, when the lessons descriptor is read, then it d
 });
 
 test('Given the craft builds craft section, when read, then it holds a counted link to the lessons directory and that directory exists', () => {
-  const sut = sectionOf(live, BUILDS_HEADING);
+  const sut = sectionOf(BUILDS_HEADING);
 
   const result = linkTargets(sut).includes(LESSONS_DIR) && fs.existsSync(path.join(ROOT, LESSONS_DIR));
 

@@ -968,6 +968,15 @@ test('Given a changed evidence path, when assertFresh runs, then the lesson is l
   assert.deepEqual(result.lessons.map(r => r.page), [LESSON_A]);
 });
 
+test('Given a malformed lesson whose subject changed, when assertFresh runs, then lessons is empty and it does not throw', () => {
+  const sut = assertFresh;
+  const deps = lessonsOf({}, { [LESSON_A]: page([OBS_GLOB]) });
+
+  const result = sut({ changed: [OBS_PATH], touched: [], waived: [] }, deps);
+
+  assert.deepEqual(result.lessons, []);
+});
+
 test('Given the lesson file itself touched, when assertFresh runs, then it is not listed', () => {
   const sut = assertFresh;
   const deps = lessonsOf({}, { [LESSON_A]: lessonPage() });
