@@ -18,11 +18,11 @@ A run's lesson-shaped events (reset-on-red, multi-round review findings, real ha
 ## Options considered
 
 1. **A sub-step of `documentation` synthesis** (designer's recommendation) — pros: synthesis already reads the ledger and drafts the PR body; no new phase id, skill or descriptor / cons: the harvest cannot be turned off on its own, and `NO-OP(lessons)` names a step, not a phase.
-2. **A new default-on `lessons` phase that `pipeline.skip` can turn off** — pros: a repo opts out with one manifest line; the harvest gets its own contract, gate, auto-skip signal and metrics row / cons: a descriptor, a `PHASE_NAMES` id, a skill and README pipeline edits.
+2. **A new default-on `lessons` phase that `pipeline.skip` can turn off** — pros: a repo opts out with one manifest line; the harvest gets its own contract, gate and auto-skip signal / cons: a descriptor, a `PHASE_NAMES` id, a skill and README pipeline edits.
 
 ## Decision
 
-The user chose option 2. Harvesting runs in a new default-on `lessons` phase, declared in `pipeline/default.yml`, procedure `craft:lessons`, which `pipeline.skip: [lessons]` (or `--skip lessons`) turns off. `lessons` is a phase id in the manifest vocabulary, so it is valid in `pipeline.skip` and in a lesson's `phases` list. `NO-OP(lessons):` is that phase's runtime no-op under the ordinary `NO-OP(<phase>):` convention.
+The user chose option 2. Harvesting runs in a new default-on `lessons` phase, declared in `pipeline/default.yml`, procedure `craft:lessons`, which `pipeline.skip: [lessons]` (or `--skip lessons`) turns off. `lessons` joins the manifest phase vocabulary, so a `phases.lessons` block and a lesson's `phases: [lessons]` lint clean (`pipeline.skip` accepts any id already). The phase is session-owned, so its tokens count toward the orchestrator, not a phase metrics row. `NO-OP(lessons):` is that phase's runtime no-op under the ordinary `NO-OP(<phase>):` convention.
 
 ## Consequences
 
