@@ -13,7 +13,8 @@ const EXIT_INVALID = 2;
 
 const USAGE = 'usage: lesson-lint <lessons-dir>\n';
 const FILENAME = /^(\d{3,})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
-const HOME_ROOTED = /\$HOME|\$\{HOME\}|~\/|\/(?:Users|home)\/[^\s/]+|\/root\/|\/var\/folders\/|[A-Za-z]:\\Users\\/;
+const HOME_ROOTED = /\$HOME|\$\{HOME\}|~\/|\/(?:Users|home)\/[^\s/]+|\/root\/|\/var\/folders\//;
+const WINDOWS_HOME_ROOTED = /[a-z]:\\users\\|%userprofile%/i;
 const BAD_FILENAME = 'filename must be NNN-<slug>.md';
 const NOT_REGULAR_FILE = 'not a regular file (symlink, directory or special file)';
 const HOME_REFERENCE = 'home-rooted path or $HOME reference';
@@ -37,7 +38,7 @@ function checkFile(name, content) {
   const number = fileNumber(name);
   const errors = [];
   if (number === null) errors.push(BAD_FILENAME);
-  if (HOME_ROOTED.test(content)) errors.push(HOME_REFERENCE);
+  if (HOME_ROOTED.test(content) || WINDOWS_HOME_ROOTED.test(content)) errors.push(HOME_REFERENCE);
   const parsed = parseLesson(content);
   if (parsed.errors) return { errors: [...errors, ...parsed.errors] };
   const { lesson } = parsed;

@@ -1,23 +1,61 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', 'bin', 'lessons-hint.js');
-const FIXTURE = join(HERE, '..', '..', 'docs', 'contributing', 'lessons', '001-stryker-repeated-mutate-flag-keeps-last.md');
 const LESSON_DIR = 'docs/lessons';
-const COMMITTED_TITLE = 'Stryker keeps only the last repeated --mutate flag';
+const COMMITTED_TITLE = 'A committed lesson';
 const DRAFT_TITLE = 'A drafted lesson';
 
 const tmpDirs = [];
 after(() => tmpDirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
+// Allowlisted, never spread from process.env: an ambient GIT_DIR would redirect the
+// fixture commits into another repository (mirrors test/helpers/tmp-git-repo.js, which is CommonJS).
+const PINNED_ENV = {
+  PATH: process.env.PATH,
+  GIT_CONFIG_GLOBAL: '/dev/null',
+  GIT_CONFIG_SYSTEM: '/dev/null',
+  GIT_CONFIG_NOSYSTEM: '1',
+};
+
+function lessonText(number, title) {
+  return [
+    '---',
+    "subjects: ['engine/src/**']",
+    'phases: [validation]',
+    'kind: trap',
+    'trigger: running a scoped mutation',
+    "evidence: ['README.md']",
+    'source: { run: some-run, phase: design, date: 2026-10-19 }',
+    'status: active',
+    'last-verified: 2026-10-19',
+    '---',
+    '',
+    `# ${number} \u2014 ${title}`,
+    '',
+    '## Context',
+    'Why.',
+    '',
+    '## Lesson',
+    'What.',
+    '',
+    '## How to apply',
+    '- Do it.',
+    '',
+    '## Evidence',
+    'Where.',
+    '',
+  ].join('\n');
+}
+
 function git(cwd, ...args) {
-  const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8' });
+  const result = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', '-c', 'commit.gpgsign=false', ...args], { cwd, encoding: 'utf8', env: PINNED_ENV });
   assert.equal(result.status, 0, result.stderr);
 }
 
@@ -26,16 +64,15 @@ function repoWithCommittedAndDraftedLesson() {
   tmpDirs.push(root);
   git(root, 'init', '-q');
   mkdirSync(join(root, LESSON_DIR), { recursive: true });
-  const committed = readFileSync(FIXTURE, 'utf8');
-  writeFileSync(join(root, LESSON_DIR, '001-committed.md'), committed);
+  writeFileSync(join(root, LESSON_DIR, '001-committed.md'), lessonText('001', COMMITTED_TITLE));
   git(root, 'add', '.');
   git(root, 'commit', '-q', '-m', 'base');
-  writeFileSync(join(root, LESSON_DIR, '002-draft.md'), committed.replace('# 001', '# 002').replace(COMMITTED_TITLE, DRAFT_TITLE));
+  writeFileSync(join(root, LESSON_DIR, '002-draft.md'), lessonText('002', DRAFT_TITLE));
   return root;
 }
 
 function runBin(cwd, args, input = 'engine/src/intention.js\n') {
-  return spawnSync(process.execPath, [BIN, ...args], { cwd, input, encoding: 'utf8' });
+  return spawnSync(process.execPath, [BIN, ...args], { cwd, input, encoding: 'utf8', env: PINNED_ENV });
 }
 
 test('Given a committed lesson and an uncommitted one, when the bin runs, then only the committed one is printed', () => {

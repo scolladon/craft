@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { TO_END, sliceProse, sliceRegion } = require('./helpers/region-slice');
+const { FROM_TOP, TO_END, sliceProse, sliceRegion } = require('./helpers/region-slice');
 
 const ROOT = path.resolve(__dirname, '..');
 const PREAMBLE = /^## Preamble/;
@@ -90,17 +90,17 @@ test('Given the lessons skill, when read, then it runs lesson-lint through the C
 });
 
 test('Given the PR body template, when its Provenance list is read, then it carries a Lessons line', () => {
-  const content = fs.readFileSync(path.join(ROOT, 'templates', 'pr-body.md'), 'utf8');
+  const sut = fs.readFileSync(path.join(ROOT, 'templates', 'pr-body.md'), 'utf8');
 
-  const result = sliceProse(content, /^### Provenance/, TO_END);
+  const result = sliceProse(sut, /^### Provenance/, TO_END);
 
   assert.match(result, /- \*\*Lessons:\*\* /);
 });
 
 test('Given the lessons skill lint step, when read, then a red lint naming no draft of this run records a corpus NO-OP and commits nothing', () => {
-  const sut = sliceProse(skill(), /\*\*Lint and commit\.\*\*/, /\*\*Record\.\*\*/);
+  const sut = skill();
 
-  const result = sut;
+  const result = sliceProse(sut, /\*\*Lint and commit\.\*\*/, /\*\*Record\.\*\*/);
 
   assert.ok(result.includes('NO-OP(lessons): corpus lint red on <file>'));
   assert.match(result, /names? no draft of this run/);
@@ -108,9 +108,9 @@ test('Given the lessons skill lint step, when read, then a red lint naming no dr
 });
 
 test('Given the lessons skill lint command, when read, then the lessons directory argument is quoted', () => {
-  const sut = sliceProse(skill(), /\*\*Lint and commit\.\*\*/, /\*\*Record\.\*\*/);
+  const sut = skill();
 
-  const result = sut;
+  const result = sliceProse(sut, /\*\*Lint and commit\.\*\*/, /\*\*Record\.\*\*/);
 
   assert.ok(result.includes('lesson-lint.js" "<lessons-dir>"'));
 });
@@ -128,7 +128,7 @@ test('Given the lessons skill, when read, then drafts committed on the branch ar
 test('Given the lessons skill closing line, when read, then the phase never gates propose beyond its own lint of the drafts', () => {
   const sut = skill();
 
-  const result = sut;
+  const result = sliceProse(sut, FROM_TOP, TO_END);
 
   assert.match(result, /never gates `propose` beyond its own lint of the drafts/);
   assert.ok(!result.includes('blocks `propose` only through'));

@@ -185,6 +185,9 @@ for (const [label, extra] of [
   ['a /var/folders path', '/var/folders/ab/x'],
   ['a Windows user path', 'C:\\Users\\alice\\x'],
   ['a lowercase-drive Windows user path', 'd:\\Users\\alice\\x'],
+  ['a lowercase Windows users path', 'c:\\users\\bob\\x'],
+  ['a USERPROFILE reference', '%USERPROFILE%\\x'],
+  ['a lowercase USERPROFILE reference', '%userprofile%\\x'],
 ]) {
   test(`Given a lesson body holding ${label}, when lesson-lint runs, then it exits 2`, () => {
     const root = fixtureRoot();
