@@ -175,6 +175,120 @@ Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*
 
 Beyond the PRD program. Real features, scoped but unscheduled — each is a coherent `/craft:run`.
 
+### Open — A. Git guard rules (local code, runnable)
+
+Decision point to carry: how far to widen the ext-diff rule.
+
+**The fuzz goes red at scale on unclassified safe-direction false blocks.** With
+`GUARD_FUZZ_SEEDS` set to fresh seeds and `GUARD_FUZZ_COUNT=1500`, 5-6 commands per 5-10 seeds fail the
+census as "unexpected false block": git reached only through a short-circuited `&&`, a function defined
+in a pipeline subshell, or a `cat <(…)` log race. The default seed stays green. Classify them (or make
+the oracle wait for process substitutions) so the scale knob is usable as a gate.
+
+**The shared ext-diff rule allows `--ext-diff` on a non-diff verb and a config-defined diff alias.**
+`gitExtDiffPredicate` judges only `diff`/`show` (`DIFFING_VERBS`) and inline `-c alias.*`, so
+`git log -p --ext-diff` and `git config alias.x diff; git x` both return `block: false` (reproduced in-process
+on the claude-ext-diff-hook-gaps branch; the old Claude regex allowed both too, so no binding regressed).
+Every binding that composes the rule (Claude, codex, copilot) shares it. Not folded: widening the shared
+rule changes the verdict on every binding and needs its own decision (deny `--ext-diff` on any git verb?
+judge `git config alias.*` writes?), outside that run's ext-diff-hook scope.
+
+### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
+
+**Copilot `write_bash` into an interactive (pty) session is unprobed.** Copilot 1.0.98 ships a
+`write_bash` tool (`{shellId, input}`) the guard never sees. Headless sessions have stdin at EOF, so
+nothing reaches the shell (probed); an interactive session with a pty may differ. Probe it with a
+throwaway home and a stub git before relying on the guard interactively.
+
+**Does the interactive codex TUI apply a malformed `.rules` file like `codex exec` or like the
+app-server?** On codex 0.162.1 a malformed `$CODEX_HOME/rules/craft.rules` makes `codex exec`
+refuse to start (fails closed, 3/3) while the app-server thread/turn path skips the rules and
+runs the command (fails open, 3/3); record: `docs/contributing/specs/codex-poc-record.md`,
+*Re-probe — codex-cli 0.162.1*. Which path the TUI takes was not probed. How to prove it: in a
+throwaway `CODEX_HOME`, deploy the malformed rules, drive the TUI to run `git clean -f`
+against an untracked file, and check whether the file survives. Question only; no fix is
+scoped.
+
+**Malformed `.rules` execpolicy — treat as fail open: on 0.162.1 the app-server path fails open and
+`codex exec` refuses to start — recorded 2026-07-21, re-probed 2026-10-15**
+(harden-prove-codex-binding, B9). Runtime auto-loads `$CODEX_HOME/rules/` (a directory of `.rules`
+files); `execpolicy check` treats a malformed file as a hard error, but the codex binary carries the
+literal runtime message `Error parsing rules; custom rules not applied.` — read on 2026-07-21, from
+that string alone, as: on a parse error the rules are **not applied** (fail-open), so a forbidden
+command runs; the 0.162.1 re-probe below splits that by surface. Mitigation (`115bcce`, DC-3):
+`assertRulesIntegrity(onDiskText)` byte-compares the deployed rules to `buildExecpolicyRules()` and
+refuses on any drift (malformed included). It is an exported, unit-tested check with no caller in
+the binding, kept on demand by decision (2026-10-16) because the binding launches nothing itself
+(operators run `codex exec`): it protects only when something invokes it. (The committed-file drift-guard already
+existed; this covers the deployed copy.)
+
+**Re-probe on 0.162.1 (2026-10-15): split by surface.** The 2026-07-21 verdict rested on the
+binary string alone; no runtime side effect was recorded. On 0.162.1, ground-truthed by side
+effect (`git clean -f` against an untracked `VICTIM.txt`, the deployed `craft.rules` with its
+last line `)` removed): `codex exec`, this binding's launch path, exits 1 at startup with
+`Error loading rules: … starlark error`, emits no events, and the file survives (fails closed,
+3/3); the app-server thread/turn path emits a `configWarning` (`Error parsing rules; custom
+rules not applied.`), runs the command, and the file is deleted (fails open, 3/3). With the
+well-formed file both paths block. The interactive TUI was not probed. Treat a malformed rules
+file as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
+*Re-probe — codex-cli 0.162.1*.
+
+**Prove craft's shared skills load by reference on codex — re-probed 2026-10-15; STILL DISPROVEN,
+stays OPEN (codex-0.162.1 limitation).** Two findings: (1) **manifest location bug, FIXED
+(`b204182`)** — codex 0.144.6 `plugin marketplace add <root>` only reads
+`<root>/.claude-plugin/marketplace.json`; the binding shipped a root `marketplace.json`, so the
+marketplace never registered ("marketplace root does not contain a supported manifest"). Relocated +
+README + regression test. (2) **by-reference shared-skill loading does NOT work (codex limitation)**
+— even with the manifest fixed, `codex plugin add` COPIES the plugin into
+`$CODEX_HOME/plugins/cache/…` and DROPS the `craft` entry's out-of-tree
+`skills: "../../../../skills"` reference (the cached `.codex-plugin/plugin.json` carries no `skills`
+field), so the 19 shared skills are absent. Local skills survive (`craft-codex`'s
+`./skills/craft-run` is copied). The documented **symlink fallback** loads all 19
+(`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`).
+
+**Re-probe on 0.145.0 (2026-07-31): unchanged — re-pinned 0.144.6 → 0.145.0.** Ground-truthed this
+time through the app-server's `skills/list` method rather than by inspecting the cache: **0 of 19**
+shared skills load by reference, **19 of 19** load via the symlink fallback (registered as
+`craft:<name>`). The cached `.codex-plugin/plugin.json` drops **both** `skills` and `hooks`. The
+symlink fallback therefore stays documented as required, not optional. "Load by reference" is not
+achievable on codex 0.145.0; re-check on the next minor version.
+
+**Re-probe on 0.162.1 (2026-10-15): unchanged — re-pinned 0.145.0 → 0.162.1.**
+`codex plugin marketplace add ./adapters/codex` plus `plugin add` for both entries: both cached
+`.codex-plugin/plugin.json` are `{description, name}`, `skills` and `hooks` dropped. Through the
+app-server `skills/list` method (`forceReload: true`): **0 of 19** shared skills load by
+reference, **19 of 19** load via the symlink fallback (registered as `craft:<name>`, scope
+`user`). The symlink fallback stays documented as required, not optional. "Load by reference"
+is not achievable on codex 0.162.1; re-check on the next minor version.
+
+### Open — C. Waiting on an external trigger
+
+**Drop the `typed-rest-client` override once Stryker resolves past the exact `qs` pin.**
+`engine/package.json` overrides `typed-rest-client` to 2.3.0 because 2.3.1 (picked under
+`@stryker-mutator/core@10.0.0`'s `~2.3.0`) pins `qs` at 6.15.1, which carries GHSA-q8mj
+(ADR-572). **Trigger:** a Stryker release whose `typed-rest-client` range admits a fixed `qs`, or a
+`typed-rest-client` 2.3.x that unpins it. Then remove the override, `npm install`, and confirm
+`npm --prefix engine audit` shows no Stryker-tree advisory.
+
+**Capture the error text the Task tool surfaces on a real 529.** The transient-overload retry
+classifies on the strings the Claude Code bundle uses (`529`, `overloaded_error`, `Repeated 529
+Overloaded errors`, the "high load … switch to Sonnet" off-switch), read from CLI 2.1.296 with
+`strings`. The text the session actually receives from a dead spawn was never captured. On the
+next real overload, save that text and check it against the classification in
+`skills/run/SKILL.md`.
+
+**Behavioural cases for the units no case drives.** The eval suite's unit table names what is
+covered (`run`, `planning`/planner, reviewer, `decisions`, `prune`/core contract). Prune
+candidates in any other skill or agent carry no behavioural evidence. Add a case for a unit
+the next time a prune or prompt audit targets it, not speculatively.
+
+**Scripted, CI-regenerable README demo.** A committed terminal-recording tape (e.g. a
+charmbracelet/vhs script) that renders the decisions-checkpoint moment of a run into the
+README's hero GIF deterministically — the demo is code, regenerated after UI changes with one
+command, never a stale hand-recorded capture. Needs a live run to record against; pairs with
+the drift-guard ethos (`docs/design/readme-drift-guards.md`): a demo that can be regenerated is
+a demo that can be gated.
+
 ### Open (scoped 2026-10-18 — follow-ups surfaced by the codex-git-destructive-predicate-hook run, not yet scheduled)
 
 **Close codex's `write_stdin` channel past the guard hook — delivered 2026-10-18**
@@ -332,12 +446,6 @@ never `copilotGuard` and its plain-command gate, so it could not find the gate's
 command-position bypasses that review found by hand. Add a generator arm (idiom bodies, evaluator
 builtins, redirect/reserved-word prefixes, unlisted wrappers) judged through `copilotGuard`.
 
-**The fuzz goes red at scale on unclassified safe-direction false blocks.** With
-`GUARD_FUZZ_SEEDS` set to fresh seeds and `GUARD_FUZZ_COUNT=1500`, 5-6 commands per 5-10 seeds fail the
-census as "unexpected false block": git reached only through a short-circuited `&&`, a function defined
-in a pipeline subshell, or a `cat <(…)` log race. The default seed stays green. Classify them (or make
-the oracle wait for process substitutions) so the scale knob is usable as a gate.
-
 **Craft's heredoc commit idiom fails under macOS `/bin/bash` 3.2 when the message holds an apostrophe
 — delivered 2026-10-17** (fix/bash32-heredoc-commit-idiom). Craft never taught the idiom (harness
 defaults emit it); `contracts/core.md` now teaches a `Commit form:` both shells parse — double-quoted
@@ -353,11 +461,6 @@ on copilot, which runs `/bin/bash`); bash 5 accepts it. The copilot guard allows
 it. Document the workaround for bindings that shell out to bash 3.2 (multiple `-m "…"` with double
 quotes), or pick a commit form both shells parse.
 
-**Copilot `write_bash` into an interactive (pty) session is unprobed.** Copilot 1.0.98 ships a
-`write_bash` tool (`{shellId, input}`) the guard never sees. Headless sessions have stdin at EOF, so
-nothing reaches the shell (probed); an interactive session with a pty may differ. Probe it with a
-throwaway home and a stub git before relying on the guard interactively.
-
 **The copilot "intended false blocks" list understates the quoted-word rule — delivered 2026-10-18**
 (fix/copilot-guard-differential-fuzz-arm, ADR-654: `adapters/copilot/README.md` and
 `docs/contributing/specs/gate.md` now state the rule — a `$` or backtick in any quoted word, or a `\`
@@ -372,24 +475,7 @@ and `docs/contributing/specs/gate.md` list "an apostrophe plus `$` in a quoted w
 that run: it is a claim about the false-block list, not about the commit idiom. Restate the item as the
 rule.
 
-**The shared ext-diff rule allows `--ext-diff` on a non-diff verb and a config-defined diff alias.**
-`gitExtDiffPredicate` judges only `diff`/`show` (`DIFFING_VERBS`) and inline `-c alias.*`, so
-`git log -p --ext-diff` and `git config alias.x diff; git x` both return `block: false` (reproduced in-process
-on the claude-ext-diff-hook-gaps branch; the old Claude regex allowed both too, so no binding regressed).
-Every binding that composes the rule (Claude, codex, copilot) shares it. Not folded: widening the shared
-rule changes the verdict on every binding and needs its own decision (deny `--ext-diff` on any git verb?
-judge `git config alias.*` writes?), outside that run's ext-diff-hook scope.
-
 ### Open (scoped 2026-10-15 — follow-ups surfaced by the codex-0162-reprobe run, not yet scheduled)
-
-**Does the interactive codex TUI apply a malformed `.rules` file like `codex exec` or like the
-app-server?** On codex 0.162.1 a malformed `$CODEX_HOME/rules/craft.rules` makes `codex exec`
-refuse to start (fails closed, 3/3) while the app-server thread/turn path skips the rules and
-runs the command (fails open, 3/3); record: `docs/contributing/specs/codex-poc-record.md`,
-*Re-probe — codex-cli 0.162.1*. Which path the TUI takes was not probed. How to prove it: in a
-throwaway `CODEX_HOME`, deploy the malformed rules, drive the TUI to run `git clean -f`
-against an untracked file, and check whether the file survives. Question only; no fix is
-scoped.
 
 **Should a launch or install path call `assertRulesIntegrity`? — closed by decision, kept on demand, 2026-10-16**
 (feat/rules-integrity-launch-wiring). `adapters/codex/src/execpolicy-rules.js` exports it and
@@ -464,13 +550,6 @@ from an external diff, not a sandbox boundary. Fix candidates: treat `\` + next 
 pair outside single quotes; add `(`/`)` to the separators; accept `{`, `!`, `time`, `env`,
 `command`, `exec` and `NAME=value` prefixes before `git`, or pin the ones left out as documented
 residuals with `block: false` tests.
-
-**Drop the `typed-rest-client` override once Stryker resolves past the exact `qs` pin.**
-`engine/package.json` overrides `typed-rest-client` to 2.3.0 because 2.3.1 (picked under
-`@stryker-mutator/core@10.0.0`'s `~2.3.0`) pins `qs` at 6.15.1, which carries GHSA-q8mj
-(ADR-572). **Trigger:** a Stryker release whose `typed-rest-client` range admits a fixed `qs`, or a
-`typed-rest-client` 2.3.x that unpins it. Then remove the override, `npm install`, and confirm
-`npm --prefix engine audit` shows no Stryker-tree advisory.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the adapter-entry-symlink-guard run, not yet scheduled)
 
@@ -729,13 +808,6 @@ second widening path: run-record's slicer used to slice to EOF when the end argu
 out. Before switching to fail-loud, every call site that used to widen was checked against
 its target file. Each end marker exists, so no hidden false pass was exposed.
 
-**Capture the error text the Task tool surfaces on a real 529.** The transient-overload retry
-classifies on the strings the Claude Code bundle uses (`529`, `overloaded_error`, `Repeated 529
-Overloaded errors`, the "high load … switch to Sonnet" off-switch), read from CLI 2.1.296 with
-`strings`. The text the session actually receives from a dead spawn was never captured. On the
-next real overload, save that text and check it against the classification in
-`skills/run/SKILL.md`.
-
 ### Open (scoped 2026-10-09 — follow-ups surfaced by the harder-decisions-fork-fixture run, not yet scheduled)
 
 **`ci.sh` lint chain fails open — delivered 2026-10-09** (fix/ci-lint-chain-fail-closed). The
@@ -919,11 +991,6 @@ status silently. A status the parser accepts but the contract does not name goes
 That is unused acceptance: JSON-layout statuses already pass unvalidated. The extraction is
 anchored at the closing `}`, so a spaced pipe or a free-text set fails on the non-empty assertion.
 A source-read test in `engine/test/` was measured to abort every full Stryker run.
-
-**Behavioural cases for the units no case drives.** The eval suite's unit table names what is
-covered (`run`, `planning`/planner, reviewer, `decisions`, `prune`/core contract). Prune
-candidates in any other skill or agent carry no behavioural evidence. Add a case for a unit
-the next time a prune or prompt audit targets it, not speculatively.
 
 ### Open (scoped 2026-09-22 — follow-ups surfaced by the auto-compaction-safety run, not yet scheduled)
 
@@ -1211,13 +1278,6 @@ in-place equivalent-mutant comments, not 7.
 
 ### Open (scoped 2026-07-25 — follow-ups surfaced by the readme-drift-guards run, not yet scheduled)
 
-**Scripted, CI-regenerable README demo.** A committed terminal-recording tape (e.g. a
-charmbracelet/vhs script) that renders the decisions-checkpoint moment of a run into the
-README's hero GIF deterministically — the demo is code, regenerated after UI changes with one
-command, never a stale hand-recorded capture. Needs a live run to record against; pairs with
-the drift-guard ethos (`docs/design/readme-drift-guards.md`): a demo that can be regenerated is
-a demo that can be gated.
-
 **Public front-door completion set — delivered 2026-10-12** (public-front-door-completion).
 README now carries a `## How craft compares` table that compares approach categories (plain
 agent prompting, spec-driven kits, craft) rather than named products, with every craft cell
@@ -1377,34 +1437,6 @@ not be automated. It now can. Both findings, in order:
   `--no-ext-diff` reason) and `git diff --no-ext-diff > ALLOWED.txt` ran (101 B, a real diff).
   The fail-open is still unchanged codex behaviour, so the entry stays MITIGATED, not closed.
 
-**Prove craft's shared skills load by reference on codex — re-probed 2026-10-15; STILL DISPROVEN,
-stays OPEN (codex-0.162.1 limitation).** Two findings: (1) **manifest location bug, FIXED
-(`b204182`)** — codex 0.144.6 `plugin marketplace add <root>` only reads
-`<root>/.claude-plugin/marketplace.json`; the binding shipped a root `marketplace.json`, so the
-marketplace never registered ("marketplace root does not contain a supported manifest"). Relocated +
-README + regression test. (2) **by-reference shared-skill loading does NOT work (codex limitation)**
-— even with the manifest fixed, `codex plugin add` COPIES the plugin into
-`$CODEX_HOME/plugins/cache/…` and DROPS the `craft` entry's out-of-tree
-`skills: "../../../../skills"` reference (the cached `.codex-plugin/plugin.json` carries no `skills`
-field), so the 19 shared skills are absent. Local skills survive (`craft-codex`'s
-`./skills/craft-run` is copied). The documented **symlink fallback** loads all 19
-(`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`).
-
-**Re-probe on 0.145.0 (2026-07-31): unchanged — re-pinned 0.144.6 → 0.145.0.** Ground-truthed this
-time through the app-server's `skills/list` method rather than by inspecting the cache: **0 of 19**
-shared skills load by reference, **19 of 19** load via the symlink fallback (registered as
-`craft:<name>`). The cached `.codex-plugin/plugin.json` drops **both** `skills` and `hooks`. The
-symlink fallback therefore stays documented as required, not optional. "Load by reference" is not
-achievable on codex 0.145.0; re-check on the next minor version.
-
-**Re-probe on 0.162.1 (2026-10-15): unchanged — re-pinned 0.145.0 → 0.162.1.**
-`codex plugin marketplace add ./adapters/codex` plus `plugin add` for both entries: both cached
-`.codex-plugin/plugin.json` are `{description, name}`, `skills` and `hooks` dropped. Through the
-app-server `skills/list` method (`forceReload: true`): **0 of 19** shared skills load by
-reference, **19 of 19** load via the symlink fallback (registered as `craft:<name>`, scope
-`user`). The symlink fallback stays documented as required, not optional. "Load by reference"
-is not achievable on codex 0.162.1; re-check on the next minor version.
-
 **Carry the credential-rotation caveat into every binding's probe record — scoped 2026-07-31,
 delivered 2026-10-12** (chore/backlog-sweep-six-entries). `cursor-poc-record.md` now carries a
 full *Isolation-method caveat* section: the keychain symlink sits outside the mtime-find
@@ -1448,30 +1480,6 @@ binding's selection) allows writes to the workspace cwd and `$TMPDIR` (`/private
 genuinely-outside write (e.g. `~`) and BLOCKS network; **danger-full-access** allows writes +
 network. workspace-write is now a MEASURED containment posture: it contains genuinely-outside writes
 and network, not merely a documented selection.
-
-**Malformed `.rules` execpolicy — treat as fail open: on 0.162.1 the app-server path fails open and
-`codex exec` refuses to start — recorded 2026-07-21, re-probed 2026-10-15**
-(harden-prove-codex-binding, B9). Runtime auto-loads `$CODEX_HOME/rules/` (a directory of `.rules`
-files); `execpolicy check` treats a malformed file as a hard error, but the codex binary carries the
-literal runtime message `Error parsing rules; custom rules not applied.` — read on 2026-07-21, from
-that string alone, as: on a parse error the rules are **not applied** (fail-open), so a forbidden
-command runs; the 0.162.1 re-probe below splits that by surface. Mitigation (`115bcce`, DC-3):
-`assertRulesIntegrity(onDiskText)` byte-compares the deployed rules to `buildExecpolicyRules()` and
-refuses on any drift (malformed included). It is an exported, unit-tested check with no caller in
-the binding, kept on demand by decision (2026-10-16) because the binding launches nothing itself
-(operators run `codex exec`): it protects only when something invokes it. (The committed-file drift-guard already
-existed; this covers the deployed copy.)
-
-**Re-probe on 0.162.1 (2026-10-15): split by surface.** The 2026-07-21 verdict rested on the
-binary string alone; no runtime side effect was recorded. On 0.162.1, ground-truthed by side
-effect (`git clean -f` against an untracked `VICTIM.txt`, the deployed `craft.rules` with its
-last line `)` removed): `codex exec`, this binding's launch path, exits 1 at startup with
-`Error loading rules: … starlark error`, emits no events, and the file survives (fails closed,
-3/3); the app-server thread/turn path emits a `configWarning` (`Error parsing rules; custom
-rules not applied.`), runs the command, and the file is deleted (fails open, 3/3). With the
-well-formed file both paths block. The interactive TUI was not probed. Treat a malformed rules
-file as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
-*Re-probe — codex-cli 0.162.1*.
 
 **Clean up the orphaned `adapters/pi/stryker.conf.json` — delivered 2026-07-21**
 (harden-prove-codex-binding, A4). Removed; `engine/test/mutation-config.test.js` gained a positive
