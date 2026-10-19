@@ -108,6 +108,26 @@ test(
 );
 
 test(
+  'Given the lessons phase is authored, when the lessons skill file is checked, then it exists',
+  () => {
+    assert.ok(
+      fs.existsSync(path.join(ROOT, 'skills/lessons/SKILL.md')),
+      'skills/lessons/SKILL.md should exist',
+    );
+  },
+);
+
+test(
+  'Given the lessons skill file exists, when its heading is checked, then it contains the craft:lessons procedure heading',
+  () => {
+    assert.ok(
+      grepQ('# craft:lessons', path.join(ROOT, 'skills/lessons/SKILL.md')),
+      'Expected "# craft:lessons" heading in skills/lessons/SKILL.md',
+    );
+  },
+);
+
+test(
   'Given the requirements vertical is authored, when the requirements template file is checked, then it exists',
   () => {
     assert.ok(
