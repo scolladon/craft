@@ -151,6 +151,11 @@ const COMPLEX_COMMANDS = [
   'git commit -m "$(cat <<\'EOF\'\nx)"; git branch -D victim; echo "\nEOF\n)"',
   "'a\"b' x; git status",
   "git status; 'a\"b' x",
+  "seq 3 | mapfile -tc1 -C 'git push'",
+  "seq 3 | readarray -tc1 -C 'git push'",
+  "compgen -C 'git push' x",
+  "git status; compgen -C x y",
+  "if true; then mapfile -tC 'git push'; fi",
 ];
 
 const PLAIN_COMMANDS = [
@@ -210,6 +215,9 @@ const PLAIN_COMMANDS = [
   "git commit -m \"fix: don't stop\" -m \"body: it's fine\"",
   'git commit -F /tmp/commit-msg.txt',
   "echo 'a\"b'; git status",
+  'git log | grep mapfile',
+  'git grep mapfile',
+  'git add compgen.md',
 ];
 
 describe('gitPlainCommandGate() — complex commands near git', () => {

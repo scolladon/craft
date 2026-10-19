@@ -316,7 +316,17 @@ text is no longer falsely denied). Design:
 `{ git diff; }`, `git --no-pager diff`, `git -p diff` and `git --git-dir .git diff` (pinned read-only in
 the design doc's Pinned A table). Its crash contract (ADR-533…541) makes a rewrite its own change.
 
-**A copilot-level differential fuzz arm.** The committed fuzz
+**A copilot-level differential fuzz arm — delivered 2026-10-18**
+(fix/copilot-guard-differential-fuzz-arm, ADR-649, ADR-650, ADR-651, ADR-652, ADR-653: a plain-gate
+generator, engine/test-helpers/plain-gate-generator.js, feeds one judged fragment per command, from
+idiom bodies, evaluator builtins, redirect and reserved-word prefixes, unlisted wrappers and string
+runners, to real `/bin/bash` and the first bash ≥ 5 on PATH, and
+`adapters/copilot/test/git-guard.differential.test.js` judges each through `decideGuard` under a
+strict two-sided census. It proved `compgen -C` (bash 3.2 and 5) and `mapfile`/`readarray -tc1 -C`
+(bash ≥ 4) ran git past the gate; the gate now denies `mapfile`, `readarray` and `compgen` in
+command position). Design:
+[copilot-guard-differential-fuzz-arm](docs/contributing/design/copilot-guard-differential-fuzz-arm.md).
+Original entry: The committed fuzz
 (`engine/test/guards/shell-git-invocations.differential.test.js`) exercises the shared predicates only,
 never `copilotGuard` and its plain-command gate, so it could not find the gate's idiom-smuggling and
 command-position bypasses that review found by hand. Add a generator arm (idiom bodies, evaluator
@@ -348,7 +358,12 @@ quotes), or pick a commit form both shells parse.
 nothing reaches the shell (probed); an interactive session with a pty may differ. Probe it with a
 throwaway home and a stub git before relying on the guard interactively.
 
-**The copilot "intended false blocks" list understates the quoted-word rule.** `adapters/copilot/README.md`
+**The copilot "intended false blocks" list understates the quoted-word rule — delivered 2026-10-18**
+(fix/copilot-guard-differential-fuzz-arm, ADR-654: `adapters/copilot/README.md` and
+`docs/contributing/specs/gate.md` now state the rule — a `$` or backtick in any quoted word, or a `\`
+or `!` in a double-quoted one — and the copilot fuzz arm's `quoted-expansion` tag pins it). Design:
+[copilot-guard-differential-fuzz-arm](docs/contributing/design/copilot-guard-differential-fuzz-arm.md).
+Original entry: `adapters/copilot/README.md`
 and `docs/contributing/specs/gate.md` list "an apostrophe plus `$` in a quoted word
 (`git commit -m "it's $HOME"`)", but the gate denies any `$` or backtick in a quoted word and any `\` or
 `!` in a double-quoted one, apostrophe or not (`DOUBLE_QUOTE_FORBIDDEN` / `SINGLE_QUOTE_FORBIDDEN` in

@@ -91,7 +91,8 @@ names git and holds `$` or a backtick.
 - Shells anywhere: `sh bash zsh dash ksh fish csh tcsh mksh yash busybox eval` deny at **any** word
   position (an unlisted wrapper such as `caffeinate` or `stdbuf` could otherwise put a shell out of
   command position), while `env exec command nohup time sudo nice timeout xargs source . trap hash
-  builtin enable fc coproc alias` deny in command position.
+  builtin enable fc coproc alias mapfile readarray compgen` deny in command position (the last
+  three run their `-C` callback as shell text).
 - A command word that opens with `=` denies: zsh expands `=git` to git's path.
 
 **Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
@@ -113,7 +114,8 @@ Residuals, stated as measured or designed:
 - **Git reached through channels a static guard cannot follow**, accepted by design:
   `echo push | xargs git`; stdin into a shell (`bash <<< 'git push'`, `sh <<EOF … EOF`); `$((…))`
   bodies; an interpreter given a literal string (`python3 -c 'import os; os.system("git push")'`);
-  scripts, `make`, `npm run`, `ssh host '…'`, `git rebase --exec`; gitconfig-file aliases; a dynamic
+  scripts, `make`, `npm run`, a heredoc written to a file and run later, `watch`, `ssh host '…'`,
+  `su -c`, `script -c`, `parallel`, `git rebase --exec`; gitconfig-file aliases; a dynamic
   string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`); `git${IFS}diff`.
 - **A renamed or copied git binary** (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
   string guard; `hash -p` is blocked.
@@ -128,7 +130,9 @@ Residuals, stated as measured or designed:
   chain that took 49 s then aborted now denies in 0.06 s, and the verdict deadline backs this up.
   Every fail-closed denial carries a reason.
 - **Intended false blocks**, each costing one re-issue with a literal command: `git commit -c <rev>` (read as an unsafe `-c` key); `git add scripts/sh`; `bash -c 'git status'`;
-  an apostrophe plus `$` in a quoted word (`git commit -m "it's $HOME"`); a commit-message
+  a `$` or backtick in any quoted word, or a backslash or exclamation mark in a double-quoted one
+  (`git commit -m 'cost $5'`, `git commit -m "stop!"`); a callback builtin in command position
+  (`git log | mapfile -t a`); a commit-message
   write whose message names git and holds `$` or a backtick (`printf %s 'fix(git): costs $5' > /tmp/m`,
   rephrase it); a `#` comment
   (`git log # c`); `<` input redirects (`git diff > o < i`); `echo git push`; a
