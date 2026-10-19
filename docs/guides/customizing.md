@@ -23,14 +23,14 @@ zero-config sequence is:
 
 ```
 workspace → design → decisions → planning → implementation → review
-          → refactoring → validation → documentation → propose → integrate
+          → refactoring → validation → documentation → lessons → propose → integrate
 ```
 
 Two more phases ship **default-off** and turn on with one line: `requirements` (front-of-pipeline
 product spec) and `architecture` (a dependency/layering harness). Phases fall into a few
 **archetypes** — *setup* (`workspace`), *specification* (`requirements`/`design`/`decisions`/`planning`),
 *construction* (`implementation`), *harness* (`review`/`validation`/`architecture`/…), *refinement*
-(`refactoring`), *delivery* (`documentation`/`propose`/`integrate`). A **harness** is the reusable
+(`refactoring`), *delivery* (`documentation`/`lessons`/`propose`/`integrate`). A **harness** is the reusable
 one: an automated, repeatable verification of a single concern, expressed as *a gate plus an optional
 AI triage step*, configurable per repo. Review, validation, and architecture are all executing-harnesses;
 declare techniques per repo — see `examples/`. You can tune them or add your own.
@@ -224,7 +224,7 @@ and [`architecture/`](../../examples/architecture/).
 Not an injection point. Every injection point above changes *what* a phase does or *who* does it;
 none can lower this floor. See [§2](#2-the-invariant-core--what-you-cannot-inject-the-floor).
 
-### Ports (cross-cutting) — backlog · memory · policy · DoD · intention
+### Ports (cross-cutting) — backlog · memory · policy · DoD · intention · lessons
 
 | Point | What it buys | Cost | Sample |
 |---|---|---|---|
@@ -233,6 +233,7 @@ none can lower this floor. See [§2](#2-the-invariant-core--what-you-cannot-inje
 | **memory** *(Tier 0)* | per-repo advisory cache (`memory: { source: file, ref }`) — stores mechanically-derived learnings (toolchain, gate commands, findings, part sizing) so subsequent runs skip re-probing; default store at `.claude/craft-memory.md`, committed via a `.gitignore` re-include. Advisory-only: deleting it changes run cost, never correctness. See [`docs/contributing/specs/memory.md`](../contributing/specs/memory.md) for the port contract. | a custom `ref` that escapes the repo root is silently skipped — the port never reads or writes outside the repo | [`memory-cache/`](../../examples/memory-cache/) |
 | **intention** *(Tier 0)* | per-repo architectural-intention corpus (`intention: { source: file, ref, gate, covers }`) — `consult` prepends the phase's matching living pages into the design/planning contract slot (advisory, slot 1 — no second injection surface); `record` routes ADR/page writes through the same seam the `file` adapter already uses; `assert-fresh` flags a changed path whose covering page went untouched (`INTENTION-DRIFT`), waivable per page (`INTENTION-WAIVE`). `intention.gate` chooses `advisory` (default) or `blocking`; `intention.covers` names load-bearing scopes a page must exist for. See [`docs/contributing/specs/intention.md`](../contributing/specs/intention.md) for the port contract. | a `blocking` gate on a thin/under-adopted corpus stalls on false positives — start `advisory` and promote once the corpus is populated | [`intention-corpus/`](../../examples/intention-corpus/) |
 | **policy** *(Tier 0)* | per-repo/per-user permission layer over outward/hard-to-reverse VCS-port actions. The `policy:` manifest key accepts `always`, `ask`, and `never` verdict lists over the action vocabulary (`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write` — note `integrate` = merge, `propose` = pr-create). Per-action defaults are keyed by reversibility: local reversible actions (`isolate`, `commit`, `backlog-write`) default to `always`; remote/hard-to-reverse actions (`push`, `propose`, `integrate`, `teardown`, `external-send`) default to `ask`, so an unconfigured repo behaves as today (merge still stops for confirmation). Three scopes fold in one direction (`per-invocation > project > user`): user `~/.claude/craft-policy.md` < project manifest `policy:` < per-invocation `--policy`. An explicit `always` verdict for `integrate` or `propose` supersedes craft's hardcoded merge/PR confirmation, enabling unattended headless auto-merge. The three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are not nameable actions and cannot be reached by any verdict. See [`docs/contributing/specs/policy.md`](../contributing/specs/policy.md) for the port contract. | a misconfigured policy (unknown action or verdict, non-list value, intra-scope double-verdict) fails manifest-lint loudly, never silently | [`policy-headless-merge/`](../../examples/policy-headless-merge/) |
+| **lessons** *(Tier 0)* | per-repo corpus of evidence-bound lessons (`paths.lessons`, default `docs/lessons/`) — the default-on `lessons` phase harvests them from the run ledger and `consult` injects the few matching a phase (`lessons.max_injected`, default 3). Advisory, never a gate; `pipeline.skip: [lessons]` turns the harvest off. See the [lessons guide](lessons.md). | a lesson without repo-path evidence is never drafted | [`lessons-corpus/`](../../examples/lessons-corpus/) |
 | **DoD artifact** (`docs/DOD.md` or `paths.dod`) *(Tier 1)* | per-criterion acceptance-criteria check in the `validation` phase (default-ON); absence warns, never blocks | you own and maintain the checklist | [`dod-artifact/`](../../examples/dod-artifact/) |
 
 ### How Tier 2 works — the `extends:` block
@@ -416,6 +417,7 @@ Every Tier-0/1 injection point maps to a runnable [`examples/`](../../examples/)
 | methodology declination (opt-in) | [deliberation-review/](../../examples/deliberation-review/) | per-phase role swap for a high-stakes review lens; ~2× cost, not a default |
 | policy — headless auto-merge | [`policy-headless-merge/`](../../examples/policy-headless-merge/) | `policy: { always: [integrate, propose] }` — supersedes merge/PR confirmation |
 | intention corpus | [`intention-corpus/`](../../examples/intention-corpus/) | `intention: { source: file, gate, covers }` — living pages into the design/plan contract |
+| lessons corpus | [`lessons-corpus/`](../../examples/lessons-corpus/) | `paths.lessons` · `lessons.max_injected` — evidence-bound lessons injected per phase |
 | memory cache | [`memory-cache/`](../../examples/memory-cache/) | `memory: { source: file }` — advisory per-repo learning cache |
 | decisions → Slack (remote escalation) | [`decisions-remote/`](../../examples/decisions-remote/) | `phases.decisions.context` + `policy: { always: [external-send] }` — route the fork conversation to Slack |
 | phase required | [`phase-required/`](../../examples/phase-required/) | `phases.<id>.required: true` — pin a phase against auto-skip |
