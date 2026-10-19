@@ -1,6 +1,6 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import { workspace, decisions, propose, integrate } from '../src/roleless.js';
+import { workspace, decisions, lessons, propose, integrate, rolelessSteps } from '../src/roleless.js';
 
 describe('workspace()', () => {
   it('Given a present git repo, when workspace runs, then ok is true and the record notes the current checkout', async () => {
@@ -33,6 +33,24 @@ describe('decisions()', () => {
 
     assert.equal(result.ok, true);
     assert.match(result.record, /no-op/);
+  });
+});
+
+describe('lessons()', () => {
+  it('Given the lessons step, when it runs, then it returns a recorded no-op and invokes no spawn', async () => {
+    const sut = lessons;
+    const result = await sut();
+
+    assert.equal(result.ok, true);
+    assert.match(result.record, /no-op/);
+  });
+});
+
+describe('rolelessSteps', () => {
+  it('Given the role-less step table, when lessons is looked up, then it is a function', () => {
+    const sut = rolelessSteps;
+
+    assert.equal(typeof sut.lessons, 'function');
   });
 });
 
