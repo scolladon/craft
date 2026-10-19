@@ -43,6 +43,8 @@ Drafts land in the PR diff and the PR body carries a `Lessons` line. Reviewing a
 
 ## How lessons reach later phases
 
+Injection reads only the default branch, so a lesson takes effect for runs after its PR merges; drafts committed on the current branch are not injected into the current run.
+
 At each phase entry, `consult` selects active lessons by **frontmatter filters only** (`subjects` against the touched paths, `phases` against the phase). It prepends them to the phase's slot-1 contract block, after memory and intention hints. Each lesson contributes an index line plus its How to apply section.
 
 `lessons.max_injected` caps how many lessons one phase receives. It defaults to `3`, counted per phase.
@@ -55,6 +57,6 @@ At each phase entry, `consult` selects active lessons by **frontmatter filters o
 | stop injecting | `lessons.max_injected: 0` |
 | move the corpus | `paths.lessons: <repo-relative dir>` |
 
-`paths.lessons` must be a non-empty repo-relative path with no leading `/` or `~` and no `..` segment; `lessons.max_injected` must be a non-negative integer.
+`paths.lessons` must be a non-empty repo-relative path with no leading `/` or `~` and no `..` segment, and only `A-Z a-z 0-9 . _ / -` characters; `lessons.max_injected` must be a non-negative integer.
 
 A runnable manifest is in [`examples/lessons-corpus/`](../../examples/lessons-corpus/). The port is listed in [customizing.md](customizing.md).

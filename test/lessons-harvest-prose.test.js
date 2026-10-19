@@ -96,3 +96,40 @@ test('Given the PR body template, when its Provenance list is read, then it carr
 
   assert.match(result, /- \*\*Lessons:\*\* /);
 });
+
+test('Given the lessons skill lint step, when read, then a red lint naming no draft of this run records a corpus NO-OP and commits nothing', () => {
+  const sut = sliceProse(skill(), /\*\*Lint and commit\.\*\*/, /\*\*Record\.\*\*/);
+
+  const result = sut;
+
+  assert.ok(result.includes('NO-OP(lessons): corpus lint red on <file>'));
+  assert.match(result, /names? no draft of this run/);
+  assert.match(result, /never renumber or edit a committed lesson/);
+});
+
+test('Given the lessons skill lint command, when read, then the lessons directory argument is quoted', () => {
+  const sut = sliceProse(skill(), /\*\*Lint and commit\.\*\*/, /\*\*Record\.\*\*/);
+
+  const result = sut;
+
+  assert.ok(result.includes('lesson-lint.js" "<lessons-dir>"'));
+});
+
+test('Given the lessons skill, when read, then drafts committed on the branch are not injected into this run and merging publishes them', () => {
+  const sut = skill();
+
+  const result = sliceProse(sut, /\*\*Lint and commit\.\*\*/, TO_END);
+
+  assert.match(result, /not injected into this run/);
+  assert.match(result, /default branch/);
+  assert.match(result, /merging the PR ratifies and publishes/);
+});
+
+test('Given the lessons skill closing line, when read, then the phase never gates propose beyond its own lint of the drafts', () => {
+  const sut = skill();
+
+  const result = sut;
+
+  assert.match(result, /never gates `propose` beyond its own lint of the drafts/);
+  assert.ok(!result.includes('blocks `propose` only through'));
+});

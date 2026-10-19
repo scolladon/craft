@@ -47,14 +47,20 @@ Session-owned, never delegated: the ledger and the handbacks live in the session
    bump `last-verified`, or set `superseded` and write the successor with a `supersedes`
    entry, or set `retired`. Never delete a lesson.
 5. **Lint and commit.** Run
-   `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/lesson-lint.js" <lessons-dir>`.
+   `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/lesson-lint.js" "<lessons-dir>"`.
    On exit 2, fix the draft, or drop it and record why. Never commit a red lesson. A red
-   lint never blocks the phase: it ends with the lint-clean drafts that remain. Commit
+   lint never blocks the phase: it ends with the lint-clean drafts that remain. When the
+   INVALID lines name no draft of this run, the corpus itself is red (for example two merged
+   branches each added `002-*.md`): record `NO-OP(lessons): corpus lint red on <file>` and
+   stop without committing drafts; never renumber or edit a committed lesson here. Commit
    `docs(lessons): record <n> lesson(s)`; when the repo README carries a counted link to
-   the lessons directory, bump it in the same commit.
+   the lessons directory, bump it in the same commit. Drafts committed on the branch are not
+   injected into this run's later phases: injection reads only the default branch, so
+   merging the PR ratifies and publishes them.
 6. **Record.** Append `LESSONS: <path> (new|refreshed|reverified|superseded|retired)[, …]`,
    or `NO-OP(lessons): <reason>` (for example `no lesson-shaped event carried evidence`).
    Copy that line into the drafted PR body's `- **Lessons:**` line.
 
-Lessons never gate: ratification is the PR review and merge, and this phase blocks
-`propose` only through its own lint of the drafts.
+Lessons never gate: ratification is the PR review and merge, and the phase
+never gates `propose` beyond its own lint of the drafts (a red draft is fixed or dropped,
+never committed).

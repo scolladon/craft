@@ -114,6 +114,8 @@ function validatePaths(paths, fileExists, errors, readFile) {
   for (const e of validateDodCriteria(parsed.criteria)) errors.push(e);
 }
 
+const SAFE_REPO_PATH = /^[A-Za-z0-9._/-]+$/;
+
 /**
  * Validate paths.lessons: a repo-relative directory path. Existence is never checked.
  * @param {unknown} value
@@ -123,7 +125,8 @@ function checkLessonsDir(value, errors) {
   if (value === undefined) return;
   const repoRelative = typeof value === 'string' && value !== ''
     && !value.startsWith('/') && !value.startsWith('~')
-    && !value.split('/').includes('..');
+    && !value.split('/').includes('..')
+    && SAFE_REPO_PATH.test(value);
   if (!repoRelative) errors.push('paths.lessons must be a repo-relative directory path');
 }
 

@@ -4316,6 +4316,39 @@ test('Given paths.lessons as a dot-dot segment, when validateManifest runs, then
   assert.ok(result.errors.some(e => e.includes('paths.lessons must be a repo-relative directory path')));
 });
 
+const UNSAFE_LESSONS_DIRS = [
+  ['a shell separator', 'docs/x; touch y'],
+  ['a command substitution', '$(id)'],
+  ['a backtick form', 'docs/`id`'],
+  ['a space', 'docs/my lessons'],
+  ['a variable expansion', '$HOME/notes'],
+];
+
+for (const [label, unsafe] of UNSAFE_LESSONS_DIRS) {
+  test(`Given paths.lessons with ${label}, when validateManifest runs, then the error says it must be a repo-relative directory path`, () => {
+    const sut = validateManifest;
+
+    const result = sut(
+      { paths: { lessons: unsafe } },
+      { fileExists: ALWAYS_EXISTS },
+    );
+
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some(e => e.includes('paths.lessons must be a repo-relative directory path')));
+  });
+}
+
+test('Given paths.lessons docs/contributing/lessons, when validateManifest runs, then no paths.lessons error is raised', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { lessons: 'docs/contributing/lessons' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.ok(!result.errors.some(e => e.includes('paths.lessons')));
+});
+
 test('Given paths.lessons as an empty string, when validateManifest runs, then the error says it must be a repo-relative directory path', () => {
   const sut = validateManifest;
 
