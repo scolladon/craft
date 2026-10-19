@@ -315,25 +315,28 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
    means the phase runs its own probes. See `docs/contributing/specs/intention.md`.
 
-   **Lessons hint (advisory).** At **every** phase entry, enumerate the lessons lane
-   (`<lessons-dir>` = `paths.lessons`, else `docs/lessons/`): if the directory exists,
-   run `scripts/governing-corpus.sh <lessons-dir>`; otherwise the lane is empty. Run
-   `consult(<phase touched set>, { listCorpus: () => [], listLessons, readPage })` and
-   slice with `sliceLessons(view.lessons, { phase: phase.id, max: lessons.max_injected ?? 3 })`.
-   If the slice is non-empty, prepend it into the SAME slot-1 prepend, after the memory
-   and intention hints. The frontmatter is never injected. One index line, then the How
-   to apply section verbatim, per lesson:
+   **Lessons hint (advisory).** At **every** phase entry, build the hint with one call
+   (`<lessons-dir>` = `paths.lessons`, else `docs/lessons/`), the phase touched set on stdin:
+
+   ```
+   git diff --name-only <base>...HEAD | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/lessons-hint.js" --phase <phase.id> --max <lessons.max_injected, default 3> --dir "<lessons-dir>"
+   ```
+
+   Append the repo paths the phase's input artifact names to stdin: the brief for
+   `design`, the design doc for `planning`, the plan parts' `### Context` paths for
+   `implementation`. Prepend its stdout verbatim into the SAME slot-1 prepend, after the
+   memory and intention hints; empty stdout adds nothing. The bin reads lessons only from
+   the committed base revision, so only lessons merged into the default branch are
+   injected: drafts on the run's branch wait for ratification. The orchestrator never
+   reads lesson files itself, and the hint never gates. The frontmatter is never
+   injected. The bin prints one index line, then the How to apply section verbatim, per
+   lesson:
 
    ```
    Lessons (advisory — open the path for context and evidence):
    - <title> — when <trigger> → <path>
      <How to apply, verbatim, at most 6 lines>
    ```
-
-   The phase touched set is `git diff --name-only <base>...HEAD`, united with the repo
-   paths the phase's input artifact names: the brief for `design`, the design doc for
-   `planning`, the plan parts' `### Context` paths for `implementation`. An empty slice
-   adds nothing. The hint never gates.
 
    **Phase-start marker.** At phase entry, in the same Bash call as the
    contract-assemble invocation above, append `PHASE-START(<phase.id>):` via

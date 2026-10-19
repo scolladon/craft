@@ -209,7 +209,11 @@ not serve lessons.
 - `assertFresh().lessons[]` holds one `StaleRow` per active lesson whose subjects or evidence
   paths changed while the lesson file did not. It is never in `stale[]`, never gated, and
   `schemaVersion` stays 1.
-- The orchestrator consults the lane at every phase entry, re-reading from disk; it holds no
+- The per-phase entry point is the `lessons-hint` bin (`engine/bin/lessons-hint.js`): scope paths
+  on stdin, `--phase`, `--max`, `--dir`, and it prints the ready slot-1 block or nothing. It reads
+  lessons only from the committed base revision, so injection is ratified-only: a lesson drafted
+  on the run's branch reaches no phase until it is merged. It never gates.
+- The orchestrator calls it at every phase entry and never reads lesson files itself; it holds no
   in-session lessons state.
 
 ## Custom recipes (copy-paste reference)

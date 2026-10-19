@@ -533,6 +533,13 @@ one directory, sorted, NUL-safe) is the same, and the ADR-worded stderr note on 
 directory is advisory text that the orchestrator ignores. At the default budget the prepend is at
 most 21 lines per phase.
 
+Revised at review: the paragraph above was first written with the orchestrator enumerating the
+lane and running `consult`/`sliceLessons` by hand. Two defects: no entry point existed, so the
+orchestrator would have read whole lesson files; and enumerating the working tree injected
+unratified drafts from the run's own branch. The `lessons-hint` bin (`engine/bin/lessons-hint.js`)
+resolves both: one call builds the slot-1 block from the committed base revision only, so only
+lessons merged into the default branch are injected, and the orchestrator never opens a lesson file.
+
 ### Freshness — `skills/validation/SKILL.md` step 5
 
 Step 5 passes `listLessons` to `assert-fresh`. For each `report.lessons[]` row with

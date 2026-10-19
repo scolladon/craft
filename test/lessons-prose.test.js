@@ -41,16 +41,33 @@ test('Given walk step 4, when read, then a Lessons hint prepends into the SAME s
   const sut = hint();
 
   const result = ['At **every** phase entry', 'SAME slot-1 prepend', 'after the memory and intention hints',
-    'The hint never gates'].filter((phrase) => !sut.includes(phrase));
+    'the hint never gates'].filter((phrase) => !sut.includes(phrase));
 
   assert.deepStrictEqual(result, []);
 });
 
-test('Given the Lessons hint, when read, then it consults with listLessons and slices with sliceLessons', () => {
+test('Given the Lessons hint, when read, then it builds the block with the lessons-hint bin and its flags', () => {
   const sut = hint();
 
-  const result = ['scripts/governing-corpus.sh <lessons-dir>', 'listLessons', 'sliceLessons(view.lessons',
-    'lessons.max_injected ?? 3'].filter((phrase) => !sut.includes(phrase));
+  const result = ['engine/bin/lessons-hint.js', '--phase <phase.id>', '--max <lessons.max_injected, default 3>',
+    '--dir "<lessons-dir>"', 'git diff --name-only <base>...HEAD |'].filter((phrase) => !sut.includes(phrase));
+
+  assert.deepStrictEqual(result, []);
+});
+
+test('Given the Lessons hint, when read, then only lessons merged into the default branch are injected', () => {
+  const sut = hint();
+
+  const result = ['only lessons merged into the default branch are injected', 'wait for ratification',
+    'never reads lesson files itself'].filter((phrase) => !sut.includes(phrase));
+
+  assert.deepStrictEqual(result, []);
+});
+
+test('Given the Lessons hint, when read, then it no longer enumerates the corpus or consults by hand', () => {
+  const sut = hint();
+
+  const result = ['governing-corpus.sh', 'listLessons', 'sliceLessons'].filter((phrase) => sut.includes(phrase));
 
   assert.deepStrictEqual(result, []);
 });
