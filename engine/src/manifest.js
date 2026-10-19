@@ -99,6 +99,7 @@ function validatePr(pr, errors) {
 function validatePaths(paths, fileExists, errors, readFile) {
   if (!paths || typeof paths !== 'object' || Array.isArray(paths)) return;
   checkFileRef('paths.dod', paths.dod, fileExists, errors);
+  checkLessonsDir(paths.lessons, errors);
   if (typeof readFile !== 'function' || !paths.dod) return;
   const content = readFile(paths.dod);
   if (content === null || content === undefined) return;
@@ -111,6 +112,19 @@ function validatePaths(paths, fileExists, errors, readFile) {
   }
   if (!parsed) return;
   for (const e of validateDodCriteria(parsed.criteria)) errors.push(e);
+}
+
+/**
+ * Validate paths.lessons: a repo-relative directory path. Existence is never checked.
+ * @param {unknown} value
+ * @param {string[]} errors
+ */
+function checkLessonsDir(value, errors) {
+  if (value === undefined) return;
+  const repoRelative = typeof value === 'string' && value !== ''
+    && !value.startsWith('/') && !value.startsWith('~')
+    && !value.split('/').includes('..');
+  if (!repoRelative) errors.push('paths.lessons must be a repo-relative directory path');
 }
 
 /**
@@ -343,6 +357,27 @@ function validateHygiene(hygiene, errors) {
   const { gate } = hygiene;
   if (gate !== undefined && !HYGIENE_GATES.has(gate)) {
     errors.push(`unknown hygiene gate: ${gate} (expected one of advisory, blocking)`);
+  }
+}
+
+const LESSONS_MAX_INJECTED = 'max_injected';
+
+/**
+ * Validate the `lessons` sub-object.
+ * @param {unknown} lessons
+ * @param {string[]} errors
+ */
+function validateLessons(lessons, errors) {
+  if (typeof lessons !== 'object' || lessons === null || Array.isArray(lessons)) {
+    errors.push(`lessons must be an object { ${LESSONS_MAX_INJECTED} }`);
+    return;
+  }
+  for (const k of Object.keys(lessons)) {
+    if (k !== LESSONS_MAX_INJECTED) errors.push(`unknown lessons field: ${k}`);
+  }
+  const value = lessons[LESSONS_MAX_INJECTED];
+  if (value !== undefined && !(Number.isInteger(value) && value >= 0)) {
+    errors.push(`lessons.${LESSONS_MAX_INJECTED} must be a non-negative integer`);
   }
 }
 
@@ -611,6 +646,9 @@ export function validateManifest(manifest, opts) {
         break;
       case 'hygiene':
         validateHygiene(value, errors);
+        break;
+      case 'lessons':
+        validateLessons(value, errors);
         break;
       case 'extends':
         validateExtends(value, fileExists, errors);

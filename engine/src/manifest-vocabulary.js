@@ -7,7 +7,7 @@
 export const TOP_KEYS = Object.freeze(new Set([
   'backlog', 'memory', 'paths', 'context', 'gates', 'phases',
   'pr', 'scripts', 'models', 'pipeline', 'retrieval', 'execution',
-  'extends', 'policy', 'intention', 'hygiene', 'adr',
+  'extends', 'policy', 'intention', 'hygiene', 'adr', 'lessons',
 ]));
 
 /**
@@ -17,7 +17,7 @@ export const TOP_KEYS = Object.freeze(new Set([
 export const PHASE_NAMES = Object.freeze(new Set([
   'workspace', 'requirements', 'design', 'decisions', 'planning',
   'implementation', 'review', 'refactoring', 'validation',
-  'architecture', 'documentation', 'propose', 'integrate',
+  'architecture', 'documentation', 'lessons', 'propose', 'integrate',
 ]));
 
 /** Fields accepted on each phase block (skip is intentionally absent — use top-level pipeline.skip instead). */
