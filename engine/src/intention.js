@@ -74,16 +74,20 @@ function collectLessonRows(scope, lessonPages) {
     }
     const { lesson } = parsed;
     if (lesson.status !== 'active' || matchingPaths(scope, lesson.subjects).length === 0) continue;
-    rows.push({
-      path: page,
-      title: lesson.title,
-      trigger: lesson.trigger,
-      howToApply: lesson.sections['How to apply'],
-      phases: lesson.phases,
-      lastVerified: lesson.lastVerified,
-    });
+    rows.push(toLessonRow(page, lesson));
   }
   return { rows, skipped };
+}
+
+function toLessonRow(page, lesson) {
+  return {
+    path: page,
+    title: lesson.title,
+    trigger: lesson.trigger,
+    howToApply: lesson.sections['How to apply'],
+    phases: lesson.phases,
+    lastVerified: lesson.lastVerified,
+  };
 }
 
 /**
@@ -140,23 +144,26 @@ export function assertFresh(change, deps) {
   const waived = change.waived ?? [];
   const covers = change.covers ?? [];
 
-  const stale = [];
   const { subjectPages, skipped } = readSubjectPages(deps.listCorpus(), deps.readPage);
-
-  for (const { page, subjects } of subjectPages) {
-    const staleRow = buildStaleRow(page, subjects, changed, touched, waived);
-    if (staleRow) stale.push(staleRow);
-  }
 
   const report = {
     schemaVersion: 1,
-    stale: sortBy(stale, 'page'),
+    stale: sortBy(livingStaleRows(subjectPages, changed, touched, waived), 'page'),
     uncovered: findUncovered(covers, subjectPages),
     skipped: sortBy(skipped, 'page'),
     lessons: lessonStaleRows(deps.listLessons?.() ?? [], deps.readPage, { changed, touched, waived }),
   };
   if (subjectPages.length === 0) report.note = 'no living pages carry subjects';
   return report;
+}
+
+function livingStaleRows(subjectPages, changed, touched, waived) {
+  const stale = [];
+  for (const { page, subjects } of subjectPages) {
+    const staleRow = buildStaleRow(page, subjects, changed, touched, waived);
+    if (staleRow) stale.push(staleRow);
+  }
+  return stale;
 }
 
 /**
