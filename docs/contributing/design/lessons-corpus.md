@@ -752,8 +752,10 @@ in tests or source.
 | T18 | `test/readme-lessons-loop.test.js` | `README.md` has `## Every run teaches the next` between `## What a run looks like` and `## What it costs, measured`; the section holds no digit, no `http` link, and one `mermaid` block naming the `lessons phase`; the README's first `mermaid` block starts before the section; the section links `docs/guides/lessons.md`, which exists; `pipeline/default.yml` declares `id: lessons` with no `gate` and no `harness` block (the "never gate" claim); the `## craft builds craft` section holds a counted link to `docs/contributing/lessons/`, which exists | the section is absent |
 
 Mutation (validation, `npm --prefix engine run mutation`) covers `lesson.js`,
-`lesson-lint-main.js`, the changed `intention.js` hunks, the `manifest.js` hunks and
-`adapters/pi/src/roleless.js`, with one comma-joined `--mutate` as the seeded lesson itself says.
+`lesson-lint-main.js`, `lessons-hint-main.js`, the changed `intention.js` hunks and the
+`manifest.js` hunks, with one comma-joined `--mutate` as the seeded lesson itself says.
+`adapters/pi/src/roleless.js` is outside `engine/stryker.conf.json`'s `mutate` list, like the
+rest of the Pi adapter except its tool-call hook, so its no-op step is covered by its unit tests only.
 R3 is checked at review with `git diff --no-ext-diff --name-only <base>...HEAD`: neither memory
 file may appear in it.
 
