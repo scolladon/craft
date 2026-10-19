@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { parseLesson, evidencePath, LESSON_KINDS, LESSON_STATUSES, LESSON_SECTIONS, MAX_HOW_TO_APPLY_LINES } from '../src/lesson.js';
+import { parseLesson, evidencePath, LESSON_KINDS, LESSON_STATUSES, LESSON_SECTIONS, MAX_HOW_TO_APPLY_LINES, MAX_LESSON_LINE_CHARS, MAX_TRIGGER_CHARS, MAX_TITLE_CHARS } from '../src/lesson.js';
 
 const EM_DASH = '—';
 
@@ -41,10 +41,6 @@ function lessonText({ frontmatter = {}, body = sectionsBody() } = {}) {
     .filter(([, value]) => value !== undefined)
     .map(([key, value]) => `${key}: ${value}`);
   return ['---', ...lines, '---', '', body].join('\n');
-}
-
-function errorsOf(content) {
-  return parseLesson(content).errors ?? [];
 }
 
 test('Given a valid lesson, when parseLesson runs, then it returns the lesson with every field', () => {
@@ -335,7 +331,7 @@ test('Given a non-string and non-date source date, when parseLesson runs, then t
 
   const result = sut(lessonText({ frontmatter: { source: '{ run: some-run, phase: design, date: soon }' } }));
 
-  assert.ok(errorsOf(lessonText({ frontmatter: { source: '{ run: some-run, phase: design, date: soon }' } })).some(e => e.includes('source')));
+  assert.ok(result.errors.some(e => e.includes('source')));
   assert.equal(result.reason, 'malformed-lesson');
 });
 
@@ -347,3 +343,93 @@ test('Given a source with a non-kebab run and an unknown phase, when parseLesson
   assert.ok(result.errors.some(e => e.includes('source.run')));
   assert.ok(result.errors.some(e => e.includes('source.phase')));
 });
+
+test('Given How to apply holding a fenced ## line, when parseLesson runs, then it is accepted and the line stays in How to apply', () => {
+  const sut = parseLesson;
+  const howToApply = ['```', '## Not a heading', '```'].join('\n');
+
+  const result = sut(lessonText({ body: sectionsBody({ howToApply }) }));
+
+  assert.equal(result.errors, undefined);
+  assert.ok(result.lesson.sections['How to apply'].includes('## Not a heading'));
+});
+
+test('Given How to apply holding a tilde-fenced ## line, when parseLesson runs, then it is accepted', () => {
+  const sut = parseLesson;
+  const howToApply = ['~~~', '## Not a heading', '~~~'].join('\n');
+
+  const result = sut(lessonText({ body: sectionsBody({ howToApply }) }));
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given a fence of 6 lines plus fence lines, when parseLesson runs, then fence lines count toward the cap', () => {
+  const sut = parseLesson;
+  const howToApply = ['```', 'a', 'b', 'c', 'd', 'e', '```'].join('\n');
+
+  const result = sut(lessonText({ body: sectionsBody({ howToApply }) }));
+
+  assert.deepEqual(result.errors, ['How to apply holds 7 non-empty lines (max 6)']);
+});
+
+test('Given a How to apply line over the char cap, when parseLesson runs, then a form error names the cap', () => {
+  const sut = parseLesson;
+  const howToApply = 'x'.repeat(MAX_LESSON_LINE_CHARS + 1);
+
+  const result = sut(lessonText({ body: sectionsBody({ howToApply }) }));
+
+  assert.deepEqual(result.errors, [`How to apply line exceeds ${MAX_LESSON_LINE_CHARS} characters`]);
+});
+
+test('Given a How to apply line at the char cap, when parseLesson runs, then it is accepted', () => {
+  const sut = parseLesson;
+  const howToApply = 'x'.repeat(MAX_LESSON_LINE_CHARS);
+
+  const result = sut(lessonText({ body: sectionsBody({ howToApply }) }));
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given a trigger over the char cap, when parseLesson runs, then a form error names the cap', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { trigger: 'x'.repeat(MAX_TRIGGER_CHARS + 1) } }));
+
+  assert.deepEqual(result.errors, [`trigger exceeds ${MAX_TRIGGER_CHARS} characters`]);
+});
+
+test('Given a trigger at the char cap, when parseLesson runs, then it is accepted', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { trigger: 'x'.repeat(MAX_TRIGGER_CHARS) } }));
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given a title over the char cap, when parseLesson runs, then a form error names the cap', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('A title', 'x'.repeat(MAX_TITLE_CHARS + 1));
+
+  const result = sut(lessonText({ body }));
+
+  assert.deepEqual(result.errors, [`title exceeds ${MAX_TITLE_CHARS} characters`]);
+});
+
+test('Given a title at the char cap, when parseLesson runs, then it is accepted', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('A title', 'x'.repeat(MAX_TITLE_CHARS));
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.errors, undefined);
+});
+
+for (const glob of ['*', '?', '[', ']', '{', '}']) {
+  test(`Given an evidence entry holding the glob character ${glob}, when parseLesson runs, then it is not a repo path`, () => {
+    const sut = parseLesson;
+
+    const result = sut(lessonText({ frontmatter: { evidence: `["engine/a${glob}b.js"]` } }));
+
+    assert.deepEqual(result.errors, [`evidence entry is not a repo path: engine/a${glob}b.js`]);
+  });
+}

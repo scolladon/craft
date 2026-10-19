@@ -12,6 +12,9 @@ export const LESSON_KINDS = Object.freeze(new Set(['trap', 'technique', 'gotcha'
 export const LESSON_STATUSES = Object.freeze(new Set(['active', 'superseded', 'retired']));
 export const LESSON_SECTIONS = Object.freeze(['Context', 'Lesson', 'How to apply', 'Evidence']);
 export const MAX_HOW_TO_APPLY_LINES = 6;
+export const MAX_LESSON_LINE_CHARS = 160;
+export const MAX_TRIGGER_CHARS = 200;
+export const MAX_TITLE_CHARS = 120;
 
 const HOW_TO_APPLY = 'How to apply';
 const FENCE = '---';
@@ -22,6 +25,8 @@ const EVIDENCE_ENTRY = /^([^\s:]+)(?::\d+(?:-\d+)?)?$/;
 const SHA_SHAPED = /^[0-9a-f]{7,40}$/;
 const H1 = /^# (\d{3,}) — (.+)$/;
 const H2 = /^## (.+)$/;
+const CODE_FENCE = /^\s*(```|~~~)/;
+const GLOB_CHARACTER = /[*?[\]{}]/;
 
 const NOT_A_MAPPING = 'frontmatter must be a mapping';
 const MISSING_FRONTMATTER = 'missing frontmatter';
@@ -57,7 +62,8 @@ function checkEnum(key, value, allowed) {
 
 function checkTrigger(trigger) {
   const valid = isNonEmptyString(trigger) && !/[\r\n]/.test(trigger);
-  return valid ? [] : ['trigger must be a non-empty single-line string'];
+  if (!valid) return ['trigger must be a non-empty single-line string'];
+  return trigger.length > MAX_TRIGGER_CHARS ? [`trigger exceeds ${MAX_TRIGGER_CHARS} characters`] : [];
 }
 
 function isRepoPath(entry) {
@@ -65,7 +71,7 @@ function isRepoPath(entry) {
   const match = EVIDENCE_ENTRY.exec(entry);
   if (!match) return false;
   const path = match[1];
-  if (/^[/~]/.test(path) || path.includes('$') || SHA_SHAPED.test(path)) return false;
+  if (/^[/~]/.test(path) || path.includes('$') || GLOB_CHARACTER.test(path) || SHA_SHAPED.test(path)) return false;
   return !path.split('/').includes('..');
 }
 
@@ -131,8 +137,10 @@ function bodyOf(content) {
 
 function splitSections(lines) {
   const sections = [];
+  let inFence = false;
   for (const line of lines) {
-    const heading = H2.exec(line);
+    if (CODE_FENCE.test(line)) inFence = !inFence;
+    const heading = inFence ? null : H2.exec(line);
     if (heading) sections.push({ name: heading[1].trim(), lines: [] });
     else if (sections.length > 0) sections[sections.length - 1].lines.push(line);
   }
@@ -150,6 +158,10 @@ function nonEmptyCount(text) {
   return text.split('\n').filter(line => line.trim() !== '').length;
 }
 
+function hasOverlongLine(text) {
+  return text.split('\n').some(line => line.length > MAX_LESSON_LINE_CHARS);
+}
+
 function parseBody(lines) {
   const errors = [];
   const h1 = H1.exec(lines.find(line => line.trim() !== '') ?? '');
@@ -162,6 +174,10 @@ function parseBody(lines) {
   if (howLines > MAX_HOW_TO_APPLY_LINES) {
     errors.push(`${HOW_TO_APPLY} holds ${howLines} non-empty lines (max ${MAX_HOW_TO_APPLY_LINES})`);
   }
+  if (hasOverlongLine(texts[HOW_TO_APPLY] ?? '')) {
+    errors.push(`${HOW_TO_APPLY} line exceeds ${MAX_LESSON_LINE_CHARS} characters`);
+  }
+  if (h1 && h1[2].length > MAX_TITLE_CHARS) errors.push(`title exceeds ${MAX_TITLE_CHARS} characters`);
   return { errors, number: h1 ? Number(h1[1]) : null, title: h1 ? h1[2] : null, sections: texts };
 }
 

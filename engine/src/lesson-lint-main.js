@@ -3,7 +3,7 @@
  * exit 2; evidence that no longer resolves is only reported.
  */
 
-import { readFileSync, readdirSync, existsSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync, lstatSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { parseLesson, evidencePath } from './lesson.js';
 import { findRepoRoot, isDirectoryPath } from './cli-io.js';
@@ -13,14 +13,17 @@ const EXIT_INVALID = 2;
 
 const USAGE = 'usage: lesson-lint <lessons-dir>\n';
 const FILENAME = /^(\d{3,})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
-const HOME_ROOTED = /\$HOME|\$\{HOME\}|~\/|\/(?:Users|home)\/[^\s/]+/;
+const HOME_ROOTED = /\$HOME|\$\{HOME\}|~\/|\/(?:Users|home)\/[^\s/]+|\/root\/|\/var\/folders\/|[A-Za-z]:\\Users\\/;
 const BAD_FILENAME = 'filename must be NNN-<slug>.md';
+const NOT_REGULAR_FILE = 'not a regular file (symlink, directory or special file)';
 const HOME_REFERENCE = 'home-rooted path or $HOME reference';
 const SUPERSEDED = 'superseded';
+const ACTIVE = 'active';
 
 const DEFAULT_DEPS = {
   readFile: (p) => readFileSync(p, 'utf8'),
   listDir: readdirSync,
+  isRegularFile: (p) => lstatSync(p).isFile(),
   pathExists: existsSync,
   cwd: () => process.cwd(),
 };
@@ -79,7 +82,7 @@ function crossFileErrors(entries) {
 }
 
 function staleEvidence(entries, repoRoot, pathExists) {
-  return entries.flatMap(({ label, lesson }) => lesson.evidence
+  return entries.filter(({ lesson }) => lesson.status === ACTIVE).flatMap(({ label, lesson }) => lesson.evidence
     .filter((entry) => !pathExists(join(repoRoot, evidencePath(entry))))
     .map((entry) => `craft-lessons: stale-evidence ${label}: ${entry}\n`));
 }
@@ -96,6 +99,10 @@ function inspectCorpus(argvDir, dir, deps) {
   const entries = [];
   for (const name of names) {
     const label = join(argvDir, name);
+    if (!deps.isRegularFile(join(dir, name))) {
+      errors.push({ label, error: NOT_REGULAR_FILE });
+      continue;
+    }
     const checked = checkFile(name, deps.readFile(join(dir, name)));
     errors.push(...checked.errors.map((error) => ({ label, error })));
     if (checked.lesson) entries.push({ label, lesson: checked.lesson });
