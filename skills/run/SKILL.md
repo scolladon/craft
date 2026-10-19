@@ -104,6 +104,8 @@ Input: `$ARGUMENTS`
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
     genuine parallel mechanism, loaded once here exactly like the memory store above but
     kept in its own in-session slot. `consult` is called **once per run, not per phase**.
+    The lessons lane is the exception: walk step 4's Lessons hint consults it at every phase
+    entry, re-read from disk, so it holds no in-session state.
 
 1d. `Resolution.gateDecisions` is an ARRAY of `{ phaseId, gate, codeProducing }`
     (the `propose` entry also carries `awaitingHarnesses[]`). Find the entry whose
@@ -208,6 +210,8 @@ these are emitted elsewhere — full definitions in
 | `DECISION-CITE-WAIVE(<file>): <reason>` | the `adr-lint` C3 waiver, collected from the same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE` |
 | `MEMORY-RETRACT(<concern>): <merge-key>` | the phase that owns a concern's write surface, on a mechanical re-check that disproves a stored entry |
 | `FOLDED(<file>): <finding> -> <sha>`, `FILED(<file>): <finding> — not folded: <reason>` | the `documentation` phase's synthesis fold step, one line per finding and locus file |
+| `LESSONS: <path> (<outcome>)[, …]`, `NO-OP(lessons): <reason>` | the `lessons` phase (`craft:lessons` step 6, or its standalone preamble) |
+| `LESSON-REVERIFY(<lesson>): <changed-path>` | the `validation` phase's `assert-fresh` lessons rows (step 5), resolved by the `lessons` phase |
 
 ## Phase walk (driven by Resolution.effective[])
 
@@ -223,6 +227,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    | `review` | no reviewable source diff in scope since `implementation` (e.g. a docs/config-only change) |
    | `refactoring` | no source change in scope to motivate a structural pass (same signal as `review`); when source *was* touched, it runs and may record `NO-OP(refactoring):` |
    | `documentation` | no `design`/`change` content maps to any documentation surface |
+   | `lessons` | evaluated only after the cross-phase wait; the ledger holds no lesson-shaped event (`craft:lessons` step 1 table) and no `LESSON-REVERIFY(` line and, when `validation` did not run its step 5, the `assert-fresh` lessons lane over `<base>...HEAD` is empty |
    | `validation` | no mutable code changed in scope — the technique no-op signal, evaluated *before* spawning the run |
    | `architecture` | no dependency-graph-affecting change (no import/module-boundary edits) since `implementation` |
 
@@ -310,6 +315,26 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
    means the phase runs its own probes. See `docs/contributing/specs/intention.md`.
 
+   **Lessons hint (advisory).** At **every** phase entry, enumerate the lessons lane
+   (`<lessons-dir>` = `paths.lessons`, else `docs/lessons/`): if the directory exists,
+   run `scripts/governing-corpus.sh <lessons-dir>`; otherwise the lane is empty. Run
+   `consult(<phase touched set>, { listCorpus: () => [], listLessons, readPage })` and
+   slice with `sliceLessons(view.lessons, { phase: phase.id, max: lessons.max_injected ?? 3 })`.
+   If the slice is non-empty, prepend it into the SAME slot-1 prepend, after the memory
+   and intention hints. The frontmatter is never injected. One index line, then the How
+   to apply section verbatim, per lesson:
+
+   ```
+   Lessons (advisory — open the path for context and evidence):
+   - <title> — when <trigger> → <path>
+     <How to apply, verbatim, at most 6 lines>
+   ```
+
+   The phase touched set is `git diff --name-only <base>...HEAD`, united with the repo
+   paths the phase's input artifact names: the brief for `design`, the design doc for
+   `planning`, the plan parts' `### Context` paths for `implementation`. An empty slice
+   adds nothing. The hint never gates.
+
    **Phase-start marker.** At phase entry, in the same Bash call as the
    contract-assemble invocation above, append `PHASE-START(<phase.id>):` via
    `run-ledger.sh append <run-id> <phase.id>`, with no time: `append` stamps the line
@@ -335,7 +360,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    orchestrator and worker for this phase. Verify, gate, record, and handoff are
    **identical** to `agent` — the block already carries the inline carve-outs (the commit
    is the handoff; the session model). Role-less phases
-   (`workspace`/`decisions`/`propose`/`integrate`) are session-owned regardless of mode.
+   (`workspace`/`decisions`/`lessons`/`propose`/`integrate`) are session-owned regardless of mode.
 
    Session-owned responsibilities by archetype:
    - `setup`: workspace preparation and setup
@@ -350,6 +375,8 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    - `delivery` (`documentation`): synthesis (fold in-scope findings into this PR, file
      the rest as follow-ups, backlog guard) — may parallel a running
      executing-harness
+   - `delivery` (`lessons`): harvest per `craft:lessons`; starts only once
+     `awaitingHarnesses` is empty; never gates `propose` beyond its own draft lint
    - `delivery` (`propose`): pre-propose gate; body; PR creation per policy — does
      NOT start until every id in the in-session `awaitingHarnesses` set has landed
      and its gate is green
@@ -424,7 +451,8 @@ bring their own `procedure`, dispatched verbatim (step 2).
   `awaitingHarnesses[]` of the `Resolution.gateDecisions` entry whose
   `phaseId === "propose"`, captured in §0 step 1d) has landed its run and its gate is
   green. `documentation` (archetype: `delivery`) may parallel a
-  background executing-harness; `propose` may not.
+  background executing-harness; `propose` may not. `lessons` may not parallel a background
+  executing-harness either — it waits for the same awaited set — and is never itself awaited.
   On the ledger, that awaited set is the `AWAITING(propose):` set minus recorded
   releases — `auto-skip: <id>`, exact `NO-OP(<id>):`, or the last `GATE(<id>)` green —
   the release rules below, stated as ledger facts.
@@ -473,7 +501,8 @@ bring their own `procedure`, dispatched verbatim (step 2).
      bundle invariants + derived retrieval note + manifest `context:` appended by
      the assembler; **plus the memory hint prepended** when the MemoryView slice for
      this phase is non-empty — see step 4 memory-hint clause and `docs/contributing/specs/memory.md`
-     Claude binding). Do NOT separately re-inject `context:` — the assembler already
+     Claude binding; **plus the lessons hint** in the same prepend when the phase's lessons
+     slice is non-empty — see step 4 Lessons hint). Do NOT separately re-inject `context:` — the assembler already
      appends it; double-injection is a breach.
   2. **Working directory** and **task dynamics** (phase id, part text, gate string).
   3. **Artifact paths**: committed artifacts passed by PATH — the agent reads them
@@ -594,6 +623,7 @@ instead of trusting the summary it just produced.
    | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. No plan and the ledger holds `NO-OP(planning):`: append `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` if absent, run `gates.phase` (fixing a red one first), and close the phase only on a green gate (`GATE(implementation): green` and `PHASE-DONE` in one append). |
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
+   | `lessons` | a `LESSONS:` or `NO-OP(lessons):` line means done; otherwise re-run the harvest from step 1 (step 3 dedupes drafts already committed). |
    | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |
    | `integrate` (after teardown) | check `git worktree list` from `<main-repo-dir>`: when the worktree is gone, teardown already ran — skip step 3 and continue at step 4. The ledger outlives the worktree; `Done` derives the delta and the `--since` isos from it, never from a summary. |
 6. **Walk from `next`.**

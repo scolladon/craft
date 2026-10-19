@@ -1,6 +1,7 @@
 ---
 subjects:
   - engine/src/intention*.js   # intention.js, intention-subjects.js, intention-lint-main.js
+  - engine/src/lesson*.js      # lesson.js — the lessons lane parser
   - engine/src/glob.js         # shared matcher — advisory over-flag trade-off
 ---
 # Intention adapter spec
@@ -189,6 +190,27 @@ no decision record can appear in `stale[]`, `uncovered[]`, or `skipped[]` of a f
 
 **`record` for `file`.** ADR writes and living-page refresh/create route through today's existing
 write locations, unchanged — this backend's `record` adds no new write path.
+
+## Lessons lane
+
+Lessons are a second corpus lane beside the living pages, a file-only lane: a `custom` source does
+not serve lessons.
+
+- `consult` takes an optional `listLessons` dep (default: no lessons). `IntentionView.lessons`
+  holds `LessonRow` values: `{ path, title, trigger, howToApply, phases, lastVerified }`.
+  A lesson whose status is not `active` (superseded, retired) drops silently; a lesson that
+  fails to parse is skipped with reason `malformed-lesson`.
+- `sliceLessons(lessons, { phase, max })` keeps rows naming `phase`, orders them by
+  `lastVerified` descending with the path as tie-break, and caps at `max`. `max: 0` is off;
+  the run skill passes `lessons.max_injected`, default 3 per phase.
+- Disclosure layers: the frontmatter is never injected. The injected text is one index line
+  (`- <title> — when <trigger> → <path>`) plus the How to apply section verbatim, at most 6
+  non-empty lines. The agent opens the path for the rest.
+- `assertFresh().lessons[]` holds one `StaleRow` per active lesson whose subjects or evidence
+  paths changed while the lesson file did not. It is never in `stale[]`, never gated, and
+  `schemaVersion` stays 1.
+- The orchestrator consults the lane at every phase entry, re-reading from disk; it holds no
+  in-session lessons state.
 
 ## Custom recipes (copy-paste reference)
 

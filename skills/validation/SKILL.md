@@ -106,7 +106,12 @@ description: Craft phase 8 - run the repo's engineering harness over the change,
    that page) emits no `INTENTION-DRIFT` lines at all. Gating obeys `intention.gate`
    (default `advisory` — the drift lines are informational only); `blocking` wires the
    non-empty non-waived drift set into the **existing** validation gate — no new engine
-   floor.
+   floor. Also pass `listLessons` (the lessons directory through
+   `scripts/governing-corpus.sh` when it exists) to `assert-fresh`; for each
+   `report.lessons[]` row with `waived === false`, emit one
+   `LESSON-REVERIFY(<lesson>): <changed-path>` ledger line per `changedPaths` entry. These
+   lines never join the drift set and never reach `intention.gate`; a row waived by
+   `INTENTION-WAIVE(<lesson>)` emits nothing.
 
 **Gate-satisfaction note.** The `validation` propose-gate entry is a single entry. It is
 **satisfied** when the technique run lands and triages green (`gates.phase` green), and
