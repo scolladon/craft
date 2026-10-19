@@ -24,7 +24,7 @@ flowchart LR
   end
   verify --> ship
   subgraph ship [ship]
-    DO[documentation] --> PR[propose] --> IN{{"integrate 🧑"}}
+    DO[documentation] --> LE[lessons] --> PR[propose] --> IN{{"integrate 🧑"}}
   end
 ```
 
@@ -117,6 +117,7 @@ review          → parallel reviewers, one dimension each; fixes applied until 
 refactoring     → whole-codebase lens, behavior-preserving; may be an honest no-op
 validation      → your repo's engineering harness runs; findings fixed or proven benign
 documentation   → affected pages refreshed, backlog entry ticked
+lessons         → evidence-backed lessons harvested from the run, linted, committed
 propose         → pre-PR gate, push, PR created
 integrate   🧑  → CI to green; you confirm the merge; worktree torn down
 ```
@@ -243,7 +244,7 @@ proof the seams are real:
 
 | Runtime | Binding shape |
 |---|---|
-| [pi](adapters/pi/) | headless subprocess — full 11-phase walk (original portability proof) |
+| [pi](adapters/pi/) | headless subprocess — full 12-phase walk (original portability proof) |
 | [opencode](adapters/opencode/) | native commands + subagents + enforcing plugin |
 | [copilot](adapters/copilot/) | native plugin, shares craft skills by reference |
 | [codex](adapters/codex/) | local marketplace + blocking PreToolUse guard, armed by a scriptable trust step |

@@ -28,7 +28,7 @@ function runRunState(args, input) {
 
 // ─── survival acceptance: real pipeline-resolve output feeds the bin ────────
 
-test('Given pipeline-resolve real output for default.yml with enable-architecture.yml piped into the run-state bin with mid-validation.md, when the bin runs, then it exits 0 with next propose, awaitingHarnesses validation, and one background entry', () => {
+test('Given pipeline-resolve real output for default.yml with enable-architecture.yml piped into the run-state bin with mid-validation.md, when the bin runs, then it exits 0 with next lessons, awaitingHarnesses validation, and one background entry', () => {
   const sut = runRunState;
   const resolved = resolvePipeline();
   assert.equal(resolved.status, 0, `pipeline-resolve stderr: ${resolved.stderr}`);
@@ -37,7 +37,7 @@ test('Given pipeline-resolve real output for default.yml with enable-architectur
 
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
   const state = JSON.parse(result.stdout);
-  assert.equal(state.next, 'propose');
+  assert.equal(state.next, 'lessons');
   assert.deepEqual(state.awaitingHarnesses, ['validation']);
   assert.equal(state.background.length, 1);
 });

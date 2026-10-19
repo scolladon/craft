@@ -20,7 +20,7 @@ function loadManifest(name) {
   return load(text) ?? {};
 }
 
-// SC1 golden — the 11 enabled phases in today's canonical order
+// SC1 golden — the 12 enabled phases in today's canonical order
 const SC1_IDS = [
   'workspace',
   'design',
@@ -31,6 +31,7 @@ const SC1_IDS = [
   'refactoring',
   'validation',
   'documentation',
+  'lessons',
   'propose',
   'integrate',
 ];
@@ -46,13 +47,14 @@ const SC1_ROLES = {
   refactoring:    'craft:refactor-executor',
   validation:     'craft:harness-triager',
   documentation:  'craft:docs-writer',
+  lessons:        undefined,
   propose:        undefined,
   integrate:      undefined,
 };
 
 // ─── zero-config (SC1 golden) ────────────────────────────────────────────────
 
-test('Given no manifest (null), when resolvePipeline is called, then effective matches the 11 enabled phases in order', () => {
+test('Given no manifest (null), when resolvePipeline is called, then effective matches the 12 enabled phases in order', () => {
   const sut = loadDefault();
   const result = resolvePipeline(sut, null);
 
@@ -81,7 +83,7 @@ test('Given no manifest (null), when resolvePipeline is called, then record is a
   assert.ok(Array.isArray(result.record));
 });
 
-test('Given no manifest (undefined), when resolvePipeline is called, then effective matches the 11 enabled phases', () => {
+test('Given no manifest (undefined), when resolvePipeline is called, then effective matches the 12 enabled phases', () => {
   const sut = loadDefault();
   const result = resolvePipeline(sut, undefined);
 
@@ -89,12 +91,12 @@ test('Given no manifest (undefined), when resolvePipeline is called, then effect
   assert.deepEqual(result.effective.map(d => d.id), SC1_IDS);
 });
 
-test('Given no manifest (null), when resolvePipeline is called, then all 11 enabled phases have execution:agent', () => {
+test('Given no manifest (null), when resolvePipeline is called, then all 12 enabled phases have execution:agent', () => {
   const sut = loadDefault();
   const result = resolvePipeline(sut, null);
 
   assert.equal(result.ok, true);
-  assert.equal(result.effective.length, SC1_IDS.length, 'Expected exactly 11 enabled phases');
+  assert.equal(result.effective.length, SC1_IDS.length, 'Expected exactly 12 enabled phases');
   for (const d of result.effective) {
     assert.equal(
       d.execution,
@@ -1435,6 +1437,7 @@ test('A1 Given default pipeline with null manifest, when resolvePipeline runs, t
     refactoring:    true,
     validation:     true,
     documentation:  true,
+    lessons:        true,
     propose:        false,
     integrate:      false,
   };
@@ -1731,4 +1734,38 @@ test('Given a gate-floor violation alongside a fan-out above the threshold, when
   assert.deepEqual(result.effective, [], 'the floor-violation early return must yield an empty effective array');
   assert.deepEqual(result.gateDecisions, [], 'the floor-violation early return must yield empty gateDecisions');
   assert.deepEqual(result.waivers, [], 'the floor-violation early return must yield empty waivers');
+});
+
+// ─── lessons phase ────────────────────────────────────────────────────────────
+
+test('Given no manifest, when resolvePipeline runs, then lessons has no role, an empty gate and autoSkipEligible true', () => {
+  const sut = loadDefault();
+
+  const result = resolvePipeline(sut, null);
+
+  const lessons = result.effective.find(d => d.id === 'lessons');
+  const decision = result.gateDecisions.find(g => g.phaseId === 'lessons');
+  assert.equal(lessons.role, undefined);
+  assert.equal(decision.gate, '');
+  assert.equal(lessons.autoSkipEligible, true);
+});
+
+test('Given no manifest, when resolvePipeline runs, then propose awaits only validation', () => {
+  const sut = loadDefault();
+
+  const result = resolvePipeline(sut, null);
+
+  const decision = result.gateDecisions.find(g => g.phaseId === 'propose');
+  assert.deepEqual(decision.awaitingHarnesses, ['validation']);
+});
+
+test('Given pipeline.skip [lessons], when resolvePipeline runs, then it is ok with the manifest skip record and no waiver', () => {
+  const sut = loadDefault();
+  const manifest = { pipeline: { skip: ['lessons'] } };
+
+  const result = resolvePipeline(sut, manifest);
+
+  assert.equal(result.ok, true, `errors: ${JSON.stringify(result.errors)}`);
+  assert.ok(result.record.includes('skip: lessons (manifest pipeline.skip)'));
+  assert.deepEqual(result.waivers, []);
 });

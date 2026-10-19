@@ -201,7 +201,7 @@ test('Given an entry with unknown archetype, when parsePipeline runs, then it th
   assert.throws(() => parsePipeline(readFixture('bad-archetype.yml')), /archetype/);
 });
 
-// --- golden test: 13-descriptor default list ---
+// --- golden test: 14-descriptor default list ---
 
 const DEFAULT_YAML = readFileSync(canonicalDefaultPath, 'utf8');
 const EXPECTED_DESCRIPTORS = [
@@ -338,6 +338,18 @@ const EXPECTED_DESCRIPTORS = [
     turn_budget: null,
   },
   {
+    id: 'lessons',
+    archetype: 'delivery',
+    enabled: true,
+    contract: ['delivery'],
+    procedure: 'craft:lessons',
+    role: undefined,
+    consumes: ['change'],
+    self_supply: [],
+    produces: ['lessons'],
+    turn_budget: null,
+  },
+  {
     id: 'propose',
     archetype: 'delivery',
     enabled: true,
@@ -368,9 +380,9 @@ const STRUCTURAL_FIELDS = [
   'role', 'consumes', 'self_supply', 'produces', 'turn_budget',
 ];
 
-test('Given default.yml, when parsePipeline runs, then it yields exactly 13 descriptors', () => {
+test('Given default.yml, when parsePipeline runs, then it yields exactly 14 descriptors', () => {
   const result = parsePipeline(DEFAULT_YAML);
-  assert.equal(result.length, 13);
+  assert.equal(result.length, 14);
 });
 
 test('Given default.yml, when parsePipeline runs, then requirements and architecture are disabled', () => {
