@@ -134,6 +134,31 @@ Phases also run standalone, on any branch:
 | `/craft:init` | interview-driven manifest generator |
 | `/craft:metrics` | mines your transcript history into a usage report |
 
+## Every run teaches the next
+
+craft practises compound engineering: what one run learned the hard way is fed back into
+every later run on the same code, so craft improves with each run.
+
+```mermaid
+flowchart LR
+  RUN[run] -->|ledger events| LP[lessons phase]
+  LP -->|drafts on the branch| PR{{"PR review 🧑"}}
+  PR -->|merge ratifies| LD[(lessons corpus)]
+  LD -->|filter by subject and phase| C[consult at phase entry]
+  C -->|index line + How to apply| NX[next run]
+  NX --> RUN
+```
+
+- **Evidence or nothing.** A lesson without proof is rejected by the linter.
+- **Ratified by review.** Drafts land on the PR branch; merging the PR is the approval.
+- **Advisory.** Lessons inform an agent's context, they never gate a phase.
+- **Scoped and small.** Frontmatter filters by subject and phase, then each lesson costs an
+  index line and a short rule, nothing more.
+- **Optional.** `pipeline.skip: [lessons]` turns it off.
+
+How it works: [docs/guides/lessons.md](docs/guides/lessons.md). The corpus, starting with
+its first real lesson, lives in [docs/contributing/lessons/](docs/contributing/lessons/).
+
 ## What it costs, measured
 
 One controlled comparison (n=1): the same behaviour-preserving refactor on the same
