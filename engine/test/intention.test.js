@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { consult, assertFresh } from '../src/intention.js';
+import { consult, assertFresh, sliceLessons } from '../src/intention.js';
 
 const OBS_GLOB = 'engine/src/observability/**';
 const OBS_PATH = 'engine/src/observability/memory.js';
@@ -30,6 +30,60 @@ function governingOf(livingPages, governingPages) {
   return {
     listCorpus: () => Object.keys(livingPages),
     listGoverning: () => Object.keys(governingPages),
+    readPage: p => (Object.hasOwn(allPages, p) ? allPages[p] : null),
+  };
+}
+
+function lessonPage({
+  subjects = [OBS_GLOB],
+  phases = ['design'],
+  status = 'active',
+  lastVerified = '2026-05-02',
+  title = 'Guard the telemetry seam',
+  trigger = 'a change reaches the telemetry adapter',
+  howToApply = 'Run the adapter contract test first.',
+  evidence = ['README.md'],
+} = {}) {
+  return [
+    '---',
+    `subjects: [${subjects.map(s => `'${s}'`).join(', ')}]`,
+    `phases: [${phases.join(', ')}]`,
+    'kind: trap',
+    `status: ${status}`,
+    `trigger: '${trigger}'`,
+    `evidence: [${evidence.map(e => `'${e}'`).join(', ')}]`,
+    'source:',
+    '  run: telemetry-run',
+    '  phase: design',
+    '  date: 2026-05-01',
+    `last-verified: ${lastVerified}`,
+    '---',
+    '',
+    `# 001 — ${title}`,
+    '',
+    '## Context',
+    '',
+    'Some context.',
+    '',
+    '## Lesson',
+    '',
+    'The lesson.',
+    '',
+    '## How to apply',
+    '',
+    howToApply,
+    '',
+    '## Evidence',
+    '',
+    '- README.md',
+  ].join('\n');
+}
+
+function lessonsOf(livingPages, lessonPages) {
+  const allPages = { ...livingPages, ...lessonPages };
+  return {
+    listCorpus: () => Object.keys(livingPages),
+    listLessons: () => Object.keys(lessonPages),
     readPage: p => (Object.hasOwn(allPages, p) ? allPages[p] : null),
   };
 }
@@ -64,7 +118,7 @@ test('Given an unreadable page, when consult runs, then it is omitted from both 
 
   const result = sut([OBS_PATH], deps);
 
-  assert.deepEqual(result, { entries: [], skipped: [] });
+  assert.deepEqual(result, { entries: [], skipped: [], lessons: [] });
 });
 
 test('Given an empty scope, when consult runs, then entries is empty', () => {
@@ -730,4 +784,233 @@ test('Given generated (changed, touched, waived) tuples over a fixed page/subjec
     if (row) assert.equal(row.waived, waivedFlag, `waived flag mismatch at i=${i}`);
     assert.equal(Boolean(row && !row.waived), isDriftWorthy, `drift-worthy mismatch at i=${i}`);
   }
+});
+
+// lessons lane
+
+const LESSON_A = 'docs/lessons/001-a.md';
+const LESSON_B = 'docs/lessons/002-b.md';
+
+test('Given an active lesson whose subjects intersect the scope, when consult runs, then lessons holds its row', () => {
+  const sut = consult;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage() });
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.equal(result.lessons.length, 1);
+  assert.equal(result.lessons[0].path, LESSON_A);
+});
+
+test('Given a lesson row, when consult runs, then the row has exactly path, title, trigger, howToApply, phases and lastVerified', () => {
+  const sut = consult;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage({ phases: ['design', 'planning'] }) });
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.lessons, [
+    {
+      path: LESSON_A,
+      title: 'Guard the telemetry seam',
+      trigger: 'a change reaches the telemetry adapter',
+      howToApply: 'Run the adapter contract test first.',
+      phases: ['design', 'planning'],
+      lastVerified: '2026-05-02',
+    },
+  ]);
+});
+
+test('Given a superseded lesson and a retired lesson, when consult runs, then neither is in lessons nor in skipped', () => {
+  const sut = consult;
+  const deps = lessonsOf({}, {
+    [LESSON_A]: lessonPage({ status: 'superseded' }),
+    [LESSON_B]: lessonPage({ status: 'retired' }),
+  });
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.lessons, []);
+  assert.deepEqual(result.skipped, []);
+});
+
+test('Given a lesson with no subjects, when consult runs, then it is skipped as no-subjects', () => {
+  const sut = consult;
+  const deps = lessonsOf({}, { [LESSON_A]: '# 001 - no frontmatter\n' });
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.skipped, [{ page: LESSON_A, reason: 'no-subjects' }]);
+});
+
+test('Given a malformed lesson, when consult runs, then it is skipped as malformed-lesson', () => {
+  const sut = consult;
+  const deps = lessonsOf({}, { [LESSON_A]: page([OBS_GLOB]) });
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.skipped, [{ page: LESSON_A, reason: 'malformed-lesson' }]);
+  assert.deepEqual(result.lessons, []);
+});
+
+test('Given no listLessons, when consult runs, then lessons is an empty array', () => {
+  const sut = consult;
+  const deps = corpusOf({ 'docs/adapters/telemetry.md': page([OBS_GLOB]) });
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.lessons, []);
+});
+
+test('Given an unreadable lesson, when consult runs, then it is omitted from lessons and skipped', () => {
+  const sut = consult;
+  const deps = { listCorpus: () => [], listLessons: () => [LESSON_A], readPage: () => null };
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result, { entries: [], skipped: [], lessons: [] });
+});
+
+test('Given two matching lessons inserted out of order, when consult runs, then lessons are sorted by path', () => {
+  const sut = consult;
+  const deps = lessonsOf({}, { [LESSON_B]: lessonPage(), [LESSON_A]: lessonPage() });
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.lessons.map(row => row.path), [LESSON_A, LESSON_B]);
+});
+
+test('Given a lesson whose subjects miss the scope, when consult runs, then lessons is empty', () => {
+  const sut = consult;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage({ subjects: ['skills/**'] }) });
+
+  const result = sut([OBS_PATH], deps);
+
+  assert.deepEqual(result.lessons, []);
+});
+
+// sliceLessons
+
+function row(path, phases, lastVerified) {
+  return { path, title: 't', trigger: 'w', howToApply: 'h', phases, lastVerified };
+}
+
+test('Given rows for several phases, when sliceLessons runs, then only rows naming the phase are kept', () => {
+  const sut = sliceLessons;
+  const rows = [row('a.md', ['design'], '2026-01-01'), row('b.md', ['planning'], '2026-01-01')];
+
+  const result = sut(rows, { phase: 'design', max: 5 });
+
+  assert.deepEqual(result.map(r => r.path), ['a.md']);
+});
+
+test('Given more matching rows than max, when sliceLessons runs, then it keeps max rows', () => {
+  const sut = sliceLessons;
+  const rows = [row('a.md', ['design'], '2026-01-01'), row('b.md', ['design'], '2026-01-01'), row('c.md', ['design'], '2026-01-01')];
+
+  const result = sut(rows, { phase: 'design', max: 2 });
+
+  assert.equal(result.length, 2);
+});
+
+test('Given rows with different lastVerified, when sliceLessons runs, then the most recent come first', () => {
+  const sut = sliceLessons;
+  const rows = [row('a.md', ['design'], '2026-01-01'), row('b.md', ['design'], '2026-03-01')];
+
+  const result = sut(rows, { phase: 'design', max: 5 });
+
+  assert.deepEqual(result.map(r => r.path), ['b.md', 'a.md']);
+});
+
+test('Given rows tied on lastVerified, when sliceLessons runs, then the smaller path comes first', () => {
+  const sut = sliceLessons;
+  const rows = [row('b.md', ['design'], '2026-01-01'), row('a.md', ['design'], '2026-01-01')];
+
+  const result = sut(rows, { phase: 'design', max: 5 });
+
+  assert.deepEqual(result.map(r => r.path), ['a.md', 'b.md']);
+});
+
+test('Given max 0, when sliceLessons runs, then it returns an empty array', () => {
+  const sut = sliceLessons;
+  const rows = [row('a.md', ['design'], '2026-01-01')];
+
+  const result = sut(rows, { phase: 'design', max: 0 });
+
+  assert.deepEqual(result, []);
+});
+
+test('Given an input array, when sliceLessons runs, then the input is not mutated', () => {
+  const sut = sliceLessons;
+  const rows = [row('b.md', ['design'], '2026-01-01'), row('a.md', ['design'], '2026-03-01')];
+  const before = structuredClone(rows);
+
+  sut(rows, { phase: 'design', max: 1 });
+
+  assert.deepEqual(rows, before);
+});
+
+// assertFresh lessons
+
+test('Given an active lesson whose subject changed and the lesson untouched, when assertFresh runs, then lessons holds its stale row', () => {
+  const sut = assertFresh;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage() });
+
+  const result = sut({ changed: [OBS_PATH], touched: [], waived: [] }, deps);
+
+  assert.deepEqual(result.lessons, [{ page: LESSON_A, changedPaths: [OBS_PATH], waived: false }]);
+});
+
+test('Given a changed evidence path, when assertFresh runs, then the lesson is listed', () => {
+  const sut = assertFresh;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage({ subjects: ['skills/**'], evidence: ['README.md:3-9'] }) });
+
+  const result = sut({ changed: ['README.md'], touched: [], waived: [] }, deps);
+
+  assert.deepEqual(result.lessons.map(r => r.page), [LESSON_A]);
+});
+
+test('Given the lesson file itself touched, when assertFresh runs, then it is not listed', () => {
+  const sut = assertFresh;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage() });
+
+  const result = sut({ changed: [OBS_PATH], touched: [LESSON_A], waived: [] }, deps);
+
+  assert.deepEqual(result.lessons, []);
+});
+
+test('Given a retired lesson whose subject changed, when assertFresh runs, then it is not listed', () => {
+  const sut = assertFresh;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage({ status: 'retired' }) });
+
+  const result = sut({ changed: [OBS_PATH], touched: [], waived: [] }, deps);
+
+  assert.deepEqual(result.lessons, []);
+});
+
+test('Given a listed lesson, when assertFresh runs, then stale holds no lesson row and schemaVersion is 1', () => {
+  const sut = assertFresh;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage() });
+
+  const result = sut({ changed: [OBS_PATH], touched: [], waived: [] }, deps);
+
+  assert.deepEqual(result.stale, []);
+  assert.deepEqual(result.skipped, []);
+  assert.equal(result.schemaVersion, 1);
+});
+
+test('Given no listLessons, when assertFresh runs, then lessons is an empty array', () => {
+  const sut = assertFresh;
+  const deps = corpusOf({ 'docs/adapters/telemetry.md': page([OBS_GLOB]) });
+
+  const result = sut({ changed: [], touched: [], waived: [] }, deps);
+
+  assert.deepEqual(result.lessons, []);
+});
+
+test('Given a lesson named in waived, when assertFresh runs, then its row carries waived true', () => {
+  const sut = assertFresh;
+  const deps = lessonsOf({}, { [LESSON_A]: lessonPage() });
+
+  const result = sut({ changed: [OBS_PATH], touched: [], waived: [LESSON_A] }, deps);
+
+  assert.equal(result.lessons[0].waived, true);
 });

@@ -9,14 +9,16 @@
 import { matchGlob, globsOverlap } from './glob.js';
 import { parseSubjects } from './intention-subjects.js';
 import { isNonEmptyString } from './cli-io.js';
+import { parseLesson, evidencePath } from './lesson.js';
 
 /**
  * @typedef {{ path: string, purpose: string }} IntentionEntry
  * @typedef {{ page: string, reason: string }} SkippedPage
- * @typedef {{ entries: IntentionEntry[], skipped: SkippedPage[] }} IntentionView
+ * @typedef {{ path: string, title: string, trigger: string, howToApply: string, phases: string[], lastVerified: string }} LessonRow
+ * @typedef {{ entries: IntentionEntry[], skipped: SkippedPage[], lessons: LessonRow[] }} IntentionView
  * @typedef {{ page: string, changedPaths: string[], waived: boolean }} StaleRow
  * @typedef {{ scope: string }} UncoveredScope
- * @typedef {{ schemaVersion: 1, stale: StaleRow[], uncovered: UncoveredScope[], skipped: SkippedPage[], note?: string }} FreshnessReport
+ * @typedef {{ schemaVersion: 1, stale: StaleRow[], uncovered: UncoveredScope[], skipped: SkippedPage[], lessons: StaleRow[], note?: string }} FreshnessReport
  */
 
 /**
@@ -28,7 +30,7 @@ import { isNonEmptyString } from './cli-io.js';
  * is listed in `skipped`.
  *
  * @param {string[]} scope repo-relative paths (the change/phase touched set)
- * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[], listGoverning?: () => string[] }} deps
+ * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[], listGoverning?: () => string[], listLessons?: () => string[] }} deps
  * @returns {IntentionView}
  */
 export function consult(scope, deps) {
@@ -36,7 +38,9 @@ export function consult(scope, deps) {
   const living = readSubjectPages(deps.listCorpus(), deps.readPage);
   const governing = readSubjectPages(deps.listGoverning?.() ?? [], deps.readPage);
   const subjectPages = mergeLanes(living.subjectPages, governing.subjectPages);
-  const skipped = mergeLanes(living.skipped, governing.skipped);
+  const lessonLane = readSubjectPages(deps.listLessons?.() ?? [], deps.readPage);
+  const lessons = collectLessonRows(scope, lessonLane.subjectPages);
+  const skipped = mergeLanes(mergeLanes(living.skipped, governing.skipped), mergeLanes(lessonLane.skipped, lessons.skipped));
 
   for (const { page, content, subjects } of subjectPages) {
     if (matchingPaths(scope, subjects).length > 0) {
@@ -44,7 +48,82 @@ export function consult(scope, deps) {
     }
   }
 
-  return { entries: sortBy(entries, 'path'), skipped: sortBy(skipped, 'page') };
+  return {
+    entries: sortBy(entries, 'path'),
+    skipped: sortBy(skipped, 'page'),
+    lessons: sortBy(lessons.rows, 'path'),
+  };
+}
+
+/**
+ * Active lessons whose subjects intersect the scope, as rows; unparseable lessons as
+ * `malformed-lesson` skips. Superseded and retired lessons drop silently.
+ *
+ * @param {string[]} scope
+ * @param {{ page: string, content: string, subjects: string[] }[]} lessonPages
+ * @returns {{ rows: LessonRow[], skipped: SkippedPage[] }}
+ */
+function collectLessonRows(scope, lessonPages) {
+  const rows = [];
+  const skipped = [];
+  for (const { page, content } of lessonPages) {
+    const parsed = parseLesson(content);
+    if (parsed.reason) {
+      skipped.push({ page, reason: parsed.reason });
+      continue;
+    }
+    const { lesson } = parsed;
+    if (lesson.status !== 'active' || matchingPaths(scope, lesson.subjects).length === 0) continue;
+    rows.push({
+      path: page,
+      title: lesson.title,
+      trigger: lesson.trigger,
+      howToApply: lesson.sections['How to apply'],
+      phases: lesson.phases,
+      lastVerified: lesson.lastVerified,
+    });
+  }
+  return { rows, skipped };
+}
+
+/**
+ * A phase's budgeted lesson slice: rows naming the phase, most recently verified first,
+ * ties broken by path, capped at `max`. Never mutates `lessons`.
+ *
+ * @param {LessonRow[]} lessons
+ * @param {{ phase: string, max: number }} options
+ * @returns {LessonRow[]}
+ */
+export function sliceLessons(lessons, { phase, max }) {
+  return lessons
+    .filter(row => row.phases.includes(phase))
+    .sort((a, b) => compareText(b.lastVerified, a.lastVerified) || compareText(a.path, b.path))
+    .slice(0, max);
+}
+
+function compareText(a, b) {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+/**
+ * Stale rows for active lessons whose subjects or evidence paths changed while the
+ * lesson file did not. Advisory only: kept apart from the gating `stale` rows.
+ *
+ * @param {string[]} lessonList
+ * @param {(page: string) => string | null} readPage
+ * @param {{ changed: string[], touched: string[], waived: string[] }} change
+ * @returns {StaleRow[]}
+ */
+function lessonStaleRows(lessonList, readPage, { changed, touched, waived }) {
+  const rows = [];
+  for (const { page, content } of readSubjectPages(lessonList, readPage).subjectPages) {
+    const { lesson } = parseLesson(content);
+    if (lesson?.status !== 'active') continue;
+    const watched = [...lesson.subjects, ...lesson.evidence.map(evidencePath)];
+    const row = buildStaleRow(page, watched, changed, touched, waived);
+    if (row) rows.push(row);
+  }
+  return sortBy(rows, 'page');
 }
 
 /**
@@ -52,7 +131,7 @@ export function consult(scope, deps) {
  * advisory no-op (an empty `changed` set yields no stale rows).
  *
  * @param {{ changed: string[], touched: string[], waived: string[], covers?: string[] }} change
- * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[] }} deps
+ * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[], listLessons?: () => string[] }} deps
  * @returns {FreshnessReport}
  */
 export function assertFresh(change, deps) {
@@ -74,6 +153,7 @@ export function assertFresh(change, deps) {
     stale: sortBy(stale, 'page'),
     uncovered: findUncovered(covers, subjectPages),
     skipped: sortBy(skipped, 'page'),
+    lessons: lessonStaleRows(deps.listLessons?.() ?? [], deps.readPage, { changed, touched, waived }),
   };
   if (subjectPages.length === 0) report.note = 'no living pages carry subjects';
   return report;
@@ -228,5 +308,5 @@ function stripFrontmatter(content) {
  * @returns {object[]}
  */
 function sortBy(items, key) {
-  return [...items].sort((a, b) => (a[key] < b[key] ? -1 : a[key] > b[key] ? 1 : 0));
+  return [...items].sort((a, b) => compareText(a[key], b[key]));
 }
