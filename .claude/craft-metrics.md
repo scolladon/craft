@@ -656,3 +656,7 @@ claude-ext-diff-hook-gaps implementation turns=31 tool_calls=37 tokens=841757 du
 claude-ext-diff-hook-gaps planning turns=97 tool_calls=98 tokens=11841216 duration_ms=1303388 cache_read=11617223 cache_creation=222835 output=964 avg_ctx=122064 equiv=1445280
 claude-ext-diff-hook-gaps review turns=70 tool_calls=73 tokens=2409064 duration_ms=698030 cache_read=2172851 cache_creation=235311 output=762 avg_ctx=34404 equiv=515374
 claude-ext-diff-hook-gaps validation turns=8 tool_calls=9 tokens=167910 duration_ms=95361 cache_read=144442 cache_creation=23327 output=125 avg_ctx=20973 equiv=44244
+copilot-guard-differential-fuzz-arm design turns=49 tool_calls=53 tokens=3798374 duration_ms=896478 cache_read=3630958 cache_creation=166702 output=616 avg_ctx=77505 equiv=574651
+copilot-guard-differential-fuzz-arm implementation turns=23 tool_calls=26 tokens=619014 duration_ms=216492 cache_read=534492 cache_creation=83660 output=816 avg_ctx=26878 equiv=162150
+copilot-guard-differential-fuzz-arm planning turns=43 tool_calls=43 tokens=3929489 duration_ms=814578 cache_read=3775352 cache_creation=153512 output=539 avg_ctx=91371 equiv=572206
+copilot-guard-differential-fuzz-arm review turns=44 tool_calls=42 tokens=1338768 duration_ms=518673 cache_read=1146377 cache_creation=187428 output=4875 avg_ctx=30316 equiv=373386
