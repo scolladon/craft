@@ -3,9 +3,21 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
+const { pathToFileURL } = require('node:url');
 
 const ROOT = path.resolve(__dirname, '..');
 const WORKFLOW = path.join(ROOT, '.claude', 'workflow.md');
+const STRYKER_CLI = path.join(ROOT, 'engine', 'node_modules', '@stryker-mutator',
+  'core', 'dist', 'src', 'stryker-cli.js');
+
+async function parsedMutate(flags) {
+  const { StrykerCli } = await import(pathToFileURL(STRYKER_CLI).href);
+  let captured;
+  const cli = new StrykerCli(['node', 'stryker', 'run', ...flags], undefined,
+    async (options) => { captured = options; });
+  cli.run();
+  return captured.mutate;
+}
 
 test('workflow.md documents per-hunk scope as ONE comma-joined --mutate flag', () => {
   const content = fs.readFileSync(WORKFLOW, 'utf8');
@@ -24,4 +36,20 @@ test('workflow.md documents the mutant-count plausibility check before trusting 
     content.includes('instrumented mutant count is >= the adjacent-hunk count'),
     'Expected mutant-count plausibility guidance in .claude/workflow.md'
   );
+});
+
+test('Given two --mutate flags, when the Stryker CLI parses them, then only the last range survives', async () => {
+  const flags = ['--mutate', 'a.js:1-2', '--mutate', 'b.js:3-4'];
+
+  const result = await parsedMutate(flags);
+
+  assert.deepStrictEqual(result, ['b.js:3-4']);
+});
+
+test('Given one comma-joined --mutate flag, when the Stryker CLI parses it, then both ranges survive', async () => {
+  const flags = ['--mutate', 'a.js:1-2,b.js:3-4'];
+
+  const result = await parsedMutate(flags);
+
+  assert.deepStrictEqual(result, ['a.js:1-2', 'b.js:3-4']);
 });
