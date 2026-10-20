@@ -415,3 +415,34 @@ describe('gitInvocations() — anchor cap pins', () => {
     });
   }
 });
+
+describe('gitInvocations() — ext-diff anchors', () => {
+  const CAP = 256;
+
+  it('Given more than the cap of non-diff verbs enabling ext-diff, when anchored, then the command is denied fail-closed', () => {
+    const sut = gitInvocations;
+
+    const result = sut('git log --ext-diff '.repeat(CAP + 1));
+
+    assert.deepEqual(result, {
+      parsed: false,
+      reason: 'craft: command not parseable (too many git invocations) — denied fail-closed',
+    });
+  });
+
+  it('Given far more than the cap of plain status words, when anchored, then they are not counted', () => {
+    const sut = gitInvocations;
+
+    const result = sut('git status '.repeat(300));
+
+    assert.equal(result.parsed, true);
+  });
+
+  it('Given a dynamic pattern head with ext-diff, when anchored, then an indeterminate invocation is returned', () => {
+    const sut = gitInvocations;
+
+    const result = sut('{git,log,--ext-diff}');
+
+    assert.equal(result.invocations.some(({ kind }) => kind === 'indeterminate'), true);
+  });
+});

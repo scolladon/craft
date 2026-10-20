@@ -27,7 +27,10 @@ const ANCHOR_VERBS = new Set([...DESTRUCTIVE_VERBS, ...DIFFING_VERBS]);
 // equivalent mutant (Regex without +): a delimiter run only splits into extra empty tokens, and '' is never in ANCHOR_VERBS
 const PATTERN_DELIMITERS = /[{},[\]]+/;
 
-const holdsAnchorVerb = ({ text }) => text.split(PATTERN_DELIMITERS).some(token => ANCHOR_VERBS.has(token));
+const EXT_DIFF_WORD = '--ext-diff';
+const isAnchorToken = text => ANCHOR_VERBS.has(text) || text === EXT_DIFF_WORD;
+
+const holdsAnchorVerb = ({ text }) => text.split(PATTERN_DELIMITERS).some(isAnchorToken);
 
 const indeterminateAt = (words, index) =>
   extend(indeterminate(words, index + 1), { leadingWords: () => leadingOf(words, index) });
@@ -49,7 +52,7 @@ const dashedVerb = word => {
 const dashedAt = (words, index, verb) =>
   extend(subcommandResult(verb, words, index + 1, []), { leadingWords: () => leadingOf(words, index) });
 
-const isAnchorVerb = word => !word.dynamic && ANCHOR_VERBS.has(word.text);
+const isAnchorVerb = word => !word.dynamic && isAnchorToken(word.text);
 
 const isGitSpelling = word => isGitWord(word) || dashedVerb(word) !== null;
 
@@ -102,7 +105,11 @@ const channelCursor = ({ words, assignments }) => ({
 const injectsAt = ({ headInjects, firstWordAt }, anchorAt) =>
   headInjects || (firstWordAt !== -1 && firstWordAt < anchorAt);
 
-const flagged = (invocation, injects) => Object.defineProperty(invocation, 'injectsConfig', { value: injects, enumerable: false });
+const flagged = (invocation, { injectsConfig, mentionsExtDiff }) =>
+  Object.defineProperties(invocation, {
+    injectsConfig: { value: injectsConfig, enumerable: false },
+    mentionsExtDiff: { value: mentionsExtDiff, enumerable: false },
+  });
 
 const aliasValueWords = ({ text }) =>
   text.includes(VALUE_SEPARATOR)
@@ -114,12 +121,13 @@ const aliasesGit = word => aliasValueWords(word).some(isGitSpelling);
 const aliasDefinition = ({ words }) =>
     // equivalent mutant (MethodExpression words for words.slice(1)): words[0].text is 'alias' here and holds no '=', so it never aliases git
   words[0].text === ALIAS_BUILTIN && words.slice(1).some(aliasesGit)
-    ? [flagged(extend(NO_SUBCOMMAND, { leadingWords: () => [] }), true)]
+    ? [flagged(extend(NO_SUBCOMMAND, { leadingWords: () => [] }), { injectsConfig: true, mentionsExtDiff: false })]
     : [];
 
 const flaggerFor = command => {
   const cursor = channelCursor(command);
-  return (invocation, index) => flagged(invocation, injectsAt(cursor, index));
+  const mentionsExtDiff = command.words.some(({ text }) => text === EXT_DIFF_WORD);
+  return (invocation, index) => flagged(invocation, { injectsConfig: injectsAt(cursor, index), mentionsExtDiff });
 };
 
 const anchoredInvocations = command => {
@@ -143,7 +151,8 @@ const TOO_MANY_INVOCATIONS =
 // A verb the judges inspect hands them every later word, so each such anchor costs a pass over
 // the command; capping them bounds the total work.
 const readsArguments = invocation =>
-  invocation.kind !== 'no-subcommand' && (invocation.kind !== 'subcommand' || ANCHOR_VERBS.has(invocation.subcommand));
+  invocation.kind !== 'no-subcommand' &&
+  (invocation.kind !== 'subcommand' || ANCHOR_VERBS.has(invocation.subcommand) || invocation.mentionsExtDiff === true);
 
 const exceedsAnchorCap = invocations =>
   invocations.filter(readsArguments).length > MAX_ARGUMENT_READING_ANCHORS;

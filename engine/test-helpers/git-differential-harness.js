@@ -102,6 +102,7 @@ const VERBS = Object.freeze([
   ['diff', '--no-ext-diff'], ['show', ''], ['show', '--no-ext-diff HEAD'], ['status', ''], ['log', '-1'],
   ['reset', '--har'], ['clean', '--dry'], ['clean', '-fd --no-d'], ['branch', '--del --forc x'],
   ['diff', '--no-ext-diff --ext-diff'], ['show', '--ext-diff --no-ext-diff'],
+  ['log', '-p --ext-diff'], ['log', '-p --ext-diff --no-ext-diff'], ['format-patch', '-1 --stdout --ext-diff'],
 ]);
 const EXTRA_ARGS = Object.freeze(['', '', '', 'x', '\\"', "\\'", "$'ab'", '"a b"', "'a b'", '--', '-q']);
 const COMMENT_SUFFIXES = Object.freeze(['', '', '', '', ' # git push', ' # git reset --hard']);
@@ -220,7 +221,7 @@ const GROUPERS = Object.freeze([
   inner => fragment(`( ${closed(inner, ')')}`, { tags: inner.tags, status: inner.status }),
   inner => fragment(`{ ${closed(inner, '; }')}`, { tags: inner.tags, status: inner.status }),
   inner => fragment(`! { ${closed(inner, '; }')}`, { ...inner, status: inner.status === 0 ? 1 : 0, keywordLed: true, simple: false, list: false }),
-  inner => fragment(`time ${inner.text}`, { ...inner, keywordLed: true, simple: false }),
+  inner => fragment(inner.keywordLed ? `time { ${closed(inner, '; }')}` : `time ${inner.text}`, { ...inner, keywordLed: true, simple: false }),
   inner => fragment(`if true; then ${closed(inner, '; fi')}`, { tags: inner.tags, status: inner.status }),
   inner => fragment(inner.keywordLed ? `case x in (x) { ${closed(inner, '; }')} ;; esac` : `case x in (x) ${closed(inner, ';; esac')}`, { tags: inner.tags, status: inner.status }),
   inner => fragment(`f() { ${closed(inner, '; }')}; f`, { tags: inner.tags, status: inner.status, list: true }),
@@ -443,7 +444,9 @@ function judgeArgv(argv) {
   const args = beforeEnd(normalised.args);
   const destructive = DESTRUCTIVE_VERBS[normalised.subcommand]?.(args) ?? false;
   const diffs = normalised.subcommand === 'diff' || normalised.subcommand === 'show';
-  return { destructive: configured || destructive, extDiff: configured || (diffs && lastExtDiffSetting(args) !== '--no-ext-diff') };
+  const last = lastExtDiffSetting(args);
+  const extDiff = configured || (diffs ? last !== '--no-ext-diff' : last === '--ext-diff');
+  return { destructive: configured || destructive, extDiff };
 }
 
 const survivingArgvs = argvs => argvs.filter(argv => !argv.includes(RESIDUAL_MARKER));

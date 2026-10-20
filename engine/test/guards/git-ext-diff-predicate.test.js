@@ -482,3 +482,69 @@ describe('gitExtDiffPredicate() — marker spelled through an escape', () => {
     assert.equal(result.block, false);
   });
 });
+
+describe('gitExtDiffPredicate() — --ext-diff on any git verb', () => {
+  const REASON_EXT_DIFF_OPTION = '--ext-diff is denied on every git verb (external diff mangles parsed output)';
+
+  for (const command of [
+    'git log -p -1 --ext-diff',
+    'git format-patch -1 --stdout --ext-diff',
+    'git stash show -p --ext-diff',
+    'git reflog -p -1 --ext-diff',
+    'git whatchanged -p --ext-diff',
+    'git diff-tree -p --ext-diff HEAD',
+    'git diff-files -p --ext-diff',
+    'git diff-index -p --ext-diff HEAD',
+    'git log -p -1 --no-ext-diff --ext-diff',
+    'git log -p -1 --grep --ext-diff',
+    'git status --ext-diff',
+    'git commit -m --ext-diff',
+    'echo git log --ext-diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the option reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_EXT_DIFF_OPTION });
+    });
+  }
+
+  for (const command of [
+    '{git,log,-p,--ext-diff}',
+    'G=git; command $G log -p --ext-diff',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the diff/show reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_EXT_DIFF });
+    });
+  }
+
+  it('Given git show, when checked, then it keeps the diff/show reason', () => {
+    const sut = gitExtDiffPredicate;
+
+    const result = sut('git show');
+
+    assert.deepEqual(result, { block: true, reason: REASON_EXT_DIFF });
+  });
+
+  for (const command of [
+    'git log -p -1 --ext-diff --no-ext-diff',
+    'git log -p -1 -- --ext-diff',
+    'X=--ext-diff; git log -p $X',
+    'rtk proxy git log -p --ext-diff',
+    'git commit -m "use --ext-diff"',
+    "git commit -m \"$(cat <<'EOF'\nfix: x\n\nmention --ext-diff here\nEOF\n)\"",
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then it allows`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: false });
+    });
+  }
+});

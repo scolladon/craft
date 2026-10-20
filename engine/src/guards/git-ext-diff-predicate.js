@@ -9,15 +9,21 @@ export const COMPLIANT_MARKERS = ['--no-ext-diff', 'rtk proxy'];
 const REASON_GIT_EXT_DIFF =
   'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
 
+const REASON_EXT_DIFF_OPTION = '--ext-diff is denied on every git verb (external diff mangles parsed output)';
+
 const [NO_EXT_DIFF_WORD, PROXY_MARKER] = COMPLIANT_MARKERS;
 const PROXY_WORDS = Object.freeze(PROXY_MARKER.split(' '));
 const DIFFING_SUBCOMMANDS = new Set(DIFFING_VERBS);
 
 const EXT_DIFF_WORD = '--ext-diff';
-const lacksNoExtDiff = words => {
-  const last = optionWords(words).findLast(word => word === EXT_DIFF_WORD || word === NO_EXT_DIFF_WORD);
-  return last !== NO_EXT_DIFF_WORD;
-};
+const isExtDiffSetting = word => word === EXT_DIFF_WORD || word === NO_EXT_DIFF_WORD;
+const lacksNoExtDiff = words => optionWords(words).findLast(isExtDiffSetting) !== NO_EXT_DIFF_WORD;
+
+// mentionsExtDiff keeps this cheap: an invocation whose command has no such word never reads its arguments.
+const enablesExtDiff = invocation =>
+  invocation.kind === 'subcommand' &&
+  invocation.mentionsExtDiff === true &&
+  optionWords(invocation.args).findLast(isExtDiffSetting) === EXT_DIFF_WORD;
 
 // A dynamic option word after the last --no-ext-diff may expand to --ext-diff.
 const dynamicAfterNoExtDiff = invocation => {
@@ -40,14 +46,20 @@ const diffsWithoutMarker = invocation => {
   return false;
 };
 
+const optionReasonFor = invocation => {
+  if (diffsWithoutMarker(invocation)) return REASON_GIT_EXT_DIFF;
+  return enablesExtDiff(invocation) ? REASON_EXT_DIFF_OPTION : null;
+};
+
 export const extDiffVerdictFor = invocation => {
   const reason = configChannelReason(invocation);
   if (reason !== null) return reason;
-  return diffsWithoutMarker(invocation) && !isProxied(invocation.leadingWords) ? REASON_GIT_EXT_DIFF : null;
+  const rejected = optionReasonFor(invocation);
+  return rejected !== null && !isProxied(invocation.leadingWords) ? rejected : null;
 };
 
 /**
- * Pure predicate: does this bash command run git diff/show without --no-ext-diff?
+ * Pure predicate: does this bash command run git diff/show without --no-ext-diff, or pass --ext-diff to any git verb?
  *
  * The command is parsed into simple commands and each git invocation is judged on its
  * normalised form, so shell grammar and git global options cannot hide a diff/show.
