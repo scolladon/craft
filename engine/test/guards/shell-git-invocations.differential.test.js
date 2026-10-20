@@ -275,6 +275,7 @@ const PIPE_INTO_ASSIGNMENT_LIST = /(?:^|[^|])\| [A-Za-z_]\w*=[^ ;|&]*; /;
 const TIME_AFTER_CASE_PATTERN = /in \(x\) time /;
 const SPLIT_TIME = /env -S 'time /;
 const TIME_BEFORE_COMPOUND = /\btime time (?:if |\(|\{|case |for )/;
+const ECHOED_NEGATION_SHORT_CIRCUIT = /(?:echo \$\(|cat <\() ! \{ .*; \} \) \|\| /;
 const PIPED_SIGPIPE_WRITER = /git push' \| /;
 const FAILING_LEFT_AND = /(?:ls \*\.md|bash -lc 'git status') && /;
 const QUOTED_HEREDOC = /<<['"]EOF/;
@@ -314,6 +315,14 @@ describe('shell-git-invocations — generator composition at scale', () => {
     const sut = pinnedCommands;
 
     const result = offenders(sut(), TIME_BEFORE_COMPOUND);
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then a negation echoed or catted is never modelled as failing before an or-list', () => {
+    const sut = pinnedCommands;
+
+    const result = offenders(sut(), ECHOED_NEGATION_SHORT_CIRCUIT);
 
     assert.deepEqual(result, []);
   });

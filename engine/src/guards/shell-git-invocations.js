@@ -4,6 +4,10 @@ import { basename, parseShellCommands } from './shell-tokeniser.js';
 const GIT_COMMAND = 'git';
 const PATH_SEPARATOR = '/';
 const ALIAS_KEY_PREFIX = 'alias.';
+const ALIAS_SECTION = 'alias';
+const CONFIG_VERB = 'config';
+const INCLUDE_PATH_KEY = 'include.path';
+const INCLUDE_IF_PREFIX = 'includeif.';
 
 export const INLINE_ALIAS_REASON =
   'craft: an inline git alias (-c alias.*) is denied — it can run any git verb';
@@ -28,7 +32,11 @@ const ANCHOR_VERBS = new Set([...DESTRUCTIVE_VERBS, ...DIFFING_VERBS]);
 const PATTERN_DELIMITERS = /[{},[\]]+/;
 
 const EXT_DIFF_WORD = '--ext-diff';
-const isAnchorToken = text => ANCHOR_VERBS.has(text) || text === EXT_DIFF_WORD;
+const isAliasKeyText = text => {
+  const key = text.toLowerCase();
+  return key === ALIAS_SECTION || key.startsWith(ALIAS_KEY_PREFIX) || key.startsWith(INCLUDE_PATH_KEY) || key.startsWith(INCLUDE_IF_PREFIX);
+};
+const isAnchorToken = text => ANCHOR_VERBS.has(text) || text === EXT_DIFF_WORD || isAliasKeyText(text);
 
 const holdsAnchorVerb = ({ text }) => text.split(PATTERN_DELIMITERS).some(isAnchorToken);
 
@@ -152,7 +160,7 @@ const TOO_MANY_INVOCATIONS =
 // the command; capping them bounds the total work.
 const readsArguments = invocation =>
   invocation.kind !== 'no-subcommand' &&
-  (invocation.kind !== 'subcommand' || ANCHOR_VERBS.has(invocation.subcommand) || invocation.mentionsExtDiff === true);
+  (invocation.kind !== 'subcommand' || ANCHOR_VERBS.has(invocation.subcommand) || invocation.subcommand === CONFIG_VERB || invocation.mentionsExtDiff === true);
 
 const exceedsAnchorCap = invocations =>
   invocations.filter(readsArguments).length > MAX_ARGUMENT_READING_ANCHORS;
@@ -166,9 +174,6 @@ export function gitInvocations(command) {
 }
 
 export const CONFIG_CHANNEL_REASON = 'craft: git config injected outside -c is denied in this binding';
-const INCLUDE_PATH_KEY = 'include.path';
-const INCLUDE_IF_PREFIX = 'includeif.';
-
 const holdsIncludeKey = invocation =>
   invocation.kind === 'subcommand' &&
   invocation.configKeys.some(key => key === INCLUDE_PATH_KEY || key.startsWith(INCLUDE_IF_PREFIX));
@@ -176,8 +181,15 @@ const holdsIncludeKey = invocation =>
 export const hasInlineAlias = invocation =>
   invocation.kind === 'subcommand' && invocation.configKeys.some(key => key.startsWith(ALIAS_KEY_PREFIX));
 
+export const CONFIG_ALIAS_WRITE_REASON =
+  'craft: git config naming an alias or include key is denied — an alias can run any git verb';
+
+const namesAliasKey = invocation =>
+  invocation.kind === 'subcommand' && invocation.subcommand === CONFIG_VERB && invocation.args.some(isAliasKeyText);
+
 export const configChannelReason = invocation => {
   if (hasInlineAlias(invocation)) return INLINE_ALIAS_REASON;
+  if (namesAliasKey(invocation)) return CONFIG_ALIAS_WRITE_REASON;
   return invocation.injectsConfig === true || holdsIncludeKey(invocation) ? CONFIG_CHANNEL_REASON : null;
 };
 

@@ -106,6 +106,11 @@ describe('claude ext-diff hook main - reason prefix', () => {
       command: 'git log -p -1 --ext-diff',
       reason: 'craft: --ext-diff is denied on every git verb (external diff mangles parsed output)',
     },
+    {
+      label: 'a git config alias write',
+      command: 'git config alias.x diff',
+      reason: 'craft: git config naming an alias or include key is denied \u2014 an alias can run any git verb',
+    },
     { label: 'a command over the length cap', command: `git diff ${'x'.repeat(OVER_LIMIT_PADDING)}`, reason: OVER_LIMIT_REASON },
   ]) {
     it(`Given ${label}, when main judges the payload, then the engine reason keeps its single craft prefix`, () => {

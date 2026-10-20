@@ -7,6 +7,9 @@ const PUSH_REASON = 'craft: destructive git (push) is denied in this binding —
 const EXT_DIFF_REASON = 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
 const UNPARSEABLE_REASON = 'craft: command not parseable (unterminated substitution) — denied fail-closed';
 
+const ALIAS_REASON =
+  'craft: git config naming an alias or include key is denied \u2014 an alias can run any git verb';
+
 describe('plainGitCommandVerdict() - gate, then destructive git, then ext-diff over one parse', () => {
   it('Given a shell-wrapped push, When judged, Then the gate verdict wins over the parse', () => {
     const result = sut("bash -lc 'git push'");
@@ -42,6 +45,20 @@ describe('plainGitCommandVerdict() - gate, then destructive git, then ext-diff o
 
   it('Given git status, When judged, Then it is allowed', () => {
     const result = sut('git status');
+
+    assert.deepEqual(result, { block: false });
+  });
+
+  for (const command of ['git config alias.x diff', 'git config alias.p push; git p']) {
+    it(`Given "${command}", When judged, Then the alias reason blocks`, () => {
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: ALIAS_REASON });
+    });
+  }
+
+  it('Given git config user.name, When judged, Then it is allowed', () => {
+    const result = sut('git config user.name x');
 
     assert.deepEqual(result, { block: false });
   });

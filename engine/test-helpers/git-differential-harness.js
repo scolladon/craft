@@ -103,6 +103,7 @@ const VERBS = Object.freeze([
   ['reset', '--har'], ['clean', '--dry'], ['clean', '-fd --no-d'], ['branch', '--del --forc x'],
   ['diff', '--no-ext-diff --ext-diff'], ['show', '--ext-diff --no-ext-diff'],
   ['log', '-p --ext-diff'], ['log', '-p --ext-diff --no-ext-diff'], ['format-patch', '-1 --stdout --ext-diff'],
+  ['config', 'alias.x diff'], ['config', '--get alias.x'], ['config', 'user.name x'],
 ]);
 const EXTRA_ARGS = Object.freeze(['', '', '', 'x', '\\"', "\\'", "$'ab'", '"a b"', "'a b'", '--', '-q']);
 const COMMENT_SUFFIXES = Object.freeze(['', '', '', '', ' # git push', ' # git reset --hard']);
@@ -246,12 +247,12 @@ const processSubstitutionTags = inner =>
 
 function nestedForms(inner) {
   const forms = [
-    () => fragment(`echo $( ${closed(inner, ')')}`, inner),
-    () => fragment(`cat <( ${closed(inner, ')')}`, { ...inner, tags: processSubstitutionTags(inner) }),
+    () => fragment(`echo $( ${closed(inner, ')')}`, { ...inner, status: 0 }),
+    () => fragment(`cat <( ${closed(inner, ')')}`, { ...inner, status: 0, tags: processSubstitutionTags(inner) }),
     () => fragment(`bash -c ${singleQuote(inner.text)}`, inner),
     () => fragment(`eval ${singleQuote(inner.text)}`, inner),
   ];
-  if (canBacktick(inner) && !inner.lineEnd) forms.push(() => fragment(`echo \`${inner.text}\``, inner));
+  if (canBacktick(inner) && !inner.lineEnd) forms.push(() => fragment(`echo \`${inner.text}\``, { ...inner, status: 0 }));
   if (!BASHISMS.test(inner.text)) forms.push(() => fragment(`sh -c ${singleQuote(inner.text)}`, inner));
   if (inner.simple && SPLIT_SAFE.test(inner.text)) forms.push(() => fragment(`env -S ${singleQuote(inner.text)}`, { ...inner, simple: false }), () => fragment(`eval ${inner.text}`, inner));
   if (canDoubleQuote(inner)) forms.push(() => fragment(`bash -c "${inner.text}"`, inner));
@@ -430,7 +431,12 @@ const DESTRUCTIVE_VERBS = Object.freeze({
 const SNIFFED = Object.keys(DESTRUCTIVE_VERBS);
 const CONFIG_KEY = /^(alias\..*|include\.path|includeif\..*)$/;
 
+const CONFIG_ARG_KEY = /^(alias|alias\..*|include\.path.*|includeif\..*)$/i;
+
 const injectsConfigKey = normalised => normalised.kind === 'subcommand' && normalised.configKeys.some(key => CONFIG_KEY.test(key));
+
+const namesConfigKey = normalised =>
+  normalised.kind === 'subcommand' && normalised.subcommand === 'config' && normalised.args.some(word => CONFIG_ARG_KEY.test(word));
 
 function lastExtDiffSetting(args) {
   return beforeEnd(args).findLast(word => word === '--ext-diff' || word === '--no-ext-diff');
@@ -438,7 +444,7 @@ function lastExtDiffSetting(args) {
 
 function judgeArgv(argv) {
   const normalised = normaliseGitArgv(argv);
-  const configured = injectsConfigKey(normalised);
+  const configured = injectsConfigKey(normalised) || namesConfigKey(normalised);
   if (normalised.kind === 'refused') return { destructive: SNIFFED.some(verb => normalised.rest.includes(verb)), extDiff: false };
   if (normalised.kind !== 'subcommand') return { destructive: false, extDiff: false };
   const args = beforeEnd(normalised.args);
