@@ -473,6 +473,8 @@ describe('configChannelReason() — git config naming an alias or include key', 
     'git config copy-section foo INCLUDE',
     'git config --copy-section foo include',
     'git config include.path f',
+    'git config include.pathx f',
+    'git config rename-section foo includeIf',
     'git config set includeIf.gitdir:/r/.git.path f',
     'git config alias.$N diff',
     'git config alias.x diff; git x',
@@ -535,6 +537,7 @@ describe('gitExtDiffPredicate() — config residuals', () => {
     '{/usr/bin/gi[t],log,-p} --ext-diff',
     '{/usr/bin/g*t,config} alias.x y',
     '{$G,config,alias.x,y}',
+    'echo g[iz]t alias.x',
   ]) {
     it(`Given "${command}", when checked, then it is blocked`, () => {
       const sut = gitExtDiffPredicate;
@@ -571,6 +574,10 @@ describe('alias and include words outside git config', () => {
     'rm -rf build/{config,include}',
     'tar czf x.tgz {config,include}',
     'ls {s?c,config} include',
+    'echo {gi.t,x} alias.x',
+    'echo {git,status}',
+    'echo alias.x {git,y}',
+    'echo alias.x $Y config',
   ]) {
     it(`Given "${command}", when checked by the ext-diff rule, then it is allowed`, () => {
       const sut = gitExtDiffPredicate;

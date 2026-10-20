@@ -43,6 +43,7 @@ const tokensOf = ({ text }) => text.split(PATTERN_DELIMITERS);
 const holdsAnchorVerb = word => tokensOf(word).some(isAnchorToken);
 
 const holdsAliasKeyToken = word => tokensOf(word).some(isAliasKeyText);
+// equivalent mutant (Regex without +): a delimiter run only splits into extra empty alternatives, and '' never matches git
 const BRACE_DELIMITERS = /[{},]+/;
 const EXPANSION_MARKS = /[$`]/;
 const GLOB_CLASS = /\[[^\]]*\]/g;
@@ -51,6 +52,7 @@ const ANY_CHAR_SLOT = '\u0000';
 
 // A bracket class widens to any single character, so the match over-approximates and errs on blocking.
 const globMatchesGit = glob => {
+  // equivalent mutant (ArrowFunction () => undefined): a glob holding a regex special never matches the literal git, and the mutant's source holds the letters of 'undefined', which cannot match it either
   const escaped = glob.replace(GLOB_CLASS, ANY_CHAR_SLOT).replace(REGEX_SPECIALS, special => `\\${special}`);
   const source = escaped.replaceAll('?', '.').replaceAll('*', '.*').replaceAll(ANY_CHAR_SLOT, '.');
   return new RegExp(`^${source}$`).test(GIT_COMMAND);
@@ -73,6 +75,7 @@ const gitPatternAnchor = words => {
 // config on it: the verb is config, or cannot be read (a dynamic or pattern verb).
 const runsConfigOnAlias = (words, gitAt) => {
   const invocation = normaliseFrom(words, gitAt + 1);
+  // equivalent mutant (ConditionalExpression true for kind === 'subcommand'): only a subcommand invocation has a subcommand field, so the config check already implies the kind
   const mayBeConfig = invocation.kind === 'indeterminate' || (invocation.kind === 'subcommand' && invocation.subcommand === CONFIG_VERB);
   return mayBeConfig && words.slice(gitAt + 1).some(holdsAliasKeyToken);
 };
@@ -168,6 +171,7 @@ const aliasesGit = word => aliasValueWords(word).some(isGitSpelling);
 const aliasDefinition = ({ words }) =>
     // equivalent mutant (MethodExpression words for words.slice(1)): words[0].text is 'alias' here and holds no '=', so it never aliases git
   words[0].text === ALIAS_BUILTIN && words.slice(1).some(aliasesGit)
+    // equivalent mutant (BooleanLiteral mentionsExtDiff true): a no-subcommand invocation is neither counted by readsArguments nor read by enablesExtDiff, so the flag is never consulted
     ? [flagged(extend(NO_SUBCOMMAND, { leadingWords: () => [] }), { injectsConfig: true, mentionsExtDiff: false })]
     : [];
 
@@ -228,6 +232,7 @@ const holdsAliasKeyText = text => holdsAliasKeyToken({ text });
 // An unreadable verb (git $C alias.x …) may be config, so an alias or include word after it counts.
 const namesAliasKey = invocation => {
   if (invocation.kind === 'indeterminate') return invocation.rest.some(holdsAliasKeyText);
+  // equivalent mutant (ConditionalExpression true for kind === 'subcommand'): only a subcommand invocation has a subcommand field, so the config check already implies the kind
   return invocation.kind === 'subcommand' && invocation.subcommand === CONFIG_VERB && invocation.args.some(holdsAliasKeyText);
 };
 

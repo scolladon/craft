@@ -21,6 +21,7 @@ const lacksNoExtDiff = words => optionWords(words).findLast(isExtDiffSetting) !=
 // mentionsExtDiff keeps this cheap: an invocation whose command has no such word never reads its arguments.
 const enablesExtDiff = invocation =>
   invocation.kind === 'subcommand' &&
+  // equivalent mutant (ConditionalExpression true for mentionsExtDiff === true): the arguments are the command's own words, so an --ext-diff argument implies the flag; it only spares the argument read
   invocation.mentionsExtDiff === true &&
   optionWords(invocation.args).findLast(isExtDiffSetting) === EXT_DIFF_WORD;
 
@@ -54,6 +55,7 @@ export const extDiffVerdictFor = invocation => {
   const reason = configChannelReason(invocation);
   if (reason !== null) return reason;
   const rejected = optionReasonFor(invocation);
+  // equivalent mutant (ConditionalExpression true for rejected !== null): a null rejection yields null on either branch
   return rejected !== null && !isProxied(invocation.leadingWords) ? rejected : null;
 };
 
