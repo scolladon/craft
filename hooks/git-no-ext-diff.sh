@@ -1,5 +1,6 @@
 #!/bin/bash
-# craft — PreToolUse(Bash): scripted `git diff` / `git show` must carry --no-ext-diff.
+# craft — PreToolUse(Bash): scripted `git diff` / `git show` must carry --no-ext-diff, no git verb
+# may carry --ext-diff, and `git config` may not name an alias or include key.
 # External-diff tools (difftastic, …) mangle machine-parsed output; agents always parse.
 #
 # Strategy: DENY with a reason, never rewrite. Spike-pinned (2026-06-12): two `updatedInput`
