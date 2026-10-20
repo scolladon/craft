@@ -243,8 +243,11 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   both blocked by the plain gate on codex and copilot only; an alias already present in a
   gitconfig; `git config --edit` through `GIT_EDITOR` and `git clone -c alias.*`, both also
   blocked by the plain gate on codex and copilot only. Deliberate
-  over-blocks: `git config --get alias.x`, `git config alias.x status`, `echo git log --ext-diff`,
-  `git log --grep --ext-diff`.
+  over-blocks: `git config --get alias.x`, `git config --get include`, `git config alias.x status`,
+  `echo git log --ext-diff`, `git log --grep --ext-diff`, and an alias or include word after a word
+  that may be git and a verb that is `config` or unreadable (`grep -rn "$PAT" config include`,
+  `grep "$a" "$b" alias`) — the same shape as `command $G config alias.x` and
+  `git $C alias.x`, which the rule must deny.
 - A renamed or copied git binary (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
   string guard; `hash -p` is blocked.
 - Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions

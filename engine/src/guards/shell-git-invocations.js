@@ -42,22 +42,33 @@ const tokensOf = ({ text }) => text.split(PATTERN_DELIMITERS);
 
 const holdsAnchorVerb = word => tokensOf(word).some(isAnchorToken);
 
-// An alias or include word is only dangerous as a git config argument, so it anchors only once
-// a config word has been seen; elsewhere (echo $X alias) it is plain text.
+const holdsAliasKeyToken = word => tokensOf(word).some(isAliasKeyText);
 const holdsConfigToken = word => tokensOf(word).includes(CONFIG_VERB);
 
-const configAliasAnchor = words => {
-  const firstConfigAt = words.findIndex(holdsConfigToken);
-  return (word, index) => firstConfigAt !== -1 && firstConfigAt <= index && tokensOf(word).some(isAliasKeyText);
+// A pattern word expanding to config arms the alias or include words from there on; elsewhere
+// (echo {alias.x,y}) they are plain text.
+const configPatternAnchor = words => {
+  const lastAliasAt = words.findLastIndex(holdsAliasKeyToken);
+  return (word, index) => holdsConfigToken(word) && index <= lastAliasAt;
+};
+
+// Behind a word that may be git, an alias or include word matters only where git would run
+// config on it: the verb is config, or cannot be read (a dynamic or pattern verb).
+const runsConfigOnAlias = (words, gitAt) => {
+  const invocation = normaliseFrom(words, gitAt + 1);
+  const mayBeConfig = invocation.kind === 'indeterminate' || (invocation.kind === 'subcommand' && invocation.subcommand === CONFIG_VERB);
+  return mayBeConfig && words.slice(gitAt + 1).some(holdsAliasKeyToken);
 };
 
 const indeterminateAt = (words, index) =>
   extend(indeterminate(words, index + 1), { leadingWords: () => leadingOf(words, index) });
 
-const patternAnchors = (words, flag, aliasAnchors) =>
-  words.flatMap((word, index) =>
-    word.pattern === true && (holdsAnchorVerb(word) || aliasAnchors(word, index)) ? [flag(indeterminateAt(words, index), index)] : []
+const patternAnchors = (words, flag) => {
+  const armsAlias = configPatternAnchor(words);
+  return words.flatMap((word, index) =>
+    word.pattern === true && (holdsAnchorVerb(word) || armsAlias(word, index)) ? [flag(indeterminateAt(words, index), index)] : []
   );
+};
 
 const DASHED_VERB = /^git-([a-z][a-z-]*)$/i;
 
@@ -77,10 +88,10 @@ const isGitSpelling = word => isGitWord(word) || dashedVerb(word) !== null;
 
 // A dynamic word ahead of a verb word may be the git itself behind a wrapper (command $G push).
 // Once a literal git word precedes it, the dynamic word is that invocation's own argument.
-const wrapperAnchors = (words, flag, aliasAnchors) => {
+const wrapperAnchors = (words, flag) => {
   const dynamicAt = words.findIndex((word, index) => index > 0 && word.dynamic);
   if (dynamicAt === -1 || words.slice(0, dynamicAt).some(isGitSpelling)) return [];
-  const verbAfter = words.some((word, index) => index > dynamicAt && (isAnchorVerb(word) || aliasAnchors(word, index)));
+  const verbAfter = words.slice(dynamicAt + 1).some(isAnchorVerb) || runsConfigOnAlias(words, dynamicAt);
   return verbAfter ? [flag(indeterminateAt(words, dynamicAt), dynamicAt)] : [];
 };
 
@@ -152,14 +163,13 @@ const flaggerFor = command => {
 const anchoredInvocations = command => {
   const { words } = command;
   const flag = flaggerFor(command);
-  const aliasAnchors = configAliasAnchor(words);
     // equivalent mutant (OptionalChaining words[0].dynamic): the tokeniser never yields a command without words, and aliasDefinition already reads words[0] unguarded
   const head = words[0]?.dynamic === true ? [flag(dynamicHeadInvocation(words), 0)] : [];
   return [
     ...head,
     ...spelledAnchors(words, flag),
-    ...patternAnchors(words, flag, aliasAnchors),
-    ...wrapperAnchors(words, flag, aliasAnchors),
+    ...patternAnchors(words, flag),
+    ...wrapperAnchors(words, flag),
     ...aliasDefinition(command),
   ];
 };
@@ -196,8 +206,13 @@ export const hasInlineAlias = invocation =>
 export const CONFIG_ALIAS_WRITE_REASON =
   'craft: git config naming an alias or include key is denied — an alias can run any git verb';
 
-const namesAliasKey = invocation =>
-  invocation.kind === 'subcommand' && invocation.subcommand === CONFIG_VERB && invocation.args.some(isAliasKeyText);
+const holdsAliasKeyText = text => holdsAliasKeyToken({ text });
+
+// An unreadable verb (git $C alias.x …) may be config, so an alias or include word after it counts.
+const namesAliasKey = invocation => {
+  if (invocation.kind === 'indeterminate') return invocation.rest.some(holdsAliasKeyText);
+  return invocation.kind === 'subcommand' && invocation.subcommand === CONFIG_VERB && invocation.args.some(holdsAliasKeyText);
+};
 
 export const configChannelReason = invocation => {
   if (hasInlineAlias(invocation)) return INLINE_ALIAS_REASON;
