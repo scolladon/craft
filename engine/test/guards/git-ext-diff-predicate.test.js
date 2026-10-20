@@ -548,3 +548,15 @@ describe('gitExtDiffPredicate() — --ext-diff on any git verb', () => {
     });
   }
 });
+
+describe('gitExtDiffPredicate() - --ext-diff where git takes no verb', () => {
+  for (const command of ['git --ext-diff', 'git -c x=y --ext-diff']) {
+    it(`Given "${command}", when checked, then it is allowed because git refuses the option before any diff`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: false });
+    });
+  }
+});

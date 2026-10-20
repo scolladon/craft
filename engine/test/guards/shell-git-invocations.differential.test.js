@@ -21,6 +21,7 @@ import {
   runInShell,
   secondBash,
   withTree,
+  judgeArgv,
 } from '../../test-helpers/git-differential-harness.js';
 import { gitInvocations } from '../../src/guards/shell-git-invocations.js';
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
@@ -278,7 +279,9 @@ const TIME_BEFORE_COMPOUND = /\btime time (?:if |\(|\{|case |for )/;
 const ECHOED_NEGATION_SHORT_CIRCUIT = /(?:echo \$\(|cat <\() ! \{ .*; \} \) \|\| /;
 const PIPED_SIGPIPE_WRITER = /git push' \| /;
 const FAILING_LEFT_AND = /(?:ls \*\.md|bash -lc 'git status') && /;
-const QUOTED_HEREDOC = /<<['"]EOF/;
+// A quoted heredoc keeps its body as data, also when the whole text sits inside a single-quoted eval or bash -c string.
+const QUOTED_HEREDOC = /<<(?:['"]|'\\'')EOF/;
+const WHOLE_COMMAND_REJECTED = /<<'EOFQ'/;
 const BRACE_IN_PROCESS_SUBSTITUTION = /cat <\( (?:(?!\)[' ])[^\n])*\{[^{}\s]*(,|\.\.)[^{}\s]*\}/;
 const QUOTED_HEREDOC_AROUND_UNTERMINATED =
   /<<(['"])EOF\d+\1\n(?:(?!\n\t?EOF\d)[\s\S])*(git push 'x|git status "x|echo \$\(git push)/;
@@ -348,4 +351,24 @@ describe('shell-git-invocations — generator composition at scale', () => {
 
     assert.deepEqual(result, []);
   });
+
+  it('Given each pinned seed at scale, when generated, then the command bash 3.2 rejects whole appears once and is never composed into another', () => {
+    const sut = generateCommands;
+
+    const result = PINNED_SEEDS.map(seed => sut(seed, PINNED_COUNT).filter(entry => WHOLE_COMMAND_REJECTED.test(entry.text)).length);
+
+    assert.deepEqual(result, PINNED_SEEDS.map(() => 1));
+  });
+});
+
+describe('shell-git-invocations — oracle on config section renames', () => {
+  for (const argv of [['config', 'rename-section', 'x', 'include'], ['config', '--copy-section', 'x', 'IncludeIf']]) {
+    it(`Given git ${argv.join(' ')}, when the oracle judges it, then it counts as a config injection`, () => {
+      const sut = judgeArgv;
+
+      const result = sut(argv);
+
+      assert.deepEqual(result, { destructive: true, extDiff: true });
+    });
+  }
 });

@@ -197,8 +197,13 @@ const SPECIALS = Object.freeze([
   fragment(`echo 'git push ${RESIDUAL_MARKER}' | sh`, { tags: [TAGS.residual] }),
   fragment(`printf 'git reset --hard ${RESIDUAL_MARKER}\\n' | bash`, { tags: [TAGS.residual] }),
   fragment('cat <( {git,push} origin )', { tags: [TAGS.braceInProcessSubstitution] }),
+]);
+
+// bash 3.2 rejects this whole command, so composed into another it would hide that one's git words from the oracle.
+const STANDALONE_SPECIALS = Object.freeze([
   fragment('cat <<< "$( cat <<\'EOFQ\'\ngit status "x\nEOFQ\n)"', { tags: [TAGS.quoteInHeredocBody] }),
 ]);
+const FIXED_ENTRIES = Object.freeze([...SPECIALS, ...STANDALONE_SPECIALS]);
 
 // ---------------------------------------------------------------- composers
 
@@ -298,8 +303,8 @@ function createGenerator() {
 function generateCommands(seed, cap) {
   const rng = mulberry32(seed);
   const generator = createGenerator(rng);
-  const generated = Array.from({ length: cap - SPECIALS.length }, () => generator.compose(rng, MAX_DEPTH));
-  return Object.freeze([...SPECIALS, ...generated]);
+  const generated = Array.from({ length: cap - FIXED_ENTRIES.length }, () => generator.compose(rng, MAX_DEPTH));
+  return Object.freeze([...FIXED_ENTRIES, ...generated]);
 }
 // ---------------------------------------------------------------- Leg A runner and oracle
 
@@ -431,7 +436,7 @@ const DESTRUCTIVE_VERBS = Object.freeze({
 const SNIFFED = Object.keys(DESTRUCTIVE_VERBS);
 const CONFIG_KEY = /^(alias\..*|include\.path|includeif\..*)$/;
 
-const CONFIG_ARG_KEY = /^(alias|alias\..*|include\.path.*|includeif\..*)$/i;
+const CONFIG_ARG_KEY = /^(alias|include|includeif|alias\..*|include\.path.*|includeif\..*)$/i;
 
 const injectsConfigKey = normalised => normalised.kind === 'subcommand' && normalised.configKeys.some(key => CONFIG_KEY.test(key));
 

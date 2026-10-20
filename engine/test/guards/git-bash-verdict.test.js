@@ -9,6 +9,7 @@ const UNPARSEABLE_REASON = 'craft: command not parseable (unterminated substitut
 
 const ALIAS_REASON =
   'craft: git config naming an alias or include key is denied \u2014 an alias can run any git verb';
+const EXT_DIFF_OPTION_REASON = '--ext-diff is denied on every git verb (external diff mangles parsed output)';
 
 describe('plainGitCommandVerdict() - gate, then destructive git, then ext-diff over one parse', () => {
   it('Given a shell-wrapped push, When judged, Then the gate verdict wins over the parse', () => {
@@ -49,7 +50,13 @@ describe('plainGitCommandVerdict() - gate, then destructive git, then ext-diff o
     assert.deepEqual(result, { block: false });
   });
 
-  for (const command of ['git config alias.x diff', 'git config alias.p push; git p']) {
+  it('Given git log with --ext-diff, When judged, Then the ext-diff option reason blocks', () => {
+    const result = sut('git log -p -1 --ext-diff');
+
+    assert.deepEqual(result, { block: true, reason: EXT_DIFF_OPTION_REASON });
+  });
+
+  for (const command of ['git config alias.x diff', 'git config alias.p push; git p', 'git config rename-section foo include']) {
     it(`Given "${command}", When judged, Then the alias reason blocks`, () => {
       const result = sut(command);
 

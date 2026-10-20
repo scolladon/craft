@@ -1,10 +1,11 @@
-import { DESTRUCTIVE_VERBS, DIFFING_VERBS, extend, indeterminate, normaliseFrom, subcommandResult, NO_SUBCOMMAND, texts, toWord, VALUE_SEPARATOR, walkFrom } from './git-argv.js';
+import { DESTRUCTIVE_VERBS, DIFFING_VERBS, EXT_DIFF_WORD, extend, indeterminate, normaliseFrom, subcommandResult, NO_SUBCOMMAND, texts, toWord, VALUE_SEPARATOR, walkFrom } from './git-argv.js';
 import { basename, parseShellCommands } from './shell-tokeniser.js';
 
 const GIT_COMMAND = 'git';
 const PATH_SEPARATOR = '/';
 const ALIAS_KEY_PREFIX = 'alias.';
-const ALIAS_SECTION = 'alias';
+// A bare section word is what rename-section/copy-section writes alias or include keys under.
+const ALIAS_SECTIONS = new Set(['alias', 'include', 'includeif']);
 const CONFIG_VERB = 'config';
 const INCLUDE_PATH_KEY = 'include.path';
 const INCLUDE_IF_PREFIX = 'includeif.';
@@ -31,21 +32,31 @@ const ANCHOR_VERBS = new Set([...DESTRUCTIVE_VERBS, ...DIFFING_VERBS]);
 // equivalent mutant (Regex without +): a delimiter run only splits into extra empty tokens, and '' is never in ANCHOR_VERBS
 const PATTERN_DELIMITERS = /[{},[\]]+/;
 
-const EXT_DIFF_WORD = '--ext-diff';
 const isAliasKeyText = text => {
   const key = text.toLowerCase();
-  return key === ALIAS_SECTION || key.startsWith(ALIAS_KEY_PREFIX) || key.startsWith(INCLUDE_PATH_KEY) || key.startsWith(INCLUDE_IF_PREFIX);
+  return ALIAS_SECTIONS.has(key) || key.startsWith(ALIAS_KEY_PREFIX) || key.startsWith(INCLUDE_PATH_KEY) || key.startsWith(INCLUDE_IF_PREFIX);
 };
-const isAnchorToken = text => ANCHOR_VERBS.has(text) || text === EXT_DIFF_WORD || isAliasKeyText(text);
+const isAnchorToken = text => ANCHOR_VERBS.has(text) || text === EXT_DIFF_WORD;
 
-const holdsAnchorVerb = ({ text }) => text.split(PATTERN_DELIMITERS).some(isAnchorToken);
+const tokensOf = ({ text }) => text.split(PATTERN_DELIMITERS);
+
+const holdsAnchorVerb = word => tokensOf(word).some(isAnchorToken);
+
+// An alias or include word is only dangerous as a git config argument, so it anchors only once
+// a config word has been seen; elsewhere (echo $X alias) it is plain text.
+const holdsConfigToken = word => tokensOf(word).includes(CONFIG_VERB);
+
+const configAliasAnchor = words => {
+  const firstConfigAt = words.findIndex(holdsConfigToken);
+  return (word, index) => firstConfigAt !== -1 && firstConfigAt <= index && tokensOf(word).some(isAliasKeyText);
+};
 
 const indeterminateAt = (words, index) =>
   extend(indeterminate(words, index + 1), { leadingWords: () => leadingOf(words, index) });
 
-const patternAnchors = (words, flag) =>
+const patternAnchors = (words, flag, aliasAnchors) =>
   words.flatMap((word, index) =>
-    word.pattern === true && holdsAnchorVerb(word) ? [flag(indeterminateAt(words, index), index)] : []
+    word.pattern === true && (holdsAnchorVerb(word) || aliasAnchors(word, index)) ? [flag(indeterminateAt(words, index), index)] : []
   );
 
 const DASHED_VERB = /^git-([a-z][a-z-]*)$/i;
@@ -66,10 +77,10 @@ const isGitSpelling = word => isGitWord(word) || dashedVerb(word) !== null;
 
 // A dynamic word ahead of a verb word may be the git itself behind a wrapper (command $G push).
 // Once a literal git word precedes it, the dynamic word is that invocation's own argument.
-const wrapperAnchors = (words, flag) => {
+const wrapperAnchors = (words, flag, aliasAnchors) => {
   const dynamicAt = words.findIndex((word, index) => index > 0 && word.dynamic);
   if (dynamicAt === -1 || words.slice(0, dynamicAt).some(isGitSpelling)) return [];
-  const verbAfter = words.slice(dynamicAt + 1).some(isAnchorVerb);
+  const verbAfter = words.some((word, index) => index > dynamicAt && (isAnchorVerb(word) || aliasAnchors(word, index)));
   return verbAfter ? [flag(indeterminateAt(words, dynamicAt), dynamicAt)] : [];
 };
 
@@ -141,13 +152,14 @@ const flaggerFor = command => {
 const anchoredInvocations = command => {
   const { words } = command;
   const flag = flaggerFor(command);
+  const aliasAnchors = configAliasAnchor(words);
     // equivalent mutant (OptionalChaining words[0].dynamic): the tokeniser never yields a command without words, and aliasDefinition already reads words[0] unguarded
   const head = words[0]?.dynamic === true ? [flag(dynamicHeadInvocation(words), 0)] : [];
   return [
     ...head,
     ...spelledAnchors(words, flag),
-    ...patternAnchors(words, flag),
-    ...wrapperAnchors(words, flag),
+    ...patternAnchors(words, flag, aliasAnchors),
+    ...wrapperAnchors(words, flag, aliasAnchors),
     ...aliasDefinition(command),
   ];
 };

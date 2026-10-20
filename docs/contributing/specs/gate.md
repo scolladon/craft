@@ -241,7 +241,8 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
 - The ext-diff rule's residuals: a dynamic `--ext-diff` word on a non-diff verb
   (`X=--ext-diff; git log -p $X`) and a fully dynamic `git config` key (`git config "$K" diff`),
   both blocked by the plain gate on codex and copilot only; an alias already present in a
-  gitconfig; `git config --edit` through `GIT_EDITOR`; `git clone -c alias.*`. Deliberate
+  gitconfig; `git config --edit` through `GIT_EDITOR` and `git clone -c alias.*`, both also
+  blocked by the plain gate on codex and copilot only. Deliberate
   over-blocks: `git config --get alias.x`, `git config alias.x status`, `echo git log --ext-diff`,
   `git log --grep --ext-diff`.
 - A renamed or copied git binary (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
@@ -251,7 +252,7 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
   `update-ref -d`, `filter-branch`, `send-pack`).
 - Closed, no longer residuals: `--ext-diff` on non-diff verbs and `git config` alias/include
-  writes; shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
+  writes, including a `rename-section`/`copy-section` onto an `alias` or `include` section; shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
   env channels and `-c include.path`, and brace/glob/`$'\…'`/`$"…"`/dashed `git-<verb>`/wrapper
   dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap, backed by the
   verdict deadline: the 80 KB `eval` chain that took 49 s and then

@@ -468,6 +468,10 @@ describe('configChannelReason() — git config naming an alias or include key', 
     "git config alias.x '!git diff'",
     'git config --rename-section foo alias',
     'git config rename-section foo alias',
+    'git config rename-section foo include',
+    'git config --rename-section foo Include',
+    'git config copy-section foo INCLUDE',
+    'git config --copy-section foo include',
     'git config include.path f',
     'git config set includeIf.gitdir:/r/.git.path f',
     'git config alias.$N diff',
@@ -510,7 +514,7 @@ describe('gitExtDiffPredicate() — config residuals', () => {
     });
   }
 
-  for (const command of ['{git,config,alias.x,status}', 'G=git; command $G config alias.x status']) {
+  for (const command of ['{git,config,alias.x,status}', 'G=git; command $G config alias.x status', 'git config {alias.x,y} diff']) {
     it(`Given "${command}", when checked, then it is blocked`, () => {
       const sut = gitExtDiffPredicate;
 
@@ -529,4 +533,32 @@ describe('gitInvocations() — config anchors', () => {
 
     assert.equal(result.parsed, false);
   });
+});
+
+describe('alias and include words outside git config', () => {
+  for (const command of [
+    'echo $X alias',
+    'grep -r "$x" alias',
+    'ls $DIR include.path',
+    'echo {alias.x,y}',
+    'git commit -m alias.x',
+    'git log --grep alias.x',
+    'git log --grep include.path',
+  ]) {
+    it(`Given "${command}", when checked by the ext-diff rule, then it is allowed`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+
+    it(`Given "${command}", when checked by the destructive rule, then it is allowed`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
 });
