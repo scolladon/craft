@@ -123,6 +123,7 @@ const SAFE_REPO_PATH = /^[A-Za-z0-9._/-]+$/;
  */
 function checkLessonsDir(value, errors) {
   if (value === undefined) return;
+  // equivalent mutant (`value !== ''` -> true or any sentinel, `startsWith('~')` -> endsWith): SAFE_REPO_PATH needs one character and has no '~', so it rejects '' and any '~' alike
   const repoRelative = typeof value === 'string' && value !== ''
     && !value.startsWith('/') && !value.startsWith('~')
     && !value.split('/').includes('..')

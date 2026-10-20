@@ -4383,3 +4383,27 @@ test('Given paths.lessons as a relative directory, when validateManifest runs, t
 
   assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
 });
+
+for (const [label, lessons] of [['a string', 'text'], ['null', null]]) {
+  test(`Given lessons as ${label}, when validateManifest runs, then the only error says lessons must be an object`, () => {
+    const sut = validateManifest;
+
+    const result = sut(
+      { lessons },
+      { fileExists: ALWAYS_EXISTS },
+    );
+
+    assert.deepEqual(result.errors, ['lessons must be an object { max_injected }']);
+  });
+}
+
+test('Given an empty lessons object, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: {} },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
