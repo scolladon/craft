@@ -22,6 +22,7 @@ const FLAGS = new Set(['--phase', '--max', '--dir', '--base']);
 const POSITIVE_INTEGER = /^[1-9]\d*$/;
 
 const DEFAULT_DEPS = {
+  // equivalent mutant (`'pipe'` -> '' for the stdout or stderr slot): a falsy stdio entry is normalised to 'pipe' by child_process
   git: (args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }),
   readStdin: () => readFileSync(0, 'utf8'),
 };
@@ -42,6 +43,7 @@ function parseArgs(argv) {
 function resolveBase(explicit, git) {
   const candidates = explicit ? [explicit] : DEFAULT_BASE_CANDIDATES;
   const found = candidates.find((rev) => {
+    // equivalent mutant (empty catch block): Array.find coerces the undefined return to false
     try {
       git(['rev-parse', '--verify', '--quiet', rev]);
       return true;

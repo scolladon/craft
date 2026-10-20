@@ -1,5 +1,8 @@
-import { test } from 'node:test';
+import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, writeFileSync, chmodSync, rmSync, openSync, closeSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, dirname, delimiter } from 'node:path';
 import { main } from '../src/lessons-hint-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 
@@ -8,10 +11,10 @@ const EXIT_USAGE = 2;
 const BASE = 'origin/HEAD';
 const DIR = 'docs/lessons';
 
-function lessonText({ number = '001', phases = 'validation', verified = '2026-10-19', howToApply = '- Do it.\n- Then that.' } = {}) {
+function lessonText({ number = '001', subjects = "['engine/src/**']", phases = 'validation', verified = '2026-10-19', howToApply = '- Do it.\n- Then that.' } = {}) {
   return [
     '---',
-    "subjects: ['engine/src/**']",
+    `subjects: ${subjects}`,
     `phases: [${phases}]`,
     'kind: trap',
     'trigger: running a scoped mutation',
@@ -263,4 +266,142 @@ test('Given a --dir with a trailing slash, when run, then neither the pathspec n
   assert.deepEqual(git.calls.find((a) => a[0] === 'ls-tree'), ['ls-tree', '--name-only', 'v1', '--', 'custom/']);
   assert.ok(result.out.includes('→ custom/001-a.md'));
   assert.ok(!result.out.includes('//'));
+});
+
+const tmpDirs = [];
+after(() => tmpDirs.forEach((d) => rmSync(d, { recursive: true, force: true })));
+
+const STUB_GIT = [
+  '#!/bin/sh',
+  '[ -c /dev/stdin ] || exit 9',
+  'case "$1" in',
+  '  rev-parse) exit 0 ;;',
+  `  ls-tree) echo ${DIR}/001-a.md ;;`,
+  '  show) cat "$(dirname "$0")/lesson.md" ;;',
+  'esac',
+  '',
+].join('\n');
+
+function withStubGitOnPath(fn) {
+  const bin = mkdtempSync(join(tmpdir(), 'lessonshint-stub-'));
+  tmpDirs.push(bin);
+  writeFileSync(join(bin, 'git'), STUB_GIT);
+  chmodSync(join(bin, 'git'), 0o755);
+  writeFileSync(join(bin, 'lesson.md'), lessonText());
+  const previous = process.env.PATH;
+  process.env.PATH = `${bin}${delimiter}${previous}`;
+  try {
+    return fn();
+  } finally {
+    process.env.PATH = previous;
+  }
+}
+
+// Reading fd 0 is the only way to reach the default stdin reader in-process: free fd 0, and the
+// lowest-numbered open lands the fixture on it. Afterwards fd 0 is refilled so nothing else sees it closed.
+function withStdin(text, fn) {
+  const file = join(mkdtempSync(join(tmpdir(), 'lessonshint-stdin-')), 'stdin.txt');
+  tmpDirs.push(dirname(file));
+  writeFileSync(file, text);
+  closeSync(0);
+  const fd = openSync(file, 'r');
+  try {
+    return fn();
+  } finally {
+    closeSync(fd);
+    openSync('/dev/null', 'r');
+  }
+}
+
+test('Given the default dependencies, when run, then git is shelled out with stdin ignored and the scope comes from stdin', () => {
+  const io = makeCaptureIo();
+  const sut = main;
+
+  const code = withStubGitOnPath(() => withStdin('engine/src/x.js\n', () => sut(['--phase', 'validation'], io)));
+
+  assert.equal(code, 0);
+  assert.equal(io.stderr.joined(), '');
+  assert.ok(io.stdout.joined().includes(`- Title 001 \u2014 when running a scoped mutation \u2192 ${DIR}/001-a.md`));
+});
+
+for (const max of ['1x', 'x1']) {
+  test(`Given --max ${max}, when run, then usage on stderr and exit 2`, () => {
+    const sut = main;
+
+    const result = run(sut, ['--phase', 'validation', '--max', max]);
+
+    assert.equal(result.code, EXIT_USAGE);
+  });
+}
+
+test('Given --max 10, when run, then it is accepted', () => {
+  const sut = main;
+
+  const result = run(sut, ['--phase', 'validation', '--max', '10']);
+
+  assert.equal(result.code, 0);
+  assert.ok(result.out.includes('Title 001'));
+});
+
+test('Given a trailing flag without value after a valid pair, when run, then usage on stderr and exit 2', () => {
+  const sut = main;
+
+  const result = run(sut, ['--phase', 'validation', '--dir']);
+
+  assert.equal(result.code, EXIT_USAGE);
+  assert.equal(result.out, '');
+});
+
+test('Given the default base candidates, when run, then each is probed with a quiet verify', () => {
+  const git = fakeGit({ '001-a.md': lessonText() }, { base: 'origin/HEAD' });
+  const sut = main;
+
+  run(sut, ['--phase', 'validation'], { git });
+
+  assert.deepEqual(git.calls[0], ['rev-parse', '--verify', '--quiet', 'origin/HEAD']);
+});
+
+test('Given no resolvable base, when run, then the note lists every candidate tried', () => {
+  const git = fakeGit({}, { base: 'none' });
+  const sut = main;
+
+  const result = run(sut, ['--phase', 'validation'], { git });
+
+  assert.equal(result.err, 'craft-lessons-hint: no resolvable base revision (tried origin/HEAD, main, master)\n');
+});
+
+test('Given a --dir with several trailing slashes, when run, then the pathspec ends with a single slash', () => {
+  const git = fakeGit({ '001-a.md': lessonText() }, { base: 'v1', dir: 'custom' });
+  const sut = main;
+
+  run(sut, ['--phase', 'validation', '--base', 'v1', '--dir', 'custom//'], { git });
+
+  assert.deepEqual(git.calls.find((a) => a[0] === 'ls-tree'), ['ls-tree', '--name-only', 'v1', '--', 'custom/']);
+});
+
+test('Given a whitespace-only line in How to apply, when run, then it is kept out', () => {
+  const files = { '001-a.md': lessonText({ howToApply: 'One.\n  \nTwo.' }) };
+  const sut = main;
+
+  const result = run(sut, ['--phase', 'validation'], { files });
+
+  assert.ok(result.out.endsWith('  One.\n  Two.\n'));
+});
+
+test('Given only blank stdin lines and a lesson subject matching everything, when run, then nothing is printed', () => {
+  const files = { '001-a.md': lessonText({ subjects: "['**']" }) };
+  const sut = main;
+
+  const result = run(sut, ['--phase', 'validation'], { files, stdin: '\n  \n' });
+
+  assert.equal(result.out, '');
+});
+
+test('Given a padded scope path and an exact-path lesson subject, when run, then the path is trimmed before matching', () => {
+  const files = { '001-a.md': lessonText({ subjects: "['engine/src/x.js']" }) };
+  const sut = main;
+
+  const result = run(sut, ['--phase', 'validation'], { files, stdin: '  engine/src/x.js  \n' });
+
+  assert.ok(result.out.includes('Title 001'));
 });
