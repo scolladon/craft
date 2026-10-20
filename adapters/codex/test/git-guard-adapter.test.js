@@ -340,6 +340,7 @@ describe('decideGuard() - default guard composes the git verdict on the live 0.1
     ['a push behind a global --git-dir option', 'git --git-dir=.git push origin main', PUSH],
     ['a wrapped shell push', "bash -lc 'git push'", GATE],
     ['a hard reset', 'git reset --hard', RESET],
+    ['a plain git config write', 'git config user.name x', ALLOW],
     ['a plain status', 'git status', ALLOW],
   ];
 
@@ -357,6 +358,8 @@ describe('decideGuard() - default guard composes the git verdict on the live 0.1
 describe('codexGuard() - git verdict on Bash, containment on apply_patch', () => {
   const bashEvent = (command) => ({ tool: 'Bash', tool_input: { command }, working_dir: WORKING_DIR });
   const EXT_DIFF_REASON = 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
+  const EXT_DIFF_OPTION_REASON = '--ext-diff is denied on every git verb (external diff mangles parsed output)';
+  const ALIAS_REASON = 'craft: git config naming an alias or include key is denied \u2014 an alias can run any git verb';
   const UNPARSEABLE_REASON = 'craft: command not parseable (unterminated substitution) \u2014 denied fail-closed';
   const HEREDOC_IDIOM = 'git commit -m "$(cat <<\'EOF\'\nx)"; git branch -D victim; echo "\nEOF\n)"';
 
@@ -389,6 +392,9 @@ describe('codexGuard() - git verdict on Bash, containment on apply_patch', () =>
     ['an escaped quote in a commit message', 'git commit -m "fix: \\"q\\""', GATE],
     ['a push named through zsh equals expansion', '=git push origin main', GATE],
     ['a diff without no-ext-diff', 'git diff', { block: true, reason: EXT_DIFF_REASON }],
+    ['a log patch with --ext-diff', 'git log -p -1 --ext-diff', { block: true, reason: EXT_DIFF_OPTION_REASON }],
+    ['a git config alias write', 'git config alias.x diff', { block: true, reason: ALIAS_REASON }],
+    ['a git config alias write used as a push', 'git config alias.p push; git p', { block: true, reason: ALIAS_REASON }],
     ['an unterminated substitution', 'echo "$(', { block: true, reason: UNPARSEABLE_REASON }],
     ['a plain status', 'git status', ALLOW],
     ['a plain commit', 'git commit -m "feat: add x"', ALLOW],

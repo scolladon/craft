@@ -1,7 +1,7 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
-import { gitInvocations, INLINE_ALIAS_REASON } from '../../src/guards/shell-git-invocations.js';
+import { CONFIG_ALIAS_WRITE_REASON, gitInvocations, INLINE_ALIAS_REASON } from '../../src/guards/shell-git-invocations.js';
 
 const REASON_DYNAMIC_SUBCOMMAND =
   'craft: an expansion sits where git expects an option or the subcommand — spell it out; denied fail-closed in this binding';
@@ -553,4 +553,18 @@ describe('gitDestructivePredicate() — clean option parsing pins', () => {
     'git clean -ne --no-dry-run',
     'git branch -D5 x',
   ]);
+});
+
+const ALIAS_REASON = CONFIG_ALIAS_WRITE_REASON;
+
+describe('gitDestructivePredicate() — git config naming an alias key', () => {
+  for (const command of ['git config alias.p push; git p', 'git config alias.x diff']) {
+    it(`Given "${command}", when checked, then blocks with the alias reason`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: ALIAS_REASON });
+    });
+  }
 });

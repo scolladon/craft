@@ -177,21 +177,16 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open — A. Git guard rules (local code, runnable)
 
-Decision point to carry: how far to widen the ext-diff rule.
+None open. Both entries delivered 2026-10-20 (guard-fuzz-scale-ext-diff-widen): the scaled fuzz
+census is a gate (generator fixed at the composer, ADR-661), and the shared ext-diff rule denies
+`--ext-diff` on every git verb and any `git config` naming an alias or include key (ADR-660).
 
-**The fuzz goes red at scale on unclassified safe-direction false blocks.** With
-`GUARD_FUZZ_SEEDS` set to fresh seeds and `GUARD_FUZZ_COUNT=1500`, 5-6 commands per 5-10 seeds fail the
-census as "unexpected false block": git reached only through a short-circuited `&&`, a function defined
-in a pipeline subshell, or a `cat <(…)` log race. The default seed stays green. Classify them (or make
-the oracle wait for process substitutions) so the scale knob is usable as a gate.
-
-**The shared ext-diff rule allows `--ext-diff` on a non-diff verb and a config-defined diff alias.**
-`gitExtDiffPredicate` judges only `diff`/`show` (`DIFFING_VERBS`) and inline `-c alias.*`, so
-`git log -p --ext-diff` and `git config alias.x diff; git x` both return `block: false` (reproduced in-process
-on the claude-ext-diff-hook-gaps branch; the old Claude regex allowed both too, so no binding regressed).
-Every binding that composes the rule (Claude, codex, copilot) shares it. Not folded: widening the shared
-rule changes the verdict on every binding and needs its own decision (deny `--ext-diff` on any git verb?
-judge `git config alias.*` writes?), outside that run's ext-diff-hook scope.
+**`git show` without `--ext-diff` is blocked though git runs no external diff.** On git 2.54 (Apple)
+and 2.56 (Homebrew), `diff.external` fires by default only for `git diff`; `git show` needs
+`--ext-diff` (pinned matrix, `docs/contributing/design/guard-fuzz-scale-ext-diff-widen.md`
+Pinned G, row M23). Every binding still denies a bare `git show`. Not folded: dropping `show` from
+the default-deny changes every binding's verdict and needs your decision (and a pin on older git
+versions, where `show` may honour `diff.external`).
 
 ### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
 
@@ -262,6 +257,14 @@ reference, **19 of 19** load via the symlink fallback (registered as `craft:<nam
 is not achievable on codex 0.162.1; re-check on the next minor version.
 
 ### Open — C. Waiting on an external trigger
+
+**Run the engine differential fuzz at scale under bash >= 5.** The scaled census
+(`GUARD_FUZZ_COUNT=1500`, 15 pinned + 5 fresh seeds) is green on /bin/bash 3.2.57, but its second
+shell arm (the first bash >= 5 on PATH) was skipped: no bash 5 on the box that ran it
+(`docs/contributing/design/guard-fuzz-scale-ext-diff-widen.md`, Out of scope). Linux CI runs only the
+default seed under bash 5. **Trigger:** a box with bash >= 5 on PATH. Then run the three seed
+batches under `nice -n 19` and classify any new false block at its construct, as ADR-661 does.
+Not folded: waits on an external trigger.
 
 **Drop the `typed-rest-client` override once Stryker resolves past the exact `qs` pin.**
 `engine/package.json` overrides `typed-rest-client` to 2.3.0 because 2.3.1 (picked under

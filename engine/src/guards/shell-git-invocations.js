@@ -1,9 +1,14 @@
-import { DESTRUCTIVE_VERBS, DIFFING_VERBS, extend, indeterminate, normaliseFrom, subcommandResult, NO_SUBCOMMAND, texts, toWord, VALUE_SEPARATOR, walkFrom } from './git-argv.js';
+import { DESTRUCTIVE_VERBS, DIFFING_VERBS, EXT_DIFF_WORD, extend, indeterminate, normaliseFrom, subcommandResult, NO_SUBCOMMAND, texts, toWord, VALUE_SEPARATOR, walkFrom } from './git-argv.js';
 import { basename, parseShellCommands } from './shell-tokeniser.js';
 
 const GIT_COMMAND = 'git';
 const PATH_SEPARATOR = '/';
 const ALIAS_KEY_PREFIX = 'alias.';
+// A bare section word is what rename-section/copy-section writes alias or include keys under.
+const ALIAS_SECTIONS = new Set(['alias', 'include', 'includeif']);
+const CONFIG_VERB = 'config';
+const INCLUDE_PATH_KEY = 'include.path';
+const INCLUDE_IF_PREFIX = 'includeif.';
 
 export const INLINE_ALIAS_REASON =
   'craft: an inline git alias (-c alias.*) is denied — it can run any git verb';
@@ -27,15 +32,63 @@ const ANCHOR_VERBS = new Set([...DESTRUCTIVE_VERBS, ...DIFFING_VERBS]);
 // equivalent mutant (Regex without +): a delimiter run only splits into extra empty tokens, and '' is never in ANCHOR_VERBS
 const PATTERN_DELIMITERS = /[{},[\]]+/;
 
-const holdsAnchorVerb = ({ text }) => text.split(PATTERN_DELIMITERS).some(token => ANCHOR_VERBS.has(token));
+const isAliasKeyText = text => {
+  const key = text.toLowerCase();
+  return ALIAS_SECTIONS.has(key) || key.startsWith(ALIAS_KEY_PREFIX) || key.startsWith(INCLUDE_PATH_KEY) || key.startsWith(INCLUDE_IF_PREFIX);
+};
+const isAnchorToken = text => ANCHOR_VERBS.has(text) || text === EXT_DIFF_WORD;
+
+const tokensOf = ({ text }) => text.split(PATTERN_DELIMITERS);
+
+const holdsAnchorVerb = word => tokensOf(word).some(isAnchorToken);
+
+const holdsAliasKeyToken = word => tokensOf(word).some(isAliasKeyText);
+// equivalent mutant (Regex without +): a delimiter run only splits into extra empty alternatives, and '' never matches git
+const BRACE_DELIMITERS = /[{},]+/;
+const EXPANSION_MARKS = /[$`]/;
+const GLOB_CLASS = /\[[^\]]*\]/g;
+const REGEX_SPECIALS = /[.+^${}()|[\]\\]/g;
+const ANY_CHAR_SLOT = '\u0000';
+
+// A bracket class widens to any single character, so the match over-approximates and errs on blocking.
+const globMatchesGit = glob => {
+  // equivalent mutant (ArrowFunction () => undefined): a glob holding a regex special never matches the literal git, and the mutant's source holds the letters of 'undefined', which cannot match it either
+  const escaped = glob.replace(GLOB_CLASS, ANY_CHAR_SLOT).replace(REGEX_SPECIALS, special => `\\${special}`);
+  const source = escaped.replaceAll('?', '.').replaceAll('*', '.*').replaceAll(ANY_CHAR_SLOT, '.');
+  return new RegExp(`^${source}$`).test(GIT_COMMAND);
+};
+
+const mayExpandToGit = alternative =>
+  EXPANSION_MARKS.test(alternative) || globMatchesGit(basename(alternative).toLowerCase());
+
+const holdsGitToken = ({ text }) => text.split(BRACE_DELIMITERS).some(mayExpandToGit);
+const holdsRuleWord = word => holdsAliasKeyToken(word) || tokensOf(word).includes(EXT_DIFF_WORD);
+
+// A pattern word that may expand to git cannot show its verb, so an alias, include or --ext-diff
+// word from there on arms it; without a git token (mkdir -p {config,include}) they are plain text.
+const gitPatternAnchor = words => {
+  const lastRuleWordAt = words.findLastIndex(holdsRuleWord);
+  return (word, index) => holdsGitToken(word) && index <= lastRuleWordAt;
+};
+
+// Behind a word that may be git, an alias or include word matters only where git would run
+// config on it: the verb is config, or cannot be read (a dynamic or pattern verb).
+const runsConfigOnAlias = (words, gitAt) => {
+  const invocation = normaliseFrom(words, gitAt + 1);
+  // equivalent mutant (ConditionalExpression true for kind === 'subcommand'): only a subcommand invocation has a subcommand field, so the config check already implies the kind
+  const mayBeConfig = invocation.kind === 'indeterminate' || (invocation.kind === 'subcommand' && invocation.subcommand === CONFIG_VERB);
+  return mayBeConfig && words.slice(gitAt + 1).some(holdsAliasKeyToken);
+};
 
 const indeterminateAt = (words, index) =>
   extend(indeterminate(words, index + 1), { leadingWords: () => leadingOf(words, index) });
 
-const patternAnchors = (words, flag) =>
-  words.flatMap((word, index) =>
-    word.pattern === true && holdsAnchorVerb(word) ? [flag(indeterminateAt(words, index), index)] : []
+const patternAnchors = (words, flag) => {
+  const armsRule = gitPatternAnchor(words);
+  return words.flatMap((word, index) =>
+    word.pattern === true && (holdsAnchorVerb(word) || armsRule(word, index)) ? [flag(indeterminateAt(words, index), index)] : []
   );
+};
 
 const DASHED_VERB = /^git-([a-z][a-z-]*)$/i;
 
@@ -49,7 +102,7 @@ const dashedVerb = word => {
 const dashedAt = (words, index, verb) =>
   extend(subcommandResult(verb, words, index + 1, []), { leadingWords: () => leadingOf(words, index) });
 
-const isAnchorVerb = word => !word.dynamic && ANCHOR_VERBS.has(word.text);
+const isAnchorVerb = word => !word.dynamic && isAnchorToken(word.text);
 
 const isGitSpelling = word => isGitWord(word) || dashedVerb(word) !== null;
 
@@ -58,7 +111,7 @@ const isGitSpelling = word => isGitWord(word) || dashedVerb(word) !== null;
 const wrapperAnchors = (words, flag) => {
   const dynamicAt = words.findIndex((word, index) => index > 0 && word.dynamic);
   if (dynamicAt === -1 || words.slice(0, dynamicAt).some(isGitSpelling)) return [];
-  const verbAfter = words.slice(dynamicAt + 1).some(isAnchorVerb);
+  const verbAfter = words.slice(dynamicAt + 1).some(isAnchorVerb) || runsConfigOnAlias(words, dynamicAt);
   return verbAfter ? [flag(indeterminateAt(words, dynamicAt), dynamicAt)] : [];
 };
 
@@ -102,7 +155,11 @@ const channelCursor = ({ words, assignments }) => ({
 const injectsAt = ({ headInjects, firstWordAt }, anchorAt) =>
   headInjects || (firstWordAt !== -1 && firstWordAt < anchorAt);
 
-const flagged = (invocation, injects) => Object.defineProperty(invocation, 'injectsConfig', { value: injects, enumerable: false });
+const flagged = (invocation, { injectsConfig, mentionsExtDiff }) =>
+  Object.defineProperties(invocation, {
+    injectsConfig: { value: injectsConfig, enumerable: false },
+    mentionsExtDiff: { value: mentionsExtDiff, enumerable: false },
+  });
 
 const aliasValueWords = ({ text }) =>
   text.includes(VALUE_SEPARATOR)
@@ -114,12 +171,14 @@ const aliasesGit = word => aliasValueWords(word).some(isGitSpelling);
 const aliasDefinition = ({ words }) =>
     // equivalent mutant (MethodExpression words for words.slice(1)): words[0].text is 'alias' here and holds no '=', so it never aliases git
   words[0].text === ALIAS_BUILTIN && words.slice(1).some(aliasesGit)
-    ? [flagged(extend(NO_SUBCOMMAND, { leadingWords: () => [] }), true)]
+    // equivalent mutant (BooleanLiteral mentionsExtDiff true): a no-subcommand invocation is neither counted by readsArguments nor read by enablesExtDiff, so the flag is never consulted
+    ? [flagged(extend(NO_SUBCOMMAND, { leadingWords: () => [] }), { injectsConfig: true, mentionsExtDiff: false })]
     : [];
 
 const flaggerFor = command => {
   const cursor = channelCursor(command);
-  return (invocation, index) => flagged(invocation, injectsAt(cursor, index));
+  const mentionsExtDiff = command.words.some(({ text }) => text === EXT_DIFF_WORD);
+  return (invocation, index) => flagged(invocation, { injectsConfig: injectsAt(cursor, index), mentionsExtDiff });
 };
 
 const anchoredInvocations = command => {
@@ -143,7 +202,8 @@ const TOO_MANY_INVOCATIONS =
 // A verb the judges inspect hands them every later word, so each such anchor costs a pass over
 // the command; capping them bounds the total work.
 const readsArguments = invocation =>
-  invocation.kind !== 'no-subcommand' && (invocation.kind !== 'subcommand' || ANCHOR_VERBS.has(invocation.subcommand));
+  invocation.kind !== 'no-subcommand' &&
+  (invocation.kind !== 'subcommand' || ANCHOR_VERBS.has(invocation.subcommand) || invocation.subcommand === CONFIG_VERB || invocation.mentionsExtDiff === true);
 
 const exceedsAnchorCap = invocations =>
   invocations.filter(readsArguments).length > MAX_ARGUMENT_READING_ANCHORS;
@@ -157,9 +217,6 @@ export function gitInvocations(command) {
 }
 
 export const CONFIG_CHANNEL_REASON = 'craft: git config injected outside -c is denied in this binding';
-const INCLUDE_PATH_KEY = 'include.path';
-const INCLUDE_IF_PREFIX = 'includeif.';
-
 const holdsIncludeKey = invocation =>
   invocation.kind === 'subcommand' &&
   invocation.configKeys.some(key => key === INCLUDE_PATH_KEY || key.startsWith(INCLUDE_IF_PREFIX));
@@ -167,8 +224,21 @@ const holdsIncludeKey = invocation =>
 export const hasInlineAlias = invocation =>
   invocation.kind === 'subcommand' && invocation.configKeys.some(key => key.startsWith(ALIAS_KEY_PREFIX));
 
+export const CONFIG_ALIAS_WRITE_REASON =
+  'craft: git config naming an alias or include key is denied — an alias can run any git verb';
+
+const holdsAliasKeyText = text => holdsAliasKeyToken({ text });
+
+// An unreadable verb (git $C alias.x …) may be config, so an alias or include word after it counts.
+const namesAliasKey = invocation => {
+  if (invocation.kind === 'indeterminate') return invocation.rest.some(holdsAliasKeyText);
+  // equivalent mutant (ConditionalExpression true for kind === 'subcommand'): only a subcommand invocation has a subcommand field, so the config check already implies the kind
+  return invocation.kind === 'subcommand' && invocation.subcommand === CONFIG_VERB && invocation.args.some(holdsAliasKeyText);
+};
+
 export const configChannelReason = invocation => {
   if (hasInlineAlias(invocation)) return INLINE_ALIAS_REASON;
+  if (namesAliasKey(invocation)) return CONFIG_ALIAS_WRITE_REASON;
   return invocation.injectsConfig === true || holdsIncludeKey(invocation) ? CONFIG_CHANNEL_REASON : null;
 };
 

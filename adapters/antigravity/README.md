@@ -18,7 +18,7 @@ PreToolUse guard.
 |---|---|
 | Role agents | `agents/craft-*.md` — 9 Markdown agent customizations, bodies byte-identical to the shared `agents/*.md` (pinned by `test/native-surface.test.js`). |
 | Entrypoint | `skills/craft-run/SKILL.md` — defers to `${CRAFT_ROOT}/skills/run/SKILL.md`. |
-| Guard | `plugins/craft/hooks.json` registers a PreToolUse hook on `run_command`; `hooks/craft-guard.js` denies `git diff`/`git show` without `--no-ext-diff` and allows everything else (both directions pinned by tests). It reuses `engine/src/guards/{tool-call-guard,git-ext-diff-predicate}.js` — the predicate is never re-implemented. |
+| Guard | `plugins/craft/hooks.json` registers a PreToolUse hook on `run_command`; `hooks/craft-guard.js` denies `git diff`/`git show` without `--no-ext-diff` and denies any-verb `--ext-diff` and `git config` alias/include keys, and allows everything else (both directions pinned by tests). It reuses `engine/src/guards/{tool-call-guard,git-ext-diff-predicate}.js` — the predicate is never re-implemented. |
 | Execution | the agent's `run_command` tool runs `node ${CRAFT_ROOT}/engine/bin/*.js`. |
 
 ## Install

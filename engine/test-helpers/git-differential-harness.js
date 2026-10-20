@@ -34,11 +34,16 @@ const TAGS = Object.freeze({
   opaqueString: 'opaque-string',
   arithmeticHeredoc: 'arithmetic-heredoc',
   zshEquals: 'zsh-equals',
+  braceInProcessSubstitution: 'brace-in-process-substitution',
+  quoteInHeredocBody: 'quote-in-heredoc-body',
 });
 const FALSE_BLOCK_TAGS = Object.freeze([
   TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
   TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb, TAGS.zshEquals,
+  TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody,
 ]);
+// Both tags make bash 3.2 reject or mis-split the whole command, so the generator cannot vouch for its syntax.
+const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody]);
 const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc]);
 
 // The stub is the only git a judged command can reach: it records argv and does nothing else.
@@ -61,8 +66,8 @@ const singleQuote = text => `'${text.replaceAll("'", `'\\''`)}'`;
 
 // ---------------------------------------------------------------- fragments
 
-const fragment = (text, { tags = [], status = 0, simple = false, lineEnd = false, keywordLed = false } = {}) =>
-  Object.freeze({ text, tags: Object.freeze([...tags]), status, simple, lineEnd, keywordLed });
+const fragment = (text, { tags = [], status = 0, simple = false, lineEnd = false, keywordLed = false, list = false } = {}) =>
+  Object.freeze({ text, tags: Object.freeze([...tags]), status, simple, lineEnd, keywordLed, list });
 
 const mergedTags = (...fragments) => [...new Set(fragments.flatMap(item => item.tags))];
 
@@ -97,6 +102,8 @@ const VERBS = Object.freeze([
   ['diff', '--no-ext-diff'], ['show', ''], ['show', '--no-ext-diff HEAD'], ['status', ''], ['log', '-1'],
   ['reset', '--har'], ['clean', '--dry'], ['clean', '-fd --no-d'], ['branch', '--del --forc x'],
   ['diff', '--no-ext-diff --ext-diff'], ['show', '--ext-diff --no-ext-diff'],
+  ['log', '-p --ext-diff'], ['log', '-p --ext-diff --no-ext-diff'], ['format-patch', '-1 --stdout --ext-diff'],
+  ['config', 'alias.x diff'], ['config', '--get alias.x'], ['config', 'user.name x'],
 ]);
 const EXTRA_ARGS = Object.freeze(['', '', '', 'x', '\\"', "\\'", "$'ab'", '"a b"', "'a b'", '--', '-q']);
 const COMMENT_SUFFIXES = Object.freeze(['', '', '', '', ' # git push', ' # git reset --hard']);
@@ -125,20 +132,20 @@ function gitLeaf(rng) {
 }
 
 const SPECIALS = Object.freeze([
-  fragment('H=--hard; git reset $H', { tags: [TAGS.dynamicArg] }),
-  fragment('H=--soft; git reset $H', { tags: [TAGS.dynamicArg] }),
-  fragment('D=-D; git branch $D x', { tags: [TAGS.dynamicArg] }),
-  fragment('D=-d; git branch $D x', { tags: [TAGS.dynamicArg] }),
-  fragment('P=push; git $P HEAD', { tags: [TAGS.dynamicSubcommand] }),
-  fragment('D=diff; git $D HEAD', { tags: [TAGS.dynamicSubcommand] }),
-  fragment('S=status; git $S HEAD', { tags: [TAGS.dynamicSubcommand] }),
-  fragment('G=git; $G push', { tags: [TAGS.dynamicHead] }),
-  fragment('G=git; $G status', { tags: [TAGS.dynamicHead] }),
-  fragment('X=echo; $X push', { tags: [TAGS.dynamicHead] }),
+  fragment('H=--hard; git reset $H', { tags: [TAGS.dynamicArg], list: true }),
+  fragment('H=--soft; git reset $H', { tags: [TAGS.dynamicArg], list: true }),
+  fragment('D=-D; git branch $D x', { tags: [TAGS.dynamicArg], list: true }),
+  fragment('D=-d; git branch $D x', { tags: [TAGS.dynamicArg], list: true }),
+  fragment('P=push; git $P HEAD', { tags: [TAGS.dynamicSubcommand], list: true }),
+  fragment('D=diff; git $D HEAD', { tags: [TAGS.dynamicSubcommand], list: true }),
+  fragment('S=status; git $S HEAD', { tags: [TAGS.dynamicSubcommand], list: true }),
+  fragment('G=git; $G push', { tags: [TAGS.dynamicHead], list: true }),
+  fragment('G=git; $G status', { tags: [TAGS.dynamicHead], list: true }),
+  fragment('X=echo; $X push', { tags: [TAGS.dynamicHead], list: true }),
   fragment('$(echo git) push', { tags: [TAGS.dynamicHead] }),
   fragment('`echo git` diff', { tags: [TAGS.dynamicHead] }),
   fragment('$(echo true) push', { tags: [TAGS.dynamicHead] }),
-  fragment('P=push; git $P'),
+  fragment('P=push; git $P', { list: true }),
   fragment('git $(echo push)'),
   fragment('=git push', { tags: [TAGS.zshEquals] }),
   fragment('=git status', { tags: [TAGS.zshEquals] }),
@@ -162,17 +169,17 @@ const SPECIALS = Object.freeze([
   fragment('git pus[h] origin', { tags: [TAGS.patternWord] }),
   fragment('echo {push,x}', { tags: [TAGS.patternWord] }),
   fragment('gi[t] push', { tags: [TAGS.patternWord] }),
-  fragment('echo ${#x}; git push\necho }'),
-  fragment('(( x = 1 << 2 ))\ngit push', { tags: [TAGS.arithmeticHeredoc] }),
+  fragment('echo ${#x}; git push\necho }', { list: true }),
+  fragment('(( x = 1 << 2 ))\ngit push', { tags: [TAGS.arithmeticHeredoc], list: true }),
   fragment("bash -o pipefail -c 'git push'"),
   fragment("bash -O extglob -c 'git push'"),
   fragment("bash +e -c 'git push'"),
   fragment("env -S'git push'"),
   fragment("env -u X -S 'git push'"),
-  fragment('G=git; command $G push'),
-  fragment('G=git; exec $G push'),
-  fragment('G=git; nohup $G push'),
-  fragment('G=git; command $G diff'),
+  fragment('G=git; command $G push', { list: true }),
+  fragment('G=git; exec $G push', { list: true }),
+  fragment('G=git; nohup $G push', { list: true }),
+  fragment('G=git; command $G diff', { list: true }),
   fragment('echo "$HOME" show', { tags: [TAGS.dynamicBeforeVerb] }),
   fragment('git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),
   fragment('"$(git --exec-path)"/git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),
@@ -184,14 +191,24 @@ const SPECIALS = Object.freeze([
   fragment('git commit -m "fix {a,b}"'),
   fragment("git log --grep '*'"),
   fragment("echo $'hello'"),
-  fragment('ls *.md'),
-  fragment("bash -lc 'git status'"),
+  fragment('echo *.md'),
+  fragment("bash -lc 'git status || true'"),
   fragment(`echo push ${RESIDUAL_MARKER} | xargs git`, { tags: [TAGS.residual] }),
   fragment(`echo 'git push ${RESIDUAL_MARKER}' | sh`, { tags: [TAGS.residual] }),
   fragment(`printf 'git reset --hard ${RESIDUAL_MARKER}\\n' | bash`, { tags: [TAGS.residual] }),
+  fragment('cat <( {git,push} origin )', { tags: [TAGS.braceInProcessSubstitution] }),
 ]);
 
+// bash 3.2 rejects this whole command, so composed into another it would hide that one's git words from the oracle.
+const STANDALONE_SPECIALS = Object.freeze([
+  fragment('cat <<< "$( cat <<\'EOFQ\'\ngit status "x\nEOFQ\n)"', { tags: [TAGS.quoteInHeredocBody] }),
+]);
+const FIXED_ENTRIES = Object.freeze([...SPECIALS, ...STANDALONE_SPECIALS]);
+
 // ---------------------------------------------------------------- composers
+
+const pipedLeft = left => (left.simple ? left.text : `{ ${closed(left, '; }')} >/dev/null`);
+const pipedRight = right => (right.keywordLed || right.list ? `{ ${closed(right, '; }')}` : right.text);
 
 function sequence(generator, rng, depth) {
   const left = generator.compose(rng, depth);
@@ -199,20 +216,21 @@ function sequence(generator, rng, depth) {
   const op = left.lineEnd ? '\n' : pick(rng, [';', '&&', '||', '|', '\n']);
   const tags = mergedTags(left, right);
   const options = { tags, status: right.status, lineEnd: right.lineEnd, keywordLed: left.keywordLed };
-  if (op === '&&' && left.status === 0) return fragment(`${left.text} && ${right.text}`, options);
-  if (op === '||') return fragment(left.status === 0 ? `${left.text} ; false || ${right.text}` : `${left.text} || ${right.text}`, options);
-  if (op === '|') return fragment(`${left.text} | ${right.keywordLed ? `{ ${closed(right, '; }')}` : right.text}`, options);
-  return fragment(`${left.text}${op === '\n' ? '\n' : ' ; '}${right.text}`, options);
+  const listOptions = { ...options, list: true };
+  if (op === '&&' && left.status === 0) return fragment(`${left.text} && ${right.text}`, listOptions);
+  if (op === '||') return fragment(left.status === 0 ? `${left.text} ; false || ${right.text}` : `${left.text} || ${right.text}`, listOptions);
+  if (op === '|') return fragment(`${pipedLeft(left)} | ${pipedRight(right)}`, options);
+  return fragment(`${left.text}${op === '\n' ? '\n' : ' ; '}${right.text}`, listOptions);
 }
 
 const GROUPERS = Object.freeze([
   inner => fragment(`( ${closed(inner, ')')}`, { tags: inner.tags, status: inner.status }),
   inner => fragment(`{ ${closed(inner, '; }')}`, { tags: inner.tags, status: inner.status }),
-  inner => fragment(`! { ${closed(inner, '; }')}`, { ...inner, status: inner.status === 0 ? 1 : 0, keywordLed: true }),
-  inner => fragment(`time ${inner.text}`, { ...inner, keywordLed: true }),
+  inner => fragment(`! { ${closed(inner, '; }')}`, { ...inner, status: inner.status === 0 ? 1 : 0, keywordLed: true, simple: false, list: false }),
+  inner => fragment(inner.keywordLed ? `time { ${closed(inner, '; }')}` : `time ${inner.text}`, { ...inner, keywordLed: true, simple: false }),
   inner => fragment(`if true; then ${closed(inner, '; fi')}`, { tags: inner.tags, status: inner.status }),
-  inner => fragment(`case x in (x) ${closed(inner, ';; esac')}`, { tags: inner.tags, status: inner.status }),
-  inner => fragment(`f() { ${closed(inner, '; }')}; f`, { tags: inner.tags, status: inner.status }),
+  inner => fragment(inner.keywordLed ? `case x in (x) { ${closed(inner, '; }')} ;; esac` : `case x in (x) ${closed(inner, ';; esac')}`, { tags: inner.tags, status: inner.status }),
+  inner => fragment(`f() { ${closed(inner, '; }')}; f`, { tags: inner.tags, status: inner.status, list: true }),
   inner => fragment(`for i in 1; do ${closed(inner, '; done')}`, { tags: inner.tags, status: inner.status }),
 ]);
 
@@ -223,19 +241,23 @@ function group(generator, rng, depth) {
 
 // `sh` is dash on Linux CI: a body carrying any bash-only construct (brace expansion, extglob,
 // `((`, `$[`, `$"`, `|&`, `&>`) would run differently there than the guard's bash model.
-const BASHISMS = /\$'|\$"|\$\[|<\(|<<<|\btime\b|\[\[|\(\(|\|&|&>|[?*+@!]\(|\{[^{}\s]*(,|\.\.)[^{}\s]*\}/;
+const BRACE_EXPANSION = /\{[^{}\s]*(,|\.\.)[^{}\s]*\}/;
+const BASHISMS = new RegExp(String.raw`\$'|\$"|\$\[|<\(|<<<|\btime\b|\[\[|\(\(|\|&|&>|[?*+@!]\(|${BRACE_EXPANSION.source}`);
 const canBacktick = inner => !inner.text.includes('`') && !inner.text.includes('\\$');
 const SPLIT_SAFE = /^[\w .=/'"-]*$/;
 const canDoubleQuote = inner => inner.simple && !/["$`\\!]/.test(inner.text);
 
+const processSubstitutionTags = inner =>
+  BRACE_EXPANSION.test(inner.text) ? [...inner.tags, TAGS.braceInProcessSubstitution] : inner.tags;
+
 function nestedForms(inner) {
   const forms = [
-    () => fragment(`echo $( ${closed(inner, ')')}`, inner),
-    () => fragment(`cat <( ${closed(inner, ')')}`, inner),
+    () => fragment(`echo $( ${closed(inner, ')')}`, { ...inner, status: 0 }),
+    () => fragment(`cat <( ${closed(inner, ')')}`, { ...inner, status: 0, tags: processSubstitutionTags(inner) }),
     () => fragment(`bash -c ${singleQuote(inner.text)}`, inner),
     () => fragment(`eval ${singleQuote(inner.text)}`, inner),
   ];
-  if (canBacktick(inner) && !inner.lineEnd) forms.push(() => fragment(`echo \`${inner.text}\``, inner));
+  if (canBacktick(inner) && !inner.lineEnd) forms.push(() => fragment(`echo \`${inner.text}\``, { ...inner, status: 0 }));
   if (!BASHISMS.test(inner.text)) forms.push(() => fragment(`sh -c ${singleQuote(inner.text)}`, inner));
   if (inner.simple && SPLIT_SAFE.test(inner.text)) forms.push(() => fragment(`env -S ${singleQuote(inner.text)}`, { ...inner, simple: false }), () => fragment(`eval ${inner.text}`, inner));
   if (canDoubleQuote(inner)) forms.push(() => fragment(`bash -c "${inner.text}"`, inner));
@@ -245,15 +267,17 @@ function nestedForms(inner) {
 function nest(generator, rng, depth) {
   const inner = generator.compose(rng, depth);
   const nested = pick(rng, nestedForms(inner))();
-  return fragment(nested.text, { tags: inner.tags, status: nested.status === 0 ? 0 : inner.status });
+  return fragment(nested.text, { tags: nested.tags, status: nested.status === 0 ? 0 : inner.status });
 }
+
+const quotedBodyTags = inner => (SYNTAX_EXEMPT_TAGS.some(tag => inner.tags.includes(tag)) ? [TAGS.quoteInHeredocBody] : []);
 
 function heredoc(generator, rng, depth) {
   const inner = generator.compose(rng, depth);
   const delimiter = `EOF${generator.nextId()}`;
   const forms = [
-    () => fragment(`cat <<'${delimiter}'\n${inner.text}\n${delimiter}`, { lineEnd: true }),
-    () => fragment(`cat <<"${delimiter}"\n${inner.text}\n${delimiter}`, { lineEnd: true }),
+    () => fragment(`cat <<'${delimiter}'\n${inner.text}\n${delimiter}`, { tags: quotedBodyTags(inner), lineEnd: true }),
+    () => fragment(`cat <<"${delimiter}"\n${inner.text}\n${delimiter}`, { tags: quotedBodyTags(inner), lineEnd: true }),
     () => fragment(`cat <<${delimiter}\n$( ${closed(inner, ')')}\n${delimiter}`, { tags: inner.tags, lineEnd: true }),
     () => fragment(`cat <<-${delimiter}\n\t$( ${closed(inner, ')')}\n\t${delimiter}`, { tags: inner.tags, lineEnd: true }),
     () => fragment(`cat <<< "$( ${closed(inner, ')')}"`, { tags: inner.tags }),
@@ -279,8 +303,8 @@ function createGenerator() {
 function generateCommands(seed, cap) {
   const rng = mulberry32(seed);
   const generator = createGenerator(rng);
-  const generated = Array.from({ length: cap - SPECIALS.length }, () => generator.compose(rng, MAX_DEPTH));
-  return Object.freeze([...SPECIALS, ...generated]);
+  const generated = Array.from({ length: cap - FIXED_ENTRIES.length }, () => generator.compose(rng, MAX_DEPTH));
+  return Object.freeze([...FIXED_ENTRIES, ...generated]);
 }
 // ---------------------------------------------------------------- Leg A runner and oracle
 
@@ -412,7 +436,12 @@ const DESTRUCTIVE_VERBS = Object.freeze({
 const SNIFFED = Object.keys(DESTRUCTIVE_VERBS);
 const CONFIG_KEY = /^(alias\..*|include\.path|includeif\..*)$/;
 
+const CONFIG_ARG_KEY = /^(alias|include|includeif|alias\..*|include\.path.*|includeif\..*)$/i;
+
 const injectsConfigKey = normalised => normalised.kind === 'subcommand' && normalised.configKeys.some(key => CONFIG_KEY.test(key));
+
+const namesConfigKey = normalised =>
+  normalised.kind === 'subcommand' && normalised.subcommand === 'config' && normalised.args.some(word => CONFIG_ARG_KEY.test(word));
 
 function lastExtDiffSetting(args) {
   return beforeEnd(args).findLast(word => word === '--ext-diff' || word === '--no-ext-diff');
@@ -420,13 +449,15 @@ function lastExtDiffSetting(args) {
 
 function judgeArgv(argv) {
   const normalised = normaliseGitArgv(argv);
-  const configured = injectsConfigKey(normalised);
+  const configured = injectsConfigKey(normalised) || namesConfigKey(normalised);
   if (normalised.kind === 'refused') return { destructive: SNIFFED.some(verb => normalised.rest.includes(verb)), extDiff: false };
   if (normalised.kind !== 'subcommand') return { destructive: false, extDiff: false };
   const args = beforeEnd(normalised.args);
   const destructive = DESTRUCTIVE_VERBS[normalised.subcommand]?.(args) ?? false;
   const diffs = normalised.subcommand === 'diff' || normalised.subcommand === 'show';
-  return { destructive: configured || destructive, extDiff: configured || (diffs && lastExtDiffSetting(args) !== '--no-ext-diff') };
+  const last = lastExtDiffSetting(args);
+  const extDiff = configured || (diffs ? last !== '--no-ext-diff' : last === '--ext-diff');
+  return { destructive: configured || destructive, extDiff };
 }
 
 const survivingArgvs = argvs => argvs.filter(argv => !argv.includes(RESIDUAL_MARKER));
@@ -464,6 +495,7 @@ export {
   RESIDUAL_MARKER,
   SANITY_BASH,
   SPAWN_TIMEOUT_MS,
+  SYNTAX_EXEMPT_TAGS,
   TAGS,
   findOnPath,
   generateCommands,

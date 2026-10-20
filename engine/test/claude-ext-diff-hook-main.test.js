@@ -101,6 +101,16 @@ describe('claude ext-diff hook main - reason prefix', () => {
     { label: 'a config channel assignment', command: 'GIT_CONFIG_COUNT=1 git status', reason: CONFIG_CHANNEL_REASON },
     { label: 'an unterminated substitution', command: 'echo "$(', reason: UNTERMINATED_SUBSTITUTION_REASON },
     { label: 'an inline alias for diff', command: 'git -c alias.d=diff d', reason: INLINE_ALIAS_REASON },
+    {
+      label: 'a non-diff verb enabling the external diff',
+      command: 'git log -p -1 --ext-diff',
+      reason: 'craft: --ext-diff is denied on every git verb (external diff mangles parsed output)',
+    },
+    {
+      label: 'a git config alias write',
+      command: 'git config alias.x diff',
+      reason: 'craft: git config naming an alias or include key is denied \u2014 an alias can run any git verb',
+    },
     { label: 'a command over the length cap', command: `git diff ${'x'.repeat(OVER_LIMIT_PADDING)}`, reason: OVER_LIMIT_REASON },
   ]) {
     it(`Given ${label}, when main judges the payload, then the engine reason keeps its single craft prefix`, () => {

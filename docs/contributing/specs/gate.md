@@ -50,12 +50,16 @@ hook set:
   `gitExtDiffPredicate`, the engine's ext-diff rule and the module codex's and copilot's Bash
   paths use for that rule. The parse sees through wrappers, assignments, subshells, groups,
   reserved words, quote removal, `sh -c`/`eval` and git global options, judges `--no-ext-diff`
-  and `rtk proxy` per invocation, and reads quoted text and heredoc bodies as data. Node prints
+  and `rtk proxy` per invocation, and reads quoted text and heredoc bodies as data. A literal
+  `--ext-diff` (the last setting before `--`) is denied on every git verb, and `git config` naming
+  an `alias`, `include.path` or `includeIf.*` key is denied. Node prints
   exactly one token: `allow`, on which the hook exits 0 with no output, or
   `{ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny",
   permissionDecisionReason: "craft: <engine reason>" } }`, which the hook prints as given. The
   reason is the engine's with one `craft: ` prefix:
-  `craft: git diff/show must carry --no-ext-diff (external diff mangles parsed output)`, or the
+  `craft: git diff/show must carry --no-ext-diff (external diff mangles parsed output)`,
+  `craft: --ext-diff is denied on every git verb (external diff mangles parsed output)`,
+  `craft: git config naming an alias or include key is denied — an alias can run any git verb`, or the
   config-channel, inline-alias or parse-failure reason (an over-long command included). A
   `tool_input.command` that is absent, `null` or empty is allowed; one that is not a string
   inside JSON objects makes node exit 1, a crash.
@@ -107,7 +111,7 @@ there is no `permission: "deny"` field. Handler errors block fail-safe (an unhan
 handler is treated as a veto). Pi has no harness-hook concept — the `pi.on("tool_call", ...)` hook
 is Pi's equivalent of the PreToolUse mechanism, not a hook file on disk. The deterministic
 `tool_call` predicate (the Pi-side equivalent of `git-no-ext-diff.sh`'s ext-diff verdict) is
-unit-tested separately (part 5).
+unit-tested separately (part 5); it enforces the same widened rule (`--ext-diff` on any verb, `git config` alias/include keys).
 
 **gate-command**: Pi has no harness-hook concept for gate execution; the resolved gate string is
 run as a normal subprocess via `execFile` or equivalent (argv array, no shell). The never-commit-
@@ -122,7 +126,7 @@ output)` hook (opencode 1.18.3 expects a plugin's hooks at the top level, keyed 
 wrapped in a `hooks` object). The plugin composes `adapters/opencode/src/git-guard-adapter.js`
 (`commandFromToolEvent`, reading the bash command from `output.args.command` with a defensive
 `input.args.command` fallback) over `adapters/opencode/src/git-guard-predicate.js` — the same
-`git diff`/`show` without `--no-ext-diff` predicate the Claude and Pi bindings enforce. A block
+`git diff`/`show` without `--no-ext-diff` predicate the Claude and Pi bindings enforce (the shared predicate also denies any-verb `--ext-diff` and `git config` alias/include keys). A block
 verdict throws inside the hook, which opencode surfaces to the caller as the tool failure; the
 worker retries with the corrected call. `opencode.json`'s `permission.external_directory: deny`
 is the containment mechanism alongside the guard, denying tool access outside the working
@@ -211,7 +215,8 @@ backtick.
 tokeniser), `git-argv.js` (git global-option normaliser), `shell-git-invocations.js` (anchoring and
 judging), `git-plain-command-gate.js` (the plain-command gate), `git-destructive-predicate.js`,
 `git-ext-diff-predicate.js` and `git-bash-verdict.js` (the shared Bash verdict copilot and codex
-call: gate, then destructive git, then ext-diff over one parse).
+call: gate, then destructive git, then ext-diff over one parse). The guard protects parsed command
+output from an external diff driver by reading command text; it is not a sandbox.
 
 **Verdict deadline.** The verdict is computed in a worker thread under a 5 s deadline; a miss denies
 (`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s timeout
@@ -233,13 +238,24 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   run later, `watch`, `ssh host '…'`, `su -c`, `script -c`, `parallel`, `git rebase --exec`);
   gitconfig-file aliases; a dynamic string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`);
   word-splitting in the command word (`git${IFS}diff`).
+- The ext-diff rule's residuals: a dynamic `--ext-diff` word on a non-diff verb
+  (`X=--ext-diff; git log -p $X`) and a fully dynamic `git config` key (`git config "$K" diff`),
+  both blocked by the plain gate on codex and copilot only; an alias already present in a
+  gitconfig; `git config --edit` through `GIT_EDITOR` and `git clone -c alias.*`, both also
+  blocked by the plain gate on codex and copilot only. Deliberate
+  over-blocks: `git config --get alias.x`, `git config --get include`, `git config alias.x status`,
+  `echo git log --ext-diff`, `git log --grep --ext-diff`, and an alias or include word after a word
+  that may be git and a verb that is `config` or unreadable (`grep -rn "$PAT" config include`,
+  `grep "$a" "$b" alias`) — the same shape as `command $G config alias.x` and
+  `git $C alias.x`, which the rule must deny.
 - A renamed or copied git binary (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
   string guard; `hash -p` is blocked.
 - Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions
   have stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
   `update-ref -d`, `filter-branch`, `send-pack`).
-- Closed, no longer residuals: shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
+- Closed, no longer residuals: `--ext-diff` on non-diff verbs and `git config` alias/include
+  writes, including a `rename-section`/`copy-section` onto an `alias` or `include` section; shell aliases via an `alias` builtin with a git word, `GIT_CONFIG_*`
   env channels and `-c include.path`, and brace/glob/`$'\…'`/`$"…"`/dashed `git-<verb>`/wrapper
   dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap, backed by the
   verdict deadline: the 80 KB `eval` chain that took 49 s and then

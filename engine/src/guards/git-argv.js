@@ -182,3 +182,4 @@ export const optionWords = words => {
 
 export const DESTRUCTIVE_VERBS = Object.freeze(['push', 'reset', 'clean', 'branch']);
 export const DIFFING_VERBS = Object.freeze(['diff', 'show']);
+export const EXT_DIFF_WORD = '--ext-diff';

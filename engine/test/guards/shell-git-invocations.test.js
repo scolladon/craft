@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { gitDestructivePredicate } from '../../src/guards/git-destructive-predicate.js';
 import { gitExtDiffPredicate } from '../../src/guards/git-ext-diff-predicate.js';
 import { parseShellCommands } from '../../src/guards/shell-tokeniser.js';
-import { gitInvocations, hasInlineAlias, judgeParsed } from '../../src/guards/shell-git-invocations.js';
+import { configChannelReason, gitInvocations, hasInlineAlias, judgeParsed } from '../../src/guards/shell-git-invocations.js';
 
 const subcommand = (name, args = [], configKeys = [], dynamicArgCount = 0) => ({
   kind: 'subcommand',
@@ -412,6 +412,187 @@ describe('gitInvocations() — anchor cap pins', () => {
         parsed: false,
         reason: 'craft: command not parseable (too many git invocations) — denied fail-closed',
       });
+    });
+  }
+});
+
+describe('gitInvocations() — ext-diff anchors', () => {
+  const CAP = 256;
+
+  it('Given more than the cap of non-diff verbs enabling ext-diff, when anchored, then the command is denied fail-closed', () => {
+    const sut = gitInvocations;
+
+    const result = sut('git log --ext-diff '.repeat(CAP + 1));
+
+    assert.deepEqual(result, {
+      parsed: false,
+      reason: 'craft: command not parseable (too many git invocations) — denied fail-closed',
+    });
+  });
+
+  it('Given far more than the cap of plain status words, when anchored, then they are not counted', () => {
+    const sut = gitInvocations;
+
+    const result = sut('git status '.repeat(300));
+
+    assert.equal(result.parsed, true);
+  });
+
+  it('Given a dynamic pattern head with ext-diff, when anchored, then an indeterminate invocation is returned', () => {
+    const sut = gitInvocations;
+
+    const result = sut('{git,log,--ext-diff}');
+
+    assert.equal(result.invocations.some(({ kind }) => kind === 'indeterminate'), true);
+  });
+});
+
+const ALIAS_REASON =
+  'craft: git config naming an alias or include key is denied \u2014 an alias can run any git verb';
+
+describe('configChannelReason() — git config naming an alias or include key', () => {
+  for (const command of [
+    'git config alias.x diff',
+    'git config ALIAS.x diff',
+    'git config Alias.X diff',
+    'git config set alias.x diff',
+    'git config --add alias.x diff',
+    'git config --replace-all alias.x diff',
+    'git config --local alias.x diff',
+    'git config --global alias.x diff',
+    'git config -f .git/config alias.x diff',
+    'git config --file=.git/config alias.x diff',
+    'git config --type=bool --no-type alias.x diff',
+    'git config set --append alias.x diff',
+    'git config -- alias.x diff',
+    "git config alias.x '!git diff'",
+    'git config --rename-section foo alias',
+    'git config rename-section foo alias',
+    'git config rename-section foo include',
+    'git config --rename-section foo Include',
+    'git config copy-section foo INCLUDE',
+    'git config --copy-section foo include',
+    'git config include.path f',
+    'git config include.pathx f',
+    'git config rename-section foo includeIf',
+    'git config set includeIf.gitdir:/r/.git.path f',
+    'git config alias.$N diff',
+    'git config alias.x diff; git x',
+    'git config alias.p push; git p',
+    'git config alias.x status',
+    'git config --get alias.x',
+    'git config --get-regexp alias',
+    'git config --unset alias.x',
+    'git config --remove-section alias',
+  ]) {
+    it(`Given "${command}", when judged, then the alias reason is returned`, () => {
+      const sut = configChannelReason;
+
+      const result = sut(gitInvocations(command).invocations[0]);
+
+      assert.equal(result, ALIAS_REASON);
+    });
+  }
+
+  for (const command of ['git config user.name x', 'git config --list', 'git config --get user.email']) {
+    it(`Given "${command}", when judged, then no reason is returned`, () => {
+      const sut = configChannelReason;
+
+      const result = sut(gitInvocations(command).invocations[0]);
+
+      assert.equal(result, null);
+    });
+  }
+});
+
+describe('gitExtDiffPredicate() — config residuals', () => {
+  for (const command of ['git config "$K" diff', 'git x', 'GIT_EDITOR=x git config --edit']) {
+    it(`Given "${command}", when checked, then it is allowed`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+  }
+
+  for (const command of [
+    '{git,config,alias.x,status}',
+    'G=git; command $G config alias.x status',
+    'git config {alias.x,y} diff',
+    '{git,config} alias.x diff',
+    'command $G $V alias.x status',
+    'command $G "$C" --add alias.x v',
+    'command $G $V include.path /tmp/x',
+    'command $G con[f]ig alias.x st',
+    'command $G confi? alias.x st',
+    "git $C alias.m '!echo m' --no-ext-diff",
+    'grep -rn "$PAT" config include',
+    '{git,log,-p} --ext-diff',
+    '{git,commit} --ext-diff',
+    '{git,confi?} alias.x st',
+    '{git,c?nfig,include.path,/tmp/x}',
+    '{/usr/bin/g?t,config,alias.x,y}',
+    '{g?t,config,include.path,/tmp/x}',
+    '{/usr/bin/gi[t],log,-p} --ext-diff',
+    '{/usr/bin/g*t,config} alias.x y',
+    '{$G,config,alias.x,y}',
+    'echo g[iz]t alias.x',
+  ]) {
+    it(`Given "${command}", when checked, then it is blocked`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, true);
+    });
+  }
+});
+
+describe('gitInvocations() — config anchors', () => {
+  it('Given more than the cap of config invocations, when anchored, then the command is denied fail-closed', () => {
+    const sut = gitInvocations;
+
+    const result = sut('git config user.name x '.repeat(257));
+
+    assert.equal(result.parsed, false);
+  });
+});
+
+describe('alias and include words outside git config', () => {
+  for (const command of [
+    'echo $X alias',
+    'grep -r "$x" alias',
+    'ls $DIR include.path',
+    'echo {alias.x,y}',
+    'git commit -m alias.x',
+    'git log --grep alias.x',
+    'git log --grep include.path',
+    'echo $X alias config',
+    'ls $D include.path config',
+    'mkdir -p {config,include,src}',
+    'rm -rf build/{config,include}',
+    'tar czf x.tgz {config,include}',
+    'ls {s?c,config} include',
+    'echo {gi.t,x} alias.x',
+    'echo {git,status}',
+    'echo alias.x {git,y}',
+    'echo alias.x $Y config',
+  ]) {
+    it(`Given "${command}", when checked by the ext-diff rule, then it is allowed`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
+    });
+
+    it(`Given "${command}", when checked by the destructive rule, then it is allowed`, () => {
+      const sut = gitDestructivePredicate;
+
+      const result = sut(command);
+
+      assert.equal(result.block, false);
     });
   }
 });
