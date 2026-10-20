@@ -530,6 +530,11 @@ describe('gitExtDiffPredicate() — config residuals', () => {
     '{git,commit} --ext-diff',
     '{git,confi?} alias.x st',
     '{git,c?nfig,include.path,/tmp/x}',
+    '{/usr/bin/g?t,config,alias.x,y}',
+    '{g?t,config,include.path,/tmp/x}',
+    '{/usr/bin/gi[t],log,-p} --ext-diff',
+    '{/usr/bin/g*t,config} alias.x y',
+    '{$G,config,alias.x,y}',
   ]) {
     it(`Given "${command}", when checked, then it is blocked`, () => {
       const sut = gitExtDiffPredicate;
@@ -565,6 +570,7 @@ describe('alias and include words outside git config', () => {
     'mkdir -p {config,include,src}',
     'rm -rf build/{config,include}',
     'tar czf x.tgz {config,include}',
+    'ls {s?c,config} include',
   ]) {
     it(`Given "${command}", when checked by the ext-diff rule, then it is allowed`, () => {
       const sut = gitExtDiffPredicate;

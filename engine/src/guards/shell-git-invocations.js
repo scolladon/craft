@@ -43,7 +43,23 @@ const tokensOf = ({ text }) => text.split(PATTERN_DELIMITERS);
 const holdsAnchorVerb = word => tokensOf(word).some(isAnchorToken);
 
 const holdsAliasKeyToken = word => tokensOf(word).some(isAliasKeyText);
-const holdsGitToken = word => tokensOf(word).some(token => basename(token).toLowerCase() === GIT_COMMAND);
+const BRACE_DELIMITERS = /[{},]+/;
+const EXPANSION_MARKS = /[$`]/;
+const GLOB_CLASS = /\[[^\]]*\]/g;
+const REGEX_SPECIALS = /[.+^${}()|[\]\\]/g;
+const ANY_CHAR_SLOT = '\u0000';
+
+// A bracket class widens to any single character, so the match over-approximates and errs on blocking.
+const globMatchesGit = glob => {
+  const escaped = glob.replace(GLOB_CLASS, ANY_CHAR_SLOT).replace(REGEX_SPECIALS, special => `\\${special}`);
+  const source = escaped.replaceAll('?', '.').replaceAll('*', '.*').replaceAll(ANY_CHAR_SLOT, '.');
+  return new RegExp(`^${source}$`).test(GIT_COMMAND);
+};
+
+const mayExpandToGit = alternative =>
+  EXPANSION_MARKS.test(alternative) || globMatchesGit(basename(alternative).toLowerCase());
+
+const holdsGitToken = ({ text }) => text.split(BRACE_DELIMITERS).some(mayExpandToGit);
 const holdsRuleWord = word => holdsAliasKeyToken(word) || tokensOf(word).includes(EXT_DIFF_WORD);
 
 // A pattern word that may expand to git cannot show its verb, so an alias, include or --ext-diff
