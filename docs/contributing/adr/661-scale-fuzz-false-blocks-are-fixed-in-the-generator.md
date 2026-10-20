@@ -31,6 +31,8 @@ upstream, `time` treated as simple) and two bash 3.2 behaviours (brace expansion
 ## Decision
 
 Adopted-as-recommended (no user judgment): option 1. The predicates do not change for this entry.
+The heredoc-quote tag exempts both the syntax check and the false-block check, like the
+existing unterminated tag: bash 3.2 rejects the whole command and runs none of it.
 
 ## Consequences
 
