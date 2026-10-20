@@ -43,13 +43,14 @@ const tokensOf = ({ text }) => text.split(PATTERN_DELIMITERS);
 const holdsAnchorVerb = word => tokensOf(word).some(isAnchorToken);
 
 const holdsAliasKeyToken = word => tokensOf(word).some(isAliasKeyText);
-const holdsConfigToken = word => tokensOf(word).includes(CONFIG_VERB);
+const holdsGitToken = word => tokensOf(word).some(token => basename(token).toLowerCase() === GIT_COMMAND);
+const holdsRuleWord = word => holdsAliasKeyToken(word) || tokensOf(word).includes(EXT_DIFF_WORD);
 
-// A pattern word expanding to config arms the alias or include words from there on; elsewhere
-// (echo {alias.x,y}) they are plain text.
-const configPatternAnchor = words => {
-  const lastAliasAt = words.findLastIndex(holdsAliasKeyToken);
-  return (word, index) => holdsConfigToken(word) && index <= lastAliasAt;
+// A pattern word that may expand to git cannot show its verb, so an alias, include or --ext-diff
+// word from there on arms it; without a git token (mkdir -p {config,include}) they are plain text.
+const gitPatternAnchor = words => {
+  const lastRuleWordAt = words.findLastIndex(holdsRuleWord);
+  return (word, index) => holdsGitToken(word) && index <= lastRuleWordAt;
 };
 
 // Behind a word that may be git, an alias or include word matters only where git would run
@@ -64,9 +65,9 @@ const indeterminateAt = (words, index) =>
   extend(indeterminate(words, index + 1), { leadingWords: () => leadingOf(words, index) });
 
 const patternAnchors = (words, flag) => {
-  const armsAlias = configPatternAnchor(words);
+  const armsRule = gitPatternAnchor(words);
   return words.flatMap((word, index) =>
-    word.pattern === true && (holdsAnchorVerb(word) || armsAlias(word, index)) ? [flag(indeterminateAt(words, index), index)] : []
+    word.pattern === true && (holdsAnchorVerb(word) || armsRule(word, index)) ? [flag(indeterminateAt(words, index), index)] : []
   );
 };
 
