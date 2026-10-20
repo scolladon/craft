@@ -296,6 +296,22 @@ const namesAliasKey = invocation =>
   `GIT_EDITOR` (G38), `Write` on `.git/config`, shell appends to a gitconfig,
   `git clone -c alias.x=diff`, and any alias that already exists.
 
+**2b′ — revised in review.** Three review cycles replaced the 2a/2b anchoring of alias and
+include words, each change proven by a red test first:
+- `isAliasKeyText` also takes the bare section words `include` and `includeif`:
+  `git config rename-section x include` turns an allowed `x.path` into `include.path` (live-proven
+  on git 2.54). The oracle's key table moved with it.
+- `isAnchorToken` no longer holds alias or include words, which had made `echo $X alias` block on
+  every binding. Instead: behind a wrapper's dynamic word, `runsConfigOnAlias` walks git's own
+  argv and arms an alias or include word only when the verb is `config` or unreadable (dynamic or
+  pattern) — `command $G $C alias.x v` and `command $G conf[i]g alias.x v` block; a pattern word
+  holding a `git` token arms any alias, include or `--ext-diff` word at or after it —
+  `{git,log,-p} --ext-diff` and `{git,confi?} alias.x st` block, `mkdir -p {config,include}` does
+  not; and `namesAliasKey` counts an indeterminate invocation's words, closing
+  `git $C alias.x … --no-ext-diff` on Claude, opencode and pi.
+- Accepted over-block of the dynamic-before-verb class: `grep -rn "$PAT" config include` and
+  `grep "$a" "$b" alias` read as `command $G config include` and must block (gate.md lists them).
+
 **2c — oracle and generator in lock-step** (R5).
 
 - `judgeArgv`: `configured` also holds for `subcommand === 'config'` with any argument matching
