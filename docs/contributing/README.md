@@ -8,6 +8,7 @@ and where a craft run writes its own artifacts.
 | [`adr/`](adr/) | accepted architecture decision records |
 | [`design/`](design/) | feature design docs |
 | [`plan/`](plan/) | parted TDD implementation plans |
+| [`lessons/`](lessons/) | evidence-backed lessons harvested by the lessons phase |
 | [`specs/`](specs/) | port contract specs, together with the proof-of-concept records that grounded them |
 | [`archive/`](archive/) | closed, dated program docs |
 | [`prd/`](prd/) | legacy product/design/plan docs absorbed from craft's early history |
@@ -16,6 +17,6 @@ and where a craft run writes its own artifacts.
 | [`releasing.md`](releasing.md) | how a release is cut: choosing the bump, the changelog section, the version bump, and the maintainer's tag |
 | [`metrics-baseline.report.json`](metrics-baseline.report.json) | committed telemetry baseline compared against on each run |
 
-`.claude/workflow.md` declares `paths.design`, `paths.adr`, `paths.plan`, and `paths.dod`
+`.claude/workflow.md` declares `paths.design`, `paths.adr`, `paths.plan`, `paths.lessons`, and `paths.dod`
 pointing at the trees above, so a craft run on this repository writes its own new design
 docs, decisions, and plans directly into them.

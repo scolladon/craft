@@ -13,4 +13,5 @@ for d in templates/design.md docs/contributing/design/*.md; do bash scripts/desi
 bash scripts/docs-structure-lint.sh docs/contributing
 bash scripts/docs-structure-lint.sh docs/guides
 bash scripts/docs-structure-lint.sh --audience docs
+node engine/bin/lesson-lint.js docs/contributing/lessons
 bash scripts/sync-adapter-agents.sh --check

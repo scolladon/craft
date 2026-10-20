@@ -32,4 +32,8 @@ export async function integrate() {
   return recorded(true, 'integrate: stopped before merge — human merges (headless safety)');
 }
 
-export const rolelessSteps = { workspace, decisions, propose, integrate };
+export async function lessons() {
+  return recorded(true, 'lessons: no-op (headless) — no session ledger to harvest');
+}
+
+export const rolelessSteps = { workspace, decisions, lessons, propose, integrate };

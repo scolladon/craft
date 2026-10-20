@@ -151,6 +151,16 @@
   produces:
     - docs
 
+- id: lessons
+  archetype: delivery
+  contract:
+    - delivery
+  procedure: craft:lessons
+  consumes:
+    - change
+  produces:
+    - lessons
+
 - id: propose
   archetype: delivery
   contract:

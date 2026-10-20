@@ -24,7 +24,7 @@ flowchart LR
   end
   verify --> ship
   subgraph ship [ship]
-    DO[documentation] --> PR[propose] --> IN{{"integrate 🧑"}}
+    DO[documentation] --> LE[lessons] --> PR[propose] --> IN{{"integrate 🧑"}}
   end
 ```
 
@@ -117,6 +117,7 @@ review          → parallel reviewers, one dimension each; fixes applied until 
 refactoring     → whole-codebase lens, behavior-preserving; may be an honest no-op
 validation      → your repo's engineering harness runs; findings fixed or proven benign
 documentation   → affected pages refreshed, backlog entry ticked
+lessons         → evidence-backed lessons harvested from the run, linted, committed
 propose         → pre-PR gate, push, PR created
 integrate   🧑  → CI to green; you confirm the merge; worktree torn down
 ```
@@ -132,6 +133,31 @@ Phases also run standalone, on any branch:
 | `/craft:validation` | scoped harness run + finding triage |
 | `/craft:init` | interview-driven manifest generator |
 | `/craft:metrics` | mines your transcript history into a usage report |
+
+## Every run teaches the next
+
+craft practises compound engineering: what one run learned the hard way is fed back into
+every later run on the same code, so craft improves with each run.
+
+```mermaid
+flowchart LR
+  RUN[run] -->|ledger events| LP[lessons phase]
+  LP -->|drafts on the branch| PR{{"PR review 🧑"}}
+  PR -->|merge ratifies| LD[(lessons corpus)]
+  LD -->|filter by subject and phase| C[consult at phase entry]
+  C -->|index line + How to apply| NX[next run]
+  NX --> RUN
+```
+
+- **Evidence or nothing.** A lesson without proof is rejected by the linter.
+- **Ratified by review.** Drafts land on the PR branch; merging the PR is the approval.
+- **Advisory.** Lessons inform an agent's context, they never gate a phase.
+- **Scoped and small.** Frontmatter filters by subject and phase, then each lesson costs an
+  index line and a short rule, nothing more.
+- **Optional.** `pipeline.skip: [lessons]` turns it off.
+
+How it works: [docs/guides/lessons.md](docs/guides/lessons.md). The corpus, starting with
+its first real lesson, lives in [docs/contributing/lessons/](docs/contributing/lessons/).
 
 ## What it costs, measured
 
@@ -197,8 +223,8 @@ in code where a silent regression is expensive to discover later.
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
-receipts: [85 design docs](docs/contributing/design/), [83 parted plans](docs/contributing/plan/),
-[654 ADRs](docs/contributing/adr/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
+receipts: [86 design docs](docs/contributing/design/), [84 parted plans](docs/contributing/plan/),
+[659 ADRs](docs/contributing/adr/), [2 lessons](docs/contributing/lessons/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
@@ -243,7 +269,7 @@ proof the seams are real:
 
 | Runtime | Binding shape |
 |---|---|
-| [pi](adapters/pi/) | headless subprocess — full 11-phase walk (original portability proof) |
+| [pi](adapters/pi/) | headless subprocess — full 12-phase walk (original portability proof) |
 | [opencode](adapters/opencode/) | native commands + subagents + enforcing plugin |
 | [copilot](adapters/copilot/) | native plugin, shares craft skills by reference |
 | [codex](adapters/codex/) | local marketplace + blocking PreToolUse guard, armed by a scriptable trust step |

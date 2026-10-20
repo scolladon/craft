@@ -35,7 +35,7 @@ a fresh `part-implementer` subagent picks the work back up from the last committ
 the plan's pre-chewed context block — never from scrollback that no longer exists.
 
 ```
-┌─ the run: 11-phase walk ───────────────────────────────────────────────┐
+┌─ the run: 12-phase walk ───────────────────────────────────────────────┐
 │                                                                        │
 │  ┌─ the phase: e.g. review convergence rounds (≤ max_cycles) ────────┐ │
 │  │                                                                   │ │
@@ -51,7 +51,7 @@ the plan's pre-chewed context block — never from scrollback that no longer exi
 
 | External concept | craft mechanism (real) | Owning doc / key |
 |---|---|---|
-| The loop, written down (gather → reason → act → verify) | the 11-phase pipeline walk `workspace → design → decisions → planning → implementation → review → refactoring → validation → documentation → propose → integrate`, driven by `skills/run` | [../../README.md](../../README.md); [../contributing/prd/DESIGN-customizable-engine.md](../contributing/prd/DESIGN-customizable-engine.md) §Orchestrator pipeline walk |
+| The loop, written down (gather → reason → act → verify) | the 12-phase pipeline walk `workspace → design → decisions → planning → implementation → review → refactoring → validation → documentation → lessons → propose → integrate`, driven by `skills/run` | [../../README.md](../../README.md); [../contributing/prd/DESIGN-customizable-engine.md](../contributing/prd/DESIGN-customizable-engine.md) §Orchestrator pipeline walk |
 | Loops nest | review convergence rounds (`phases.review.harness.passes` / `max_cycles` / `convergence`); part-level RED→GREEN→REFACTOR (construction bundle); reset-on-red = never-commit-on-red + respawn-from-artifact | [customizing.md](customizing.md) §3 (harness config); [../contributing/prd/DESIGN-customizable-engine.md](../contributing/prd/DESIGN-customizable-engine.md) §Engine-owned contract injection; [customizing.md](customizing.md) §2 |
 | Roles separated (Planner / Generator / Evaluator), each fresh-context | **Planner:** `requirements-writer`, `designer`, `planner` · **Generator:** `part-implementer`, `refactor-executor`, `docs-writer` (+ `backlog-ticker`) · **Evaluator:** `reviewer`, `harness-triager` — each a fresh-context subagent fed from the artifact | [../../agents/](../../agents/); [../contributing/prd/DESIGN-customizable-engine.md](../contributing/prd/DESIGN-customizable-engine.md) §Orchestrator pipeline walk (respawn-from-artifact) |
 | State on disk, not in the model | zero session-memory dependence; the artifact chain brief → PRD → design → ADRs → parted plan (pre-chewed context blocks) → run record → Memory port; every hop survives a reset | [../../README.md](../../README.md) (opening); [customizing.md](customizing.md) §1–§2; [../contributing/specs/memory.md](../contributing/specs/memory.md) |
@@ -226,7 +226,7 @@ skim it first, then open the frame section above for the full mapping and its ow
 
 | External term | craft mechanism | Where configured |
 |---|---|---|
-| The loop, written down | the 11-phase pipeline walk | `skills/run` |
+| The loop, written down | the 12-phase pipeline walk | `skills/run` |
 | Roles (Planner / Generator / Evaluator) | per-phase role agents | `agents/` |
 | State on disk | artifact chain + Memory port | [../contributing/specs/memory.md](../contributing/specs/memory.md) |
 | Harness | the harness archetype | [customizing.md](customizing.md) §1 |

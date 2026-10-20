@@ -1,13 +1,18 @@
 import { describe, it, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import os from 'node:os';
 import { resolvePipeline, assembleBlock } from '../src/engine.js';
+import { parsePipeline } from '../../../engine/src/descriptor.js';
+import { enabledPhaseIds } from '../../../engine/src/phase-truth.js';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = join(__dir, '..', '..', '..');
+const ENABLED_IDS = enabledPhaseIds(
+  parsePipeline(readFileSync(join(REPO_ROOT, 'pipeline', 'default.yml'), 'utf8')),
+);
 const BLOCKER_MARKER = 'Blocker protocol: { unit, reason, ≤3 options }';
 
 describe('resolvePipeline()', () => {
@@ -119,7 +124,7 @@ describe('resolvePipeline(manifestPath) — committed-manifest thread', () => {
     if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('Given manifest skips refactoring, when resolvePipeline(manifestPath) called, then effective has 10 phases and excludes refactoring', async () => {
+  it('Given manifest skips refactoring, when resolvePipeline(manifestPath) called, then effective has every enabled phase except refactoring', async () => {
     tmpDir = mkdtempSync(join(os.tmpdir(), 'craft-pi-engine-test-'));
     const skipManifestPath = join(tmpDir, 'skip-manifest.md');
     writeFileSync(skipManifestPath, [
@@ -134,7 +139,7 @@ describe('resolvePipeline(manifestPath) — committed-manifest thread', () => {
 
     const result = await resolvePipeline(skipManifestPath);
 
-    assert.equal(result.effective.length, 10);
+    assert.equal(result.effective.length, ENABLED_IDS.filter(id => id !== 'refactoring').length);
     assert.ok(
       !result.effective.some(p => p.id === 'refactoring'),
       'refactoring must not appear in effective when skipped by manifest',
@@ -161,10 +166,10 @@ describe('resolvePipeline(manifestPath) — committed-manifest thread', () => {
     );
   });
 
-  it('Given no manifest path, when resolvePipeline() called, then effective still has 11 phases (R-no-sc1 unchanged)', async () => {
+  it('Given no manifest path, when resolvePipeline() called, then effective still has every enabled phase', async () => {
     const result = await resolvePipeline();
 
-    assert.equal(result.effective.length, 11);
+    assert.equal(result.effective.length, ENABLED_IDS.length);
   });
 
   it('Given no manifest path, when assembleBlock(design) called, then returns non-empty block (R-no-sc1 unchanged)', async () => {

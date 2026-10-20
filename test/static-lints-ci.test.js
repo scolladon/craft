@@ -33,6 +33,7 @@ const LINT_IDS = [
   'docs-structure-lint docs/contributing',
   'docs-structure-lint docs/guides',
   'docs-structure-lint --audience docs',
+  'lesson-lint docs/contributing/lessons',
   'sync-adapter-agents --check',
 ];
 const LOOP_FOLLOWERS = new Map([
@@ -42,7 +43,7 @@ const LOOP_FOLLOWERS = new Map([
 const ALL_INVOCATIONS = LINT_IDS.flatMap((id) => [id, ...(LOOP_FOLLOWERS.has(id) ? [LOOP_FOLLOWERS.get(id)] : [])]);
 
 const SHELL_STUB_NAMES = ['backlog-lint', 'design-lint', 'docs-structure-lint', 'sync-adapter-agents'];
-const NODE_STUB_NAMES = ['pipeline-lint', 'pipeline-resolve', 'contracts-lint'];
+const NODE_STUB_NAMES = ['pipeline-lint', 'pipeline-resolve', 'contracts-lint', 'lesson-lint'];
 const LINT_INPUTS = ['BACKLOG.md', 'templates/backlog.md', 'templates/design.md', 'docs/contributing/design/a.md', 'hooks/h.sh'];
 
 function shellStub(idExpression) {
@@ -106,7 +107,7 @@ function runStaticLints(failingLint) {
   }
 }
 
-test('Given every stubbed lint green, when static-lints runs, then it exits 0 after all twelve invocations in block order', () => {
+test('Given every stubbed lint green, when static-lints runs, then it exits 0 after all thirteen invocations in block order', () => {
   // Arrange
   const failingLint = NO_FAILING_LINT;
 

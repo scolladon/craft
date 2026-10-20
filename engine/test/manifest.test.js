@@ -4162,3 +4162,248 @@ test('Given a tool name at the length bound, when validatePhases runs, then a we
 
   assert.deepStrictEqual(errors, [], 'the bound must not reject a realistic MCP tool name');
 });
+
+// ─── lessons ─────────────────────────────────────────────────────────────────
+
+test('Given phases.lessons with a turn_budget, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { lessons: { turn_budget: 20 } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given pipeline.skip [lessons] and phases.lessons.required true, when validateManifest runs, then the only error is the skip and required conflict', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { skip: ['lessons'] }, phases: { lessons: { required: true } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.deepEqual(result.errors, ['phases.lessons.required: true conflicts with pipeline.skip: [lessons] — a phase cannot be both skipped and required']);
+});
+
+test('Given pipeline.skip [lessons] alone, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { pipeline: { skip: ['lessons'] } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given lessons { max_injected: 3 }, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: { max_injected: 3 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given lessons { max_injected: 0 }, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: { max_injected: 0 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+test('Given lessons.max_injected -1, when validateManifest runs, then the error says it must be a non-negative integer', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: { max_injected: -1 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('lessons.max_injected must be a non-negative integer')));
+});
+
+test('Given lessons.max_injected 1.5, when validateManifest runs, then the error says it must be a non-negative integer', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: { max_injected: 1.5 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('lessons.max_injected must be a non-negative integer')));
+});
+
+test('Given lessons.max_injected a string, when validateManifest runs, then the error says it must be a non-negative integer', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: { max_injected: '3' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('lessons.max_injected must be a non-negative integer')));
+});
+
+test('Given lessons { bogus: 1 }, when validateManifest runs, then the error names an unknown lessons field', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: { bogus: 1 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('unknown lessons field: bogus')));
+});
+
+test('Given lessons as an array, when validateManifest runs, then the error says lessons must be an object', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: [] },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('lessons must be an object')));
+});
+
+test('Given paths.lessons as an absolute path, when validateManifest runs, then the error says it must be a repo-relative directory path', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { lessons: '/abs/lessons' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('paths.lessons must be a repo-relative directory path')));
+});
+
+test('Given paths.lessons as a tilde path, when validateManifest runs, then the error says it must be a repo-relative directory path', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { lessons: '~/lessons' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('paths.lessons must be a repo-relative directory path')));
+});
+
+test('Given paths.lessons as a dot-dot segment, when validateManifest runs, then the error says it must be a repo-relative directory path', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { lessons: 'docs/../lessons' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('paths.lessons must be a repo-relative directory path')));
+});
+
+const UNSAFE_LESSONS_DIRS = [
+  ['a shell separator', 'docs/x; touch y'],
+  ['a command substitution', '$(id)'],
+  ['a backtick form', 'docs/`id`'],
+  ['a space', 'docs/my lessons'],
+  ['a variable expansion', '$HOME/notes'],
+];
+
+for (const [label, unsafe] of UNSAFE_LESSONS_DIRS) {
+  test(`Given paths.lessons with ${label}, when validateManifest runs, then the error says it must be a repo-relative directory path`, () => {
+    const sut = validateManifest;
+
+    const result = sut(
+      { paths: { lessons: unsafe } },
+      { fileExists: ALWAYS_EXISTS },
+    );
+
+    assert.equal(result.ok, false);
+    assert.ok(result.errors.some(e => e.includes('paths.lessons must be a repo-relative directory path')));
+  });
+}
+
+test('Given paths.lessons docs/contributing/lessons, when validateManifest runs, then no paths.lessons error is raised', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { lessons: 'docs/contributing/lessons' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.ok(!result.errors.some(e => e.includes('paths.lessons')));
+});
+
+test('Given paths.lessons as an empty string, when validateManifest runs, then the error says it must be a repo-relative directory path', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { lessons: '' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('paths.lessons must be a repo-relative directory path')));
+});
+
+test('Given paths.lessons as a number, when validateManifest runs, then the error says it must be a repo-relative directory path', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { lessons: 42 } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, false);
+  assert.ok(result.errors.some(e => e.includes('paths.lessons must be a repo-relative directory path')));
+});
+
+test('Given paths.lessons as a relative directory, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { paths: { lessons: 'docs/lessons' } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
+
+for (const [label, lessons] of [['a string', 'text'], ['null', null]]) {
+  test(`Given lessons as ${label}, when validateManifest runs, then the only error says lessons must be an object`, () => {
+    const sut = validateManifest;
+
+    const result = sut(
+      { lessons },
+      { fileExists: ALWAYS_EXISTS },
+    );
+
+    assert.deepEqual(result.errors, ['lessons must be an object { max_injected }']);
+  });
+}
+
+test('Given an empty lessons object, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { lessons: {} },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});

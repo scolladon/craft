@@ -1,6 +1,7 @@
 ---
 subjects:
   - engine/src/intention*.js   # intention.js, intention-subjects.js, intention-lint-main.js
+  - engine/src/lesson*.js      # lesson.js — the lessons lane parser
   - engine/src/glob.js         # shared matcher — advisory over-flag trade-off
 ---
 # Intention adapter spec
@@ -189,6 +190,31 @@ no decision record can appear in `stale[]`, `uncovered[]`, or `skipped[]` of a f
 
 **`record` for `file`.** ADR writes and living-page refresh/create route through today's existing
 write locations, unchanged — this backend's `record` adds no new write path.
+
+## Lessons lane
+
+Lessons are a second corpus lane beside the living pages, a file-only lane: a `custom` source does
+not serve lessons.
+
+- `consult` takes an optional `listLessons` dep (default: no lessons). `IntentionView.lessons`
+  holds `LessonRow` values: `{ path, title, trigger, howToApply, phases, lastVerified }`.
+  A lesson whose status is not `active` (superseded, retired) drops silently; a lesson that
+  fails to parse is skipped with reason `malformed-lesson`.
+- `sliceLessons(lessons, { phase, max })` keeps rows naming `phase`, orders them by
+  `lastVerified` descending with the path as tie-break, and caps at `max`. `max: 0` is off;
+  the run skill passes `lessons.max_injected`, default 3 per phase.
+- Disclosure layers: the frontmatter is never injected. The injected text is one index line
+  (`- <title> — when <trigger> → <path>`) plus the How to apply section verbatim, at most 6
+  non-empty lines. The agent opens the path for the rest.
+- `assertFresh().lessons[]` holds one `StaleRow` per active lesson whose subjects or evidence
+  paths changed while the lesson file did not. It is never in `stale[]`, never gated, and
+  `schemaVersion` stays 1.
+- The per-phase entry point is the `lessons-hint` bin (`engine/bin/lessons-hint.js`): scope paths
+  on stdin, `--phase`, `--max`, `--dir`, and it prints the ready slot-1 block or nothing. It reads
+  lessons only from the committed base revision, so injection is ratified-only: a lesson drafted
+  on the run's branch reaches no phase until it is merged. It never gates.
+- The orchestrator calls it at every phase entry and never reads lesson files itself; it holds no
+  in-session lessons state.
 
 ## Custom recipes (copy-paste reference)
 

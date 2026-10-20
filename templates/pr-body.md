@@ -38,3 +38,4 @@
 - **Pinned behaviours:** <invariants locked by tests, or none>
 - **Test plan:** <what proves it — suites run, coverage, manual checks>
 - **Run record:** <phase outcomes, POLICY and gate tokens from the run>
+- **Lessons:** <LESSONS line, NO-OP(lessons) line, or none>

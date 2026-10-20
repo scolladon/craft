@@ -42,6 +42,11 @@ test('NO-OP(architecture:<technique-id>): spelling pinned in architecture skill'
   assert.ok(content.includes('NO-OP(architecture:<technique-id>):'), 'Expected literal NO-OP(architecture:<technique-id>): in skills/architecture/SKILL.md');
 });
 
+test('NO-OP(lessons): spelling pinned in lessons skill', () => {
+  const content = fs.readFileSync(path.join(ROOT, 'skills', 'lessons', 'SKILL.md'), 'utf8');
+  assert.ok(content.includes('NO-OP(lessons):'), 'Expected literal NO-OP(lessons): in skills/lessons/SKILL.md');
+});
+
 test('NO-OP(verify): spelling pinned in validation skill', () => {
   const content = fs.readFileSync(path.join(ROOT, 'skills', 'validation', 'SKILL.md'), 'utf8');
   assert.ok(content.includes('NO-OP(verify):'), 'Expected literal NO-OP(verify): in skills/validation/SKILL.md');

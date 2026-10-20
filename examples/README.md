@@ -34,6 +34,7 @@ real repo the file lives at your project root as `.claude/workflow.md`.
 | — | **required** — pin a phase (`phases.<id>.required`) | [`phase-required/`](phase-required/) | 0 |
 | — | **reorder** phases (`pipeline.reorder`) | [`pipeline-reorder/`](pipeline-reorder/) | 1 |
 | — | **hygiene gate** (`hygiene.gate`) | [`hygiene-gate/`](hygiene-gate/) | 0 |
+| — | **lessons** corpus (`paths.lessons`, `lessons.max_injected`) | [`lessons-corpus/`](lessons-corpus/) | 0 |
 
 Tier 2 ships: the `extends:` registration surface is proven end-to-end (engine S7 fixture green).
 [`derived-plugin/`](derived-plugin/) shows a manifest registering a new phase, an agent, and a

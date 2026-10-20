@@ -93,6 +93,13 @@ adds a `warnings[]` entry (`run-state`) instead of parsing.
 
 The tokens below are greppable only: no regex row, and `run-state` does not consume them.
 
+- `LESSONS: <path> (<outcome>)[, …]` — emitted by the `lessons` phase (`craft:lessons`
+  step 6), one line per run that harvested.
+- `NO-OP(lessons): <reason>` — the `lessons` phase's instance of `NO-OP(<phase>):`;
+  `run-state` consumes it only through the generic `NO-OP(<phase>):` fold.
+- `LESSON-REVERIFY(<lesson>): <changed-path>` — emitted by the `validation` phase, one
+  line per changed path on each unwaived `assert-fresh` lessons row; resolved by the
+  `lessons` phase. It never joins the drift set and never reaches `intention.gate`.
 - `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` — `NNN` is the superseded
   target, `MMM` the superseding ADR, `<what changed>` is the `scope` string from the
   strict `supersedes` declaration verbatim, so the token and the ADR cannot disagree.
