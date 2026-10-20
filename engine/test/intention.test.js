@@ -1023,3 +1023,30 @@ test('Given a lesson named in waived, when assertFresh runs, then its row carrie
 
   assert.equal(result.lessons[0].waived, true);
 });
+
+test('Given rows with the newest first and the larger path first, when sliceLessons runs, then recency still wins over path', () => {
+  const sut = sliceLessons;
+  const rows = [row('b.md', ['design'], '2026-03-01'), row('a.md', ['design'], '2026-01-01')];
+
+  const result = sut(rows, { phase: 'design', max: 5 });
+
+  assert.deepEqual(result.map(r => r.path), ['b.md', 'a.md']);
+});
+
+test('Given two stale lessons listed out of order, when assertFresh runs, then lessons rows are sorted by page', () => {
+  const sut = assertFresh;
+  const deps = lessonsOf({}, { [LESSON_B]: lessonPage(), [LESSON_A]: lessonPage() });
+
+  const result = sut({ changed: [OBS_PATH], touched: [], waived: [] }, deps);
+
+  assert.deepEqual(result.lessons.map(r => r.page), [LESSON_A, LESSON_B]);
+});
+
+test('Given no listLessons and a reader that serves a stale lesson for any page, when assertFresh runs, then lessons stays empty', () => {
+  const sut = assertFresh;
+  const deps = { listCorpus: () => [], readPage: () => lessonPage() };
+
+  const result = sut({ changed: [OBS_PATH], touched: [], waived: [] }, deps);
+
+  assert.deepEqual(result.lessons, []);
+});
