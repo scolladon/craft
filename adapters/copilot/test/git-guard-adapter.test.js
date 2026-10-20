@@ -287,6 +287,41 @@ describe('decideGuard() — non-object toolArgs shapes', () => {
 describe('copilotGuard() — destructive git first, then the tool-call guard', () => {
   const bashEvent = command => ({ tool: 'Bash', tool_input: { command }, working_dir: WORKING_DIR });
 
+  const EXT_DIFF_OPTION_REASON = '--ext-diff is denied on every git verb (external diff mangles parsed output)';
+  const ALIAS_REASON = 'craft: git config naming an alias or include key is denied \u2014 an alias can run any git verb';
+
+  it('Given a log patch with --ext-diff, when copilotGuard runs, then it blocks with the option reason', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git log -p -1 --ext-diff'));
+
+    assert.deepEqual(result, { block: true, reason: EXT_DIFF_OPTION_REASON });
+  });
+
+  it('Given a git config alias write, when copilotGuard runs, then it blocks with the alias reason', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git config alias.x diff'));
+
+    assert.deepEqual(result, { block: true, reason: ALIAS_REASON });
+  });
+
+  it('Given a git config alias write used as a push, when copilotGuard runs, then it blocks with the alias reason', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git config alias.p push; git p'));
+
+    assert.deepEqual(result, { block: true, reason: ALIAS_REASON });
+  });
+
+  it('Given a plain git config write, when copilotGuard runs, then it passes', () => {
+    const sut = copilotGuard;
+
+    const result = sut(bashEvent('git config user.name x'));
+
+    assert.deepEqual(result, { block: false });
+  });
+
   it('Given a git -C . push command, when copilotGuard runs, then it blocks with the push reason', () => {
     const sut = copilotGuard;
 

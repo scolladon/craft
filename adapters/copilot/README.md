@@ -60,7 +60,7 @@ craft's git-guard binds to Copilot as three layers, all of which enforce on copi
   than 1.0.92, where the hook cannot deny.
 - **`preToolUse` hook** (`hooks/craft-guard.js`) — a `bash` call is judged in order by the
   **plain-command gate**, then the destructive-git predicate (normalised argv: destructive verbs and
-  the `--no-ext-diff` rule), through the shared verdict the codex binding also enforces; a
+  the `--no-ext-diff` rule, any-verb `--ext-diff` and `git config` alias/include keys), through the shared verdict the codex binding also enforces; a
   `create`/`edit` call by the shared `toolCallGuard` containment. A block writes a JSON deny on stdout
   (exit 0); a crash denies by exit 2. A deny also fires for a missing hook file or a missing `node`
   (`hook errored`). Verified on 1.0.92 and 1.0.98.
