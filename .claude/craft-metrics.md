@@ -666,3 +666,8 @@ lessons-corpus planning turns=96 tool_calls=98 tokens=12803055 duration_ms=32297
 lessons-corpus refactoring turns=5 tool_calls=7 tokens=94231 duration_ms=78435 cache_read=73276 cache_creation=20715 output=230 avg_ctx=18800 equiv=34381
 lessons-corpus review turns=117 tool_calls=121 tokens=4868047 duration_ms=922032 cache_read=4485711 cache_creation=380134 output=1968 avg_ctx=41590 equiv=933813
 lessons-corpus validation turns=80 tool_calls=81 tokens=8637137 duration_ms=46941066 cache_read=8207317 cache_creation=417631 output=12029 avg_ctx=107814 equiv=1403075
+guard-fuzz-scale-ext-diff-widen design turns=39 tool_calls=42 tokens=3703963 duration_ms=901433 cache_read=3549986 cache_creation=153542 output=357 avg_ctx=94964 equiv=548789
+guard-fuzz-scale-ext-diff-widen implementation turns=96 tool_calls=101 tokens=4218869 duration_ms=4049318 cache_read=3821827 cache_creation=392684 output=4166 avg_ctx=43903 equiv=894060
+guard-fuzz-scale-ext-diff-widen planning turns=89 tool_calls=98 tokens=13879119 duration_ms=1333993 cache_read=13630718 cache_creation=246698 output=1525 avg_ctx=155928 equiv=1679247
+guard-fuzz-scale-ext-diff-widen review turns=139 tool_calls=140 tokens=5522642 duration_ms=1542272 cache_read=5096439 cache_creation=422861 output=3064 avg_ctx=39709 equiv=1053818
+guard-fuzz-scale-ext-diff-widen validation turns=27 tool_calls=28 tokens=1224295 duration_ms=2641470 cache_read=1138836 cache_creation=84940 output=465 avg_ctx=45327 equiv=222438
