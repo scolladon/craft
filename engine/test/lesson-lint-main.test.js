@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { main } from '../src/lesson-lint-main.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
+import { withTempCwd } from '../test-helpers/with-cwd.js';
 
 const EM_DASH = '—';
 const LESSONS = 'lessons';
@@ -327,4 +328,76 @@ test('Given a directory named like a lesson, when lesson-lint runs, then it exit
 
   assert.equal(result.code, EXIT_INVALID);
   assert.ok(result.err.includes('- lessons/002-b.md: not a regular file'));
+});
+
+test('Given no injected cwd, when lesson-lint runs, then it resolves the directory from the process cwd', async () => {
+  const sut = main;
+  const io = makeCaptureIo();
+
+  const code = await withTempCwd((dir) => mkdirSync(join(dir, LESSONS)), () => sut([LESSONS], io));
+
+  assert.equal(code, 0);
+  assert.ok(io.stdout.joined().includes('0 lesson(s)'));
+});
+
+test('Given a lesson file named with several hyphenated words, when lesson-lint runs, then it exits 0', () => {
+  const root = fixtureRoot();
+  writeLesson(root, '001-two-words.md');
+  const sut = main;
+
+  const result = lint(sut, root);
+
+  assert.equal(result.code, 0, result.err);
+});
+
+for (const name of ['x001-first.md', '001-first.md.md']) {
+  test(`Given the filename ${name}, when lesson-lint runs, then it exits 2 on the filename rule`, () => {
+    const root = fixtureRoot();
+    writeLesson(root, name);
+    const sut = main;
+
+    const result = lint(sut, root);
+
+    assert.equal(result.code, EXIT_INVALID);
+    assert.ok(result.err.includes(`- lessons/${name}: filename must be NNN-<slug>.md`));
+  });
+}
+
+test('Given a badly named valid lesson, when lesson-lint runs, then only the filename rule is reported', () => {
+  const root = fixtureRoot();
+  writeLesson(root, 'bad.md');
+  const sut = main;
+
+  const result = lint(sut, root);
+
+  assert.equal(result.err, 'craft-lessons: INVALID corpus:\n- lessons/bad.md: filename must be NNN-<slug>.md\n');
+});
+
+test('Given a non-markdown file beside a lesson, when lesson-lint runs, then it is ignored', () => {
+  const root = fixtureRoot();
+  writeLesson(root, '001-first.md');
+  writeFileSync(join(root, LESSONS, 'notes.txt'), 'not a lesson\n');
+  const sut = main;
+
+  const result = lint(sut, root);
+
+  assert.equal(result.code, 0, result.err);
+  assert.ok(result.out.includes('1 lesson(s)'));
+});
+
+test('Given a directory listing out of order, when lesson-lint runs, then errors follow the sorted file names', () => {
+  const root = fixtureRoot();
+  writeLesson(root, '001-a.md', 'broken\n');
+  writeLesson(root, '002-b.md', 'broken\n');
+  const io = makeCaptureIo();
+  const sut = main;
+
+  sut([LESSONS], io, { cwd: () => root, listDir: () => ['002-b.md', '001-a.md'] });
+
+  assert.equal(io.stderr.joined(), [
+    'craft-lessons: INVALID corpus:',
+    '- lessons/001-a.md: missing frontmatter',
+    '- lessons/002-b.md: missing frontmatter',
+    '',
+  ].join('\n'));
 });

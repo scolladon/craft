@@ -13,6 +13,7 @@ const EXIT_INVALID = 2;
 
 const USAGE = 'usage: lesson-lint <lessons-dir>\n';
 const FILENAME = /^(\d{3,})-([a-z0-9]+(?:-[a-z0-9]+)*)\.md$/;
+// equivalent mutant (`[^\s/]+` -> `[^\s/]`): the regex is only ever .test()ed, and one segment character already decides the match
 const HOME_ROOTED = /\$HOME|\$\{HOME\}|~\/|\/(?:Users|home)\/[^\s/]+|\/root\/|\/var\/folders\//;
 const WINDOWS_HOME_ROOTED = /[a-z]:\\users\\|%userprofile%/i;
 const BAD_FILENAME = 'filename must be NNN-<slug>.md';
