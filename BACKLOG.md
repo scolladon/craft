@@ -177,21 +177,9 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open — A. Git guard rules (local code, runnable)
 
-Decision point to carry: how far to widen the ext-diff rule.
-
-**The fuzz goes red at scale on unclassified safe-direction false blocks.** With
-`GUARD_FUZZ_SEEDS` set to fresh seeds and `GUARD_FUZZ_COUNT=1500`, 5-6 commands per 5-10 seeds fail the
-census as "unexpected false block": git reached only through a short-circuited `&&`, a function defined
-in a pipeline subshell, or a `cat <(…)` log race. The default seed stays green. Classify them (or make
-the oracle wait for process substitutions) so the scale knob is usable as a gate.
-
-**The shared ext-diff rule allows `--ext-diff` on a non-diff verb and a config-defined diff alias.**
-`gitExtDiffPredicate` judges only `diff`/`show` (`DIFFING_VERBS`) and inline `-c alias.*`, so
-`git log -p --ext-diff` and `git config alias.x diff; git x` both return `block: false` (reproduced in-process
-on the claude-ext-diff-hook-gaps branch; the old Claude regex allowed both too, so no binding regressed).
-Every binding that composes the rule (Claude, codex, copilot) shares it. Not folded: widening the shared
-rule changes the verdict on every binding and needs its own decision (deny `--ext-diff` on any git verb?
-judge `git config alias.*` writes?), outside that run's ext-diff-hook scope.
+None open. Both entries delivered 2026-10-20 (guard-fuzz-scale-ext-diff-widen): the scaled fuzz
+census is a gate (generator fixed at the composer, ADR-661), and the shared ext-diff rule denies
+`--ext-diff` on every git verb and any `git config` naming an alias or include key (ADR-660).
 
 ### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
 
