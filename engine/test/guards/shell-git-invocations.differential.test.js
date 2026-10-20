@@ -10,6 +10,7 @@ import {
   PARSE_FAILURE_TAGS,
   SANITY_BASH,
   SPAWN_TIMEOUT_MS,
+  SYNTAX_EXEMPT_TAGS,
   TAGS,
   findOnPath,
   generateCommands,
@@ -54,7 +55,7 @@ function problemsOf(entry, run) {
   const falseAllows = ['destructive', 'extDiff'].filter(kind => oracle[kind] && !predicate[kind]);
   const falseBlock = anyBlocks(predicate) && !anyBlocks(oracle);
   if (run.signal !== null) problems.push(`shell was killed (${run.signal})`);
-  if (SYNTAX_ERROR.test(run.stderr) && !tagged(TAGS.unterminated)) problems.push(`generator emitted invalid shell: ${run.stderr.trim().replaceAll('\n', ' / ')}`);
+  if (SYNTAX_ERROR.test(run.stderr) && !SYNTAX_EXEMPT_TAGS.some(tagged)) problems.push(`generator emitted invalid shell: ${run.stderr.trim().replaceAll('\n', ' / ')}`);
   if (falseAllows.length > 0) problems.push(`FALSE ALLOW (${falseAllows.join(', ')}): bash ran a blocked git argv and the predicate allowed it`);
   if (!gitInvocations(entry.text).parsed && !PARSE_FAILURE_TAGS.some(tagged)) problems.push('parsed:false on a command that is not unterminated or over-nested');
   if (falseBlock && !SHELL_REJECTED.test(run.stderr) && !FALSE_BLOCK_TAGS.some(tagged)) problems.push('unexpected false block (no intended-false-block class)');
@@ -265,4 +266,68 @@ describe('shell-git-invocations — differential fuzz against bash and git', { c
       }
     );
   }
+});
+
+const PINNED_SEEDS = Object.freeze([101, 202, 303, 404, 505, 11, 22, 33, 44, 55, 66, 77, 88, 99, 111]);
+const PINNED_COUNT = 1500;
+const PIPE_INTO_FUNCTION = /(?:^|[^|])\| f\(\) \{/;
+const PIPE_INTO_ASSIGNMENT_LIST = /(?:^|[^|])\| [A-Za-z_]\w*=[^ ;|&]*; /;
+const TIME_AFTER_CASE_PATTERN = /in \(x\) time /;
+const SPLIT_TIME = /env -S 'time /;
+const PIPED_SIGPIPE_WRITER = /git push' \| /;
+const FAILING_LEFT_AND = /(?:ls \*\.md|bash -lc 'git status') && /;
+const QUOTED_HEREDOC = /<<['"]EOF/;
+const BRACE_IN_PROCESS_SUBSTITUTION = /cat <\( (?:(?!\)[' ])[^\n])*\{[^{}\s]*(,|\.\.)[^{}\s]*\}/;
+const QUOTED_HEREDOC_AROUND_UNTERMINATED =
+  /<<(['"])EOF\d+\1\n(?:(?!\n\t?EOF\d)[\s\S])*(git push 'x|git status "x|echo \$\(git push)/;
+
+const pinnedCommands = () => PINNED_SEEDS.flatMap(seed => generateCommands(seed, PINNED_COUNT));
+const offenders = (entries, ...patterns) => entries.filter(entry => patterns.some(pattern => pattern.test(entry.text))).map(entry => entry.text);
+
+describe('shell-git-invocations — generator composition at scale', () => {
+  it('Given the pinned seeds at scale, when generated, then no pipeline element is an unbraced function definition or assignment-led list', () => {
+    const sut = pinnedCommands;
+
+    const result = offenders(sut(), PIPE_INTO_FUNCTION, PIPE_INTO_ASSIGNMENT_LIST);
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then no left element can kill or skip the git on its right', () => {
+    const sut = pinnedCommands;
+
+    const result = offenders(sut(), PIPED_SIGPIPE_WRITER, FAILING_LEFT_AND);
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then time is never led by a case pattern or split by env -S', () => {
+    const sut = pinnedCommands;
+
+    const result = offenders(sut(), TIME_AFTER_CASE_PATTERN, SPLIT_TIME);
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then every brace word inside cat process substitution carries the brace-in-process-substitution tag', () => {
+    const sut = pinnedCommands;
+
+    const result = sut()
+      .filter(entry => BRACE_IN_PROCESS_SUBSTITUTION.test(entry.text) && !QUOTED_HEREDOC.test(entry.text))
+      .filter(entry => !entry.tags.includes('brace-in-process-substitution'))
+      .map(entry => entry.text);
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then every quoted heredoc around an unterminated special carries the quote-in-heredoc-body tag', () => {
+    const sut = pinnedCommands;
+
+    const result = sut()
+      .filter(entry => QUOTED_HEREDOC_AROUND_UNTERMINATED.test(entry.text))
+      .filter(entry => !entry.tags.includes('quote-in-heredoc-body'))
+      .map(entry => entry.text);
+
+    assert.deepEqual(result, []);
+  });
 });
