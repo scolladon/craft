@@ -433,3 +433,270 @@ for (const glob of ['*', '?', '[', ']', '{', '}']) {
     assert.deepEqual(result.errors, [`evidence entry is not a repo path: engine/a${glob}b.js`]);
   });
 }
+
+const LS = ' ';
+
+test('Given a lesson with an empty section, when parseLesson runs, then that section text is empty', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('Why.\n', '');
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.lesson.sections.Context, '');
+});
+
+test('Given an entirely empty body, when parseLesson runs, then the H1 rule is reported', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ body: '' }));
+
+  assert.ok(result.errors.some(e => e.includes('H1')));
+});
+
+test('Given a frontmatter without source.run, when parseLesson runs, then the run name rule is reported', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { source: '{ phase: design, date: 2026-10-19 }' } }));
+
+  assert.deepEqual(result.errors, ['source.run must be a kebab-case run name']);
+});
+
+test('Given a body whose How to apply section is missing, when parseLesson runs, then only the section rule is reported', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('## How to apply\nDo the thing.\n\n', '');
+
+  const result = sut(lessonText({ body }));
+
+  assert.deepEqual(result.errors, ['sections must be exactly, in order: Context, Lesson, How to apply, Evidence']);
+});
+
+test('Given a run name with an underscore, when parseLesson runs, then the run name rule is reported', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { source: '{ run: some_run, phase: design, date: 2026-10-19 }' } }));
+
+  assert.deepEqual(result.errors, ['source.run must be a kebab-case run name']);
+});
+
+test('Given a single word run name, when parseLesson runs, then it is accepted', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { source: '{ run: single, phase: design, date: 2026-10-19 }' } }));
+
+  assert.equal(result.errors, undefined);
+});
+
+for (const value of ["'2026-10-20x'", "'x2026-10-20'", "['2026-10-20']"]) {
+  test(`Given the last-verified value ${value}, when parseLesson runs, then it is not a date`, () => {
+    const sut = parseLesson;
+
+    const result = sut(lessonText({ frontmatter: { 'last-verified': value } }));
+
+    assert.deepEqual(result.errors, ['last-verified must be a date (YYYY-MM-DD)']);
+  });
+}
+
+test('Given a source mapping that is null, when parseLesson runs, then the mapping rule is reported', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { source: 'null' } }));
+
+  assert.deepEqual(result.errors, ['source must be a mapping']);
+});
+
+test('Given a frontmatter that is null, when parseLesson runs, then the mapping rule is reported', () => {
+  const sut = parseLesson;
+  const content = ['---', 'null', '---', '', sectionsBody()].join('\n');
+
+  const result = sut(content);
+
+  assert.deepEqual(result.errors, ['frontmatter must be a mapping']);
+});
+
+test('Given subjects holding an empty string, when parseLesson runs, then the subjects rule is reported', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { subjects: "['engine/src/**', '']" } }));
+
+  assert.deepEqual(result.errors, ['subjects must be a non-empty list of non-empty strings']);
+});
+
+test('Given kind outside the enum, when parseLesson runs, then the error lists the allowed kinds', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { kind: 'bogus' } }));
+
+  assert.deepEqual(result.errors, ['kind must be one of: trap, technique, gotcha, anti-pattern']);
+});
+
+test('Given a non-string evidence entry, when parseLesson runs, then it is not a repo path', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { evidence: '[42]' } }));
+
+  assert.deepEqual(result.errors, ['evidence entry is not a repo path: 42']);
+});
+
+for (const entry of ['has space', 'README.md:abc']) {
+  test(`Given the evidence entry ${entry}, when parseLesson runs, then it is not a repo path`, () => {
+    const sut = parseLesson;
+
+    const result = sut(lessonText({ frontmatter: { evidence: `['${entry}']` } }));
+
+    assert.deepEqual(result.errors, [`evidence entry is not a repo path: ${entry}`]);
+  });
+}
+
+test('Given evidence with multi-digit line numbers and ranges, when parseLesson runs, then it is accepted', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ frontmatter: { evidence: "['a/b.js:12', 'a/b.js:1-23']" } }));
+
+  assert.equal(result.errors, undefined);
+});
+
+for (const entry of ['docs/abcdef0', 'abcdef0.md']) {
+  test(`Given the evidence entry ${entry} that only contains a sha-shaped part, when parseLesson runs, then it is accepted`, () => {
+    const sut = parseLesson;
+
+    const result = sut(lessonText({ frontmatter: { evidence: `['${entry}']` } }));
+
+    assert.equal(result.errors, undefined);
+  });
+}
+
+for (const entry of ['a/b.js:12', 'a/b.js:12-34']) {
+  test(`Given the entry ${entry} with a multi-digit suffix, when evidencePath runs, then it returns the path part`, () => {
+    const sut = evidencePath;
+
+    const result = sut(entry);
+
+    assert.equal(result, 'a/b.js');
+  });
+}
+
+test('Given an entry holding a colon number that is not a suffix, when evidencePath runs, then it is returned unchanged', () => {
+  const sut = evidencePath;
+
+  const result = sut('a:12b');
+
+  assert.equal(result, 'a:12b');
+});
+
+test('Given an H1 holding a line separator, when parseLesson runs, then the H1 rule is reported', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('A title', `A title${LS}more`);
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0], /H1/);
+});
+
+test('Given a text line ahead of the H1 marker, when parseLesson runs, then the H1 rule is reported', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('# 001', 'see # 001');
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.errors.length, 1);
+  assert.match(result.errors[0], /H1/);
+});
+
+test('Given a heading line holding a line separator, when parseLesson runs, then it is not a heading', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('## Context', `## Context${LS}`);
+
+  const result = sut(lessonText({ body }));
+
+  assert.deepEqual(result.errors, ['sections must be exactly, in order: Context, Lesson, How to apply, Evidence']);
+});
+
+test('Given a content line that holds a double hash mid-line, when parseLesson runs, then it stays content', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('What.', 'see ## Foo');
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.lesson.sections.Lesson, 'see ## Foo');
+});
+
+test('Given a content line holding an inline triple backtick, when parseLesson runs, then later headings still split sections', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('Why.', 'use ``` inline');
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given an indented code fence hiding a double hash line, when parseLesson runs, then the line stays content', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('What.', '  ```\n## Fake\n  ```');
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given headings padded with spaces, when parseLesson runs, then section names are trimmed', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('## Context', '##  Context  ');
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given a closing fence padded with spaces, when parseLesson runs, then the body is read after it', () => {
+  const sut = parseLesson;
+  const content = lessonText().replace('\n---\n', '\n---  \n');
+
+  const result = sut(content);
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given a section padded with whitespace-only lines, when parseLesson runs, then the edges are trimmed', () => {
+  const sut = parseLesson;
+  const body = sectionsBody().replace('Why.', '   \nWhy.\n   ');
+
+  const result = sut(lessonText({ body }));
+
+  assert.equal(result.lesson.sections.Context, 'Why.');
+});
+
+test('Given How to apply with whitespace-only lines between six steps, when parseLesson runs, then they are not counted', () => {
+  const sut = parseLesson;
+  const howToApply = Array.from({ length: 6 }, (_, i) => `step ${i}`).join('\n  \n');
+
+  const result = sut(lessonText({ body: sectionsBody({ howToApply }) }));
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given How to apply with one overlong line among short ones, when parseLesson runs, then the cap error is reported', () => {
+  const sut = parseLesson;
+  const howToApply = `${'x'.repeat(MAX_LESSON_LINE_CHARS + 1)}\nshort`;
+
+  const result = sut(lessonText({ body: sectionsBody({ howToApply }) }));
+
+  assert.deepEqual(result.errors, [`How to apply line exceeds ${MAX_LESSON_LINE_CHARS} characters`]);
+});
+
+test('Given whitespace-only lines ahead of the H1, when parseLesson runs, then the H1 is found', () => {
+  const sut = parseLesson;
+
+  const result = sut(lessonText({ body: `  \n${sectionsBody()}` }));
+
+  assert.equal(result.errors, undefined);
+});
+
+test('Given a body that follows the closing fence without a blank line, when parseLesson runs, then the H1 is found', () => {
+  const sut = parseLesson;
+  const content = lessonText().replace('\n---\n\n', '\n---\n');
+
+  const result = sut(content);
+
+  assert.equal(result.errors, undefined);
+});

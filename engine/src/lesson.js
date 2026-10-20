@@ -83,6 +83,7 @@ function checkEvidence(evidence) {
 function checkSource(source) {
   if (!isMapping(source)) return ['source must be a mapping'];
   const errors = [];
+  // equivalent mutant (`''` fallback -> any non-kebab string): KEBAB rejects '' and every non-kebab sentinel alike
   if (!KEBAB.test(source.run ?? '')) errors.push('source.run must be a kebab-case run name');
   if (!PHASE_NAMES.has(source.phase)) errors.push('source.phase must be a known phase');
   if (normalizeDate(source.date) === null) errors.push('source.date must be a date (YYYY-MM-DD)');
@@ -92,6 +93,7 @@ function checkSource(source) {
 function checkLastVerified(lastVerified, sourceDate) {
   const verified = normalizeDate(lastVerified);
   if (verified === null) return ['last-verified must be a date (YYYY-MM-DD)'];
+  // equivalent mutant (`sourceDate !== null &&` -> true): `verified < null` compares a date string with 0, which is NaN-false
   if (sourceDate !== null && verified < sourceDate) return ['last-verified must not be earlier than source.date'];
   return [];
 }
@@ -149,6 +151,7 @@ function splitSections(lines) {
 
 function trimBlankEdges(lines) {
   const first = lines.findIndex(line => line.trim() !== '');
+  // equivalent mutant (guard -> false): with no non-blank line, slice(-1, 0) is empty and joins to ''
   if (first === -1) return '';
   const last = lines.findLastIndex(line => line.trim() !== '');
   return lines.slice(first, last + 1).join('\n');
@@ -164,12 +167,14 @@ function hasOverlongLine(text) {
 
 function parseBody(lines) {
   const errors = [];
+  // equivalent mutant (`''` fallback -> non-H1 string): H1 matches neither, so the missing-H1 error is identical
   const h1 = H1.exec(lines.find(line => line.trim() !== '') ?? '');
   if (!h1) errors.push(MISSING_H1);
   const sections = splitSections(lines);
   const names = sections.map(s => s.name);
   if (names.join('\n') !== LESSON_SECTIONS.join('\n')) errors.push(WRONG_SECTIONS);
   const texts = Object.fromEntries(sections.map(s => [s.name, trimBlankEdges(s.lines)]));
+  // equivalent mutant (`''` fallback on this line and the overlong check below): a missing section already fails the sections rule, and a one-line sentinel breaches neither cap
   const howLines = nonEmptyCount(texts[HOW_TO_APPLY] ?? '');
   if (howLines > MAX_HOW_TO_APPLY_LINES) {
     errors.push(`${HOW_TO_APPLY} holds ${howLines} non-empty lines (max ${MAX_HOW_TO_APPLY_LINES})`);
