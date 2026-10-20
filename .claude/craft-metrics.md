@@ -660,3 +660,9 @@ copilot-guard-differential-fuzz-arm design turns=49 tool_calls=53 tokens=3798374
 copilot-guard-differential-fuzz-arm implementation turns=23 tool_calls=26 tokens=619014 duration_ms=216492 cache_read=534492 cache_creation=83660 output=816 avg_ctx=26878 equiv=162150
 copilot-guard-differential-fuzz-arm planning turns=43 tool_calls=43 tokens=3929489 duration_ms=814578 cache_read=3775352 cache_creation=153512 output=539 avg_ctx=91371 equiv=572206
 copilot-guard-differential-fuzz-arm review turns=44 tool_calls=42 tokens=1338768 duration_ms=518673 cache_read=1146377 cache_creation=187428 output=4875 avg_ctx=30316 equiv=373386
+lessons-corpus design turns=169 tool_calls=178 tokens=17073810 duration_ms=1858937 cache_read=16710505 cache_creation=361042 output=1925 avg_ctx=101017 equiv=2132316
+lessons-corpus implementation turns=186 tool_calls=198 tokens=5794432 duration_ms=1851126 cache_read=5204711 cache_creation=584981 output=4368 avg_ctx=31129 equiv=1273909
+lessons-corpus planning turns=96 tool_calls=98 tokens=12803055 duration_ms=3229747 cache_read=12381344 cache_creation=420215 output=1302 avg_ctx=133352 equiv=1770107
+lessons-corpus refactoring turns=5 tool_calls=7 tokens=94231 duration_ms=78435 cache_read=73276 cache_creation=20715 output=230 avg_ctx=18800 equiv=34381
+lessons-corpus review turns=117 tool_calls=121 tokens=4868047 duration_ms=922032 cache_read=4485711 cache_creation=380134 output=1968 avg_ctx=41590 equiv=933813
+lessons-corpus validation turns=80 tool_calls=81 tokens=8637137 duration_ms=46941066 cache_read=8207317 cache_creation=417631 output=12029 avg_ctx=107814 equiv=1403075
