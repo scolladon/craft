@@ -683,3 +683,7 @@ reviewer-findings-shape-mismatch design turns=19 tool_calls=21 tokens=814729 dur
 reviewer-findings-shape-mismatch implementation turns=5 tool_calls=7 tokens=113033 duration_ms=46615 cache_read=87068 cache_creation=25455 output=500 avg_ctx=22507 equiv=43036
 reviewer-findings-shape-mismatch planning turns=9 tool_calls=9 tokens=292169 duration_ms=91159 cache_read=253744 cache_creation=38288 output=119 avg_ctx=32450 equiv=73847
 reviewer-findings-shape-mismatch review turns=24 tool_calls=24 tokens=480824 duration_ms=122085 cache_read=370209 cache_creation=110341 output=226 avg_ctx=20025 equiv=176125
+normalize-findings-silent-field-loss design turns=19 tool_calls=20 tokens=775669 duration_ms=226219 cache_read=724749 cache_creation=50673 output=209 avg_ctx=40814 equiv=136899
+normalize-findings-silent-field-loss implementation turns=15 tool_calls=17 tokens=401928 duration_ms=135817 cache_read=341481 cache_creation=59914 output=503 avg_ctx=26762 equiv=111586
+normalize-findings-silent-field-loss planning turns=13 tool_calls=15 tokens=621348 duration_ms=207014 cache_read=559000 cache_creation=62166 output=156 avg_ctx=47784 equiv=134414
+normalize-findings-silent-field-loss review turns=19 tool_calls=21 tokens=386622 duration_ms=105292 cache_read=289577 cache_creation=96823 output=184 avg_ctx=20339 equiv=150944
