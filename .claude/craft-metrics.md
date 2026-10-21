@@ -671,3 +671,8 @@ guard-fuzz-scale-ext-diff-widen implementation turns=96 tool_calls=101 tokens=42
 guard-fuzz-scale-ext-diff-widen planning turns=89 tool_calls=98 tokens=13879119 duration_ms=1333993 cache_read=13630718 cache_creation=246698 output=1525 avg_ctx=155928 equiv=1679247
 guard-fuzz-scale-ext-diff-widen review turns=139 tool_calls=140 tokens=5522642 duration_ms=1542272 cache_read=5096439 cache_creation=422861 output=3064 avg_ctx=39709 equiv=1053818
 guard-fuzz-scale-ext-diff-widen validation turns=27 tool_calls=28 tokens=1224295 duration_ms=2641470 cache_read=1138836 cache_creation=84940 output=465 avg_ctx=45327 equiv=222438
+git-show-ext-diff-default-deny design turns=63 tool_calls=64 tokens=6552769 duration_ms=1407953 cache_read=6378392 cache_creation=172540 output=1711 avg_ctx=103985 equiv=862195
+git-show-ext-diff-default-deny documentation turns=9 tool_calls=10 tokens=214869 duration_ms=294392 cache_read=189586 cache_creation=25096 output=169 avg_ctx=23856 equiv=51192
+git-show-ext-diff-default-deny implementation turns=43 tool_calls=54 tokens=1066705 duration_ms=406466 cache_read=937739 cache_creation=127455 output=1425 avg_ctx=24774 equiv=260304
+git-show-ext-diff-default-deny planning turns=49 tool_calls=52 tokens=5175813 duration_ms=875117 cache_read=5005381 cache_creation=169704 output=630 avg_ctx=105616 equiv=715916
+git-show-ext-diff-default-deny review turns=169 tool_calls=173 tokens=7151193 duration_ms=1782216 cache_read=6666730 cache_creation=481609 output=2516 avg_ctx=42300 equiv=1281602
