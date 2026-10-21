@@ -161,12 +161,14 @@ const SAMPLE_BY_CONTRACT_FIELD = {
   file: 'src/a.js', line: 12, 'file:line': 'src/a.js:12',
   severity: 'HIGH', finding: 'x', fix: 'y', 'suggested fix': 'y', status: 'VERIFIED',
 };
+// Cuts a field name off its enum value list, with or without a space after the colon;
+// a bare `file:line` has no uppercase enum after its colon, so it stays whole.
+const FIELD_NAME_TERMINATOR = /\??:\s*(?=[A-Z][A-Z-]*\|)/u;
 
 function contractFieldNames() {
   const match = readFileSync(HARNESS_READ_CONTRACT, 'utf8').match(CONTRACT_FIELD_LIST_PATTERN);
   if (match === null) throw new Error('contracts/harness-read.md names no finding field list');
-  // "severity: CRITICAL|…" → "severity"; "status?: …" → "status"; "fix?" → "fix"; "file:line" stays whole.
-  return match[1].split(',').map(entry => entry.trim().split(/\??: /u)[0].replace(/\?$/u, ''));
+  return match[1].split(',').map(entry => entry.trim().split(FIELD_NAME_TERMINATOR)[0].replace(/\?$/u, ''));
 }
 
 function contractShapedFinding() {
@@ -183,6 +185,9 @@ test('Given a reviewer JSON array shaped exactly as the harness-read contract in
   const result = sut(input);
 
   assert.equal(result.status, 0, result.stderr);
-  assert.deepEqual(JSON.parse(result.stdout),
-    [{ file: 'src/a.js', line: 12, severity: 'HIGH', finding: 'x', fix: 'y', status: 'VERIFIED' }]);
+  const [canonical] = JSON.parse(result.stdout);
+  assert.deepEqual(canonical,
+    { file: 'src/a.js', line: 12, severity: 'HIGH', finding: 'x', fix: 'y', status: 'VERIFIED' });
+  // A contract field the parser drops must fail here even once it has a sample.
+  assert.deepEqual(Object.keys(canonical).sort(), contractFieldNames().sort());
 });
