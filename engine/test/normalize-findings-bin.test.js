@@ -174,7 +174,7 @@ test('Given a JSON finding with a non-numeric line on stdin, when normalize-find
   const result = sut(input);
 
   assert.equal(result.status, 2);
-  assert.equal(result.stderr, 'normalize-findings: Finding at index 0 has an invalid line: expected a non-negative integer or digit string\n');
+  assert.equal(result.stderr, 'normalize-findings: Finding at index 0 has an invalid line: expected a non-negative safe integer, as a number or a digit string\n');
   assert.equal(result.stdout, '');
 });
 

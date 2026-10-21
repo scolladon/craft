@@ -432,7 +432,7 @@ test('Given a non-first line indented before its status prefix, when normalizeFi
 
 // ─── invalid line in a JSON finding ─────────────────────────────────────────
 
-const INVALID_LINE_MESSAGE = 'Finding at index 0 has an invalid line: expected a non-negative integer or digit string';
+const INVALID_LINE_MESSAGE = 'Finding at index 0 has an invalid line: expected a non-negative safe integer, as a number or a digit string';
 
 const jsonWithLine = lineJson => `[{"file":"a.js","line":${lineJson},"severity":"HIGH","finding":"x"}]`;
 
@@ -472,7 +472,7 @@ test('Given a JSON array whose second finding has an invalid line, when normaliz
 
   assert.throws(
     () => sut(raw),
-    (err) => err.message === 'Finding at index 1 has an invalid line: expected a non-negative integer or digit string',
+    (err) => err.message === 'Finding at index 1 has an invalid line: expected a non-negative safe integer, as a number or a digit string',
   );
 });
 

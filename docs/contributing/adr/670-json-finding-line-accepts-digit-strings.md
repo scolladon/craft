@@ -17,7 +17,7 @@ and `null`, `""`, `true` become `0` or `1`, all with exit 0.
 ## Options considered
 
 1. **Safe non-negative integer, or a string matching the per-line `\d+` grammar** *(recommended)* —
-   pros: `"12"` keeps normalizing as it does today; JSON and per-line agree on what a line is /
+   pros: `"12"` keeps normalizing as it does today; JSON accepts the same line digits as per-line /
    cons: the JSON type is looser than a strict integer
 2. **Safe non-negative integer only** — pros: strict typed contract / cons: rejects `"12"`, which
    exits 0 with the right value today
@@ -25,7 +25,7 @@ and `null`, `""`, `true` become `0` or `1`, all with exit 0.
 ## Decision
 
 Adopted-as-recommended (no user judgment): option 1. Anything else throws
-`Finding at index N has an invalid line: expected a non-negative integer or digit string`, without
+`Finding at index N has an invalid line: expected a non-negative safe integer, as a number or a digit string`, without
 echoing the value.
 
 ## Consequences

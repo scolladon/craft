@@ -125,7 +125,7 @@ invalid line. A legacy-only object (`file:line` without `file`) still throws
 | Unknown key, D1(a) | `` `Finding at index ${index} has an unknown field: ${JSON.stringify(key)}` `` → `Finding at index 0 has an unknown field: "suggested fix"` |
 | Legacy key, D1(b) | `` `Finding at index ${index} has a legacy field: ${JSON.stringify(key)} (use ${replacement})` `` → `Finding at index 0 has a legacy field: "suggested fix" (use fix)` |
 | Invalid line, D2(a) | `Finding at index ${index} has an invalid line: expected a non-negative integer` |
-| Invalid line, D2(b) | `Finding at index ${index} has an invalid line: expected a non-negative integer or digit string` |
+| Invalid line, D2(b) | `Finding at index ${index} has an invalid line: expected a non-negative safe integer, as a number or a digit string` |
 
 `JSON.stringify(key)` keeps a key with spaces, quotes or a newline readable on one stderr line. The
 `line` value is **not** echoed: index plus field locates it, and that matches

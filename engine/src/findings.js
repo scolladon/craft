@@ -63,8 +63,8 @@ const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 
 // `suggested fix`, a misspelling such as `Fix`) used to be dropped without a word.
 const ACCEPTED_JSON_FIELDS = new Set([...REQUIRED_JSON_FIELDS, 'fix', 'status']);
 
-// The per-line `\d+` line grammar, so a JSON string line and a per-line record agree on what a
-// line number is.
+// The per-line `\d+` line grammar, so a JSON string line accepts the same digits a per-line
+// record does; the JSON path additionally bounds the value to a safe integer.
 const DIGIT_STRING_PATTERN = /^\d+$/u;
 
 /**
@@ -124,7 +124,7 @@ function resolveJsonLine(value, index) {
   if (Number.isSafeInteger(candidate) && candidate >= 0) {
     return candidate;
   }
-  throw new Error(`Finding at index ${index} has an invalid line: expected a non-negative integer or digit string`);
+  throw new Error(`Finding at index ${index} has an invalid line: expected a non-negative safe integer, as a number or a digit string`);
 }
 
 /**
