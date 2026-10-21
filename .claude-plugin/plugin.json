@@ -1,6 +1,6 @@
 {
   "name": "craft",
-  "version": "1.1.0",
+  "version": "2.0.0",
   "description": "Feature-delivery workflow engine: workspace → design → decisions → planning → implementation → review → refactoring → validation → documentation → lessons → propose → integrate. Phase skills with per-repo declination via .claude/workflow.md.",
   "author": { "name": "Sébastien Colladon" }
 }
