@@ -687,3 +687,7 @@ normalize-findings-silent-field-loss design turns=19 tool_calls=20 tokens=775669
 normalize-findings-silent-field-loss implementation turns=15 tool_calls=17 tokens=401928 duration_ms=135817 cache_read=341481 cache_creation=59914 output=503 avg_ctx=26762 equiv=111586
 normalize-findings-silent-field-loss planning turns=13 tool_calls=15 tokens=621348 duration_ms=207014 cache_read=559000 cache_creation=62166 output=156 avg_ctx=47784 equiv=134414
 normalize-findings-silent-field-loss review turns=19 tool_calls=21 tokens=386622 duration_ms=105292 cache_read=289577 cache_creation=96823 output=184 avg_ctx=20339 equiv=150944
+per-line-over-range-line design turns=12 tool_calls=13 tokens=460582 duration_ms=159315 cache_read=413774 cache_creation=46399 output=385 avg_ctx=38350 equiv=101325
+per-line-over-range-line implementation turns=11 tool_calls=12 tokens=313813 duration_ms=93490 cache_read=277320 cache_creation=36304 output=167 avg_ctx=28513 equiv=73969
+per-line-over-range-line planning turns=10 tool_calls=11 tokens=368114 duration_ms=132527 cache_read=325146 cache_creation=42837 output=111 avg_ctx=36800 equiv=86636
+per-line-over-range-line review turns=15 tool_calls=15 tokens=279885 duration_ms=75419 cache_read=193226 cache_creation=86480 output=149 avg_ctx=18649 equiv=128198
