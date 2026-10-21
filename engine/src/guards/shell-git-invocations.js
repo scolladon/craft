@@ -21,9 +21,10 @@ const LEADING_WORDS_LIMIT = 2;
 
 const leadingOf = (words, index) => texts(words.slice(0, Math.min(index, LEADING_WORDS_LIMIT)));
 
-// These run their operand command with the argv as written, or (echo) never run it; any other
-// word ahead of git (xargs, parallel, an unknown or dynamic command) may append words the guard never read.
-const PLAIN_WRAPPERS = new Set(['env', 'command', 'exec', 'nohup', 'time', 'nice', 'timeout', 'sudo', 'builtin', 'echo']);
+// These run their operand command with the argv as written, never run it (echo), or hand it to a
+// reparse that is judged on its own (eval); any other word ahead of git (xargs, parallel, an
+// unknown or dynamic command) may append words the guard never read.
+const PLAIN_WRAPPERS = new Set(['env', 'command', 'exec', 'nohup', 'time', 'nice', 'timeout', 'sudo', 'builtin', 'echo', 'eval']);
 const WRAPPER_OPERAND = /^(?:-.*|\d+|[A-Za-z_]\w*=.*)$/;
 
 const leavesArgvAlone = word =>
