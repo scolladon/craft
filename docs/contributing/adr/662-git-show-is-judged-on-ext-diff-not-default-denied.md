@@ -49,3 +49,10 @@ Bare `git show` forms, `git show --ext-diff=1` (git refuses it), and on the pred
 still deny the config and env forms through the plain gate. A `diff.<driver>.textconv` driver runs
 on bare `show` as it already does on `log -p`; no rule covers textconv. Versions older than 2.17.0
 are unprobed. The fuzz oracle judges `show` by the any-verb rule.
+
+Keeping every firing form denied also means judging `show` like `diff` whenever the argv git
+receives may differ from the parsed words. That covers a dynamic head, a dynamic global-option
+value, and any word ahead of `git` that is not a literal argv-preserving wrapper (xargs, parallel,
+or an unknown or dynamic command). `env -S` followed by later words fails closed, because env
+re-splits that string with rules a shell parse cannot follow. `show` behind an unlisted prefix,
+or with a quoted dynamic option value, stays an over-block.

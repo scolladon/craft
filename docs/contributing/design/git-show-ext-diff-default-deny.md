@@ -316,6 +316,28 @@ every binding already allows today with one extra word (as it does `log -p` and
 `diff --no-ext-diff`): the current `show` deny never covered textconv, it over-blocks it by
 accident. Out of scope.
 
+### Review fold — argv the guard cannot read
+
+Three review cycles found firing `show` forms the Part 1 shape newly allowed. Each one reaches
+git with a verb or option the parser never read, and real git (stub external diff, pinned env)
+fired on every one. The shipped rule judges `show` like `diff` whenever `argvMayShift` holds on the
+invocation. The hidden flag replaces `dynamicHead` and is set when:
+
+| # | Command | git | main P | Part 1 P | shipped P / X |
+|---|---|---|---|---|---|
+| V15 | `D=". diff"; git -C $D show`, `git -c $K show`, `git --git-dir $D show`, `git -C * show` (a dynamic value inside the global-option run splits into a new verb) | FIRES | DENY | allow | DENY / DENY |
+| V16 | `echo --ext-diff \| xargs git show`, `$X git show`, `$(echo xargs) git show`, `{xargs,} git show`, `parallel git show`, `xargs <exec-path>/git-show` (any word before `git` that is not a literal argv-preserving wrapper: env, command, exec, nohup, time, nice, timeout, sudo, builtin, echo, eval (its text is reparsed and judged on its own), or an option/number/`NAME=value` operand) | FIRES | DENY | allow | DENY / DENY |
+| V17 | `env -S 'git show' --ext-diff`, `env -Sxargs git show`, `env -S 'git show #' --ext-diff`, `env -S '' -S 'git show' --ext-diff` | FIRES | DENY | allow | DENY (fail-closed parse) |
+| V18 | `git -C "$D" show` (quoting is not tracked) | no | DENY* | allow | DENY* |
+| V19 | `nice -n 19 git show`, `env git show`, `timeout 5 git show --stat`, `git show xargs`, `echo x \| xargs echo; git show` | no | DENY* | allow | allow |
+
+`env -S`/`--split-string` followed by any later word is now unparseable for every command
+(`ENV_RESPLIT`). env re-splits that string with its own rules: comments, escapes, further options,
+and the later words appended. A shell reparse cannot follow those rules. This also closes the
+older `env -S 'git -C' . diff` / `push --force` form, which main allowed. The plain-gate fuzz tags
+`show` behind its argv-wrapper prefixes (stdbuf, doas, flock, …) as the intended false block
+`unread-prefix`, and the engine fuzz tags its xargs-wrapped `show` as `argv-appender`.
+
 ## Decision candidates
 
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
@@ -412,3 +434,9 @@ readme-drift check).
   pre-existing dynamic-head residual, independent of `show`.
 - The plain gate on codex and copilot: unchanged; it keeps denying dynamic and config forms of
   `show` (V7, V8).
+- Pre-existing on main, found in review, not acted on: an argv appender adding `--ext-diff`
+  after a literal `--no-ext-diff` (`echo --ext-diff | xargs git diff --no-ext-diff`, same for
+  `show`); `env -S` backslash escapes with no later word (`env -S 'git\_show\_--ext-diff'`);
+  BSD `apply 'git show %1' --ext-diff`; abbreviated GNU `--split-string` prefixes (unproven
+  on this box); `git log -p` with a glob option word; `git -C $D status` word-splitting into a
+  firing verb.
