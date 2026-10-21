@@ -30,10 +30,11 @@ const WRAPPER_OPERAND = /^(?:-.*|\d+|[A-Za-z_]\w*=.*)$/;
 const leavesArgvAlone = word =>
   !word.dynamic && (PLAIN_WRAPPERS.has(basename(word.text)) || WRAPPER_OPERAND.test(word.text));
 
-// Read once per command, so flagging stays linear however many git words it holds.
+// Read once per command, so flagging stays linear however many git words it holds. The git word
+// itself never leaves argv alone, so a command holding an anchor always has a feeder index.
 const firstFeederAt = words => words.findIndex(word => !leavesArgvAlone(word));
 
-const fedAt = (feederAt, index) => feederAt !== -1 && feederAt < index;
+const fedAt = (feederAt, index) => feederAt < index;
 
 // A dynamic option value can split into words that move the verb git runs; quoting is not
 // tracked, so a quoted one is judged the same way.

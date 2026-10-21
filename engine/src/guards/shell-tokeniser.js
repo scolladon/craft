@@ -138,7 +138,7 @@ const envOption = (words, cursor) => {
 // every later word to the command it runs, so that argv is not one this parser can read.
 const ENV_RESPLIT =
   'craft: command not parseable (env -S re-splits its string with the words after it) — denied fail-closed';
-const RESPLIT_WITH_OPERANDS = Object.freeze([Object.freeze({ text: '', resplit: true })]);
+const RESPLIT_WITH_OPERANDS = Object.freeze([Object.freeze({ resplit: true })]);
 
 // A word inside an earlier env's option run is a value, never an env command, so skipping it
 // keeps a chain of -S options from being scanned once per env word.

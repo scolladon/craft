@@ -597,6 +597,13 @@ describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic
     'git show -- *.js',
     'eval env git show',
     'eval A=1 command git show -q',
+    'exec git show',
+    'nohup git show',
+    '/usr/bin/time git show',
+    'sudo git show',
+    'builtin git show',
+    'nice --adjustment=5 git show',
+    'env FOO=bar git show',
   ]) {
     it(`Given ${JSON.stringify(command)}, when checked, then does not block`, () => {
       const sut = gitExtDiffPredicate;
@@ -638,6 +645,8 @@ describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic
     'echo --ext-diff | parallel git show',
     'echo --ext-diff | xargs /x/git-core/git-show HEAD',
     'eval xargs git show',
+    'echo --ext-diff | g-xargs git show',
+    'echo --ext-diff | 2xargs git show',
   ]) {
     it(`Given ${JSON.stringify(command)}, when checked, then blocks with the diff/show reason`, () => {
       const sut = gitExtDiffPredicate;
