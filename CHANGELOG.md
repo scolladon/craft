@@ -9,6 +9,7 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ### Fixed
 - The reviewer contract names the finding fields `normalize-findings` reads (`file`, `line`, `fix?`); a reviewer that followed the old `file:line` / `suggested fix` wording with a JSON array made the review phase's normalization exit 2.
+- `normalize-findings` no longer drops or corrupts JSON finding fields silently. A key outside `file`, `line`, `severity`, `finding`, `fix`, `status` (such as a leftover `suggested fix`) now exits 2 naming the key. A `line` that is not a non-negative safe integer or a digit string (such as `"12x"`, `null`, `""`) now exits 2 instead of normalizing to `null` or `0`.
 
 ## [2.0.0] - 2026-10-21
 

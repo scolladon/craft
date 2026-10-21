@@ -12,7 +12,7 @@ evidence:
 source: { run: lessons-corpus, phase: review, date: 2026-10-19 }
 status: active
 supersedes: []
-last-verified: 2026-10-20
+last-verified: 2026-10-21
 ---
 # 002 — Tests that spawn git must pin their environment
 

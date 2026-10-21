@@ -59,6 +59,14 @@ const SWALLOWED_ENTRY_PATTERN = /:(?:\d+-\d+|\*)\s*,/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
+// Every key the canonical finding shape names. Any other key (a legacy alias such as
+// `suggested fix`, a misspelling such as `Fix`) used to be dropped without a word.
+const ACCEPTED_JSON_FIELDS = new Set([...REQUIRED_JSON_FIELDS, 'fix', 'status']);
+
+// The per-line `\d+` line grammar, so a JSON string line accepts the same digits a per-line
+// record does; the JSON path additionally bounds the value to a safe integer.
+const DIGIT_STRING_PATTERN = /^\d+$/u;
+
 /**
  * Build a canonical Finding from raw field values, regardless of source shape.
  * `fix` and `status` are omitted when null or undefined.
@@ -90,6 +98,36 @@ function looksLikeJsonArray(trimmed) {
 }
 
 /**
+ * Throws on the first key of a JSON finding outside the canonical shape.
+ *
+ * @param {object} item
+ * @param {number} index
+ */
+function rejectUnexpectedFields(item, index) {
+  const unexpected = Object.keys(item).find(key => !ACCEPTED_JSON_FIELDS.has(key));
+  if (unexpected === undefined) {
+    return;
+  }
+  throw new Error(`Finding at index ${index} has an unknown field: ${JSON.stringify(unexpected)}`);
+}
+
+/**
+ * Resolves a JSON finding's raw `line` to a line number, or throws. `Number()` alone turned
+ * `"12x"` into NaN, and `""`, `null`, `false` and `[]` into 0, all without a word.
+ *
+ * @param {unknown} value
+ * @param {number} index
+ * @returns {number}
+ */
+function resolveJsonLine(value, index) {
+  const candidate = typeof value === 'string' && DIGIT_STRING_PATTERN.test(value) ? Number(value) : value;
+  if (Number.isSafeInteger(candidate) && candidate >= 0) {
+    return candidate;
+  }
+  throw new Error(`Finding at index ${index} has an invalid line: expected a non-negative safe integer, as a number or a digit string`);
+}
+
+/**
  * Maps a raw JSON object to a canonical Finding, validating required fields.
  *
  * @param {unknown} item
@@ -105,7 +143,9 @@ function mapJsonItem(item, index) {
       throw new Error(`Finding at index ${index} missing required field: ${field}`);
     }
   }
-  return toFinding(/** @type {Record<string,unknown>} */ (item));
+  rejectUnexpectedFields(item, index);
+  const record = /** @type {Record<string, unknown>} */ (item);
+  return toFinding({ ...record, line: resolveJsonLine(record.line, index) });
 }
 
 /**
