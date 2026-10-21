@@ -458,7 +458,7 @@ function judgeArgv(argv) {
   if (normalised.kind !== 'subcommand') return { destructive: false, extDiff: false };
   const args = beforeEnd(normalised.args);
   const destructive = DESTRUCTIVE_VERBS[normalised.subcommand]?.(args) ?? false;
-  const diffs = normalised.subcommand === 'diff' || normalised.subcommand === 'show';
+  const diffs = normalised.subcommand === 'diff';
   const last = lastExtDiffSetting(args);
   const extDiff = configured || (diffs ? last !== '--no-ext-diff' : last === '--ext-diff');
   return { destructive: configured || destructive, extDiff };

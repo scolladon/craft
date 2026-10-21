@@ -33,10 +33,10 @@ describe('gitExtDiffPredicate() — bare git diff/show without --no-ext-diff', (
     );
   });
 
-  it('Given a bare git show command, when checked, then returns block: true with the exact reason', () => {
+  it('Given a bare git diff HEAD command, when checked, then returns block: true with the exact reason', () => {
     const sut = gitExtDiffPredicate;
 
-    const result = sut('git show HEAD');
+    const result = sut('git diff HEAD');
 
     assert.equal(result.block, true);
     assert.equal(
@@ -63,7 +63,7 @@ describe('gitExtDiffPredicate() — interposed global options', () => {
     'git --git-dir=/repo/.git diff',
     'git --work-tree=/repo/work diff',
     'git -C /x -c a.b=c diff',
-    'git --git-dir=/repo/.git show HEAD',
+    'git --git-dir=/repo/.git diff HEAD',
   ]) {
     it(`Given "${command}" (interposed global option before diff/show), when checked, then returns block: true`, () => {
       const sut = gitExtDiffPredicate;
@@ -78,7 +78,7 @@ describe('gitExtDiffPredicate() — interposed global options', () => {
 describe('gitExtDiffPredicate() — collapsed/extra whitespace cannot slip past', () => {
   for (const command of [
     'git  diff',           // two spaces before the subcommand
-    'git   show HEAD',     // three spaces before the subcommand
+    'git   diff HEAD',     // three spaces before the subcommand
     'git  -C /x diff',     // two spaces before the global option
     'git -C  /x diff',     // two spaces inside the -C value separator
     'git -c  core.pager=cat diff', // two spaces inside the -c value separator
@@ -97,7 +97,7 @@ describe('gitExtDiffPredicate() — command-separator anchored git diff/show', (
   for (const command of [
     'echo hi; git diff',
     'true;git diff',
-    'ls && git show',
+    'ls && git diff',
     'cat foo | git diff',
   ]) {
     it(`Given "${command}" (git diff/show after a shell separator), when checked, then returns block: true`, () => {
@@ -113,7 +113,7 @@ describe('gitExtDiffPredicate() — command-separator anchored git diff/show', (
 describe('gitExtDiffPredicate() — a non-compliant git diff/show before a separator still blocks', () => {
   for (const command of [
     'git diff; echo ok',
-    'git show HEAD && true',
+    'git diff HEAD && true',
     'git diff | cat',
     'git diff\necho done',
   ]) {
@@ -132,10 +132,10 @@ describe('gitExtDiffPredicate() — fail-open bypasses now closed', () => {
     ' git diff', // leading space on the first line
     '\tgit diff', // leading tab
     'cd repo\ngit diff', // git diff on a command's second line
-    'true\ngit show HEAD', // git show on a second line
+    'true\ngit diff HEAD', // git show on a second line
     'echo --no-ext-diff; git diff HEAD', // marker hidden in an unrelated echo
     'git diff HEAD #--no-ext-diff', // marker hidden in a trailing comment
-    'git diff --no-ext-diff; git show HEAD', // compliant first invocation must not exempt the second
+    'git diff --no-ext-diff; git diff HEAD', // compliant first invocation must not exempt the second
   ]) {
     it(`Given ${JSON.stringify(command)} (previously a fail-open bypass), when checked, then returns block: true`, () => {
       const sut = gitExtDiffPredicate;
@@ -168,7 +168,7 @@ describe('gitExtDiffPredicate() — quote-aware: a metachar inside a quoted opti
     "git -C '/Users/me/My & Co/repo' diff", // quoted & inside -C value (single quotes)
     'git -C "/a & b" diff', // quoted & inside -C value (double quotes — both quote kinds tracked)
     "git -c core.pager='diff-so-fancy | less' diff", // quoted | inside -c value
-    "git --git-dir='/a;b/.git' show HEAD", // quoted ; inside --git-dir value
+    "git --git-dir='/a;b/.git' diff HEAD", // quoted ; inside --git-dir value
   ]) {
     it(`Given ${JSON.stringify(command)} (quoted metachar in an option value), when checked, then returns block: true`, () => {
       const sut = gitExtDiffPredicate;
@@ -186,7 +186,7 @@ describe('gitExtDiffPredicate() — a quote closes, so a real separator after it
 
     // If the quote state failed to close, the ";" would be read as still-inside-quotes and the
     // whole line would be one compliant segment (marker present) → wrongly allowed.
-    const result = sut("git -c x='y' diff --no-ext-diff; git show HEAD");
+    const result = sut("git -c x='y' diff --no-ext-diff; git diff HEAD");
 
     assert.equal(result.block, true);
   });
@@ -385,7 +385,7 @@ describe('gitExtDiffPredicate() — brace and glob words', () => {
 });
 
 describe('gitExtDiffPredicate() — wrappers and dashed builtins', () => {
-  assertBlocks(['G=git; command $G diff', 'G=git; nohup $G show', 'git-diff', '/x/git-core/git-show HEAD']);
+  assertBlocks(['G=git; command $G diff', 'G=git; nohup $G show', 'git-diff', '/x/git-core/git-diff HEAD']);
 
   it('Given a dashed diff carrying --no-ext-diff, when checked, then does not block', () => {
     const sut = gitExtDiffPredicate;
@@ -414,12 +414,12 @@ describe('gitExtDiffPredicate() — config channels outside -c', () => {
 });
 
 const REASON_EXT_DIFF = 'git diff/show must carry --no-ext-diff (external diff mangles parsed output)';
+const REASON_EXT_DIFF_OPTION = '--ext-diff is denied on every git verb (external diff mangles parsed output)';
 
 describe('gitExtDiffPredicate() — option order follows git', () => {
   for (const command of [
     'git diff -- --no-ext-diff',
     'git diff --no-ext-diff --ext-diff',
-    'git show --no-ext-diff --ext-diff HEAD',
     'rtk git diff',
     'proxy rtk git diff',
     'echo rtk proxy; git diff',
@@ -484,8 +484,6 @@ describe('gitExtDiffPredicate() — marker spelled through an escape', () => {
 });
 
 describe('gitExtDiffPredicate() — --ext-diff on any git verb', () => {
-  const REASON_EXT_DIFF_OPTION = '--ext-diff is denied on every git verb (external diff mangles parsed output)';
-
   for (const command of [
     'git log -p -1 --ext-diff',
     'git format-patch -1 --stdout --ext-diff',
@@ -523,10 +521,10 @@ describe('gitExtDiffPredicate() — --ext-diff on any git verb', () => {
     });
   }
 
-  it('Given git show, when checked, then it keeps the diff/show reason', () => {
+  it('Given git diff, when checked, then it keeps the diff/show reason', () => {
     const sut = gitExtDiffPredicate;
 
-    const result = sut('git show');
+    const result = sut('git diff');
 
     assert.deepEqual(result, { block: true, reason: REASON_EXT_DIFF });
   });
@@ -559,4 +557,72 @@ describe('gitExtDiffPredicate() - --ext-diff where git takes no verb', () => {
       assert.deepEqual(result, { block: false });
     });
   }
+});
+
+describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic option words', () => {
+  for (const command of [
+    'git show',
+    'git show HEAD~1',
+    'git show -p HEAD',
+    'git show --stat',
+    'git show --stat HEAD',
+    'git show v1',
+    'git show HEAD:f',
+    'git show -m HEAD',
+    'git show --cc',
+    'git -C . show',
+    'git --no-pager show',
+    '/usr/bin/git show',
+    'git-show',
+    'echo git show',
+    'git show -- --ext-diff',
+    'git show --ext-diff=1',
+    'git -c diff.external=x show',
+    'GIT_EXTERNAL_DIFF=x git show',
+    'git --git-dir=/repo/.git show HEAD',
+    'ls && git show',
+    '/x/git-core/git-show HEAD',
+    'git show --ext-diff --no-ext-diff',
+    'git show --no-ext-diff HEAD',
+    'git show "$sha" --no-ext-diff',
+    'G=git; $G status',
+    'X=--ext-diff; git log -p $X',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then does not block`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: false });
+    });
+  }
+
+  for (const command of ['git show --ext-diff', 'git show --no-ext-diff --ext-diff HEAD']) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the option reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_EXT_DIFF_OPTION });
+    });
+  }
+
+  for (const command of [
+    'X=--ext-diff; git show $X',
+    'git show $REV',
+    'git show --no-ext-diff $X',
+    '$G show',
+    '$G show HEAD',
+    'G="git diff"; $G show',
+  ]) {
+    it(`Given ${JSON.stringify(command)}, when checked, then blocks with the diff/show reason`, () => {
+      const sut = gitExtDiffPredicate;
+
+      const result = sut(command);
+
+      assert.deepEqual(result, { block: true, reason: REASON_EXT_DIFF });
+    });
+  }
+
+  assertBlocks(['command $G show', '{git,show}', 'G=git; command $G {di,show}ff', '{git,{di,show}ff}']);
 });

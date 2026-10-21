@@ -182,4 +182,6 @@ export const optionWords = words => {
 
 export const DESTRUCTIVE_VERBS = Object.freeze(['push', 'reset', 'clean', 'branch']);
 export const DIFFING_VERBS = Object.freeze(['diff', 'show']);
+// git runs diff.external without --ext-diff only for these verbs
+export const DEFAULT_EXT_DIFF_VERBS = Object.freeze(['diff']);
 export const EXT_DIFF_WORD = '--ext-diff';

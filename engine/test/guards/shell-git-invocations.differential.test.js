@@ -381,3 +381,22 @@ describe('shell-git-invocations — oracle on config section renames', () => {
     });
   }
 });
+
+describe('shell-git-invocations — oracle on git show', () => {
+  for (const [argv, extDiff] of [
+    [['show'], false],
+    [['show', '--stat', 'HEAD'], false],
+    [['show', '--ext-diff'], true],
+    [['show', '--no-ext-diff', '--ext-diff'], true],
+    [['show', '--ext-diff', '--no-ext-diff'], false],
+    [['diff'], true],
+  ]) {
+    it(`Given git ${argv.join(' ')}, when the oracle judges it, then extDiff is ${extDiff}`, () => {
+      const sut = judgeArgv;
+
+      const result = sut(argv);
+
+      assert.deepEqual(result, { destructive: false, extDiff });
+    });
+  }
+});
