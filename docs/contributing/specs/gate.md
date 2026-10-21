@@ -10,7 +10,7 @@ subjects:
 Two distinct mechanisms make up the gate port:
 
 - **tool-guard**: intercept a tool call before execution and veto it when the call violates an
-  invariant (e.g. `git diff`/`git show` without `--no-ext-diff`; a path access outside the
+  invariant (e.g. `git diff` without `--no-ext-diff`; a path access outside the
   working directory). The veto is enforcement — it is not a blocker.
 
 - **gate-command**: run the descriptor's resolved gate string as a subprocess at the
@@ -52,12 +52,22 @@ hook set:
   reserved words, quote removal, `sh -c`/`eval` and git global options, judges `--no-ext-diff`
   and `rtk proxy` per invocation, and reads quoted text and heredoc bodies as data. A literal
   `--ext-diff` (the last setting before `--`) is denied on every git verb, and `git config` naming
-  an `alias`, `include.path` or `includeIf.*` key is denied. Node prints
+  an `alias`, `include.path` or `includeIf.*` key is denied. `git diff` without `--no-ext-diff` is
+  denied; a bare `git show` (any form) is allowed, since git runs no external diff for `show`
+  without `--ext-diff`. `git show` is judged like `git diff` when a dynamic option word follows
+  the last `--no-ext-diff`, or when the argv git receives may differ from the parsed words: a
+  dynamic head (`$G show`), a dynamic global-option value before the verb (`git -C $D show`;
+  quoting is not tracked, so `git -C "$D" show` is an accepted over-block), or any word before
+  `git` in the same simple command that is not a literal `env`/`command`/`exec`/`nohup`/`time`/
+  `nice`/`timeout`/`sudo`/`builtin`/`echo` or an option, number or `NAME=value` operand (`xargs`,
+  `parallel`, an unknown or dynamic command). `env -S`/`--split-string` followed by any later word
+  is unparseable and denied fail-closed for every command. Node prints
   exactly one token: `allow`, on which the hook exits 0 with no output, or
   `{ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny",
   permissionDecisionReason: "craft: <engine reason>" } }`, which the hook prints as given. The
   reason is the engine's with one `craft: ` prefix:
   `craft: git diff/show must carry --no-ext-diff (external diff mangles parsed output)`,
+  `craft: command not parseable (env -S re-splits its string with the words after it) — denied fail-closed`,
   `craft: --ext-diff is denied on every git verb (external diff mangles parsed output)`,
   `craft: git config naming an alias or include key is denied — an alias can run any git verb`, or the
   config-channel, inline-alias or parse-failure reason (an over-long command included). A
@@ -111,7 +121,7 @@ there is no `permission: "deny"` field. Handler errors block fail-safe (an unhan
 handler is treated as a veto). Pi has no harness-hook concept — the `pi.on("tool_call", ...)` hook
 is Pi's equivalent of the PreToolUse mechanism, not a hook file on disk. The deterministic
 `tool_call` predicate (the Pi-side equivalent of `git-no-ext-diff.sh`'s ext-diff verdict) is
-unit-tested separately (part 5); it enforces the same widened rule (`--ext-diff` on any verb, `git config` alias/include keys).
+unit-tested separately (part 5); it enforces the same widened rule (`--ext-diff` on any verb, `git config` alias/include keys; `git show` judged on `--ext-diff`, not default-denied).
 
 **gate-command**: Pi has no harness-hook concept for gate execution; the resolved gate string is
 run as a normal subprocess via `execFile` or equivalent (argv array, no shell). The never-commit-
@@ -126,7 +136,7 @@ output)` hook (opencode 1.18.3 expects a plugin's hooks at the top level, keyed 
 wrapped in a `hooks` object). The plugin composes `adapters/opencode/src/git-guard-adapter.js`
 (`commandFromToolEvent`, reading the bash command from `output.args.command` with a defensive
 `input.args.command` fallback) over `adapters/opencode/src/git-guard-predicate.js` — the same
-`git diff`/`show` without `--no-ext-diff` predicate the Claude and Pi bindings enforce (the shared predicate also denies any-verb `--ext-diff` and `git config` alias/include keys). A block
+`git diff` without `--no-ext-diff` predicate the Claude and Pi bindings enforce (the shared predicate also denies any-verb `--ext-diff`, `git show` judged on `--ext-diff`, and `git config` alias/include keys). A block
 verdict throws inside the hook, which opencode surfaces to the caller as the tool failure; the
 worker retries with the corrected call. `opencode.json`'s `permission.external_directory: deny`
 is the containment mechanism alongside the guard, denying tool access outside the working
@@ -248,6 +258,9 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   that may be git and a verb that is `config` or unreadable (`grep -rn "$PAT" config include`,
   `grep "$a" "$b" alias`) — the same shape as `command $G config alias.x` and
   `git $C alias.x`, which the rule must deny.
+- `diff.<driver>.textconv` runs on a bare `git show` as on `git log -p` and `git diff --no-ext-diff`;
+  no rule covers textconv. Git older than 2.17.0 is unprobed. `env -S` backslash escapes
+  (`env -S 'git\_show\_--ext-diff'`) are not modelled.
 - A renamed or copied git binary (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
   string guard; `hash -p` is blocked.
 - Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions

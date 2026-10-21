@@ -1,5 +1,5 @@
 {
-  "description": "craft guard — denies git diff/show without --no-ext-diff and writes outside the working directory",
+  "description": "craft guard — denies git diff without --no-ext-diff, git show judged on --ext-diff, and writes outside the working directory",
   "hooks": {
     "PreToolUse": [
       {
