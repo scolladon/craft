@@ -676,3 +676,6 @@ git-show-ext-diff-default-deny documentation turns=9 tool_calls=10 tokens=214869
 git-show-ext-diff-default-deny implementation turns=43 tool_calls=54 tokens=1066705 duration_ms=406466 cache_read=937739 cache_creation=127455 output=1425 avg_ctx=24774 equiv=260304
 git-show-ext-diff-default-deny planning turns=49 tool_calls=52 tokens=5175813 duration_ms=875117 cache_read=5005381 cache_creation=169704 output=630 avg_ctx=105616 equiv=715916
 git-show-ext-diff-default-deny review turns=169 tool_calls=173 tokens=7151193 duration_ms=1782216 cache_read=6666730 cache_creation=481609 output=2516 avg_ctx=42300 equiv=1281602
+copilot-write-bash-pty-probe design turns=13 tool_calls=14 tokens=516507 duration_ms=182453 cache_read=462731 cache_creation=53626 output=124 avg_ctx=39722 equiv=113952
+copilot-write-bash-pty-probe implementation turns=5 tool_calls=5 tokens=116504 duration_ms=51169 cache_read=89206 cache_creation=27129 output=159 avg_ctx=23269 equiv=43637
+copilot-write-bash-pty-probe planning turns=29 tool_calls=29 tokens=1452272 duration_ms=499083 cache_read=1383066 cache_creation=68795 output=353 avg_ctx=50066 equiv=226123
