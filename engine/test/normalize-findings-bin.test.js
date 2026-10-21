@@ -1,7 +1,7 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -150,4 +150,44 @@ test('Given a nonexistent file-path argument, when normalize-findings runs, then
   assert.equal(result.status, 2, `expected clean exit 2; stderr: ${result.stderr}`);
   assert.ok(result.stderr.includes('normalize-findings:'), `stderr should be the clean bin message; got: ${result.stderr}`);
   assert.equal(result.stdout, '');
+});
+
+// ─── contract-shaped JSON (live harness-read field list) → canonical, exit 0 ───
+
+const HARNESS_READ_CONTRACT = join(__dir, '..', '..', 'contracts', 'harness-read.md');
+// Declared independently of the parser so a contract field it cannot map fails loudly here.
+const CONTRACT_FIELD_LIST_PATTERN = /Structured findings: each finding reported as \{([^}]+)\}/u;
+const SAMPLE_BY_CONTRACT_FIELD = {
+  file: 'src/a.js', line: 12, 'file:line': 'src/a.js:12',
+  severity: 'HIGH', finding: 'x', fix: 'y', 'suggested fix': 'y', status: 'VERIFIED',
+};
+// Cuts a field name off its enum value list, with or without a space after the colon;
+// a bare `file:line` has no uppercase enum after its colon, so it stays whole.
+const FIELD_NAME_TERMINATOR = /\??:\s*(?=[A-Z][A-Z-]*\|)/u;
+
+function contractFieldNames() {
+  const match = readFileSync(HARNESS_READ_CONTRACT, 'utf8').match(CONTRACT_FIELD_LIST_PATTERN);
+  if (match === null) throw new Error('contracts/harness-read.md names no finding field list');
+  return match[1].split(',').map(entry => entry.trim().split(FIELD_NAME_TERMINATOR)[0].replace(/\?$/u, ''));
+}
+
+function contractShapedFinding() {
+  return Object.fromEntries(contractFieldNames().map((name) => {
+    if (!(name in SAMPLE_BY_CONTRACT_FIELD)) throw new Error(`no sample for contract field: ${name}`);
+    return [name, SAMPLE_BY_CONTRACT_FIELD[name]];
+  }));
+}
+
+test('Given a reviewer JSON array shaped exactly as the harness-read contract instructs, when normalize-findings runs, then it exits 0 with every field carried into the canonical finding', () => {
+  const sut = runStdin;
+  const input = JSON.stringify([contractShapedFinding()]);
+
+  const result = sut(input);
+
+  assert.equal(result.status, 0, result.stderr);
+  const [canonical] = JSON.parse(result.stdout);
+  assert.deepEqual(canonical,
+    { file: 'src/a.js', line: 12, severity: 'HIGH', finding: 'x', fix: 'y', status: 'VERIFIED' });
+  // A contract field the parser drops must fail here even once it has a sample.
+  assert.deepEqual(Object.keys(canonical).sort(), contractFieldNames().sort());
 });
