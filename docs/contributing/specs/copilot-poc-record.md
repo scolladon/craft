@@ -29,7 +29,7 @@ with a finalization error.
 
 **Mechanism-level probe: CONFIRMED** (2026-07-20). The 20 rows below were pinned live against
 `copilot` 1.0.63 using the BYOK fake-provider method above. Rows 11 and D5 were re-probed on
-1.0.92 and re-confirmed on 1.0.98 (live probe 2026-10-15, same method): the hook now **denies**. An end-to-end craft construction
+1.0.92 and re-confirmed on 1.0.98 (live probe 2026-10-15, same method): the hook now **denies**. Row 21 was pinned on 1.0.98 (live probe 2026-10-21, same method, headless and interactive pty). An end-to-end craft construction
 phase driven against a real, authenticated Copilot seat has **not** run — that remains on-demand
 (D2 below), consistent with the fact that it consumes paid quota and must never be CI-gated.
 
@@ -60,6 +60,7 @@ phase driven against a real, authenticated Copilot seat has **not** run — that
 | 18 | Logging | A log-directory flag (with a default under the config directory) and a log-level flag spanning `none` through `all`. Debug logs contain the **full model request payload**, including every tool definition — the source used to pin row 7. |
 | 19 | Skill user-invocability | **Resolved CONFIRMED** (superseding an earlier unverified status): a probe against `copilot` 1.0.63, loaded with a repo-root plugin directory, emitted a session-startup event listing **all 19 shared craft skills**, each `source: "plugin"` and **`userInvocable: true`**. The entrypoint is therefore the shared skill's own frontmatter name (`run`), directly invocable via the `skill` tool as `{ skill: "run" }`; `commands/craft-run.md` is the adapter-local command deferring to it. |
 | 20 | `--deny-tool` matcher semantics (now the second layer behind the enforcing hook, row 11; still the floor on a copilot older than 1.0.92) | **PREFIX matching on the command string** — it does not parse argv. Pinned against `copilot` 1.0.63: `git push` and `git push --force origin main` are both **BLOCKED** by `shell(git push)`. `git -C . push` and `git clean -df` **EXECUTE (bypass)** against `shell(git push)` / `shell(git clean -fd)` respectively — an interposed global option or reordered flag defeats a literal prefix. Wildcard behaviour: `shell(git:*)` blocks **all** git (rejected as a fix — it would break craft's own git-heavy workflow); `shell(git *push*)`, `shell(*push*)`, and `shell(git)` do **not** match anything and all executed. |
+| 21 | `write_bash` into a shell — not a model tool (1.0.98) | **1.0.98 (live probe 2026-10-21, BYOK method above, headless `-p` and interactive `-i` under a real pty, 3/3 each):** every provider request's `tools` list holds `bash`, `read_bash`, `stop_bash`, `list_bash` and no `write_bash` (the interactive list adds `ask_user`). A scripted `write_bash {shellId, input, delay}` call returns `Tool 'write_bash' does not exist. Available tools that can be called are bash, read_bash, …`. An async `bash` shell's stdin is `/dev/null` (`[ -t 0 ]` false), so a `sh` in it reads EOF and exits 0. No marker file, no `push` in the stub git log. The preToolUse hook **fires** for the call (`toolName: "write_bash"`, `toolArgs` an object carrying `shellId`, `input`, `delay`) before the rejection; the guard passes that name through unjudged. Corroborated by the 1.0.62 changelog (shell commands no longer run in a pseudo-terminal; `write_bash` input no longer supported). Re-open trigger: a copilot version whose request `tools` list carries `write_bash` again. |
 
 ## DEFERRED
 
@@ -80,6 +81,9 @@ phase driven against a real, authenticated Copilot seat has **not** run — that
 - point a local fake SSE-emitting OpenAI-compatible provider at the BYOK base-url environment
   variable — no platform credentials, no AI credits, no network egress required;
 - cap the run with a background watchdog (macOS has neither `timeout` nor `gtimeout` by default);
+- for an interactive (pty) row, spawn `copilot -i <prompt>` under `expect`, which allocates a pty;
+  do not wait on a literal end marker (the TUI splits it across redraws), cap with the `expect`
+  timeout and read completion off the fake provider's request log;
 - invoke `runAcceptanceProbe` from `adapters/copilot/src/probe.js` with a `copilotRunner` that
   spawns `copilot` using the launch argv from `buildLaunchArgs` (`adapters/copilot/src/
   deny-tool-args.js`) and builds the run-trace from post-run inspection of the throwaway;
