@@ -97,6 +97,8 @@ describe('hasInlineAlias()', () => {
 });
 
 const REASON_PUSH = 'craft: destructive git (push) is denied in this binding — run it outside the agent';
+const ENV_RESPLIT_REASON =
+  'craft: command not parseable (env -S re-splits its string with the words after it) — denied fail-closed';
 const MAX_ANCHORS = 256;
 const TOO_MANY_REASON =
   'craft: command not parseable (too many git invocations) — denied fail-closed';
@@ -165,12 +167,12 @@ describe('shell parsing — bounded work', () => {
     assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
   });
 
-  it('Given a long chain of env split options, when checked, then blocks the push in bounded time', () => {
+  it('Given a long chain of env split options, when checked, then it is denied fail-closed in bounded time', () => {
     const sut = gitDestructivePredicate;
 
     const { result, elapsed } = timed(() => sut('env -S '.repeat(18000) + '; git push'));
 
-    assert.deepEqual(result, { block: true, reason: REASON_PUSH });
+    assert.deepEqual(result, { block: true, reason: ENV_RESPLIT_REASON });
     assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
   });
 

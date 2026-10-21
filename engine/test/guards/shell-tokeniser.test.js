@@ -8,6 +8,8 @@ const cmd = (...texts) => ({ words: texts.map(word) });
 const parsed = (...commands) => ({ parsed: true, commands });
 const UNTERMINATED_QUOTE =
   'craft: command not parseable (unterminated quote) — denied fail-closed';
+const ENV_RESPLIT =
+  'craft: command not parseable (env -S re-splits its string with the words after it) — denied fail-closed';
 
 const assertParses = rows => {
   for (const [input, expected] of rows) {
@@ -444,17 +446,20 @@ describe('parseShellCommands() — eval and env option runs', () => {
     ],
   ]);
 
-  for (const [input, outer, split] of [
-    ["env -S 'git diff' env -S 'git log'", ['env', '-S', 'git diff', 'env', '-S', 'git log'], ['git', 'diff']],
-    ["env -S 'git show' --ext-diff", ['env', '-S', 'git show', '--ext-diff'], ['git', 'show']],
-    ["env --split-string='git show' HEAD", ['env', '--split-string=git show', 'HEAD'], ['git', 'show']],
+  for (const input of [
+    "env -S 'git diff' env -S 'git log'",
+    "env -S 'git show' --ext-diff",
+    "env --split-string='git show' HEAD",
+    'env -Sxargs git show',
+    "env -S '' -S 'git show' --ext-diff",
+    "env -S 'git show #' --ext-diff",
   ]) {
-    it(`Given ${JSON.stringify(input)}, When parsed, Then the split command carries a dynamic stand-in for the appended operands`, () => {
+    it(`Given ${JSON.stringify(input)}, When parsed, Then env re-splitting with later words fails closed`, () => {
       const sut = parseShellCommands;
 
       const result = sut(input);
 
-      assert.deepEqual(result.commands.slice(0, 2), [cmd(...outer), { words: [...split.map(word), dyn('$@')] }]);
+      assert.deepEqual(result, { parsed: false, reason: ENV_RESPLIT });
     });
   }
 
