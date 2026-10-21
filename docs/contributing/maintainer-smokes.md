@@ -178,8 +178,8 @@ USD 2.63, ceiling USD 12.
 
 **Reviewer output shape.** `reviewer-tests-findings` spawns `craft:reviewer` directly, outside
 the review phase. The agent names the severity scale {CRITICAL, HIGH, MEDIUM, LOW} itself, and a
-structure test keeps that set equal to the review contract's; the per-line shape (`file:line`,
-suggested fix) still comes only from the phase. The `findings-shape` grader therefore stays
+structure test keeps that set equal to the review contract's; the finding fields (`file`, `line`,
+`fix`) still come only from the phase. The `findings-shape` grader therefore stays
 lenient: a severity word, in any case, within 300 characters of a fixture file name, in either
 order. A finding about a missing test has no line to cite. Before the agent named the scale,
 `findings-shape` passed 3 of 3 at opus, 1 of 3 at sonnet and 1 of 3 at haiku, and each failing

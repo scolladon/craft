@@ -7,6 +7,9 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Fixed
+- The reviewer contract names the finding fields `normalize-findings` reads (`file`, `line`, `fix?`); a reviewer that followed the old `file:line` / `suggested fix` wording with a JSON array made the review phase's normalization exit 2.
+
 ## [2.0.0] - 2026-10-21
 
 ### Added
