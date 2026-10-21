@@ -679,3 +679,7 @@ git-show-ext-diff-default-deny review turns=169 tool_calls=173 tokens=7151193 du
 copilot-write-bash-pty-probe design turns=13 tool_calls=14 tokens=516507 duration_ms=182453 cache_read=462731 cache_creation=53626 output=124 avg_ctx=39722 equiv=113952
 copilot-write-bash-pty-probe implementation turns=5 tool_calls=5 tokens=116504 duration_ms=51169 cache_read=89206 cache_creation=27129 output=159 avg_ctx=23269 equiv=43637
 copilot-write-bash-pty-probe planning turns=29 tool_calls=29 tokens=1452272 duration_ms=499083 cache_read=1383066 cache_creation=68795 output=353 avg_ctx=50066 equiv=226123
+reviewer-findings-shape-mismatch design turns=19 tool_calls=21 tokens=814729 duration_ms=210333 cache_read=749646 cache_creation=64855 output=190 avg_ctx=42870 equiv=157021
+reviewer-findings-shape-mismatch implementation turns=5 tool_calls=7 tokens=113033 duration_ms=46615 cache_read=87068 cache_creation=25455 output=500 avg_ctx=22507 equiv=43036
+reviewer-findings-shape-mismatch planning turns=9 tool_calls=9 tokens=292169 duration_ms=91159 cache_read=253744 cache_creation=38288 output=119 avg_ctx=32450 equiv=73847
+reviewer-findings-shape-mismatch review turns=24 tool_calls=24 tokens=480824 duration_ms=122085 cache_read=370209 cache_creation=110341 output=226 avg_ctx=20025 equiv=176125
