@@ -4,14 +4,14 @@ import { gitGuardPredicate } from '../src/git-guard-predicate.js';
 
 const BLOCK_COMMANDS = [
   'git diff',
-  'git show',
+  'git show --ext-diff',
   'git diff HEAD~1',
-  'git show HEAD',
+  'git diff HEAD',
   'cd /repo; git diff HEAD',
   'git -C /x diff',
-  'git -c k=v show',
+  'git -c k=v diff',
   'git --git-dir=.g diff',
-  'git --work-tree=. show',
+  'git --work-tree=. diff',
   'echo --no-ext-diff; git diff HEAD', // a marker in an unrelated segment must not exempt the git call
 ];
 
@@ -57,10 +57,10 @@ describe('gitGuardPredicate() — reason string content on git block', () => {
     assert.ok(result.reason.includes('--no-ext-diff'), `reason must mention --no-ext-diff, got: ${result.reason}`);
   });
 
-  it('Given a bare git show without --no-ext-diff, when guarded, then reason mentions external diff', () => {
+  it('Given a bare git diff HEAD without --no-ext-diff, when guarded, then reason mentions external diff', () => {
     const sut = gitGuardPredicate;
 
-    const result = sut('git show HEAD');
+    const result = sut('git diff HEAD');
 
     assert.ok(result.reason.includes('external diff'), `reason must mention external diff, got: ${result.reason}`);
   });
@@ -80,9 +80,9 @@ describe('gitGuardPredicate() — property lens', () => {
     assert.ok(results.every((result) => result.block === false));
   });
 
-  it('Given a bare git diff/show with no compliant marker, when guarded, then always blocks', () => {
+  it('Given a bare git diff, or a git show enabling --ext-diff, with no compliant marker, when guarded, then always blocks', () => {
     const sut = gitGuardPredicate;
-    const commands = ['git diff', 'git show', 'git diff HEAD', 'git show HEAD~2'];
+    const commands = ['git diff', 'git diff HEAD', 'git diff HEAD~2', 'git show --ext-diff'];
 
     const results = commands.map(sut);
 

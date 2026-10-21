@@ -46,8 +46,8 @@ describe('decideGuard — enforces git-ext-diff via the shared predicate, both d
     assert.match(sut.reason, /--no-ext-diff/);
   });
 
-  it('Given run_command git show without --no-ext-diff, when decided, then it blocks', () => {
-    const sut = decideGuard(runCommandPayload('git show HEAD'));
+  it('Given run_command git show --ext-diff, when decided, then it blocks', () => {
+    const sut = decideGuard(runCommandPayload('git show --ext-diff'));
 
     assert.equal(sut.block, true);
   });

@@ -17,14 +17,14 @@ function bashPayload(command) {
 
 const BLOCK_COMMANDS = [
   'git diff',
-  'git show',
+  'git show --ext-diff',
   'git diff HEAD~1',
-  'git show HEAD',
+  'git diff HEAD',
   'cd /repo; git diff HEAD',
   'git -C /x diff',
   'git -c k=v show',
   'git --git-dir=.g diff',
-  'git --work-tree=. show',
+  'git --work-tree=. diff',
   'git push',
   'git -C . push',
   'git clean -fd',
