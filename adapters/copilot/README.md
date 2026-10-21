@@ -119,8 +119,6 @@ Residuals, stated as measured or designed:
   string passed to an evaluator (`bash -c "$CMD"`, `eval "$X"`); `git${IFS}diff`.
 - **A renamed or copied git binary** (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
   string guard; `hash -p` is blocked.
-- **`write_bash` into an interactive (pty) session** is unguarded: headless 1.0.98 sessions have
-  stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
 - **No cross-call shell state**: a function or variable defined in one `bash` call was not visible
   in the next, even with a reused `shellId`, and no tool other than `bash` takes shell text
   (1.0.92, 1.0.98).
@@ -129,6 +127,10 @@ Residuals, stated as measured or designed:
   dynamic words now block. Work is bounded by a 131072-char cap and a nesting cap: the 80 KB `eval`
   chain that took 49 s then aborted now denies in 0.06 s, and the verdict deadline backs this up.
   Every fail-closed denial carries a reason.
+  `write_bash` reaches no shell: on 1.0.98 it is not a model tool in headless or interactive (pty)
+  sessions, and an async shell's stdin is `/dev/null` (live probe 2026-10-21). The hook fires for
+  a `write_bash` call; the guard passes it through unjudged. A copilot version whose request
+  `tools` list carries `write_bash` again reopens it.
 - **Intended false blocks**, each costing one re-issue with a literal command: `git commit -c <rev>` (read as an unsafe `-c` key); `git add scripts/sh`; `bash -c 'git status'`;
   a `$` or backtick in any quoted word, or a backslash or exclamation mark in a double-quoted one
   (`git commit -m 'cost $5'`, `git commit -m "stop!"`); a callback builtin in command position

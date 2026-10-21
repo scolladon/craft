@@ -186,10 +186,11 @@ through 2.56.0 run no external diff for `show` without `--ext-diff` (ADR-662, AD
 
 ### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
 
-**Copilot `write_bash` into an interactive (pty) session is unprobed.** Copilot 1.0.98 ships a
-`write_bash` tool (`{shellId, input}`) the guard never sees. Headless sessions have stdin at EOF, so
-nothing reaches the shell (probed); an interactive session with a pty may differ. Probe it with a
-throwaway home and a stub git before relying on the guard interactively.
+Delivered 2026-10-21 (copilot-write-bash-pty-probe): on copilot 1.0.98 `write_bash` reaches no
+shell. It is not a model tool in headless or interactive (pty) sessions (3/3 each), and an async
+shell's stdin is `/dev/null`. Record: `docs/contributing/specs/copilot-poc-record.md` row 21
+(ADR-664, ADR-665, ADR-666). A copilot version whose request `tools` list carries `write_bash`
+again reopens it.
 
 **Does the interactive codex TUI apply a malformed `.rules` file like `codex exec` or like the
 app-server?** On codex 0.162.1 a malformed `$CODEX_HOME/rules/craft.rules` makes `codex exec`

@@ -263,8 +263,6 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   (`env -S 'git\_show\_--ext-diff'`) are not modelled.
 - A renamed or copied git binary (`ln -s "$(command -v git)" x; ./x push`, `cp`) is not visible to a
   string guard; `hash -p` is blocked.
-- Copilot `write_bash` into an interactive (pty) session is unguarded: headless 1.0.98 sessions
-  have stdin at EOF (live probe 2026-10-15); interactive sessions are unprobed.
 - Destructive verbs outside the shipped set (`checkout -f`/`.`, `restore`, `branch -M`,
   `update-ref -d`, `filter-branch`, `send-pack`).
 - Closed, no longer residuals: `--ext-diff` on non-diff verbs and `git config` alias/include
@@ -281,6 +279,12 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   trusted project's `.codex/config.toml` setting `unified_exec_tty = true` overrides the template
   key and reopens it. Only `codex exec` was probed (not the TUI or app-server turns), and a codex
   release that ignores the key would reopen it silently.
+  Copilot `write_bash` reaches no shell: on 1.0.98 it is not a model tool in headless or
+  interactive (pty) sessions (live probe 2026-10-21, 3/3 each). The request `tools` list carries
+  `bash`, `read_bash`, `stop_bash`, `list_bash` only, a `write_bash` call is rejected as
+  `Tool 'write_bash' does not exist`, and an async shell's stdin is `/dev/null`. The preToolUse
+  hook fires for the call and the guard passes that name through unjudged. A copilot version whose
+  request `tools` list carries `write_bash` again reopens it.
 - Closed, not a residual: cross-call shell state. A function or variable defined in one `bash` call
   was not visible in the next, even with a reused `shellId`, and only `bash` executes shell text
   (`read_bash`, `stop_bash`, `list_bash` cannot inject input) — 1.0.92 and 1.0.98.
