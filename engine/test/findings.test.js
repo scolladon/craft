@@ -430,6 +430,79 @@ test('Given a non-first line indented before its status prefix, when normalizeFi
   assert.equal(result[1].finding, 'second');
 });
 
+// ─── invalid line in a JSON finding ─────────────────────────────────────────
+
+const INVALID_LINE_MESSAGE = 'Finding at index 0 has an invalid line: expected a non-negative integer or digit string';
+
+const jsonWithLine = lineJson => `[{"file":"a.js","line":${lineJson},"severity":"HIGH","finding":"x"}]`;
+
+test('Given a JSON finding whose line is a non-numeric string, when normalizeFindings runs, then it throws naming the index and line', () => {
+  const raw = JSON.stringify([{ file: 'a.js', line: '12x', severity: 'HIGH', finding: 'x' }]);
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === INVALID_LINE_MESSAGE,
+  );
+});
+
+const INVALID_LINE_JSON = [
+  '"x"', '" 12 "', '" 12"', '"12 "', '""', '"  "', '"0x1A"', '"-3"', '"1.5"', '"9007199254740993"',
+  '-3', '1.5', 'null', 'true', 'false', '[]', '[12]', '{}', '1e400', '9007199254740993',
+];
+
+for (const lineJson of INVALID_LINE_JSON) {
+  test(`Given a JSON finding whose line is ${JSON.stringify(lineJson)}, when normalizeFindings runs, then it throws the invalid-line message`, () => {
+    const raw = jsonWithLine(lineJson);
+    const sut = normalizeFindings;
+
+    assert.throws(
+      () => sut(raw),
+      (err) => err.message === INVALID_LINE_MESSAGE,
+    );
+  });
+}
+
+test('Given a JSON array whose second finding has an invalid line, when normalizeFindings runs, then it throws naming index 1', () => {
+  const raw = JSON.stringify([
+    { file: 'a.js', line: 1, severity: 'HIGH', finding: 'x' },
+    { file: 'a.js', line: -3, severity: 'HIGH', finding: 'x' },
+  ]);
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === 'Finding at index 1 has an invalid line: expected a non-negative integer or digit string',
+  );
+});
+
+const ACCEPTED_LINE_PAIRS = [
+  ['0', 'HIGH a.js:0 — x'],
+  ['1e3', 'HIGH a.js:1000 — x'],
+  ['"12"', 'HIGH a.js:12 — x'],
+  ['"007"', 'HIGH a.js:007 — x'],
+];
+
+for (const [lineJson, perLine] of ACCEPTED_LINE_PAIRS) {
+  test(`Given a JSON finding whose line is ${JSON.stringify(lineJson)}, when normalizeFindings runs, then it equals the per-line record ${JSON.stringify(perLine)}`, () => {
+    const sut = normalizeFindings;
+
+    const result = sut(jsonWithLine(lineJson));
+
+    assert.deepEqual(result, sut(perLine));
+  });
+}
+
+test('Given a JSON finding with an unknown key and an invalid line, when normalizeFindings runs, then the unknown-field error wins', () => {
+  const raw = JSON.stringify([{ file: 'a.js', line: '12x', severity: 'HIGH', finding: 'x', column: 4 }]);
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === 'Finding at index 0 has an unknown field: "column"',
+  );
+});
+
 // ─── ReDoS resistance still holds with a status prefix ───────────────────────
 
 test('Given a status-prefixed pathological line at exactly the cap, when normalizeFindings runs, then it rejects promptly as malformed rather than tripping the cap', () => {

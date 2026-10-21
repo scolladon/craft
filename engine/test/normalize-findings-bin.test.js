@@ -165,6 +165,19 @@ test('Given a JSON finding with a suggested fix key on stdin, when normalize-fin
   assert.equal(result.stdout, '');
 });
 
+// ─── invalid JSON line → exit 2, reason on stderr ───
+
+test('Given a JSON finding with a non-numeric line on stdin, when normalize-findings runs, then it exits 2 with the reason on stderr and nothing on stdout', () => {
+  const input = JSON.stringify([{ file: 'a.js', line: '12x', severity: 'HIGH', finding: 'x' }]);
+  const sut = runStdin;
+
+  const result = sut(input);
+
+  assert.equal(result.status, 2);
+  assert.equal(result.stderr, 'normalize-findings: Finding at index 0 has an invalid line: expected a non-negative integer or digit string\n');
+  assert.equal(result.stdout, '');
+});
+
 // ─── contract-shaped JSON (live harness-read field list) → canonical, exit 0 ───
 
 const HARNESS_READ_CONTRACT = join(__dir, '..', '..', 'contracts', 'harness-read.md');

@@ -63,6 +63,10 @@ const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 
 // `suggested fix`, a misspelling such as `Fix`) used to be dropped without a word.
 const ACCEPTED_JSON_FIELDS = new Set([...REQUIRED_JSON_FIELDS, 'fix', 'status']);
 
+// The per-line `\d+` line grammar, so a JSON string line and a per-line record agree on what a
+// line number is.
+const DIGIT_STRING_PATTERN = /^\d+$/u;
+
 /**
  * Build a canonical Finding from raw field values, regardless of source shape.
  * `fix` and `status` are omitted when null or undefined.
@@ -108,6 +112,22 @@ function rejectUnexpectedFields(item, index) {
 }
 
 /**
+ * Resolves a JSON finding's raw `line` to a line number, or throws. `Number()` alone turned
+ * `"12x"` into NaN, and `""`, `null`, `false` and `[]` into 0, all without a word.
+ *
+ * @param {unknown} value
+ * @param {number} index
+ * @returns {number}
+ */
+function resolveJsonLine(value, index) {
+  const candidate = typeof value === 'string' && DIGIT_STRING_PATTERN.test(value) ? Number(value) : value;
+  if (Number.isSafeInteger(candidate) && candidate >= 0) {
+    return candidate;
+  }
+  throw new Error(`Finding at index ${index} has an invalid line: expected a non-negative integer or digit string`);
+}
+
+/**
  * Maps a raw JSON object to a canonical Finding, validating required fields.
  *
  * @param {unknown} item
@@ -124,7 +144,8 @@ function mapJsonItem(item, index) {
     }
   }
   rejectUnexpectedFields(item, index);
-  return toFinding(/** @type {Record<string,unknown>} */ (item));
+  const record = /** @type {Record<string, unknown>} */ (item);
+  return toFinding({ ...record, line: resolveJsonLine(record.line, index) });
 }
 
 /**
