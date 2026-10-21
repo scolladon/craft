@@ -34,9 +34,9 @@ describe('toolCallGuard() — git diff/show without --no-ext-diff', () => {
     assert.equal(typeof result.reason, 'string');
   });
 
-  it('Given a git show tool call without --no-ext-diff, when guarded, then returns block: true', () => {
+  it('Given a git show tool call with --ext-diff, when guarded, then returns block: true', () => {
     const sut = toolCallGuard;
-    const event = bashEvent('git show HEAD');
+    const event = bashEvent('git show --ext-diff');
 
     const result = sut(event);
 
@@ -46,6 +46,24 @@ describe('toolCallGuard() — git diff/show without --no-ext-diff', () => {
   it('Given a git diff tool call with --no-ext-diff, when guarded, then returns block: false', () => {
     const sut = toolCallGuard;
     const event = bashEvent('git diff --no-ext-diff HEAD~1');
+
+    const result = sut(event);
+
+    assert.equal(result.block, false);
+  });
+
+  it('Given a git show --stat tool call, when guarded, then returns block: false', () => {
+    const sut = toolCallGuard;
+    const event = bashEvent('git show --stat');
+
+    const result = sut(event);
+
+    assert.equal(result.block, false);
+  });
+
+  it('Given a bare git show HEAD tool call, when guarded, then returns block: false', () => {
+    const sut = toolCallGuard;
+    const event = bashEvent('git show HEAD');
 
     const result = sut(event);
 
@@ -209,9 +227,9 @@ describe('toolCallGuard() — reason string content on git block', () => {
     assert.ok(result.reason.includes('--no-ext-diff'), `reason must mention --no-ext-diff, got: ${result.reason}`);
   });
 
-  it('Given a bare git show without --no-ext-diff, when guarded, then reason mentions external diff', () => {
+  it('Given a bare git diff HEAD without --no-ext-diff, when guarded, then reason mentions external diff', () => {
     const sut = toolCallGuard;
-    const event = bashEvent('git show HEAD');
+    const event = bashEvent('git diff HEAD');
 
     const result = sut(event);
 
@@ -228,10 +246,10 @@ describe('toolCallGuard() — git diff/show regex pin: documented cases', () => 
     assert.equal(result.block, true);
   });
 
-  it('Given a bare git show at command start without --no-ext-diff, when guarded, then returns block: true', () => {
+  it('Given git show --ext-diff at command start, when guarded, then returns block: true', () => {
     const sut = toolCallGuard;
 
-    const result = sut(bashEvent('git show'));
+    const result = sut(bashEvent('git show --ext-diff'));
 
     assert.equal(result.block, true);
   });

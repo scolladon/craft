@@ -1,1 +1,1 @@
-{"tool_input":{"command":"git -C /x show abc"}}
+{"tool_input":{"command":"git -C /x diff abc"}}

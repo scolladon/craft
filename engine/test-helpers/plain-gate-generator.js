@@ -19,11 +19,13 @@ const PLAIN_GATE_TAGS = Object.freeze({
   anyWordAnchor: 'any-word-anchor',
   controlFlowUnreached: 'control-flow-unreached',
   shellDependent: 'shell-dependent',
+  unreadPrefix: 'unread-prefix',
 });
 const TAG = PLAIN_GATE_TAGS;
 // Each tag names one intended false block the copilot docs state; residual is accepted either way.
 const PLAIN_GATE_FALSE_BLOCK_TAGS = Object.freeze([
   TAG.quotedExpansion, TAG.unplainCharacter, TAG.evaluatorWord, TAG.unsafeConfig, TAG.anyWordAnchor, TAG.controlFlowUnreached,
+  TAG.unreadPrefix,
 ]);
 // bash 3.2 rejects an odd quote or backtick inside a heredoc held by $(...); bash 5 accepts it.
 const SHELL_DEPENDENT_TAGS = Object.freeze([TAG.shellDependent]);
@@ -102,7 +104,12 @@ const prefixesOf = core => {
 
 const bare = (core, invocation) => `${core.head}${core.render(invocation)}`;
 
-const prefixed = (core, invocation, wrap) => entry(wrap(core.render(invocation)), [...core.tags, TAG.prefix]);
+// A show is judged like a diff behind a prefix word the guard cannot read as argv-preserving.
+const SHOW_INVOCATION = 'git show';
+const tagsFor = (core, invocation) =>
+  core.tags.includes(TAG.argvWrapper) && invocation === SHOW_INVOCATION ? [...core.tags, TAG.unreadPrefix] : core.tags;
+
+const prefixed = (core, invocation, wrap) => entry(wrap(core.render(invocation)), [...tagsFor(core, invocation), TAG.prefix]);
 
 const PLAIN_CORE = CORE_SHAPES[0];
 // One row per core shape, then every prefix over the plain core: each class is reached at any cap past the anchors.
@@ -113,7 +120,7 @@ const ANCHORS = Object.freeze([
 
 function composedCore(rng, core, invocation) {
   const prefixes = prefixesOf(core);
-  if (prefixes.length === 0 || rng() >= PREFIX_ODDS) return entry(bare(core, invocation), core.tags);
+  if (prefixes.length === 0 || rng() >= PREFIX_ODDS) return entry(bare(core, invocation), tagsFor(core, invocation));
   return prefixed(core, invocation, pick(rng, prefixes));
 }
 

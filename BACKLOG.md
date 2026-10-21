@@ -180,13 +180,9 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 None open. Both entries delivered 2026-10-20 (guard-fuzz-scale-ext-diff-widen): the scaled fuzz
 census is a gate (generator fixed at the composer, ADR-661), and the shared ext-diff rule denies
 `--ext-diff` on every git verb and any `git config` naming an alias or include key (ADR-660).
-
-**`git show` without `--ext-diff` is blocked though git runs no external diff.** On git 2.54 (Apple)
-and 2.56 (Homebrew), `diff.external` fires by default only for `git diff`; `git show` needs
-`--ext-diff` (pinned matrix, `docs/contributing/design/guard-fuzz-scale-ext-diff-widen.md`
-Pinned G, row M23). Every binding still denies a bare `git show`. Not folded: dropping `show` from
-the default-deny changes every binding's verdict and needs your decision (and a pin on older git
-versions, where `show` may honour `diff.external`).
+Delivered 2026-10-21 (git-show-ext-diff-default-deny): bare `git show` leaves the default-deny on
+every binding. It is judged on `--ext-diff`, and like `diff` when its argv may shift. git 2.17.0
+through 2.56.0 run no external diff for `show` without `--ext-diff` (ADR-662, ADR-663).
 
 ### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
 

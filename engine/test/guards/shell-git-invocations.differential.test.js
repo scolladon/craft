@@ -290,6 +290,36 @@ const pinnedCommands = () => PINNED_SEEDS.flatMap(seed => generateCommands(seed,
 const offenders = (entries, ...patterns) => entries.filter(entry => patterns.some(pattern => pattern.test(entry.text))).map(entry => entry.text);
 
 describe('shell-git-invocations — generator composition at scale', () => {
+  it('Given any seed, when commands are generated, then the firing show and brace spellings are fixed entries', () => {
+    const sut = generateCommands;
+    const expected = [
+      'X=--ext-diff; git show $X',
+      'G=git; command $G {di,show}ff',
+      'G="git diff"; $G show',
+      'D=". diff"; git -C $D show',
+      'echo --ext-diff | xargs git show',
+    ];
+
+    const result = sut(1, 100).map(entry => entry.text);
+
+    assert.deepEqual(expected.filter(text => !result.includes(text)), []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then the argv-appender tag sits only on xargs-wrapped commands and not on all of them', () => {
+    const sut = pinnedCommands;
+    const isTagged = entry => entry.tags.includes('argv-appender');
+
+    const entries = sut();
+    const ledByWrapper = entries.filter(entry => entry.text.startsWith('echo x | xargs '));
+    const result = {
+      taggedWithoutXargs: entries.filter(entry => isTagged(entry) && !entry.text.includes('xargs ')).length,
+      ledTagged: ledByWrapper.some(isTagged),
+      ledUntagged: ledByWrapper.some(entry => !isTagged(entry)),
+    };
+
+    assert.deepEqual(result, { taggedWithoutXargs: 0, ledTagged: true, ledUntagged: true });
+  });
+
   it('Given the pinned seeds at scale, when generated, then no pipeline element is an unbraced function definition or assignment-led list', () => {
     const sut = pinnedCommands;
 
@@ -369,6 +399,25 @@ describe('shell-git-invocations — oracle on config section renames', () => {
       const result = sut(argv);
 
       assert.deepEqual(result, { destructive: true, extDiff: true });
+    });
+  }
+});
+
+describe('shell-git-invocations — oracle on git show', () => {
+  for (const [argv, extDiff] of [
+    [['show'], false],
+    [['show', '--stat', 'HEAD'], false],
+    [['show', '--ext-diff'], true],
+    [['show', '--no-ext-diff', '--ext-diff'], true],
+    [['show', '--ext-diff', '--no-ext-diff'], false],
+    [['diff'], true],
+  ]) {
+    it(`Given git ${argv.join(' ')}, when the oracle judges it, then extDiff is ${extDiff}`, () => {
+      const sut = judgeArgv;
+
+      const result = sut(argv);
+
+      assert.deepEqual(result, { destructive: false, extDiff });
     });
   }
 });

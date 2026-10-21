@@ -30,6 +30,24 @@ describe('plainGitCommandVerdict() - gate, then destructive git, then ext-diff o
     assert.deepEqual(result, { block: true, reason: EXT_DIFF_REASON });
   });
 
+  it('Given git show --stat, When judged, Then it is allowed', () => {
+    const result = sut('git show --stat');
+
+    assert.deepEqual(result, { block: false });
+  });
+
+  it('Given git show --ext-diff, When judged, Then the ext-diff option reason blocks', () => {
+    const result = sut('git show --ext-diff');
+
+    assert.deepEqual(result, { block: true, reason: EXT_DIFF_OPTION_REASON });
+  });
+
+  it('Given a dynamic-head git show, When judged, Then the ext-diff rule blocks', () => {
+    const result = sut('$G show');
+
+    assert.deepEqual(result, { block: true, reason: EXT_DIFF_REASON });
+  });
+
   for (const command of ['git -C . push origin main', 'git --git-dir=.git push origin main']) {
     it(`Given "${command}", When judged, Then the push is blocked`, () => {
       const result = sut(command);

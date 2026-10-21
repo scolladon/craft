@@ -50,11 +50,13 @@ const ALLOWED_FORMS = [
   { label: 'git stash show', command: 'git stash show' },
   { label: 'git show-ref', command: 'git show-ref' },
   { label: 'git difftool', command: 'git difftool' },
+  { label: 'a git show reading a commit summary', command: 'git show --stat' },
+  { label: 'a bare git show of a revision', command: 'git show HEAD' },
   { label: 'git status', command: 'git status' },
   { label: 'diff text inside an echo string', command: 'echo "a; git diff x"' },
   { label: 'diff text inside a commit message', command: 'git commit -m "wip; git diff fix"' },
-  { label: 'show text inside a log grep pattern', command: 'git log --grep "x; git show y"' },
-  { label: 'show text inside a quoted heredoc body', command: "cat > notes.md <<'EOF'\nrun it; git show HEAD\nEOF" },
+  { label: 'diff text inside a log grep pattern', command: 'git log --grep "x; git diff y"' },
+  { label: 'diff text inside a quoted heredoc body', command: "cat > notes.md <<'EOF'\nrun it; git diff HEAD\nEOF" },
   { label: 'the heredoc commit idiom', command: "git commit -m \"$(cat <<'EOF'\nfix: x\n\ngit diff here\nEOF\n)\"" },
   { label: 'a for loop without git', command: 'for f in *.js; do echo $f; done' },
   { label: 'a piped test run', command: 'npm test 2>&1 | tail -5' },
@@ -104,6 +106,11 @@ describe('claude ext-diff hook main - reason prefix', () => {
     {
       label: 'a non-diff verb enabling the external diff',
       command: 'git log -p -1 --ext-diff',
+      reason: 'craft: --ext-diff is denied on every git verb (external diff mangles parsed output)',
+    },
+    {
+      label: 'git show enabling the external diff',
+      command: 'git show --ext-diff',
       reason: 'craft: --ext-diff is denied on every git verb (external diff mangles parsed output)',
     },
     {

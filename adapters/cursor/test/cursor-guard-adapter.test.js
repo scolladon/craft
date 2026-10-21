@@ -99,8 +99,20 @@ describe('decideGuard — allows benign, blocks the targeted git-ext-diff patter
   it('Given decideGuard, when it blocks, then the reason comes from the SHARED predicate (not re-implemented here)', () => {
     // The reason string is defined only in engine/src/guards/git-ext-diff-predicate.js;
     // its presence proves the shared predicate ran, not a local copy.
-    const sut = decideGuard(shellPayload('git show'));
+    const sut = decideGuard(shellPayload('git diff'));
 
     assert.match(sut.reason, /external diff mangles parsed output/);
+  });
+
+  it('Given decideGuard on git show --ext-diff, when decided, then it blocks', () => {
+    const sut = decideGuard(shellPayload('git show --ext-diff'));
+
+    assert.equal(sut.block, true);
+  });
+
+  it('Given decideGuard on git show --stat, when decided, then it allows', () => {
+    const sut = decideGuard(shellPayload('git show --stat'));
+
+    assert.equal(sut.block, false);
   });
 });

@@ -36,11 +36,12 @@ const TAGS = Object.freeze({
   zshEquals: 'zsh-equals',
   braceInProcessSubstitution: 'brace-in-process-substitution',
   quoteInHeredocBody: 'quote-in-heredoc-body',
+  argvAppender: 'argv-appender',
 });
 const FALSE_BLOCK_TAGS = Object.freeze([
   TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
   TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb, TAGS.zshEquals,
-  TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody,
+  TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody, TAGS.argvAppender,
 ]);
 // Both tags make bash 3.2 reject or mis-split the whole command, so the generator cannot vouch for its syntax.
 const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody]);
@@ -102,6 +103,7 @@ const VERBS = Object.freeze([
   ['diff', '--no-ext-diff'], ['show', ''], ['show', '--no-ext-diff HEAD'], ['status', ''], ['log', '-1'],
   ['reset', '--har'], ['clean', '--dry'], ['clean', '-fd --no-d'], ['branch', '--del --forc x'],
   ['diff', '--no-ext-diff --ext-diff'], ['show', '--ext-diff --no-ext-diff'],
+  ['show', '--stat HEAD'], ['show', '--ext-diff'], ['show', '--no-ext-diff --ext-diff'],
   ['log', '-p --ext-diff'], ['log', '-p --ext-diff --no-ext-diff'], ['format-patch', '-1 --stdout --ext-diff'],
   ['config', 'alias.x diff'], ['config', '--get alias.x'], ['config', 'user.name x'],
 ]);
@@ -115,20 +117,23 @@ const optionWords = rng => Array.from({ length: Math.floor(rng() * 3) }, () => p
 function gitWords(rng) {
   const [verb, args] = pick(rng, VERBS);
   const rest = [...args.split(' ').filter(Boolean).map(word => spell(rng, word)), pick(rng, EXTRA_ARGS)].filter(Boolean);
-  return [pick(rng, GIT_SPELLINGS), ...optionWords(rng), spell(rng, verb), ...rest].join(' ');
+  return { verb, text: [pick(rng, GIT_SPELLINGS), ...optionWords(rng), spell(rng, verb), ...rest].join(' ') };
 }
 
-function wrapInvocation(rng, invocation) {
+// Only show changes verdict behind an argv appender: diff is judged the same either way.
+const appenderTags = verb => (verb === 'show' ? [TAGS.argvAppender] : []);
+
+function wrapInvocation(rng, { verb, text }) {
   const choice = rng();
-  if (choice < 0.1) return fragment(`echo x | xargs ${invocation}`);
-  if (choice < 0.2) return fragment(`( exec ${invocation} )`);
-  return fragment(`${pick(rng, ASSIGNMENTS)}${pick(rng, WRAPPERS)}${invocation}`, { simple: true });
+  if (choice < 0.1) return fragment(`echo x | xargs ${text}`, { tags: appenderTags(verb) });
+  if (choice < 0.2) return fragment(`( exec ${text} )`);
+  return fragment(`${pick(rng, ASSIGNMENTS)}${pick(rng, WRAPPERS)}${text}`, { simple: true });
 }
 
 function gitLeaf(rng) {
   const wrapped = wrapInvocation(rng, gitWords(rng));
   const comment = pick(rng, COMMENT_SUFFIXES);
-  return fragment(`${wrapped.text}${comment}`, { simple: wrapped.simple && comment === '', lineEnd: comment !== '' });
+  return fragment(`${wrapped.text}${comment}`, { tags: wrapped.tags, simple: wrapped.simple && comment === '', lineEnd: comment !== '' });
 }
 
 const SPECIALS = Object.freeze([
@@ -180,6 +185,11 @@ const SPECIALS = Object.freeze([
   fragment('G=git; exec $G push', { list: true }),
   fragment('G=git; nohup $G push', { list: true }),
   fragment('G=git; command $G diff', { list: true }),
+  fragment('X=--ext-diff; git show $X', { list: true }),
+  fragment('G=git; command $G {di,show}ff', { list: true }),
+  fragment('G="git diff"; $G show', { list: true }),
+  fragment('D=". diff"; git -C $D show', { list: true }),
+  fragment('echo --ext-diff | xargs git show'),
   fragment('echo "$HOME" show', { tags: [TAGS.dynamicBeforeVerb] }),
   fragment('git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),
   fragment('"$(git --exec-path)"/git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),
@@ -454,7 +464,7 @@ function judgeArgv(argv) {
   if (normalised.kind !== 'subcommand') return { destructive: false, extDiff: false };
   const args = beforeEnd(normalised.args);
   const destructive = DESTRUCTIVE_VERBS[normalised.subcommand]?.(args) ?? false;
-  const diffs = normalised.subcommand === 'diff' || normalised.subcommand === 'show';
+  const diffs = normalised.subcommand === 'diff';
   const last = lastExtDiffSetting(args);
   const extDiff = configured || (diffs ? last !== '--no-ext-diff' : last === '--ext-diff');
   return { destructive: configured || destructive, extDiff };

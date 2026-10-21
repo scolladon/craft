@@ -134,6 +134,12 @@ const envOption = (words, cursor) => {
   return NO_ENV_VALUE;
 };
 
+// env re-splits a -S string with its own rules (comments, escapes, further options) and appends
+// every later word to the command it runs, so that argv is not one this parser can read.
+const ENV_RESPLIT =
+  'craft: command not parseable (env -S re-splits its string with the words after it) — denied fail-closed';
+const RESPLIT_WITH_OPERANDS = Object.freeze([Object.freeze({ resplit: true })]);
+
 // A word inside an earlier env's option run is a value, never an env command, so skipping it
 // keeps a chain of -S options from being scanned once per env word.
 const envSplitWords = (words, index, optionsEnd) => {
@@ -142,8 +148,9 @@ const envSplitWords = (words, index, optionsEnd) => {
   let cursor = index + 1;
   for (; cursor < words.length && isOption(words[cursor]); cursor += 1) {
     const { split, consumed } = envOption(words, cursor);
-    found.push(...split);
     cursor += consumed;
+    if (split.length > 0 && cursor + 1 < words.length) return { words: RESPLIT_WITH_OPERANDS, optionsEnd: words.length };
+    found.push(...split);
   }
   return { words: found, optionsEnd: cursor };
 };
@@ -243,7 +250,8 @@ const parseNested = (context, text) => {
 };
 
 const reparse = (context, words) => {
-  for (const { text, opaque } of reparsedWords(words)) {
+  for (const { text, opaque, resplit } of reparsedWords(words)) {
+    if (resplit === true) return fail(context, ENV_RESPLIT);
     if (opaque === true) return fail(context, OPAQUE_STRING);
     if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
     const child = parseNested(context, text);

@@ -1,5 +1,5 @@
 import { configChannelReason, judgeInvocations } from './shell-git-invocations.js';
-import { DIFFING_VERBS, EXT_DIFF_WORD, optionWords } from './git-argv.js';
+import { DEFAULT_EXT_DIFF_VERBS, DIFFING_VERBS, EXT_DIFF_WORD, optionWords } from './git-argv.js';
 
 // Patterns that make a git diff/show invocation exempt from the ext-diff check.
 export const COMPLIANT_MARKERS = ['--no-ext-diff', 'rtk proxy'];
@@ -14,6 +14,7 @@ const REASON_EXT_DIFF_OPTION = '--ext-diff is denied on every git verb (external
 const [NO_EXT_DIFF_WORD, PROXY_MARKER] = COMPLIANT_MARKERS;
 const PROXY_WORDS = Object.freeze(PROXY_MARKER.split(' '));
 const DIFFING_SUBCOMMANDS = new Set(DIFFING_VERBS);
+const DEFAULT_EXT_DIFF_SUBCOMMANDS = new Set(DEFAULT_EXT_DIFF_VERBS);
 
 const isExtDiffSetting = word => word === EXT_DIFF_WORD || word === NO_EXT_DIFF_WORD;
 const lacksNoExtDiff = words => optionWords(words).findLast(isExtDiffSetting) !== NO_EXT_DIFF_WORD;
@@ -33,16 +34,20 @@ const dynamicAfterNoExtDiff = invocation => {
 
 const isProxied = leadingWords => PROXY_WORDS.every((word, index) => leadingWords[index] === word);
 
+// A dynamic head, a split option value or an argv feeder can hand git a verb or option the guard never read.
+const judgedAsDiff = invocation =>
+  DEFAULT_EXT_DIFF_SUBCOMMANDS.has(invocation.subcommand) ||
+  (invocation.argvMayShift === true && DIFFING_SUBCOMMANDS.has(invocation.subcommand));
+
+// show runs no external diff by default; a dynamic option word may still expand to --ext-diff.
+const subcommandDiffsWithoutMarker = invocation => {
+  if (judgedAsDiff(invocation)) return lacksNoExtDiff(invocation.args) || dynamicAfterNoExtDiff(invocation);
+  return DIFFING_SUBCOMMANDS.has(invocation.subcommand) && dynamicAfterNoExtDiff(invocation);
+};
+
 const diffsWithoutMarker = invocation => {
-  if (invocation.kind === 'subcommand') {
-    return (
-      DIFFING_SUBCOMMANDS.has(invocation.subcommand) &&
-      (lacksNoExtDiff(invocation.args) || dynamicAfterNoExtDiff(invocation))
-    );
-  }
-  if (invocation.kind === 'indeterminate') {
-    return lacksNoExtDiff(invocation.rest);
-  }
+  if (invocation.kind === 'subcommand') return subcommandDiffsWithoutMarker(invocation);
+  if (invocation.kind === 'indeterminate') return lacksNoExtDiff(invocation.rest);
   return false;
 };
 
@@ -60,7 +65,7 @@ export const extDiffVerdictFor = invocation => {
 };
 
 /**
- * Pure predicate: does this bash command run git diff/show without --no-ext-diff, or pass --ext-diff to any git verb?
+ * Pure predicate: does this bash command run git diff (or git show with a dynamic option word) without --no-ext-diff, or pass --ext-diff to any git verb?
  *
  * The command is parsed into simple commands and each git invocation is judged on its
  * normalised form, so shell grammar and git global options cannot hide a diff/show.

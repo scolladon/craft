@@ -13,7 +13,7 @@ against `cursor-agent 2026.07.20-8cc9c0b`, not assumed — see
   One craft phase = one headless turn; the result envelope carries `usage` (token counts).
 - **Enforcing guard** — a `.cursor/hooks.json` `beforeShellExecution` hook
   (`hooks/craft-guard.js`) that reuses the shared `engine/src/guards` git-ext-diff
-  predicate and DENIES a non-compliant `git diff/show` via a stdout-JSON
+  predicate and DENIES a non-compliant `git diff` (or an ext-diff `git show`) via a stdout-JSON
   `{"permission":"deny"}`. Proven live: it blocks the target, allows benign commands, and
   is not overridden by `--force`/`--yolo`.
 - **Role agents** — `agents/craft-<role>.md`, bodies byte-identical to the shared craft
