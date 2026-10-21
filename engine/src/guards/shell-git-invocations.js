@@ -26,7 +26,8 @@ const anchoredAt = (words, index) => {
   return { anchor: extend(invocation, { leadingWords: () => leadingOf(words, index) }), end };
 };
 
-const dynamicHeadInvocation = words => extend(normaliseFrom(words, 1), { leadingWords: () => [] });
+const dynamicHeadInvocation = words =>
+  Object.defineProperty(extend(normaliseFrom(words, 1), { leadingWords: () => [] }), 'dynamicHead', { value: true, enumerable: false });
 
 const ANCHOR_VERBS = new Set([...DESTRUCTIVE_VERBS, ...DIFFING_VERBS]);
 // equivalent mutant (Regex without +): a delimiter run only splits into extra empty tokens, and '' is never in ANCHOR_VERBS

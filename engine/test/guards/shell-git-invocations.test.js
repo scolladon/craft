@@ -45,6 +45,23 @@ describe('gitInvocations()', () => {
     assert.deepEqual(result, { parsed: true, invocations: [{ ...subcommand('push'), leadingWords: [] }] });
   });
 
+  it('Given a dynamic head, when anchored, then the invocation carries a hidden dynamicHead flag', () => {
+    const sut = gitInvocations;
+
+    const result = sut('$G show');
+
+    assert.strictEqual(result.invocations[0].dynamicHead, true);
+    assert.ok(!Object.keys(result.invocations[0]).includes('dynamicHead'));
+  });
+
+  it('Given a literal git head, when anchored, then the invocation carries no dynamicHead flag', () => {
+    const sut = gitInvocations;
+
+    const result = sut('git status');
+
+    assert.strictEqual(result.invocations[0].dynamicHead, undefined);
+  });
+
   it('Given an unterminated quote, when anchored, then the parse failure is returned', () => {
     const sut = gitInvocations;
 

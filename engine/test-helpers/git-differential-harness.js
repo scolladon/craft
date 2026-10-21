@@ -102,6 +102,7 @@ const VERBS = Object.freeze([
   ['diff', '--no-ext-diff'], ['show', ''], ['show', '--no-ext-diff HEAD'], ['status', ''], ['log', '-1'],
   ['reset', '--har'], ['clean', '--dry'], ['clean', '-fd --no-d'], ['branch', '--del --forc x'],
   ['diff', '--no-ext-diff --ext-diff'], ['show', '--ext-diff --no-ext-diff'],
+  ['show', '--stat HEAD'], ['show', '--ext-diff'], ['show', '--no-ext-diff --ext-diff'],
   ['log', '-p --ext-diff'], ['log', '-p --ext-diff --no-ext-diff'], ['format-patch', '-1 --stdout --ext-diff'],
   ['config', 'alias.x diff'], ['config', '--get alias.x'], ['config', 'user.name x'],
 ]);
@@ -180,6 +181,9 @@ const SPECIALS = Object.freeze([
   fragment('G=git; exec $G push', { list: true }),
   fragment('G=git; nohup $G push', { list: true }),
   fragment('G=git; command $G diff', { list: true }),
+  fragment('X=--ext-diff; git show $X', { list: true }),
+  fragment('G=git; command $G {di,show}ff', { list: true }),
+  fragment('G="git diff"; $G show', { list: true }),
   fragment('echo "$HOME" show', { tags: [TAGS.dynamicBeforeVerb] }),
   fragment('git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),
   fragment('"$(git --exec-path)"/git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),

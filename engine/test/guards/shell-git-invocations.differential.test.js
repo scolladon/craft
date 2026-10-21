@@ -290,6 +290,15 @@ const pinnedCommands = () => PINNED_SEEDS.flatMap(seed => generateCommands(seed,
 const offenders = (entries, ...patterns) => entries.filter(entry => patterns.some(pattern => pattern.test(entry.text))).map(entry => entry.text);
 
 describe('shell-git-invocations — generator composition at scale', () => {
+  it('Given any seed, when commands are generated, then the firing show and brace spellings are fixed entries', () => {
+    const sut = generateCommands;
+    const expected = ['X=--ext-diff; git show $X', 'G=git; command $G {di,show}ff', 'G="git diff"; $G show'];
+
+    const result = sut(1, 100).map(entry => entry.text);
+
+    assert.deepEqual(expected.filter(text => !result.includes(text)), []);
+  });
+
   it('Given the pinned seeds at scale, when generated, then no pipeline element is an unbraced function definition or assignment-led list', () => {
     const sut = pinnedCommands;
 

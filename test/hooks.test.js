@@ -73,14 +73,14 @@ test(
 );
 
 test(
-  'Given git -C /x show abc without --no-ext-diff, when git-no-ext-diff runs, then it denies',
+  'Given git -C /x diff abc without --no-ext-diff, when git-no-ext-diff runs, then it denies',
   () => {
     assert.strictEqual(decision('git-no-ext-diff.sh', 'no-ext-diff-deny-global-opts.json'), 'deny');
   },
 );
 
 test(
-  'Given git -C /x show abc without --no-ext-diff, when git-no-ext-diff runs, then the reason is the engine ext-diff reason',
+  'Given git -C /x diff abc without --no-ext-diff, when git-no-ext-diff runs, then the reason is the engine ext-diff reason',
   () => {
     const sut = reason;
 
