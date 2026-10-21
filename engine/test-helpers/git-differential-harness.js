@@ -36,11 +36,12 @@ const TAGS = Object.freeze({
   zshEquals: 'zsh-equals',
   braceInProcessSubstitution: 'brace-in-process-substitution',
   quoteInHeredocBody: 'quote-in-heredoc-body',
+  argvAppender: 'argv-appender',
 });
 const FALSE_BLOCK_TAGS = Object.freeze([
   TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
   TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb, TAGS.zshEquals,
-  TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody,
+  TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody, TAGS.argvAppender,
 ]);
 // Both tags make bash 3.2 reject or mis-split the whole command, so the generator cannot vouch for its syntax.
 const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody]);
@@ -121,7 +122,7 @@ function gitWords(rng) {
 
 function wrapInvocation(rng, invocation) {
   const choice = rng();
-  if (choice < 0.1) return fragment(`echo x | xargs ${invocation}`);
+  if (choice < 0.1) return fragment(`echo x | xargs ${invocation}`, { tags: [TAGS.argvAppender] });
   if (choice < 0.2) return fragment(`( exec ${invocation} )`);
   return fragment(`${pick(rng, ASSIGNMENTS)}${pick(rng, WRAPPERS)}${invocation}`, { simple: true });
 }
@@ -129,7 +130,7 @@ function wrapInvocation(rng, invocation) {
 function gitLeaf(rng) {
   const wrapped = wrapInvocation(rng, gitWords(rng));
   const comment = pick(rng, COMMENT_SUFFIXES);
-  return fragment(`${wrapped.text}${comment}`, { simple: wrapped.simple && comment === '', lineEnd: comment !== '' });
+  return fragment(`${wrapped.text}${comment}`, { tags: wrapped.tags, simple: wrapped.simple && comment === '', lineEnd: comment !== '' });
 }
 
 const SPECIALS = Object.freeze([
@@ -184,6 +185,8 @@ const SPECIALS = Object.freeze([
   fragment('X=--ext-diff; git show $X', { list: true }),
   fragment('G=git; command $G {di,show}ff', { list: true }),
   fragment('G="git diff"; $G show', { list: true }),
+  fragment('D=". diff"; git -C $D show', { list: true }),
+  fragment('echo --ext-diff | xargs git show'),
   fragment('echo "$HOME" show', { tags: [TAGS.dynamicBeforeVerb] }),
   fragment('git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),
   fragment('"$(git --exec-path)"/git-push origin main', { tags: [TAGS.dashedBuiltin], status: 127 }),

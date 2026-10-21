@@ -132,7 +132,7 @@ describe('gitExtDiffPredicate() — fail-open bypasses now closed', () => {
     ' git diff', // leading space on the first line
     '\tgit diff', // leading tab
     'cd repo\ngit diff', // git diff on a command's second line
-    'true\ngit diff HEAD', // git show on a second line
+    'true\ngit diff HEAD', // git diff after a newline-separated command
     'echo --no-ext-diff; git diff HEAD', // marker hidden in an unrelated echo
     'git diff HEAD #--no-ext-diff', // marker hidden in a trailing comment
     'git diff --no-ext-diff; git diff HEAD', // compliant first invocation must not exempt the second
@@ -614,6 +614,13 @@ describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic
     '$G show',
     '$G show HEAD',
     'G="git diff"; $G show',
+    'D=". diff"; git -C $D show',
+    'git --no-pager -c $K show',
+    'git --git-dir $D show',
+    'git -C * show',
+    'echo --ext-diff | xargs git show',
+    'echo --ext-diff | nice -n 1 xargs -n 1 git show',
+    'echo --ext-diff | /usr/bin/xargs -0 git show HEAD',
   ]) {
     it(`Given ${JSON.stringify(command)}, when checked, then blocks with the diff/show reason`, () => {
       const sut = gitExtDiffPredicate;

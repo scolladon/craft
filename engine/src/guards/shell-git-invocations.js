@@ -21,9 +21,18 @@ const LEADING_WORDS_LIMIT = 2;
 
 const leadingOf = (words, index) => texts(words.slice(0, Math.min(index, LEADING_WORDS_LIMIT)));
 
-const anchoredAt = (words, index) => {
+// xargs appends its input to the git argv after the words the guard read.
+const ARGV_APPENDERS = new Set(['xargs']);
+const firstAppenderAt = words => words.findIndex(word => ARGV_APPENDERS.has(basename(word.text)));
+
+// An unquoted dynamic or glob option value can split into words that move the verb git runs.
+const shiftsVerb = (words, index, end) => words.slice(index + 1, end).some(word => word.dynamic || word.pattern === true);
+
+const anchoredAt = (words, index, appenderAt) => {
   const { invocation, end } = walkFrom(words, index + 1);
-  return { anchor: extend(invocation, { leadingWords: () => leadingOf(words, index) }), end };
+  const anchor = extend(invocation, { leadingWords: () => leadingOf(words, index) });
+  const argvMayShift = (appenderAt !== -1 && appenderAt < index) || shiftsVerb(words, index, end);
+  return { anchor: Object.defineProperty(anchor, 'argvMayShift', { value: argvMayShift, enumerable: false }), end };
 };
 
 const dynamicHeadInvocation = words =>
@@ -118,8 +127,8 @@ const wrapperAnchors = (words, flag) => {
 
 const NO_ANCHOR = Object.freeze({ anchor: null, end: 0 });
 
-const spelledAnchor = (words, index) => {
-  if (isGitWord(words[index])) return anchoredAt(words, index);
+const spelledAnchor = (words, index, appenderAt) => {
+  if (isGitWord(words[index])) return anchoredAt(words, index, appenderAt);
   const verb = dashedVerb(words[index]);
   return verb === null ? NO_ANCHOR : { anchor: dashedAt(words, index, verb), end: 0 };
 };
@@ -128,10 +137,11 @@ const spelledAnchor = (words, index) => {
 // so skipping it keeps a chain of `git -c git -c git …` from being walked once per git word.
 const spelledAnchors = (words, flag) => {
   const anchors = [];
+  const appenderAt = firstAppenderAt(words);
   let consumedUntil = 0;
   for (let index = 0; index < words.length; index += 1) {
     if (index < consumedUntil) continue;
-    const { anchor, end } = spelledAnchor(words, index);
+    const { anchor, end } = spelledAnchor(words, index, appenderAt);
     if (anchor === null) continue;
     anchors.push(flag(anchor, index));
     consumedUntil = end;

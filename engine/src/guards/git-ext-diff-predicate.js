@@ -34,10 +34,12 @@ const dynamicAfterNoExtDiff = invocation => {
 
 const isProxied = leadingWords => PROXY_WORDS.every((word, index) => leadingWords[index] === word);
 
-// A dynamic head may itself hold `git diff`, so its verb word is not the verb git runs.
+// A dynamic head, a split option value or an argv appender can hand git a verb or option the guard never read.
+const argvUncertain = invocation => invocation.dynamicHead === true || invocation.argvMayShift === true;
+
 const judgedAsDiff = invocation =>
   DEFAULT_EXT_DIFF_SUBCOMMANDS.has(invocation.subcommand) ||
-  (invocation.dynamicHead === true && DIFFING_SUBCOMMANDS.has(invocation.subcommand));
+  (argvUncertain(invocation) && DIFFING_SUBCOMMANDS.has(invocation.subcommand));
 
 // show runs no external diff by default; a dynamic option word may still expand to --ext-diff.
 const subcommandDiffsWithoutMarker = invocation => {
