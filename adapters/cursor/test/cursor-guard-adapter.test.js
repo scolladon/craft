@@ -109,4 +109,10 @@ describe('decideGuard — allows benign, blocks the targeted git-ext-diff patter
 
     assert.equal(sut.block, true);
   });
+
+  it('Given decideGuard on git show --stat, when decided, then it allows', () => {
+    const sut = decideGuard(shellPayload('git show --stat'));
+
+    assert.equal(sut.block, false);
+  });
 });

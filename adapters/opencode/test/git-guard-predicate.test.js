@@ -22,6 +22,11 @@ const PASS_COMMANDS = [
   'git difftool',
   'git show-ref',
   'git stash show',
+  'git show',
+  'git show HEAD',
+  'git show --stat',
+  'git -c k=v show',
+  'git --work-tree=. show',
   'ls -la',
   '',
 ];
