@@ -52,6 +52,24 @@ describe('toolCallGuard() — git diff/show without --no-ext-diff', () => {
     assert.equal(result.block, false);
   });
 
+  it('Given a git show --stat tool call, when guarded, then returns block: false', () => {
+    const sut = toolCallGuard;
+    const event = bashEvent('git show --stat');
+
+    const result = sut(event);
+
+    assert.equal(result.block, false);
+  });
+
+  it('Given a bare git show HEAD tool call, when guarded, then returns block: false', () => {
+    const sut = toolCallGuard;
+    const event = bashEvent('git show HEAD');
+
+    const result = sut(event);
+
+    assert.equal(result.block, false);
+  });
+
   it('Given a git show tool call with --no-ext-diff, when guarded, then returns block: false', () => {
     const sut = toolCallGuard;
     const event = bashEvent('git --no-ext-diff show HEAD');

@@ -5,7 +5,7 @@ import { gitExtDiffPredicate } from './git-ext-diff-predicate.js';
 // Tools whose file_path writes must stay inside the working directory.
 export const WRITE_TOOLS = new Set(['Write', 'Edit', 'NotebookEdit']);
 
-// Tools whose Bash command must be checked for git diff/show without --no-ext-diff.
+// Tools whose Bash command must be checked for git diff (and git show with a dynamic option word) without --no-ext-diff, or --ext-diff on any verb.
 const BASH_TOOL = 'Bash';
 
 /**
