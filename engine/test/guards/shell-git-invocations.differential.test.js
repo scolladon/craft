@@ -305,15 +305,19 @@ describe('shell-git-invocations — generator composition at scale', () => {
     assert.deepEqual(expected.filter(text => !result.includes(text)), []);
   });
 
-  it('Given the pinned seeds at scale, when generated, then every command led by the xargs wrapper carries the argv-appender tag', () => {
+  it('Given the pinned seeds at scale, when generated, then the argv-appender tag sits only on xargs-wrapped commands and not on all of them', () => {
     const sut = pinnedCommands;
+    const isTagged = entry => entry.tags.includes('argv-appender');
 
-    const result = sut()
-      .filter(entry => entry.text.startsWith('echo x | xargs '))
-      .filter(entry => !entry.tags.includes('argv-appender'))
-      .map(entry => entry.text);
+    const entries = sut();
+    const ledByWrapper = entries.filter(entry => entry.text.startsWith('echo x | xargs '));
+    const result = {
+      taggedWithoutXargs: entries.filter(entry => isTagged(entry) && !entry.text.includes('xargs ')).length,
+      ledTagged: ledByWrapper.some(isTagged),
+      ledUntagged: ledByWrapper.some(entry => !isTagged(entry)),
+    };
 
-    assert.deepEqual(result, []);
+    assert.deepEqual(result, { taggedWithoutXargs: 0, ledTagged: true, ledUntagged: true });
   });
 
   it('Given the pinned seeds at scale, when generated, then no pipeline element is an unbraced function definition or assignment-led list', () => {

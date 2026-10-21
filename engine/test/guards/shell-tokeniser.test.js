@@ -439,14 +439,24 @@ describe('parseShellCommands() — eval and env option runs', () => {
     ['env --unset=FOO git diff', [['env', '--unset=FOO', 'git', 'diff']]],
     ["env -u env -S 'git diff'", [['env', '-u', 'env', '-S', 'git diff'], ['git', 'diff']]],
     [
-      "env -S 'git diff' env -S 'git log'",
-      [['env', '-S', 'git diff', 'env', '-S', 'git log'], ['git', 'diff'], ['git', 'log']],
-    ],
-    [
       "bash script env -S 'git diff'",
       [['bash', 'script', 'env', '-S', 'git diff'], ['git', 'diff']],
     ],
   ]);
+
+  for (const [input, outer, split] of [
+    ["env -S 'git diff' env -S 'git log'", ['env', '-S', 'git diff', 'env', '-S', 'git log'], ['git', 'diff']],
+    ["env -S 'git show' --ext-diff", ['env', '-S', 'git show', '--ext-diff'], ['git', 'show']],
+    ["env --split-string='git show' HEAD", ['env', '--split-string=git show', 'HEAD'], ['git', 'show']],
+  ]) {
+    it(`Given ${JSON.stringify(input)}, When parsed, Then the split command carries a dynamic stand-in for the appended operands`, () => {
+      const sut = parseShellCommands;
+
+      const result = sut(input);
+
+      assert.deepEqual(result.commands.slice(0, 2), [cmd(...outer), { words: [...split.map(word), dyn('$@')] }]);
+    });
+  }
 
   it('Given a bare eval at the nesting cap, When parsed, Then it is parsed', () => {
     const sut = parseShellCommands;

@@ -134,18 +134,24 @@ const envOption = (words, cursor) => {
   return NO_ENV_VALUE;
 };
 
+// env appends every word after the split string to the command it runs; a dynamic stand-in keeps
+// the reparse flat while still telling the judges that unread arguments follow.
+const APPENDED_OPERANDS = ' "$@"';
+
+const withOperands = ([split], hasOperands) =>
+  hasOperands ? [{ ...split, text: `${split.text}${APPENDED_OPERANDS}` }] : [split];
+
 // A word inside an earlier env's option run is a value, never an env command, so skipping it
 // keeps a chain of -S options from being scanned once per env word.
 const envSplitWords = (words, index, optionsEnd) => {
   if (basename(words[index].text) !== ENV_WORD || index < optionsEnd) return { words: [], optionsEnd };
-  const found = [];
   let cursor = index + 1;
   for (; cursor < words.length && isOption(words[cursor]); cursor += 1) {
     const { split, consumed } = envOption(words, cursor);
-    found.push(...split);
     cursor += consumed;
+    if (split.length > 0) return { words: withOperands(split, cursor + 1 < words.length), optionsEnd: cursor + 1 };
   }
-  return { words: found, optionsEnd: cursor };
+  return { words: [], optionsEnd: cursor };
 };
 
 // Each of these re-parses every later word already, so scanning past one repeats that work.

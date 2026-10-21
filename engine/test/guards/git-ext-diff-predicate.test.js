@@ -587,6 +587,14 @@ describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic
     'git show "$sha" --no-ext-diff',
     'G=git; $G status',
     'X=--ext-diff; git log -p $X',
+    'env git show',
+    'command git show HEAD',
+    'nice -n 19 git show',
+    'timeout 5 git show --stat',
+    'echo x | xargs echo; git show',
+    'env -S "git show"',
+    'git show xargs',
+    'git show -- *.js',
   ]) {
     it(`Given ${JSON.stringify(command)}, when checked, then does not block`, () => {
       const sut = gitExtDiffPredicate;
@@ -621,6 +629,14 @@ describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic
     'echo --ext-diff | xargs git show',
     'echo --ext-diff | nice -n 1 xargs -n 1 git show',
     'echo --ext-diff | /usr/bin/xargs -0 git show HEAD',
+    'X=xargs; echo --ext-diff | $X git show',
+    'echo --ext-diff | $(echo xargs) git show',
+    'echo --ext-diff | /usr/bin/xarg[s] git show',
+    'echo --ext-diff | {xargs,} git show',
+    'echo --ext-diff | parallel git show',
+    'echo --ext-diff | xargs /x/git-core/git-show HEAD',
+    'env -S "git show" --ext-diff',
+    'env --split-string="git show" --ext-diff',
   ]) {
     it(`Given ${JSON.stringify(command)}, when checked, then blocks with the diff/show reason`, () => {
       const sut = gitExtDiffPredicate;
@@ -631,5 +647,5 @@ describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic
     });
   }
 
-  assertBlocks(['command $G show', '{git,show}', 'G=git; command $G {di,show}ff', '{git,{di,show}ff}']);
+  assertBlocks(['command $G show', '{git,show}', 'G=git; command $G {di,show}ff', '{git,{di,show}ff}', 'git -C "$D" show']);
 });

@@ -117,14 +117,17 @@ const optionWords = rng => Array.from({ length: Math.floor(rng() * 3) }, () => p
 function gitWords(rng) {
   const [verb, args] = pick(rng, VERBS);
   const rest = [...args.split(' ').filter(Boolean).map(word => spell(rng, word)), pick(rng, EXTRA_ARGS)].filter(Boolean);
-  return [pick(rng, GIT_SPELLINGS), ...optionWords(rng), spell(rng, verb), ...rest].join(' ');
+  return { verb, text: [pick(rng, GIT_SPELLINGS), ...optionWords(rng), spell(rng, verb), ...rest].join(' ') };
 }
 
-function wrapInvocation(rng, invocation) {
+// Only show changes verdict behind an argv appender: diff is judged the same either way.
+const appenderTags = verb => (verb === 'show' ? [TAGS.argvAppender] : []);
+
+function wrapInvocation(rng, { verb, text }) {
   const choice = rng();
-  if (choice < 0.1) return fragment(`echo x | xargs ${invocation}`, { tags: [TAGS.argvAppender] });
-  if (choice < 0.2) return fragment(`( exec ${invocation} )`);
-  return fragment(`${pick(rng, ASSIGNMENTS)}${pick(rng, WRAPPERS)}${invocation}`, { simple: true });
+  if (choice < 0.1) return fragment(`echo x | xargs ${text}`, { tags: appenderTags(verb) });
+  if (choice < 0.2) return fragment(`( exec ${text} )`);
+  return fragment(`${pick(rng, ASSIGNMENTS)}${pick(rng, WRAPPERS)}${text}`, { simple: true });
 }
 
 function gitLeaf(rng) {
