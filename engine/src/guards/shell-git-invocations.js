@@ -47,8 +47,8 @@ const anchoredAt = (words, index, feederAt) => {
   return { anchor: withArgvMayShift(anchor, fedAt(feederAt, index) || shiftsVerb(words, index, end)), end };
 };
 
-const dynamicHeadInvocation = words =>
-  Object.defineProperty(extend(normaliseFrom(words, 1), { leadingWords: () => [] }), 'dynamicHead', { value: true, enumerable: false });
+// A dynamic head may itself hold `git diff`, so its verb word is not the verb git runs.
+const dynamicHeadInvocation = words => withArgvMayShift(extend(normaliseFrom(words, 1), { leadingWords: () => [] }), true);
 
 const ANCHOR_VERBS = new Set([...DESTRUCTIVE_VERBS, ...DIFFING_VERBS]);
 // equivalent mutant (Regex without +): a delimiter run only splits into extra empty tokens, and '' is never in ANCHOR_VERBS
