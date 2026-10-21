@@ -481,6 +481,7 @@ const ACCEPTED_LINE_PAIRS = [
   ['1e3', 'HIGH a.js:1000 — x'],
   ['"12"', 'HIGH a.js:12 — x'],
   ['"007"', 'HIGH a.js:007 — x'],
+  ['9007199254740991', 'HIGH a.js:9007199254740991 — x'],
 ];
 
 for (const [lineJson, perLine] of ACCEPTED_LINE_PAIRS) {
@@ -492,6 +493,86 @@ for (const [lineJson, perLine] of ACCEPTED_LINE_PAIRS) {
     assert.deepEqual(result, sut(perLine));
   });
 }
+
+// ─── over-range line number in a per-line record ───
+
+const OVER_RANGE_PREFIX = 'Cannot parse findings: line number exceeds 9007199254740991: ';
+const OVER_RANGE_LINE = 'LOW a.js:99999999999999999999 — x';
+const EXPECTED_OVER_RANGE_MESSAGE = 'Cannot parse findings: line number exceeds 9007199254740991: "LOW a.js:99999999999999999999 — x"';
+
+test('Given a per-line finding whose line number exceeds the safe-integer range, when normalizeFindings runs, then it throws naming the record', () => {
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(OVER_RANGE_LINE),
+    (err) => err.message === EXPECTED_OVER_RANGE_MESSAGE,
+  );
+});
+
+const OVER_RANGE_ROWS = [
+  ['LOW a.js:9007199254740992 — x', 'LOW a.js:9007199254740992 — x', 'LOW a.js:9007199254740992 — x'],
+  ['LOW a.js:9007199254740993 — x', 'LOW a.js:9007199254740993 — x', 'LOW a.js:9007199254740993 — x'],
+  ['400 nines', `LOW a.js:${'9'.repeat(400)} — x`, `LOW a.js:${'9'.repeat(111)}…`],
+  ['VERIFIED: LOW a.js:99999999999999999999 — x | y', 'VERIFIED: LOW a.js:99999999999999999999 — x | y', 'VERIFIED: LOW a.js:99999999999999999999 — x | y'],
+];
+
+for (const [label, raw, expectedShown] of OVER_RANGE_ROWS) {
+  test(`Given a per-line record ${JSON.stringify(label)}, when normalizeFindings runs, then it throws the over-range message`, () => {
+    const sut = normalizeFindings;
+
+    assert.throws(
+      () => sut(raw),
+      (err) => err.message === OVER_RANGE_PREFIX + JSON.stringify(expectedShown),
+    );
+  });
+}
+
+test('Given a valid per-line record followed by an over-range one, when normalizeFindings runs, then it throws naming the second record', () => {
+  const raw = 'LOW a.js:1 — x\nLOW a.js:99999999999999999999 — y';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === OVER_RANGE_PREFIX + '"LOW a.js:99999999999999999999 — y"',
+  );
+});
+
+test('Given a per-line record at line 9007199254740991, when normalizeFindings runs, then it keeps the line number', () => {
+  const sut = normalizeFindings;
+
+  const result = sut('LOW a.js:9007199254740991 — x');
+
+  assert.deepEqual(result, [{ file: 'a.js', line: 9007199254740991, severity: 'LOW', finding: 'x' }]);
+});
+
+test('Given a per-line record whose line has 25 digits with leading zeros, when normalizeFindings runs, then it parses the value 12', () => {
+  const sut = normalizeFindings;
+
+  const result = sut('LOW a.js:0000000000000000000000012 — x');
+
+  assert.equal(result[0].line, 12);
+});
+
+test('Given an over-range per-line record with two fix delimiters, when normalizeFindings runs, then the no-match message wins', () => {
+  const raw = 'LOW a.js:99999999999999999999 — x | y | z';
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === `Cannot parse findings: line does not match the per-line format: ${JSON.stringify(raw)}`,
+  );
+});
+
+test('Given an over-range per-line record longer than the cap, when normalizeFindings runs, then the cap message wins', () => {
+  const prefix = 'LOW a.js:99999999999999999999 — ';
+  const raw = prefix + 'x'.repeat(MAX_LINE_CHARS + 1 - prefix.length);
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === `Cannot parse findings: line exceeds the ${MAX_LINE_CHARS}-character cap (${MAX_LINE_CHARS + 1} characters): ${JSON.stringify(`${raw.slice(0, 120)}…`)}`,
+  );
+});
 
 test('Given a JSON finding with an unknown key and an invalid line, when normalizeFindings runs, then the unknown-field error wins', () => {
   const raw = JSON.stringify([{ file: 'a.js', line: '12x', severity: 'HIGH', finding: 'x', column: 4 }]);
@@ -776,7 +857,7 @@ test('Given a long unparseable line, when normalizeFindings runs, then the throw
 });
 
 // Kills the ConditionalExpression mutant (the truncation check in
-// parseLineShape forced permanently true): a short line must echo in full,
+// parseRecord forced permanently true): a short line must echo in full,
 // with no ellipsis appended.
 test('Given a short unparseable line, when normalizeFindings runs, then the thrown message echoes it in full with no ellipsis', () => {
   const raw = 'not a valid record';
@@ -788,7 +869,7 @@ test('Given a short unparseable line, when normalizeFindings runs, then the thro
   );
 });
 
-// Kills the EqualityOperator mutant (parseLineShape's truncation check `>`
+// Kills the EqualityOperator mutant (parseRecord's truncation check `>`
 // widened to `>=`): a line of exactly 120 characters sits on the boundary and
 // must still echo in full, with no ellipsis appended.
 test('Given an unparseable line of exactly 120 characters, when normalizeFindings runs, then the thrown message echoes it in full with no ellipsis', () => {
