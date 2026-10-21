@@ -566,6 +566,69 @@ test('Given a JSON array with a missing required field (file), when normalizeFin
   );
 });
 
+// ─── unknown keys in a JSON finding ─────────────────────────────────────────
+
+test('Given a canonical JSON finding that also carries a suggested fix key, when normalizeFindings runs, then it throws naming the key', () => {
+  const raw = JSON.stringify([{ file: 'a.js', line: 12, severity: 'HIGH', finding: 'x', 'suggested fix': 'y' }]);
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === 'Finding at index 0 has an unknown field: "suggested fix"',
+  );
+});
+
+test('Given a JSON finding whose second item carries a misspelt Fix key, when normalizeFindings runs, then it throws naming index 1 and the key', () => {
+  const raw = JSON.stringify([
+    { file: 'a.js', line: 1, severity: 'HIGH', finding: 'x' },
+    { file: 'a.js', line: 2, severity: 'HIGH', finding: 'x', Fix: 'y' },
+  ]);
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === 'Finding at index 1 has an unknown field: "Fix"',
+  );
+});
+
+const UNKNOWN_KEY_RAW = [
+  ['file:line', JSON.stringify([{ file: 'a.js', line: 1, severity: 'HIGH', finding: 'x', 'file:line': 'a.js:1' }])],
+  ['column', JSON.stringify([{ file: 'a.js', line: 1, severity: 'HIGH', finding: 'x', column: 4 }])],
+  ['confidence', JSON.stringify([{ file: 'a.js', line: 1, severity: 'HIGH', finding: 'x', confidence: 'high' }])],
+  // Raw text: JSON.stringify of an object literal would set the prototype and emit no key.
+  ['__proto__', '[{"file":"a.js","line":1,"severity":"HIGH","finding":"x","__proto__":{}}]'],
+];
+
+for (const [key, raw] of UNKNOWN_KEY_RAW) {
+  test(`Given a JSON finding carrying the unknown key ${JSON.stringify(key)}, when normalizeFindings runs, then it throws naming the key`, () => {
+    const sut = normalizeFindings;
+
+    assert.throws(
+      () => sut(raw),
+      (err) => err.message === `Finding at index 0 has an unknown field: ${JSON.stringify(key)}`,
+    );
+  });
+}
+
+test('Given a JSON finding missing file and carrying a suggested fix key, when normalizeFindings runs, then the missing-field error wins', () => {
+  const raw = JSON.stringify([{ line: 1, severity: 'HIGH', finding: 'x', 'suggested fix': 'y' }]);
+  const sut = normalizeFindings;
+
+  assert.throws(
+    () => sut(raw),
+    (err) => err.message === 'Finding at index 0 missing required field: file',
+  );
+});
+
+test('Given a JSON finding carrying every accepted key with fix null and an out-of-vocabulary status, when normalizeFindings runs, then it normalizes with status kept and fix omitted', () => {
+  const raw = JSON.stringify([{ file: 'a.js', line: 1, severity: 'HIGH', finding: 'x', fix: null, status: 'WHATEVER' }]);
+  const sut = normalizeFindings;
+
+  const result = sut(raw);
+
+  assert.deepEqual(result, [{ file: 'a.js', line: 1, severity: 'HIGH', finding: 'x', status: 'WHATEVER' }]);
+});
+
 // ─── ReDoS resistance: pathological trailing-space-then-pipe input ────────────
 
 test('Given a per-line input at exactly the cap with a lone trailing pipe, when normalizeFindings runs, then it rejects promptly as malformed rather than tripping the cap', () => {

@@ -59,6 +59,10 @@ const SWALLOWED_ENTRY_PATTERN = /:(?:\d+-\d+|\*)\s*,/u;
 
 const REQUIRED_JSON_FIELDS = /** @type {const} */ (['file', 'line', 'severity', 'finding']);
 
+// Every key the canonical finding shape names. Any other key (a legacy alias such as
+// `suggested fix`, a misspelling such as `Fix`) used to be dropped without a word.
+const ACCEPTED_JSON_FIELDS = new Set([...REQUIRED_JSON_FIELDS, 'fix', 'status']);
+
 /**
  * Build a canonical Finding from raw field values, regardless of source shape.
  * `fix` and `status` are omitted when null or undefined.
@@ -90,6 +94,20 @@ function looksLikeJsonArray(trimmed) {
 }
 
 /**
+ * Throws on the first key of a JSON finding outside the canonical shape.
+ *
+ * @param {object} item
+ * @param {number} index
+ */
+function rejectUnexpectedFields(item, index) {
+  const unexpected = Object.keys(item).find(key => !ACCEPTED_JSON_FIELDS.has(key));
+  if (unexpected === undefined) {
+    return;
+  }
+  throw new Error(`Finding at index ${index} has an unknown field: ${JSON.stringify(unexpected)}`);
+}
+
+/**
  * Maps a raw JSON object to a canonical Finding, validating required fields.
  *
  * @param {unknown} item
@@ -105,6 +123,7 @@ function mapJsonItem(item, index) {
       throw new Error(`Finding at index ${index} missing required field: ${field}`);
     }
   }
+  rejectUnexpectedFields(item, index);
   return toFinding(/** @type {Record<string,unknown>} */ (item));
 }
 
