@@ -26,6 +26,9 @@ const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
 // module has ever seen in practice.
 const MAX_LINE_CHARS = 16384;
 
+// How much of a rejected record an error echoes — input may be long or carry sensitive text.
+const MAX_ECHO_CHARS = 120;
+
 /**
  * Optional leading status token on a per-line record, e.g. `VERIFIED: ...`.
  * Colon-anchored so a bare status-shaped word without the trailing colon
@@ -66,6 +69,8 @@ const ACCEPTED_JSON_FIELDS = new Set([...REQUIRED_JSON_FIELDS, 'fix', 'status'])
 // The per-line `\d+` line grammar, so a JSON string line accepts the same digits a per-line
 // record does; the JSON path additionally bounds the value to a safe integer.
 const DIGIT_STRING_PATTERN = /^\d+$/u;
+
+const isLineNumber = value => Number.isSafeInteger(value) && value >= 0;
 
 /**
  * Build a canonical Finding from raw field values, regardless of source shape.
@@ -121,7 +126,7 @@ function rejectUnexpectedFields(item, index) {
  */
 function resolveJsonLine(value, index) {
   const candidate = typeof value === 'string' && DIGIT_STRING_PATTERN.test(value) ? Number(value) : value;
-  if (Number.isSafeInteger(candidate) && candidate >= 0) {
+  if (isLineNumber(candidate)) {
     return candidate;
   }
   throw new Error(`Finding at index ${index} has an invalid line: expected a non-negative safe integer, as a number or a digit string`);
@@ -200,6 +205,32 @@ function parseLine(line) {
 }
 
 /**
+ * Parses one non-blank per-line record, or throws naming the record.
+ *
+ * @param {string} line
+ * @returns {Finding}
+ */
+function parseRecord(line) {
+  const shown = line.length > MAX_ECHO_CHARS ? `${line.slice(0, MAX_ECHO_CHARS)}…` : line;
+  if (line.length > MAX_LINE_CHARS) {
+    throw new Error(
+      `Cannot parse findings: line exceeds the ${MAX_LINE_CHARS}-character cap`
+      + ` (${line.length} characters): ${JSON.stringify(shown)}`,
+    );
+  }
+  const finding = parseLine(line);
+  if (finding === null) {
+    throw new Error(
+      `Cannot parse findings: line does not match the per-line format: ${JSON.stringify(shown)}`,
+    );
+  }
+  if (!isLineNumber(finding.line)) {
+    throw new Error(`Cannot parse findings: line number exceeds ${Number.MAX_SAFE_INTEGER}: ${JSON.stringify(shown)}`);
+  }
+  return finding;
+}
+
+/**
  * Parses raw input as a sequence of per-line finding records.
  * Every non-blank line must parse; any line that fails makes the whole input
  * structurally unrecoverable (throws rather than silently dropping a finding).
@@ -208,27 +239,7 @@ function parseLine(line) {
  * @returns {Finding[]}
  */
 function parseLineShape(raw) {
-  const nonBlank = raw.split('\n').filter(l => l.trim() !== '');
-
-  const results = [];
-  for (const line of nonBlank) {
-    // Truncate the echoed content — input may be long or carry sensitive text.
-    const shown = line.length > 120 ? `${line.slice(0, 120)}…` : line;
-    if (line.length > MAX_LINE_CHARS) {
-      throw new Error(
-        `Cannot parse findings: line exceeds the ${MAX_LINE_CHARS}-character cap`
-        + ` (${line.length} characters): ${JSON.stringify(shown)}`,
-      );
-    }
-    const finding = parseLine(line);
-    if (finding === null) {
-      throw new Error(
-        `Cannot parse findings: line does not match the per-line format: ${JSON.stringify(shown)}`,
-      );
-    }
-    results.push(finding);
-  }
-  return results;
+  return raw.split('\n').filter(l => l.trim() !== '').map(parseRecord);
 }
 
 /**

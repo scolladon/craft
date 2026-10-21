@@ -178,6 +178,18 @@ test('Given a JSON finding with a non-numeric line on stdin, when normalize-find
   assert.equal(result.stdout, '');
 });
 
+// ─── over-range per-line line number → exit 2, reason on stderr ───
+
+test('Given a per-line finding with an over-range line number on stdin, when normalize-findings runs, then it exits 2 with the reason on stderr and nothing on stdout', () => {
+  const sut = runStdin;
+
+  const result = sut('LOW a.js:99999999999999999999 — x\n');
+
+  assert.equal(result.status, 2);
+  assert.equal(result.stderr, 'normalize-findings: Cannot parse findings: line number exceeds 9007199254740991: "LOW a.js:99999999999999999999 — x"\n');
+  assert.equal(result.stdout, '');
+});
+
 // ─── contract-shaped JSON (live harness-read field list) → canonical, exit 0 ───
 
 const HARNESS_READ_CONTRACT = join(__dir, '..', '..', 'contracts', 'harness-read.md');
