@@ -22,7 +22,7 @@ const DECODE_EDGE_COMMANDS = Object.freeze([
   'echo a \u2029; git diff',
   'git diff \u0000x',
   'git diff \ud800',
-  'echo "\udfff"; git show',
+  'echo "\udfff"; git diff',
   `git diff HEAD\n${'echo pad\n'.repeat(PIPE_BUFFER_OVERFLOW_LINES)}`,
   'echo été; git diff --no-ext-diff',
 ]);

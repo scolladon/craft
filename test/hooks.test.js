@@ -562,8 +562,8 @@ const ENGINE_DENIED_FORMS = [
 const ENGINE_ALLOWED_FORMS = [
   { label: 'diff text inside an echo string', command: 'echo "a; git diff x"' },
   { label: 'diff text inside a commit message', command: 'git commit -m "wip; git diff fix"' },
-  { label: 'show text inside a log grep pattern', command: 'git log --grep "x; git show y"' },
-  { label: 'show text inside a quoted heredoc body', command: "cat > notes.md <<'EOF'\nrun it; git show HEAD\nEOF" },
+  { label: 'diff text inside a log grep pattern', command: 'git log --grep "x; git diff y"' },
+  { label: 'diff text inside a quoted heredoc body', command: "cat > notes.md <<'EOF'\nrun it; git diff HEAD\nEOF" },
   { label: 'the heredoc commit idiom', command: "git commit -m \"$(cat <<'EOF'\nfix: x\n\ngit diff here\nEOF\n)\"" },
 ];
 
