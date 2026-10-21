@@ -26,6 +26,9 @@ const LINE_HEAD_PATTERN = /^(\S+)\s+(\S+):(\d+)\s+[—–-]\s+(.*\S)$/u;
 // module has ever seen in practice.
 const MAX_LINE_CHARS = 16384;
 
+// How much of a rejected record an error echoes — input may be long or carry sensitive text.
+const MAX_ECHO_CHARS = 120;
+
 /**
  * Optional leading status token on a per-line record, e.g. `VERIFIED: ...`.
  * Colon-anchored so a bare status-shaped word without the trailing colon
@@ -208,8 +211,7 @@ function parseLine(line) {
  * @returns {Finding}
  */
 function parseRecord(line) {
-  // Truncate the echoed content — input may be long or carry sensitive text.
-  const shown = line.length > 120 ? `${line.slice(0, 120)}…` : line;
+  const shown = line.length > MAX_ECHO_CHARS ? `${line.slice(0, MAX_ECHO_CHARS)}…` : line;
   if (line.length > MAX_LINE_CHARS) {
     throw new Error(
       `Cannot parse findings: line exceeds the ${MAX_LINE_CHARS}-character cap`
