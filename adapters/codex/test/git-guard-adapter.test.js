@@ -334,7 +334,7 @@ const BRANCH = { block: true, reason: destructiveReason('forced branch delete') 
 const GATE = { block: true, reason: COMPLEX_NEAR_GIT_REASON };
 const ALLOW = { block: false };
 
-describe('decideGuard() - default guard composes the git verdict on the live 0.162.1 payload', () => {
+describe('decideGuard() - default guard composes the git verdict on the live codex payload', () => {
   const rows = [
     ['a push behind a global -C option', 'git -C . push origin main', PUSH],
     ['a push behind a global --git-dir option', 'git --git-dir=.git push origin main', PUSH],
