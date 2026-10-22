@@ -13,7 +13,7 @@ evidence:
 source: { run: guard-fuzz-scale-ext-diff-widen, phase: decisions, date: 2026-10-20 }
 status: active
 supersedes: []
-last-verified: 2026-10-21
+last-verified: 2026-10-22
 ---
 # 005 — The README corpus count reads the files on disk, not the index
 
