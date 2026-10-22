@@ -204,8 +204,19 @@ codex 0.163.0 (0 of 20 versus 20 of 20 through the symlinks). Closed as a standi
 limitation, no re-probe scheduled; the symlink route stays required (ADR-674). Entry and
 history: *Closed — won't-do*.
 
-**Malformed `.rules` execpolicy — treat as fail open: on 0.162.1 the app-server path fails open and
-`codex exec` refuses to start — recorded 2026-07-21, re-probed 2026-10-15**
+Delivered 2026-10-22 (codex-0163-rules-reprobe): on codex 0.163.0 a malformed `craft.rules`
+still fails open on the app-server thread/turn path and in the interactive TUI (3/3 each:
+`git clean -f` ran every time; one TUI run reached the stub git, the other five deleted
+`VICTIM.txt`), and `codex exec` still refuses to start. The TUI's status line
+shows `⚠ 1 warning · f2 to view` before the prompt is sent; the command still runs. The
+`-c features.unified_exec_tty=false` launch flag still closes `write_stdin`, over a config
+`unified_exec_tty = true` too (3/3). Record: `docs/contributing/specs/codex-poc-record.md`,
+*Re-probe — codex-cli 0.163.0*. The binding is unchanged: a malformed rules file is still
+treated as fail open.
+
+**Malformed `.rules` execpolicy — treat as fail open: on 0.162.1 and 0.163.0 the app-server path
+fails open and `codex exec` refuses to start — recorded 2026-07-21, re-probed 2026-10-15 and
+2026-10-22**
 (harden-prove-codex-binding, B9). Runtime auto-loads `$CODEX_HOME/rules/` (a directory of `.rules`
 files); `execpolicy check` treats a malformed file as a hard error, but the codex binary carries the
 literal runtime message `Error parsing rules; custom rules not applied.` — read on 2026-07-21, from
@@ -227,8 +238,16 @@ rules not applied.`), runs the command, and the file is deleted (fails open, 3/3
 well-formed file both paths block. The interactive TUI runs its turns through an app-server daemon
 and fails open the same way, with nothing on screen (3/3, 2026-10-21). Treat a malformed rules
 file as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
-*Re-probe — codex-cli 0.162.1*. On 0.163.0 (2026-10-22) the `codex exec` refusal re-confirmed
-(3/3); the app-server and TUI paths were not re-probed (*Re-probe — codex-cli 0.163.0*).
+*Re-probe — codex-cli 0.162.1*.
+
+**Re-probe on 0.163.0 (2026-10-22): unchanged on every surface.** Same ground truth.
+`codex exec` refuses to start (3/3); the app-server thread/turn path emits the same
+`configWarning` and `git clean -f` deletes `VICTIM.txt` (3/3); the interactive TUI fails open
+through its daemon (3/3). Unlike the 0.162.1 observation, the TUI's status line shows
+`⚠ 1 warning · f2 to view` before the prompt is sent, and F2 opens the parse error; the
+command still runs. With the committed rules every path blocks. Treat a malformed rules file
+as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
+*Re-probe — codex-cli 0.163.0*.
 
 ### Open — C. Waiting on an external trigger
 

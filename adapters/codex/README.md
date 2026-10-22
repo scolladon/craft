@@ -198,7 +198,7 @@ written down now:
   bash 3.2 at /bin/bash included), and the hook payload does not carry it, so the gate
   denies the constructs whose meaning depends on the shell.
 - `write_stdin` is closed by the template's `unified_exec_tty = false` (pinned on 0.163.0)
-  and by the launch flag `-c features.unified_exec_tty=false` (pinned on 0.162.1). Codex refuses `tty: true` with
+  and by the launch flag `-c features.unified_exec_tty=false` (pinned on 0.163.0). Codex refuses `tty: true` with
   `TTY execution is disabled by config`, and a non-tty session's stdin is closed, so
   `write_stdin` fails with `stdin is closed for this session`. `write_stdin` stays in the
   tool list. Without the launch flag, a trusted project's `.codex/config.toml` holding
@@ -214,12 +214,13 @@ written down now:
   measured verdict took about 190 ms, so no verdict deadline is added. An operator who sets a low
   `timeout` reopens that path.
 - A malformed `craft.rules` file **may fail open** at runtime, so treat it as fail open.
-  On codex 0.162.1 the outcome depends on how codex is driven: `codex exec`, this
-  binding's launch path, refuses to start, so the run stops loudly (re-confirmed on 0.163.0); the app-server
+  On codex 0.162.1 and 0.163.0 the outcome depends on how codex is driven: `codex exec`, this
+  binding's launch path, refuses to start, so the run stops loudly; the app-server
   thread/turn path logs a warning, skips the rules, and runs the command anyway. The
-  interactive TUI runs its turns through an app-server daemon and fails open the same way;
-  nothing shows on screen, and the warning lands only in
-  `$CODEX_HOME/app-server-daemon/daemon.stderr.log`.
+  interactive TUI runs its turns through an app-server daemon and fails open the same way.
+  The daemon logs the warning to `$CODEX_HOME/app-server-daemon/daemon.stderr.log`. On
+  0.163.0 the TUI status line also shows `⚠ 1 warning · f2 to view` before the first prompt,
+  and the command still runs; on 0.162.1 nothing showed on screen.
 - Per-sandbox-mode blocking was **not measured** against this binding. Selecting
   `-s workspace-write` is a posture, not a claim that any particular write is
   contained by the sandbox itself — the PreToolUse hook is the layer this binding

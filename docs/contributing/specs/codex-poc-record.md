@@ -192,7 +192,7 @@ That is the 0.144.6 statement. **Resolved on 0.162.1, split by surface:** `codex
 start (exit 1, `Error loading rules: … starlark error`; it fails closed, 3/3); the app-server
 thread/turn path emits a `configWarning`, skips the rules and runs the command (it fails open,
 3/3); the interactive TUI runs its turns through an app-server daemon and fails open the same way,
-with nothing on screen (3/3). On 0.163.0 the `codex exec` refusal re-confirmed (3/3); the app-server and TUI paths were not re-probed. Still treat a malformed `.rules` file as fail open.
+with nothing on screen (3/3). On 0.163.0 all three re-confirmed by side effect (3/3 each); the TUI's status line also shows `⚠ 1 warning · f2 to view` before the prompt is sent, and the command still runs. Still treat a malformed `.rules` file as fail open.
 
 ### Sandbox / containment — likely the strongest layer
 
@@ -321,7 +321,7 @@ never read; watchdog = background kill; isolation = `find ~/.codex -newer <marke
 probe; trusted by independent re-run). Rows 0 and 1 carry verdicts revisited on `codex-cli 0.145.0`
 under the same protocol — see the re-probe section below for their evidence. Rows 0, 1 and 3 were
 revisited again on `codex-cli 0.162.1` under the same protocol; see
-`Re-probe — codex-cli 0.162.1`. Rows 0, 1 and 3 were revisited on `codex-cli 0.163.0` too; see `Re-probe — codex-cli 0.163.0`. Method note: wrap
+`Re-probe — codex-cli 0.162.1`. Rows 0, 1 and 3 were revisited on `codex-cli 0.163.0` too; see `Re-probe — codex-cli 0.163.0`. Row 3's app-server and TUI paths are under its *Rules paths and launch flag (0.163.0, signed in)* subsection. Method note: wrap
 EVERY `codex` invocation — including
 bare `--version`/`--help` — in the throwaway env, or set the isolation marker AFTER them; a bare
 diagnostic touches the real `~/.codex` (version/cache/installation init) and false-alarms a
@@ -332,7 +332,7 @@ diagnostic touches the real `~/.codex` (version/cache/installation init) and fal
 | 0 | Launch-time hook-trust verification | **OPEN — the codex limitation is lifted, the verification is not wired** | The guard **over-blocked every command** (real payload is Claude-shaped `tool_input.command`, not `exec_command`/`cmd`) — fixed `fb4b922`, live-verified (benign `echo` ALLOWED, `git diff` DENIED with ext-diff reason). The untrusted-hook silent no-op is CONFIRMED (0.144.6, re-confirmed 0.145.0). codex 0.144.6 exposed no scriptable hook-trust write path; **0.145.0 lifts that limitation** — `codex app-server`'s `hooks/list` plus a `config.toml` write is a scriptable read/write trust path (see the Re-probe section). What is shipped is `bin/trust-hook.js --check`, an **on-demand** read-only check. Nothing verifies trust **at launch**: no launch path calls it, so an operator who never invokes it still gets the silent no-op. The row stays open until verification is wired into a launch. On 0.162.1 the untrusted-hook silent no-op was re-confirmed, and `bin/trust-hook.js` worked end to end (trust write, `--check`, byte-identical re-run, BLOCK and ALLOW by side effect). Still no launch path calls `--check`. Silent no-op and the trusted BLOCK re-confirmed on 0.163.0. |
 | 1 | Shared skills load by reference | **DISPROVEN — closed 2026-10-22 as a standing codex limitation (re-pinned 0.162.1 → 0.163.0)** | Manifest-location bug fixed (`b204182`: codex reads `.claude-plugin/marketplace.json`, not root). But `codex plugin add` copies the plugin and DROPS the out-of-tree `../../../../skills` ref — the 19 shared skills do NOT load by reference; the symlink fallback loads all 19. Re-probed on 0.145.0 via the app-server `skills/list` method: same result, 0/19 versus 19/19. Re-probed on 0.162.1 the same way: 0/19 versus 19/19, and both cached manifests are still `{description, name}`. Re-probed on 0.163.0: 0/20 versus 20/20 (the shared set grew to 20). A standing codex limitation: closed 2026-10-22, no re-probe scheduled, the symlink route stays required. |
 | 2 | Sandbox modes, per mode | **CONFIRMED (DELIVERED)** | Ground-truth 3×matrix: read-only blocks all writes+network; workspace-write allows cwd + `$TMPDIR`, BLOCKS genuinely-outside write + network; danger-full-access allows all. No fail-open. |
-| 3 | Malformed `.rules` fails open at runtime | **fail-open on the app-server path, fail-closed on `codex exec` (0.162.1) — treat as fail open** | Runtime loads `$CODEX_HOME/rules/`. 2026-07-21 (0.144.6): the recorded basis was the binary string `Error parsing rules; custom rules not applied.` alone; no runtime side effect was recorded. 0.162.1, by side effect: `codex exec` refuses to start (fail closed, 3/3); the app-server thread/turn path warns, skips the rules and runs the command (fail open, 3/3); the interactive TUI goes through an app-server daemon and fails open with nothing on screen (3/3). `assertRulesIntegrity` (`115bcce`) byte-compares deployed rules to the generator and refuses on drift. It is an exported, unit-tested check with no caller in the binding, kept on demand by decision (2026-10-16) because the binding launches nothing itself (operators run `codex exec`), so it protects only when something invokes it. 0.163.0: the `codex exec` refusal re-confirmed (3/3); the app-server path was not re-probed. |
+| 3 | Malformed `.rules` fails open at runtime | **fail-open on the app-server path, fail-closed on `codex exec` (0.162.1; re-confirmed 0.163.0) — treat as fail open** | Runtime loads `$CODEX_HOME/rules/`. 2026-07-21 (0.144.6): the recorded basis was the binary string `Error parsing rules; custom rules not applied.` alone; no runtime side effect was recorded. 0.162.1, by side effect: `codex exec` refuses to start (fail closed, 3/3); the app-server thread/turn path warns, skips the rules and runs the command (fail open, 3/3); the interactive TUI goes through an app-server daemon and fails open with nothing on screen (3/3). `assertRulesIntegrity` (`115bcce`) byte-compares deployed rules to the generator and refuses on drift. It is an exported, unit-tested check with no caller in the binding, kept on demand by decision (2026-10-16) because the binding launches nothing itself (operators run `codex exec`), so it protects only when something invokes it. 0.163.0, by side effect (3/3 each): `codex exec` refuses to start; the app-server path warns, skips the rules and runs the command; the TUI fails open through its daemon, and its status line shows `⚠ 1 warning · f2 to view` before the prompt is sent. |
 | 4 | `CLAUDE_PLUGIN_ROOT` substitution | **CONFIRMED (DELIVERED)** | With `CRAFT_ROOT` unset + `CLAUDE_PLUGIN_ROOT` set, the hook command `node ${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/…/craft-guard.js` resolved — guard fired + denied `git diff`. codex expands `${CLAUDE_PLUGIN_ROOT}` AND the POSIX `:-` default, and runs hook commands through a shell. |
 | 5 | Rollout fixture + telemetry pin | **CONFIRMED gap (fixed)** | The persisted rollout does NOT carry the live `turn.completed` envelope — token record is `event_msg`/`token_count`/`info.last_token_usage`, session id on `session_meta`. The binding parsed only `turn.completed` → mined ZERO from real rollouts. Fixed `9accb03` (parse both envelopes, `last_token_usage` per-turn not cumulative), pinned by real fixture `engine/test/fixtures/codex/real-rollout.jsonl`. |
 
@@ -602,7 +602,7 @@ loudly. Treat a malformed `.rules` file as fail open.
 
 ## Re-probe — codex-cli 0.163.0
 
-Method: 2026-10-22. Throwaway `HOME`/`CODEX_HOME` homes made with `mktemp` (`<throwaway>`): one
+Method, for the table below: 2026-10-22. Throwaway `HOME`/`CODEX_HOME` homes made with `mktemp` (`<throwaway>`): one
 for the skills probe, and one per case for the tool-list, `write_stdin` and payload probes. No
 `auth.json` was copied into any of them, and no step needed auth. The rules-load probes reuse the
 2026-10-16 load detector: with no credentials, codex either prints `Error loading rules:` and
@@ -636,14 +636,44 @@ own `tmp/arg0-macos` (8004 entries in the skills probe's throwaway). This is the
 | Symlinked rules file (0.163.0) | **CONFIRMED (0.163.0): not loaded, unchanged.** `$CODEX_HOME/rules/craft.rules` a symlink to the malformed copy, 3/3: no rules error, session header reached. |
 | Tool list, default config (0.163.0) | **CONFIRMED (0.163.0), unchanged.** Identical to the 0.162.1 row: `exec_command(cmd\|justification\|login\|max_output_tokens\|prefix_rule\|sandbox_permissions\|shell\|tty\|workdir\|yield_time_ms)`, `write_stdin(chars\|max_output_tokens\|session_id\|yield_time_ms)`, `request_user_input`, `apply_patch`, `view_image`, `get_goal`, `create_goal`, `update_goal`, `tool_search`, `web_search`. |
 | `write_stdin`, default config (0.163.0) | **CONFIRMED (0.163.0): unguarded, unchanged.** `exec_command {cmd:"sh", tty:true}`, then `write_stdin` sends `echo WS_MARKER > ws_marker.txt\nexit\n`: the marker is **present**. The hook fired once (`Bash {"command":"sh"}`) and not at all for `write_stdin`. |
-| `[features] unified_exec_tty = false` (0.163.0) | **CONFIRMED (0.163.0): closed, unchanged.** 3/3: `tty` is absent from the `exec_command` schema; a forced `tty:true` → ``TTY execution is disabled by config; omit `tty` or set it to false.``; marker absent; the hook fired first. The `-c features.unified_exec_tty=false` launch flag was not re-probed. |
+| `[features] unified_exec_tty = false` (0.163.0) | **CONFIRMED (0.163.0): closed, unchanged.** 3/3: `tty` is absent from the `exec_command` schema; a forced `tty:true` → ``TTY execution is disabled by config; omit `tty` or set it to false.``; marker absent; the hook fired first. The `-c features.unified_exec_tty=false` launch flag is re-probed under *Rules paths and launch flag (0.163.0, signed in)* below. |
 | Non-tty session (0.163.0) | **CONFIRMED (0.163.0).** `exec_command {cmd:"sleep 2; sh", yield_time_ms:500}`, then `write_stdin` → `stdin is closed for this session; rerun exec_command with tty=true to keep stdin open`, marker absent. Same result with tty off and with the default config. |
 | Hook payload keys (0.163.0) | **CONFIRMED (0.163.0): key set unchanged.** `cwd, hook_event_name, model, permission_mode, session_id, tool_input, tool_name, tool_use_id, transcript_path, turn_id`, the same set as `adapters/codex/test/fixtures/pre-tool-use-bash.json`; `tool_name` is `Bash` and `tool_input` is `{command}`. Values were not compared, so the fixture stays the 0.162.1 capture. |
 | Untrusted hook (0.163.0) | **CONFIRMED (0.163.0), fail-open reproduced.** The template `[[hooks.PreToolUse]]` block verbatim, `CRAFT_ROOT=<worktree>`, no bypass flag; `trust-hook.js --check` → exit 1, `from=untrusted`. The fake model asks for `git diff > OUT.txt`, 3/3: `OUT.txt` **present** (83 B), zero hook items, 2 `command_execution` items. |
 | Trusted control (0.163.0) | **CONFIRMED (0.163.0): denied.** `trust-hook.js` → exit 0, `from=untrusted hash=sha256:38713365…` (the 0.161.0 and 0.162.1 hash). The same turn → `OUT.txt` absent, zero `command_execution` items, `blocked by PreToolUse hook: craft-guard: git diff/show must carry --no-ext-diff …`. Idempotence and ALLOW were not re-run. |
 
-**Not re-probed** (they need auth or an attended session), so they keep their 0.162.1 pins: the
-app-server and TUI malformed-rules fail-open, the hook timeout and default-timeout rows, the
-`-c features.unified_exec_tty=false` launch flag, the project-config override, trust `--check`
-idempotence and ALLOW, the `execpolicy check` and `cmp` rows, the `unified_exec` and
-`shell_tool` switches, the tool shell, and the heredoc idiom.
+### Rules paths and launch flag (0.163.0, signed in)
+
+Method: 2026-10-22, a second batch. The app-server and TUI probes share one throwaway
+`HOME`/`CODEX_HOME` (`<throwaway>`), signed in by `codex login` run inside it; no `auth.json` was
+copied. The launch-flag probes ran offline against the fake Responses provider, with no auth and
+one fresh throwaway home and work dir per case. Every `codex` invocation was wrapped,
+`--version` and `generate-json-schema` included. Isolation proven by
+`find ~/.codex -newer <marker>` = 0 entries after every batch. One false alarm, disclosed: run
+from a shell that had exported the throwaway `HOME`, `~/.codex` named the throwaway's own
+directory and counted 3 entries; the real home held 0. Rules variants at
+`$CODEX_HOME/rules/craft.rules`: the committed file (control) and the committed file minus its
+last line `)` (malformed). Ground truth: an untracked `VICTIM.txt` in a `git init` throwaway target
+with one tracked file. The TUI was driven by a script under `expect`, not by an operator in a real
+terminal as on 0.162.1: a 40x140 pty, `TERM=xterm-256color`, the `ESC[6n` cursor query answered,
+the target pre-trusted in `config.toml`, the prompt submitted with the kitty-protocol Enter
+`ESC[13u` (a plain CR does not submit), F2 sent as `ESC[Q`. The detached daemon was killed between
+runs and its `daemon.stderr.log` removed before each. A stub `git` first on `PATH` is not a
+reliable signal under the tool shell: `PATH=<stub>:$PATH /bin/zsh -lc 'command -v git'` →
+`/usr/bin/git` 3/3, because macOS `/etc/zprofile` (`path_helper`) reorders `PATH` in a login shell,
+while `zsh -c` resolves the stub. `VICTIM.txt` is the ground truth; a stub hit only proves that the
+command ran.
+
+| Probe | Result |
+|---|---|
+| Malformed rules, app-server thread/turn (0.163.0) | **CONFIRMED (0.163.0): fails open, unchanged.** `initialize` → `initialized` → `thread/start {cwd, approvalPolicy:"never", sandbox:"workspace-write"}` → `turn/start` asking for `git clean -f`, 3/3: a `configWarning` notification `{"summary":"Error parsing rules; custom rules not applied.","details":"failed to parse rules file <path>: starlark error: … Parse error: unexpected new line, expected expression …"}` and the stderr line `ERROR codex_app_server: Error parsing rules; …`; a `commandExecution` item `/bin/zsh -lc 'git clean -f'`, exit 0, output `Removing VICTIM.txt`; `VICTIM.txt` deleted. |
+| App-server control (0.163.0) | **CONFIRMED (0.163.0): blocked.** Committed rules, 3/3: no warning, no `commandExecution` item, `VICTIM.txt` survived; the agent reported the command rejected by the safety policy. Each `thread/start` wrote `[projects."<cwd>"] trust_level = "trusted"` into the throwaway's `config.toml` for its cwd. |
+| Interactive TUI rules path (0.163.0) | **CONFIRMED (0.163.0): fails open, through the app-server, unchanged.** `codex -a never -s workspace-write -C <target>`, 3/3: the daemon (binary under `$CODEX_HOME/packages/app-server-daemon/releases/0.163.0-…`) logs `Error parsing rules` once in `app-server-daemon/daemon.stderr.log`, and `git clean -f` ran. Run 1 reached the stub (`clean -f` logged; screen `Ran git clean -f └ STUB: clean intercepted`); runs 2 and 3 ran the real git (`Removing VICTIM.txt`, `VICTIM.txt` deleted). Why run 1 resolved the stub was not established. |
+| TUI screen, malformed rules (0.163.0) | **CONFIRMED (0.163.0): a warning shows on screen; the command still runs.** Before the prompt is sent, the status line shows `⚠ 1 warning · f2 to view` (3/3). F2 opens `Warnings · 1 of 1 · Startup  Error parsing rules; custom rules not applied.: failed to parse rules file <path>: starlark error … These warnings may reflect settings from when the background server started. If you’ve already fixed them, use /daemon to restart it.` (runs 2 and 3; run 1 sent `ESC OQ`, which did not open the panel). The 0.162.1 row above records nothing on screen, observed by an operator in a real terminal; this batch used a scripted pty, so whether 0.162.1 also showed the badge is not established. |
+| TUI control (0.163.0) | **CONFIRMED (0.163.0): blocked.** Committed rules, 3/3: `VICTIM.txt` survived, the stub never logged `clean`, no daemon parse error, no warning badge, F2 → `No warnings`; the agent reported the command blocked by the execution policy. |
+| Launch flag `-c features.unified_exec_tty=false` (0.163.0) | **CONFIRMED (0.163.0): closed, unchanged.** `codex exec --json --skip-git-repo-check -s workspace-write -C <work>`; the fake model forces `exec_command {cmd:"sh", tty:true}`, then `write_stdin {session_id, chars:"echo WS_MARKER > ws_marker.txt\nexit\n"}` if a session id comes back; `tty` read from the request's `exec_command` parameters. With the flag and no config key, 3/3, and with the flag over a config `[features] unified_exec_tty = true`, 3/3: `tty` absent, ``TTY execution is disabled by config; omit `tty` or set it to false.``, marker absent. Controls, no flag and no key (3/3) and config `true` without the flag (1/1): `tty` present, `Process running with session ID …`, marker present. No hook was configured, so the hook's firing order was not observed. |
+
+**Not re-probed** on 0.163.0, so they keep their 0.162.1 pins: the hook timeout and
+default-timeout rows, the project-config override, trust `--check` idempotence and ALLOW, the
+`execpolicy check` and `cmp` rows, the `unified_exec` and `shell_tool` switches, the tool shell,
+and the heredoc idiom.
