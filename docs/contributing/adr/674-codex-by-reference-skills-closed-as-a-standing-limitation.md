@@ -37,8 +37,9 @@ instructions do not change. No per-minor re-probe is scheduled.
 
 ## Consequences
 
-- The BACKLOG entry is ticked closed, with a dated "Re-probe on 0.163.0" paragraph naming it a
-  standing limitation.
-- The adapter README drops any "re-check on the next minor version" wording for this row.
+- The BACKLOG entry gets a closed heading and moves to the closed won't-do list, with a dated
+  "Re-probe on 0.163.0" paragraph naming it a standing limitation and retiring the per-minor
+  re-check rule. The dated 0.145.0 and 0.162.1 paragraphs keep their re-check clauses as written.
+- The adapter READMEs carry no re-check wording for this row, so they need no change for it.
 - Re-measuring stays possible through the throwaway-entry route the marketplace decision describes;
   it is no longer a scheduled task.
