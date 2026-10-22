@@ -217,7 +217,9 @@ written down now:
   On codex 0.162.1 the outcome depends on how codex is driven: `codex exec`, this
   binding's launch path, refuses to start, so the run stops loudly; the app-server
   thread/turn path logs a warning, skips the rules, and runs the command anyway. The
-  interactive TUI was not probed.
+  interactive TUI runs its turns through an app-server daemon and fails open the same way;
+  nothing shows on screen, and the warning lands only in
+  `$CODEX_HOME/app-server-daemon/daemon.stderr.log`.
 - Per-sandbox-mode blocking was **not measured** against this binding. Selecting
   `-s workspace-write` is a posture, not a claim that any particular write is
   contained by the sandbox itself — the PreToolUse hook is the layer this binding
