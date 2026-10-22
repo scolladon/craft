@@ -251,13 +251,14 @@ as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
 
 ### Open — C. Waiting on an external trigger
 
-**Run the engine differential fuzz at scale under bash >= 5.** The scaled census
-(`GUARD_FUZZ_COUNT=1500`, 15 pinned + 5 fresh seeds) is green on /bin/bash 3.2.57, but its second
-shell arm (the first bash >= 5 on PATH) was skipped: no bash 5 on the box that ran it
-(`docs/contributing/design/guard-fuzz-scale-ext-diff-widen.md`, Out of scope). Linux CI runs only the
-default seed under bash 5. **Trigger:** a box with bash >= 5 on PATH. Then run the three seed
-batches under `nice -n 19` and classify any new false block at its construct, as ADR-661 does.
-Not folded: waits on an external trigger.
+Delivered 2026-10-22 (bash53-heredoc-comsub-false-block): the engine differential fuzz at
+`GUARD_FUZZ_COUNT=1500` is green on both shell arms, /bin/bash 3.2.57 and bash 5.3.20, over the
+four seed batches 101,202,303,404,505 / 11,22,33,44,55 / 66,77,88,99,111 /
+271828,314159,161803,141421,173205 (50 tests per batch, none skipped). bash 5.3 reprints a
+`$( )`/`<( )` body and drops the first `;` after a heredoc in it, merging the two commands
+around it. The guard now refuses that `;` fail-closed, and the generator tags the
+construct `heredoc-list-in-substitution` (ADR-684, ADR-685, ADR-686). bash 5.0-5.2 were not
+measured.
 
 **Drop the `typed-rest-client` override once Stryker resolves past the exact `qs` pin.**
 `engine/package.json` overrides `typed-rest-client` to 2.3.0 because 2.3.1 (picked under
