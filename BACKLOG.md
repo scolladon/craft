@@ -192,14 +192,12 @@ shell's stdin is `/dev/null`. Record: `docs/contributing/specs/copilot-poc-recor
 (ADR-664, ADR-665, ADR-666). A copilot version whose request `tools` list carries `write_bash`
 again reopens it.
 
-**Does the interactive codex TUI apply a malformed `.rules` file like `codex exec` or like the
-app-server?** On codex 0.162.1 a malformed `$CODEX_HOME/rules/craft.rules` makes `codex exec`
-refuse to start (fails closed, 3/3) while the app-server thread/turn path skips the rules and
-runs the command (fails open, 3/3); record: `docs/contributing/specs/codex-poc-record.md`,
-*Re-probe — codex-cli 0.162.1*. Which path the TUI takes was not probed. How to prove it: in a
-throwaway `CODEX_HOME`, deploy the malformed rules, drive the TUI to run `git clean -f`
-against an untracked file, and check whether the file survives. Question only; no fix is
-scoped.
+Delivered 2026-10-22 (codex-tui-malformed-rules-probe): on codex 0.162.1 the interactive TUI takes
+the app-server path. It starts a detached `codex app-server` daemon, and with a malformed
+`craft.rules` that daemon logs `Error parsing rules; custom rules not applied.` while `git clean -f`
+runs and nothing shows on screen (fails open, 3/3); with the committed rules it is rejected.
+Record: `docs/contributing/specs/codex-poc-record.md`, *Re-probe — codex-cli 0.162.1*. The binding
+is unchanged: ADR-574 already treats a malformed rules file as fail open.
 
 **Malformed `.rules` execpolicy — treat as fail open: on 0.162.1 the app-server path fails open and
 `codex exec` refuses to start — recorded 2026-07-21, re-probed 2026-10-15**
@@ -221,7 +219,8 @@ last line `)` removed): `codex exec`, this binding's launch path, exits 1 at sta
 `Error loading rules: … starlark error`, emits no events, and the file survives (fails closed,
 3/3); the app-server thread/turn path emits a `configWarning` (`Error parsing rules; custom
 rules not applied.`), runs the command, and the file is deleted (fails open, 3/3). With the
-well-formed file both paths block. The interactive TUI was not probed. Treat a malformed rules
+well-formed file both paths block. The interactive TUI runs its turns through an app-server daemon
+and fails open the same way, with nothing on screen (3/3, 2026-10-21). Treat a malformed rules
 file as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
 *Re-probe — codex-cli 0.162.1*.
 
