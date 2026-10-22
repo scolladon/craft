@@ -691,3 +691,7 @@ per-line-over-range-line design turns=12 tool_calls=13 tokens=460582 duration_ms
 per-line-over-range-line implementation turns=11 tool_calls=12 tokens=313813 duration_ms=93490 cache_read=277320 cache_creation=36304 output=167 avg_ctx=28513 equiv=73969
 per-line-over-range-line planning turns=10 tool_calls=11 tokens=368114 duration_ms=132527 cache_read=325146 cache_creation=42837 output=111 avg_ctx=36800 equiv=86636
 per-line-over-range-line review turns=15 tool_calls=15 tokens=279885 duration_ms=75419 cache_read=193226 cache_creation=86480 output=149 avg_ctx=18649 equiv=128198
+codex-0163-reprobe design turns=53 tool_calls=67 tokens=3320712 duration_ms=675043 cache_read=3089293 cache_creation=178368 output=52945 avg_ctx=61656 equiv=796720
+codex-0163-reprobe implementation turns=23 tool_calls=26 tokens=602452 duration_ms=274264 cache_read=488808 cache_creation=100305 output=13293 avg_ctx=25616 equiv=240773
+codex-0163-reprobe planning turns=34 tool_calls=35 tokens=2250921 duration_ms=480972 cache_read=2100014 cache_creation=107293 output=43546 avg_ctx=64923 equiv=561916
+codex-0163-reprobe review turns=31 tool_calls=33 tokens=991593 duration_ms=343938 cache_read=822184 cache_creation=153646 output=15701 avg_ctx=31480 equiv=352843
