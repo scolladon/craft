@@ -205,8 +205,9 @@ limitation, no re-probe scheduled; the symlink route stays required (ADR-674). E
 history: *Closed — won't-do*.
 
 Delivered 2026-10-22 (codex-0163-rules-reprobe): on codex 0.163.0 a malformed `craft.rules`
-still fails open on the app-server thread/turn path and in the interactive TUI (3/3 each,
-`VICTIM.txt` deleted), and `codex exec` still refuses to start. The TUI's status line
+still fails open on the app-server thread/turn path and in the interactive TUI (3/3 each:
+`git clean -f` ran every time; one TUI run reached the stub git, the other five deleted
+`VICTIM.txt`), and `codex exec` still refuses to start. The TUI's status line
 shows `⚠ 1 warning · f2 to view` before the prompt is sent; the command still runs. The
 `-c features.unified_exec_tty=false` launch flag still closes `write_stdin`, over a config
 `unified_exec_tty = true` too (3/3). Record: `docs/contributing/specs/codex-poc-record.md`,
