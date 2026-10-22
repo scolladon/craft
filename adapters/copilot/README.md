@@ -12,7 +12,7 @@ copilot --plugin-dir <repo> --plugin-dir <repo>/adapters/copilot
 
 Two plugin dirs, both required. `--plugin-dir <repo>` points Copilot at the repository root,
 so it resolves the shared craft skills at `<repo>/skills/<name>/SKILL.md` **by reference** —
-the 19 shared skills (`run`, `review`, `validation`, `init`, and the rest) load straight from
+the shared skills (`run`, `review`, `validation`, `init`, and the rest) load straight from
 their single source; drift becomes structurally impossible rather than merely test-enforced.
 `--plugin-dir <repo>/adapters/copilot` loads this binding's own `agents/`, `hooks/`, and
 `commands/`. `--plugin-dir` is repeatable and purely local — no install step, no registry

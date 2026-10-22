@@ -275,7 +275,8 @@ by the gate; the commit idiom executed (denied since ADR-606); a forced deadline
   Codex `write_stdin` into a tty session is closed too: `[features] unified_exec_tty = false` in
   the template and `-c features.unified_exec_tty=false` in the documented `codex exec` command
   make codex refuse `tty: true`, and a non-tty session's stdin is closed, so `write_stdin` fails
-  (offline probe 2026-10-18, 0.162.1). Closed only while that config holds: without the flag, a
+  (offline probe 2026-10-18, 0.162.1; the template key re-confirmed 2026-10-22 on 0.163.0).
+  Closed only while that config holds: without the flag, a
   trusted project's `.codex/config.toml` setting `unified_exec_tty = true` overrides the template
   key and reopens it. Only `codex exec` was probed (not the TUI or app-server turns), and a codex
   release that ignores the key would reopen it silently.

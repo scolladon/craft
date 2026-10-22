@@ -63,8 +63,8 @@ function requireWorkingDir(cwd) {
 // wins because that is the field the live tool actually executes from. A missing or
 // non-string command in BOTH fields is a malformed payload, not an alternate
 // encoding, so it throws and decideGuard's catch converts that into the documented
-// fail-closed verdict. The payload was re-pinned on codex 0.162.1 and is still
-// Claude-shaped; it additionally carries `model`, `permission_mode`,
+// fail-closed verdict. The payload was captured on codex 0.162.1 (key set re-confirmed on
+// 0.163.0) and is still Claude-shaped; it additionally carries `model`, `permission_mode`,
 // `tool_use_id`, `turn_id`, `session_id`, `transcript_path` and
 // `hook_event_name`; they are additive and ignored — adaptCodexEvent destructures only { tool_name, tool_input, cwd }, so a later
 // reader should not "add support" for fields nothing here consumes.
