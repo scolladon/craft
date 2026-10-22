@@ -199,6 +199,11 @@ runs and nothing shows on screen (fails open, 3/3); with the committed rules it 
 Record: `docs/contributing/specs/codex-poc-record.md`, *Re-probe — codex-cli 0.162.1*. The binding
 is unchanged: ADR-574 already treats a malformed rules file as fail open.
 
+Closed 2026-10-22 (codex-0163-reprobe): craft's shared skills still do not load by reference on
+codex 0.163.0 (0 of 20 versus 20 of 20 through the symlinks). Closed as a standing codex
+limitation, no re-probe scheduled; the symlink route stays required (ADR-674). Entry and
+history: *Closed — won't-do*.
+
 **Malformed `.rules` execpolicy — treat as fail open: on 0.162.1 the app-server path fails open and
 `codex exec` refuses to start — recorded 2026-07-21, re-probed 2026-10-15**
 (harden-prove-codex-binding, B9). Runtime auto-loads `$CODEX_HOME/rules/` (a directory of `.rules`
@@ -222,35 +227,8 @@ rules not applied.`), runs the command, and the file is deleted (fails open, 3/3
 well-formed file both paths block. The interactive TUI runs its turns through an app-server daemon
 and fails open the same way, with nothing on screen (3/3, 2026-10-21). Treat a malformed rules
 file as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
-*Re-probe — codex-cli 0.162.1*.
-
-**Prove craft's shared skills load by reference on codex — re-probed 2026-10-15; STILL DISPROVEN,
-stays OPEN (codex-0.162.1 limitation).** Two findings: (1) **manifest location bug, FIXED
-(`b204182`)** — codex 0.144.6 `plugin marketplace add <root>` only reads
-`<root>/.claude-plugin/marketplace.json`; the binding shipped a root `marketplace.json`, so the
-marketplace never registered ("marketplace root does not contain a supported manifest"). Relocated +
-README + regression test. (2) **by-reference shared-skill loading does NOT work (codex limitation)**
-— even with the manifest fixed, `codex plugin add` COPIES the plugin into
-`$CODEX_HOME/plugins/cache/…` and DROPS the `craft` entry's out-of-tree
-`skills: "../../../../skills"` reference (the cached `.codex-plugin/plugin.json` carries no `skills`
-field), so the 19 shared skills are absent. Local skills survive (`craft-codex`'s
-`./skills/craft-run` is copied). The documented **symlink fallback** loads all 19
-(`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`).
-
-**Re-probe on 0.145.0 (2026-07-31): unchanged — re-pinned 0.144.6 → 0.145.0.** Ground-truthed this
-time through the app-server's `skills/list` method rather than by inspecting the cache: **0 of 19**
-shared skills load by reference, **19 of 19** load via the symlink fallback (registered as
-`craft:<name>`). The cached `.codex-plugin/plugin.json` drops **both** `skills` and `hooks`. The
-symlink fallback therefore stays documented as required, not optional. "Load by reference" is not
-achievable on codex 0.145.0; re-check on the next minor version.
-
-**Re-probe on 0.162.1 (2026-10-15): unchanged — re-pinned 0.145.0 → 0.162.1.**
-`codex plugin marketplace add ./adapters/codex` plus `plugin add` for both entries: both cached
-`.codex-plugin/plugin.json` are `{description, name}`, `skills` and `hooks` dropped. Through the
-app-server `skills/list` method (`forceReload: true`): **0 of 19** shared skills load by
-reference, **19 of 19** load via the symlink fallback (registered as `craft:<name>`, scope
-`user`). The symlink fallback stays documented as required, not optional. "Load by reference"
-is not achievable on codex 0.162.1; re-check on the next minor version.
+*Re-probe — codex-cli 0.162.1*. On 0.163.0 (2026-10-22) the `codex exec` refusal re-confirmed
+(3/3); the app-server and TUI paths were not re-probed (*Re-probe — codex-cli 0.163.0*).
 
 ### Open — C. Waiting on an external trigger
 
@@ -1435,6 +1413,14 @@ not be automated. It now can. Both findings, in order:
   `config.toml` byte-identical, `git diff > OUT.txt` was blocked (`OUT.txt` absent, the guard's
   `--no-ext-diff` reason) and `git diff --no-ext-diff > ALLOWED.txt` ran (101 B, a real diff).
   The fail-open is still unchanged codex behaviour, so the entry stays MITIGATED, not closed.
+- **Re-confirmed 2026-10-22 on codex 0.163.0 (codex-0163-reprobe).** With the template
+  `[[hooks.PreToolUse]]` block copied verbatim, no bypass flag, and `trust-hook.js --check`
+  reporting `from=untrusted` (exit 1), the untrusted-hook fail-open reproduced: the turn's
+  `git diff > OUT.txt` ran (`OUT.txt` 83 B, 3/3) and the stream carried zero hook items.
+  `bin/trust-hook.js` then wrote trust (exit 0, the same `sha256:38713365…` hash), and the same
+  turn was blocked (`OUT.txt` absent, zero `command_execution` items, the guard's
+  `--no-ext-diff` reason). Idempotence and ALLOW were not re-run. The fail-open is still
+  unchanged codex behaviour, so the entry stays MITIGATED, not closed.
 
 **Carry the credential-rotation caveat into every binding's probe record — scoped 2026-07-31,
 delivered 2026-10-12** (chore/backlog-sweep-six-entries). `cursor-poc-record.md` now carries a
@@ -1738,3 +1724,44 @@ recommendation and one attended end-to-end loop over two real entries.
   on the byte-range control-chars ERE, so all 4 multibyte tests fail, as they do under macOS awk.
   The existing ubuntu job already runs them, so it already catches a guard removal. Only mawk and
   original-awk pass vacuously, and CI uses neither.
+- **Prove craft's shared skills load by reference on codex — closed 2026-10-22 as a standing
+  codex limitation (re-probed 0.144.6, 0.145.0, 0.162.1, 0.163.0; always DISPROVEN).** Two
+  findings: (1) **manifest location bug, FIXED
+  (`b204182`)** — codex 0.144.6 `plugin marketplace add <root>` only reads
+  `<root>/.claude-plugin/marketplace.json`; the binding shipped a root `marketplace.json`, so the
+  marketplace never registered ("marketplace root does not contain a supported manifest"). Relocated +
+  README + regression test. (2) **by-reference shared-skill loading does NOT work (codex limitation)**
+  — even with the manifest fixed, `codex plugin add` COPIES the plugin into
+  `$CODEX_HOME/plugins/cache/…` and DROPS the `craft` entry's out-of-tree
+  `skills: "../../../../skills"` reference (the cached `.codex-plugin/plugin.json` carries no `skills`
+  field), so the 19 shared skills are absent. Local skills survive (`craft-codex`'s
+  `./skills/craft-run` is copied). The documented **symlink fallback** loads all 19
+  (`ln -s <repo>/skills/<name> $CODEX_HOME/skills/<name>`).
+
+  **Re-probe on 0.145.0 (2026-07-31): unchanged — re-pinned 0.144.6 → 0.145.0.** Ground-truthed this
+  time through the app-server's `skills/list` method rather than by inspecting the cache: **0 of 19**
+  shared skills load by reference, **19 of 19** load via the symlink fallback (registered as
+  `craft:<name>`). The cached `.codex-plugin/plugin.json` drops **both** `skills` and `hooks`. The
+  symlink fallback therefore stays documented as required, not optional. "Load by reference" is not
+  achievable on codex 0.145.0; re-check on the next minor version.
+
+  **Re-probe on 0.162.1 (2026-10-15): unchanged — re-pinned 0.145.0 → 0.162.1.**
+  `codex plugin marketplace add ./adapters/codex` plus `plugin add` for both entries: both cached
+  `.codex-plugin/plugin.json` are `{description, name}`, `skills` and `hooks` dropped. Through the
+  app-server `skills/list` method (`forceReload: true`): **0 of 19** shared skills load by
+  reference, **19 of 19** load via the symlink fallback (registered as `craft:<name>`, scope
+  `user`). The symlink fallback stays documented as required, not optional. "Load by reference"
+  is not achievable on codex 0.162.1; re-check on the next minor version.
+
+  **Re-probe on 0.163.0 (2026-10-22): unchanged — closed as a standing codex limitation.** The
+  committed marketplace declares `craft-codex` only, so `codex plugin add craft@craft-codex-marketplace`
+  fails; the probe rebuilt the `craft` entry byte-for-byte from `eab55ee^` in its throwaway, the
+  re-measure route the marketplace decision names, and none of it ships. Both cached
+  `.codex-plugin/plugin.json` are `{description, name}`, `skills` and `hooks` dropped. Through the
+  app-server `skills/list` method (`forceReload: true`), 3/3: **0 of 20** shared skills load by
+  reference, **20 of 20** load via the symlink fallback (the shared set grew from 19 to 20 with
+  `skills/lessons`). Four versions (0.144.6, 0.145.0, 0.162.1, 0.163.0) measured the same result,
+  so this is a standing codex limitation: the symlink route stays required, not optional, and the
+  install instructions are unchanged. The per-minor re-check named in the paragraphs above is
+  retired: no re-probe is scheduled. A re-measure stays possible through the throwaway-entry route.
+  Evidence: `docs/contributing/specs/codex-poc-record.md`, *Re-probe — codex-cli 0.163.0*.
