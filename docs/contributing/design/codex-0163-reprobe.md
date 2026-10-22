@@ -8,7 +8,8 @@
 > `codex exec` fail closed. If either has changed, surface the evidence; do not fold it in
 > silently. Decision point the user reserved: if by-reference loading still fails, the entry
 > stays OPEN, the docs re-pin to 0.163.0, and the symlink fallback stays documented as required.
-> Status: draft → self-reviewed ×3
+> Status: draft → self-reviewed ×3 → revised against ADR-674 to ADR-678 (2026-10-22). The reserved
+> decision went the other way: the entry CLOSES as a standing codex limitation (ADR-674).
 
 ---
 
@@ -20,8 +21,10 @@ codex, and the designer ran no codex command.** The designer added read-only rep
 history, file contents, and greps.
 
 **Outcome: codex behaviour did not change on any row that was re-observed.** This is a docs,
-comment and test-title change. No behaviour in `src` changes and no decision changes, so no ADR
-is needed.
+comment and test-title change. No behaviour in `src` changes. Five decisions were taken on how the
+docs carry the result (ADR-674 to ADR-678, see *Decision candidates*); the one with reach beyond
+wording is ADR-674: the by-reference entry closes as a standing codex limitation, with no
+scheduled re-probe.
 
 ### Pinned matrix — codex-cli 0.163.0, 2026-10-22
 
@@ -84,7 +87,7 @@ switches, the tool shell, and the heredoc idiom.
 - **The brief's "keep 0.162.1" list for README L217 is half false.** L217 says: "On codex 0.162.1
   the outcome depends on how codex is driven: `codex exec` … refuses to start …; the app-server …
   runs the command anyway". Probe 3 re-observed the `codex exec` half on 0.163.0. The app-server
-  and TUI halves were not re-probed (candidate 6).
+  and TUI halves were not re-probed (ADR-678).
 - **README L200 mixes one re-observed claim and one claim that was not re-observed.** It says
   "closed on 0.162.1 by the template's `unified_exec_tty = false` **and** the launch flag".
   Probe 5c re-observed the template key; the launch flag was not re-probed.
@@ -93,11 +96,22 @@ switches, the tool shell, and the heredoc idiom.
   key and the flag, "(offline probe 2026-10-18, 0.162.1)". The other is two open BACKLOG entries:
   the malformed-rules entry (L202–225; its `codex exec` half re-observed, probe 3) and the hook-trust
   entry under `### Open (scoped 2026-07-20 …)` (L1392; its last bullet, L1429, re-confirms on 0.162.1,
-  and probe 6 re-observed fail-open plus trust-write and BLOCK). See candidate 4.
+  and probe 6 re-observed fail-open plus trust-write and BLOCK). See ADR-678.
 - **The payload pins describe a byte capture; 0.163.0 compared keys only.** The fixture
   `pre-tool-use-bash.json` holds 0.162.1 values (`"model":"gpt-5.4"`,
   `"permission_mode":"bypassPermissions"`). Probe 5e compared the key set, not the values. See
-  candidate 5.
+  ADR-676.
+- **BACKLOG has no checkboxes; "closed" is heading wording plus placement.** `grep -nE '^- \[[x ]\]'
+  BACKLOG.md` matches nothing. Closed entries read in one of three forms: (i) in place, heading
+  suffixed `— closed by decision, kept on demand, 2026-10-16` plus a `**Decision (<date>): …**
+  (ADR-…)` paragraph (L479, inside its `### Open (scoped …)` group); (ii) for the curated groups
+  A and B, the entry body is replaced by a lead `Delivered <date> (<slug>): …` paragraph at the top
+  of the group (L189–200, `56f759a`); (iii) a bullet in `## Parked` → `### Closed — won't-do
+  (rationale recorded)` (L1717–1740, the end of the file), shaped `- **<title>** — *<verdict>.*
+  <rationale>`. `scripts/backlog-lint.sh` requires only the `### Closed` heading to exist.
+- **Only the BACKLOG carries "re-check on the next minor version" for this row.** `grep -n -i
+  'next minor\|re-check on'` over both READMEs, the record and `gate.md` matches only BACKLOG
+  L245 and L253, the dated 0.145.0 and 0.162.1 paragraphs.
 - **No test pins a codex version or the number 19.** `grep` over `adapters/codex/test/*.test.js`
   and `test/*.test.js` finds one version string, the describe title at
   `git-guard-adapter.test.js:337`, and no skill count. The README honesty pins
@@ -116,7 +130,21 @@ switches, the tool shell, and the heredoc idiom.
   `PLUGIN_ADD_SELECTOR`).
 - **ADR-614 carried forward by ADR-635**: the shared skills load through the `$CODEX_HOME/skills`
   symlinks on every install, and `adapters/codex/skills/` must not exist. By-reference loading
-  still fails (2d), so nothing reopens this.
+  still fails (2d), so nothing reopens this. ADR-614's revisit clause ("If a later codex keeps
+  the reference, revisit this decision") is **not** superseded by ADR-674: a re-measure stays
+  possible through ADR-635's throwaway route, it is just no longer scheduled.
+- **ADR-674**: the BACKLOG by-reference entry closes as a standing codex limitation, with the
+  0.163.0 measurement as its last record. No per-minor re-probe; the symlink route stays required;
+  install instructions do not change.
+- **ADR-675**: current-state skill-loading claims carry no bare count; the measured count is
+  pinned once, dated. Dated measurements keep the count they were taken against.
+- **ADR-676**: payload comments say "captured on 0.162.1; key set re-confirmed on 0.163.0"; the
+  describe title drops the version; the fixture JSON is unchanged.
+- **ADR-677**: new rows name the committed marketplace as `craft-codex`-only and the probe's
+  `craft` entry as rebuilt byte-for-byte from `eab55ee^`; older paragraphs stay as their
+  versions' findings.
+- **ADR-678**: a re-observed 0.162.1 pin gains a dated 0.163.0 clause; the unobserved half of a
+  sentence keeps its 0.162.1 pin. Covers the out-of-brief pins and README L217.
 - **ADR-574**: a malformed rules file is treated as fail open, and its status is split by surface.
   Probe 3 re-confirms the `codex exec` half only. The posture wording and the `/fail open/i` and
   `/refuses?\s+to\s+start/i` pins stay.
@@ -126,9 +154,11 @@ switches, the tool shell, and the heredoc idiom.
 - **Identity rows re-pin when observed** (the 0.145.0 and 0.162.1 precedent). Record L17, L18, L19
   and L21 re-pin to 0.163.0.
 - **History is not edited.** ADRs, designs and plans keep their 0.162.1 and "19" text (ADR-635
-  itself says "The 19 shared skills"). So do BACKLOG *delivered* entries (L346, L406, L494–521).
-- **README corpus counts are gated.** This design's commit bumps `README.md` L226 design docs
-  92 → 93. The plan commit bumps its own count.
+  itself says "The 19 shared skills"). So do BACKLOG *delivered* entries (L346, L406, L494–521)
+  and the dated paragraphs of the by-reference entry, including their "re-check on the next minor
+  version" clauses: the 0.163.0 paragraph retires that rule instead of deleting it.
+- **README corpus counts are gated.** The design commit bumped `README.md` design docs 92 → 93 and
+  each ADR commit bumped its own count. The plan commit bumps its own count.
 
 ## Requirements
 
@@ -141,20 +171,25 @@ switches, the tool shell, and the heredoc idiom.
    `find -newer` = 0.
 3. The record and the new BACKLOG paragraph say that the `craft` entry was rebuilt as a throwaway
    from `eab55ee^`, on the route the retirement decision names, and that `plugin add craft@…`
-   fails on the committed marketplace. Exact wording per candidate 3.
+   fails on the committed marketplace (ADR-677).
 4. `adapters/codex/README.md` re-pins L32, L48–54, L119, L129 and L200. Each line names 0.163.0
    only for the half it re-observed. The "symlink route required" sentence stays word for word
-   (subject to candidate 1). L41, L136, L140, L178, L208, L213 and L234 keep their pins. L217
-   follows candidate 6. The 19 → 20 reading follows candidate 2.
-5. `BACKLOG.md` by-reference entry (L227–253): the title re-pins to `re-probed 2026-10-22 …
-   (codex-0.163.0 limitation)`, a `**Re-probe on 0.163.0 (2026-10-22): …**` paragraph is
-   appended, and the 0.144.6, 0.145.0 and 0.162.1 paragraphs stay verbatim. The entry status
-   follows candidate 1. Other entries follow candidate 4.
-6. The code pins follow candidate 5. No assertion and no behaviour changes.
+   (ADR-674: install instructions unchanged). L41, L136, L140, L178, L208, L213 and L234 keep
+   their pins. L217 follows ADR-678. The skill count follows ADR-675. No README line carries
+   "re-check on the next minor version" today, and none gains it.
+5. `BACKLOG.md` by-reference entry (L227–253) closes as a standing codex limitation (ADR-674):
+   the title is reworded to the closed form, a `**Re-probe on 0.163.0 (2026-10-22): …**`
+   paragraph is appended that names the standing limitation and retires the per-minor re-check,
+   and the 0.144.6, 0.145.0 and 0.162.1 paragraphs stay verbatim. The entry moves to
+   `### Closed — won't-do (rationale recorded)`, and group B gains a one-paragraph closed lead.
+   The malformed-rules and hook-trust entries follow ADR-678.
+6. The code pins follow ADR-676. No assertion and no behaviour changes.
 7. Every committed artifact uses repo-relative paths and placeholders (`<throwaway>`,
    `<worktree>`, `<repo copy>`, `<path>`). It never uses a home-rooted path. `~/.codex` stays as
    the generic name of codex's default home, as the record already uses it.
 8. `bash scripts/ci.sh` is green at every commit.
+9. No surface the change touches schedules a by-reference re-probe: neither README, the record's
+   new section and row 1, nor the BACKLOG entry.
 
 ## Design
 
@@ -173,22 +208,25 @@ exists. No part adds a doc, so no part moves the README corpus counts.
 | L21 | "Observed on 0.145.0; unchanged on 0.162.1." | "…; unchanged on 0.162.1 and 0.163.0." |
 | L51–53 | scope sentence lists `(0.145.0)`, `(0.161.0)` or `(0.162.1)` | add `(0.163.0)` |
 | L115 | DISPROVEN (0.145.0; re-confirmed 0.162.1) | append the sentence "Re-confirmed on 0.163.0 against the then 20 shared skills: 0 of 20 versus 20 of 20." Status `(0.145.0; re-confirmed 0.162.1, 0.163.0)` |
-| L117 | "re-exercised 0.162.1 with `./adapters/codex`" | add "; re-exercised 0.163.0 with the `craft` entry rebuilt as a throwaway (wording per candidate 3)" |
+| L117 | "re-exercised 0.162.1 with `./adapters/codex`" | add "; re-exercised 0.163.0 with the `craft` entry rebuilt byte-for-byte from `eab55ee^` in the throwaway (the committed marketplace declares `craft-codex` only)" (ADR-677) |
 | L140 | `(0.144.6; re-confirmed 0.145.0; re-confirmed 0.162.1)` | add `; re-confirmed 0.163.0` |
 | L141 | "re-exercised 0.162.1 via `bin/trust-hook.js`, byte-identical re-run" | add "; trust write re-exercised 0.163.0 (same hash). Idempotence not re-run" |
 | L191 | the malformed-rules paragraph resolved on 0.162.1 | append: "`codex exec` refusal re-confirmed on 0.163.0 (3/3); the app-server and TUI paths were not re-probed." |
 | L317 heading | "…; rows 0, 1, 3: revisited 2026-10-15 on 0.162.1)" | add "; rows 0, 1, 3: revisited 2026-10-22 on 0.163.0" |
 | L321–328 | paragraph and method note | add one sentence naming `Re-probe — codex-cli 0.163.0`. After the method note, add: "On 2026-10-22 one unwrapped `codex exec --help` did exactly this, creating 5 entries under `~/.codex/tmp/arg0-macos`; see that section." |
 | L332 row 0 | OPEN … | append "Silent no-op and the trusted BLOCK re-confirmed on 0.163.0." Status unchanged |
-| L333 row 1 | `DISPROVEN (re-pinned 0.145.0 → 0.162.1)` | `DISPROVEN (re-pinned 0.162.1 → 0.163.0)`. Append "Re-probed on 0.163.0: 0/20 versus 20/20 (the shared set grew to 20)", keeping every older sentence |
+| L333 row 1 | `DISPROVEN (re-pinned 0.145.0 → 0.162.1)`; evidence ends "Still a codex limitation; stays OPEN." | `DISPROVEN — closed 2026-10-22 as a standing codex limitation (re-pinned 0.162.1 → 0.163.0)`. Keep every older measurement sentence; append "Re-probed on 0.163.0: 0/20 versus 20/20 (the shared set grew to 20)". Replace the closing status sentence "Still a codex limitation; stays OPEN." with "A standing codex limitation: closed 2026-10-22, no re-probe scheduled, the symlink route stays required." It is a status claim, not a version pin, so ADR-320 does not keep it |
 | L335 row 3 | status pinned `(0.162.1)` | keep the status. Append to evidence: "0.163.0: the `codex exec` refusal re-confirmed (3/3); the app-server path was not re-probed" |
 | after L601 | — | new `## Re-probe — codex-cli 0.163.0` |
 
 **New section shape.** It mirrors `## Re-probe — codex-cli 0.162.1` (L542–601): a method
 paragraph, then a `| Probe | Result |` table with each result prefixed `**CONFIRMED (0.163.0).**`
 or `**DISPROVEN (0.163.0).**`, then a closing **Not re-probed** sentence. The rows map 1:1 to the
-matrix in *Context*. The probe 2a row names the retirement as the cause, not codex. The method
-paragraph carries:
+matrix in *Context*. The probe 2a row names the retirement as the cause, not codex. The 2d/2e rows
+close with one sentence: "Four versions (0.144.6, 0.145.0, 0.162.1, 0.163.0) measured the same
+result; by-reference loading is closed as a standing codex limitation, and a re-measure, if ever
+wanted, uses the throwaway entry above." The section carries no "re-check on the next minor
+version" wording. The method paragraph carries:
 
 - the throwaway layout (A: one home; C: one per case)
 - no credentials anywhere, and why none were needed
@@ -209,10 +247,12 @@ caveat*. The caveat is about copied credentials, and none were copied this time.
 
 - L32: "observed on 0.145.0 and again on 0.162.1" → "observed on 0.145.0, 0.162.1 and 0.163.0".
 - L48–49: `**The 19 shared skills do NOT load by reference on Codex 0.162.1 (pinned live; first
-  pinned on 0.145.0).**` → the version becomes `0.163.0`, and the count reads per candidate 2.
-- L53–54: "**0 of 19** load without the symlinks below, **19 of 19** load with them" → per
-  candidate 2. L54–56 ("this IS the working path … required on every install, not a contingency")
-  stays verbatim.
+  pinned on 0.145.0).**` → `**The shared skills do NOT load by reference on Codex 0.163.0
+  (pinned live; first pinned on 0.145.0).**` (ADR-675: no bare count).
+- L53–54: "**0 of 19** load without the symlinks below, **19 of 19** load with them" → "**none**
+  load without the symlinks below and **all** load with them (0 of 20 versus 20 of 20 on
+  0.163.0)". L54–56 ("this IS the working path … required on every install, not a contingency")
+  stays verbatim (ADR-674).
 - L119–121: "on codex 0.162.1 a symlinked file in `$CODEX_HOME/rules/` is not loaded, yet it
   passes `cmp` and `codex execpolicy check`, both of which follow the link" → "a symlinked file
   in `$CODEX_HOME/rules/` is not loaded (codex 0.162.1, re-confirmed on 0.163.0), yet it passes
@@ -228,36 +268,55 @@ caveat*. The caveat is about copied credentials, and none were copied this time.
   `unified_exec_tty = true`), and those sentences are not edited.
 - L208 ("as 0.162.1 already ignores `unified_exec = false`") and L213 (default timeout) keep
   their pins: not re-probed.
-- L217: per candidate 6. Either way it keeps the literal `fail open` and `refuses to start`.
-- `adapters/README.md` L34: "(0 of 19 load without the symlinks, 19 of 19 with them)" → per
-  candidate 2.
+- L217 (ADR-678): keep "On codex 0.162.1" and add that the `codex exec` refusal was re-confirmed
+  on 0.163.0; the app-server and TUI halves keep 0.162.1. It keeps the literal `fail open` and
+  `refuses to start`.
+- `adapters/README.md` L34: "(0 of 19 load without the symlinks, 19 of 19 with them)" → "(none
+  load without the symlinks, all with them; 0 of 20 versus 20 of 20 on codex 0.163.0)"
+  (ADR-675).
 - Hygiene: `native-surface.test.js` L278–305 runs the provenance loops over the README. Version
   strings pass `PROVENANCE_REF_RE`, so do not write ADR or part numbers into either README. Keep
   the edits declarative for the advisory prose gate.
 
-### Part 3 — `BACKLOG.md` (and `gate.md` under candidate 4 = b)
+### Part 3 — `BACKLOG.md` and `gate.md`
 
-**Context block.** The house convention is an in-place dated `**Re-probe on <v> (<date>): …**`
-paragraph that keeps every older paragraph; L247–253 is the model to copy. `scripts/backlog-lint.sh`
-checks only the structural headings, none of which move.
+**Context block.** The house convention for a re-probe is an in-place dated `**Re-probe on <v>
+(<date>): …**` paragraph that keeps every older paragraph; L247–253 is the model to copy. The
+BACKLOG has no checkboxes, so "ticked closed" (ADR-674) means the closed heading form plus the
+move below. `scripts/backlog-lint.sh` checks only that the structural headings exist; none is
+added or removed.
 
-- **L227–228 title**: `re-probed 2026-10-15; STILL DISPROVEN, stays OPEN (codex-0.162.1
-  limitation)` → `re-probed 2026-10-22; STILL DISPROVEN, stays OPEN (codex-0.163.0 limitation)`
-  (under candidate 1 = a).
-- **New paragraph after L253**: `**Re-probe on 0.163.0 (2026-10-22): unchanged — re-pinned 0.162.1
-  → 0.163.0.**`. It covers:
-  - the committed marketplace no longer declares `craft`, so `plugin add craft@…` fails, and the
-    probe rebuilt the entry as a throwaway from `eab55ee^` (wording per candidate 3)
+- **Where the entry goes.** Cut the whole entry (L227–253) out of `### Open — B. Agent-CLI
+  re-probes` and append it as the **last bullet of `### Closed — won't-do (rationale recorded)`**,
+  after the `macos-latest` bullet that ends the file (L1740). Why there, not in place: group B is
+  a curated open list whose finished entries leave only a lead paragraph (L189–200), and the
+  closed-by-decision-in-place form (L479) belongs to the dated follow-up groups, which are never
+  curated. The won't-do section is the one place the file keeps a closed entry's rationale.
+  Bullet form: the title line becomes `- **Prove craft's shared skills load by reference on codex
+  — closed 2026-10-22 as a standing codex limitation (re-probed 0.144.6, 0.145.0, 0.162.1,
+  0.163.0; always DISPROVEN)**`, and the four paragraphs follow as list-continuation paragraphs
+  indented two spaces, their text otherwise verbatim (the 0.144.6 paragraph's "DROPS the `craft`
+  entry's …" and "19 shared skills" included, ADR-677).
+- **Group B lead paragraph**, placed after the existing `Delivered 2026-10-22
+  (codex-tui-malformed-rules-probe)` paragraph (L195–200): `Closed 2026-10-22 (codex-0163-reprobe):
+  craft's shared skills still do not load by reference on codex 0.163.0 (0 of 20 versus 20 of 20
+  through the symlinks). Closed as a standing codex limitation, no re-probe scheduled; the symlink
+  route stays required (ADR-674). Entry and history: *Closed — won't-do*.`
+- **New paragraph after the 0.162.1 paragraph**: `**Re-probe on 0.163.0 (2026-10-22): unchanged —
+  closed as a standing codex limitation.**` It covers:
+  - the committed marketplace declares `craft-codex` only, so `plugin add craft@…` fails, and the
+    probe rebuilt the `craft` entry byte-for-byte from `eab55ee^` in its throwaway (ADR-677)
   - both cached manifests are `{description, name}`
   - `skills/list` (`forceReload: true`), 3/3: **0 of 20** by reference and **20 of 20** via the
     symlinks; the shared set grew from 19 to 20 with `skills/lessons`
-  - symlink fallback required
-  - "re-check on the next minor version"
+  - four versions, same result: closed as a standing codex limitation; the symlink route stays
+    required, not optional; install instructions unchanged
+  - "The per-minor re-check named in the paragraphs above is retired: no re-probe is scheduled. A
+    re-measure stays possible through the throwaway-entry route." (ADR-674; ADR-614's revisit
+    clause stands)
   - the evidence pointer `docs/contributing/specs/codex-poc-record.md`, *Re-probe — codex-cli
     0.163.0*
-- **L229–238** (the 0.144.6 finding paragraph, "DROPS the `craft` entry's …", "19 shared skills")
-  stays verbatim: it is that version's finding.
-- **Candidate 4 = b only**:
+- **Hook-trust and malformed-rules entries (ADR-678)**:
   - malformed-rules entry (L202–225): append one sentence to the 0.162.1 re-probe paragraph,
     "On 0.163.0 (2026-10-22) the `codex exec` refusal re-confirmed (3/3); the app-server and TUI
     paths were not re-probed."
@@ -268,8 +327,11 @@ checks only the structural headings, none of which move.
     probe 2026-10-18, 0.162.1; the template key re-confirmed 2026-10-22 on 0.163.0)".
     `intention-lint` reads `gate.md` (it has `subjects:` frontmatter), and the frontmatter is not
     touched.
+- **Order inside the part.** Every BACKLOG line number above is pre-edit. Make the in-place
+  edits (malformed-rules, hook-trust) first, then the 0.163.0 paragraph, then the move and the
+  group B lead, so no cited range shifts under an earlier step.
 
-### Part 4 — code and test pins (per candidate 5)
+### Part 4 — code and test pins (ADR-676)
 
 **Context block**
 
@@ -279,6 +341,12 @@ checks only the structural headings, none of which move.
   "The live codex 0.162.1 PreToolUse Bash payload, with its command replaced."
 - `adapters/codex/test/git-guard-adapter.test.js` L337:
   `describe('decideGuard() - default guard composes the git verdict on the live 0.162.1 payload', …)`.
+- Changes: the two comments become "captured on codex 0.162.1; key set re-confirmed on 0.163.0"
+  (src: "The payload was captured on codex 0.162.1, its key set re-confirmed on 0.163.0, and is
+  still Claude-shaped; …"; fixture helper: "The live codex PreToolUse Bash payload captured on
+  0.162.1 (key set re-confirmed on 0.163.0), with its command replaced."). The describe title
+  becomes `'decideGuard() - default guard composes the git verdict on the live codex payload'`.
+  Version strings are not provenance refs, so the no-provenance rule does not bar them.
 - `adapters/codex/test/fixtures/pre-tool-use-bash.json` is **not** edited. Its bytes are the
   0.162.1 capture, and 0.163.0 compared keys only.
 - No other non-history `0.162.1` pin exists in `src` or `test`. A `git grep '0\.162\.1'` excluding
@@ -289,14 +357,16 @@ checks only the structural headings, none of which move.
 
 ## Decision candidates
 
-| # | Choice | Alternatives (≤3) | Recommendation | Why |
-|---|---|---|---|---|
-| 1 | **Status of the BACKLOG by-reference entry** (user-reserved) | (a) stays OPEN, re-pinned to 0.163.0, symlink fallback documented as required, "re-check on the next minor version"; (b) close it as a standing codex limitation and stop re-probing every minor; (c) stays OPEN, but the trigger narrows to "a codex release whose notes touch plugin `skills` or out-of-tree paths" | **(a)** | The branch the user prescribed, and the evidence matches it: 0/20 by reference, 20/20 symlinked, cached manifest unchanged. (b) and (c) cut probe cost, which four unchanged versions (0.144.6, 0.145.0, 0.162.1, 0.163.0) may justify, but they change a standing re-check rule the user owns. Needs the user's confirmation. |
-| 2 | **How the 19 → 20 count reads in current-state lines** (`adapters/codex/README.md` L48, L53–54; `adapters/README.md` L34) | (a) write `20` everywhere, matching the 0.163.0 measurement; (b) count-free claims ("The shared skills…", "none load without the symlinks, all load with them"), with the measured count pinned once: "(0 of 20 versus 20 of 20 on 0.163.0)"; (c) keep `19` and add a 20 note | **(b)** | (a) goes stale the next time a skill is added, as `skills/lessons` just made `19` stale with no gate noticing. (b) keeps the measured number dated to its version, where staleness is honest. (c) leaves a false current-state count. Dated measurements (record and BACKLOG 0.145.0/0.162.1 paragraphs) keep 19 under every option. |
-| 3 | **How the record and BACKLOG describe the rebuilt `craft` entry** | (a) the new rows/paragraph say the committed marketplace declares `craft-codex` only (so `plugin add craft@…` fails), and the probe rebuilt the `craft` entry byte-for-byte from `eab55ee^` in the throwaway, as the retirement decision prescribes for re-measures. The older paragraphs that name the `craft` entry stay as their versions' findings; (b) (a) plus rewording the 0.144.6 BACKLOG paragraph (L234) to "a `craft` entry (since retired)"; (c) describe it only as "an entry with an out-of-tree `skills` reference", without naming `craft` or `eab55ee^` | **(a)** | The re-measure route is already decided (ADR-635 *Consequences*), so the record only has to say it was followed and how. (b) edits a dated finding, against the in-place convention. (c) drops the provenance a later re-prober needs to rebuild the same entry. |
-| 4 | **Re-observed 0.162.1 pins outside the brief's list** (BACKLOG malformed-rules entry L202–225, BACKLOG hook-trust entry L1392–, `gate.md` L278) | (a) leave them, since the record is the source of truth; (b) a one-clause dated re-confirmation on each, naming only what 0.163.0 re-observed; (c) re-pin them outright to 0.163.0 | **(b)** | Probes 3, 5c and 6 re-observed exactly these rows, and the brief's own rule is "same per-row rule for BACKLOG". (a) leaves three surfaces silent about a confirmation that exists. (c) overclaims, because the app-server path, the launch flag, idempotence and ALLOW were not re-probed. Each edit is one clause. |
-| 5 | **Code and test version pins** (`git-guard-adapter.js` L66, `pre-tool-use-payload.js` L5, `git-guard-adapter.test.js` L337) | (a) re-pin all three to 0.163.0; (b) the comments say "captured on codex 0.162.1; key set re-confirmed on 0.163.0", and the describe title becomes version-free ("…on the live codex payload"); (c) leave all three untouched | **(b)** | The fixture bytes (`model`, `permission_mode` values) are the 0.162.1 capture. 0.163.0 compared keys only, so (a) mislabels the fixture. (c) hides a confirmation that was made. A version-free title stops a test-title edit at every re-probe, and the comments carry the version history. |
-| 6 | **README L217 (the malformed-rules surface split)** | (a) keep "On codex 0.162.1" unchanged, as the brief lists it; (b) keep the 0.162.1 pin and add that the `codex exec` refusal was re-confirmed on 0.163.0; (c) re-pin the whole sentence to 0.163.0 | **(b)** | Probe 3 re-observed the `codex exec` half, so the brief's "not re-probed" holds only for the app-server and TUI halves. (c) would claim the app-server fail-open on 0.163.0 without evidence. (b) keeps both pins true and still matches `/fail open/i` and `/refuses?\s+to\s+start/i`. |
+All settled on 2026-10-22. No candidate remains open.
+
+| # | Choice | Settled as | ADR |
+|---|---|---|---|
+| 1 | Status of the BACKLOG by-reference entry (user-reserved) | **Option (b), not the recommended (a).** The entry closes as a standing codex limitation; no per-minor re-probe; the symlink route stays required; install instructions unchanged. ADR-614's revisit clause stands, unscheduled | ADR-674 |
+| 2 | How the 19 → 20 count reads in current-state lines | As recommended: count-free claims, measured count pinned once as "0 of 20 versus 20 of 20 on 0.163.0"; dated measurements keep 19 | ADR-675 |
+| 3 | How the record and BACKLOG describe the rebuilt `craft` entry | Adopted as recommended: committed marketplace is `craft-codex`-only; the probe rebuilt `craft` byte-for-byte from `eab55ee^`; older paragraphs unchanged | ADR-677 |
+| 4 | Re-observed 0.162.1 pins outside the brief's list (BACKLOG malformed-rules and hook-trust entries, `gate.md`) | Adopted as recommended: one dated 0.163.0 clause per re-observed claim | ADR-678 |
+| 5 | Code and test version pins | As recommended: comments say "captured on 0.162.1; key set re-confirmed on 0.163.0"; describe title version-free; fixture JSON unchanged | ADR-676 |
+| 6 | README L217 malformed-rules surface split | Adopted as recommended, under the same rule as 4: the `codex exec` half gains 0.163.0, the app-server and TUI halves keep 0.162.1 | ADR-678 |
 
 ## Test strategy
 
@@ -312,7 +382,7 @@ pin that turns red means an edit dropped a mandated disclosure.
   - the Configure-scoped rules pins and the README-wide no-symlink-into-rules check
   - the Guard-section sentence predicates (L558–582)
   - the provenance hygiene loops (L278–305)
-- **`adapters/codex/test/git-guard-adapter.test.js`**: the title rename (candidate 5) must leave
+- **`adapters/codex/test/git-guard-adapter.test.js`**: the title rename (ADR-676) must leave
   the row count and every assertion untouched. `node --test` reports the same number of passing
   tests before and after.
 - **Doc and ledger gates in `scripts/ci.sh`**:
@@ -321,7 +391,10 @@ pin that turns red means an edit dropped a mandated disclosure.
   - `intention-lint` (the record has no frontmatter and stays skipped; `gate.md` and BACKLOG are
     read)
   - `docs-structure-lint`
-  - `readme-drift` (this commit bumps design docs 92 → 93; no later part adds a doc)
+  - `readme-drift` (the design and ADR commits already bumped their counts; no part adds a doc)
+- **No scheduled re-check left.** After Parts 1–3, `grep -n -i 'next minor\|re-check on'` over
+  both READMEs, the record and BACKLOG matches only the two dated BACKLOG paragraphs, now inside
+  the won't-do bullet.
 - **Path hygiene.** Before each commit, grep the changed files for `/Users/` and `/home/`.
 - **No live re-run.** The matrix in *Context* is the evidence. No test spawns real `codex`.
 
@@ -335,6 +408,8 @@ pin that turns red means an edit dropped a mandated disclosure.
   behaviour, re-checked here, unchanged.
 - **Editing history**: ADRs (ADR-635's "19 shared skills" included), designs, plans, and BACKLOG
   delivered entries.
-- **An ADR.** No decision changes: by-reference loading still fails, and the symlink route stands.
-- **A gate on the shared-skill count in docs.** Candidate 2 = (b) removes the need. Under (a),
-  the next skill added makes the count stale again; one line, not acted on.
+- **A gate on the shared-skill count in docs.** ADR-675's count-free claims remove the need.
+- **Scheduling a future by-reference re-probe** in any form (per minor, release-note trigger). ADR-674
+  closed it; a re-measure is ad hoc, through the throwaway route.
+- **Deleting the "re-check on the next minor version" clauses** in the dated 0.145.0 and 0.162.1
+  BACKLOG paragraphs. They are those versions' findings; the 0.163.0 paragraph retires the rule.
