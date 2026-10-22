@@ -695,3 +695,6 @@ codex-0163-reprobe design turns=53 tool_calls=67 tokens=3320712 duration_ms=6750
 codex-0163-reprobe implementation turns=23 tool_calls=26 tokens=602452 duration_ms=274264 cache_read=488808 cache_creation=100305 output=13293 avg_ctx=25616 equiv=240773
 codex-0163-reprobe planning turns=34 tool_calls=35 tokens=2250921 duration_ms=480972 cache_read=2100014 cache_creation=107293 output=43546 avg_ctx=64923 equiv=561916
 codex-0163-reprobe review turns=31 tool_calls=33 tokens=991593 duration_ms=343938 cache_read=822184 cache_creation=153646 output=15701 avg_ctx=31480 equiv=352843
+codex-0163-rules-reprobe design turns=23 tool_calls=24 tokens=1399273 duration_ms=407779 cache_read=1267594 cache_creation=95680 output=35953 avg_ctx=59275 equiv=426170
+codex-0163-rules-reprobe implementation turns=21 tool_calls=23 tokens=553408 duration_ms=251313 cache_read=465181 cache_creation=78842 output=9343 avg_ctx=25908 equiv=191828
+codex-0163-rules-reprobe planning turns=27 tool_calls=28 tokens=1409546 duration_ms=301795 cache_read=1308081 cache_creation=78806 output=22605 avg_ctx=51368 equiv=342395
