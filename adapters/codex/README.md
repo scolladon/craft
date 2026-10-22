@@ -29,7 +29,7 @@ carries the shared skills: an entry whose `skills` field points at the repositor
 `skills/` tree installs and loads nothing (below).
 
 `codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and rewrites its
-manifest, and the cached `.codex-plugin/plugin.json` observed on 0.145.0 and again on 0.162.1 is just
+manifest, and the cached `.codex-plugin/plugin.json` observed on 0.145.0, 0.162.1 and 0.163.0 is just
 `{description, name}` — **both** `hooks` and `skills` are gone. So of the three surfaces
 named above, exactly one arrives this way:
 
@@ -45,13 +45,13 @@ named above, exactly one arrives this way:
   agent files up was never probed; what is pinned is only that a marketplace install does
   not carry them.
 
-**The 19 shared skills do NOT load by reference on Codex 0.162.1 (pinned live;
+**The shared skills do NOT load by reference on Codex 0.163.0 (pinned live;
 first pinned on 0.145.0).**
 `codex plugin add` COPIES a plugin into `$CODEX_HOME/plugins/cache/...` and, in doing
 so, drops an out-of-tree `skills` reference such as `../../../../skills` — the cached
 plugin manifest carries no `skills` field, so `run`/`review`/`validation`/`init`/… are
-absent. Measured, with such an entry installed, through the app-server's own skills-listing method: **0 of 19** load
-without the symlinks below, **19 of 19** load with them. Load them with the symlink
+absent. Measured, with such an entry installed, through the app-server's own skills-listing method: **none** load
+without the symlinks below and **all** load with them (0 of 20 versus 20 of 20 on 0.163.0). Load them with the symlink
 route — this IS the working path for the shared skills, required on every install, not
 a contingency to fall back on:
 
@@ -116,9 +116,9 @@ The last two lines are the verification: `cmp` printing nothing and exiting `0` 
 the deployed copy is byte-identical to the committed file, and `test ! -L` exiting `0`
 means it is a regular file, not a symlink. Not every bad copy raises a codex error —
 an empty or comments-only file parses cleanly and forbids nothing — so do not skip
-them. **Copy, do not symlink**: on codex 0.162.1 a symlinked file in
-`$CODEX_HOME/rules/` is not loaded, yet it passes `cmp` and `codex execpolicy check`,
-both of which follow the link. The `rm -f` removes a link left by an earlier deploy
+them. **Copy, do not symlink**: a symlinked file in `$CODEX_HOME/rules/` is not loaded
+(codex 0.162.1, re-confirmed on 0.163.0), yet it passes `cmp` and `codex execpolicy check`
+(0.162.1), both of which follow the link. The `rm -f` removes a link left by an earlier deploy
 (not the file it points at): `cp` onto a symlink writes through it and leaves the
 link in place. Re-run the whole block whenever `adapters/codex/craft.rules` changes;
 a stale copy still parses and may forbid less.
@@ -126,7 +126,7 @@ a stale copy still parses and may forbid less.
 ## Install-time hook trust — read this before running headlessly
 
 **A PreToolUse hook that has never been trusted silently no-ops.** This was pinned
-live, and re-confirmed on 0.162.1: the identical run without trusting the hook first produced no denial, no
+live, and re-confirmed on 0.162.1 and 0.163.0: the identical run without trusting the hook first produced no denial, no
 warning, and no error — the guarded command simply executed. A user who installs this
 binding without trusting `hooks/craft-guard.js` first gets a binding that *looks*
 installed and enforces *nothing*, with no signal that anything is wrong.
@@ -197,8 +197,8 @@ written down now:
 - The model picks the tool shell per call (`exec_command`'s `shell` argument, the
   bash 3.2 at /bin/bash included), and the hook payload does not carry it, so the gate
   denies the constructs whose meaning depends on the shell.
-- `write_stdin` is closed on 0.162.1 by the template's `unified_exec_tty = false` and the
-  launch flag `-c features.unified_exec_tty=false`. Codex refuses `tty: true` with
+- `write_stdin` is closed by the template's `unified_exec_tty = false` (pinned on 0.163.0)
+  and by the launch flag `-c features.unified_exec_tty=false` (pinned on 0.162.1). Codex refuses `tty: true` with
   `TTY execution is disabled by config`, and a non-tty session's stdin is closed, so
   `write_stdin` fails with `stdin is closed for this session`. `write_stdin` stays in the
   tool list. Without the launch flag, a trusted project's `.codex/config.toml` holding
@@ -215,7 +215,7 @@ written down now:
   `timeout` reopens that path.
 - A malformed `craft.rules` file **may fail open** at runtime, so treat it as fail open.
   On codex 0.162.1 the outcome depends on how codex is driven: `codex exec`, this
-  binding's launch path, refuses to start, so the run stops loudly; the app-server
+  binding's launch path, refuses to start, so the run stops loudly (re-confirmed on 0.163.0); the app-server
   thread/turn path logs a warning, skips the rules, and runs the command anyway. The
   interactive TUI runs its turns through an app-server daemon and fails open the same way;
   nothing shows on screen, and the warning lands only in
