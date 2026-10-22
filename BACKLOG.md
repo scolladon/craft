@@ -1725,7 +1725,7 @@ recommendation and one attended end-to-end loop over two real entries.
   The existing ubuntu job already runs them, so it already catches a guard removal. Only mawk and
   original-awk pass vacuously, and CI uses neither.
 - **Prove craft's shared skills load by reference on codex — closed 2026-10-22 as a standing
-  codex limitation (re-probed 0.144.6, 0.145.0, 0.162.1, 0.163.0; always DISPROVEN).** Two
+  codex limitation (measured on 0.144.6, 0.145.0, 0.162.1, 0.163.0; always DISPROVEN).** Two
   findings: (1) **manifest location bug, FIXED
   (`b204182`)** — codex 0.144.6 `plugin marketplace add <root>` only reads
   `<root>/.claude-plugin/marketplace.json`; the binding shipped a root `marketplace.json`, so the
