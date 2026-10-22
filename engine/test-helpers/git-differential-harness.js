@@ -47,7 +47,7 @@ const FALSE_BLOCK_TAGS = Object.freeze([
 ]);
 // Both tags make bash 3.2 reject or mis-split the whole command, so the generator cannot vouch for its syntax.
 const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody]);
-const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc]);
+const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc, TAGS.heredocListInSubstitution]);
 
 // The stub is the only git a judged command can reach: it records argv and does nothing else.
 const STUB_GIT = ['#!/bin/sh', `printf '%s\\0' "$#" "$@" >> "$FUZZ_LOG"`, ''].join('\n');

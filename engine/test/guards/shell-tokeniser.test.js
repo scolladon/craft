@@ -572,3 +572,37 @@ describe('parseShellCommands() — heredoc delimiters and bodies', () => {
     ['cat <<EOF\n$(git diff\nEOF', UNTERMINATED_SUBSTITUTION],
   ]);
 });
+
+const HEREDOC_LIST_IN_SUBSTITUTION =
+  'craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed';
+
+describe('parseShellCommands() — a semicolon after a heredoc inside a substitution body', () => {
+  assertFails([
+    ["echo $( cat <<'E'\nx\nE\nX=v; git show $X )", HEREDOC_LIST_IN_SUBSTITUTION],
+    ['cat <( cat <<E\nx\nE\ntrue; git push )', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo "$( cat <<E\nx\nE\na; b )"', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo $( cat <<E\nx\nE\n( a; b ) )', HEREDOC_LIST_IN_SUBSTITUTION],
+    ["bash -c 'echo $( cat <<E\nx\nE\na; b )'", HEREDOC_LIST_IN_SUBSTITUTION],
+    ['cat <<F\n$( cat <<E\nx\nE\na; b )\nF', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo $( cat <<E; a\nx\nE\n)', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo $(cat <<E\nx\nE\na\nb; c)', HEREDOC_LIST_IN_SUBSTITUTION],
+  ]);
+
+  assertParses([
+    ['cat <<E\nx\nE\na; b', [['cat'], ['a'], ['b']]],
+    ['(cat <<E\nx\nE\na; b)', [['cat'], ['a'], ['b']]],
+  ]);
+
+  assertParsesWords([
+    ['echo `cat <<E\nx\nE\na; b`', [['cat'], ['a'], ['b'], ['echo', dyn('`cat <<E\nx\nE\na; b`')]]],
+    ['echo $(cat <<E\nx\nE\na && b)', [['cat'], ['a'], ['b'], ['echo', dyn('$(cat <<E\nx\nE\na && b)')]]],
+    ['echo $(cat <<E\nx\nE\na | b)', [['cat'], ['a'], ['b'], ['echo', dyn('$(cat <<E\nx\nE\na | b)')]]],
+    ['echo $(cat <<E\nx\nE\na & b)', [['cat'], ['a'], ['b'], ['echo', dyn('$(cat <<E\nx\nE\na & b)')]]],
+    ['echo $(a; cat <<E\nx\nE\n)', [['a'], ['cat'], ['echo', dyn('$(a; cat <<E\nx\nE\n)')]]],
+    ['echo $(cat <<< x; a)', [['cat'], ['a'], ['echo', dyn('$(cat <<< x; a)')]]],
+    ['echo $(echo $(cat <<E\nx\nE\n); a)', [['cat'], ['echo', dyn('$(cat <<E\nx\nE\n)')], ['a'], ['echo', dyn('$(echo $(cat <<E\nx\nE\n); a)')]]],
+    ['echo $(cat <<E\nx\nE\necho $(a; b))', [['cat'], ['a'], ['b'], ['echo', dyn('$(a; b)')], ['echo', dyn('$(cat <<E\nx\nE\necho $(a; b))')]]],
+    ['echo ${x:-<<E;}', [['x:-'], ['echo', dyn('${x:-<<E;}')]]],
+    ['git commit -m "$(cat <<\'EOF\'\nfix: a; b\nEOF\n)"', [['cat'], ['git', 'commit', '-m', dyn('$(cat <<\'EOF\'\nfix: a; b\nEOF\n)')]]],
+  ]);
+});
