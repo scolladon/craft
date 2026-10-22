@@ -285,6 +285,8 @@ const WHOLE_COMMAND_REJECTED = /<<'EOFQ'/;
 const BRACE_IN_PROCESS_SUBSTITUTION = /cat <\( (?:(?!\)[' ])[^\n])*\{[^{}\s]*(,|\.\.)[^{}\s]*\}/;
 const QUOTED_HEREDOC_AROUND_UNTERMINATED =
   /<<(['"])EOF\d+\1\n(?:(?!\n\t?EOF\d)[\s\S])*(git push 'x|git status "x|echo \$\(git push)/;
+// No paren between the opener and the heredoc, nor between its terminator and the ;, so all three share one substitution body.
+const HEREDOC_LIST_IN_SUBSTITUTION = /(?:\$\(|<\() [^()\n]*?<<-?(['"]?)(EOF\w+)\1\n[\s\S]*?\n\t?\2\n[^()\n]*;/;
 
 const pinnedCommands = () => PINNED_SEEDS.flatMap(seed => generateCommands(seed, PINNED_COUNT));
 const offenders = (entries, ...patterns) => entries.filter(entry => patterns.some(pattern => pattern.test(entry.text))).map(entry => entry.text);
@@ -298,6 +300,7 @@ describe('shell-git-invocations — generator composition at scale', () => {
       'G="git diff"; $G show',
       'D=". diff"; git -C $D show',
       'echo --ext-diff | xargs git show',
+      "echo $( cat <<'EOFH'\nx\nEOFH\nX=--ext-diff; git show $X )",
     ];
 
     const result = sut(1, 100).map(entry => entry.text);
@@ -379,6 +382,16 @@ describe('shell-git-invocations — generator composition at scale', () => {
       .filter(entry => !entry.tags.includes('quote-in-heredoc-body'))
       .map(entry => entry.text);
 
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then every heredoc followed by a semicolon inside a substitution carries the heredoc-list-in-substitution tag', () => {
+    const sut = pinnedCommands;
+
+    const entries = sut().filter(entry => HEREDOC_LIST_IN_SUBSTITUTION.test(entry.text));
+    const result = entries.filter(entry => !entry.tags.includes('heredoc-list-in-substitution')).map(entry => entry.text);
+
+    assert.ok(entries.length > 0, 'the pinned seeds never built the construct');
     assert.deepEqual(result, []);
   });
 
