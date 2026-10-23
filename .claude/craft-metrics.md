@@ -698,3 +698,8 @@ codex-0163-reprobe review turns=31 tool_calls=33 tokens=991593 duration_ms=34393
 codex-0163-rules-reprobe design turns=23 tool_calls=24 tokens=1399273 duration_ms=407779 cache_read=1267594 cache_creation=95680 output=35953 avg_ctx=59275 equiv=426170
 codex-0163-rules-reprobe implementation turns=21 tool_calls=23 tokens=553408 duration_ms=251313 cache_read=465181 cache_creation=78842 output=9343 avg_ctx=25908 equiv=191828
 codex-0163-rules-reprobe planning turns=27 tool_calls=28 tokens=1409546 duration_ms=301795 cache_read=1308081 cache_creation=78806 output=22605 avg_ctx=51368 equiv=342395
+bash53-heredoc-comsub-false-block design turns=27 tool_calls=28 tokens=1609971 duration_ms=583847 cache_read=1468063 cache_creation=96816 output=45038 avg_ctx=57960 equiv=493070
+bash53-heredoc-comsub-false-block documentation turns=4 tool_calls=6 tokens=75833 duration_ms=45819 cache_read=54107 cache_creation=20297 output=1421 avg_ctx=18603 equiv=37895
+bash53-heredoc-comsub-false-block implementation turns=21 tool_calls=24 tokens=599114 duration_ms=407302 cache_read=501048 cache_creation=84771 output=13253 avg_ctx=27898 equiv=222376
+bash53-heredoc-comsub-false-block planning turns=92 tool_calls=93 tokens=8723628 duration_ms=1456673 cache_read=8400056 cache_creation=238935 output=84453 avg_ctx=93904 equiv=1561123
+bash53-heredoc-comsub-false-block review turns=94 tool_calls=94 tokens=2871414 duration_ms=1038950 cache_read=2508026 cache_creation=295580 output=67620 avg_ctx=29828 equiv=958566
