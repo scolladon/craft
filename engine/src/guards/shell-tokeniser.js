@@ -35,7 +35,7 @@ const TIME_KEYWORD = 'time';
 const TIME_FORMAT_FLAG = '-p';
 const CASE_KEYWORD = 'case';
 // A case pattern's ) can close a $( ) body early here, so the commands after it would escape the body. bash reads
-// case as a keyword in more positions than this tokeniser tracks (after function NAME, coproc NAME, {), so any case word refuses.
+// case as a keyword in more positions than this tokeniser tracks (after function NAME, coproc NAME, {), so the guard refuses any case word.
 const CASE_IN_SUBSTITUTION =
   'craft: command not parseable (case inside $( ), <( ) or >( ) — a pattern ) can close it) — denied fail-closed';
 const HEAD_WORDS = new Set([
@@ -205,6 +205,7 @@ const createContext = (source, depth) => ({
   reprinted: false,
   heredocInBody: false,
   closesOnParen: false,
+  commandBrace: false,
   rereads: new Set(),
   failure: null,
 });
@@ -224,6 +225,7 @@ const isHeadWord = (context, { text }) =>
 
 const pushWord = (context, word) => {
   if (context.closesOnParen && word.text === CASE_KEYWORD) return fail(context, CASE_IN_SUBSTITUTION);
+  if (context.commandBrace && word.text === OPEN_BRACE) return fail(context, BRACE_IN_FUNCTION_SUBSTITUTION);
   if (!isHeadWord(context, word)) {
     context.words.push(word);
     return;
@@ -424,12 +426,19 @@ const onEscapedChar = context => {
   context.index += 2;
 };
 
-const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand, parameter: false, reprinted: true });
+const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand, parameter: false, reprinted: true, commandBrace: false });
 
-const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true, reprinted: false });
+const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true, reprinted: false, commandBrace: false });
 
 // The | that opens ${| …; } reads as an empty pipe break, so one descriptor serves both forms.
-const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle: breakCommand, parameter: false, reprinted: true });
+const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle: breakCommand, parameter: false, reprinted: true, commandBrace: true });
+
+// bash 5.3 closes ${ …; } only at a } in command-start position; a } argument or the } of a { …; } group in the
+// body would close it early here and leave the commands after it outside the body.
+const BRACE_IN_FUNCTION_SUBSTITUTION =
+  'craft: command not parseable (a } or { group inside ${ …; } — bash 5.3 closes it only at a command start) — denied fail-closed';
+
+const isCommandStart = ({ piece, words }) => piece === null && words.length === 0;
 
 // equivalent mutant (ConditionalExpression false): only parseNested passes a null close, and it ignores the returned flag
 const runBody = (child, close) => {
@@ -452,7 +461,7 @@ const markExpansion = (context, start, end) => {
 
 const isTooDeep = context => context.depth >= MAX_NESTING_DEPTH;
 
-const enterConstruct = (context, { openLength, close, settle, parameter, reprinted }) => {
+const enterConstruct = (context, { openLength, close, settle, parameter, reprinted, commandBrace }) => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
   const child = createContext(context.source, context.depth + 1);
@@ -460,8 +469,10 @@ const enterConstruct = (context, { openLength, close, settle, parameter, reprint
   child.parameter = parameter;
   child.reprinted = reprinted;
   child.closesOnParen = close === ')';
+  child.commandBrace = commandBrace;
   child.rereads = context.rereads;
   const closed = runBody(child, close);
+  if (closed && commandBrace && !isCommandStart(child)) fail(child, BRACE_IN_FUNCTION_SUBSTITUTION);
   settle(child);
   if (child.failure !== null) return fail(context, child.failure);
   if (!closed) return fail(context, UNTERMINATED_SUBSTITUTION);

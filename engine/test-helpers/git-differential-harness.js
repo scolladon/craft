@@ -268,13 +268,16 @@ const processSubstitutionTags = inner =>
 
 // bash 5.3 reprints a $( ) or <( ) body and drops the first ; after a heredoc in it, merging two commands.
 const HEREDOC_THEN_SEMICOLON = /\n\t?EOF\d+\n[\s\S]*;/;
-// The guard refuses any case word in a $( ) or <( ) body, where a pattern ) could close the body early.
+// The guard refuses any case word in a $( ) or <( ) body, where a pattern ) could close the body early. The text
+// match skips quoted heredoc bodies, which bash never parses as commands.
 const CASE_WORD = /(?:^|\s)case\s/;
+const QUOTED_HEREDOC_BODY = /<<-?(['"])(EOF\d+)\1\n[\s\S]*?\n\t?\2(?=\n|$)/g;
+const holdsCaseWord = text => CASE_WORD.test(text.replace(QUOTED_HEREDOC_BODY, ''));
 const withTag = (tags, applies, tag) => (applies ? [...new Set([...tags, tag])] : tags);
 const reprintedBodyTags = (inner, tags = inner.tags) =>
   withTag(
     withTag(tags, HEREDOC_THEN_SEMICOLON.test(inner.text), TAGS.heredocListInSubstitution),
-    CASE_WORD.test(inner.text),
+    holdsCaseWord(inner.text),
     TAGS.caseInSubstitution,
   );
 

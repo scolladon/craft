@@ -610,7 +610,6 @@ describe('parseShellCommands() — a semicolon after a heredoc inside a substitu
     ['echo $(cat <<E\nx\nE\necho $(a; b))', [['cat'], ['a'], ['b'], ['echo', dyn('$(a; b)')], ['echo', dyn('$(cat <<E\nx\nE\necho $(a; b))')]]],
     ['echo ${x:-<<E;}', [['x:-'], ['echo', dyn('${x:-<<E;}')]]],
     ['echo ${ : # <<E\ngit push\nE\n}', [[':'], ['git', 'push'], ['E'], ['echo', dyn('${ : # <<E\ngit push\nE\n}')]]],
-    ['echo ${ git push }', [['git', 'push'], ['echo', dyn('${ git push }')]]],
     ['git commit -m "$(cat <<\'EOF\'\nfix: a; b\nEOF\n)"', [['cat'], ['git', 'commit', '-m', dyn('$(cat <<\'EOF\'\nfix: a; b\nEOF\n)')]]],
   ]);
 });
@@ -796,5 +795,26 @@ describe('parseShellCommands() — case inside a parenthesised substitution', ()
   assertParsesWords([
     ['case x in x) git push;; esac', [['x', 'in', 'x'], ['git', 'push']]],
     ['echo ${ case x in x) echo hi;; esac; }', [['x', 'in', 'x'], ['echo', 'hi'], ['echo', dyn('${ case x in x) echo hi;; esac; }')]]],
+  ]);
+});
+
+const BRACE_IN_FUNCTION_SUBSTITUTION =
+  'craft: command not parseable (a } or { group inside ${ …; } — bash 5.3 closes it only at a command start) — denied fail-closed';
+
+describe('parseShellCommands() — a } that bash 5.3 does not take as the function substitution closer', () => {
+  assertFails([
+    ['echo "${ echo }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
+    ['echo "${| echo }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
+    ['echo "${ echo x}; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
+    ['echo $[ ${ echo }; git push; } ]', BRACE_IN_FUNCTION_SUBSTITUTION],
+    ['echo ${ git push }', BRACE_IN_FUNCTION_SUBSTITUTION],
+    ['echo "${ { echo; }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
+    ['echo "${ f() { :; }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
+  ]);
+
+  assertParsesWords([
+    ['echo "${ git status; }"', [['git', 'status'], ['echo', dyn('${ git status; }')]]],
+    ['echo "${| REPLY=1\n}"', [['echo', dyn('${| REPLY=1\n}')]]],
+    ['echo ${x}', [['echo', dyn('${x}')]]],
   ]);
 });
