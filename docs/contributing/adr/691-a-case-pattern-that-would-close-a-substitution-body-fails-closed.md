@@ -28,13 +28,16 @@ literal.
 
 ## Decision
 
-Ratified by the user: option 1, narrowed at review to the `)` that would close the body. The
-tokeniser records the paren level of each open `case`. Inside a paren-closed body, a `)` that would
-take the level below that mark (a pattern with no `(` of its own) makes the command unparseable. A
-balanced pattern, `case x in (x) …`, still parses, because the tokeniser already models it; refusing
-it would block a construct the census composes and bash 3.2 accepts.
+Ratified by the user: option 1, a `case` word anywhere in a `$( )`, `<( )` or `>( )` body makes the
+command unparseable. Two narrower rules were tried at review and both leaked under bash 5.3: a rule
+keyed on the pattern `)` (an `esac` used as a pattern, `x|esac)`, `(esac)`, `"esac")`, popped the
+tracked level), and a rule keyed on the keyword position (`function f case …`, `function f { case …`,
+`coproc f { case …` put `case` where the tokeniser does not see a command head). bash only reads an
+unquoted literal `case` as the keyword, so refusing the word covers every keyword spelling. The
+differential census tags a composed body holding `case` as `case-in-substitution`.
 
 ## Consequences
 
-`$(case … x) …)` is denied on every shell. Top-level `case` and the balanced pattern form are
-unaffected.
+Any `$( … case … )` is denied on every shell, including `$(grep case f)` and the balanced pattern
+form `$(case x in (x) …)`. A top-level `case`, and one inside `${ …; }` or a re-parsed `bash -c`
+string, is unaffected.

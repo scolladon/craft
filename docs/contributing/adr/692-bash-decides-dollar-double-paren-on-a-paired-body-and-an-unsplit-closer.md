@@ -20,19 +20,25 @@ where the tokeniser sees no split; with a `#` in the body each one hides a subst
 
 ## Options considered
 
-1. **Apply the pairing rule; fail closed on a line continuation inside the opener or closer**
-   *(recommended)* — pros: the pairing rule is bash's own; the continuation spellings are rare and
-   unmodelled, so ADR-594 applies
-2. **Model line continuations everywhere** — cons: bash removes them before tokenising, outside single
-   quotes and some heredoc bodies; a pre-pass would have to copy those exceptions
+1. **Re-read an unpaired `))` body as `$( … )`; fail closed on a line continuation inside the opener
+   or closer** — cons: the pairing count reads raw text, so a `)` in a comment or in a `"…"` that
+   spans a nested `$( )` makes it re-read a body bash keeps as arithmetic; in the re-read a `#`
+   hides a `$(git push)` that bash runs (bash 5.3, found at review)
+2. **Fail closed on an unpaired `))` body and on a line continuation inside the opener or closer**
+   *(recommended)* — pros: neither reading is trusted where the scanner and bash can disagree;
+   ADR-594 applies
+3. **Model line continuations and bash's pairing everywhere** — cons: bash removes continuations
+   before tokenising, outside single quotes and some heredoc bodies, and pairs parens with its own
+   comment and quote rules; a copy would drift
 
 ## Decision
 
-Adopted-as-recommended (no user judgment): option 1, aligned with ADR-689 and ADR-594. A `$`
-followed by a line continuation fails closed too, which also covers `"$\⏎(git push)"`.
+Adopted-as-recommended (no user judgment; option 1 was replaced at review, and the user approved the
+fix diff): option 2, aligned with ADR-689 and ADR-594. A `$` followed by a line continuation fails
+closed too, which also covers `"$\⏎(git push)"`. ADR-689's re-read stays for a single `)` closer.
 
 ## Consequences
 
-A body bash 3.2 re-reads but 5.3 keeps as arithmetic (a `#` comment holding a `)`) is re-read as a
-substitution: the guard sees the 3.2 reading, which holds every command the 5.3 reading runs. The
-re-read verdict is kept per source index, so nested re-reads stay linear in depth.
+A `$(( … ))` whose body does not pair its parens outside `\x`, `'…'` and `"…"` is denied, for
+example ``$(( `printf 1 #(` ))``. The re-read verdict for a single `)` closer is kept per source
+index, so nested re-reads stay linear in depth.

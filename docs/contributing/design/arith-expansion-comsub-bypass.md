@@ -101,8 +101,9 @@ second `(` is followed by `)` (rows 36, 39) **and** the body pairs every `(` and
 `'…'` and `"…"`, counting the parens inside backtick bodies. Otherwise bash re-reads the text as a
 command substitution whose body starts with a subshell (rows 31–35, 37, 38). This is a second bypass
 at the same locus: `arithmeticEnd` does not check that the closer is `))`. The pairing clause and
-the line-continuation spellings (`$\⏎((`, `$(\⏎(`, `)\⏎)`) were found at review and are decided in
-ADR-692; the case-pattern `)` that closes a `$( )` body early is decided in ADR-691.
+the line-continuation spellings (`$\⏎((`, `$(\⏎(`, `)\⏎)`) were found at review: both fail closed
+(ADR-692), since the scanner's pairing and bash's can disagree. Any `case` word in a `$( )` body
+fails closed too (ADR-691), since a pattern `)` can close the body early.
 
 **D. Arithmetic contexts that already block, and their single-quote mirrors**
 
