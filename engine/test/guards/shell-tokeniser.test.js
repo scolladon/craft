@@ -575,6 +575,8 @@ describe('parseShellCommands() — heredoc delimiters and bodies', () => {
 
 const HEREDOC_LIST_IN_SUBSTITUTION =
   'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed';
+const FUNCTION_SUBSTITUTION_REFUSED =
+  'craft: command not parseable (a bash 5.3 ${ …; } or ${| …; } function substitution) — denied fail-closed';
 
 describe('parseShellCommands() — a semicolon after a heredoc inside a substitution body', () => {
   assertFails([
@@ -586,11 +588,11 @@ describe('parseShellCommands() — a semicolon after a heredoc inside a substitu
     ['cat <<F\n$( cat <<E\nx\nE\na; b )\nF', HEREDOC_LIST_IN_SUBSTITUTION],
     ['echo $( cat <<E; a\nx\nE\n)', HEREDOC_LIST_IN_SUBSTITUTION],
     ['echo $(cat <<E\nx\nE\na\nb; c)', HEREDOC_LIST_IN_SUBSTITUTION],
-    ['echo ${ cat <<E\nx\nE\na; b; }', HEREDOC_LIST_IN_SUBSTITUTION],
-    ['echo ${\tcat <<E\nx\nE\na; b; }', HEREDOC_LIST_IN_SUBSTITUTION],
-    ['echo ${\ncat <<E\nx\nE\na; b; }', HEREDOC_LIST_IN_SUBSTITUTION],
-    ['echo ${| cat <<E\nx\nE\na; b; }', HEREDOC_LIST_IN_SUBSTITUTION],
-    ['echo "${ cat <<E\nx\nE\na; b; }"', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo ${ cat <<E\nx\nE\na; b; }', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo ${\tcat <<E\nx\nE\na; b; }', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo ${\ncat <<E\nx\nE\na; b; }', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo ${| cat <<E\nx\nE\na; b; }', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo "${ cat <<E\nx\nE\na; b; }"', FUNCTION_SUBSTITUTION_REFUSED],
   ]);
 
   assertParses([
@@ -609,7 +611,6 @@ describe('parseShellCommands() — a semicolon after a heredoc inside a substitu
     ['echo $(echo $(cat <<E\nx\nE\n); a)', [['cat'], ['echo', dyn('$(cat <<E\nx\nE\n)')], ['a'], ['echo', dyn('$(echo $(cat <<E\nx\nE\n); a)')]]],
     ['echo $(cat <<E\nx\nE\necho $(a; b))', [['cat'], ['a'], ['b'], ['echo', dyn('$(a; b)')], ['echo', dyn('$(cat <<E\nx\nE\necho $(a; b))')]]],
     ['echo ${x:-<<E;}', [['x:-'], ['echo', dyn('${x:-<<E;}')]]],
-    ['echo ${ : # <<E\ngit push\nE\n}', [[':'], ['git', 'push'], ['E'], ['echo', dyn('${ : # <<E\ngit push\nE\n}')]]],
     ['git commit -m "$(cat <<\'EOF\'\nfix: a; b\nEOF\n)"', [['cat'], ['git', 'commit', '-m', dyn('$(cat <<\'EOF\'\nfix: a; b\nEOF\n)')]]],
   ]);
 });
@@ -624,8 +625,6 @@ describe('parseShellCommands() — substitutions inside an arithmetic expansion 
     ['echo $(($(git push -f origin)))', [PUSH, ['echo', dyn('$(($(git push -f origin)))')]]],
     ['echo $(( $(git push -f origin) + 1 ))', [PUSH, ['echo', dyn('$(( $(git push -f origin) + 1 ))')]]],
     ['echo $((`git push -f origin`))', [PUSH, ['echo', dyn('$((`git push -f origin`))')]]],
-    ['echo $((${ git push -f origin; }))', [PUSH, ['echo', dyn('$((${ git push -f origin; }))')]]],
-    ['echo $((${| git push -f origin; }))', [PUSH, ['echo', dyn('$((${| git push -f origin; }))')]]],
     ['echo "$(($(git push -f origin)))"', [PUSH, ['echo', dyn('$(($(git push -f origin)))')]]],
     ['cat <<E\n$(($(git push -f origin)))\nE', [PUSH, ['cat']]],
     ["bash -c 'echo $(($(git push -f origin)))'", [['bash', '-c', 'echo $(($(git push -f origin)))'], PUSH, ['echo', dyn('$(($(git push -f origin)))')]]],
@@ -794,35 +793,30 @@ describe('parseShellCommands() — case inside a parenthesised substitution', ()
 
   assertParsesWords([
     ['case x in x) git push;; esac', [['x', 'in', 'x'], ['git', 'push']]],
-    ['echo ${ case x in x) echo hi;; esac; }', [['x', 'in', 'x'], ['echo', 'hi'], ['echo', dyn('${ case x in x) echo hi;; esac; }')]]],
   ]);
 });
 
-const BRACE_IN_FUNCTION_SUBSTITUTION =
-  'craft: command not parseable (a } or { group inside ${ …; } — bash 5.3 closes it only at a command start) — denied fail-closed';
-
-describe('parseShellCommands() — a } that bash 5.3 does not take as the function substitution closer', () => {
+describe('parseShellCommands() — bash 5.3 function substitutions are refused', () => {
   assertFails([
-    ['echo "${ echo }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${| echo }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ echo x}; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo $[ ${ echo }; git push; } ]', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo ${ git push }', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ x}; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ x=1 }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo $[ ${ x=1 }; git push; } ]', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${| x=1 }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ ! x=1 }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ time x=1 }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ coproc x=1 }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ case } in }) git push;; esac; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ { echo; }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
-    ['echo "${ f() { :; }; git push; }"', BRACE_IN_FUNCTION_SUBSTITUTION],
+    ['echo "${ git status; }"', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo "${| REPLY=1\n}"', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo ${\tgit status; }', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo ${\ngit status; }', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo $((${ git push -f origin; }))', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo $((${| git push -f origin; }))', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo ${ : # <<E\ngit push\nE\n}', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo "${ echo }; git push; }"', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo $[ ${ echo }; git push; } ]', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo "${ x=1 }; git push; }"', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo "${ x=(a) }; git push; }"', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo "${ [[ a || } ]]; git push; }"', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo "${ case "}" in a|}) git push;; esac; }"', FUNCTION_SUBSTITUTION_REFUSED],
+    ['echo "${ { echo; }; git push; }"', FUNCTION_SUBSTITUTION_REFUSED],
   ]);
 
   assertParsesWords([
-    ['echo "${ git status; }"', [['git', 'status'], ['echo', dyn('${ git status; }')]]],
-    ['echo "${| REPLY=1\n}"', [['echo', dyn('${| REPLY=1\n}')]]],
     ['echo ${x}', [['echo', dyn('${x}')]]],
+    ['echo ${x:-a b}', [['echo', dyn('${x:-a b}')]]],
+    ['echo ${#x}', [['echo', dyn('${#x}')]]],
   ]);
 });

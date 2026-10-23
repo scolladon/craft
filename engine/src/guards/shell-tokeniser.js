@@ -24,8 +24,11 @@ const OPEN_PAREN = '(';
 const OPEN_BRACE = '{';
 const OPEN_BRACKET = '[';
 const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
-// bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell.
+// bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell, closing it only at a } where a
+// command can start; that rule reaches into [[ ]], case patterns and array values, so the guard refuses the form.
 const FUNCTION_SUBSTITUTION_OPENER = /[ \t\n|]/;
+const FUNCTION_SUBSTITUTION_REFUSED =
+  'craft: command not parseable (a bash 5.3 ${ …; } or ${| …; } function substitution) — denied fail-closed';
 const BACKTICK_ESCAPES = /\\([$`\\])/g;
 const DOUBLE_QUOTE_ESCAPABLE = Object.freeze(['$', '`', DOUBLE_QUOTE, BACKSLASH]);
 const REDIRECT_SUFFIXES = Object.freeze(['>', '&', '|']);
@@ -205,8 +208,6 @@ const createContext = (source, depth) => ({
   reprinted: false,
   heredocInBody: false,
   closesOnParen: false,
-  commandBrace: false,
-  commandStarted: false,
   rereads: new Set(),
   failure: null,
 });
@@ -226,8 +227,6 @@ const isHeadWord = (context, { text }) =>
 
 const pushWord = (context, word) => {
   if (context.closesOnParen && word.text === CASE_KEYWORD) return fail(context, CASE_IN_SUBSTITUTION);
-  if (context.commandBrace && word.text === OPEN_BRACE) return fail(context, BRACE_IN_FUNCTION_SUBSTITUTION);
-  context.commandStarted = true;
   if (!isHeadWord(context, word)) {
     context.words.push(word);
     return;
@@ -286,7 +285,6 @@ const breakCommand = context => {
   }
   context.words = [];
   context.assignments = [];
-  context.commandStarted = false;
   context.redirecting = false;
   context.timing = false;
 };
@@ -429,20 +427,9 @@ const onEscapedChar = context => {
   context.index += 2;
 };
 
-const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand, parameter: false, reprinted: true, commandBrace: false });
+const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand, parameter: false, reprinted: true });
 
-const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true, reprinted: false, commandBrace: false });
-
-// The | that opens ${| …; } reads as an empty pipe break, so one descriptor serves both forms.
-const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle: breakCommand, parameter: false, reprinted: true, commandBrace: true });
-
-// bash 5.3 closes ${ …; } only at a } in command-start position; a } argument or the } of a { …; } group in the
-// body would close it early here and leave the commands after it outside the body.
-const BRACE_IN_FUNCTION_SUBSTITUTION =
-  'craft: command not parseable (a } or { group inside ${ …; } — bash 5.3 closes it only at a command start) — denied fail-closed';
-
-// Head words (assignments, case, !, time) never reach words, so any word at all marks the command as started.
-const isCommandStart = ({ piece, commandStarted }) => piece === null && !commandStarted;
+const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true, reprinted: false });
 
 // equivalent mutant (ConditionalExpression false): only parseNested passes a null close, and it ignores the returned flag
 const runBody = (child, close) => {
@@ -465,7 +452,7 @@ const markExpansion = (context, start, end) => {
 
 const isTooDeep = context => context.depth >= MAX_NESTING_DEPTH;
 
-const enterConstruct = (context, { openLength, close, settle, parameter, reprinted, commandBrace }) => {
+const enterConstruct = (context, { openLength, close, settle, parameter, reprinted }) => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
   const child = createContext(context.source, context.depth + 1);
@@ -473,10 +460,8 @@ const enterConstruct = (context, { openLength, close, settle, parameter, reprint
   child.parameter = parameter;
   child.reprinted = reprinted;
   child.closesOnParen = close === ')';
-  child.commandBrace = commandBrace;
   child.rereads = context.rereads;
   const closed = runBody(child, close);
-  if (closed && commandBrace && !isCommandStart(child)) fail(child, BRACE_IN_FUNCTION_SUBSTITUTION);
   settle(child);
   if (child.failure !== null) return fail(context, child.failure);
   if (!closed) return fail(context, UNTERMINATED_SUBSTITUTION);
@@ -608,13 +593,16 @@ const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
 };
 
-const braceConstruct = opener => (FUNCTION_SUBSTITUTION_OPENER.test(opener) ? FUNCTION_SUBSTITUTION : PARAMETER);
+const enterBrace = context =>
+  FUNCTION_SUBSTITUTION_OPENER.test(context.source[context.index + 2])
+    ? fail(context, FUNCTION_SUBSTITUTION_REFUSED)
+    : enterConstruct(context, PARAMETER);
 
 const expandDollar = context => {
   if (context.source.startsWith(LINE_CONTINUATION, context.index + 1)) return fail(context, SPLIT_EXPANSION);
   const next = context.source[context.index + 1];
   if (next === OPEN_PAREN) return enterDollarParen(context);
-  if (next === OPEN_BRACE) return enterConstruct(context, braceConstruct(context.source[context.index + 2]));
+  if (next === OPEN_BRACE) return enterBrace(context);
   if (next === OPEN_BRACKET) return enterArithmetic(context, BRACKET_ARITHMETIC);
   if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
   onLiteral(context);

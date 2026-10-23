@@ -176,17 +176,17 @@ describe('gitDestructivePredicate() — unparseable, unclassifiable and dynamic 
     const result = sut(command);
 
     assert.deepEqual(result, { block: true, reason: gitInvocations(command).reason });
-    assert.match(result.reason, /here-document/);
+    assert.match(result.reason, /function substitution/);
   });
 
-  it('Given a comment holding << inside a function substitution, when checked, then the push on the next line blocks', () => {
+  it('Given a comment holding << inside a function substitution, when checked, then it blocks as unparseable', () => {
     const sut = gitDestructivePredicate;
     const command = 'echo ${ : # <<E\ngit push\nE\n}';
 
     const result = sut(command);
 
     assert.equal(result.block, true);
-    assert.match(result.reason, /destructive git \(push\)/);
+    assert.match(result.reason, /function substitution/);
   });
 
   for (const command of ['git --frobnicate push', 'git -C. push', '$G push']) {
@@ -413,6 +413,9 @@ describe('gitDestructivePredicate() — arithmetic openers bash splits or re-rea
     'echo "${ { echo; }; git push; }"',
     'echo "${ x=1 }; git reset --hard; }"',
     'echo "${ case } in }) git push;; esac; }"',
+    'echo "${ x=(a) }; git reset --hard; }"',
+    'echo "${ [[ a && } ]]; git push; }"',
+    'echo "${ case a in a) ;& }) git push;; esac; }"',
   ]);
 
   assertPasses(['echo $(( `echo 1` + 1 ))', 'case x in x) git status;; esac']);
