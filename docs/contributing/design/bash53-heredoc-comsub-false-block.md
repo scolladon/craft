@@ -56,6 +56,12 @@ Each command ran under `bash -c` with both shells, under `nice -n 19`. `H` stand
 | 25 | `echo $( H git; push origin )` | `push: command not found`, `GIT:` | `GIT: push origin` |
 | 26 | `echo $( H git show; --ext-diff )` | `GIT: show` | `GIT: show --ext-diff` |
 | 27 | the seed-101 command, 3 runs | `GIT: show --ext-diff` ×3 | `GIT: show` ×3 |
+| 28 | `echo ${ H git; push origin; }` (space, tab or newline after `${`) | `bad substitution` | `GIT: push origin` |
+| 29 | `echo ${\| H git show; --ext-diff; }` | `bad substitution` | `GIT: show --ext-diff` |
+| 30 | `echo ${x:-<<E;}` (plain parameter expansion) | no command run | no command run |
+
+Rows 28–30 were added after the review phase found the funsub fail-open, which the first probe
+table did not cover.
 
 `declare -f` makes the mechanism visible. bash 5.3.20 prints the body of `f() { echo $( H X=v; echo [$X] ); }`
 as `echo $(cat <<E⏎hi⏎E⏎⏎X=v echo [$X])`. bash 5.3 re-serialises a parsed `$( … )`/`<( … )` body and
@@ -65,7 +71,8 @@ becomes a prefix assignment (rows 1, 8, 9). A following command's words become a
 25, 26). `&&`, `||`, `|`, `&` and newline connectors are not dropped (rows 2, 3, 10, 11). A newline
 before the first `;`, an `if` body, or a heredoc nested one comsub deeper avoids it (rows 14, 15, 20).
 
-**Precise trigger:** inside a `$( … )`, `"$( … )"` or `<( … )`/`>( … )` body whose own list holds a
+**Precise trigger:** inside a `$( … )`, `"$( … )"`, `<( … )`/`>( … )` or bash 5.3 function
+substitution `${ …; }`/`${| …; }` body (rows 28, 29) whose own list holds a
 heredoc, the first `;` connector printed after that heredoc, with no newline connector before it, is
 dropped. Backticks, top level, subshells and groups outside a substitution, and heredoc bodies are
 unaffected.
@@ -201,9 +208,12 @@ In `engine/src/guards/shell-tokeniser.js`:
 
 ```js
 const HEREDOC_LIST_IN_SUBSTITUTION =
-  'craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed';
+  'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed';
 
 const SUBSTITUTION = Object.freeze({ …, reprinted: true });   // PARAMETER: reprinted false
+// `${` followed by space, tab, newline or `|` is a function substitution: a command list,
+// settled by breakCommand, `#` a comment, reprinted: true. Any other `${` stays PARAMETER (row 30).
+const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle: breakCommand, parameter: false, reprinted: true });
 // createContext: heredocInBody: false ; enterConstruct copies `reprinted` to the child
 // onHeredoc: if (context.reprinted) context.heredocInBody = true;
 const onSemicolon = context =>

@@ -13,8 +13,8 @@ supersedes: []
 
 ## Context
 
-bash 5.3.20 drops the first `;` after a heredoc inside a `$( )`/`<( )` body, joining the two
-commands around it. At scale this gives a safe-direction false block (seed 101) and, off the
+bash 5.3.20 drops the first `;` after a heredoc inside a `$( )`/`<( )` body, and inside its new
+function substitution `${ …; }`/`${| …; }`, joining the two commands around it. At scale this gives a safe-direction false block (seed 101) and, off the
 generator's grammar, a fail-open: `echo $( cat <<'E'⏎hi⏎E⏎git; push origin )` runs `git push origin`
 on bash 5.3 while both guard predicates allow it. bash 3.2.57 keeps the `;`.
 
