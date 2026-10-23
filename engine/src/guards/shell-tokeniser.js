@@ -25,11 +25,6 @@ const OPEN_BRACE = '{';
 const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
 // bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell.
 const FUNCTION_SUBSTITUTION_OPENER = /[ \t\n|]/;
-const ARITHMETIC_OPEN_LEVEL = 2;
-const PAREN_LEVEL = new Map([
-  ['(', 1],
-  [')', -1],
-]);
 const BACKTICK_ESCAPES = /\\([$`\\])/g;
 const DOUBLE_QUOTE_ESCAPABLE = Object.freeze(['$', '`', DOUBLE_QUOTE, BACKSLASH]);
 const REDIRECT_SUFFIXES = Object.freeze(['>', '&', '|']);
@@ -484,24 +479,57 @@ const enterBacktick = context => {
   markExpansion(context, start, end + 1);
 };
 
-// equivalent mutant (EqualityOperator index <= source.length): source[source.length] adds 0 to a level that is still positive, so the result is still -1
-const arithmeticEnd = (source, from) => {
-  let level = ARITHMETIC_OPEN_LEVEL;
-  for (let index = from; index < source.length; index += 1) {
-    level += PAREN_LEVEL.get(source[index]) ?? 0;
-    if (level === 0) return index + 1;
-  }
-  return -1;
+// The body of $(( )) and $[ ] expands like a double-quoted string, and a ) or ] in quotes or after \ does not close it.
+const ARITHMETIC_EXPANSION = Object.freeze({ openLength: 3, open: '(', close: ')', doubledClose: true });
+
+const ARITHMETIC_SINGLE_QUOTE =
+  "craft: command not parseable (a ' inside $(( )) or $[ ] — bash still runs the substitutions in it) — denied fail-closed";
+const BODY_OPEN_LEVEL = 1;
+const UNCLOSED = -1;
+const REREAD_AS_SUBSTITUTION = -2;
+
+const skipEscaped = body => {
+  body.index += 2;
 };
 
-const onArithmetic = context => {
-  const end = arithmeticEnd(context.source, context.index + 3);
-  if (end === -1) return fail(context, UNTERMINATED_SUBSTITUTION);
-  markExpansion(context, context.index, end);
+const failArithmeticQuote = body => fail(body, ARITHMETIC_SINGLE_QUOTE);
+
+const levelChange = (char, { open, close }) => {
+  if (char === open) return 1;
+  if (char === close) return -1;
+  return 0;
+};
+
+const closerEnd = (body, { close, doubledClose }) => {
+  if (!doubledClose) return body.index + 1;
+  return body.source[body.index + 1] === close ? body.index + 2 : REREAD_AS_SUBSTITUTION;
+};
+
+const scanArithmeticBody = (body, descriptor) => {
+  let level = BODY_OPEN_LEVEL;
+  while (body.index < body.source.length && body.failure === null) {
+    level += levelChange(body.source[body.index], descriptor);
+    if (level === 0) return closerEnd(body, descriptor);
+    (ARITHMETIC_HANDLERS.get(body.source[body.index]) ?? onLiteral)(body);
+  }
+  return UNCLOSED;
+};
+
+const enterArithmetic = (context, descriptor) => {
+  if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
+  const start = context.index;
+  const body = createContext(context.source, context.depth + 1);
+  body.index = start + descriptor.openLength;
+  const end = scanArithmeticBody(body, descriptor);
+  if (body.failure !== null) return fail(context, body.failure);
+  if (end === REREAD_AS_SUBSTITUTION) return enterConstruct(context, SUBSTITUTION);
+  if (end === UNCLOSED) return fail(context, UNTERMINATED_SUBSTITUTION);
+  absorb(context, body);
+  markExpansion(context, start, end);
 };
 
 const enterDollarParen = context =>
-  context.source[context.index + 2] === OPEN_PAREN ? onArithmetic(context) : enterConstruct(context, SUBSTITUTION);
+  context.source[context.index + 2] === OPEN_PAREN ? enterArithmetic(context, ARITHMETIC_EXPANSION) : enterConstruct(context, SUBSTITUTION);
 
 const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
@@ -516,6 +544,14 @@ const expandDollar = context => {
   if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
   onLiteral(context);
 };
+
+const ARITHMETIC_HANDLERS = new Map([
+  [BACKSLASH, skipEscaped],
+  [DOUBLE_QUOTE, onDoubleQuote],
+  [SINGLE_QUOTE, failArithmeticQuote],
+  [DOLLAR, expandDollar],
+  [BACKTICK, enterBacktick],
+]);
 
 // equivalent mutant (CallExpression onDoubleQuote): the step loop hands the double quote left after the skipped $ to the same handler
 const onLocaleString = context => {

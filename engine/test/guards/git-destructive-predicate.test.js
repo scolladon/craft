@@ -369,6 +369,20 @@ describe('gitDestructivePredicate() — parameter expansion and arithmetic', () 
   assertPasses(['echo ${#x}; git status', '( cat <<EOF\nx\nEOF\n)\ngit status', 'echo $(( 1 << 2 ))']);
 });
 
+describe('gitDestructivePredicate() — substitutions inside arithmetic expansion', () => {
+  assertBlocks([
+    'echo $(($(git push -f origin)))',
+    'echo $((`git push -f origin`))',
+    'echo $((${ git push -f origin; }))',
+    'echo $((${| git push -f origin; }))',
+    'echo $(( $(( $(git push -f origin) )) ))',
+    "echo $(( ')' $(git push -f origin) ))",
+    'echo $((git push -f origin) )',
+  ]);
+
+  assertPasses(['echo $(( $(printf 3) + 1 ))', 'echo $(( 16#ff ))', 'echo $(( 1 <<E ))']);
+});
+
 describe('gitDestructivePredicate() — shell and env option grammar', () => {
   assertBlocks([
     "bash -o pipefail -c 'git push'",

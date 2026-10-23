@@ -178,6 +178,8 @@ const SPECIALS = Object.freeze([
   fragment('gi[t] push', { tags: [TAGS.patternWord] }),
   fragment('echo ${#x}; git push\necho }', { list: true }),
   fragment('(( x = 1 << 2 ))\ngit push', { tags: [TAGS.arithmeticHeredoc], list: true }),
+  fragment('echo $(( $(git push origin) + 1 ))'),
+  fragment('echo $((git push origin) )'),
   fragment("bash -o pipefail -c 'git push'"),
   fragment("bash -O extglob -c 'git push'"),
   fragment("bash +e -c 'git push'"),

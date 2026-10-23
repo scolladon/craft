@@ -374,6 +374,10 @@ describe('gitExtDiffPredicate() — unmodelled constructs', () => {
   assertBlocks(["git $'\\x64iff'"]);
 });
 
+describe('gitExtDiffPredicate() — substitutions inside arithmetic expansion', () => {
+  assertBlocks(['echo $(($(git diff HEAD)))', 'echo $((`git diff HEAD`))']);
+});
+
 describe('gitExtDiffPredicate() — brace and glob words', () => {
   assertBlocks(['{git,diff}', 'git {diff,x}', 'git dif[f]']);
 

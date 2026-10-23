@@ -614,3 +614,88 @@ describe('parseShellCommands() — a semicolon after a heredoc inside a substitu
     ['git commit -m "$(cat <<\'EOF\'\nfix: a; b\nEOF\n)"', [['cat'], ['git', 'commit', '-m', dyn('$(cat <<\'EOF\'\nfix: a; b\nEOF\n)')]]],
   ]);
 });
+
+const ARITHMETIC_SINGLE_QUOTE =
+  "craft: command not parseable (a ' inside $(( )) or $[ ] — bash still runs the substitutions in it) — denied fail-closed";
+const PUSH = ['git', 'push', '-f', 'origin'];
+const nestArithmetic = depth => `echo ${'$(( '.repeat(depth)}1${' ))'.repeat(depth)}`;
+
+describe('parseShellCommands() — substitutions inside an arithmetic expansion body', () => {
+  assertParsesWords([
+    ['echo $(($(git push -f origin)))', [PUSH, ['echo', dyn('$(($(git push -f origin)))')]]],
+    ['echo $(( $(git push -f origin) + 1 ))', [PUSH, ['echo', dyn('$(( $(git push -f origin) + 1 ))')]]],
+    ['echo $((`git push -f origin`))', [PUSH, ['echo', dyn('$((`git push -f origin`))')]]],
+    ['echo $((${ git push -f origin; }))', [PUSH, ['echo', dyn('$((${ git push -f origin; }))')]]],
+    ['echo $((${| git push -f origin; }))', [PUSH, ['echo', dyn('$((${| git push -f origin; }))')]]],
+    ['echo "$(($(git push -f origin)))"', [PUSH, ['echo', dyn('$(($(git push -f origin)))')]]],
+    ['cat <<E\n$(($(git push -f origin)))\nE', [PUSH, ['cat']]],
+    ["bash -c 'echo $(($(git push -f origin)))'", [['bash', '-c', 'echo $(($(git push -f origin)))'], PUSH, ['echo', dyn('$(($(git push -f origin)))')]]],
+    ['echo $(( $(( $(git push -f origin) )) ))', [PUSH, ['echo', dyn('$(( $(( $(git push -f origin) )) ))')]]],
+    ['echo $(( ${x:-$(git push -f origin)} ))', [PUSH, ['echo', dyn('$(( ${x:-$(git push -f origin)} ))')]]],
+    ['echo $(( a[$(git push -f origin)] ))', [PUSH, ['echo', dyn('$(( a[$(git push -f origin)] ))')]]],
+    ['echo $(( $(cat <(git push -f origin)) ))', [PUSH, ['cat', dyn('<(git push -f origin)')], ['echo', dyn('$(( $(cat <(git push -f origin)) ))')]]],
+    ['echo $(( $(cat <<E\nx\nE\ngit push -f origin) ))', [['cat'], PUSH, ['echo', dyn('$(( $(cat <<E\nx\nE\ngit push -f origin) ))')]]],
+    ['echo $(( "$(git push -f origin)" ))', [PUSH, ['echo', dyn('$(( "$(git push -f origin)" ))')]]],
+    ['echo $(( \\) $(git push -f origin) ))', [PUSH, ['echo', dyn('$(( \\) $(git push -f origin) ))')]]],
+    ["echo $(( $(echo ')' ; git push -f origin) + 1 ))", [['echo', ')'], PUSH, ['echo', dyn("$(( $(echo ')' ; git push -f origin) + 1 ))")]]],
+    ['echo $(( $(git push -f origin # )\n) ))', [PUSH, ['echo', dyn('$(( $(git push -f origin # )\n) ))')]]],
+    ['echo $(( $(printf 3) + 1 ))', [['printf', '3'], ['echo', dyn('$(( $(printf 3) + 1 ))')]]],
+    ['echo $(( "\'" $(git push -f origin) ))', [PUSH, ['echo', dyn('$(( "\'" $(git push -f origin) ))')]]],
+  ]);
+});
+
+describe('parseShellCommands() — a $(( whose inner ) is not followed by ) is a command substitution', () => {
+  assertParsesWords([
+    ['echo $((git push -f origin) )', [PUSH, ['echo', dyn('$((git push -f origin) )')]]],
+    ['echo $((git push -f origin); true)', [PUSH, ['true'], ['echo', dyn('$((git push -f origin); true)')]]],
+    ['echo $((git push -f origin)|cat)', [PUSH, ['cat'], ['echo', dyn('$((git push -f origin)|cat)')]]],
+    ['echo $((git push -f origin)\n)', [PUSH, ['echo', dyn('$((git push -f origin)\n)')]]],
+    ['echo $(((git push -f origin)) )', [PUSH, ['echo', dyn('$(((git push -f origin)) )')]]],
+  ]);
+});
+
+describe('parseShellCommands() — arithmetic expansion bodies bash does not run as commands', () => {
+  assertParsesWords([
+    ['echo $(( 16#ff ))', [['echo', dyn('$(( 16#ff ))')]]],
+    ['echo $(( 1 << 2 ))', [['echo', dyn('$(( 1 << 2 ))')]]],
+    ['echo $(( 1 <<E ))', [['echo', dyn('$(( 1 <<E ))')]]],
+    ['echo $(( \\$(git push -f origin) ))', [['echo', dyn('$(( \\$(git push -f origin) ))')]]],
+    ['echo $(( \\`git push -f origin\\` ))', [['echo', dyn('$(( \\`git push -f origin\\` ))')]]],
+    ['echo $((git push -f origin))', [['echo', dyn('$((git push -f origin))')]]],
+    ['echo $(( (git push -f origin) ))', [['echo', dyn('$(( (git push -f origin) ))')]]],
+  ]);
+});
+
+describe('parseShellCommands() — quotes inside an arithmetic expansion body', () => {
+  assertParsesWords([['echo $(( ")" + 1 ))', [['echo', dyn('$(( ")" + 1 ))')]]]]);
+
+  assertFails([
+    ["echo $(( '$(git push -f origin)' ))", ARITHMETIC_SINGLE_QUOTE],
+    ["echo $(( '`git push -f origin`' ))", ARITHMETIC_SINGLE_QUOTE],
+    ["echo $(( '${ git push -f origin; }' ))", ARITHMETIC_SINGLE_QUOTE],
+    ["echo $(( '1' + 2 ))", ARITHMETIC_SINGLE_QUOTE],
+    ["echo $(( $'1' + 1 ))", ARITHMETIC_SINGLE_QUOTE],
+    ["echo $(( ')' + 1 ))", ARITHMETIC_SINGLE_QUOTE],
+    ["echo $(( ')' $(git push -f origin) ))", ARITHMETIC_SINGLE_QUOTE],
+    ["echo $((git push -f origin 'x') )", ARITHMETIC_SINGLE_QUOTE],
+    ['echo $(( $(git push )', UNTERMINATED_SUBSTITUTION],
+  ]);
+});
+
+describe('parseShellCommands() — arithmetic expansion nesting depth', () => {
+  it('Given arithmetic expansions nested at the cap, When parsed, Then it is parsed', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(nestArithmetic(PINNED_NESTING_CAP));
+
+    assert.equal(result.parsed, true);
+  });
+
+  it('Given arithmetic expansions nested one past the cap, When parsed, Then it is not parseable', () => {
+    const sut = parseShellCommands;
+
+    const result = sut(nestArithmetic(PINNED_NESTING_CAP + 1));
+
+    assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
+  });
+});

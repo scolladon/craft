@@ -308,6 +308,15 @@ describe('shell-git-invocations — generator composition at scale', () => {
     assert.deepEqual(expected.filter(text => !result.includes(text)), []);
   });
 
+  it('Given any seed, when commands are generated, then the arithmetic-body substitution spellings are fixed entries', () => {
+    const sut = generateCommands;
+    const expected = ['echo $(( $(git push origin) + 1 ))', 'echo $((git push origin) )'];
+
+    const result = sut(1, 100).map(entry => entry.text);
+
+    assert.deepEqual(expected.filter(text => !result.includes(text)), []);
+  });
+
   it('Given the pinned seeds at scale, when generated, then the argv-appender tag sits only on xargs-wrapped commands and not on all of them', () => {
     const sut = pinnedCommands;
     const isTagged = entry => entry.tags.includes('argv-appender');
