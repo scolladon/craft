@@ -6,17 +6,17 @@ phases: [review, implementation]
 kind: trap
 trigger: narrowing a command-text guard predicate to remove an over-block
 evidence:
-  - engine/test/guards/shell-git-invocations.test.js:527
-  - engine/test/guards/shell-git-invocations.test.js:535
-  - engine/test/guards/shell-git-invocations.test.js:564
-  - engine/test/guards/git-ext-diff-predicate.test.js:592
-  - engine/test/guards/git-ext-diff-predicate.test.js:634
-  - engine/test/guards/git-ext-diff-predicate.test.js:642
-  - engine/test/guards/git-ext-diff-predicate.test.js:667
+  - engine/test/guards/shell-git-invocations.test.js:546
+  - engine/test/guards/shell-git-invocations.test.js:554
+  - engine/test/guards/shell-git-invocations.test.js:583
+  - engine/test/guards/git-ext-diff-predicate.test.js:594
+  - engine/test/guards/git-ext-diff-predicate.test.js:636
+  - engine/test/guards/git-ext-diff-predicate.test.js:644
+  - engine/test/guards/git-ext-diff-predicate.test.js:669
 source: { run: guard-fuzz-scale-ext-diff-widen, phase: review, date: 2026-10-20 }
 status: active
 supersedes: []
-last-verified: 2026-10-21
+last-verified: 2026-10-23
 ---
 # 003 — Narrowing a guard anchor reopens other spellings of the same word
 
@@ -39,6 +39,6 @@ A token test written against the literal word (`config`, `git`) misses every she
 
 ## Evidence
 
-`engine/test/guards/shell-git-invocations.test.js` holds the reopened spellings as blocked rows (`command $G con[f]ig alias.x st` at line 527, `{/usr/bin/g?t,config,alias.x,y}` at line 535) and the removed over-block as an allow row (`echo $X alias` at line 564). Reverting the glob-aware `holdsGitToken` in `engine/src/guards/shell-git-invocations.js` turns the line-535 row red.
+`engine/test/guards/shell-git-invocations.test.js` holds the reopened spellings as blocked rows (`command $G con[f]ig alias.x st` at line 546, `{/usr/bin/g?t,config,alias.x,y}` at line 554) and the removed over-block as an allow row (`echo $X alias` at line 583). Reverting the glob-aware `holdsGitToken` in `engine/src/guards/shell-git-invocations.js` turns the line-554 row red.
 
-Dropping bare `git show` from the ext-diff default-deny reopened the argv the parser never reads: a split global-option value (`D=". diff"; git -C $D show`, line 634), an argv appender in any spelling (`$(echo xargs) git show`, line 642) and `env -S` re-splitting (`env -S 'git show #' --ext-diff`, line 667). A deny-list of appender names leaked twice in review. The allow-list of argv-preserving wrappers in `engine/src/guards/shell-git-invocations.js` (`PLAIN_WRAPPERS`) closed the class, and line 592 pins the over-block it removed.
+Dropping bare `git show` from the ext-diff default-deny reopened the argv the parser never reads: a split global-option value (`D=". diff"; git -C $D show`, line 636), an argv appender in any spelling (`$(echo xargs) git show`, line 644) and `env -S` re-splitting (`env -S 'git show #' --ext-diff`, line 669). A deny-list of appender names leaked twice in review. The allow-list of argv-preserving wrappers in `engine/src/guards/shell-git-invocations.js` (`PLAIN_WRAPPERS`) closed the class, and line 594 pins the over-block it removed.
