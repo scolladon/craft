@@ -400,9 +400,16 @@ describe('gitDestructivePredicate() — arithmetic openers bash splits or re-rea
     'echo $[ $(case x in x) git push;; esac) ]',
     'echo "$(case x in x) git push;; esac)"',
     'echo $( (case x in x) :;; esac) ; git push )',
+    'echo "$(case x in x|esac) git push;; esac)"',
+    'echo "$(case y in (esac) ;; y) git push;; esac)"',
+    'echo "$(function f case x in x) git push;; esac; f)"',
+    'echo "$(function f { case x in x) git push;; esac; }; f)"',
+    'echo $(( "$(echo ")")" # $(git push)\n ))',
+    'echo $(( $(true # )\n) # $(git push)\n ))',
+    'echo $(( `printf git #)(` push ))',
   ]);
 
-  assertPasses(['echo $(( `echo 1` + 1 ))', 'echo $(case x in (x) echo 1;; esac)', 'case x in x) git status;; esac']);
+  assertPasses(['echo $(( `echo 1` + 1 ))', 'case x in x) git status;; esac']);
 });
 
 describe('gitDestructivePredicate() — shell and env option grammar', () => {

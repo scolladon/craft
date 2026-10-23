@@ -38,16 +38,17 @@ const TAGS = Object.freeze({
   quoteInHeredocBody: 'quote-in-heredoc-body',
   argvAppender: 'argv-appender',
   heredocListInSubstitution: 'heredoc-list-in-substitution',
+  caseInSubstitution: 'case-in-substitution',
 });
 const FALSE_BLOCK_TAGS = Object.freeze([
   TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
   TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb, TAGS.zshEquals,
   TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody, TAGS.argvAppender,
-  TAGS.heredocListInSubstitution,
+  TAGS.heredocListInSubstitution, TAGS.caseInSubstitution,
 ]);
 // Both tags make bash 3.2 reject or mis-split the whole command, so the generator cannot vouch for its syntax.
 const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody]);
-const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc, TAGS.heredocListInSubstitution]);
+const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc, TAGS.heredocListInSubstitution, TAGS.caseInSubstitution]);
 
 // The stub is the only git a judged command can reach: it records argv and does nothing else.
 const STUB_GIT = ['#!/bin/sh', `printf '%s\\0' "$#" "$@" >> "$FUZZ_LOG"`, ''].join('\n');
@@ -267,8 +268,15 @@ const processSubstitutionTags = inner =>
 
 // bash 5.3 reprints a $( ) or <( ) body and drops the first ; after a heredoc in it, merging two commands.
 const HEREDOC_THEN_SEMICOLON = /\n\t?EOF\d+\n[\s\S]*;/;
+// The guard refuses any case word in a $( ) or <( ) body, where a pattern ) could close the body early.
+const CASE_WORD = /(?:^|\s)case\s/;
+const withTag = (tags, applies, tag) => (applies ? [...new Set([...tags, tag])] : tags);
 const reprintedBodyTags = (inner, tags = inner.tags) =>
-  HEREDOC_THEN_SEMICOLON.test(inner.text) ? [...new Set([...tags, TAGS.heredocListInSubstitution])] : tags;
+  withTag(
+    withTag(tags, HEREDOC_THEN_SEMICOLON.test(inner.text), TAGS.heredocListInSubstitution),
+    CASE_WORD.test(inner.text),
+    TAGS.caseInSubstitution,
+  );
 
 function nestedForms(inner) {
   const forms = [

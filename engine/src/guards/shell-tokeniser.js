@@ -34,8 +34,8 @@ const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const TIME_KEYWORD = 'time';
 const TIME_FORMAT_FLAG = '-p';
 const CASE_KEYWORD = 'case';
-const ESAC_KEYWORD = 'esac';
-// A pattern ) with no ( of its own would close a $( ) body early here, so the commands after it would escape the body.
+// A case pattern's ) can close a $( ) body early here, so the commands after it would escape the body. bash reads
+// case as a keyword in more positions than this tokeniser tracks (after function NAME, coproc NAME, {), so any case word refuses.
 const CASE_IN_SUBSTITUTION =
   'craft: command not parseable (case inside $( ), <( ) or >( ) — a pattern ) can close it) — denied fail-closed';
 const HEAD_WORDS = new Set([
@@ -53,7 +53,7 @@ const HEAD_WORDS = new Set([
   'while',
   'until',
   CASE_KEYWORD,
-  ESAC_KEYWORD,
+  'esac',
   'coproc',
 ]);
 
@@ -205,7 +205,6 @@ const createContext = (source, depth) => ({
   reprinted: false,
   heredocInBody: false,
   closesOnParen: false,
-  caseLevels: [],
   rereads: new Set(),
   failure: null,
 });
@@ -223,19 +222,12 @@ const isHeadWord = (context, { text }) =>
     ASSIGNMENT.test(text) ||
     (context.timing && text === TIME_FORMAT_FLAG));
 
-const trackCase = (context, text) => {
-  if (text === CASE_KEYWORD) context.caseLevels.push(context.parens);
-  if (text === ESAC_KEYWORD) context.caseLevels.pop();
-};
-
-const isPatternCloser = context => context.closesOnParen && context.caseLevels.at(-1) === context.parens;
-
 const pushWord = (context, word) => {
+  if (context.closesOnParen && word.text === CASE_KEYWORD) return fail(context, CASE_IN_SUBSTITUTION);
   if (!isHeadWord(context, word)) {
     context.words.push(word);
     return;
   }
-  trackCase(context, word.text);
   if (ASSIGNMENT.test(word.text)) context.assignments.push(word.text);
   context.timing = word.text === TIME_KEYWORD;
 };
@@ -471,7 +463,6 @@ const enterConstruct = (context, { openLength, close, settle, parameter, reprint
   child.rereads = context.rereads;
   const closed = runBody(child, close);
   settle(child);
-  if (isPatternCloser(child)) fail(child, CASE_IN_SUBSTITUTION);
   if (child.failure !== null) return fail(context, child.failure);
   if (!closed) return fail(context, UNTERMINATED_SUBSTITUTION);
   absorb(context, child);
@@ -512,7 +503,10 @@ const LINE_CONTINUATION = '\\\n';
 // bash drops a line continuation before it tells $(( from $( (, a split this tokeniser does not model.
 const SPLIT_EXPANSION =
   'craft: command not parseable (a line continuation inside $, $(( or its closing )) ) — denied fail-closed';
-// bash keeps $(( as arithmetic only when its body pairs every ( and ) outside \x, '…' and "…", backtick bodies included.
+// bash re-reads a $(( )) body that does not pair its parens as $( ( … ) ); where that pairing departs from this
+// scanner's own (comments, quotes spanning a nested $( )) the two readings disagree, so the guard refuses it.
+const UNPAIRED_ARITHMETIC =
+  'craft: command not parseable (a $(( )) body with unpaired parens — bash may re-read it as a command substitution) — denied fail-closed';
 const PAIRING_EXEMPT_SPANS = /\\[\s\S]|'[^']*'|"(?:\\[\s\S]|[^"\\])*"/g;
 
 const skipEscaped = body => {
@@ -536,15 +530,17 @@ const isPaired = text => {
   return level === 0;
 };
 
+const failScan = (body, reason) => {
+  fail(body, reason);
+  return UNCLOSED;
+};
+
 const closerEnd = (body, { close, doubledClose }, from) => {
   const after = body.index + 1;
   if (!doubledClose) return after;
-  if (body.source.startsWith(LINE_CONTINUATION, after)) {
-    fail(body, SPLIT_EXPANSION);
-    return UNCLOSED;
-  }
-  const doubled = body.source[after] === close && isPaired(body.source.slice(from, body.index));
-  return doubled ? after + 1 : REREAD_AS_SUBSTITUTION;
+  if (body.source.startsWith(LINE_CONTINUATION, after)) return failScan(body, SPLIT_EXPANSION);
+  if (body.source[after] !== close) return REREAD_AS_SUBSTITUTION;
+  return isPaired(body.source.slice(from, body.index)) ? after + 1 : failScan(body, UNPAIRED_ARITHMETIC);
 };
 
 const scanArithmeticBody = (body, descriptor) => {
@@ -776,7 +772,6 @@ const onOpenParen = context => {
 };
 
 const onCloseParen = context => {
-  if (isPatternCloser(context)) return fail(context, CASE_IN_SUBSTITUTION);
   context.parens = Math.max(0, context.parens - 1);
   if (context.parens <= context.arithmeticFloor) context.arithmeticFloor = NO_ARITHMETIC;
   onBreak(context);
