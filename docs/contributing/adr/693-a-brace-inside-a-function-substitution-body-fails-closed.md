@@ -32,9 +32,12 @@ the third review cycle.
 
 Adopted-as-recommended (no user judgment; the user approved the fix diff): option 1, aligned with
 ADR-594. `FUNCTION_SUBSTITUTION` carries `commandBrace: true`; the substitution and parameter
-descriptors carry `false`.
+descriptors carry `false`. Command start means no word of any kind since the last break: head words
+(an assignment, `case`, `coproc`, `!`, `time`) never reach the command's words, and a `}` after them
+is an argument to bash, so a verify review showed a words-only check leaking (`${ x=1 }; git push; }`).
 
 ## Consequences
 
 `${ cmd }` without a terminating `;` or newline is refused; bash 5.3 itself rejects it (unexpected EOF
-looking for the matching `}`). A `{ …; }` group or a function definition inside `${ …; }` is refused.
+looking for the matching `}`). A `}` right after a reserved word bash still closes on (`fi }`,
+`done }`, `then }`) is refused too: an over-block, kept because it needs no list of reserved words. A `{ …; }` group or a function definition inside `${ …; }` is refused.
