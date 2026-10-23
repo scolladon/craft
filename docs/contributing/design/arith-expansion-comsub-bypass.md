@@ -96,10 +96,13 @@ What the rows prove:
 | 38 | `echo $(((git push -f origin)) )` | not run, `((` error | same | allow |
 | 39 | `echo $(( (git push -f origin) ))` | not run, arithmetic error | same | allow |
 
-bash reads the text after `$((` as a matched pair. When the `)` that closes the second `(` is
-followed by `)`, it is arithmetic (rows 36, 39). Otherwise it re-reads the text as a command
-substitution whose body starts with a subshell (rows 31–35, 37, 38). This is a second bypass at the
-same locus: `arithmeticEnd` does not check that the closer is `))`.
+bash reads the text after `$((` as a matched pair. It is arithmetic when the `)` that closes the
+second `(` is followed by `)` (rows 36, 39) **and** the body pairs every `(` and `)` outside `\x`,
+`'…'` and `"…"`, counting the parens inside backtick bodies. Otherwise bash re-reads the text as a
+command substitution whose body starts with a subshell (rows 31–35, 37, 38). This is a second bypass
+at the same locus: `arithmeticEnd` does not check that the closer is `))`. The pairing clause and
+the line-continuation spellings (`$\⏎((`, `$(\⏎(`, `)\⏎)`) were found at review and are decided in
+ADR-692; the case-pattern `)` that closes a `$( )` body early is decided in ADR-691.
 
 **D. Arithmetic contexts that already block, and their single-quote mirrors**
 
