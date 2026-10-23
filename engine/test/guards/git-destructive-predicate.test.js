@@ -411,6 +411,8 @@ describe('gitDestructivePredicate() — arithmetic openers bash splits or re-rea
     'echo $[ ${ echo }; git push; } ]',
     'echo $(( ${ echo }; git push; } ))',
     'echo "${ { echo; }; git push; }"',
+    'echo "${ x=1 }; git reset --hard; }"',
+    'echo "${ case } in }) git push;; esac; }"',
   ]);
 
   assertPasses(['echo $(( `echo 1` + 1 ))', 'case x in x) git status;; esac']);

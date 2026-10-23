@@ -206,6 +206,7 @@ const createContext = (source, depth) => ({
   heredocInBody: false,
   closesOnParen: false,
   commandBrace: false,
+  commandStarted: false,
   rereads: new Set(),
   failure: null,
 });
@@ -226,6 +227,7 @@ const isHeadWord = (context, { text }) =>
 const pushWord = (context, word) => {
   if (context.closesOnParen && word.text === CASE_KEYWORD) return fail(context, CASE_IN_SUBSTITUTION);
   if (context.commandBrace && word.text === OPEN_BRACE) return fail(context, BRACE_IN_FUNCTION_SUBSTITUTION);
+  context.commandStarted = true;
   if (!isHeadWord(context, word)) {
     context.words.push(word);
     return;
@@ -284,6 +286,7 @@ const breakCommand = context => {
   }
   context.words = [];
   context.assignments = [];
+  context.commandStarted = false;
   context.redirecting = false;
   context.timing = false;
 };
@@ -438,7 +441,8 @@ const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle:
 const BRACE_IN_FUNCTION_SUBSTITUTION =
   'craft: command not parseable (a } or { group inside ${ …; } — bash 5.3 closes it only at a command start) — denied fail-closed';
 
-const isCommandStart = ({ piece, words }) => piece === null && words.length === 0;
+// Head words (assignments, case, !, time) never reach words, so any word at all marks the command as started.
+const isCommandStart = ({ piece, commandStarted }) => piece === null && !commandStarted;
 
 // equivalent mutant (ConditionalExpression false): only parseNested passes a null close, and it ignores the returned flag
 const runBody = (child, close) => {
