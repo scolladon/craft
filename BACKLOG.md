@@ -189,6 +189,37 @@ substitutions, as `(( … ))` already does, or fail closed when that body holds 
 bash53-heredoc-comsub-false-block; it reproduces on main at 4dd2c7d. Not folded: it is out of scope
 (a different construct from this change, present before it).
 
+**Refuse a single-quoted substitution in the other arithmetic contexts.** Inside `(( … ))`,
+`for (( … ))`, an assignment subscript, a `${x:offset}` and a `${a[…]}` subscript, bash does not
+read `'…'` as quoting and still runs a substitution in it, while the tokeniser reads the span as a
+quoted literal. Measured (stub git, benign marker): `(( '$(git push -f origin)' ))` and
+``(( '`git push -f origin`' ))``, `for (( i='$(git push -f origin)'; i<1; i++ )); do :; done`,
+`a['$(git push -f origin)']=1` and `echo ${a['$(git push -f origin)']}` run git under bash 5.3.20
+only; `x=abc; echo ${x:'$(git push -f origin)'}` runs it under /bin/bash 3.2.57 and 5.3.20.
+`gitDestructivePredicate` returns `{block:false}` on each; the unquoted spellings already block.
+`$(( … ))` and `$[ … ]` fail closed on a `'` in their body since arith-expansion-comsub-bypass
+(ADR-688, ADR-690); these contexts go through other tokeniser paths. Fix candidates: apply the same
+single-quote refusal inside the `(( … ))` command floor, an assignment subscript and a `PARAMETER`
+body after `:` or `[`, or scan those bodies with the arithmetic-expansion scanner. Locus:
+`onOpenParen` / `arithmeticFloor`, the assignment path and `PARAMETER` in
+`engine/src/guards/shell-tokeniser.js`. Probe rows: table D rows 45, 47, 49, 51, 52 of
+docs/contributing/design/arith-expansion-comsub-bypass.md. Filed by ADR-690 (out of that run's
+scope).
+
+**See a substitution in a string bash evaluates as arithmetic.** bash evaluates an array subscript
+inside a string value as arithmetic and runs a substitution in it. `let 'a[$(git push -f origin)]'`,
+`[[ 'a[$(git push -f origin)]' -eq 0 ]]` and `x='a[$(git push -f origin)]'; echo $(( x ))` run
+`git push -f origin` under /bin/bash 3.2.57 and bash 5.3.20 (stub git, benign marker), and
+`gitDestructivePredicate` returns `{block:false}` on each. `let '1+$(git push -f origin)'` runs
+nothing on either shell (no subscript). The command text holds the substitution only as a quoted
+literal or a variable value, so there is no expansion for the tokeniser to scan. Fix candidates:
+fail closed on a `$(`, backtick or `${ ` inside a subscript of a quoted `let` argument or `[[`
+arithmetic operand; the variable form needs a data-flow rule (a variable assigned such a string and
+read in an arithmetic context), so scope it with its own probe set first. Locus:
+`engine/src/guards/shell-tokeniser.js` (no model of `let` or `[[ … -eq … ]]` operands). Probe rows:
+table E rows 55–57 of docs/contributing/design/arith-expansion-comsub-bypass.md. Found by the
+design of arith-expansion-comsub-bypass; out of that run's scope.
+
 Both earlier entries delivered 2026-10-20 (guard-fuzz-scale-ext-diff-widen): the scaled fuzz
 census is a gate (generator fixed at the composer, ADR-661), and the shared ext-diff rule denies
 `--ext-diff` on every git verb and any `git config` naming an alias or include key (ADR-660).
