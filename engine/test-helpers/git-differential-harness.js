@@ -37,15 +37,17 @@ const TAGS = Object.freeze({
   braceInProcessSubstitution: 'brace-in-process-substitution',
   quoteInHeredocBody: 'quote-in-heredoc-body',
   argvAppender: 'argv-appender',
+  heredocListInSubstitution: 'heredoc-list-in-substitution',
 });
 const FALSE_BLOCK_TAGS = Object.freeze([
   TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
   TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb, TAGS.zshEquals,
   TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody, TAGS.argvAppender,
+  TAGS.heredocListInSubstitution,
 ]);
 // Both tags make bash 3.2 reject or mis-split the whole command, so the generator cannot vouch for its syntax.
 const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody]);
-const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc]);
+const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc, TAGS.heredocListInSubstitution]);
 
 // The stub is the only git a judged command can reach: it records argv and does nothing else.
 const STUB_GIT = ['#!/bin/sh', `printf '%s\\0' "$#" "$@" >> "$FUZZ_LOG"`, ''].join('\n');
@@ -207,6 +209,7 @@ const SPECIALS = Object.freeze([
   fragment(`echo 'git push ${RESIDUAL_MARKER}' | sh`, { tags: [TAGS.residual] }),
   fragment(`printf 'git reset --hard ${RESIDUAL_MARKER}\\n' | bash`, { tags: [TAGS.residual] }),
   fragment('cat <( {git,push} origin )', { tags: [TAGS.braceInProcessSubstitution] }),
+  fragment("echo $( cat <<'EOFH'\nx\nEOFH\nX=--ext-diff; git show $X )", { tags: [TAGS.heredocListInSubstitution] }),
 ]);
 
 // bash 3.2 rejects this whole command, so composed into another it would hide that one's git words from the oracle.
@@ -260,10 +263,15 @@ const canDoubleQuote = inner => inner.simple && !/["$`\\!]/.test(inner.text);
 const processSubstitutionTags = inner =>
   BRACE_EXPANSION.test(inner.text) ? [...inner.tags, TAGS.braceInProcessSubstitution] : inner.tags;
 
+// bash 5.3 reprints a $( ) or <( ) body and drops the first ; after a heredoc in it, merging two commands.
+const HEREDOC_THEN_SEMICOLON = /\n\t?EOF\d+\n[\s\S]*;/;
+const reprintedBodyTags = (inner, tags = inner.tags) =>
+  HEREDOC_THEN_SEMICOLON.test(inner.text) ? [...new Set([...tags, TAGS.heredocListInSubstitution])] : tags;
+
 function nestedForms(inner) {
   const forms = [
-    () => fragment(`echo $( ${closed(inner, ')')}`, { ...inner, status: 0 }),
-    () => fragment(`cat <( ${closed(inner, ')')}`, { ...inner, status: 0, tags: processSubstitutionTags(inner) }),
+    () => fragment(`echo $( ${closed(inner, ')')}`, { ...inner, status: 0, tags: reprintedBodyTags(inner) }),
+    () => fragment(`cat <( ${closed(inner, ')')}`, { ...inner, status: 0, tags: reprintedBodyTags(inner, processSubstitutionTags(inner)) }),
     () => fragment(`bash -c ${singleQuote(inner.text)}`, inner),
     () => fragment(`eval ${singleQuote(inner.text)}`, inner),
   ];
@@ -288,9 +296,9 @@ function heredoc(generator, rng, depth) {
   const forms = [
     () => fragment(`cat <<'${delimiter}'\n${inner.text}\n${delimiter}`, { tags: quotedBodyTags(inner), lineEnd: true }),
     () => fragment(`cat <<"${delimiter}"\n${inner.text}\n${delimiter}`, { tags: quotedBodyTags(inner), lineEnd: true }),
-    () => fragment(`cat <<${delimiter}\n$( ${closed(inner, ')')}\n${delimiter}`, { tags: inner.tags, lineEnd: true }),
-    () => fragment(`cat <<-${delimiter}\n\t$( ${closed(inner, ')')}\n\t${delimiter}`, { tags: inner.tags, lineEnd: true }),
-    () => fragment(`cat <<< "$( ${closed(inner, ')')}"`, { tags: inner.tags }),
+    () => fragment(`cat <<${delimiter}\n$( ${closed(inner, ')')}\n${delimiter}`, { tags: reprintedBodyTags(inner), lineEnd: true }),
+    () => fragment(`cat <<-${delimiter}\n\t$( ${closed(inner, ')')}\n\t${delimiter}`, { tags: reprintedBodyTags(inner), lineEnd: true }),
+    () => fragment(`cat <<< "$( ${closed(inner, ')')}"`, { tags: reprintedBodyTags(inner) }),
   ];
   if (inner.simple) forms.push(() => fragment(`${inner.text} <<'${delimiter}'\nx\n${delimiter}`, { tags: inner.tags, lineEnd: true }));
   return pick(rng, forms)();

@@ -7,6 +7,8 @@ const VALUE_SEPARATOR = '=';
 
 const ARITHMETIC_HEREDOC =
   'craft: command not parseable (<< inside an arithmetic command) — denied fail-closed';
+const HEREDOC_LIST_IN_SUBSTITUTION =
+  'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed';
 const UNTERMINATED_QUOTE = 'craft: command not parseable (unterminated quote) — denied fail-closed';
 const NEWLINE = '\n';
 const SINGLE_QUOTE = "'";
@@ -21,6 +23,8 @@ const DOLLAR = '$';
 const OPEN_PAREN = '(';
 const OPEN_BRACE = '{';
 const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
+// bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell.
+const FUNCTION_SUBSTITUTION_OPENER = /[ \t\n|]/;
 const ARITHMETIC_OPEN_LEVEL = 2;
 const PAREN_LEVEL = new Map([
   ['(', 1],
@@ -197,6 +201,8 @@ const createContext = (source, depth) => ({
   redirecting: false,
   timing: false,
   heredocs: [],
+  reprinted: false,
+  heredocInBody: false,
   failure: null,
 });
 
@@ -414,9 +420,12 @@ const onEscapedChar = context => {
   context.index += 2;
 };
 
-const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand, parameter: false });
+const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCommand, parameter: false, reprinted: true });
 
-const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true });
+const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true, reprinted: false });
+
+// The | that opens ${| …; } reads as an empty pipe break, so one descriptor serves both forms.
+const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle: breakCommand, parameter: false, reprinted: true });
 
 // equivalent mutant (ConditionalExpression false): only parseNested passes a null close, and it ignores the returned flag
 const runBody = (child, close) => {
@@ -439,12 +448,13 @@ const markExpansion = (context, start, end) => {
 
 const isTooDeep = context => context.depth >= MAX_NESTING_DEPTH;
 
-const enterConstruct = (context, { openLength, close, settle, parameter }) => {
+const enterConstruct = (context, { openLength, close, settle, parameter, reprinted }) => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
   const child = createContext(context.source, context.depth + 1);
   child.index = start + openLength;
   child.parameter = parameter;
+  child.reprinted = reprinted;
   const closed = runBody(child, close);
   settle(child);
   if (child.failure !== null) return fail(context, child.failure);
@@ -497,10 +507,12 @@ const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
 };
 
+const braceConstruct = opener => (FUNCTION_SUBSTITUTION_OPENER.test(opener) ? FUNCTION_SUBSTITUTION : PARAMETER);
+
 const expandDollar = context => {
   const next = context.source[context.index + 1];
   if (next === OPEN_PAREN) return enterDollarParen(context);
-  if (next === OPEN_BRACE) return enterConstruct(context, PARAMETER);
+  if (next === OPEN_BRACE) return enterConstruct(context, braceConstruct(context.source[context.index + 2]));
   if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
   onLiteral(context);
 };
@@ -582,7 +594,12 @@ const onHeredoc = context => {
   skipBlanks(context);
   const delimiter = readDelimiter(context);
   if (context.failure === null) context.heredocs.push({ ...delimiter, stripTabs });
+  if (context.reprinted) context.heredocInBody = true;
 };
+
+// bash 5.3 reprints a substitution body and drops the first ; after a heredoc there, merging two commands.
+const onSemicolon = context =>
+  context.heredocInBody ? fail(context, HEREDOC_LIST_IN_SUBSTITUTION) : onBreak(context);
 
 // equivalent mutant (ArrayDeclaration seeded line): the seed holds no expansion, so scanning the body finds nothing more
 // equivalent mutant (ConditionalExpression false, UnaryOperator +1): without a final newline the index lands at or one past the end of the source, and both stop every loop
@@ -685,7 +702,7 @@ const CHAR_HANDLERS = new Map([
   [' ', onWhitespace],
   ['\t', onWhitespace],
   [NEWLINE, onNewline],
-  [';', onBreak],
+  [';', onSemicolon],
   ['|', onBreak],
   [OPEN_PAREN, onOpenParen],
   [')', onCloseParen],

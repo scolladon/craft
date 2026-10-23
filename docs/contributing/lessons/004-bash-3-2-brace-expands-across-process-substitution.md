@@ -7,12 +7,12 @@ phases: [design, implementation]
 kind: trap
 trigger: a differential test or generator composes a brace expansion inside a process substitution
 evidence:
-  - engine/test-helpers/git-differential-harness.js:199
+  - engine/test-helpers/git-differential-harness.js:211
   - engine/test/guards/shell-git-invocations.differential.test.js:285
 source: { run: guard-fuzz-scale-ext-diff-widen, phase: design, date: 2026-10-20 }
 status: active
 supersedes: []
-last-verified: 2026-10-20
+last-verified: 2026-10-23
 ---
 # 004 — bash 3.2 brace-expands across a whole process-substitution word
 
@@ -32,4 +32,4 @@ bash 3.2 applies brace expansion to the whole `<( … )` word, so `cat <( {git,p
 
 ## Evidence
 
-`engine/test-helpers/git-differential-harness.js:199` is the special that pins the construct with its tag; `engine/test/guards/shell-git-invocations.differential.test.js:285` is the shape test that every brace word inside `cat <(` carries the tag.
+`engine/test-helpers/git-differential-harness.js:211` is the special that pins the construct with its tag; `engine/test/guards/shell-git-invocations.differential.test.js:285` is the shape test that every brace word inside `cat <(` carries the tag.

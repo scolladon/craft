@@ -159,6 +159,36 @@ describe('gitDestructivePredicate() — unparseable, unclassifiable and dynamic 
     assert.match(result.reason, /unterminated/i);
   });
 
+  it('Given a heredoc then git; push inside a substitution, when checked, then blocks with the parse reason', () => {
+    const sut = gitDestructivePredicate;
+    const command = "echo $( cat <<'E'\nhi\nE\ngit; push origin )";
+
+    const result = sut(command);
+
+    assert.deepEqual(result, { block: true, reason: gitInvocations(command).reason });
+    assert.match(result.reason, /here-document/);
+  });
+
+  it('Given a heredoc then git; push inside a function substitution, when checked, then blocks with the parse reason', () => {
+    const sut = gitDestructivePredicate;
+    const command = "echo ${ cat <<'E'\nhi\nE\ngit; push origin; }";
+
+    const result = sut(command);
+
+    assert.deepEqual(result, { block: true, reason: gitInvocations(command).reason });
+    assert.match(result.reason, /here-document/);
+  });
+
+  it('Given a comment holding << inside a function substitution, when checked, then the push on the next line blocks', () => {
+    const sut = gitDestructivePredicate;
+    const command = 'echo ${ : # <<E\ngit push\nE\n}';
+
+    const result = sut(command);
+
+    assert.equal(result.block, true);
+    assert.match(result.reason, /destructive git \(push\)/);
+  });
+
   for (const command of ['git --frobnicate push', 'git -C. push', '$G push']) {
     it(`Given "${command}", when checked, then blocks with the push reason`, () => {
       const sut = gitDestructivePredicate;
@@ -205,6 +235,7 @@ describe('gitDestructivePredicate() — routine git passes', () => {
     'git add -A',
     "git commit -m 'x'",
     'git commit -m "$(cat <<\'EOF\'\nfeat: x\nEOF\n)"',
+    'git commit -m "$(cat <<\'EOF\'\nfix: a; b\nEOF\n)"',
     'git log --oneline -3',
     'git diff --no-ext-diff',
     'git worktree add ../w -b b',
