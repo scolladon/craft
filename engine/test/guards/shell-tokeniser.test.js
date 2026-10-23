@@ -699,3 +699,21 @@ describe('parseShellCommands() — arithmetic expansion nesting depth', () => {
     assert.deepEqual(result, { parsed: false, reason: NESTING_TOO_DEEP });
   });
 });
+
+describe('parseShellCommands() — dollar-bracket arithmetic bodies', () => {
+  assertParsesWords([
+    ['echo $[ 1 + 2 ]', [['echo', dyn('$[ 1 + 2 ]')]]],
+    ['echo $[ a[1] + $(git push -f origin) ]', [PUSH, ['echo', dyn('$[ a[1] + $(git push -f origin) ]')]]],
+    ['echo $[ $(git push -f origin) ]', [PUSH, ['echo', dyn('$[ $(git push -f origin) ]')]]],
+    ['echo $[ "$(git push -f origin)" ]', [PUSH, ['echo', dyn('$[ "$(git push -f origin)" ]')]]],
+    ['echo $[1<<2]\ngit push origin main', [['echo', dyn('$[1<<2]')], ['git', 'push', 'origin', 'main']]],
+  ]);
+
+  assertFails([
+    ["echo $[ '$(git push -f origin)' ]", ARITHMETIC_SINGLE_QUOTE],
+    ["echo \"$[ '$(git push -f origin)' ]\"", ARITHMETIC_SINGLE_QUOTE],
+    ['echo $[ 1 + 2', UNTERMINATED_SUBSTITUTION],
+    ['echo a$[b; git status', UNTERMINATED_SUBSTITUTION],
+    ['echo "a$[b"; git status', UNTERMINATED_QUOTE],
+  ]);
+});

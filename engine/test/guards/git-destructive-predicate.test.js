@@ -613,3 +613,9 @@ describe('gitDestructivePredicate() — git config naming an alias key', () => {
     });
   }
 });
+
+describe('gitDestructivePredicate() — dollar-bracket arithmetic', () => {
+  assertBlocks(["echo $[ '$(git push -f origin)' ]", 'echo $[1<<2]\ngit push origin main']);
+
+  assertPasses(['echo $[ 1 + 2 ]', 'echo $[1<<2]']);
+});

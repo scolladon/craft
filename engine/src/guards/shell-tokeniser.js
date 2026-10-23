@@ -22,6 +22,7 @@ const BACKTICK = '`';
 const DOLLAR = '$';
 const OPEN_PAREN = '(';
 const OPEN_BRACE = '{';
+const OPEN_BRACKET = '[';
 const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
 // bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell.
 const FUNCTION_SUBSTITUTION_OPENER = /[ \t\n|]/;
@@ -481,6 +482,7 @@ const enterBacktick = context => {
 
 // The body of $(( )) and $[ ] expands like a double-quoted string, and a ) or ] in quotes or after \ does not close it.
 const ARITHMETIC_EXPANSION = Object.freeze({ openLength: 3, open: '(', close: ')', doubledClose: true });
+const BRACKET_ARITHMETIC = Object.freeze({ openLength: 2, open: OPEN_BRACKET, close: ']', doubledClose: false });
 
 const ARITHMETIC_SINGLE_QUOTE =
   "craft: command not parseable (a ' inside $(( )) or $[ ] — bash still runs the substitutions in it) — denied fail-closed";
@@ -541,6 +543,7 @@ const expandDollar = context => {
   const next = context.source[context.index + 1];
   if (next === OPEN_PAREN) return enterDollarParen(context);
   if (next === OPEN_BRACE) return enterConstruct(context, braceConstruct(context.source[context.index + 2]));
+  if (next === OPEN_BRACKET) return enterArithmetic(context, BRACKET_ARITHMETIC);
   if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
   onLiteral(context);
 };
