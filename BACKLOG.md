@@ -177,18 +177,6 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open — A. Git guard rules (local code, runnable)
 
-**See through a command substitution inside `$(( … ))`.** The shell tokeniser skips the whole body
-of an arithmetic expansion, so a substitution nested in it never reaches the predicates.
-`echo $(($(git push -f origin)))` runs `git push -f origin` under /bin/bash 3.2.57 and bash 5.3.20
-(stub git, benign marker), and `gitDestructivePredicate` returns `{block:false}` on it; `echo
-$(($(git diff HEAD)))` passes `gitExtDiffPredicate` the same way, as do the bash 5.3 forms
-`$((${ git push -f origin; }))` and `$((${| … }))`. `(( … ))`, `$[ … ]`, `a[…]=` and `for ((…))`
-already block. Fix candidates: tokenise the `$(( … ))` body for nested `$(`, backtick and `${ `/`${|`
-substitutions, as `(( … ))` already does, or fail closed when that body holds one. Locus:
-`onArithmetic` in `engine/src/guards/shell-tokeniser.js`. Found by the review phase of
-bash53-heredoc-comsub-false-block; it reproduces on main at 4dd2c7d. Not folded: it is out of scope
-(a different construct from this change, present before it).
-
 **Refuse a single-quoted substitution in the other arithmetic contexts.** Inside `(( … ))`,
 `for (( … ))`, an assignment subscript, a `${x:offset}` and a `${a[…]}` subscript, bash does not
 read `'…'` as quoting and still runs a substitution in it, while the tokeniser reads the span as a
@@ -226,6 +214,11 @@ census is a gate (generator fixed at the composer, ADR-661), and the shared ext-
 Delivered 2026-10-21 (git-show-ext-diff-default-deny): bare `git show` leaves the default-deny on
 every binding. It is judged on `--ext-diff`, and like `diff` when its argv may shift. git 2.17.0
 through 2.56.0 run no external diff for `show` without `--ext-diff` (ADR-662, ADR-663).
+Delivered 2026-10-23 (arith-expansion-comsub-bypass): the commands inside a `$(( … ))` or `$[ … ]`
+body reach the predicates; the entry's claim that `$[ … ]` already blocked was wrong (a single-quoted
+body ran). A `'` in such a body, an unpaired body, a line continuation inside the opener or closer, a
+`case` word in a `$( )` body and every bash 5.3 function substitution fail closed (ADR-687 to
+ADR-693).
 
 ### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
 
