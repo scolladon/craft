@@ -292,6 +292,24 @@ command still runs. With the committed rules every path blocks. Treat a malforme
 as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
 *Re-probe — codex-cli 0.163.0*.
 
+### Open — D. Run visibility
+
+**Show a craft run as a live task list in Claude Code.** A run's progress lives only in the ledger
+(`<git-common-dir>/craft-runs/<run-id>.md`); the user sees it as scattered phase messages. Project the
+ledger onto the host's task-list surface: one item per phase in `Resolution.effective[]`, plan parts
+nested under `implementation`, review cycles under `review`, statuses `pending → in_progress →
+completed` (auto-skips and no-ops completed with their reason). The ledger stays the single source of
+truth and the list is a derived view: `engine/bin/run-state.js` already derives
+`completed`/`inFlight`/`next`/`parts` from it, so a rebuild after compaction re-projects instead of
+trusting the summary. Decision candidates for the design: (1) the binding — the orchestrator calls the
+host's task-list tool at each `PHASE-START`/`PHASE-DONE`/`PART` (model tool calls, every run), or a
+Claude Code mod (`plugin-authoring`: a panel or status line beside the chat) renders `run-state`
+output itself (no model calls); (2) a new port (e.g. `Progress`, `docs/contributing/specs/`) with the
+Claude binding and a no-op for hosts without a task list (pi, codex), so the engine stays
+host-agnostic. Probe first: on 2026-10-23 a ToolSearch for a todo or task tool in a craft session
+returned none, so which task-list tool the installed Claude Code exposes, and whether it is
+available to the orchestrator, is unverified.
+
 ### Open — C. Waiting on an external trigger
 
 Delivered 2026-10-22 (bash53-heredoc-comsub-false-block): the engine differential fuzz at
