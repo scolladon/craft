@@ -497,6 +497,7 @@ const BRACKET_ARITHMETIC = Object.freeze({ openLength: 2, open: OPEN_BRACKET, cl
 const ARITHMETIC_SINGLE_QUOTE =
   "craft: command not parseable (a ' inside $(( )) or $[ ] — bash still runs the substitutions in it) — denied fail-closed";
 const BODY_OPEN_LEVEL = 1;
+// equivalent mutant (UnaryOperator +1, +2 on both sentinels): an end is at least 3 (past the opener and its closer), so any two distinct values below 3 compare the same
 const UNCLOSED = -1;
 const REREAD_AS_SUBSTITUTION = -2;
 const LINE_CONTINUATION = '\\\n';
@@ -507,6 +508,7 @@ const SPLIT_EXPANSION =
 // scanner's own (comments, quotes spanning a nested $( )) the two readings disagree, so the guard refuses it.
 const UNPAIRED_ARITHMETIC =
   'craft: command not parseable (a $(( )) body with unpaired parens — bash may re-read it as a command substitution) — denied fail-closed';
+// equivalent mutant (Regex \\[\S\S] in the first branch): a backslash before whitespace stays, but neither it nor the whitespace is a paren or opens a span
 const PAIRING_EXEMPT_SPANS = /\\[\s\S]|'[^']*'|"(?:\\[\s\S]|[^"\\])*"/g;
 
 const skipEscaped = body => {
@@ -523,6 +525,7 @@ const levelChange = (char, { open, close }) => {
 
 const isPaired = text => {
   let level = 0;
+  // equivalent mutant (StringLiteral replacement): any paren-free replacement leaves the count unchanged
   for (const char of text.replace(PAIRING_EXEMPT_SPANS, '')) {
     level += levelChange(char, ARITHMETIC_EXPANSION);
     if (level < 0) return false;
@@ -543,6 +546,7 @@ const closerEnd = (body, { close, doubledClose }, from) => {
   return isPaired(body.source.slice(from, body.index)) ? after + 1 : failScan(body, UNPAIRED_ARITHMETIC);
 };
 
+// equivalent mutant (EqualityOperator index <= source.length): the extra pass reads undefined, a literal, and the scan still ends UNCLOSED
 const scanArithmeticBody = (body, descriptor) => {
   const from = body.index;
   let level = BODY_OPEN_LEVEL;
@@ -555,6 +559,8 @@ const scanArithmeticBody = (body, descriptor) => {
 };
 
 // Every enclosing re-read meets an inner re-read $(( again, so its verdict is kept to keep the work linear in depth.
+// equivalent mutant (CallExpression on either line, ConditionalExpression false on the memo check in enterArithmetic): the memo only saves
+// work; without the parse, the step loop dispatches the same $(( again, which then takes the memo path to the same verdict
 const rereadAsSubstitution = (context, start) => {
   context.rereads.add(start);
   enterConstruct(context, SUBSTITUTION);

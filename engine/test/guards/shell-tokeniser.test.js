@@ -768,6 +768,8 @@ describe('parseShellCommands() — a $(( )) whose body does not pair its parens'
     ['echo $(((1)))', [['echo', dyn('$(((1)))')]]],
     ['echo $(( `echo 1` + 1 ))', [['echo', '1'], ['echo', dyn('$(( `echo 1` + 1 ))')]]],
     ['echo $(( "(" + 1 ))', [['echo', dyn('$(( "(" + 1 ))')]]],
+    ['echo $(( "\\\n(" + 1 ))', [['echo', dyn('$(( "\\\n(" + 1 ))')]]],
+    ["echo $(( $(echo 'a)') ))", [['echo', 'a)'], ['echo', dyn("$(( $(echo 'a)') ))")]]],
   ]);
 });
 
@@ -818,5 +820,6 @@ describe('parseShellCommands() — bash 5.3 function substitutions are refused',
     ['echo ${x}', [['echo', dyn('${x}')]]],
     ['echo ${x:-a b}', [['echo', dyn('${x:-a b}')]]],
     ['echo ${#x}', [['echo', dyn('${#x}')]]],
+    ['echo ${x:-a case}', [['echo', dyn('${x:-a case}')]]],
   ]);
 });
