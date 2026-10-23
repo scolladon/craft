@@ -103,7 +103,9 @@ command substitution whose body starts with a subshell (rows 31–35, 37, 38). T
 at the same locus: `arithmeticEnd` does not check that the closer is `))`. The pairing clause and
 the line-continuation spellings (`$\⏎((`, `$(\⏎(`, `)\⏎)`) were found at review: both fail closed
 (ADR-692), since the scanner's pairing and bash's can disagree. Any `case` word in a `$( )` body
-fails closed too (ADR-691), since a pattern `)` can close the body early.
+fails closed too (ADR-691), since a pattern `)` can close the body early. The review also showed bash 5.3's
+`${ …; }` closer rule out of the scanner's reach, so every function substitution, including the
+`$((${ …; }))` rows below, is refused (ADR-693).
 
 **D. Arithmetic contexts that already block, and their single-quote mirrors**
 

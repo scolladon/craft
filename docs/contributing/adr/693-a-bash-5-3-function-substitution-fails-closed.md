@@ -3,41 +3,39 @@ subjects:
   - engine/src/guards/shell-tokeniser.js
 supersedes: []
 ---
-# 693 — A brace inside a function substitution body fails closed
+# 693 — A bash 5.3 function substitution fails closed
 
-- **Status:** accepted
+- **Status:** accepted — ratified by the user
 - **Date:** 2026-10-23
-- **Design:** docs/contributing/design/arith-expansion-comsub-bypass.md · **Supersedes/Refines:** refines ADR-594
+- **Design:** docs/contributing/design/arith-expansion-comsub-bypass.md · **Supersedes/Refines:** refines ADR-594 and ADR-684
 
 ## Context
 
-The tokeniser closes a bash 5.3 `${ …; }` or `${| …; }` body at the first `}` at paren level 0. bash
-closes it only at a `}` in command-start position, so a `}` argument (`echo }`), a word ending in `}`
-(`x}`) or the `}` of a `{ …; }` group or function body closes it early here. The words after it land
-in the enclosing quoted or arithmetic word: `echo "${ echo }; git push; }"` and
-`echo "${ { echo; }; git push; }"` run `git push` on bash 5.3.20 while both predicates allow them.
-The quoted spellings were open on main; `echo $[ ${ echo }; git push; } ]` blocked on main only
-because `$[` was read as a literal, so scanning `$[ ]` bodies turned it into a fail-open. Found by
-the third review cycle.
+The tokeniser modelled bash 5.3's `${ …; }` and `${| …; }` as a command list closed at the first `}`
+at paren level 0. bash closes it only at a `}` where a command can start, and that rule reaches into
+other grammar: a `}` argument (`echo }`), a word ending in `}`, the `}` of a `{ …; }` group, a `}`
+after an assignment or `case`/`!`/`time`, an array value `x=(a) }`, a `[[ a || } ]]` operand and a
+case pattern `a|})` all close the body early here and leave the commands after it in the enclosing
+quoted or arithmetic word. `echo "${ echo }; git push; }"` runs `git push` on bash 5.3.20 while both
+predicates allow it; the quoted spellings were open on main, and `$[ ${ … } ]` became a fail-open
+once `$[ ]` bodies were scanned. Three review rounds each patched the closer rule and each found a
+new spelling.
 
 ## Options considered
 
-1. **Fail closed on a `}` closer outside command-start position and on any `{` word in the body**
-   *(recommended)* — pros: one descriptor field; ADR-594 precedent; the documented `${ cmd; }` form
-   still parses
-2. **Model brace groups and argument braces in the body** — cons: a brace-depth grammar beside the
-   paren one, the class of rule the case-pattern review showed leaking
+1. **Refuse every function substitution** *(recommended)* — pros: sound; removes the closer
+   tracking; bash 3.2, the macOS `/bin/bash`, does not accept the form at all
+2. **Keep modelling, failing closed on `[[`, `case` and `=(` in the body** — cons: an enumeration,
+   the shape of rule that leaked in every round
+3. **Model `[[ ]]`, case patterns and array values in the body** — cons: the largest grammar copy and
+   the highest drift risk
 
 ## Decision
 
-Adopted-as-recommended (no user judgment; the user approved the fix diff): option 1, aligned with
-ADR-594. `FUNCTION_SUBSTITUTION` carries `commandBrace: true`; the substitution and parameter
-descriptors carry `false`. Command start means no word of any kind since the last break: head words
-(an assignment, `case`, `coproc`, `!`, `time`) never reach the command's words, and a `}` after them
-is an argument to bash, so a verify review showed a words-only check leaking (`${ x=1 }; git push; }`).
+Ratified by the user: option 1. A `${` followed by a space, tab, newline or `|` makes the command
+unparseable. Parameter expansion (`${x}`, `${x:-…}`, `${#x}`) is unchanged.
 
 ## Consequences
 
-`${ cmd }` without a terminating `;` or newline is refused; bash 5.3 itself rejects it (unexpected EOF
-looking for the matching `}`). A `}` right after a reserved word bash still closes on (`fi }`,
-`done }`, `then }`) is refused too: an over-block, kept because it needs no list of reserved words. A `{ …; }` group or a function definition inside `${ …; }` is refused.
+Every bash 5.3 function substitution is denied on every shell. ADR-684's heredoc rule now applies to
+`$( )` and `<( )` bodies only: a `${ …; }` body is refused before its heredoc is read.
