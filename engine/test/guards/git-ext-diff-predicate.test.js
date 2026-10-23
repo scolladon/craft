@@ -293,7 +293,8 @@ describe('gitExtDiffPredicate() — fail-closed verdicts', () => {
     ['echo "x', 'craft: command not parseable (unterminated quote) — denied fail-closed'],
     ['echo $(x', 'craft: command not parseable (unterminated substitution) — denied fail-closed'],
     ['git -c alias.d=diff d', 'craft: an inline git alias (-c alias.*) is denied — it can run any git verb'],
-    ["echo $( cat <<'E'\nhi\nE\ngit show; --ext-diff )", 'craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed'],
+    ["echo $( cat <<'E'\nhi\nE\ngit show; --ext-diff )", 'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed'],
+    ["echo ${| cat <<'E'\nhi\nE\ngit show; --ext-diff; }", 'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed'],
   ]) {
     it(`Given ${JSON.stringify(command)}, when checked, then it blocks with the exact reason`, () => {
       const sut = gitExtDiffPredicate;

@@ -8,7 +8,7 @@ const VALUE_SEPARATOR = '=';
 const ARITHMETIC_HEREDOC =
   'craft: command not parseable (<< inside an arithmetic command) — denied fail-closed';
 const HEREDOC_LIST_IN_SUBSTITUTION =
-  'craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed';
+  'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed';
 const UNTERMINATED_QUOTE = 'craft: command not parseable (unterminated quote) — denied fail-closed';
 const NEWLINE = '\n';
 const SINGLE_QUOTE = "'";
@@ -23,6 +23,9 @@ const DOLLAR = '$';
 const OPEN_PAREN = '(';
 const OPEN_BRACE = '{';
 const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
+// bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell.
+const FUNCTION_SUBSTITUTION_OPENER = /[ \t\n|]/;
+const VALUE_SUBSTITUTION_MARK = '|';
 const ARITHMETIC_OPEN_LEVEL = 2;
 const PAREN_LEVEL = new Map([
   ['(', 1],
@@ -422,6 +425,10 @@ const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCom
 
 const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true, reprinted: false });
 
+const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle: breakCommand, parameter: false, reprinted: true });
+
+const VALUE_SUBSTITUTION = Object.freeze({ ...FUNCTION_SUBSTITUTION, openLength: 3 });
+
 // equivalent mutant (ConditionalExpression false): only parseNested passes a null close, and it ignores the returned flag
 const runBody = (child, close) => {
   while (child.index < child.source.length && child.failure === null) {
@@ -502,10 +509,15 @@ const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
 };
 
+const braceConstruct = opener => {
+  if (opener === VALUE_SUBSTITUTION_MARK) return VALUE_SUBSTITUTION;
+  return FUNCTION_SUBSTITUTION_OPENER.test(opener ?? '') ? FUNCTION_SUBSTITUTION : PARAMETER;
+};
+
 const expandDollar = context => {
   const next = context.source[context.index + 1];
   if (next === OPEN_PAREN) return enterDollarParen(context);
-  if (next === OPEN_BRACE) return enterConstruct(context, PARAMETER);
+  if (next === OPEN_BRACE) return enterConstruct(context, braceConstruct(context.source[context.index + 2]));
   if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
   onLiteral(context);
 };

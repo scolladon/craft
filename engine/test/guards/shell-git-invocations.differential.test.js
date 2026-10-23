@@ -395,6 +395,16 @@ describe('shell-git-invocations — generator composition at scale', () => {
     assert.deepEqual(result, []);
   });
 
+  it('Given the pinned seeds at scale, when generated, then every command tagged heredoc-list-in-substitution is refused by the parser', () => {
+    const sut = gitInvocations;
+
+    const entries = pinnedCommands().filter(entry => entry.tags.includes('heredoc-list-in-substitution'));
+    const result = entries.filter(entry => sut(entry.text).parsed !== false).map(entry => entry.text);
+
+    assert.ok(entries.length > 0, 'the pinned seeds never tagged the construct');
+    assert.deepEqual(result, []);
+  });
+
   it('Given each pinned seed at scale, when generated, then the command bash 3.2 rejects whole appears once and is never composed into another', () => {
     const sut = generateCommands;
 

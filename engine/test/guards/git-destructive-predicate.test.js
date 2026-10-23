@@ -169,6 +169,16 @@ describe('gitDestructivePredicate() — unparseable, unclassifiable and dynamic 
     assert.match(result.reason, /here-document/);
   });
 
+  it('Given a heredoc then git; push inside a function substitution, when checked, then blocks with the parse reason', () => {
+    const sut = gitDestructivePredicate;
+    const command = "echo ${ cat <<'E'\nhi\nE\ngit; push origin; }";
+
+    const result = sut(command);
+
+    assert.deepEqual(result, { block: true, reason: gitInvocations(command).reason });
+    assert.match(result.reason, /here-document/);
+  });
+
   for (const command of ['git --frobnicate push', 'git -C. push', '$G push']) {
     it(`Given "${command}", when checked, then blocks with the push reason`, () => {
       const sut = gitDestructivePredicate;

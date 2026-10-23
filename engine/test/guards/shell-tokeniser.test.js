@@ -574,7 +574,7 @@ describe('parseShellCommands() — heredoc delimiters and bodies', () => {
 });
 
 const HEREDOC_LIST_IN_SUBSTITUTION =
-  'craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed';
+  'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed';
 
 describe('parseShellCommands() — a semicolon after a heredoc inside a substitution body', () => {
   assertFails([
@@ -586,6 +586,11 @@ describe('parseShellCommands() — a semicolon after a heredoc inside a substitu
     ['cat <<F\n$( cat <<E\nx\nE\na; b )\nF', HEREDOC_LIST_IN_SUBSTITUTION],
     ['echo $( cat <<E; a\nx\nE\n)', HEREDOC_LIST_IN_SUBSTITUTION],
     ['echo $(cat <<E\nx\nE\na\nb; c)', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo ${ cat <<E\nx\nE\na; b; }', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo ${\tcat <<E\nx\nE\na; b; }', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo ${\ncat <<E\nx\nE\na; b; }', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo ${| cat <<E\nx\nE\na; b; }', HEREDOC_LIST_IN_SUBSTITUTION],
+    ['echo "${ cat <<E\nx\nE\na; b; }"', HEREDOC_LIST_IN_SUBSTITUTION],
   ]);
 
   assertParses([
@@ -598,6 +603,7 @@ describe('parseShellCommands() — a semicolon after a heredoc inside a substitu
     ['echo $(cat <<E\nx\nE\na && b)', [['cat'], ['a'], ['b'], ['echo', dyn('$(cat <<E\nx\nE\na && b)')]]],
     ['echo $(cat <<E\nx\nE\na | b)', [['cat'], ['a'], ['b'], ['echo', dyn('$(cat <<E\nx\nE\na | b)')]]],
     ['echo $(cat <<E\nx\nE\na & b)', [['cat'], ['a'], ['b'], ['echo', dyn('$(cat <<E\nx\nE\na & b)')]]],
+    ['echo $(cat <<E\nx\nE\na\nb)', [['cat'], ['a'], ['b'], ['echo', dyn('$(cat <<E\nx\nE\na\nb)')]]],
     ['echo $(a; cat <<E\nx\nE\n)', [['a'], ['cat'], ['echo', dyn('$(a; cat <<E\nx\nE\n)')]]],
     ['echo $(cat <<< x; a)', [['cat'], ['a'], ['echo', dyn('$(cat <<< x; a)')]]],
     ['echo $(echo $(cat <<E\nx\nE\n); a)', [['cat'], ['echo', dyn('$(cat <<E\nx\nE\n)')], ['a'], ['echo', dyn('$(echo $(cat <<E\nx\nE\n); a)')]]],
