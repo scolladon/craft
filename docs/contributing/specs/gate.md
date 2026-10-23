@@ -71,7 +71,7 @@ hook set:
   reason is the engine's with one `craft: ` prefix:
   `craft: git diff/show must carry --no-ext-diff (external diff mangles parsed output)`,
   `craft: command not parseable (env -S re-splits its string with the words after it) — denied fail-closed`,
-  `craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed`,
+  `craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed`,
   `craft: --ext-diff is denied on every git verb (external diff mangles parsed output)`,
   `craft: git config naming an alias or include key is denied — an alias can run any git verb`, or the
   config-channel, inline-alias or parse-failure reason (an over-long command included). A

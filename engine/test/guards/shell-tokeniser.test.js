@@ -574,7 +574,7 @@ describe('parseShellCommands() — heredoc delimiters and bodies', () => {
 });
 
 const HEREDOC_LIST_IN_SUBSTITUTION =
-  'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed';
+  'craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed';
 const FUNCTION_SUBSTITUTION_REFUSED =
   'craft: command not parseable (a bash 5.3 ${ …; } or ${| …; } function substitution) — denied fail-closed';
 
