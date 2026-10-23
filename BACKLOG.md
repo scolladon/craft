@@ -255,8 +255,9 @@ Delivered 2026-10-22 (bash53-heredoc-comsub-false-block): the engine differentia
 `GUARD_FUZZ_COUNT=1500` is green on both shell arms, /bin/bash 3.2.57 and bash 5.3.20, over the
 four seed batches 101,202,303,404,505 / 11,22,33,44,55 / 66,77,88,99,111 /
 271828,314159,161803,141421,173205 (50 tests per batch, none skipped). bash 5.3 reprints a
-`$( )`/`<( )` body and drops the first `;` after a heredoc in it, merging the two commands
-around it. The guard now refuses that `;` fail-closed, and the generator tags the
+`$( )`/`<( )` body, and its new function substitution `${ …; }`/`${| …; }`, and drops the first
+`;` after a heredoc in it, merging the two commands around it. The guard now refuses that `;`
+fail-closed in all three, and the generator tags the
 construct `heredoc-list-in-substitution` (ADR-684, ADR-685, ADR-686). bash 5.0-5.2 were not
 measured.
 
