@@ -383,6 +383,28 @@ describe('gitDestructivePredicate() — substitutions inside arithmetic expansio
   assertPasses(['echo $(( $(printf 3) + 1 ))', 'echo $(( 16#ff ))', 'echo $(( 1 <<E ))']);
 });
 
+describe('gitDestructivePredicate() — dollar-bracket arithmetic', () => {
+  assertBlocks(["echo $[ '$(git push -f origin)' ]", 'echo $[1<<2]\ngit push origin main']);
+
+  assertPasses(['echo $[ 1 + 2 ]', 'echo $[1<<2]']);
+});
+
+describe('gitDestructivePredicate() — arithmetic openers bash splits or re-reads', () => {
+  assertBlocks([
+    'echo $(( 1 #$(git push)\n)\\\n)',
+    'echo $(\\\n( 1 #$(git push)\n))',
+    'echo $\\\n(( 1 #$(git push)\n))',
+    'echo "$\\\n(git push)"',
+    'echo $(( `printf g%st i #)` push ))',
+    'echo $(( `case x in x) printf g%st i;; esac` push ))',
+    'echo $[ $(case x in x) git push;; esac) ]',
+    'echo "$(case x in x) git push;; esac)"',
+    'echo $( (case x in x) :;; esac) ; git push )',
+  ]);
+
+  assertPasses(['echo $(( `echo 1` + 1 ))', 'echo $(case x in (x) echo 1;; esac)', 'case x in x) git status;; esac']);
+});
+
 describe('gitDestructivePredicate() — shell and env option grammar', () => {
   assertBlocks([
     "bash -o pipefail -c 'git push'",
@@ -612,10 +634,4 @@ describe('gitDestructivePredicate() — git config naming an alias key', () => {
       assert.deepEqual(result, { block: true, reason: ALIAS_REASON });
     });
   }
-});
-
-describe('gitDestructivePredicate() — dollar-bracket arithmetic', () => {
-  assertBlocks(["echo $[ '$(git push -f origin)' ]", 'echo $[1<<2]\ngit push origin main']);
-
-  assertPasses(['echo $[ 1 + 2 ]', 'echo $[1<<2]']);
 });

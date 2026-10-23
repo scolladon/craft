@@ -638,7 +638,10 @@ describe('parseShellCommands() — substitutions inside an arithmetic expansion 
     ['echo $(( "$(git push -f origin)" ))', [PUSH, ['echo', dyn('$(( "$(git push -f origin)" ))')]]],
     ['echo $(( \\) $(git push -f origin) ))', [PUSH, ['echo', dyn('$(( \\) $(git push -f origin) ))')]]],
     ["echo $(( $(echo ')' ; git push -f origin) + 1 ))", [['echo', ')'], PUSH, ['echo', dyn("$(( $(echo ')' ; git push -f origin) + 1 ))")]]],
-    ['echo $(( $(git push -f origin # )\n) ))', [PUSH, ['echo', dyn('$(( $(git push -f origin # )\n) ))')]]],
+    [
+      'echo $(( $(git push -f origin # )\n) ))',
+      [PUSH, [dyn('$(git push -f origin # )\n)')], ['echo', dyn('$(( $(git push -f origin # )\n) ))')]],
+    ],
     ['echo $(( $(printf 3) + 1 ))', [['printf', '3'], ['echo', dyn('$(( $(printf 3) + 1 ))')]]],
     ['echo $(( "\'" $(git push -f origin) ))', [PUSH, ['echo', dyn('$(( "\'" $(git push -f origin) ))')]]],
   ]);
@@ -715,5 +718,75 @@ describe('parseShellCommands() — dollar-bracket arithmetic bodies', () => {
     ['echo $[ 1 + 2', UNTERMINATED_SUBSTITUTION],
     ['echo a$[b; git status', UNTERMINATED_SUBSTITUTION],
     ['echo "a$[b"; git status', UNTERMINATED_QUOTE],
+  ]);
+});
+
+describe('parseShellCommands() — nested and unspaced dollar-bracket bodies', () => {
+  assertParsesWords([
+    ['echo $[ $[1] + 2 ]', [['echo', dyn('$[ $[1] + 2 ]')]]],
+    ['echo $[$(git push -f origin)]', [PUSH, ['echo', dyn('$[$(git push -f origin)]')]]],
+  ]);
+
+  assertFails([
+    ["echo $[ $[1] + '$(git push -f origin)' ]", ARITHMETIC_SINGLE_QUOTE],
+    ['echo $[ 1 ); git status', UNTERMINATED_SUBSTITUTION],
+  ]);
+});
+
+const SPLIT_EXPANSION =
+  'craft: command not parseable (a line continuation inside $, $(( or its closing )) ) — denied fail-closed';
+const CONTINUATION = '\\\n';
+
+describe('parseShellCommands() — line continuations inside an arithmetic opener or closer', () => {
+  assertFails([
+    [`echo $(( 1 #$(git push)\n)${CONTINUATION})`, SPLIT_EXPANSION],
+    [`echo $(( 1 + 2 )${CONTINUATION}${CONTINUATION})`, SPLIT_EXPANSION],
+    [`echo $(${CONTINUATION}( 1 #$(git push)\n))`, SPLIT_EXPANSION],
+    [`echo $${CONTINUATION}(( 1 ))`, SPLIT_EXPANSION],
+    [`echo $${CONTINUATION}[ 1 ]`, SPLIT_EXPANSION],
+    [`echo "$${CONTINUATION}(git push)"`, SPLIT_EXPANSION],
+  ]);
+
+  assertParsesWords([
+    [`echo $(${CONTINUATION}git status)`, [['git', 'status'], ['echo', dyn(`$(${CONTINUATION}git status)`)]]],
+    [`echo $(( 1 + 2 ${CONTINUATION}))`, [['echo', dyn(`$(( 1 + 2 ${CONTINUATION}))`)]]],
+  ]);
+});
+
+describe('parseShellCommands() — a $(( whose body bash does not pair is a command substitution', () => {
+  assertParsesWords([
+    ['echo $(( `echo 1` + 1 ))', [['echo', '1'], ['echo', dyn('$(( `echo 1` + 1 ))')]]],
+    ['echo $(( "(" + 1 ))', [['echo', dyn('$(( "(" + 1 ))')]]],
+  ]);
+
+  it('Given a backtick body holding a bare ) inside $(( )), When parsed, Then its trailing word is read as a command', () => {
+    const sut = parseShellCommands;
+
+    const result = sut('echo $(( `printf g%st i #)` push ))');
+
+    assert.deepEqual(
+      result.commands.map(({ words }) => words.map(({ text }) => text)),
+      [['printf', 'g%st', 'i'], ['`printf g%st i #)`', 'push'], ['echo', '$(( `printf g%st i #)` push ))']],
+    );
+  });
+});
+
+const CASE_IN_SUBSTITUTION =
+  'craft: command not parseable (case inside $( ), <( ) or >( ) — a pattern ) can close it) — denied fail-closed';
+
+describe('parseShellCommands() — case inside a parenthesised substitution', () => {
+  assertFails([
+    ['echo $(case x in x) git push;; esac)', CASE_IN_SUBSTITUTION],
+    ['echo "$(case x in x) git push;; esac)"', CASE_IN_SUBSTITUTION],
+    ['echo $[ $(case x in x) git push;; esac) ]', CASE_IN_SUBSTITUTION],
+    ['cat <(case x in x) git push;; esac)', CASE_IN_SUBSTITUTION],
+    ['echo $(echo; case x in x) :;; esac)', CASE_IN_SUBSTITUTION],
+    ['echo $( (case x in x) :;; esac) )', CASE_IN_SUBSTITUTION],
+  ]);
+
+  assertParsesWords([
+    ['case x in x) git push;; esac', [['x', 'in', 'x'], ['git', 'push']]],
+    ['echo $(case x in (x) git push;; esac)', [['x', 'in'], ['x'], ['git', 'push'], ['echo', dyn('$(case x in (x) git push;; esac)')]]],
+    ['echo $(echo case)', [['echo', 'case'], ['echo', dyn('$(echo case)')]]],
   ]);
 });

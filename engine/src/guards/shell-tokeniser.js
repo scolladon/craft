@@ -33,6 +33,11 @@ const FILE_DESCRIPTOR = /^\d+$/;
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const TIME_KEYWORD = 'time';
 const TIME_FORMAT_FLAG = '-p';
+const CASE_KEYWORD = 'case';
+const ESAC_KEYWORD = 'esac';
+// A pattern ) with no ( of its own would close a $( ) body early here, so the commands after it would escape the body.
+const CASE_IN_SUBSTITUTION =
+  'craft: command not parseable (case inside $( ), <( ) or >( ) — a pattern ) can close it) — denied fail-closed';
 const HEAD_WORDS = new Set([
   '{',
   '}',
@@ -47,8 +52,8 @@ const HEAD_WORDS = new Set([
   'done',
   'while',
   'until',
-  'case',
-  'esac',
+  CASE_KEYWORD,
+  ESAC_KEYWORD,
   'coproc',
 ]);
 
@@ -199,6 +204,9 @@ const createContext = (source, depth) => ({
   heredocs: [],
   reprinted: false,
   heredocInBody: false,
+  closesOnParen: false,
+  caseLevels: [],
+  rereads: new Set(),
   failure: null,
 });
 
@@ -215,11 +223,19 @@ const isHeadWord = (context, { text }) =>
     ASSIGNMENT.test(text) ||
     (context.timing && text === TIME_FORMAT_FLAG));
 
+const trackCase = (context, text) => {
+  if (text === CASE_KEYWORD) context.caseLevels.push(context.parens);
+  if (text === ESAC_KEYWORD) context.caseLevels.pop();
+};
+
+const isPatternCloser = context => context.closesOnParen && context.caseLevels.at(-1) === context.parens;
+
 const pushWord = (context, word) => {
   if (!isHeadWord(context, word)) {
     context.words.push(word);
     return;
   }
+  trackCase(context, word.text);
   if (ASSIGNMENT.test(word.text)) context.assignments.push(word.text);
   context.timing = word.text === TIME_KEYWORD;
 };
@@ -451,8 +467,11 @@ const enterConstruct = (context, { openLength, close, settle, parameter, reprint
   child.index = start + openLength;
   child.parameter = parameter;
   child.reprinted = reprinted;
+  child.closesOnParen = close === ')';
+  child.rereads = context.rereads;
   const closed = runBody(child, close);
   settle(child);
+  if (isPatternCloser(child)) fail(child, CASE_IN_SUBSTITUTION);
   if (child.failure !== null) return fail(context, child.failure);
   if (!closed) return fail(context, UNTERMINATED_SUBSTITUTION);
   absorb(context, child);
@@ -481,7 +500,7 @@ const enterBacktick = context => {
 };
 
 // The body of $(( )) and $[ ] expands like a double-quoted string, and a ) or ] in quotes or after \ does not close it.
-const ARITHMETIC_EXPANSION = Object.freeze({ openLength: 3, open: '(', close: ')', doubledClose: true });
+const ARITHMETIC_EXPANSION = Object.freeze({ openLength: 3, open: OPEN_PAREN, close: ')', doubledClose: true });
 const BRACKET_ARITHMETIC = Object.freeze({ openLength: 2, open: OPEN_BRACKET, close: ']', doubledClose: false });
 
 const ARITHMETIC_SINGLE_QUOTE =
@@ -489,6 +508,12 @@ const ARITHMETIC_SINGLE_QUOTE =
 const BODY_OPEN_LEVEL = 1;
 const UNCLOSED = -1;
 const REREAD_AS_SUBSTITUTION = -2;
+const LINE_CONTINUATION = '\\\n';
+// bash drops a line continuation before it tells $(( from $( (, a split this tokeniser does not model.
+const SPLIT_EXPANSION =
+  'craft: command not parseable (a line continuation inside $, $(( or its closing )) ) — denied fail-closed';
+// bash keeps $(( as arithmetic only when its body pairs every ( and ) outside \x, '…' and "…", backtick bodies included.
+const PAIRING_EXEMPT_SPANS = /\\[\s\S]|'[^']*'|"(?:\\[\s\S]|[^"\\])*"/g;
 
 const skipEscaped = body => {
   body.index += 2;
@@ -502,36 +527,71 @@ const levelChange = (char, { open, close }) => {
   return 0;
 };
 
-const closerEnd = (body, { close, doubledClose }) => {
-  if (!doubledClose) return body.index + 1;
-  return body.source[body.index + 1] === close ? body.index + 2 : REREAD_AS_SUBSTITUTION;
+const isPaired = text => {
+  let level = 0;
+  for (const char of text.replace(PAIRING_EXEMPT_SPANS, '')) {
+    level += levelChange(char, ARITHMETIC_EXPANSION);
+    if (level < 0) return false;
+  }
+  return level === 0;
+};
+
+const closerEnd = (body, { close, doubledClose }, from) => {
+  const after = body.index + 1;
+  if (!doubledClose) return after;
+  if (body.source.startsWith(LINE_CONTINUATION, after)) {
+    fail(body, SPLIT_EXPANSION);
+    return UNCLOSED;
+  }
+  const doubled = body.source[after] === close && isPaired(body.source.slice(from, body.index));
+  return doubled ? after + 1 : REREAD_AS_SUBSTITUTION;
 };
 
 const scanArithmeticBody = (body, descriptor) => {
+  const from = body.index;
   let level = BODY_OPEN_LEVEL;
   while (body.index < body.source.length && body.failure === null) {
     level += levelChange(body.source[body.index], descriptor);
-    if (level === 0) return closerEnd(body, descriptor);
+    if (level === 0) return closerEnd(body, descriptor, from);
     (ARITHMETIC_HANDLERS.get(body.source[body.index]) ?? onLiteral)(body);
   }
   return UNCLOSED;
 };
 
+// Every enclosing re-read meets an inner re-read $(( again, so its verdict is kept to keep the work linear in depth.
+const rereadAsSubstitution = (context, start) => {
+  context.rereads.add(start);
+  enterConstruct(context, SUBSTITUTION);
+};
+
 const enterArithmetic = (context, descriptor) => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
+  if (context.rereads.has(start)) return enterConstruct(context, SUBSTITUTION);
   const body = createContext(context.source, context.depth + 1);
   body.index = start + descriptor.openLength;
+  body.rereads = context.rereads;
   const end = scanArithmeticBody(body, descriptor);
   if (body.failure !== null) return fail(context, body.failure);
-  if (end === REREAD_AS_SUBSTITUTION) return enterConstruct(context, SUBSTITUTION);
+  if (end === REREAD_AS_SUBSTITUTION) return rereadAsSubstitution(context, start);
   if (end === UNCLOSED) return fail(context, UNTERMINATED_SUBSTITUTION);
   absorb(context, body);
   markExpansion(context, start, end);
 };
 
-const enterDollarParen = context =>
-  context.source[context.index + 2] === OPEN_PAREN ? enterArithmetic(context, ARITHMETIC_EXPANSION) : enterConstruct(context, SUBSTITUTION);
+const afterContinuations = (source, from) => {
+  let index = from;
+  while (source.startsWith(LINE_CONTINUATION, index)) index += LINE_CONTINUATION.length;
+  return index;
+};
+
+const enterDollarParen = context => {
+  const opener = context.index + 2;
+  const next = afterContinuations(context.source, opener);
+  if (context.source[next] !== OPEN_PAREN) return enterConstruct(context, SUBSTITUTION);
+  if (next > opener) return fail(context, SPLIT_EXPANSION);
+  enterArithmetic(context, ARITHMETIC_EXPANSION);
+};
 
 const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
@@ -540,6 +600,7 @@ const onVariable = context => {
 const braceConstruct = opener => (FUNCTION_SUBSTITUTION_OPENER.test(opener) ? FUNCTION_SUBSTITUTION : PARAMETER);
 
 const expandDollar = context => {
+  if (context.source.startsWith(LINE_CONTINUATION, context.index + 1)) return fail(context, SPLIT_EXPANSION);
   const next = context.source[context.index + 1];
   if (next === OPEN_PAREN) return enterDollarParen(context);
   if (next === OPEN_BRACE) return enterConstruct(context, braceConstruct(context.source[context.index + 2]));
@@ -715,6 +776,7 @@ const onOpenParen = context => {
 };
 
 const onCloseParen = context => {
+  if (isPatternCloser(context)) return fail(context, CASE_IN_SUBSTITUTION);
   context.parens = Math.max(0, context.parens - 1);
   if (context.parens <= context.arithmeticFloor) context.arithmeticFloor = NO_ARITHMETIC;
   onBreak(context);
