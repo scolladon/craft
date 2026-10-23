@@ -179,6 +179,16 @@ describe('gitDestructivePredicate() — unparseable, unclassifiable and dynamic 
     assert.match(result.reason, /here-document/);
   });
 
+  it('Given a comment holding << inside a function substitution, when checked, then the push on the next line blocks', () => {
+    const sut = gitDestructivePredicate;
+    const command = 'echo ${ : # <<E\ngit push\nE\n}';
+
+    const result = sut(command);
+
+    assert.equal(result.block, true);
+    assert.match(result.reason, /destructive git \(push\)/);
+  });
+
   for (const command of ['git --frobnicate push', 'git -C. push', '$G push']) {
     it(`Given "${command}", when checked, then blocks with the push reason`, () => {
       const sut = gitDestructivePredicate;

@@ -25,7 +25,6 @@ const OPEN_BRACE = '{';
 const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
 // bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell.
 const FUNCTION_SUBSTITUTION_OPENER = /[ \t\n|]/;
-const VALUE_SUBSTITUTION_MARK = '|';
 const ARITHMETIC_OPEN_LEVEL = 2;
 const PAREN_LEVEL = new Map([
   ['(', 1],
@@ -425,9 +424,8 @@ const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCom
 
 const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true, reprinted: false });
 
+// The | that opens ${| …; } reads as an empty pipe break, so one descriptor serves both forms.
 const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle: breakCommand, parameter: false, reprinted: true });
-
-const VALUE_SUBSTITUTION = Object.freeze({ ...FUNCTION_SUBSTITUTION, openLength: 3 });
 
 // equivalent mutant (ConditionalExpression false): only parseNested passes a null close, and it ignores the returned flag
 const runBody = (child, close) => {
@@ -509,10 +507,7 @@ const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
 };
 
-const braceConstruct = opener => {
-  if (opener === VALUE_SUBSTITUTION_MARK) return VALUE_SUBSTITUTION;
-  return FUNCTION_SUBSTITUTION_OPENER.test(opener ?? '') ? FUNCTION_SUBSTITUTION : PARAMETER;
-};
+const braceConstruct = opener => (FUNCTION_SUBSTITUTION_OPENER.test(opener) ? FUNCTION_SUBSTITUTION : PARAMETER);
 
 const expandDollar = context => {
   const next = context.source[context.index + 1];

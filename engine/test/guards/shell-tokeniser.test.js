@@ -609,6 +609,8 @@ describe('parseShellCommands() — a semicolon after a heredoc inside a substitu
     ['echo $(echo $(cat <<E\nx\nE\n); a)', [['cat'], ['echo', dyn('$(cat <<E\nx\nE\n)')], ['a'], ['echo', dyn('$(echo $(cat <<E\nx\nE\n); a)')]]],
     ['echo $(cat <<E\nx\nE\necho $(a; b))', [['cat'], ['a'], ['b'], ['echo', dyn('$(a; b)')], ['echo', dyn('$(cat <<E\nx\nE\necho $(a; b))')]]],
     ['echo ${x:-<<E;}', [['x:-'], ['echo', dyn('${x:-<<E;}')]]],
+    ['echo ${ : # <<E\ngit push\nE\n}', [[':'], ['git', 'push'], ['E'], ['echo', dyn('${ : # <<E\ngit push\nE\n}')]]],
+    ['echo ${ git push }', [['git', 'push'], ['echo', dyn('${ git push }')]]],
     ['git commit -m "$(cat <<\'EOF\'\nfix: a; b\nEOF\n)"', [['cat'], ['git', 'commit', '-m', dyn('$(cat <<\'EOF\'\nfix: a; b\nEOF\n)')]]],
   ]);
 });
