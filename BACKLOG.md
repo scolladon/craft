@@ -177,7 +177,19 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open — A. Git guard rules (local code, runnable)
 
-None open. Both entries delivered 2026-10-20 (guard-fuzz-scale-ext-diff-widen): the scaled fuzz
+**See through a command substitution inside `$(( … ))`.** The shell tokeniser skips the whole body
+of an arithmetic expansion, so a substitution nested in it never reaches the predicates.
+`echo $(($(git push -f origin)))` runs `git push -f origin` under /bin/bash 3.2.57 and bash 5.3.20
+(stub git, benign marker), and `gitDestructivePredicate` returns `{block:false}` on it; `echo
+$(($(git diff HEAD)))` passes `gitExtDiffPredicate` the same way, as do the bash 5.3 forms
+`$((${ git push -f origin; }))` and `$((${| … }))`. `(( … ))`, `$[ … ]`, `a[…]=` and `for ((…))`
+already block. Fix candidates: tokenise the `$(( … ))` body for nested `$(`, backtick and `${ `/`${|`
+substitutions, as `(( … ))` already does, or fail closed when that body holds one. Locus:
+`onArithmetic` in `engine/src/guards/shell-tokeniser.js`. Found by the review phase of
+bash53-heredoc-comsub-false-block; it reproduces on main at 4dd2c7d. Not folded: it is out of scope
+(a different construct from this change, present before it).
+
+Both earlier entries delivered 2026-10-20 (guard-fuzz-scale-ext-diff-widen): the scaled fuzz
 census is a gate (generator fixed at the composer, ADR-661), and the shared ext-diff rule denies
 `--ext-diff` on every git verb and any `git config` naming an alias or include key (ADR-660).
 Delivered 2026-10-21 (git-show-ext-diff-default-deny): bare `git show` leaves the default-deny on
