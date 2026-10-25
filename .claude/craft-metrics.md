@@ -703,3 +703,7 @@ bash53-heredoc-comsub-false-block documentation turns=4 tool_calls=6 tokens=7583
 bash53-heredoc-comsub-false-block implementation turns=21 tool_calls=24 tokens=599114 duration_ms=407302 cache_read=501048 cache_creation=84771 output=13253 avg_ctx=27898 equiv=222376
 bash53-heredoc-comsub-false-block planning turns=92 tool_calls=93 tokens=8723628 duration_ms=1456673 cache_read=8400056 cache_creation=238935 output=84453 avg_ctx=93904 equiv=1561123
 bash53-heredoc-comsub-false-block review turns=94 tool_calls=94 tokens=2871414 duration_ms=1038950 cache_read=2508026 cache_creation=295580 output=67620 avg_ctx=29828 equiv=958566
+arith-expansion-comsub-bypass design turns=41 tool_calls=49 tokens=3505097 duration_ms=628543 cache_read=3323737 cache_creation=124729 output=56549 avg_ctx=84111 equiv=771112
+arith-expansion-comsub-bypass implementation turns=26 tool_calls=31 tokens=814056 duration_ms=235971 cache_read=708912 cache_creation=88432 output=16660 avg_ctx=30669 equiv=264783
+arith-expansion-comsub-bypass planning turns=51 tool_calls=53 tokens=5077435 duration_ms=838292 cache_read=4836658 cache_creation=163027 output=77648 avg_ctx=98035 equiv=1075792
+arith-expansion-comsub-bypass review turns=179 tool_calls=183 tokens=6839491 duration_ms=2557885 cache_read=6085452 cache_creation=554668 output=199013 avg_ctx=37098 equiv=2297303
