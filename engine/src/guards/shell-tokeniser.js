@@ -8,7 +8,7 @@ const VALUE_SEPARATOR = '=';
 const ARITHMETIC_HEREDOC =
   'craft: command not parseable (<< inside an arithmetic command) — denied fail-closed';
 const HEREDOC_LIST_IN_SUBSTITUTION =
-  'craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed';
+  'craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed';
 const UNTERMINATED_QUOTE = 'craft: command not parseable (unterminated quote) — denied fail-closed';
 const NEWLINE = '\n';
 const SINGLE_QUOTE = "'";
@@ -22,14 +22,13 @@ const BACKTICK = '`';
 const DOLLAR = '$';
 const OPEN_PAREN = '(';
 const OPEN_BRACE = '{';
+const OPEN_BRACKET = '[';
 const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
-// bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell.
+// bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell, closing it only at a } where a
+// command can start; that rule reaches into [[ ]], case patterns and array values, so the guard refuses the form.
 const FUNCTION_SUBSTITUTION_OPENER = /[ \t\n|]/;
-const ARITHMETIC_OPEN_LEVEL = 2;
-const PAREN_LEVEL = new Map([
-  ['(', 1],
-  [')', -1],
-]);
+const FUNCTION_SUBSTITUTION_REFUSED =
+  'craft: command not parseable (a bash 5.3 ${ …; } or ${| …; } function substitution) — denied fail-closed';
 const BACKTICK_ESCAPES = /\\([$`\\])/g;
 const DOUBLE_QUOTE_ESCAPABLE = Object.freeze(['$', '`', DOUBLE_QUOTE, BACKSLASH]);
 const REDIRECT_SUFFIXES = Object.freeze(['>', '&', '|']);
@@ -37,6 +36,11 @@ const FILE_DESCRIPTOR = /^\d+$/;
 const ASSIGNMENT = /^[A-Za-z_][A-Za-z0-9_]*=/;
 const TIME_KEYWORD = 'time';
 const TIME_FORMAT_FLAG = '-p';
+const CASE_KEYWORD = 'case';
+// A case pattern's ) can close a $( ) body early here, so the commands after it would escape the body. bash reads
+// case as a keyword in more positions than this tokeniser tracks (after function NAME, coproc NAME, {), so the guard refuses any case word.
+const CASE_IN_SUBSTITUTION =
+  'craft: command not parseable (case inside $( ), <( ) or >( ) — a pattern ) can close it) — denied fail-closed';
 const HEAD_WORDS = new Set([
   '{',
   '}',
@@ -51,7 +55,7 @@ const HEAD_WORDS = new Set([
   'done',
   'while',
   'until',
-  'case',
+  CASE_KEYWORD,
   'esac',
   'coproc',
 ]);
@@ -203,6 +207,8 @@ const createContext = (source, depth) => ({
   heredocs: [],
   reprinted: false,
   heredocInBody: false,
+  closesOnParen: false,
+  rereads: new Set(),
   failure: null,
 });
 
@@ -220,6 +226,7 @@ const isHeadWord = (context, { text }) =>
     (context.timing && text === TIME_FORMAT_FLAG));
 
 const pushWord = (context, word) => {
+  if (context.closesOnParen && word.text === CASE_KEYWORD) return fail(context, CASE_IN_SUBSTITUTION);
   if (!isHeadWord(context, word)) {
     context.words.push(word);
     return;
@@ -424,9 +431,6 @@ const SUBSTITUTION = Object.freeze({ openLength: 2, close: ')', settle: breakCom
 
 const PARAMETER = Object.freeze({ openLength: 2, close: '}', settle: endWord, parameter: true, reprinted: false });
 
-// The | that opens ${| …; } reads as an empty pipe break, so one descriptor serves both forms.
-const FUNCTION_SUBSTITUTION = Object.freeze({ openLength: 2, close: '}', settle: breakCommand, parameter: false, reprinted: true });
-
 // equivalent mutant (ConditionalExpression false): only parseNested passes a null close, and it ignores the returned flag
 const runBody = (child, close) => {
   while (child.index < child.source.length && child.failure === null) {
@@ -455,6 +459,8 @@ const enterConstruct = (context, { openLength, close, settle, parameter, reprint
   child.index = start + openLength;
   child.parameter = parameter;
   child.reprinted = reprinted;
+  child.closesOnParen = close === ')';
+  child.rereads = context.rereads;
   const closed = runBody(child, close);
   settle(child);
   if (child.failure !== null) return fail(context, child.failure);
@@ -484,38 +490,137 @@ const enterBacktick = context => {
   markExpansion(context, start, end + 1);
 };
 
-// equivalent mutant (EqualityOperator index <= source.length): source[source.length] adds 0 to a level that is still positive, so the result is still -1
-const arithmeticEnd = (source, from) => {
-  let level = ARITHMETIC_OPEN_LEVEL;
-  for (let index = from; index < source.length; index += 1) {
-    level += PAREN_LEVEL.get(source[index]) ?? 0;
-    if (level === 0) return index + 1;
+// The body of $(( )) and $[ ] expands like a double-quoted string, and a ) or ] in quotes or after \ does not close it.
+const ARITHMETIC_EXPANSION = Object.freeze({ openLength: 3, open: OPEN_PAREN, close: ')', doubledClose: true });
+const BRACKET_ARITHMETIC = Object.freeze({ openLength: 2, open: OPEN_BRACKET, close: ']', doubledClose: false });
+
+const ARITHMETIC_SINGLE_QUOTE =
+  "craft: command not parseable (a ' inside $(( )) or $[ ] — bash still runs the substitutions in it) — denied fail-closed";
+const BODY_OPEN_LEVEL = 1;
+// equivalent mutant (UnaryOperator +1, +2 on both sentinels): an end is at least 3 (past the opener and its closer), so any two distinct values below 3 compare the same
+const UNCLOSED = -1;
+const REREAD_AS_SUBSTITUTION = -2;
+const LINE_CONTINUATION = '\\\n';
+// bash drops a line continuation before it tells $(( from $( (, a split this tokeniser does not model.
+const SPLIT_EXPANSION =
+  'craft: command not parseable (a line continuation inside $, $(( or its closing )) ) — denied fail-closed';
+// bash re-reads a $(( )) body that does not pair its parens as $( ( … ) ); where that pairing departs from this
+// scanner's own (comments, quotes spanning a nested $( )) the two readings disagree, so the guard refuses it.
+const UNPAIRED_ARITHMETIC =
+  'craft: command not parseable (a $(( )) body with unpaired parens — bash may re-read it as a command substitution) — denied fail-closed';
+// equivalent mutant (Regex \\[\S\S] in the first branch): a backslash before whitespace stays, but neither it nor the whitespace is a paren or opens a span
+const PAIRING_EXEMPT_SPANS = /\\[\s\S]|'[^']*'|"(?:\\[\s\S]|[^"\\])*"/g;
+
+const skipEscaped = body => {
+  body.index += 2;
+};
+
+const failArithmeticQuote = body => fail(body, ARITHMETIC_SINGLE_QUOTE);
+
+const levelChange = (char, { open, close }) => {
+  if (char === open) return 1;
+  if (char === close) return -1;
+  return 0;
+};
+
+const isPaired = text => {
+  let level = 0;
+  // equivalent mutant (StringLiteral replacement): any paren-free replacement leaves the count unchanged
+  for (const char of text.replace(PAIRING_EXEMPT_SPANS, '')) {
+    level += levelChange(char, ARITHMETIC_EXPANSION);
+    if (level < 0) return false;
   }
-  return -1;
+  return level === 0;
 };
 
-const onArithmetic = context => {
-  const end = arithmeticEnd(context.source, context.index + 3);
-  if (end === -1) return fail(context, UNTERMINATED_SUBSTITUTION);
-  markExpansion(context, context.index, end);
+const failScan = (body, reason) => {
+  fail(body, reason);
+  return UNCLOSED;
 };
 
-const enterDollarParen = context =>
-  context.source[context.index + 2] === OPEN_PAREN ? onArithmetic(context) : enterConstruct(context, SUBSTITUTION);
+const closerEnd = (body, { close, doubledClose }, from) => {
+  const after = body.index + 1;
+  if (!doubledClose) return after;
+  if (body.source.startsWith(LINE_CONTINUATION, after)) return failScan(body, SPLIT_EXPANSION);
+  if (body.source[after] !== close) return REREAD_AS_SUBSTITUTION;
+  return isPaired(body.source.slice(from, body.index)) ? after + 1 : failScan(body, UNPAIRED_ARITHMETIC);
+};
+
+// equivalent mutant (EqualityOperator index <= source.length): the extra pass reads undefined, a literal, and the scan still ends UNCLOSED
+const scanArithmeticBody = (body, descriptor) => {
+  const from = body.index;
+  let level = BODY_OPEN_LEVEL;
+  while (body.index < body.source.length && body.failure === null) {
+    level += levelChange(body.source[body.index], descriptor);
+    if (level === 0) return closerEnd(body, descriptor, from);
+    (ARITHMETIC_HANDLERS.get(body.source[body.index]) ?? onLiteral)(body);
+  }
+  return UNCLOSED;
+};
+
+// Every enclosing re-read meets an inner re-read $(( again, so its verdict is kept to keep the work linear in depth.
+// equivalent mutant (CallExpression on either line, ConditionalExpression false on the memo check in enterArithmetic): the memo only saves
+// work; without the parse, the step loop dispatches the same $(( again, which then takes the memo path to the same verdict
+const rereadAsSubstitution = (context, start) => {
+  context.rereads.add(start);
+  enterConstruct(context, SUBSTITUTION);
+};
+
+const enterArithmetic = (context, descriptor) => {
+  if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
+  const start = context.index;
+  if (context.rereads.has(start)) return enterConstruct(context, SUBSTITUTION);
+  const body = createContext(context.source, context.depth + 1);
+  body.index = start + descriptor.openLength;
+  body.rereads = context.rereads;
+  const end = scanArithmeticBody(body, descriptor);
+  if (body.failure !== null) return fail(context, body.failure);
+  if (end === REREAD_AS_SUBSTITUTION) return rereadAsSubstitution(context, start);
+  if (end === UNCLOSED) return fail(context, UNTERMINATED_SUBSTITUTION);
+  absorb(context, body);
+  markExpansion(context, start, end);
+};
+
+const afterContinuations = (source, from) => {
+  let index = from;
+  while (source.startsWith(LINE_CONTINUATION, index)) index += LINE_CONTINUATION.length;
+  return index;
+};
+
+const enterDollarParen = context => {
+  const opener = context.index + 2;
+  const next = afterContinuations(context.source, opener);
+  if (context.source[next] !== OPEN_PAREN) return enterConstruct(context, SUBSTITUTION);
+  if (next > opener) return fail(context, SPLIT_EXPANSION);
+  enterArithmetic(context, ARITHMETIC_EXPANSION);
+};
 
 const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
 };
 
-const braceConstruct = opener => (FUNCTION_SUBSTITUTION_OPENER.test(opener) ? FUNCTION_SUBSTITUTION : PARAMETER);
+const enterBrace = context =>
+  FUNCTION_SUBSTITUTION_OPENER.test(context.source[context.index + 2])
+    ? fail(context, FUNCTION_SUBSTITUTION_REFUSED)
+    : enterConstruct(context, PARAMETER);
 
 const expandDollar = context => {
+  if (context.source.startsWith(LINE_CONTINUATION, context.index + 1)) return fail(context, SPLIT_EXPANSION);
   const next = context.source[context.index + 1];
   if (next === OPEN_PAREN) return enterDollarParen(context);
-  if (next === OPEN_BRACE) return enterConstruct(context, braceConstruct(context.source[context.index + 2]));
+  if (next === OPEN_BRACE) return enterBrace(context);
+  if (next === OPEN_BRACKET) return enterArithmetic(context, BRACKET_ARITHMETIC);
   if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
   onLiteral(context);
 };
+
+const ARITHMETIC_HANDLERS = new Map([
+  [BACKSLASH, skipEscaped],
+  [DOUBLE_QUOTE, onDoubleQuote],
+  [SINGLE_QUOTE, failArithmeticQuote],
+  [DOLLAR, expandDollar],
+  [BACKTICK, enterBacktick],
+]);
 
 // equivalent mutant (CallExpression onDoubleQuote): the step loop hands the double quote left after the skipped $ to the same handler
 const onLocaleString = context => {

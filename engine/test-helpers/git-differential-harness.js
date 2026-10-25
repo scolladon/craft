@@ -38,16 +38,17 @@ const TAGS = Object.freeze({
   quoteInHeredocBody: 'quote-in-heredoc-body',
   argvAppender: 'argv-appender',
   heredocListInSubstitution: 'heredoc-list-in-substitution',
+  caseInSubstitution: 'case-in-substitution',
 });
 const FALSE_BLOCK_TAGS = Object.freeze([
   TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
   TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb, TAGS.zshEquals,
   TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody, TAGS.argvAppender,
-  TAGS.heredocListInSubstitution,
+  TAGS.heredocListInSubstitution, TAGS.caseInSubstitution,
 ]);
 // Both tags make bash 3.2 reject or mis-split the whole command, so the generator cannot vouch for its syntax.
 const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody]);
-const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc, TAGS.heredocListInSubstitution]);
+const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc, TAGS.heredocListInSubstitution, TAGS.caseInSubstitution]);
 
 // The stub is the only git a judged command can reach: it records argv and does nothing else.
 const STUB_GIT = ['#!/bin/sh', `printf '%s\\0' "$#" "$@" >> "$FUZZ_LOG"`, ''].join('\n');
@@ -178,6 +179,8 @@ const SPECIALS = Object.freeze([
   fragment('gi[t] push', { tags: [TAGS.patternWord] }),
   fragment('echo ${#x}; git push\necho }', { list: true }),
   fragment('(( x = 1 << 2 ))\ngit push', { tags: [TAGS.arithmeticHeredoc], list: true }),
+  fragment('echo $(( $(git push origin) + 1 ))'),
+  fragment('echo $((git push origin) )'),
   fragment("bash -o pipefail -c 'git push'"),
   fragment("bash -O extglob -c 'git push'"),
   fragment("bash +e -c 'git push'"),
@@ -265,8 +268,18 @@ const processSubstitutionTags = inner =>
 
 // bash 5.3 reprints a $( ) or <( ) body and drops the first ; after a heredoc in it, merging two commands.
 const HEREDOC_THEN_SEMICOLON = /\n\t?EOF\d+\n[\s\S]*;/;
+// The guard refuses any case word in a $( ) or <( ) body, where a pattern ) could close the body early. The text
+// match skips quoted heredoc bodies, which bash never parses as commands.
+const CASE_WORD = /(?:^|\s)case\s/;
+const QUOTED_HEREDOC_BODY = /<<-?(['"])(EOF\d+)\1\n[\s\S]*?\n\t?\2(?=\n|$)/g;
+const holdsCaseWord = text => CASE_WORD.test(text.replace(QUOTED_HEREDOC_BODY, ''));
+const withTag = (tags, applies, tag) => (applies ? [...new Set([...tags, tag])] : tags);
 const reprintedBodyTags = (inner, tags = inner.tags) =>
-  HEREDOC_THEN_SEMICOLON.test(inner.text) ? [...new Set([...tags, TAGS.heredocListInSubstitution])] : tags;
+  withTag(
+    withTag(tags, HEREDOC_THEN_SEMICOLON.test(inner.text), TAGS.heredocListInSubstitution),
+    holdsCaseWord(inner.text),
+    TAGS.caseInSubstitution,
+  );
 
 function nestedForms(inner) {
   const forms = [

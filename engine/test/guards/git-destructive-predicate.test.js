@@ -176,17 +176,17 @@ describe('gitDestructivePredicate() — unparseable, unclassifiable and dynamic 
     const result = sut(command);
 
     assert.deepEqual(result, { block: true, reason: gitInvocations(command).reason });
-    assert.match(result.reason, /here-document/);
+    assert.match(result.reason, /function substitution/);
   });
 
-  it('Given a comment holding << inside a function substitution, when checked, then the push on the next line blocks', () => {
+  it('Given a comment holding << inside a function substitution, when checked, then it blocks as unparseable', () => {
     const sut = gitDestructivePredicate;
     const command = 'echo ${ : # <<E\ngit push\nE\n}';
 
     const result = sut(command);
 
     assert.equal(result.block, true);
-    assert.match(result.reason, /destructive git \(push\)/);
+    assert.match(result.reason, /function substitution/);
   });
 
   for (const command of ['git --frobnicate push', 'git -C. push', '$G push']) {
@@ -367,6 +367,58 @@ describe('gitDestructivePredicate() — parameter expansion and arithmetic', () 
   ]);
 
   assertPasses(['echo ${#x}; git status', '( cat <<EOF\nx\nEOF\n)\ngit status', 'echo $(( 1 << 2 ))']);
+});
+
+describe('gitDestructivePredicate() — substitutions inside arithmetic expansion', () => {
+  assertBlocks([
+    'echo $(($(git push -f origin)))',
+    'echo $((`git push -f origin`))',
+    'echo $((${ git push -f origin; }))',
+    'echo $((${| git push -f origin; }))',
+    'echo $(( $(( $(git push -f origin) )) ))',
+    "echo $(( ')' $(git push -f origin) ))",
+    'echo $((git push -f origin) )',
+  ]);
+
+  assertPasses(['echo $(( $(printf 3) + 1 ))', 'echo $(( 16#ff ))', 'echo $(( 1 <<E ))']);
+});
+
+describe('gitDestructivePredicate() — dollar-bracket arithmetic', () => {
+  assertBlocks(["echo $[ '$(git push -f origin)' ]", 'echo $[1<<2]\ngit push origin main']);
+
+  assertPasses(['echo $[ 1 + 2 ]', 'echo $[1<<2]']);
+});
+
+describe('gitDestructivePredicate() — arithmetic openers bash splits or re-reads', () => {
+  assertBlocks([
+    'echo $(( 1 #$(git push)\n)\\\n)',
+    'echo $(\\\n( 1 #$(git push)\n))',
+    'echo $\\\n(( 1 #$(git push)\n))',
+    'echo "$\\\n(git push)"',
+    'echo $(( `printf g%st i #)` push ))',
+    'echo $(( `case x in x) printf g%st i;; esac` push ))',
+    'echo $[ $(case x in x) git push;; esac) ]',
+    'echo "$(case x in x) git push;; esac)"',
+    'echo $( (case x in x) :;; esac) ; git push )',
+    'echo "$(case x in x|esac) git push;; esac)"',
+    'echo "$(case y in (esac) ;; y) git push;; esac)"',
+    'echo "$(function f case x in x) git push;; esac; f)"',
+    'echo "$(function f { case x in x) git push;; esac; }; f)"',
+    'echo $(( "$(echo ")")" # $(git push)\n ))',
+    'echo $(( $(true # )\n) # $(git push)\n ))',
+    'echo $(( `printf git #)(` push ))',
+    'echo "${ echo }; git push; }"',
+    'echo $[ ${ echo }; git push; } ]',
+    'echo $(( ${ echo }; git push; } ))',
+    'echo "${ { echo; }; git push; }"',
+    'echo "${ x=1 }; git reset --hard; }"',
+    'echo "${ case } in }) git push;; esac; }"',
+    'echo "${ x=(a) }; git reset --hard; }"',
+    'echo "${ [[ a && } ]]; git push; }"',
+    'echo "${ case a in a) ;& }) git push;; esac; }"',
+  ]);
+
+  assertPasses(['echo $(( `echo 1` + 1 ))', 'case x in x) git status;; esac']);
 });
 
 describe('gitDestructivePredicate() — shell and env option grammar', () => {

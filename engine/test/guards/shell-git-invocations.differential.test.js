@@ -286,6 +286,7 @@ const BRACE_IN_PROCESS_SUBSTITUTION = /cat <\( (?:(?!\)[' ])[^\n])*\{[^{}\s]*(,|
 const QUOTED_HEREDOC_AROUND_UNTERMINATED =
   /<<(['"])EOF\d+\1\n(?:(?!\n\t?EOF\d)[\s\S])*(git push 'x|git status "x|echo \$\(git push)/;
 // No paren between the opener and the heredoc, nor between its terminator and the ;, so all three share one substitution body.
+const CASE_REFUSAL = /case inside \$\( \)/;
 const HEREDOC_LIST_IN_SUBSTITUTION = /(?:\$\(|<\() [^()\n]*?<<-?(['"]?)(EOF\w+)\1\n[\s\S]*?\n\t?\2\n[^()\n]*;/;
 
 const pinnedCommands = () => PINNED_SEEDS.flatMap(seed => generateCommands(seed, PINNED_COUNT));
@@ -302,6 +303,15 @@ describe('shell-git-invocations — generator composition at scale', () => {
       'echo --ext-diff | xargs git show',
       "echo $( cat <<'EOFH'\nx\nEOFH\nX=--ext-diff; git show $X )",
     ];
+
+    const result = sut(1, 100).map(entry => entry.text);
+
+    assert.deepEqual(expected.filter(text => !result.includes(text)), []);
+  });
+
+  it('Given any seed, when commands are generated, then the arithmetic-body substitution spellings are fixed entries', () => {
+    const sut = generateCommands;
+    const expected = ['echo $(( $(git push origin) + 1 ))', 'echo $((git push origin) )'];
 
     const result = sut(1, 100).map(entry => entry.text);
 
@@ -399,6 +409,26 @@ describe('shell-git-invocations — generator composition at scale', () => {
     const sut = gitInvocations;
 
     const entries = pinnedCommands().filter(entry => entry.tags.includes('heredoc-list-in-substitution'));
+    const result = entries.filter(entry => sut(entry.text).parsed !== false).map(entry => entry.text);
+
+    assert.ok(entries.length > 0, 'the pinned seeds never tagged the construct');
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then every command refused for a case word inside a substitution carries the case-in-substitution tag', () => {
+    const sut = pinnedCommands;
+
+    const entries = sut().filter(entry => CASE_REFUSAL.test(gitInvocations(entry.text).reason ?? ''));
+    const result = entries.filter(entry => !entry.tags.includes('case-in-substitution')).map(entry => entry.text);
+
+    assert.ok(entries.length > 0, 'the pinned seeds never built the construct');
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then every command tagged case-in-substitution is refused by the parser', () => {
+    const sut = gitInvocations;
+
+    const entries = pinnedCommands().filter(entry => entry.tags.includes('case-in-substitution'));
     const result = entries.filter(entry => sut(entry.text).parsed !== false).map(entry => entry.text);
 
     assert.ok(entries.length > 0, 'the pinned seeds never tagged the construct');

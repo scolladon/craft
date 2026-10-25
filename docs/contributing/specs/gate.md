@@ -62,16 +62,20 @@ hook set:
   `nice`/`timeout`/`sudo`/`builtin`/`echo` or an option, number or `NAME=value` operand (`xargs`,
   `parallel`, an unknown or dynamic command). `env -S`/`--split-string` followed by any later word
   is unparseable and denied fail-closed for every command. So is a `;` that follows a heredoc
-  inside a `$( )`, `<( )` or bash 5.3 `${ …; }`/`${| …; }` substitution body: bash 5.3 reprints
-  such a body without that `;`, merging the commands around it. A newline, `&&`, `||`, `|` or `&`
-  after the heredoc is unaffected, and `git commit -m "$(cat <<'EOF' … EOF⏎)"` still parses. Node prints
+  inside a `$( )` or `<( )` substitution body: bash 5.3 reprints such a body without that `;`,
+  merging the commands around it. A newline, `&&`, `||`, `|` or `&` after the heredoc is
+  unaffected, and `git commit -m "$(cat <<'EOF' … EOF⏎)"` still parses. The commands inside a
+  `$(( … ))` or `$[ … ]` body reach the predicates; a `'` in that body, a body whose parens do not
+  pair, and a line continuation after `$`, between `$(` and `(` or between the closing `))` are
+  unparseable, and so are any `case` word in a `$( )`, `<( )` or `>( )` body and any bash 5.3
+  `${ …; }`/`${| …; }` function substitution (ADR-687 to ADR-693). Node prints
   exactly one token: `allow`, on which the hook exits 0 with no output, or
   `{ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny",
   permissionDecisionReason: "craft: <engine reason>" } }`, which the hook prints as given. The
   reason is the engine's with one `craft: ` prefix:
   `craft: git diff/show must carry --no-ext-diff (external diff mangles parsed output)`,
   `craft: command not parseable (env -S re-splits its string with the words after it) — denied fail-closed`,
-  `craft: command not parseable (a ; after a here-document inside $( ), <( ) or ${ } — bash 5.3 drops it) — denied fail-closed`,
+  `craft: command not parseable (a ; after a here-document inside $( ) or <( ) — bash 5.3 drops it) — denied fail-closed`,
   `craft: --ext-diff is denied on every git verb (external diff mangles parsed output)`,
   `craft: git config naming an alias or include key is denied — an alias can run any git verb`, or the
   config-channel, inline-alias or parse-failure reason (an over-long command included). A

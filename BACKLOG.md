@@ -177,17 +177,36 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 
 ### Open — A. Git guard rules (local code, runnable)
 
-**See through a command substitution inside `$(( … ))`.** The shell tokeniser skips the whole body
-of an arithmetic expansion, so a substitution nested in it never reaches the predicates.
-`echo $(($(git push -f origin)))` runs `git push -f origin` under /bin/bash 3.2.57 and bash 5.3.20
-(stub git, benign marker), and `gitDestructivePredicate` returns `{block:false}` on it; `echo
-$(($(git diff HEAD)))` passes `gitExtDiffPredicate` the same way, as do the bash 5.3 forms
-`$((${ git push -f origin; }))` and `$((${| … }))`. `(( … ))`, `$[ … ]`, `a[…]=` and `for ((…))`
-already block. Fix candidates: tokenise the `$(( … ))` body for nested `$(`, backtick and `${ `/`${|`
-substitutions, as `(( … ))` already does, or fail closed when that body holds one. Locus:
-`onArithmetic` in `engine/src/guards/shell-tokeniser.js`. Found by the review phase of
-bash53-heredoc-comsub-false-block; it reproduces on main at 4dd2c7d. Not folded: it is out of scope
-(a different construct from this change, present before it).
+**Refuse a single-quoted substitution in the other arithmetic contexts.** Inside `(( … ))`,
+`for (( … ))`, an assignment subscript, a `${x:offset}` and a `${a[…]}` subscript, bash does not
+read `'…'` as quoting and still runs a substitution in it, while the tokeniser reads the span as a
+quoted literal. Measured (stub git, benign marker): `(( '$(git push -f origin)' ))` and
+``(( '`git push -f origin`' ))``, `for (( i='$(git push -f origin)'; i<1; i++ )); do :; done`,
+`a['$(git push -f origin)']=1` and `echo ${a['$(git push -f origin)']}` run git under bash 5.3.20
+only; `x=abc; echo ${x:'$(git push -f origin)'}` runs it under /bin/bash 3.2.57 and 5.3.20.
+`gitDestructivePredicate` returns `{block:false}` on each; the unquoted spellings already block.
+`$(( … ))` and `$[ … ]` fail closed on a `'` in their body since arith-expansion-comsub-bypass
+(ADR-688, ADR-690); these contexts go through other tokeniser paths. Fix candidates: apply the same
+single-quote refusal inside the `(( … ))` command floor, an assignment subscript and a `PARAMETER`
+body after `:` or `[`, or scan those bodies with the arithmetic-expansion scanner. Locus:
+`onOpenParen` / `arithmeticFloor`, the assignment path and `PARAMETER` in
+`engine/src/guards/shell-tokeniser.js`. Probe rows: table D rows 45, 47, 49, 51, 52 of
+docs/contributing/design/arith-expansion-comsub-bypass.md. Filed by ADR-690 (out of that run's
+scope).
+
+**See a substitution in a string bash evaluates as arithmetic.** bash evaluates an array subscript
+inside a string value as arithmetic and runs a substitution in it. `let 'a[$(git push -f origin)]'`,
+`[[ 'a[$(git push -f origin)]' -eq 0 ]]` and `x='a[$(git push -f origin)]'; echo $(( x ))` run
+`git push -f origin` under /bin/bash 3.2.57 and bash 5.3.20 (stub git, benign marker), and
+`gitDestructivePredicate` returns `{block:false}` on each. `let '1+$(git push -f origin)'` runs
+nothing on either shell (no subscript). The command text holds the substitution only as a quoted
+literal or a variable value, so there is no expansion for the tokeniser to scan. Fix candidates:
+fail closed on a `$(`, backtick or `${ ` inside a subscript of a quoted `let` argument or `[[`
+arithmetic operand; the variable form needs a data-flow rule (a variable assigned such a string and
+read in an arithmetic context), so scope it with its own probe set first. Locus:
+`engine/src/guards/shell-tokeniser.js` (no model of `let` or `[[ … -eq … ]]` operands). Probe rows:
+table E rows 55–57 of docs/contributing/design/arith-expansion-comsub-bypass.md. Found by the
+design of arith-expansion-comsub-bypass; out of that run's scope.
 
 Both earlier entries delivered 2026-10-20 (guard-fuzz-scale-ext-diff-widen): the scaled fuzz
 census is a gate (generator fixed at the composer, ADR-661), and the shared ext-diff rule denies
@@ -195,6 +214,11 @@ census is a gate (generator fixed at the composer, ADR-661), and the shared ext-
 Delivered 2026-10-21 (git-show-ext-diff-default-deny): bare `git show` leaves the default-deny on
 every binding. It is judged on `--ext-diff`, and like `diff` when its argv may shift. git 2.17.0
 through 2.56.0 run no external diff for `show` without `--ext-diff` (ADR-662, ADR-663).
+Delivered 2026-10-23 (arith-expansion-comsub-bypass): the commands inside a `$(( … ))` or `$[ … ]`
+body reach the predicates; the entry's claim that `$[ … ]` already blocked was wrong (a single-quoted
+body ran). A `'` in such a body, an unpaired body, a line continuation inside the opener or closer, a
+`case` word in a `$( )` body and every bash 5.3 function substitution fail closed (ADR-687 to
+ADR-693).
 
 ### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
 
@@ -260,6 +284,24 @@ through its daemon (3/3). Unlike the 0.162.1 observation, the TUI's status line 
 command still runs. With the committed rules every path blocks. Treat a malformed rules file
 as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
 *Re-probe — codex-cli 0.163.0*.
+
+### Open — D. Run visibility
+
+**Show a craft run as a live task list in Claude Code.** A run's progress lives only in the ledger
+(`<git-common-dir>/craft-runs/<run-id>.md`); the user sees it as scattered phase messages. Project the
+ledger onto the host's task-list surface: one item per phase in `Resolution.effective[]`, plan parts
+nested under `implementation`, review cycles under `review`, statuses `pending → in_progress →
+completed` (auto-skips and no-ops completed with their reason). The ledger stays the single source of
+truth and the list is a derived view: `engine/bin/run-state.js` already derives
+`completed`/`inFlight`/`next`/`parts` from it, so a rebuild after compaction re-projects instead of
+trusting the summary. Decision candidates for the design: (1) the binding — the orchestrator calls the
+host's task-list tool at each `PHASE-START`/`PHASE-DONE`/`PART` (model tool calls, every run), or a
+Claude Code mod (`plugin-authoring`: a panel or status line beside the chat) renders `run-state`
+output itself (no model calls); (2) a new port (e.g. `Progress`, `docs/contributing/specs/`) with the
+Claude binding and a no-op for hosts without a task list (pi, codex), so the engine stays
+host-agnostic. Probe first: on 2026-10-23 a ToolSearch for a todo or task tool in a craft session
+returned none, so which task-list tool the installed Claude Code exposes, and whether it is
+available to the orchestrator, is unverified.
 
 ### Open — C. Waiting on an external trigger
 
