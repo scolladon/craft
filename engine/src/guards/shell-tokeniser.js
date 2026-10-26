@@ -194,6 +194,8 @@ const createContext = (source, depth) => ({
   dynamic: false,
   opaque: false,
   pattern: false,
+  literalOpener: false,
+  escapedOpener: false,
   braceFailedUntil: 0,
   parameter: false,
   arithmeticFloor: NO_ARITHMETIC,
@@ -235,8 +237,27 @@ const pushWord = (context, word) => {
   context.timing = word.text === TIME_KEYWORD;
 };
 
+const LITERAL_OPENER_CHAR = /[$`]/;
+// bash evaluates a subscript in a string as arithmetic wherever the string is read, and a ] before the opener can close a nested subscript
+const LITERAL_SUBSCRIPT_SUBSTITUTION = /\[[\s\S]*(?:\$\(|\$\{|`)/;
+const SUBSCRIPT_IN_STRING =
+  'craft: command not parseable (a word holding a quoted [ … $( ) — bash may evaluate it as arithmetic and run it) — denied fail-closed';
+
+const holdsSubscriptSubstitution = context =>
+  (context.literalOpener && LITERAL_SUBSCRIPT_SUBSTITUTION.test(context.piece)) ||
+  (context.escapedOpener && context.piece.includes(OPEN_BRACKET));
+
+const resetWordFlags = context => {
+  context.dynamic = false;
+  context.opaque = false;
+  context.pattern = false;
+  context.literalOpener = false;
+  context.escapedOpener = false;
+};
+
 const endWord = context => {
   if (context.piece === null) return;
+  if (holdsSubscriptSubstitution(context)) return fail(context, SUBSCRIPT_IN_STRING);
   const literal = LITERAL_OPERATORS.has(context.piece);
   const word = {
     text: context.piece,
@@ -245,9 +266,7 @@ const endWord = context => {
     ...(context.pattern && !literal && { pattern: true }),
   };
   context.piece = null;
-  context.dynamic = false;
-  context.opaque = false;
-  context.pattern = false;
+  resetWordFlags(context);
   if (context.redirecting) {
     context.redirecting = false;
     return;
@@ -384,6 +403,7 @@ const onBackslash = context => {
   const next = context.source[context.index + 1];
   if (next === undefined) return onLiteral(context);
   if (next !== NEWLINE) append(context, next);
+  context.literalOpener ||= next === DOLLAR || next === BACKTICK;
   context.index += 2;
 };
 
@@ -392,6 +412,7 @@ const onSingleQuote = context => {
   if (close === -1) return fail(context, UNTERMINATED_QUOTE);
   const span = context.source.slice(context.index + 1, close);
   if (inArithmeticReach(context) && SUBSTITUTION_OPENER.test(span)) return fail(context, QUOTED_ARITHMETIC_SUBSTITUTION);
+  context.literalOpener ||= LITERAL_OPENER_CHAR.test(span);
   append(context, span);
   context.index = close + 1;
 };
@@ -421,12 +442,18 @@ const onDoubleQuote = context => {
   fail(context, UNTERMINATED_QUOTE);
 };
 
+const inspectAnsiCSpan = (context, span) => {
+  if (inArithmeticReach(context) && ansiCOpensSubstitution(span)) return fail(context, QUOTED_ARITHMETIC_SUBSTITUTION);
+  context.literalOpener ||= LITERAL_OPENER_CHAR.test(span);
+  context.escapedOpener ||= escapesToOpener(span);
+};
+
 // equivalent mutant (EqualityOperator context.index <= context.source.length): the extra pass appends to a piece of a context that then fails with the same unterminated-quote reason
 const readAnsiC = context => {
   const from = context.index + 2;
   const close = findUnescaped(context.source, from, SINGLE_QUOTE);
-  if (close !== -1 && inArithmeticReach(context) && ansiCOpensSubstitution(context.source.slice(from, close)))
-    return fail(context, QUOTED_ARITHMETIC_SUBSTITUTION);
+  if (close !== -1) inspectAnsiCSpan(context, context.source.slice(from, close));
+  if (context.failure !== null) return;
   append(context, '');
   context.index += 2;
   while (context.index < context.source.length) {

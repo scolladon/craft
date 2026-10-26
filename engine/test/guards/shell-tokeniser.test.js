@@ -901,3 +901,98 @@ describe('parseShellCommands() — ANSI-C escapes that decode to no opener', () 
     ["(( $'\\c\\x24' ))", [[opaqueWord('cx24')]]],
   ]);
 });
+
+const SUBSCRIPT_IN_STRING =
+  'craft: command not parseable (a word holding a quoted [ … $( ) — bash may evaluate it as arithmetic and run it) — denied fail-closed';
+
+describe('parseShellCommands() — a quoted subscript substitution in a word', () => {
+  assertFails(
+    [
+      "let 'a[$(git push -f origin)]'",
+      "[[ 'a[$(git push -f origin)]' -eq 0 ]]",
+      "x='a[$(git push -f origin)]'; echo $(( x ))",
+      "let 'x=a[$(git push -f origin)]'",
+      "let 'a[`git push -f origin`]'",
+      "let 'a[${x:-$(git push -f origin)}]'",
+      "[[ 0 -lt 'a[$(git push -f origin)]' ]]",
+      "[[ 1 -eq 1 && 'a[$(git push -f origin)]' -eq 0 ]]",
+      "[[ ( 'a[$(git push -f origin)]' -eq 0 ) ]]",
+      "declare -i x='a[$(git push -f origin)]'",
+      "x='a[$(git push -f origin)]'; (( x ))",
+      "x='a[$(git push -f origin)]'; [[ $x -eq 0 ]]",
+      "x='a[$(git push -f origin)]'; let x",
+      "x='a[$(git push -f origin)]'; echo ${y[x]}",
+      "x='a[$(git push -f origin)]'; echo $(( $x ))",
+      "x=$(printf '%s' 'a[$(git push -f origin)]'); echo $(( x ))",
+      "read x <<< 'a[$(git push -f origin)]'; echo $(( x ))",
+      "printf 'a[$(git push -f origin)]' > v; x=$(cat v); echo $(( x ))",
+      "X='a[$(git push -f origin)]' bash -c 'echo $(( X ))'",
+      "f() { echo $(( $1 )); }; f 'a[$(git push -f origin)]'",
+      "let 'a[$(git diff HEAD)]'",
+      "let 'a[b[1]+$(git push -f origin)]'",
+      "a[1]='$(git push -f origin)'",
+      "[ 'a[$(git push -f origin)]' -eq 0 ]",
+      "test 'a[$(git push -f origin)]' -eq 0",
+      "[[ 'a[$(git push -f origin)]' == 0 ]]",
+      "let 'a[1]+$(git push -f origin)'",
+      "let '1+$(git push -f origin)' 'a[$(git push -f origin)]'",
+      "x='a[$(git push -f origin)]'; echo \"$x\"",
+      "awk '{ a[$1] = $(NF) } END { print 1 }' </dev/null && git push -f origin",
+    ].map(input => [input, SUBSCRIPT_IN_STRING]),
+  );
+});
+
+describe('parseShellCommands() — subscripts and openers that do not form a literal subscript substitution', () => {
+  assertParsesWords([
+    ["let '1+$(git push -f origin)'", [['let', '1+$(git push -f origin)']]],
+    ["echo 'a['\"$(echo 1)\"']'", [['echo', '1'], ['echo', dyn('a[$(echo 1)]')]]],
+    ["echo '$' a[$(echo 1)]", [['echo', '1'], ['echo', '$', patternWord('a[$(echo 1)]')]]],
+    [
+      "printf -v x 'a[%s]' '$(git push -f origin)'; echo $(( x ))",
+      [['printf', '-v', 'x', 'a[%s]', '$(git push -f origin)'], ['echo', dyn('$(( x ))')]],
+    ],
+  ]);
+});
+
+describe('parseShellCommands() — an escaped opener in a word holding a subscript', () => {
+  assertFails(
+    [
+      'let "a[\\$(git push -f origin)]"',
+      'let "a[\\`git push -f origin\\`]"',
+      'let a[\\$\\(git\\ push\\ -f\\ origin\\)]',
+      'let a\\[\\$\\(git\\ push\\ -f\\ origin\\)\\]',
+      '[[ "a[\\$(git push -f origin)]" -eq 0 ]]',
+      '[[ a[\\$\\(git\\ push\\ -f\\ origin\\)] -eq 0 ]]',
+      'x="a[\\$(git push -f origin)]"; echo $(( x ))',
+      'x=a[\\$\\(git\\ push\\ -f\\ origin\\)]; echo $(( x ))',
+      'x=a\\[\\$\\(git\\ push\\ -f\\ origin\\)\\]; echo $(( x ))',
+    ].map(input => [input, SUBSCRIPT_IN_STRING]),
+  );
+});
+
+describe('parseShellCommands() — an ANSI-C span holding an opener in a word holding a subscript', () => {
+  assertFails(
+    [
+      "let $'a[$(git push -f origin)]'",
+      "let $'a[\\x24(git push -f origin)]'",
+      "x=$'a[\\x24(git push -f origin)]'; echo $(( x ))",
+      "let $'a[\\44(git push -f origin)]'",
+      "let $'a[\\x60git push -f origin\\x60]'",
+      "let $'a[\\140git push -f origin\\140]'",
+      "let $'a[\\x24\\x28git push -f origin)]'",
+      "let $'a[\\u24(git push -f origin)]'",
+      "let $'a[\\U00000024(git push -f origin)]'",
+      "let $'a[\\x24]'",
+    ].map(input => [input, SUBSCRIPT_IN_STRING]),
+  );
+});
+
+describe('parseShellCommands() — ANSI-C escapes that decode to no opener in a word holding a subscript', () => {
+  assertParsesWords([
+    ["let $'a[\\0044(git push -f origin)]'", [['let', opaqueWord('a[0044(git push -f origin)]')]]],
+    ["let $'a[\\x2]'", [['let', opaqueWord('a[x2]')]]],
+    ["let $'a[\\033]'", [['let', opaqueWord('a[033]')]]],
+    ["let $'a[\\c$]'", [['let', opaqueWord('a[c$]')]]],
+    ["echo $'\\x24' a[1]", [['echo', opaqueWord('x24'), patternWord('a[1]')]]],
+  ]);
+});

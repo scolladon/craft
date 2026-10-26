@@ -676,3 +676,16 @@ describe('gitDestructivePredicate() — git config naming an alias key', () => {
     });
   }
 });
+
+describe('gitDestructivePredicate() — a quoted subscript substitution in a word', () => {
+  assertBlocks([
+    "let 'a[$(git push -f origin)]'",
+    "[[ 'a[$(git push -f origin)]' -eq 0 ]]",
+    "x='a[$(git push -f origin)]'; echo $(( x ))",
+    "[[ 1 -eq 1 && 'a[$(git push -f origin)]' -eq 0 ]]",
+    "[[ ( 'a[$(git push -f origin)]' -eq 0 ) ]]",
+    "declare -i x='a[$(git push -f origin)]'",
+  ]);
+
+  assertPasses(["let '1+$(git push -f origin)'", "echo 'a['\"$(echo 1)\"']' && git status"]);
+});

@@ -682,3 +682,7 @@ describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic
     "env -S 'git -C' . diff",
   ]);
 });
+
+describe('gitExtDiffPredicate() — a quoted subscript substitution in a word', () => {
+  assertBlocks(["let 'a[$(git diff HEAD)]'"]);
+});
