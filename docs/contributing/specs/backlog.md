@@ -50,6 +50,18 @@ Failures split by where they are detectable:
 
 **Runtime errors** (knowable only by invoking a live tool): a `custom` script missing, non-executable, or exiting non-zero; an id absent from the source (`resolve` not-found); a wrapped tool that is unauthenticated or unreachable. These escalate via the session blocker protocol `{ unit, reason, ≤3 options }`.
 
+## Filing
+
+Filing a new entry is not a port operation: the port stays `resolve` + `complete`. A create is not idempotent — a resume after a compaction between a `custom` call and its `FILED` line would file the entry twice, and `complete`'s idempotency has no create counterpart without a dedupe key the port does not have.
+
+| Manifest | Filing target |
+|---|---|
+| `backlog: { source: file, ref }` | `ref` |
+| no `backlog:` key | the repo's root `BACKLOG.md` when it exists, else none |
+| `backlog: { source: custom }` | none |
+
+With no target nothing is written: the verdicts reach the PR body only, and the phase records `NO-OP(impact-triage): no file-backed backlog — verdicts in the PR body only`. The write consults the `backlog-write` policy action, like the tick.
+
 ## Custom recipes (copy-paste reference)
 
 These are worked examples to copy into a `custom` resolver script. They are not built-in sources.

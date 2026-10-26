@@ -3,7 +3,7 @@ const { test } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const path = require('node:path');
-const { sliceProse, sliceRegion } = require('./helpers/region-slice');
+const { sliceProse, sliceRegion, TO_END } = require('./helpers/region-slice');
 const ROOT = path.resolve(__dirname, '..');
 const read = (...segments) => fs.readFileSync(path.join(ROOT, ...segments), 'utf8');
 
@@ -35,4 +35,18 @@ test('Given the run-record write cadence, when read, then it lists defer and ver
 
   assert.ok(sut.includes('**`defer`**'));
   assert.ok(sut.includes('**`verdict`**'));
+});
+
+test('Given the PR body template, when its Provenance list is read, then it carries a Discovered impacts line', () => {
+  const sut = sliceProse(read('templates', 'pr-body.md'), /^### Provenance/, TO_END);
+
+  assert.ok(sut.includes('- **Discovered impacts:** '));
+});
+
+test('Given the backlog spec Filing section, when read, then filing is not a port operation and a custom source files nothing', () => {
+  const sut = sliceProse(read('docs', 'contributing', 'specs', 'backlog.md'), /^## Filing/, /^## (?!Filing)/);
+
+  assert.ok(sut.includes('not a port operation'));
+  assert.ok(sut.includes('source: custom'));
+  assert.ok(sut.includes('NO-OP(impact-triage): no file-backed backlog — verdicts in the PR body only'));
 });
