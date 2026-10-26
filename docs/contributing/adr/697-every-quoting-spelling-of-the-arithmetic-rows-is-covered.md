@@ -30,5 +30,6 @@ another spelling are the same behaviour and the same handlers.
 
 ## Consequences
 
-`escapesToOpener` decodes `\xHH`, `\NNN`, `\uHHHH` and `\UHHHHHHHH`; `\n`, `\t`, `\e` and `\033` never
-match, so `IFS=$'\n'` and `$'\033[1m'` keep their verdict.
+The decoder reads `\xHH`, `\NNN` (low byte only, as bash keeps it), `\uHHHH` and `\UHHHHHHHH`; an escape
+counts when it decodes to `$`, a backtick, `(`, `{` or `[`. `\n`, `\t`, `\e` and `\033` never match,
+so `IFS=$'\n'` and `$'\033[1m'` keep their verdict.
