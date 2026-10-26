@@ -13,7 +13,7 @@ const concepts = read('docs', 'guides', 'concepts.md');
 const docsIndex = read('docs', 'README.md');
 const pluginDescription = JSON.parse(read('.claude-plugin', 'plugin.json')).description;
 
-const BETWEEN = /documentation\s*(?:→|->)\s*lessons\s*(?:→|->)\s*propose/;
+const BETWEEN = /documentation\s*(?:→|->)\s*lessons\s*(?:→|->)\s*(?:impact-triage\s*(?:→|->)\s*)?propose/;
 
 test('Given the lessons guide, when read, then it names paths.lessons, lessons.max_injected and pipeline.skip [lessons]', () => {
   const sut = lessonsGuide;

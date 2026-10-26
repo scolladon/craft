@@ -168,3 +168,19 @@ test('Given the refactoring skill steps 3 and 4, when read, then they defer and 
   assert.ok(!sut.includes('follow-up'));
   assert.ok(sut.includes('deferred'));
 });
+
+test('Given the review fix step, when read, then an out-of-scope finding is an impact', () => {
+  const sut = sliceProse(read('skills', 'review', 'SKILL.md'), /^3\. \*\*Fixes — session-owned:\*\*/, /^4\. \*\*Converge/);
+
+  assert.ok(sut.includes('Impacts: fold or defer at discovery'));
+});
+
+test('Given the validation and architecture triage steps, when read, then a triager IMPACT line gets a verdict', () => {
+  const validation = sliceProse(read('skills', 'validation', 'SKILL.md'), /^2\. \*\*The PR waits for triage\*\*/, /^3\. \*\*Never destroy/);
+  const architecture = sliceProse(read('skills', 'architecture', 'SKILL.md'), /^3\. Verify the triager's commit/, TO_END);
+
+  for (const sut of [validation, architecture]) {
+    assert.ok(sut.includes('IMPACT('));
+    assert.ok(sut.includes('Impacts: fold or defer at discovery'));
+  }
+});
