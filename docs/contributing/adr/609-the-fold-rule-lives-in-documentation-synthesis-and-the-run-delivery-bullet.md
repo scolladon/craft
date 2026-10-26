@@ -6,9 +6,12 @@ supersedes: []
 ---
 # 609 — The fold rule lives in documentation synthesis and the run delivery bullet
 
-- **Status:** accepted
+- **Status:** superseded by ADR-709
 - **Date:** 2026-10-17
 - **Design:** docs/contributing/design/fold-in-scope-followups.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-709** for where the fold rule lives: a cross-phase invariant in the run skill
+> replaces documentation synthesis and the run delivery bullet.
 
 ## Context
 
