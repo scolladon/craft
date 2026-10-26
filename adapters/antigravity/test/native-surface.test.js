@@ -15,7 +15,7 @@ const ENTRYPOINT_SKILL_PATH = join(ADAPTER_DIR, 'skills', 'craft-run', 'SKILL.md
 const SHARED_RUN_SKILL_PATH = join(REPO_ROOT, 'skills', 'run', 'SKILL.md');
 
 const ROLES = [
-  'backlog-ticker', 'designer', 'docs-writer', 'harness-triager', 'part-implementer',
+  'backlog-ticker', 'designer', 'docs-writer', 'harness-triager', 'impact-triager', 'part-implementer',
   'planner', 'refactor-executor', 'requirements-writer', 'reviewer',
 ];
 

@@ -15,6 +15,7 @@ const ROLES = [
   'designer',
   'docs-writer',
   'harness-triager',
+  'impact-triager',
   'part-implementer',
   'planner',
   'refactor-executor',
