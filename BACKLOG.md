@@ -189,11 +189,12 @@ body ran). A `'` in such a body, an unpaired body, a line continuation inside th
 `case` word in a `$( )` body and every bash 5.3 function substitution fail closed (ADR-687 to
 ADR-693).
 Delivered 2026-10-26 (guard-arith-cleanup): a `'…'` or `$'…'` span holding `$(`, a backtick or
-`${`, or a `$'…'` numeric escape decoding to `$` or a backtick, fails closed inside `(( ))`,
-`for (( ))`, a `${ }` body and an open `[` subscript. A word holding a literal `$` or backtick,
-quoted or escaped, with a `[` before a substitution opener fails closed wherever it is written, so
-`let`, `[[ … -eq … ]]`, `declare -i` and a variable read by `$(( x ))` no longer run a hidden
-substitution (ADR-694 to ADR-697). A value the command text never holds whole in one word is closed
+`${`, or a `$'…'` numeric escape decoding to `$`, a backtick, `(`, `{` or `[`, fails closed inside
+`(( ))`, `for (( ))`, a `${ }` body and an open `[` subscript. A word holding a literal `$` or
+backtick, quoted or escaped, with a `[` before a substitution opener fails closed wherever it is
+written, as does a word with `[` and a `$` where a literal `(`, `{` or backtick follows an
+expansion, a `$` or a brace group. So `let`, `[[ … -eq … ]]`, `declare -i` and a variable read by
+`$(( x ))` no longer run a hidden substitution (ADR-694 to ADR-698). A value the command text never holds whole in one word is closed
 as won't-do.
 
 ### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
