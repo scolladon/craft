@@ -286,6 +286,7 @@ const BRACE_IN_PROCESS_SUBSTITUTION = /cat <\( (?:(?!\)[' ])[^\n])*\{[^{}\s]*(,|
 const QUOTED_HEREDOC_AROUND_UNTERMINATED =
   /<<(['"])EOF\d+\1\n(?:(?!\n\t?EOF\d)[\s\S])*(git push 'x|git status "x|echo \$\(git push)/;
 // No paren between the opener and the heredoc, nor between its terminator and the ;, so all three share one substitution body.
+const LITERAL_SUBSCRIPT_SPECIAL = /a\[\$\(git push origin\)\]/;
 const CASE_REFUSAL = /case inside \$\( \)/;
 const HEREDOC_LIST_IN_SUBSTITUTION = /(?:\$\(|<\() [^()\n]*?<<-?(['"]?)(EOF\w+)\1\n[\s\S]*?\n\t?\2\n[^()\n]*;/;
 
@@ -312,6 +313,23 @@ describe('shell-git-invocations — generator composition at scale', () => {
   it('Given any seed, when commands are generated, then the arithmetic-body substitution spellings are fixed entries', () => {
     const sut = generateCommands;
     const expected = ['echo $(( $(git push origin) + 1 ))', 'echo $((git push origin) )'];
+
+    const result = sut(1, 100).map(entry => entry.text);
+
+    assert.deepEqual(expected.filter(text => !result.includes(text)), []);
+  });
+
+  it('Given any seed, when commands are generated, then the quoted arithmetic and subscript substitution spellings are fixed entries', () => {
+    const sut = generateCommands;
+    const expected = [
+      "let 'a[$(git push origin)]'",
+      "[[ 'a[$(git push origin)]' -eq 0 ]]",
+      "x='a[$(git push origin)]'; echo $(( x ))",
+      "(( '$(git push origin)' ))",
+      "echo ${a['$(git push origin)']}",
+      "x=abc; echo ${x:'$(git push origin)'}",
+      "let 'a[1]+$(git push origin)'",
+    ];
 
     const result = sut(1, 100).map(entry => entry.text);
 
@@ -390,6 +408,17 @@ describe('shell-git-invocations — generator composition at scale', () => {
     const result = sut()
       .filter(entry => QUOTED_HEREDOC_AROUND_UNTERMINATED.test(entry.text))
       .filter(entry => !entry.tags.includes('quote-in-heredoc-body'))
+      .map(entry => entry.text);
+
+    assert.deepEqual(result, []);
+  });
+
+  it('Given the pinned seeds at scale, when generated, then every command holding a literal subscript special carries the literal-subscript-substitution tag', () => {
+    const sut = pinnedCommands;
+
+    const result = sut()
+      .filter(entry => LITERAL_SUBSCRIPT_SPECIAL.test(entry.text))
+      .filter(entry => !entry.tags.includes('literal-subscript-substitution'))
       .map(entry => entry.text);
 
     assert.deepEqual(result, []);
