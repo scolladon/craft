@@ -292,6 +292,17 @@ function dedupeByKey(concern, entries) {
 }
 
 /**
+ * The concern's validate-on-read predicate; a concern with none accepts every entry.
+ *
+ * @param {{ [concern: string]: (entry: object) => boolean }} validators
+ * @param {string} concern
+ * @returns {(entry: object) => boolean}
+ */
+function validatorFor(validators, concern) {
+  return validators[concern] ?? (() => true);
+}
+
+/**
  * Apply per-concern validate-on-read predicates.
  * Entries that fail are removed from the returned entries and appended to evicted.
  * Same-key duplicates (accreted via hand-editing) are collapsed by dedupeByKey.
@@ -306,7 +317,7 @@ function applyValidators(allEntries, validators) {
   const evicted = [];
 
   for (const concern of CONCERNS) {
-    const isValid = validators[concern] ?? (() => true);
+    const isValid = validatorFor(validators, concern);
     for (const entry of (allEntries[concern] ?? [])) {
       if (isValid(entry)) {
         entries[concern].push(entry);
@@ -687,7 +698,7 @@ function evictToCaps(entries, caps) {
  * @returns {Array<{ concern: string, payload: object, retract?: boolean }>}
  */
 function acceptedObservations(delta, validators) {
-  return delta.filter(({ concern, payload, retract }) => retract === true || (validators[concern] ?? (() => true))(payload));
+  return delta.filter(({ concern, payload, retract }) => retract === true || validatorFor(validators, concern)(payload));
 }
 
 /**
