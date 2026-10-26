@@ -8,14 +8,14 @@ phases: [design, review]
 kind: trap
 trigger: a guard rule targets how bash treats the body of one substitution form
 evidence:
-  - engine/src/guards/shell-tokeniser.js:602
-  - engine/test/guards/shell-tokeniser.test.js:591
-  - engine/test/guards/shell-tokeniser.test.js:594
+  - engine/src/guards/shell-tokeniser.js:717
+  - engine/test/guards/shell-tokeniser.test.js:625
+  - engine/test/guards/shell-tokeniser.test.js:628
   - engine/test/guards/git-destructive-predicate.test.js:179
 source: { run: bash53-heredoc-comsub-false-block, phase: review, date: 2026-10-22 }
 status: active
 supersedes: []
-last-verified: 2026-10-25
+last-verified: 2026-10-26
 ---
 # 006 — A rule about one substitution body must cover every substitution form
 
@@ -36,4 +36,4 @@ bash has several substitution forms whose body is a command list: `$( )`, backti
 
 ## Evidence
 
-`enterBrace` at `engine/src/guards/shell-tokeniser.js:602` refuses a `${` followed by a space, tab, newline or `|` instead of reading it as a parameter expansion; the function-substitution descriptor was later dropped for a full refusal (lesson 007). The refusal rows at `engine/test/guards/shell-tokeniser.test.js:591` and `:594` and the predicate mirror at `engine/test/guards/git-destructive-predicate.test.js:179` fail when it falls through to the parameter descriptor.
+`enterBrace` at `engine/src/guards/shell-tokeniser.js:717` refuses a `${` followed by a space, tab, newline or `|` instead of reading it as a parameter expansion; the function-substitution descriptor was later dropped for a full refusal (lesson 007). The refusal rows at `engine/test/guards/shell-tokeniser.test.js:625` and `:628` and the predicate mirror at `engine/test/guards/git-destructive-predicate.test.js:179` fail when it falls through to the parameter descriptor.

@@ -378,6 +378,10 @@ describe('gitExtDiffPredicate() — substitutions inside arithmetic expansion', 
   assertBlocks(['echo $(($(git diff HEAD)))', 'echo $((`git diff HEAD`))', 'echo $(( 1 #$(git diff HEAD)\n)\\\n)', 'echo $(( $(true # )\n) # $(git diff HEAD)\n ))', 'echo "$(case x in x|esac) git diff;; esac)"', 'echo "${ x=1 }; git diff; }"']);
 });
 
+describe('gitExtDiffPredicate() — a quoted substitution in an arithmetic reach', () => {
+  assertBlocks(["(( '$(git diff HEAD)' ))"]);
+});
+
 describe('gitExtDiffPredicate() — brace and glob words', () => {
   assertBlocks(['{git,diff}', 'git {diff,x}', 'git dif[f]']);
 
@@ -677,4 +681,8 @@ describe('gitExtDiffPredicate() — git show is judged on --ext-diff and dynamic
     "env -S '-u FOO' -S 'git show' --ext-diff",
     "env -S 'git -C' . diff",
   ]);
+});
+
+describe('gitExtDiffPredicate() — a quoted subscript substitution in a word', () => {
+  assertBlocks(["let 'a[$(git diff HEAD)]'"]);
 });

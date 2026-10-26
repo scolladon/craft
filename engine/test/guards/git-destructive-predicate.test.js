@@ -389,6 +389,31 @@ describe('gitDestructivePredicate() — dollar-bracket arithmetic', () => {
   assertPasses(['echo $[ 1 + 2 ]', 'echo $[1<<2]']);
 });
 
+describe('gitDestructivePredicate() — a quoted substitution in an arithmetic reach', () => {
+  assertBlocks([
+    "(( '$(git push -f origin)' ))",
+    "(( '`git push -f origin`' ))",
+    "for (( i='$(git push -f origin)'; i<1; i++ )); do :; done",
+    "a['$(git push -f origin)']=1",
+    "x=abc; echo ${x:'$(git push -f origin)'}",
+    "echo ${a['$(git push -f origin)']}",
+    'for (( i=$(git push -f origin); i<1; i++ )); do :; done',
+    'a[$(git push -f origin)]=1',
+    'x=abc; echo ${x:$(git push -f origin)}',
+    '(( $(git push -f origin) ))',
+    "echo $(( a['$(git push -f origin)'] ))",
+  ]);
+
+  assertPasses([
+    "(( '1' + 2 )) && git status",
+    "a['1']=x && git status",
+    "declare -A m; m['k']=v; [ \"${m['k']}\" = v ] && git status",
+    "echo ${x:-'default'} && git status",
+    "IFS=$'\\n' git status",
+    "echo $'\\033[1m'x && git status",
+  ]);
+});
+
 describe('gitDestructivePredicate() — arithmetic openers bash splits or re-reads', () => {
   assertBlocks([
     'echo $(( 1 #$(git push)\n)\\\n)',
@@ -650,4 +675,26 @@ describe('gitDestructivePredicate() — git config naming an alias key', () => {
       assert.deepEqual(result, { block: true, reason: ALIAS_REASON });
     });
   }
+});
+
+describe('gitDestructivePredicate() — a quoted subscript substitution in a word', () => {
+  assertBlocks([
+    "let 'a[$(git push -f origin)]'",
+    "[[ 'a[$(git push -f origin)]' -eq 0 ]]",
+    "x='a[$(git push -f origin)]'; echo $(( x ))",
+    "[[ 1 -eq 1 && 'a[$(git push -f origin)]' -eq 0 ]]",
+    "[[ ( 'a[$(git push -f origin)]' -eq 0 ) ]]",
+    "declare -i x='a[$(git push -f origin)]'",
+    "let $'a\\x5b$(git push -f origin)]'",
+    "let $'a[\\444(git push -f origin)]'",
+    "(( $'$\\x28git push -f origin)' ))",
+    "let $'a[$\\x7b git push -f origin; }]'",
+    "let a[${x:-$}\\(git' push -f origin'\\)]",
+    "let a[{$,}\\(git' push -f origin'\\)]",
+    "let a[$(printf '$')\\(git' push -f origin'\\)]",
+    "let a[$x\\(git' push -f origin'\\)]",
+    "(\\\n( '$(git push -f origin)' ))",
+  ]);
+
+  assertPasses(["let '1+$(git push -f origin)'", "echo 'a['\"$(echo 1)\"']' && git status"]);
 });

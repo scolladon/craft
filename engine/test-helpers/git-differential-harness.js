@@ -39,16 +39,20 @@ const TAGS = Object.freeze({
   argvAppender: 'argv-appender',
   heredocListInSubstitution: 'heredoc-list-in-substitution',
   caseInSubstitution: 'case-in-substitution',
+  literalSubscriptSubstitution: 'literal-subscript-substitution',
+  quotedSubstitutionInArithmetic: 'quoted-substitution-in-arithmetic',
+  subscriptSubstitutionInString: 'subscript-substitution-in-string',
 });
 const FALSE_BLOCK_TAGS = Object.freeze([
   TAGS.unterminated, TAGS.overNested, TAGS.anyWordAnchor, TAGS.dynamicHead, TAGS.dynamicArg, TAGS.dynamicSubcommand,
   TAGS.patternWord, TAGS.dashedBuiltin, TAGS.configChannel, TAGS.dynamicBeforeVerb, TAGS.zshEquals,
   TAGS.braceInProcessSubstitution, TAGS.quoteInHeredocBody, TAGS.argvAppender,
-  TAGS.heredocListInSubstitution, TAGS.caseInSubstitution,
+  TAGS.heredocListInSubstitution, TAGS.caseInSubstitution, TAGS.literalSubscriptSubstitution,
+  TAGS.quotedSubstitutionInArithmetic, TAGS.subscriptSubstitutionInString,
 ]);
-// Both tags make bash 3.2 reject or mis-split the whole command, so the generator cannot vouch for its syntax.
-const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody]);
-const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc, TAGS.heredocListInSubstitution, TAGS.caseInSubstitution]);
+// These tags make bash reject, mis-split or print an arithmetic syntax error for the whole command, so the generator cannot vouch for its syntax.
+const SYNTAX_EXEMPT_TAGS = Object.freeze([TAGS.unterminated, TAGS.quoteInHeredocBody, TAGS.quotedSubstitutionInArithmetic, TAGS.subscriptSubstitutionInString]);
+const PARSE_FAILURE_TAGS = Object.freeze([TAGS.unterminated, TAGS.overNested, TAGS.opaqueString, TAGS.arithmeticHeredoc, TAGS.heredocListInSubstitution, TAGS.caseInSubstitution, TAGS.literalSubscriptSubstitution, TAGS.quotedSubstitutionInArithmetic, TAGS.subscriptSubstitutionInString]);
 
 // The stub is the only git a judged command can reach: it records argv and does nothing else.
 const STUB_GIT = ['#!/bin/sh', `printf '%s\\0' "$#" "$@" >> "$FUZZ_LOG"`, ''].join('\n');
@@ -181,6 +185,9 @@ const SPECIALS = Object.freeze([
   fragment('(( x = 1 << 2 ))\ngit push', { tags: [TAGS.arithmeticHeredoc], list: true }),
   fragment('echo $(( $(git push origin) + 1 ))'),
   fragment('echo $((git push origin) )'),
+  fragment("let 'a[$(git push origin)]'", { tags: [TAGS.literalSubscriptSubstitution], status: 1 }),
+  fragment("[[ 'a[$(git push origin)]' -eq 0 ]]", { tags: [TAGS.literalSubscriptSubstitution] }),
+  fragment("x='a[$(git push origin)]'; echo $(( x ))", { tags: [TAGS.literalSubscriptSubstitution], list: true }),
   fragment("bash -o pipefail -c 'git push'"),
   fragment("bash -O extglob -c 'git push'"),
   fragment("bash +e -c 'git push'"),
@@ -215,9 +222,13 @@ const SPECIALS = Object.freeze([
   fragment("echo $( cat <<'EOFH'\nx\nEOFH\nX=--ext-diff; git show $X )", { tags: [TAGS.heredocListInSubstitution] }),
 ]);
 
-// bash 3.2 rejects this whole command, so composed into another it would hide that one's git words from the oracle.
+// bash 3.2 rejects each of these, or prints an arithmetic syntax error, so composed into another it would hide that one's git words from the oracle.
 const STANDALONE_SPECIALS = Object.freeze([
   fragment('cat <<< "$( cat <<\'EOFQ\'\ngit status "x\nEOFQ\n)"', { tags: [TAGS.quoteInHeredocBody] }),
+  fragment("(( '$(git push origin)' ))", { tags: [TAGS.quotedSubstitutionInArithmetic], status: 1 }),
+  fragment("echo ${a['$(git push origin)']}", { tags: [TAGS.quotedSubstitutionInArithmetic], status: 1 }),
+  fragment("x=abc; echo ${x:'$(git push origin)'}", { tags: [TAGS.quotedSubstitutionInArithmetic], status: 1, list: true }),
+  fragment("let 'a[1]+$(git push origin)'", { tags: [TAGS.subscriptSubstitutionInString], status: 1 }),
 ]);
 const FIXED_ENTRIES = Object.freeze([...SPECIALS, ...STANDALONE_SPECIALS]);
 
@@ -256,9 +267,9 @@ function group(generator, rng, depth) {
 }
 
 // `sh` is dash on Linux CI: a body carrying any bash-only construct (brace expansion, extglob,
-// `((`, `$[`, `$"`, `|&`, `&>`) would run differently there than the guard's bash model.
+// `((`, `$[`, `$"`, `|&`, `&>`, `let`) would run differently there than the guard's bash model.
 const BRACE_EXPANSION = /\{[^{}\s]*(,|\.\.)[^{}\s]*\}/;
-const BASHISMS = new RegExp(String.raw`\$'|\$"|\$\[|<\(|<<<|\btime\b|\[\[|\(\(|\|&|&>|[?*+@!]\(|${BRACE_EXPANSION.source}`);
+const BASHISMS = new RegExp(String.raw`\blet\b|\$'|\$"|\$\[|<\(|<<<|\btime\b|\[\[|\(\(|\|&|&>|[?*+@!]\(|${BRACE_EXPANSION.source}`);
 const canBacktick = inner => !inner.text.includes('`') && !inner.text.includes('\\$');
 const SPLIT_SAFE = /^[\w .=/'"-]*$/;
 const canDoubleQuote = inner => inner.simple && !/["$`\\!]/.test(inner.text);
@@ -301,7 +312,10 @@ function nest(generator, rng, depth) {
   return fragment(nested.text, { tags: nested.tags, status: nested.status === 0 ? 0 : inner.status });
 }
 
-const quotedBodyTags = inner => (SYNTAX_EXEMPT_TAGS.some(tag => inner.tags.includes(tag)) ? [TAGS.quoteInHeredocBody] : []);
+const quotedBodyTags = inner => [
+  ...(SYNTAX_EXEMPT_TAGS.some(tag => inner.tags.includes(tag)) ? [TAGS.quoteInHeredocBody] : []),
+  ...(inner.tags.includes(TAGS.literalSubscriptSubstitution) ? [TAGS.literalSubscriptSubstitution] : []),
+];
 
 function heredoc(generator, rng, depth) {
   const inner = generator.compose(rng, depth);

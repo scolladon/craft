@@ -350,6 +350,16 @@ describe('parseShellCommands() — words the tokeniser does not compute', () => 
 const LENGTH_REASON =
   'craft: command not parseable (longer than the guard\'s limit) — denied fail-closed';
 const MAX_COMMAND_LENGTH = 131072;
+const LONG_WORD_LENGTH = 130000;
+const OPEN_BRACKETS = '['.repeat(LONG_WORD_LENGTH);
+// Far below the host's ~30 s hook timeout yet loose enough for coverage-instrumented CI runs.
+const MAX_ELAPSED_MS = 3000;
+
+const timed = work => {
+  const start = performance.now();
+  const result = work();
+  return { result, elapsed: performance.now() - start };
+};
 
 describe('shell parsing — bounded work', () => {
   it('Given a command longer than the limit, when parsed, then it is unparsed with the length reason', () => {
@@ -366,6 +376,30 @@ describe('shell parsing — bounded work', () => {
     const result = sut('a'.repeat(MAX_COMMAND_LENGTH));
 
     assert.equal(result.parsed, true);
+  });
+
+  it('Given a long word of brackets holding a literal dollar, when parsed, then it finishes in bounded time', () => {
+    const sut = parseShellCommands;
+
+    const { elapsed } = timed(() => sut(`echo '$'${OPEN_BRACKETS}`));
+
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long run of brackets before a quote, when parsed, then it finishes in bounded time', () => {
+    const sut = parseShellCommands;
+
+    const { elapsed } = timed(() => sut(`echo ${OPEN_BRACKETS}]''`));
+
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
+  });
+
+  it('Given a long word of single-quoted spans, when parsed, then it finishes in bounded time', () => {
+    const sut = parseShellCommands;
+
+    const { elapsed } = timed(() => sut(`echo ${"'a'".repeat(LONG_WORD_LENGTH / 3)}`));
+
+    assert.ok(elapsed < MAX_ELAPSED_MS, `took ${elapsed} ms`);
   });
 });
 
@@ -728,7 +762,7 @@ describe('parseShellCommands() — nested and unspaced dollar-bracket bodies', (
 });
 
 const SPLIT_EXPANSION =
-  'craft: command not parseable (a line continuation inside $, $(( or its closing )) ) — denied fail-closed';
+  'craft: command not parseable (a line continuation inside $, ((, $(( or its closing )) ) — denied fail-closed';
 const CONTINUATION = '\\\n';
 
 describe('parseShellCommands() — line continuations inside an arithmetic opener or closer', () => {
@@ -740,11 +774,15 @@ describe('parseShellCommands() — line continuations inside an arithmetic opene
     [`echo $${CONTINUATION}(( 1 ))`, SPLIT_EXPANSION],
     [`echo $${CONTINUATION}[ 1 ]`, SPLIT_EXPANSION],
     [`echo "$${CONTINUATION}(git push)"`, SPLIT_EXPANSION],
+    [`(${CONTINUATION}( '$(git push -f origin)' ))`, SPLIT_EXPANSION],
+    [`for (${CONTINUATION}( i='$(git push -f origin)'; i<1; i++ )); do :; done`, SPLIT_EXPANSION],
+    [`(${CONTINUATION}${CONTINUATION}( $'\\x24(git push -f origin)' ))`, SPLIT_EXPANSION],
   ]);
 
   assertParsesWords([
     [`echo $(${CONTINUATION}git status)`, [['git', 'status'], ['echo', dyn(`$(${CONTINUATION}git status)`)]]],
     [`echo $(( 1 + 2 ${CONTINUATION}))`, [['echo', dyn(`$(( 1 + 2 ${CONTINUATION}))`)]]],
+    [`(${CONTINUATION} echo hi)`, [['echo', 'hi']]],
   ]);
 });
 
@@ -822,4 +860,268 @@ describe('parseShellCommands() — bash 5.3 function substitutions are refused',
     ['echo ${#x}', [['echo', dyn('${#x}')]]],
     ['echo ${x:-a case}', [['echo', dyn('${x:-a case}')]]],
   ]);
+});
+
+const QUOTED_ARITHMETIC_SUBSTITUTION =
+  'craft: command not parseable (a quoted $( ), ` or ${ } inside (( )), a subscript or ${ } — bash may still run it) — denied fail-closed';
+const opaqueWord = text => ({ text, dynamic: true, opaque: true });
+
+describe('parseShellCommands() — a quoted substitution inside an arithmetic reach', () => {
+  assertFails(
+    [
+      "(( '$(git push -f origin)' ))",
+      "(( '`git push -f origin`' ))",
+      "for (( i='$(git push -f origin)'; i<1; i++ )); do :; done",
+      "a['$(git push -f origin)']=1",
+      "x=abc; echo ${x:'$(git push -f origin)'}",
+      "echo ${a['$(git push -f origin)']}",
+      'echo "${a[\'$(git push -f origin)\']}"',
+      "x=abc; echo ${x:1:'$(git push -f origin)'}",
+      "x=abc; echo ${x: -'$(git push -f origin)'}",
+      "echo ${@:'$(git push -f origin)'}",
+      "a['$(git push -f origin)']+=1",
+      "x=(); x['$(git push -f origin)']=1",
+      "(( a['$(git push -f origin)'] ))",
+      "(( '${ git push -f origin; }' ))",
+      "(( '${x:-$(git push -f origin)}' ))",
+      "a['`git push -f origin`']=1",
+      "declare a['$(git push -f origin)']=1",
+      "declare -A m; m['$(git push -f origin)']=1",
+      "declare -A m; echo ${m['$(git push -f origin)']}",
+      "echo ${x:-'$(git push -f origin)'}",
+      "echo ${x:='$(git push -f origin)'}",
+      "echo ${x/'$(git push -f origin)'/y}",
+      "echo ${x::'$(git push -f origin)'}",
+      "echo ${#a['$(git push -f origin)']}",
+      'echo "${x:\'$(git push -f origin)\'}"',
+      "(( '$(git diff HEAD)' ))",
+      "(( $'$(git push -f origin)' ))",
+      "for (( i=$'$(git push -f origin)'; i<1; i++ )); do :; done",
+      "a[$'$(git push -f origin)']=1",
+      "echo ${a[$'$(git push -f origin)']}",
+      "x=abc; echo ${x:$'$(git push -f origin)'}",
+      "(( $'\\x24(git push -f origin)' ))",
+      "a[$'\\x24(git push -f origin)']=1",
+      "(( $'\\x24' ))",
+      "(( $'\\x60' ))",
+      "(( $'\\44' ))",
+      "(( $'\\044' ))",
+      "(( $'\\140' ))",
+      "(( $'\\u24' ))",
+      "(( $'\\U00000024' ))",
+      "(( $'\\x245' ))",
+      "(( $'\\u0024' ))",
+      "(( $'\\u00245' ))",
+      "(( $'\\U000000245' ))",
+      "(( $'\\444' ))",
+      "(( $'\\540' ))",
+      "(( $'$\\x28git push -f origin)' ))",
+      "(( $'$\\50git push -f origin)' ))",
+      "x=abc; echo ${x:$'$\\x7by:-$\\x28git push -f origin)}'}",
+      "(( $'$\\x7b git push -f origin; }' ))",
+      "(( $'\\x5b' ))",
+      "a[1+'$(git push -f origin)']=1",
+      "let x'[][''$(git push -f origin)'",
+    ].map(input => [input, QUOTED_ARITHMETIC_SUBSTITUTION]),
+  );
+});
+
+describe('parseShellCommands() — quotes that work in an arithmetic reach keep their shape', () => {
+  assertParsesWords([
+    ["(( '1' + 2 ))", [['1', '+', '2']]],
+    ["a['1']=x", [[patternWord('a[1]=x')]]],
+    ["declare -A m; m['k']=v", [['declare', '-A', 'm'], [patternWord('m[k]=v')]]],
+    ['echo "${m[\'k\']}"', [['echo', dyn("${m['k']}")]]],
+    ["echo ${x:-'default'}", [['echo', dyn("${x:-'default'}")]]],
+    ["IFS=$'\\n'", []],
+    ["echo $'\\033[1m'x", [['echo', opaqueWord('033[1mx')]]],
+    ['echo "${v//$\'\\n\'/ }"', [['echo', dyn("${v//$'\\n'/ }")]]],
+  ]);
+});
+
+describe('parseShellCommands() — ANSI-C escapes that decode to no opener', () => {
+  assertParsesWords([
+    ["(( $'\\x2' ))", [[opaqueWord('x2')]]],
+    ["(( $'\\0044' ))", [[opaqueWord('0044')]]],
+    ["(( $'\\033' ))", [[opaqueWord('033')]]],
+    ["(( $'\\n' ))", [[opaqueWord('n')]]],
+    ["(( $'\\e' ))", [[opaqueWord('e')]]],
+    ["(( $'\\c$' ))", [[opaqueWord('c$')]]],
+    ["(( $'\\\\x24' ))", [[opaqueWord('\\x24')]]],
+    ["(( $'\\c\\x24' ))", [[opaqueWord('cx24')]]],
+  ]);
+});
+
+const SUBSCRIPT_IN_STRING =
+  'craft: command not parseable (a word holding a quoted [ … $( ) — bash may evaluate it as arithmetic and run it) — denied fail-closed';
+
+describe('parseShellCommands() — a quoted subscript substitution in a word', () => {
+  assertFails(
+    [
+      "let 'a[$(git push -f origin)]'",
+      "[[ 'a[$(git push -f origin)]' -eq 0 ]]",
+      "x='a[$(git push -f origin)]'; echo $(( x ))",
+      "let 'x=a[$(git push -f origin)]'",
+      "let 'a[`git push -f origin`]'",
+      "let 'a[${x:-$(git push -f origin)}]'",
+      "[[ 0 -lt 'a[$(git push -f origin)]' ]]",
+      "[[ 1 -eq 1 && 'a[$(git push -f origin)]' -eq 0 ]]",
+      "[[ ( 'a[$(git push -f origin)]' -eq 0 ) ]]",
+      "declare -i x='a[$(git push -f origin)]'",
+      "x='a[$(git push -f origin)]'; (( x ))",
+      "x='a[$(git push -f origin)]'; [[ $x -eq 0 ]]",
+      "x='a[$(git push -f origin)]'; let x",
+      "x='a[$(git push -f origin)]'; echo ${y[x]}",
+      "x='a[$(git push -f origin)]'; echo $(( $x ))",
+      "x=$(printf '%s' 'a[$(git push -f origin)]'); echo $(( x ))",
+      "read x <<< 'a[$(git push -f origin)]'; echo $(( x ))",
+      "printf 'a[$(git push -f origin)]' > v; x=$(cat v); echo $(( x ))",
+      "X='a[$(git push -f origin)]' bash -c 'echo $(( X ))'",
+      "f() { echo $(( $1 )); }; f 'a[$(git push -f origin)]'",
+      "let 'a[$(git diff HEAD)]'",
+      "let 'a[b[1]+$(git push -f origin)]'",
+      "let 'a[${ git push -f origin; }]'",
+      "a[1]='$(git push -f origin)'",
+      "[ 'a[$(git push -f origin)]' -eq 0 ]",
+      "test 'a[$(git push -f origin)]' -eq 0",
+      "[[ 'a[$(git push -f origin)]' == 0 ]]",
+      "let 'a[1]+$(git push -f origin)'",
+      "let '1+$(git push -f origin)' 'a[$(git push -f origin)]'",
+      "x='a[$(git push -f origin)]'; echo \"$x\"",
+      "awk '{ a[$1] = $(NF) } END { print 1 }' </dev/null && git push -f origin",
+    ].map(input => [input, SUBSCRIPT_IN_STRING]),
+  );
+});
+
+describe('parseShellCommands() — subscripts and openers that do not form a literal subscript substitution', () => {
+  assertParsesWords([
+    ["let '1+$(git push -f origin)'", [['let', '1+$(git push -f origin)']]],
+    ["echo 'a['\"$(echo 1)\"']'", [['echo', '1'], ['echo', dyn('a[$(echo 1)]')]]],
+    ["echo '$' a[$(echo 1)]", [['echo', '1'], ['echo', '$', patternWord('a[$(echo 1)]')]]],
+    [
+      "printf -v x 'a[%s]' '$(git push -f origin)'; echo $(( x ))",
+      [['printf', '-v', 'x', 'a[%s]', '$(git push -f origin)'], ['echo', dyn('$(( x ))')]],
+    ],
+  ]);
+});
+
+describe('parseShellCommands() — an escaped opener in a word holding a subscript', () => {
+  assertFails(
+    [
+      'let "a[\\$(git push -f origin)]"',
+      'let "a[\\`git push -f origin\\`]"',
+      'let a[\\$\\(git\\ push\\ -f\\ origin\\)]',
+      'let a\\[\\$\\(git\\ push\\ -f\\ origin\\)\\]',
+      '[[ "a[\\$(git push -f origin)]" -eq 0 ]]',
+      '[[ a[\\$\\(git\\ push\\ -f\\ origin\\)] -eq 0 ]]',
+      'x="a[\\$(git push -f origin)]"; echo $(( x ))',
+      'x=a[\\$\\(git\\ push\\ -f\\ origin\\)]; echo $(( x ))',
+      'x=a\\[\\$\\(git\\ push\\ -f\\ origin\\)\\]; echo $(( x ))',
+      "let a[$\\(git' push -f origin'\\)]",
+      "let 'a['$\\(git' push -f origin'\\)']'",
+      "let a\\[$\\(git' push -f origin'\\)]",
+      "let $'a\\x5b'$\\(git' push -f origin'\\)]",
+      "let a[$\\{x:-$\\(git' push -f origin'\\)}]",
+      "[[ a[$\\(git' push -f origin'\\)] -eq 1 ]]",
+      "(( a[$\\(git' push -f origin'\\)] ))",
+      "let a[${x:-$}\\(git' push -f origin'\\)]",
+      "let a[{$,}\\(git' push -f origin'\\)]",
+      "let a[{$,}'(git push -f origin)']",
+      "let a[$(printf '$')\\(git' push -f origin'\\)]",
+      "let a[`printf '$'`\\(git' push -f origin'\\)]",
+      "(( a[${x:-$}\\(git' push -f origin'\\)] ))",
+      "let a[${x:-$}\\`git' push -f origin'\\`]",
+      "let a[${x:-$}\\{y}]",
+      "let \"a[${x:-$}(git push -f origin)]\"",
+      "printf \"[%s] ${c}(%s)\" a b",
+      "let a$'\\x5b'\"$\"$'\\x28git push -f origin\\x29\\x5d'",
+      "let a[$x\\(git' push -f origin'\\)]",
+      "let a[$x'(git push -f origin)']",
+      "let a[$x\"(git push -f origin)\"]",
+      "let a[\"$x\"\\(git' push -f origin'\\)]",
+      "let a[\"$x(\"git' push -f origin'\\)]",
+      "let a[$long_name\\(git' push -f origin'\\)]",
+      "let a[$1\\(git' push -f origin'\\)]",
+      "let a[$*\\(git' push -f origin'\\)]",
+      "let a[$@'(git push -f origin)']",
+      "(( a[$x\\(git' push -f origin'\\)] ))",
+    ].map(input => [input, SUBSCRIPT_IN_STRING]),
+  );
+});
+
+describe('parseShellCommands() — an ANSI-C span holding an opener in a word holding a subscript', () => {
+  assertFails(
+    [
+      "let $'a[$(git push -f origin)]'",
+      "let $'a[\\x24(git push -f origin)]'",
+      "x=$'a[\\x24(git push -f origin)]'; echo $(( x ))",
+      "let $'a[\\44(git push -f origin)]'",
+      "let $'a[\\x60git push -f origin\\x60]'",
+      "let $'a[\\140git push -f origin\\140]'",
+      "let $'a[\\x24\\x28git push -f origin)]'",
+      "let $'a[\\u24(git push -f origin)]'",
+      "let $'a[\\U00000024(git push -f origin)]'",
+      "let $'a[\\x24]'",
+      "let $'a\\x5b$(git push -f origin)]'",
+      "let $'a\\133$(git push -f origin)]'",
+      "let $'a\\u5b$(git push -f origin)]'",
+      "let $'a\\x5b\\x24(git push -f origin)]'",
+      "[[ $'a\\x5b$(git push -f origin)]' -eq 0 ]]",
+      "x=$'a[\\444(git push -f origin)0]'; echo $(( x ))",
+      "x=$'a[\\540git push -f origin\\5400]'; echo $(( x ))",
+      "let $'a[$\\x28git push -f origin)]'",
+      "let $'a[$\\50git push -f origin)]'",
+      "let $'a[$\\x7b git push -f origin; }]'",
+    ].map(input => [input, SUBSCRIPT_IN_STRING]),
+  );
+});
+
+describe('parseShellCommands() — ANSI-C escapes that decode to no opener in a word holding a subscript', () => {
+  assertParsesWords([
+    ["let $'a[\\0044(git push -f origin)]'", [['let', opaqueWord('a[0044(git push -f origin)]')]]],
+    ["let $'a[\\x2]'", [['let', opaqueWord('a[x2]')]]],
+    ["let $'a[\\033]'", [['let', opaqueWord('a[033]')]]],
+    ["let $'a[\\c$]'", [['let', opaqueWord('a[c$]')]]],
+    ["echo $'\\x24' a[1]", [['echo', opaqueWord('x24'), patternWord('a[1]')]]],
+    ["echo $'\\x28'", [['echo', opaqueWord('x28')]]],
+    ["echo $'\\x5b'", [['echo', opaqueWord('x5b')]]],
+    ["printf $'\\x5b%s\\x5d' x", [['printf', opaqueWord('x5b%sx5d'), 'x']]],
+    ["echo $'\\x24' 'a[$x'", [['echo', opaqueWord('x24'), 'a[$x']]],
+    ["echo $'\\x5b' '$x'", [['echo', opaqueWord('x5b'), '$x']]],
+    ['sed "s/[ ]*$/x/;s/^/${PREFIX}/" f', [['sed', dyn('s/[ ]*$/x/;s/^/${PREFIX}/'), 'f']]],
+    ['grep -E "[0-9]+$|${PAT}" f', [['grep', '-E', dyn('[0-9]+$|${PAT}'), 'f']]],
+    ['echo "- [${t}](${u})"', [['echo', dyn('- [${t}](${u})')]]],
+    ["jq '.[] | select(.id == $id)' f", [['jq', '.[] | select(.id == $id)', 'f']]],
+    ['echo "a[$x]" "(y)"', [['echo', dyn('a[$x]'), '(y)']]],
+    ['echo "a[${x}] (y)"', [['echo', dyn('a[${x}] (y)')]]],
+  ]);
+});
+
+describe('parseShellCommands() — a literal opener that no earlier text can join', () => {
+  assertParsesWords([
+    ['a[${x}]', [[patternWord('a[${x}]')]]],
+    ['\\(a[$x]', [[patternWord('(a[$x]')]]],
+    ['a\\(b[$x]', [[patternWord('a(b[$x]')]]],
+    ['echo \\(a[$x]', [['echo', patternWord('(a[$x]')]]],
+    ['echo a\\(b[$x]', [['echo', patternWord('a(b[$x]')]]],
+    ["echo $x'a('[1]", [['echo', patternWord('$xa([1]')]]],
+    ["echo 'a$b'\\([1]", [['echo', patternWord('a$b([1]')]]],
+    ["echo $x'-b'\\([1]", [['echo', patternWord('$x-b([1]')]]],
+    ["echo $x'b-'\\([1]", [['echo', patternWord('$xb-([1]')]]],
+    ['echo $(ls)a\\([1]', [['ls'], ['echo', patternWord('$(ls)a([1]')]]],
+  ]);
+  assertFails([["echo $x'ab'\\([1]", SUBSCRIPT_IN_STRING]]);
+});
+
+describe('parseShellCommands() — an escaped or quoted opener that sits outside a subscript', () => {
+  assertParsesWords([
+    ['echo \\`', [['echo', '`']]],
+    ["echo '$('[", [['echo', patternWord('$([')]]],
+    ['echo \\a[$(ls)]', [['ls'], ['echo', patternWord('a[$(ls)]')]]],
+  ]);
+  assertFails([['echo \\$a[$(ls)]', SUBSCRIPT_IN_STRING]]);
+});
+
+describe('parseShellCommands() — an unterminated ANSI-C quote inside an arithmetic command', () => {
+  assertFails([["(( $'$(ls)x", UNTERMINATED_QUOTE]]);
 });

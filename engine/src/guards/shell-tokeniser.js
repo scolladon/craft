@@ -23,6 +23,7 @@ const DOLLAR = '$';
 const OPEN_PAREN = '(';
 const OPEN_BRACE = '{';
 const OPEN_BRACKET = '[';
+const CLOSE_BRACKET = ']';
 const VARIABLE_START = /[A-Za-z_0-9@*#?$!-]/;
 // bash 5.3 runs ${ …; } and ${| …; } as a command list in the current shell, closing it only at a } where a
 // command can start; that rule reaches into [[ ]], case patterns and array values, so the guard refuses the form.
@@ -194,6 +195,13 @@ const createContext = (source, depth) => ({
   dynamic: false,
   opaque: false,
   pattern: false,
+  literalOpener: false,
+  escapedSyntax: false,
+  escapedBracket: false,
+  openSubscript: false,
+  joinedOpener: false,
+  dollarTail: false,
+  nameTail: false,
   braceFailedUntil: 0,
   parameter: false,
   arithmeticFloor: NO_ARITHMETIC,
@@ -215,8 +223,35 @@ const createContext = (source, depth) => ({
 // Lone test and group operators are words bash never expands.
 const LITERAL_OPERATORS = new Set(['[', '[[', '{']);
 
-const append = (context, text) => {
+// Kept per append so a quote never re-scans the whole word to learn whether a [ is still open.
+const tracksSubscript = (open, text) => {
+  const lastOpen = text.lastIndexOf(OPEN_BRACKET);
+  const lastClose = text.lastIndexOf(CLOSE_BRACKET);
+  // equivalent mutant (EqualityOperator lastOpen >= lastClose): the equal case is already answered by the ternary's first branch, so > and >= agree on every other input
+  return lastOpen === lastClose ? open : lastOpen > lastClose;
+};
+
+const JOINING_OPENER = /^[({`]/;
+const DOLLAR_TAIL = /[$}]$/;
+const NAME_TEXT = /^\w+$/;
+
+const appendText = (context, text) => {
   context.piece = (context.piece ?? '') + text;
+  context.openSubscript = tracksSubscript(context.openSubscript, text);
+};
+
+// Kept per append, never read off the piece, so a long word costs no re-scan.
+const tracksDollarTail = (context, text) => {
+  if (text === '') return;
+  context.nameTail &&= NAME_TEXT.test(text);
+  context.dollarTail = context.nameTail || DOLLAR_TAIL.test(text);
+};
+
+// A literal ( { or ` after what may end in a $ at run time (a $, any expansion, a brace group) can still join it into an opener.
+const append = (context, text) => {
+  context.joinedOpener ||= JOINING_OPENER.test(text) && context.dollarTail;
+  appendText(context, text);
+  tracksDollarTail(context, text);
 };
 
 const isHeadWord = (context, { text }) =>
@@ -235,8 +270,44 @@ const pushWord = (context, word) => {
   context.timing = word.text === TIME_KEYWORD;
 };
 
+const LITERAL_OPENER_CHAR = /[$`]/;
+const SUBSCRIPT_IN_STRING =
+  'craft: command not parseable (a word holding a quoted [ … $( ) — bash may evaluate it as arithmetic and run it) — denied fail-closed';
+
+// bash evaluates a subscript in a string as arithmetic wherever the string is read, and a ] before the opener can close a nested subscript
+const bracketBeforeOpener = piece => {
+  const bracket = piece.indexOf(OPEN_BRACKET);
+  return bracket !== -1 && SUBSTITUTION_OPENER.test(piece.slice(bracket));
+};
+
+// An escape hides where its character sits, so with one in the word the order of [ and the opener cannot be read.
+const escapeHidesSubscript = context =>
+  context.escapedBracket || (context.escapedSyntax && context.piece.includes(OPEN_BRACKET));
+
+const holdsBracket = context => context.escapedBracket || context.piece.includes(OPEN_BRACKET);
+const holdsDollar = context => context.literalOpener || context.piece.includes(DOLLAR);
+const joinsSubscriptOpener = context => context.joinedOpener && holdsBracket(context);
+
+const holdsSubscriptSubstitution = context =>
+  (context.literalOpener && bracketBeforeOpener(context.piece)) ||
+  (holdsDollar(context) && (escapeHidesSubscript(context) || joinsSubscriptOpener(context)));
+
+const resetWordFlags = context => {
+  context.dynamic = false;
+  context.opaque = false;
+  context.pattern = false;
+  context.literalOpener = false;
+  context.escapedSyntax = false;
+  context.escapedBracket = false;
+  context.openSubscript = false;
+  context.joinedOpener = false;
+  context.dollarTail = false;
+  context.nameTail = false;
+};
+
 const endWord = context => {
   if (context.piece === null) return;
+  if (holdsSubscriptSubstitution(context)) return fail(context, SUBSCRIPT_IN_STRING);
   const literal = LITERAL_OPERATORS.has(context.piece);
   const word = {
     text: context.piece,
@@ -245,9 +316,7 @@ const endWord = context => {
     ...(context.pattern && !literal && { pattern: true }),
   };
   context.piece = null;
-  context.dynamic = false;
-  context.opaque = false;
-  context.pattern = false;
+  resetWordFlags(context);
   if (context.redirecting) {
     context.redirecting = false;
     return;
@@ -361,17 +430,45 @@ const onBrace = context => {
   onLiteral(context);
 };
 
+const SUBSTITUTION_OPENER = /\$\(|\$\{|`/;
+const QUOTED_ARITHMETIC_SUBSTITUTION =
+  "craft: command not parseable (a quoted $( ), ` or ${ } inside (( )), a subscript or ${ } — bash may still run it) — denied fail-closed";
+
+// (( )), for (( )), any ${ } body and an open [ subscript: bash expands quoted text there again (5.3 everywhere, 3.2 in some).
+const inArithmeticReach = context =>
+  context.arithmeticFloor !== NO_ARITHMETIC || context.parameter || context.openSubscript;
+
+// A $'…' numeric escape decodes before bash evaluates the text, so \x24, \140 or \x28 is live syntax there.
+// equivalent mutant (Regex c[\S\S], [\S\S]): a whitespace char after \c or a lone backslash is never an escape start, so leaving it unmatched yields the same NaN code and the same remaining escapes
+const ANSI_C_ESCAPE = /\\(?:x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{1,4})|U([0-9A-Fa-f]{1,8})|([0-7]{1,3})|c[\s\S]|[\s\S])/g;
+const HEX_RADIX = 16;
+const OCTAL_RADIX = 8;
+// bash keeps only the low byte of an octal escape, so \444 is a $.
+const BYTE_MASK = 0xff;
+const codeOf = char => char.codePointAt(0);
+const OPENER_CODES = new Set([DOLLAR, BACKTICK].map(codeOf));
+const SYNTAX_CODES = new Set([DOLLAR, BACKTICK, OPEN_PAREN, OPEN_BRACE, OPEN_BRACKET].map(codeOf));
+const BRACKET_CODE = codeOf(OPEN_BRACKET);
+const escapedCode = ([, hex, short, long, octal]) =>
+  octal === undefined ? Number.parseInt(hex ?? short ?? long, HEX_RADIX) : Number.parseInt(octal, OCTAL_RADIX) & BYTE_MASK;
+const escapedCodes = span => [...span.matchAll(ANSI_C_ESCAPE)].map(escapedCode);
+const anyIn = (codes, set) => codes.some(code => set.has(code));
+
 const onBackslash = context => {
   const next = context.source[context.index + 1];
   if (next === undefined) return onLiteral(context);
   if (next !== NEWLINE) append(context, next);
+  context.literalOpener ||= next === DOLLAR || next === BACKTICK;
   context.index += 2;
 };
 
 const onSingleQuote = context => {
   const close = context.source.indexOf(SINGLE_QUOTE, context.index + 1);
   if (close === -1) return fail(context, UNTERMINATED_QUOTE);
-  append(context, context.source.slice(context.index + 1, close));
+  const span = context.source.slice(context.index + 1, close);
+  if (inArithmeticReach(context) && SUBSTITUTION_OPENER.test(span)) return fail(context, QUOTED_ARITHMETIC_SUBSTITUTION);
+  context.literalOpener ||= LITERAL_OPENER_CHAR.test(span);
+  append(context, span);
   context.index = close + 1;
 };
 
@@ -400,8 +497,22 @@ const onDoubleQuote = context => {
   fail(context, UNTERMINATED_QUOTE);
 };
 
+const inspectAnsiCSpan = (context, span) => {
+  const codes = escapedCodes(span);
+  const escapesSyntax = anyIn(codes, SYNTAX_CODES);
+  if (inArithmeticReach(context) && (SUBSTITUTION_OPENER.test(span) || escapesSyntax)) return fail(context, QUOTED_ARITHMETIC_SUBSTITUTION);
+  context.literalOpener ||= LITERAL_OPENER_CHAR.test(span) || anyIn(codes, OPENER_CODES);
+  context.escapedSyntax ||= escapesSyntax;
+  context.escapedBracket ||= codes.includes(BRACKET_CODE);
+};
+
 // equivalent mutant (EqualityOperator context.index <= context.source.length): the extra pass appends to a piece of a context that then fails with the same unterminated-quote reason
 const readAnsiC = context => {
+  const from = context.index + 2;
+  const close = findUnescaped(context.source, from, SINGLE_QUOTE);
+  if (close !== -1) inspectAnsiCSpan(context, context.source.slice(from, close));
+  // equivalent mutant (ConditionalExpression false): the scan that follows only appends text, and fail keeps the first reason with ??=, so the verdict is unchanged
+  if (context.failure !== null) return;
   append(context, '');
   context.index += 2;
   while (context.index < context.source.length) {
@@ -445,7 +556,9 @@ const absorb = (context, child) => {
 };
 
 const markExpansion = (context, start, end) => {
-  append(context, context.source.slice(start, end));
+  appendText(context, context.source.slice(start, end));
+  context.dollarTail = true;
+  context.nameTail = false;
   context.index = end;
   context.dynamic = true;
 };
@@ -469,11 +582,11 @@ const enterConstruct = (context, { openLength, close, settle, parameter, reprint
   markExpansion(context, start, child.index + 1);
 };
 
-// equivalent mutant (EqualityOperator index <= source.length): source[source.length] is undefined, neither a backslash nor a backtick, so the result is still -1
-const findBacktickEnd = (source, from) => {
+// equivalent mutant (EqualityOperator index <= source.length): source[source.length] is undefined, neither a backslash nor the closer, so the result is still -1
+const findUnescaped = (source, from, closer) => {
   for (let index = from; index < source.length; index += 1) {
     if (source[index] === BACKSLASH) index += 1;
-    else if (source[index] === BACKTICK) return index;
+    else if (source[index] === closer) return index;
   }
   return -1;
 };
@@ -481,7 +594,7 @@ const findBacktickEnd = (source, from) => {
 const enterBacktick = context => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
-  const end = findBacktickEnd(context.source, start + 1);
+  const end = findUnescaped(context.source, start + 1, BACKTICK);
   if (end === -1) return fail(context, UNTERMINATED_SUBSTITUTION);
   const body = context.source.slice(start + 1, end).replace(BACKTICK_ESCAPES, '$1');
   const child = parseNested(context, body);
@@ -503,7 +616,7 @@ const REREAD_AS_SUBSTITUTION = -2;
 const LINE_CONTINUATION = '\\\n';
 // bash drops a line continuation before it tells $(( from $( (, a split this tokeniser does not model.
 const SPLIT_EXPANSION =
-  'craft: command not parseable (a line continuation inside $, $(( or its closing )) ) — denied fail-closed';
+  'craft: command not parseable (a line continuation inside $, ((, $(( or its closing )) ) — denied fail-closed';
 // bash re-reads a $(( )) body that does not pair its parens as $( ( … ) ); where that pairing departs from this
 // scanner's own (comments, quotes spanning a nested $( )) the two readings disagree, so the guard refuses it.
 const UNPAIRED_ARITHMETIC =
@@ -597,6 +710,8 @@ const enterDollarParen = context => {
 
 const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
+  // The rest of the name arrives as literal text, and the expansion only ends with it.
+  context.nameTail = true;
 };
 
 const enterBrace = context =>
@@ -774,6 +889,8 @@ const OPENS_ARITHMETIC = '((';
 
 // equivalent mutant (ConditionalExpression true, EqualityOperator context.index >= 0 on the index guard): at index 0 parens is 0, so an adjacent match there sets the floor to parens - 1, which is NO_ARITHMETIC
 const onOpenParen = context => {
+  const next = afterContinuations(context.source, context.index + 1);
+  if (next > context.index + 1 && context.source[next] === OPEN_PAREN) return fail(context, SPLIT_EXPANSION);
   const adjacent = context.source.startsWith(OPENS_ARITHMETIC, context.index - 1) && context.index > 0;
   if (adjacent && context.arithmeticFloor === NO_ARITHMETIC) context.arithmeticFloor = context.parens - 1;
   context.parens += 1;
