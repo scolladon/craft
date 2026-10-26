@@ -653,32 +653,48 @@ test('Given an open run whose impact claims are a symlink to a directory outside
 });
 
 const READ_ONLY_MODE = 0o555;
+const WRITABLE_MODE = 0o755;
 const CLAIM_TIMEOUT_MS = 10000;
 
-test('Given impact claims that refuse new entries, when defer runs, then it exits 1 instead of spinning', () => {
-  withRun({}, (run) => {
-    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
-    const claims = path.join(runsDirOf(run.main), 'demo.impacts.ids');
-    fs.chmodSync(claims, READ_ONLY_MODE);
-    try {
-      const sut = () =>
-        spawnSync('bash', [LEDGER_SCRIPT, 'defer', 'demo', 'review'], {
-          cwd: run.main,
-          input: SECOND_ENTRY,
-          encoding: 'utf8',
-          timeout: CLAIM_TIMEOUT_MS,
-          killSignal: 'SIGKILL',
-        });
-
-      const result = sut();
-
-      assert.strictEqual(result.signal, null);
-      assert.strictEqual(result.status, 1);
-      assert.match(result.stderr, /cannot claim impact id/);
-    } finally {
-      fs.chmodSync(claims, 0o755);
-    }
+// A hung defer forks a command-substitution subshell; killing only the direct child
+// would orphan it, so the whole process group goes on timeout.
+function deferWithDeadline(cwd, entry, deadlineMs) {
+  return new Promise((resolve) => {
+    const child = spawn('bash', [LEDGER_SCRIPT, 'defer', 'demo', 'review'], { cwd, detached: true });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    const timer = setTimeout(() => process.kill(-child.pid, 'SIGKILL'), deadlineMs);
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      resolve({ status: null, signal: null, stderr: String(error) });
+    });
+    child.on('close', (status, signal) => {
+      clearTimeout(timer);
+      resolve({ status, signal, stderr });
+    });
+    child.stdin.end(entry);
   });
+}
+
+test('Given impact claims that refuse new entries, when defer runs, then it exits 1 instead of spinning', async () => {
+  const run = bindRun({});
+  const claims = path.join(runsDirOf(run.main), 'demo.impacts.ids');
+  try {
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    fs.chmodSync(claims, READ_ONLY_MODE);
+    const sut = deferWithDeadline;
+
+    const result = await sut(run.main, SECOND_ENTRY, CLAIM_TIMEOUT_MS);
+
+    assert.strictEqual(result.signal, null);
+    assert.strictEqual(result.status, 1);
+    assert.match(result.stderr, /cannot claim impact id/);
+  } finally {
+    fs.chmodSync(claims, WRITABLE_MODE);
+    run.cleanup();
+  }
 });
 
 test('Given a run whose ledger was lost without close, when it is opened again and an entry deferred, then the entry is I1', () => {
