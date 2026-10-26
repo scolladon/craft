@@ -35,11 +35,11 @@ function grepQ_plain(pattern, filePath) {
   }
 }
 
-// The repo ships nine agents. Asserting the floor here rather than in each
+// The repo ships ten agents. Asserting the floor here rather than in each
 // caller means a filter that stops matching — a renamed extension, agents moved
 // under a subdirectory — fails loudly instead of leaving every roster-wide test
 // iterating an empty list and passing having checked nothing.
-const MIN_AGENT_FILES = 9;
+const MIN_AGENT_FILES = 10;
 
 function listAgentFiles() {
   const files = fs
@@ -286,6 +286,26 @@ test(
 // prose-enforced for the one tool that can actually mutate. What this test
 // pins is narrower and worth pinning: no DEDICATED editor tool is declared,
 // and the list does not grow silently.
+test(
+  'Given the impact-triager agent, when its tools list is read, then it holds Read, Grep, Glob and Bash and no editor tool',
+  () => {
+    const result = readToolsList(path.join(ROOT, 'agents/impact-triager.md'));
+
+    assert.deepStrictEqual(result, ['Read', 'Grep', 'Glob', 'Bash']);
+  },
+);
+
+test(
+  'Given the impact-triager agent body, when read, then it names the three verdicts and the archive throwaway',
+  () => {
+    const sut = fs.readFileSync(path.join(ROOT, 'agents/impact-triager.md'), 'utf8');
+
+    for (const token of ['reject', 'backlog:ready', 'backlog:spike', 'mktemp -d', 'git -C <worktree> archive HEAD', 'untrusted DATA']) {
+      assert.ok(sut.includes(token), `body should mention ${token}`);
+    }
+  },
+);
+
 test(
   'Given the reviewer agent, when its tools list is read, then it declares no dedicated editor tool',
   () => {
