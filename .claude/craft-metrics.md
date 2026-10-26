@@ -707,3 +707,9 @@ arith-expansion-comsub-bypass design turns=41 tool_calls=49 tokens=3505097 durat
 arith-expansion-comsub-bypass implementation turns=26 tool_calls=31 tokens=814056 duration_ms=235971 cache_read=708912 cache_creation=88432 output=16660 avg_ctx=30669 equiv=264783
 arith-expansion-comsub-bypass planning turns=51 tool_calls=53 tokens=5077435 duration_ms=838292 cache_read=4836658 cache_creation=163027 output=77648 avg_ctx=98035 equiv=1075792
 arith-expansion-comsub-bypass review turns=179 tool_calls=183 tokens=6839491 duration_ms=2557885 cache_read=6085452 cache_creation=554668 output=199013 avg_ctx=37098 equiv=2297303
+guard-arith-cleanup design turns=72 tool_calls=72 tokens=9192529 duration_ms=1380696 cache_read=8858329 cache_creation=218813 output=115243 avg_ctx=126073 equiv=1735708
+guard-arith-cleanup documentation turns=6 tool_calls=8 tokens=118737 duration_ms=140293 cache_read=94353 cache_creation=21473 output=2899 avg_ctx=19306 equiv=50784
+guard-arith-cleanup implementation turns=40 tool_calls=44 tokens=1336166 duration_ms=726751 cache_read=1173084 cache_creation=135584 output=27418 avg_ctx=32719 equiv=423958
+guard-arith-cleanup planning turns=63 tool_calls=64 tokens=7205982 duration_ms=1620346 cache_read=6920212 cache_creation=199721 output=85923 avg_ctx=113017 equiv=1371413
+guard-arith-cleanup review turns=138 tool_calls=144 tokens=4963521 duration_ms=2117717 cache_read=4453884 cache_creation=378197 output=131164 avg_ctx=35017 equiv=1574231
+guard-arith-cleanup validation turns=29 tool_calls=30 tokens=1340377 duration_ms=474714 cache_read=1253928 cache_creation=63431 output=22960 avg_ctx=45428 equiv=319540
