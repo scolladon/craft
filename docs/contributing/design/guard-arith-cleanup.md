@@ -331,6 +331,23 @@ Only refusing every arithmetic read of a variable closes these, and that denies 
 allowed disk scripts. They are recorded under
 `### Closed — won't-do (rationale recorded)` in BACKLOG.md.
 
+### What the review changed
+
+Four review rounds broke the rules above as first written. The shipped shape:
+
+- **Escapes.** `escapesToOpener` became `escapedCodes`: an octal escape keeps only its low byte, as
+  bash does (`\444` is `$`, `\540` a backtick), and an escape counts when it decodes to `$`, a
+  backtick, `(`, `{` or `[` (`SYNTAX_CODES`). `$'$\x28…'` and `$'a\x5b$(…)]'` now fail.
+- **Linear checks.** `UNCLOSED_SUBSCRIPT` and `LITERAL_SUBSCRIPT_SUBSTITUTION` backtracked
+  quadratically (7.5 s on a 130k-character word). The open-subscript state is now kept per append
+  (`tracksSubscript`), and the word check is `indexOf('[')` plus `SUBSTITUTION_OPENER` on the rest.
+- **`((` split by a continuation.** `(\<newline>(` fails with the line-continuation reason.
+- **A joined opener (ADR-698).** A word fails when it holds a `[`, any `$`, and a literal `(`, `{` or
+  backtick appended right after something that may end in a `$` at run time: a `$`, any expansion
+  (a bare `$name`, `$1`, `$@` included) or a brace group's `}`. This covers `$\(`, `${x:-$}\(`,
+  `{$,}\(`, `$(printf '$')\(` and `$x\(`, which earlier rounds patched one by one. Census against
+  the rule before it: 0 of 30000 fuzz commands, 3 of 196 disk scripts newly denied.
+
 ### Accepted false blocks
 
 The first three classes run nothing in either shell:
@@ -346,6 +363,10 @@ The first three classes run nothing in either shell:
   inside an unclosed `[`" would let it pass, but it leaks row 109.
 - Measured cost: 0 of 29162 parsed fuzz commands. On disk, 1 of 244 parsed scripts (the shellenv
   PowerShell `echo`).
+- The joined-opener rule (ADR-698) adds a word with `[`, a `$` and a literal opener right after an
+  expansion, whatever reads it: bats-core's `eval "$t=(\"\${tags[@]}\")"` idioms and forgit's
+  `printf "[%s%s] %s ${_cyan}(%s)…"`. The tokeniser cannot tell which words an arithmetic reader
+  evaluates.
 
 ## Decision candidates
 
