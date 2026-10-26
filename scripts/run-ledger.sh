@@ -4,14 +4,18 @@
 # Every run file lives in the git common dir, which no commit can write:
 #   <git-common-dir>/craft-runs/<run-id>.md       the run's append-only ledger
 #   <git-common-dir>/craft-runs/<run-id>.pointer  "<run-key> <ledger-path>"
+#   <git-common-dir>/craft-runs/<run-id>.impacts.md  the run's discovered-impacts store
 #
 # Usage: run-ledger.sh open <run-id>
 #        run-ledger.sh append <run-id> <phase>
+#        run-ledger.sh defer <run-id> <phase>
 #        run-ledger.sh locate --transcript <path>
 #        run-ledger.sh locate --run <run-id>
 #        run-ledger.sh close <run-id>
 #        run-ledger.sh dir
 # append stamps each PHASE-START(<phase>): record with its own UTC clock.
+# defer reads one impact entry on stdin, stores it as the next `## I<n>` block
+# and ledgers a DEFERRED record; a malformed entry is refused, nothing written.
 set -euo pipefail
 export LC_ALL=C
 
@@ -19,6 +23,11 @@ readonly LEDGER_HEADER='# craft run record (append-only)'
 readonly RUNS_SUBDIR='craft-runs'
 readonly POINTER_SUFFIX='.pointer'
 readonly LEDGER_SUFFIX='.md'
+readonly IMPACTS_HEADER='# craft discovered impacts (append-only)'
+readonly IMPACTS_SUFFIX='.impacts.md'
+readonly IMPACT_HEADING_PATTERN='^## I[0-9]+$'
+readonly LOCUS_PATTERN='^locus: [^[:space:]]+$'
+readonly KNOWN_REASONS='out of scope|needs its own decision|needs a probe|waits on an external trigger|adds feature behaviour|the fix did not pass its gate'
 readonly RUN_ID_PATTERN='^[a-z0-9][a-z0-9-]*$'
 readonly PHASE_PATTERN='^[a-z][a-z0-9-]*$'
 readonly RUN_KEY_PATTERN='^[a-z0-9][a-z0-9-]*@[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
@@ -32,6 +41,7 @@ usage_exit() {
   cat >&2 <<'EOF'
 usage: run-ledger.sh open <run-id>
        run-ledger.sh append <run-id> <phase>
+       run-ledger.sh defer <run-id> <phase>
        run-ledger.sh locate --transcript <path> | --run <run-id>
        run-ledger.sh close <run-id>
        run-ledger.sh dir
@@ -91,6 +101,10 @@ pointer_path() {
 
 ledger_path() {
   printf '%s/%s%s' "$(runs_dir)" "$1" "$LEDGER_SUFFIX"
+}
+
+impacts_path() {
+  printf '%s/%s%s' "$(runs_dir)" "$1" "$IMPACTS_SUFFIX"
 }
 
 # Sets `key` and `ledger` (script-scoped, deliberately not `local`) from the
@@ -183,6 +197,7 @@ cmd_open() {
   refuse_if_open "$run_id"
   target="$(ledger_path "$run_id")"
   write_atomically "$target" "$LEDGER_HEADER"
+  write_atomically "$(impacts_path "$run_id")" "$IMPACTS_HEADER"
   warn_if_replacing "$run_id"
   run_key="$run_id@$(utc_now)"
   write_atomically "$(pointer_path "$run_id")" "$run_key $target"
@@ -216,6 +231,86 @@ cmd_append() {
     wrote=1
   done
   [ "$wrote" -eq 1 ] || die "no non-blank input for $run_id $phase"
+}
+
+# Number of lines of $1 matching the extended regex $2 (0 when none).
+count_matching() {
+  printf '%s\n' "$1" | grep -c -E -e "$2" || true
+}
+
+# A field is valid when exactly one line opens with `<field>:` and that line
+# also fits the full pattern.
+has_one_line() {
+  local entry="$1" field="$2" pattern="$3"
+  [ "$(count_matching "$entry" "^$field:")" -eq 1 ] && [ "$(count_matching "$entry" "$pattern")" -eq 1 ]
+}
+
+field_value() {
+  printf '%s\n' "$1" | sed -n "s/^$2: //p"
+}
+
+is_known_reason() {
+  [[ $1 =~ ^($KNOWN_REASONS)$ ]]
+}
+
+is_relative_locus() {
+  [[ $1 != /* && $1 != '~'* ]]
+}
+
+has_known_reason() {
+  has_one_line "$1" reason '^reason: .+$' || return 1
+  is_known_reason "$(field_value "$1" reason)"
+}
+
+has_proof_body() {
+  printf '%s\n' "$1" | awk '/^proof:$/ { inside = 1; next } /^expected: / { exit } inside && /[^[:space:]]/ { found = 1 } END { exit !found }'
+}
+
+# Sets `entry_error` to the first reason the entry is refused; empty when valid.
+validate_entry() {
+  local entry="$1"
+  entry_error=''
+  if [ "$(count_matching "$entry" '^#')" -ne 0 ]; then entry_error='a line starting with #'; return; fi
+  has_one_line "$entry" title '^title: .*[^[:space:]]' || { entry_error='exactly one non-empty title line is required'; return; }
+  has_one_line "$entry" locus "$LOCUS_PATTERN" || { entry_error='exactly one locus line without whitespace is required'; return; }
+  is_relative_locus "$(field_value "$entry" locus)" || { entry_error='the locus must be a relative path'; return; }
+  has_known_reason "$entry" || { entry_error='exactly one known reason line is required'; return; }
+  has_one_line "$entry" expected '^expected: .*[^[:space:]]' || { entry_error='exactly one non-empty expected line is required'; return; }
+  has_proof_body "$entry" || entry_error='a proof line followed by a body before expected is required'
+}
+
+require_writable_store() {
+  local store="$1"
+  [ -f "$store" ] || [ -L "$store" ] || die "impacts store is missing, not recreating: $store"
+  if is_symlinked "$store"; then die "refusing a symlinked impacts store: $store"; fi
+}
+
+next_impact_id() {
+  printf 'I%s' "$(( $(grep -c -E -e "$IMPACT_HEADING_PATTERN" "$1" || true) + 1 ))"
+}
+
+record_impact() {
+  local run_id="$1" phase="$2" entry="$3" store id locus
+  store="$(impacts_path "$run_id")"
+  require_writable_store "$store"
+  id="$(next_impact_id "$store")"
+  locus="$(field_value "$entry" locus)"
+  printf '\n## %s\n%s\n' "$id" "$entry" >> "$store"
+  printf '%s %s DEFERRED(%s): %s %s\n' "$run_id" "$phase" "${locus%%:*}" "$id" "$(field_value "$entry" title)" >> "$ledger"
+  printf '%s\n' "$id"
+}
+
+cmd_defer() {
+  local run_id="${1:-}" phase="${2:-}" entry
+  [ -n "$phase" ] || usage_exit
+  require_run_id "$run_id"
+  is_valid_phase "$phase" || die "invalid phase: $phase" 2
+  entry="$(cat)"
+  validate_entry "$entry"
+  [ -z "$entry_error" ] || die "defer: $entry_error" 2
+  resolve_git_common || die "not inside a git repository's work tree"
+  require_trusted_pointer "$run_id"
+  record_impact "$run_id" "$phase" "$entry"
 }
 
 # One line per trusted pointer whose ledger still exists, `<key> <ledger>`,
@@ -266,7 +361,7 @@ cmd_close() {
   local run_id="${1:-}"
   require_run_id "$run_id"
   resolve_git_common || die "not inside a git repository's work tree"
-  rm -f "$(pointer_path "$run_id")" "$(ledger_path "$run_id")"
+  rm -f "$(pointer_path "$run_id")" "$(ledger_path "$run_id")" "$(impacts_path "$run_id")"
 }
 
 cmd_dir() {
@@ -277,6 +372,7 @@ cmd_dir() {
 case "${1:-}" in
   open) shift; cmd_open "$@" ;;
   append) shift; cmd_append "$@" ;;
+  defer) shift; cmd_defer "$@" ;;
   locate) shift; cmd_locate "$@" ;;
   close) shift; cmd_close "$@" ;;
   dir) cmd_dir ;;

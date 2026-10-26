@@ -11,6 +11,7 @@ const { UNSIGNED_COMMIT_CONFIG } = require('./commit-signing');
 
 const LEDGER_SCRIPT = path.join(__dirname, '..', '..', 'scripts', 'run-ledger.sh');
 const LEDGER_HEADER = '# craft run record (append-only)';
+const IMPACTS_HEADER = '# craft discovered impacts (append-only)';
 
 function git(cwd, args) {
   return execFileSync(
@@ -91,6 +92,7 @@ function bindRun({ runId = 'demo', ledgerLines = [], worktree = true } = {}) {
 module.exports = {
   LEDGER_SCRIPT,
   LEDGER_HEADER,
+  IMPACTS_HEADER,
   git,
   runsDirOf,
   createRunRepo,

@@ -8,6 +8,7 @@ const { spawnSync } = require('node:child_process');
 const {
   LEDGER_SCRIPT,
   LEDGER_HEADER,
+  IMPACTS_HEADER,
   git,
   runsDirOf,
   createRunRepo,
@@ -20,6 +21,7 @@ const RUN_KEY_PATTERN = /^demo@\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const PAST_STAMP = '2026-01-01T00:00:00Z';
 
 const ledgerOf = (main, runId = 'demo') => path.join(runsDirOf(main), `${runId}.md`);
+const impactsOf = (main, runId = 'demo') => path.join(runsDirOf(main), `${runId}.impacts.md`);
 const pointerOf = (main, runId = 'demo') => path.join(runsDirOf(main), `${runId}.pointer`);
 
 function withTempDir(prefix, act) {
@@ -65,6 +67,32 @@ test('Given a fresh repo, when open demo runs from the checkout, then stdout car
     assert.strictEqual(ledger, ledgerOf(main));
     assert.strictEqual(fs.readFileSync(ledger, 'utf8'), `${LEDGER_HEADER}\n`);
     assert.strictEqual(fs.readFileSync(pointerOf(main), 'utf8'), `${key} ${ledger}\n`);
+  });
+});
+
+test('Given a fresh repo, when open demo runs, then the impacts store holds its header alone', () => {
+  withRepo(({ main }) => {
+    const sut = runLedger;
+
+    sut(main, ['open', 'demo']);
+
+    assert.strictEqual(fs.readFileSync(impactsOf(main), 'utf8'), `${IMPACTS_HEADER}\n`);
+  });
+});
+
+test('Given the impacts store path is a symlink to a file outside the git dir, when open runs, then it exits 1, writes no pointer and leaves the target unchanged', () => {
+  withRepo(({ main, parent }) => {
+    const outside = path.join(parent, 'outside-impacts.txt');
+    fs.writeFileSync(outside, 'untouched\n');
+    fs.mkdirSync(runsDirOf(main), { recursive: true });
+    fs.symlinkSync(outside, impactsOf(main));
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo']);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.existsSync(pointerOf(main)), false);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'untouched\n');
   });
 });
 
@@ -495,6 +523,110 @@ for (const [label, phase] of [['a bad phase', 'Bad'], ['a phase carrying a newli
 }
 
 // ---------------------------------------------------------------------------
+// discovered impacts — defer
+// ---------------------------------------------------------------------------
+
+const VALID_ENTRY = [
+  'title: install hook leaves stale symlink on re-run',
+  'locus: scripts/worktree-setup.sh:L88',
+  'reason: out of scope',
+  'proof:',
+  '  bash scripts/worktree-setup.sh "$tmp"; ls -l "$tmp/.claude"',
+  'expected: .claude -> <stale target>',
+].join('\n');
+
+const SECOND_ENTRY = VALID_ENTRY.replace('install hook leaves stale symlink on re-run', 'second finding');
+
+test('Given an open run, when two valid entries are deferred, then stdout prints I1 then I2, the store holds both blocks and the ledger gains one DEFERRED line each', () => {
+  withRun({}, (run) => {
+    const sut = runLedger;
+
+    const first = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    const second = sut(run.main, ['defer', 'demo', 'review'], SECOND_ENTRY);
+
+    assert.strictEqual(first.stdout, 'I1\n');
+    assert.strictEqual(second.stdout, 'I2\n');
+    assert.strictEqual(
+      fs.readFileSync(impactsOf(run.main), 'utf8'),
+      `${IMPACTS_HEADER}\n\n## I1\n${VALID_ENTRY}\n\n## I2\n${SECOND_ENTRY}\n`,
+    );
+    assert.strictEqual(
+      fs.readFileSync(run.ledgerPath, 'utf8'),
+      `${LEDGER_HEADER}\n` +
+        'demo review DEFERRED(scripts/worktree-setup.sh): I1 install hook leaves stale symlink on re-run\n' +
+        'demo review DEFERRED(scripts/worktree-setup.sh): I2 second finding\n',
+    );
+  });
+});
+
+const BODY_LINE = /^ {2}bash.*\n/m;
+const without = (prefix) => VALID_ENTRY.split('\n').filter((l) => !l.startsWith(prefix)).join('\n');
+const withLine = (prefix, replacement) =>
+  VALID_ENTRY.split('\n').map((l) => (l.startsWith(prefix) ? replacement : l)).join('\n');
+
+for (const [label, entry] of [
+  ['an entry with no proof line', without('proof:').replace(BODY_LINE, '')],
+  ['a proof line with no body before expected', VALID_ENTRY.replace(BODY_LINE, '')],
+  ['no expected line', without('expected:')],
+  ['an absolute locus', withLine('locus:', 'locus: /etc/x.js')],
+  ['a home-rooted locus', withLine('locus:', 'locus: ~/x.js')],
+  ['a locus holding whitespace', withLine('locus:', 'locus: a b.js')],
+  ['an unknown reason', withLine('reason:', 'reason: because')],
+  ['no title line', without('title:')],
+  ['a proof line that is a heading', withLine('  bash', '## I9')],
+]) {
+  test(`Given ${label}, when defer runs, then it exits 2 and the store and the ledger are byte-identical`, () => {
+    withRun({}, (run) => {
+      const storeBefore = fs.readFileSync(impactsOf(run.main), 'utf8');
+      const ledgerBefore = fs.readFileSync(run.ledgerPath, 'utf8');
+      const sut = runLedger;
+
+      const result = sut(run.main, ['defer', 'demo', 'review'], entry);
+
+      assert.strictEqual(result.status, 2);
+      assert.strictEqual(result.stdout, '');
+      assert.strictEqual(fs.readFileSync(impactsOf(run.main), 'utf8'), storeBefore);
+      assert.strictEqual(fs.readFileSync(run.ledgerPath, 'utf8'), ledgerBefore);
+    });
+  });
+}
+
+test('Given no open run, when defer runs with a valid entry, then it exits 1', () => {
+  withRepo(({ main }) => {
+    const sut = runLedger;
+
+    const result = sut(main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 1);
+  });
+});
+
+test('Given defer with no phase, when the script runs, then it exits 2', () => {
+  withRun({}, (run) => {
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 2);
+  });
+});
+
+test('Given an open run whose store is replaced by a symlink, when defer runs, then it exits 1 and the link target is unchanged', () => {
+  withRun({}, (run) => {
+    const outside = path.join(run.parent, 'outside-store.txt');
+    fs.writeFileSync(outside, 'untouched\n');
+    fs.rmSync(impactsOf(run.main));
+    fs.symlinkSync(outside, impactsOf(run.main));
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'untouched\n');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // locate
 // ---------------------------------------------------------------------------
 
@@ -862,7 +994,9 @@ test('Given an open run, when close demo runs, then the pointer and the ledger a
     assert.strictEqual(result.status, 0);
     assert.strictEqual(fs.existsSync(pointerOf(run.main)), false);
     assert.strictEqual(fs.existsSync(run.ledgerPath), false);
+    assert.strictEqual(fs.existsSync(impactsOf(run.main)), false);
     assert.strictEqual(fs.existsSync(ledgerOf(run.main, 'other')), true);
+    assert.strictEqual(fs.existsSync(impactsOf(run.main, 'other')), true);
   });
 });
 
