@@ -1024,6 +1024,16 @@ describe('parseShellCommands() — an escaped opener in a word holding a subscri
       "let a[$\\{x:-$\\(git' push -f origin'\\)}]",
       "[[ a[$\\(git' push -f origin'\\)] -eq 1 ]]",
       "(( a[$\\(git' push -f origin'\\)] ))",
+      "let a[${x:-$}\\(git' push -f origin'\\)]",
+      "let a[{$,}\\(git' push -f origin'\\)]",
+      "let a[{$,}'(git push -f origin)']",
+      "let a[$(printf '$')\\(git' push -f origin'\\)]",
+      "let a[`printf '$'`\\(git' push -f origin'\\)]",
+      "(( a[${x:-$}\\(git' push -f origin'\\)] ))",
+      "let a[${x:-$}\\`git' push -f origin'\\`]",
+      "let a[${x:-$}\\{y}]",
+      "let \"a[${x:-$}(git push -f origin)]\"",
+      "printf \"[%s] ${c}(%s)\" a b",
     ].map(input => [input, SUBSCRIPT_IN_STRING]),
   );
 });
@@ -1067,5 +1077,9 @@ describe('parseShellCommands() — ANSI-C escapes that decode to no opener in a 
     ["printf $'\\x5b%s\\x5d' x", [['printf', opaqueWord('x5b%sx5d'), 'x']]],
     ["echo $'\\x24' 'a[$x'", [['echo', opaqueWord('x24'), 'a[$x']]],
     ["echo $'\\x5b' '$x'", [['echo', opaqueWord('x5b'), '$x']]],
+    ['sed "s/[ ]*$/x/;s/^/${PREFIX}/" f', [['sed', dyn('s/[ ]*$/x/;s/^/${PREFIX}/'), 'f']]],
+    ['grep -E "[0-9]+$|${PAT}" f', [['grep', '-E', dyn('[0-9]+$|${PAT}'), 'f']]],
+    ['echo "- [${t}](${u})"', [['echo', dyn('- [${t}](${u})')]]],
+    ["jq '.[] | select(.id == $id)' f", [['jq', '.[] | select(.id == $id)', 'f']]],
   ]);
 });

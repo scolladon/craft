@@ -199,6 +199,7 @@ const createContext = (source, depth) => ({
   escapedSyntax: false,
   escapedBracket: false,
   openSubscript: false,
+  joinedOpener: false,
   braceFailedUntil: 0,
   parameter: false,
   arithmeticFloor: NO_ARITHMETIC,
@@ -227,9 +228,18 @@ const tracksSubscript = (open, text) => {
   return lastOpen === lastClose ? open : lastOpen > lastClose;
 };
 
-const append = (context, text) => {
+const JOINING_OPENER = /^[({`]/;
+const DOLLAR_END = /[$})`]$/;
+
+const appendText = (context, text) => {
   context.piece = (context.piece ?? '') + text;
   context.openSubscript = tracksSubscript(context.openSubscript, text);
+};
+
+// A literal ( { or ` after what may end in a $ at run time (a $, an expansion, a brace group) can still join it into an opener.
+const append = (context, text) => {
+  context.joinedOpener ||= JOINING_OPENER.test(text) && DOLLAR_END.test(context.piece ?? '');
+  appendText(context, text);
 };
 
 const isHeadWord = (context, { text }) =>
@@ -262,8 +272,13 @@ const bracketBeforeOpener = piece => {
 const escapeHidesSubscript = context =>
   context.escapedBracket || (context.escapedSyntax && context.piece.includes(OPEN_BRACKET));
 
+const holdsBracket = context => context.escapedBracket || context.piece.includes(OPEN_BRACKET);
+const holdsDollar = context => context.literalOpener || context.piece.includes(DOLLAR);
+const joinsSubscriptOpener = context => context.joinedOpener && holdsBracket(context) && holdsDollar(context);
+
 const holdsSubscriptSubstitution = context =>
-  context.literalOpener && (bracketBeforeOpener(context.piece) || escapeHidesSubscript(context));
+  (context.literalOpener && (bracketBeforeOpener(context.piece) || escapeHidesSubscript(context))) ||
+  joinsSubscriptOpener(context);
 
 const resetWordFlags = context => {
   context.dynamic = false;
@@ -273,6 +288,7 @@ const resetWordFlags = context => {
   context.escapedSyntax = false;
   context.escapedBracket = false;
   context.openSubscript = false;
+  context.joinedOpener = false;
 };
 
 const endWord = context => {
@@ -524,7 +540,7 @@ const absorb = (context, child) => {
 };
 
 const markExpansion = (context, start, end) => {
-  append(context, context.source.slice(start, end));
+  appendText(context, context.source.slice(start, end));
   context.index = end;
   context.dynamic = true;
 };
@@ -690,8 +706,6 @@ const expandDollar = context => {
   if (next === OPEN_BRACE) return enterBrace(context);
   if (next === OPEN_BRACKET) return enterArithmetic(context, BRACKET_ARITHMETIC);
   if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
-  // A $ bash leaves unexpanded here still opens a substitution once quote removal joins it to an escaped (.
-  context.literalOpener = true;
   onLiteral(context);
 };
 
