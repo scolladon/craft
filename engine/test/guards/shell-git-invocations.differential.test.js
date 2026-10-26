@@ -285,9 +285,9 @@ const WHOLE_COMMAND_REJECTED = /<<'EOFQ'/;
 const BRACE_IN_PROCESS_SUBSTITUTION = /cat <\( (?:(?!\)[' ])[^\n])*\{[^{}\s]*(,|\.\.)[^{}\s]*\}/;
 const QUOTED_HEREDOC_AROUND_UNTERMINATED =
   /<<(['"])EOF\d+\1\n(?:(?!\n\t?EOF\d)[\s\S])*(git push 'x|git status "x|echo \$\(git push)/;
-// No paren between the opener and the heredoc, nor between its terminator and the ;, so all three share one substitution body.
 const LITERAL_SUBSCRIPT_SPECIAL = /a\[\$\(git push origin\)\]/;
 const CASE_REFUSAL = /case inside \$\( \)/;
+// No paren between the opener and the heredoc, nor between its terminator and the ;, so all three share one substitution body.
 const HEREDOC_LIST_IN_SUBSTITUTION = /(?:\$\(|<\() [^()\n]*?<<-?(['"]?)(EOF\w+)\1\n[\s\S]*?\n\t?\2\n[^()\n]*;/;
 
 const pinnedCommands = () => PINNED_SEEDS.flatMap(seed => generateCommands(seed, PINNED_COUNT));

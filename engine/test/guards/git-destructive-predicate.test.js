@@ -685,6 +685,10 @@ describe('gitDestructivePredicate() — a quoted subscript substitution in a wor
     "[[ 1 -eq 1 && 'a[$(git push -f origin)]' -eq 0 ]]",
     "[[ ( 'a[$(git push -f origin)]' -eq 0 ) ]]",
     "declare -i x='a[$(git push -f origin)]'",
+    "let $'a\\x5b$(git push -f origin)]'",
+    "let $'a[\\444(git push -f origin)]'",
+    "(( $'$\\x28git push -f origin)' ))",
+    "(\\\n( '$(git push -f origin)' ))",
   ]);
 
   assertPasses(["let '1+$(git push -f origin)'", "echo 'a['\"$(echo 1)\"']' && git status"]);
