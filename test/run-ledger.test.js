@@ -627,6 +627,50 @@ test('Given an open run whose store is replaced by a symlink, when defer runs, t
 });
 
 // ---------------------------------------------------------------------------
+// discovered impacts — verdict
+// ---------------------------------------------------------------------------
+
+const RATIONALE = 'reproduced at HEAD';
+
+test('Given an entry deferred as I1, when verdict demo I1 backlog:ready runs with one rationale line, then the store gains the verdict heading and the ledger a TRIAGED line', () => {
+  withRun({}, (run) => {
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['verdict', 'demo', 'I1', 'backlog:ready'], `${RATIONALE}\n`);
+
+    assert.strictEqual(result.status, 0);
+    assert.ok(fs.readFileSync(impactsOf(run.main), 'utf8').endsWith(`\n### I1 verdict: backlog:ready — ${RATIONALE}\n`));
+    assert.ok(fs.readFileSync(run.ledgerPath, 'utf8').endsWith(`demo impact-triage TRIAGED(I1): backlog:ready — ${RATIONALE}\n`));
+  });
+});
+
+for (const [label, args, stdin] of [
+  ['an unknown id', ['I7', 'reject'], RATIONALE],
+  ['an id already judged', ['I1', 'reject'], RATIONALE],
+  ['a verdict outside the three', ['I1', 'accept'], RATIONALE],
+  ['an empty rationale', ['I1', 'reject'], ''],
+  ['a two-line rationale', ['I1', 'reject'], `${RATIONALE}\nand more`],
+  ['a malformed id', ['7', 'reject'], RATIONALE],
+]) {
+  test(`Given ${label}, when verdict runs, then it exits 2 and both files are byte-identical`, () => {
+    withRun({}, (run) => {
+      runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+      if (label === 'an id already judged') runLedger(run.main, ['verdict', 'demo', 'I1', 'reject'], 'first');
+      const storeBefore = fs.readFileSync(impactsOf(run.main), 'utf8');
+      const ledgerBefore = fs.readFileSync(run.ledgerPath, 'utf8');
+      const sut = runLedger;
+
+      const result = sut(run.main, ['verdict', 'demo', ...args], stdin);
+
+      assert.strictEqual(result.status, 2);
+      assert.strictEqual(fs.readFileSync(impactsOf(run.main), 'utf8'), storeBefore);
+      assert.strictEqual(fs.readFileSync(run.ledgerPath, 'utf8'), ledgerBefore);
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
 // locate
 // ---------------------------------------------------------------------------
 

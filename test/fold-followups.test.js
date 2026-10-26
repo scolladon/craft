@@ -36,7 +36,7 @@ const SPEC_PATH_DISCIPLINE_PHRASE = '`<reason>` carry repo-relative paths';
 const PAYLOAD_DISCIPLINE_PHRASES = ['<main-repo-dir>',
   'no secret or env assignment'];
 const SOURCE_FOLD_SUFFIX = '(outside the executing-harness run)';
-const FILED_CARDINALITY_PHRASE = 'one line per locus file of each finding filed';
+const FILED_CARDINALITY_PHRASE = 'one line per filed entry';
 const NO_FILE_KEY_PHRASE = 'A finding with no locus file of its own keys on the run\'s design doc path';
 const SUB_STEP_MARKERS = ['**Inventory**', '**Triage**', '**Fold:**', '**File**'];
 const BOUNDARY_PHRASES = ['git diff --name-only <base>...HEAD',

@@ -9,6 +9,7 @@
 # Usage: run-ledger.sh open <run-id>
 #        run-ledger.sh append <run-id> <phase>
 #        run-ledger.sh defer <run-id> <phase>
+#        run-ledger.sh verdict <run-id> <impact-id> <verdict>
 #        run-ledger.sh locate --transcript <path>
 #        run-ledger.sh locate --run <run-id>
 #        run-ledger.sh close <run-id>
@@ -26,6 +27,7 @@ readonly LEDGER_SUFFIX='.md'
 readonly IMPACTS_HEADER='# craft discovered impacts (append-only)'
 readonly IMPACTS_SUFFIX='.impacts.md'
 readonly IMPACT_HEADING_PATTERN='^## I[0-9]+$'
+readonly IMPACT_ID_PATTERN='^I[1-9][0-9]*$'
 readonly LOCUS_PATTERN='^locus: [^[:space:]]+$'
 readonly KNOWN_REASONS='out of scope|needs its own decision|needs a probe|waits on an external trigger|adds feature behaviour|the fix did not pass its gate'
 readonly RUN_ID_PATTERN='^[a-z0-9][a-z0-9-]*$'
@@ -36,12 +38,14 @@ readonly UTC_STAMP_FORMAT='+%Y-%m-%dT%H:%M:%SZ'
 readonly DATE_BIN='/bin/date'
 readonly PHASE_START_PATTERN='^(PHASE-START\([a-z][a-z0-9-]*\):)( +(.*))?$'
 readonly OPEN_RUN_EXIT=3
+readonly TRIAGE_PHASE='impact-triage'
 
 usage_exit() {
   cat >&2 <<'EOF'
 usage: run-ledger.sh open <run-id>
        run-ledger.sh append <run-id> <phase>
        run-ledger.sh defer <run-id> <phase>
+       run-ledger.sh verdict <run-id> <impact-id> <verdict>
        run-ledger.sh locate --transcript <path> | --run <run-id>
        run-ledger.sh close <run-id>
        run-ledger.sh dir
@@ -313,6 +317,42 @@ cmd_defer() {
   record_impact "$run_id" "$phase" "$entry"
 }
 
+# Sets `rationale` to the one non-blank stdin line; dies 2 on none or several.
+read_rationale() {
+  local input
+  input="$(cat)"
+  [ "$(count_matching "$input" '[^[:space:]]')" -eq 1 ] || die "verdict: exactly one non-blank rationale line is required" 2
+  rationale="$input"
+}
+
+require_verdict_args() {
+  [[ "${1:-}" =~ $IMPACT_ID_PATTERN ]] || die "verdict: invalid impact id: ${1:-}" 2
+  case "${2:-}" in
+    reject|backlog:ready|backlog:spike) ;;
+    *) die "verdict: invalid verdict: ${2:-}" 2 ;;
+  esac
+}
+
+require_open_impact() {
+  local store="$1" id="$2"
+  grep -q -x -e "## $id" "$store" || die "verdict: unknown impact id: $id" 2
+  if grep -q -e "^### $id verdict:" "$store"; then die "verdict: already judged: $id" 2; fi
+}
+
+cmd_verdict() {
+  local run_id="${1:-}" id="${2:-}" verdict="${3:-}" rationale store
+  require_run_id "$run_id"
+  require_verdict_args "$id" "$verdict"
+  read_rationale
+  resolve_git_common || die "not inside a git repository's work tree"
+  require_trusted_pointer "$run_id"
+  store="$(impacts_path "$run_id")"
+  require_writable_store "$store"
+  require_open_impact "$store" "$id"
+  printf '\n### %s verdict: %s — %s\n' "$id" "$verdict" "$rationale" >> "$store"
+  printf '%s %s TRIAGED(%s): %s — %s\n' "$run_id" "$TRIAGE_PHASE" "$id" "$verdict" "$rationale" >> "$ledger"
+}
+
 # One line per trusted pointer whose ledger still exists, `<key> <ledger>`,
 # newest run-key first (timestamp, then key, both descending).
 trusted_candidates() {
@@ -373,6 +413,7 @@ case "${1:-}" in
   open) shift; cmd_open "$@" ;;
   append) shift; cmd_append "$@" ;;
   defer) shift; cmd_defer "$@" ;;
+  verdict) shift; cmd_verdict "$@" ;;
   locate) shift; cmd_locate "$@" ;;
   close) shift; cmd_close "$@" ;;
   dir) cmd_dir ;;
