@@ -161,6 +161,18 @@
   produces:
     - lessons
 
+- id: impact-triage
+  archetype: delivery
+  contract:
+    - delivery
+  procedure: craft:impact-triage
+  role: craft:impact-triager
+  model: opus
+  consumes:
+    - change
+  produces:
+    - impact-verdicts
+
 - id: propose
   archetype: delivery
   contract:

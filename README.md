@@ -24,7 +24,7 @@ flowchart LR
   end
   verify --> ship
   subgraph ship [ship]
-    DO[documentation] --> LE[lessons] --> PR[propose] --> IN{{"integrate 🧑"}}
+    DO[documentation] --> LE[lessons] --> IT[impact-triage] --> PR[propose] --> IN{{"integrate 🧑"}}
   end
 ```
 
@@ -118,6 +118,7 @@ refactoring     → whole-codebase lens, behavior-preserving; may be an honest n
 validation      → your repo's engineering harness runs; findings fixed or proven benign
 documentation   → affected pages refreshed, backlog entry ticked
 lessons         → evidence-backed lessons harvested from the run, linted, committed
+impact-triage   → deferred findings re-verified, triaged, filed to the backlog
 propose         → pre-PR gate, push, PR created
 integrate   🧑  → CI to green; you confirm the merge; worktree torn down
 ```
