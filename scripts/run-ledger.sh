@@ -28,6 +28,7 @@ readonly LEDGER_SUFFIX='.md'
 readonly IMPACTS_HEADER='# craft discovered impacts (append-only)'
 readonly IMPACTS_SUFFIX='.impacts.md'
 readonly IMPACT_CLAIMS_SUFFIX='.impacts.ids'
+readonly UNICODE_CONTROL_PATTERN=$'\xc2[\x80-\x9f]|\xe2\x80[\xa8\xa9]'
 readonly PARENT_STEP_PATTERN='(^|/)\.\.(/|:|$)'
 readonly IMPACT_HEADING_PATTERN='^## I[0-9]+$'
 readonly IMPACT_ID_PATTERN='^I[1-9][0-9]*$'
@@ -209,6 +210,7 @@ cmd_open() {
   target="$(ledger_path "$run_id")"
   write_atomically "$target" "$LEDGER_HEADER"
   write_atomically "$(impacts_path "$run_id")" "$IMPACTS_HEADER"
+  rm -rf "$(impact_claims_path "$run_id")"
   warn_if_replacing "$run_id"
   run_key="$run_id@$(utc_now)"
   write_atomically "$(pointer_path "$run_id")" "$run_key $target"
@@ -268,10 +270,11 @@ is_relative_locus() {
   [[ $1 != /* && $1 != '~'* && ! $1 =~ $PARENT_STEP_PATTERN ]]
 }
 
-# Tabs may indent a proof body; any other control character could forge a record
-# for a terminal or a model reading the ledger.
+# Tabs may indent a proof body; any other control character, a UTF-8 C1 control
+# or a line/paragraph separator could forge a record for a terminal or a model
+# reading the ledger.
 has_control_chars() {
-  printf '%s' "$1" | LC_ALL=C tr -d '\t\n' | LC_ALL=C grep -q '[[:cntrl:]]'
+  printf '%s' "$1" | LC_ALL=C tr -d '\t\n' | LC_ALL=C grep -q -E "[[:cntrl:]]|$UNICODE_CONTROL_PATTERN"
 }
 
 has_known_reason() {
@@ -313,7 +316,10 @@ claim_impact_id() {
   if is_symlinked "$claims"; then die "refusing symlinked impact claims: $claims"; fi
   mkdir -p "$claims" || die "cannot create impact claims: $claims"
   n=$(( $(grep -c -E -e "$IMPACT_HEADING_PATTERN" "$store" || true) + 1 ))
-  until mkdir "$claims/I$n" 2>/dev/null; do n=$((n + 1)); done
+  until mkdir "$claims/I$n" 2>/dev/null; do
+    [ -d "$claims/I$n" ] || die "cannot claim impact id I$n in $claims"
+    n=$((n + 1))
+  done
   printf 'I%s' "$n"
 }
 

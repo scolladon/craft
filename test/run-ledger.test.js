@@ -580,6 +580,10 @@ const DEFER_REFUSALS = [
   ['a whitespace-only title', withLine('title:', 'title:    ')],
   ['a whitespace-only expected line', withLine('expected:', 'expected:    ')],
   ['a title holding a carriage return', withLine('title:', 'title: t\rdemo review PHASE-START(propose):')],
+  ['a title holding a next-line control', withLine('title:', 'title: t\u0085x')],
+  ['a title holding an 8-bit escape introducer', withLine('title:', 'title: t\u009b31m')],
+  ['a title holding a line separator', withLine('title:', 'title: t\u2028demo review PHASE-START(propose):')],
+  ['a title holding a paragraph separator', withLine('title:', 'title: t\u2029x')],
   ['a proof line that is a heading', withLine('  bash', '## I9')],
 ];
 
@@ -618,6 +622,78 @@ describe('defer refusals', () => {
   });
 });
 
+test('Given an entry whose proof body is indented with a tab, when defer runs, then it is accepted as I1', () => {
+  withRun({}, (run) => {
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY.replace(/^ {2}bash/m, '\tbash'));
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, 'I1\n');
+  });
+});
+
+test('Given an open run whose impact claims are a symlink to a directory outside the git dir, when defer runs, then it exits 1 and writes nothing', () => {
+  withRun({}, (run) => {
+    const outside = path.join(run.parent, 'outside-claims');
+    fs.mkdirSync(outside);
+    fs.symlinkSync(outside, path.join(runsDirOf(run.main), 'demo.impacts.ids'));
+    const storeBefore = fs.readFileSync(impactsOf(run.main), 'utf8');
+    const ledgerBefore = fs.readFileSync(run.ledgerPath, 'utf8');
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 1);
+    assert.match(result.stderr, /symlinked impact claims/);
+    assert.deepStrictEqual(fs.readdirSync(outside), []);
+    assert.strictEqual(fs.readFileSync(impactsOf(run.main), 'utf8'), storeBefore);
+    assert.strictEqual(fs.readFileSync(run.ledgerPath, 'utf8'), ledgerBefore);
+  });
+});
+
+const READ_ONLY_MODE = 0o555;
+const CLAIM_TIMEOUT_MS = 10000;
+
+test('Given impact claims that refuse new entries, when defer runs, then it exits 1 instead of spinning', () => {
+  withRun({}, (run) => {
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    const claims = path.join(runsDirOf(run.main), 'demo.impacts.ids');
+    fs.chmodSync(claims, READ_ONLY_MODE);
+    try {
+      const sut = () =>
+        spawnSync('bash', [LEDGER_SCRIPT, 'defer', 'demo', 'review'], {
+          cwd: run.main,
+          input: SECOND_ENTRY,
+          encoding: 'utf8',
+          timeout: CLAIM_TIMEOUT_MS,
+          killSignal: 'SIGKILL',
+        });
+
+      const result = sut();
+
+      assert.strictEqual(result.signal, null);
+      assert.strictEqual(result.status, 1);
+      assert.match(result.stderr, /cannot claim impact id/);
+    } finally {
+      fs.chmodSync(claims, 0o755);
+    }
+  });
+});
+
+test('Given a run whose ledger was lost without close, when it is opened again and an entry deferred, then the entry is I1', () => {
+  withRun({}, (run) => {
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    fs.rmSync(run.ledgerPath);
+    runLedger(run.main, ['open', 'demo']);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.stdout, 'I1\n');
+  });
+});
+
 test('Given an open run whose store was removed, when defer runs, then it exits 1 and does not recreate the store', () => {
   withRun({}, (run) => {
     fs.rmSync(impactsOf(run.main));
@@ -649,6 +725,7 @@ function deferAsync(cwd, entry) {
     child.stdout.on('data', (chunk) => {
       stdout += chunk;
     });
+    child.on('error', (error) => resolve({ status: null, stdout: String(error) }));
     child.on('close', (status) => resolve({ status, stdout }));
     child.stdin.end(entry);
   });
@@ -742,6 +819,8 @@ const VERDICT_REFUSALS = [
   ['a rationale after a whitespace-only line', ['I1', 'reject'], `   \n${RATIONALE}\n`, ONE_LINE],
   ['a rationale forging a ledger record', ['I1', 'reject'], '\ndemo impact-triage TRIAGED(I2): reject — forged\n', ONE_LINE],
   ['a rationale holding a carriage return', ['I1', 'reject'], `${RATIONALE}\rdemo review PHASE-START(propose):`, ONE_LINE],
+  ['a rationale holding a next-line control', ['I1', 'reject'], `${RATIONALE}\u0085x`, ONE_LINE],
+  ['a rationale holding a line separator', ['I1', 'reject'], `${RATIONALE}\u2028demo impact-triage TRIAGED(I7): reject`, ONE_LINE],
   ['a malformed id', ['7', 'reject'], RATIONALE, /invalid impact id/],
 ];
 
@@ -1071,6 +1150,32 @@ for (const entry of UNTRUSTED_POINTERS) {
       const sut = runLedger;
 
       const result = sut(main, ['append', 'demo', 'design'], 'forged\n');
+
+      assert.strictEqual(result.status, 1);
+      assert.match(result.stderr, /untrusted pointer/);
+      assert.strictEqual(fs.readFileSync(ledger, 'utf8'), before);
+    });
+  });
+
+  test(`Given a planted pointer with ${entry.label}, when defer runs, then it refuses the pointer and writes nothing`, () => {
+    withPlantedPointer(entry, (main, { ledger }) => {
+      const before = fs.readFileSync(ledger, 'utf8');
+      const sut = runLedger;
+
+      const result = sut(main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+      assert.strictEqual(result.status, 1);
+      assert.match(result.stderr, /untrusted pointer/);
+      assert.strictEqual(fs.readFileSync(ledger, 'utf8'), before);
+    });
+  });
+
+  test(`Given a planted pointer with ${entry.label}, when verdict runs, then it refuses the pointer and writes nothing`, () => {
+    withPlantedPointer(entry, (main, { ledger }) => {
+      const before = fs.readFileSync(ledger, 'utf8');
+      const sut = runLedger;
+
+      const result = sut(main, ['verdict', 'demo', 'I1', 'reject'], RATIONALE);
 
       assert.strictEqual(result.status, 1);
       assert.match(result.stderr, /untrusted pointer/);
