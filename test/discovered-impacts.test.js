@@ -146,3 +146,25 @@ test('Given the documentation PR-body draft, when read, then it writes the disco
   assert.ok(sut.includes('**Discovered impacts:**'));
   assert.ok(sut.includes('triage pending'));
 });
+
+test('Given the core contract and the part-implementer agent, when read, then both name the IMPACT line', () => {
+  const core = read('contracts', 'core.md');
+  const agent = read('agents', 'part-implementer.md');
+
+  assert.ok(core.includes('IMPACT(<file>): <finding> — proof:'));
+  assert.ok(agent.includes('IMPACT('));
+});
+
+test('Given the implementation skill step 2, when read, then each handback impact gets a verdict before the next part', () => {
+  const sut = sliceProse(read('skills', 'implementation', 'SKILL.md'), /^2\. \*\*After each agent returns/, /^3\. \*\*Phase-boundary gate/);
+
+  assert.ok(sut.includes('IMPACT('));
+  assert.ok(sut.includes('Impacts: fold or defer at discovery'));
+});
+
+test('Given the refactoring skill steps 3 and 4, when read, then they defer and no longer say follow-up', () => {
+  const sut = sliceProse(read('skills', 'refactoring', 'SKILL.md'), /^3\. \*\*Candidates survive/, /^5\. Order rationale/);
+
+  assert.ok(!sut.includes('follow-up'));
+  assert.ok(sut.includes('deferred'));
+});
