@@ -823,3 +823,81 @@ describe('parseShellCommands() — bash 5.3 function substitutions are refused',
     ['echo ${x:-a case}', [['echo', dyn('${x:-a case}')]]],
   ]);
 });
+
+const QUOTED_ARITHMETIC_SUBSTITUTION =
+  'craft: command not parseable (a quoted $( ), ` or ${ } inside (( )), a subscript or ${ } — bash may still run it) — denied fail-closed';
+const opaqueWord = text => ({ text, dynamic: true, opaque: true });
+
+describe('parseShellCommands() — a quoted substitution inside an arithmetic reach', () => {
+  assertFails(
+    [
+      "(( '$(git push -f origin)' ))",
+      "(( '`git push -f origin`' ))",
+      "for (( i='$(git push -f origin)'; i<1; i++ )); do :; done",
+      "a['$(git push -f origin)']=1",
+      "x=abc; echo ${x:'$(git push -f origin)'}",
+      "echo ${a['$(git push -f origin)']}",
+      'echo "${a[\'$(git push -f origin)\']}"',
+      "x=abc; echo ${x:1:'$(git push -f origin)'}",
+      "x=abc; echo ${x: -'$(git push -f origin)'}",
+      "echo ${@:'$(git push -f origin)'}",
+      "a['$(git push -f origin)']+=1",
+      "x=(); x['$(git push -f origin)']=1",
+      "(( a['$(git push -f origin)'] ))",
+      "(( '${ git push -f origin; }' ))",
+      "(( '${x:-$(git push -f origin)}' ))",
+      "a['`git push -f origin`']=1",
+      "declare a['$(git push -f origin)']=1",
+      "declare -A m; m['$(git push -f origin)']=1",
+      "declare -A m; echo ${m['$(git push -f origin)']}",
+      "echo ${x:-'$(git push -f origin)'}",
+      "echo ${x:='$(git push -f origin)'}",
+      "echo ${x/'$(git push -f origin)'/y}",
+      "echo ${x::'$(git push -f origin)'}",
+      "echo ${#a['$(git push -f origin)']}",
+      'echo "${x:\'$(git push -f origin)\'}"',
+      "(( '$(git diff HEAD)' ))",
+      "(( $'$(git push -f origin)' ))",
+      "for (( i=$'$(git push -f origin)'; i<1; i++ )); do :; done",
+      "a[$'$(git push -f origin)']=1",
+      "echo ${a[$'$(git push -f origin)']}",
+      "x=abc; echo ${x:$'$(git push -f origin)'}",
+      "(( $'\\x24(git push -f origin)' ))",
+      "a[$'\\x24(git push -f origin)']=1",
+      "(( $'\\x24' ))",
+      "(( $'\\x60' ))",
+      "(( $'\\44' ))",
+      "(( $'\\044' ))",
+      "(( $'\\140' ))",
+      "(( $'\\u24' ))",
+      "(( $'\\U00000024' ))",
+      "(( $'\\x245' ))",
+    ].map(input => [input, QUOTED_ARITHMETIC_SUBSTITUTION]),
+  );
+});
+
+describe('parseShellCommands() — quotes that work in an arithmetic reach keep their shape', () => {
+  assertParsesWords([
+    ["(( '1' + 2 ))", [['1', '+', '2']]],
+    ["a['1']=x", [[patternWord('a[1]=x')]]],
+    ["declare -A m; m['k']=v", [['declare', '-A', 'm'], [patternWord('m[k]=v')]]],
+    ['echo "${m[\'k\']}"', [['echo', dyn("${m['k']}")]]],
+    ["echo ${x:-'default'}", [['echo', dyn("${x:-'default'}")]]],
+    ["IFS=$'\\n'", []],
+    ["echo $'\\033[1m'x", [['echo', opaqueWord('033[1mx')]]],
+    ['echo "${v//$\'\\n\'/ }"', [['echo', dyn("${v//$'\\n'/ }")]]],
+  ]);
+});
+
+describe('parseShellCommands() — ANSI-C escapes that decode to no opener', () => {
+  assertParsesWords([
+    ["(( $'\\x2' ))", [[opaqueWord('x2')]]],
+    ["(( $'\\0044' ))", [[opaqueWord('0044')]]],
+    ["(( $'\\033' ))", [[opaqueWord('033')]]],
+    ["(( $'\\n' ))", [[opaqueWord('n')]]],
+    ["(( $'\\e' ))", [[opaqueWord('e')]]],
+    ["(( $'\\c$' ))", [[opaqueWord('c$')]]],
+    ["(( $'\\\\x24' ))", [[opaqueWord('\\x24')]]],
+    ["(( $'\\c\\x24' ))", [[opaqueWord('cx24')]]],
+  ]);
+});

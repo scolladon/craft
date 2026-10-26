@@ -361,6 +361,25 @@ const onBrace = context => {
   onLiteral(context);
 };
 
+const SUBSTITUTION_OPENER = /\$\(|\$\{|`/;
+const UNCLOSED_SUBSCRIPT = /\[[^\]]*$/;
+const QUOTED_ARITHMETIC_SUBSTITUTION =
+  "craft: command not parseable (a quoted $( ), ` or ${ } inside (( )), a subscript or ${ } — bash may still run it) — denied fail-closed";
+
+// (( )), for (( )), any ${ } body and an open [ subscript: bash expands quoted text there again (5.3 everywhere, 3.2 in some).
+const inArithmeticReach = context =>
+  context.arithmeticFloor !== NO_ARITHMETIC || context.parameter || UNCLOSED_SUBSCRIPT.test(context.piece ?? '');
+
+// A $'…' numeric escape decodes before bash evaluates the text, so \x24 or \140 is a live $ or backtick there.
+const ANSI_C_ESCAPE = /\\(?:x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{1,4})|U([0-9A-Fa-f]{1,8})|([0-7]{1,3})|c[\s\S]|[\s\S])/g;
+const HEX_RADIX = 16;
+const OCTAL_RADIX = 8;
+const OPENER_CODES = new Set([DOLLAR.codePointAt(0), BACKTICK.codePointAt(0)]);
+const escapedCode = ([, hex, short, long, octal]) =>
+  octal === undefined ? Number.parseInt(hex ?? short ?? long, HEX_RADIX) : Number.parseInt(octal, OCTAL_RADIX);
+const escapesToOpener = span => [...span.matchAll(ANSI_C_ESCAPE)].some(match => OPENER_CODES.has(escapedCode(match)));
+const ansiCOpensSubstitution = span => SUBSTITUTION_OPENER.test(span) || escapesToOpener(span);
+
 const onBackslash = context => {
   const next = context.source[context.index + 1];
   if (next === undefined) return onLiteral(context);
@@ -371,7 +390,9 @@ const onBackslash = context => {
 const onSingleQuote = context => {
   const close = context.source.indexOf(SINGLE_QUOTE, context.index + 1);
   if (close === -1) return fail(context, UNTERMINATED_QUOTE);
-  append(context, context.source.slice(context.index + 1, close));
+  const span = context.source.slice(context.index + 1, close);
+  if (inArithmeticReach(context) && SUBSTITUTION_OPENER.test(span)) return fail(context, QUOTED_ARITHMETIC_SUBSTITUTION);
+  append(context, span);
   context.index = close + 1;
 };
 
@@ -402,6 +423,10 @@ const onDoubleQuote = context => {
 
 // equivalent mutant (EqualityOperator context.index <= context.source.length): the extra pass appends to a piece of a context that then fails with the same unterminated-quote reason
 const readAnsiC = context => {
+  const from = context.index + 2;
+  const close = findUnescaped(context.source, from, SINGLE_QUOTE);
+  if (close !== -1 && inArithmeticReach(context) && ansiCOpensSubstitution(context.source.slice(from, close)))
+    return fail(context, QUOTED_ARITHMETIC_SUBSTITUTION);
   append(context, '');
   context.index += 2;
   while (context.index < context.source.length) {
@@ -469,11 +494,11 @@ const enterConstruct = (context, { openLength, close, settle, parameter, reprint
   markExpansion(context, start, child.index + 1);
 };
 
-// equivalent mutant (EqualityOperator index <= source.length): source[source.length] is undefined, neither a backslash nor a backtick, so the result is still -1
-const findBacktickEnd = (source, from) => {
+// equivalent mutant (EqualityOperator index <= source.length): source[source.length] is undefined, neither a backslash nor the closer, so the result is still -1
+const findUnescaped = (source, from, closer) => {
   for (let index = from; index < source.length; index += 1) {
     if (source[index] === BACKSLASH) index += 1;
-    else if (source[index] === BACKTICK) return index;
+    else if (source[index] === closer) return index;
   }
   return -1;
 };
@@ -481,7 +506,7 @@ const findBacktickEnd = (source, from) => {
 const enterBacktick = context => {
   if (isTooDeep(context)) return fail(context, NESTING_TOO_DEEP);
   const start = context.index;
-  const end = findBacktickEnd(context.source, start + 1);
+  const end = findUnescaped(context.source, start + 1, BACKTICK);
   if (end === -1) return fail(context, UNTERMINATED_SUBSTITUTION);
   const body = context.source.slice(start + 1, end).replace(BACKTICK_ESCAPES, '$1');
   const child = parseNested(context, body);

@@ -389,6 +389,31 @@ describe('gitDestructivePredicate() — dollar-bracket arithmetic', () => {
   assertPasses(['echo $[ 1 + 2 ]', 'echo $[1<<2]']);
 });
 
+describe('gitDestructivePredicate() — a quoted substitution in an arithmetic reach', () => {
+  assertBlocks([
+    "(( '$(git push -f origin)' ))",
+    "(( '`git push -f origin`' ))",
+    "for (( i='$(git push -f origin)'; i<1; i++ )); do :; done",
+    "a['$(git push -f origin)']=1",
+    "x=abc; echo ${x:'$(git push -f origin)'}",
+    "echo ${a['$(git push -f origin)']}",
+    'for (( i=$(git push -f origin); i<1; i++ )); do :; done',
+    'a[$(git push -f origin)]=1',
+    'x=abc; echo ${x:$(git push -f origin)}',
+    '(( $(git push -f origin) ))',
+    "echo $(( a['$(git push -f origin)'] ))",
+  ]);
+
+  assertPasses([
+    "(( '1' + 2 )) && git status",
+    "a['1']=x && git status",
+    "declare -A m; m['k']=v; [ \"${m['k']}\" = v ] && git status",
+    "echo ${x:-'default'} && git status",
+    "IFS=$'\\n' git status",
+    "echo $'\\033[1m'x && git status",
+  ]);
+});
+
 describe('gitDestructivePredicate() — arithmetic openers bash splits or re-reads', () => {
   assertBlocks([
     'echo $(( 1 #$(git push)\n)\\\n)',
