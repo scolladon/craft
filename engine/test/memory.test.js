@@ -729,6 +729,49 @@ test('Given a degraded view and a delta of retractions, when save runs, then wri
   assert.equal(result.writeNote, 'save skipped: load was degraded');
 });
 
+// ─── validate-on-write: save never writes what load would evict ──────────────
+
+test('Given a delta observation that fails its concern validator, when save runs, then the store written omits it and keeps the valid observation', () => {
+  // Arrange
+  const sut = save;
+  const view = makeLoadedView([]);
+  const delta = [
+    { concern: 'findings', payload: { file: 'src/a.js', severity: 'HIGH', pattern: 'p' } },
+    { concern: 'findings', payload: { file: 'src/b.js', severity: 'high', pattern: 'p' } },
+  ];
+  const captured = [];
+  const deps = makeSaveDeps({
+    writeStore: (_path, content) => captured.push(content),
+    validators: { findings: (e) => ['low', 'medium', 'high', 'critical'].includes(e.severity) },
+  });
+
+  // Act
+  sut('/repo', view, delta, deps);
+
+  // Assert
+  const reparsed = parseStore(captured[0]);
+  assert.deepEqual(reparsed.entries.findings.map((e) => e.file), ['src/b.js']);
+});
+
+test('Given a stored finding and a retraction carrying only its merge key, when save runs with validators, then the retraction still drops the stored entry', () => {
+  // Arrange
+  const sut = save;
+  const stored = { concern: 'findings', file: 'src/a.js', severity: 'high', pattern: 'p', confidence: 3, provenance: { run: 'r', commit: 'c', date: '2026-01-01' } };
+  const view = makeLoadedView([stored]);
+  const delta = [{ concern: 'findings', payload: { file: 'src/a.js', pattern: 'p' }, retract: true }];
+  const captured = [];
+  const deps = makeSaveDeps({
+    writeStore: (_path, content) => captured.push(content),
+    validators: { findings: (e) => ['low', 'medium', 'high', 'critical'].includes(e.severity) },
+  });
+
+  // Act
+  sut('/repo', view, delta, deps);
+
+  // Assert
+  assert.deepEqual(parseStore(captured[0]).entries.findings, []);
+});
+
 // ─── RED — RETRACTED 6: failed writeStore is a warning, never a throw ──────
 
 test('Given a writeStore that throws and a delta of retractions, when save runs, then it returns a writeNote and does not throw', () => {

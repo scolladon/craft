@@ -684,7 +684,9 @@ is the payload split on the first run of whitespace, first field `file`, remaind
 `ref` under the repo root and refuses a path that escapes it). Call
 `save(repoRoot, view, delta, deps)` **once**, atomically — `view` is the run-start
 `MemoryView` (so non-re-observed entries decay rather than vanish) and `deps` carries
-`writeStore`/`caps`/`run`/`ref`. A failed save is a recorded
+`writeStore`/`validators`/`caps`/`run`/`ref` — the same validate-on-read map `load` took, so
+an observation that breaks the store's schema (e.g. an upper-case finding `severity`) is dropped
+rather than written. A failed save is a recorded
 warning in the run record — **never a blocker** (ADR-120); no locking (last-flush-wins).
 Writes are buffered all run and flushed once here, so a phase that blocked mid-run leaves
 the store unchanged (atomicity; Req 6).
