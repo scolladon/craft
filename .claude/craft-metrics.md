@@ -713,3 +713,8 @@ guard-arith-cleanup implementation turns=40 tool_calls=44 tokens=1336166 duratio
 guard-arith-cleanup planning turns=63 tool_calls=64 tokens=7205982 duration_ms=1620346 cache_read=6920212 cache_creation=199721 output=85923 avg_ctx=113017 equiv=1371413
 guard-arith-cleanup review turns=138 tool_calls=144 tokens=4963521 duration_ms=2117717 cache_read=4453884 cache_creation=378197 output=131164 avg_ctx=35017 equiv=1574231
 guard-arith-cleanup validation turns=29 tool_calls=30 tokens=1340377 duration_ms=474714 cache_read=1253928 cache_creation=63431 output=22960 avg_ctx=45428 equiv=319540
+discovered-impacts design turns=79 tool_calls=81 tokens=8465622 duration_ms=1005522 cache_read=8230671 cache_creation=170010 output=64783 avg_ctx=106340 equiv=1359653
+discovered-impacts implementation turns=117 tool_calls=124 tokens=3408774 duration_ms=1360108 cache_read=3006653 cache_creation=339889 output=61998 avg_ctx=28605 equiv=1035751
+discovered-impacts planning turns=113 tool_calls=114 tokens=14951362 duration_ms=3531508 cache_read=14387324 cache_creation=462438 output=101372 avg_ctx=131416 equiv=2523868
+discovered-impacts refactoring turns=5 tool_calls=5 tokens=88424 duration_ms=67352 cache_read=68626 cache_creation=18856 output=932 avg_ctx=17498 equiv=35103
+discovered-impacts review turns=130 tool_calls=138 tokens=4450563 duration_ms=1941671 cache_read=4011809 cache_creation=359552 output=78942 avg_ctx=33628 equiv=1245591
