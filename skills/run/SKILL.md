@@ -160,7 +160,10 @@ Input: `$ARGUMENTS`
    ```
 
    Never silence `open`'s stdout: the run-key it prints into this session's transcript
-   is what binds the compaction hooks to this run.
+   is what binds the compaction hooks to this run. `open` also creates the run's
+   discovered-impacts store `<run-id>.impacts.md` beside the ledger, written only through
+   `run-ledger.sh defer` and `run-ledger.sh verdict` (see the invariant **Impacts: fold or
+   defer at discovery**).
 
    **A refused `open` is a STOP.** `open` exits 3 when the run-id is already open: another
    run of this topic is live, or crashed without `close`. This is not a failed append:
@@ -209,7 +212,10 @@ these are emitted elsewhere — full definitions in
 | `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` | the `decisions` phase, one line per `supersedes` entry authored that run |
 | `DECISION-CITE-WAIVE(<file>): <reason>` | the `adr-lint` C3 waiver, collected from the same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE` |
 | `MEMORY-RETRACT(<concern>): <merge-key>` | the phase that owns a concern's write surface, on a mechanical re-check that disproves a stored entry |
-| `FOLDED(<file>): <finding> -> <sha>`, `FILED(<file>): <finding> — not folded: <reason>` | the `documentation` phase's synthesis fold step, one line per finding and locus file |
+| `FOLDED(<file>): <finding> -> <sha>` | the phase that folds, under the invariant **Impacts: fold or defer at discovery**, one line per locus file |
+| `DEFERRED(<file>): I<n> <title>` | `run-ledger.sh defer`, phase column = the capturing phase, one line per entry |
+| `TRIAGED(I<n>): <verdict> — <rationale>` | `run-ledger.sh verdict`, phase `impact-triage` |
+| `FILED(<file>): I<n> <title> — not folded: <reason>` | the `impact-triage` phase step 4, after the BACKLOG commit, one line per filed entry |
 | `LESSONS: <path> (<outcome>)[, …]`, `NO-OP(lessons): <reason>` | the `lessons` phase (`craft:lessons` step 6, or its standalone preamble) |
 | `LESSON-REVERIFY(<lesson>): <changed-path>` | the `validation` phase's `assert-fresh` lessons rows (step 5), resolved by the `lessons` phase |
 
@@ -228,6 +234,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    | `refactoring` | no source change in scope to motivate a structural pass (same signal as `review`); when source *was* touched, it runs and may record `NO-OP(refactoring):` |
    | `documentation` | no `design`/`change` content maps to any documentation surface |
    | `lessons` | evaluated only after the cross-phase wait; the ledger holds no lesson-shaped event (`craft:lessons` step 1 table) and no `LESSON-REVERIFY(` line and, when `validation` did not run its step 5, the `assert-fresh` lessons lane over `<base>...HEAD` is empty |
+   | `impact-triage` | evaluated only after the cross-phase wait; the ledger holds no `DEFERRED(` line for this run → `auto-skip: impact-triage — evaluated unnecessary (no deferred findings)` |
    | `validation` | no mutable code changed in scope — the technique no-op signal, evaluated *before* spawning the run |
    | `architecture` | no dependency-graph-affecting change (no import/module-boundary edits) since `implementation` |
 
@@ -375,11 +382,13 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    - `harness` (`harness-exec ∈ contract`): start background run with the `phase.harness`
      tool/scope/incremental (`craft:validation` reads them); gate `propose`
      on triage completion (see invariants below)
-   - `delivery` (`documentation`): synthesis (fold in-scope findings into this PR, file
-     the rest as follow-ups, backlog guard) — may parallel a running
+   - `delivery` (`documentation`): synthesis (fold in-scope findings into this PR, defer
+     the rest to impact triage, backlog guard) — may parallel a running
      executing-harness
    - `delivery` (`lessons`): harvest per `craft:lessons`; starts only once
      `awaitingHarnesses` is empty; never gates `propose` beyond its own draft lint
+   - `delivery` (`impact-triage`): triage per `craft:impact-triage`; starts only once
+     `awaitingHarnesses` is empty; spawns `craft:impact-triager`; never itself awaited
    - `delivery` (`propose`): pre-propose gate; body; PR creation per policy — does
      NOT start until every id in the in-session `awaitingHarnesses` set has landed
      and its gate is green
@@ -488,6 +497,65 @@ bring their own `procedure`, dispatched verbatim (step 2).
   closes. The `refinement` phase's re-review is scoped to the refinement diff only and
   does not substitute. A scope expansion that reaches the executing-harness gate
   unreviewed is a workflow breach.
+
+- **Impacts: fold or defer at discovery**: an *impact* is a finding outside the
+  current phase's own fix set — an `IMPACT(<file>):` line or a deferred observation
+  in a handback, a refinement's reported-not-executed refactor, a review or harness
+  finding whose locus is outside the change's scope, or the session's own observation.
+  The orchestrator gives each impact one verdict, folded or deferred, in the phase that
+  received it, before that phase closes. It is never folded or deferred silently.
+  - A finding the brief or the design lists as out of scope is deferred, whatever the
+    boundary says.
+  - It is in scope when its locus file is in `git diff --name-only <base>...HEAD`, or
+    when it concerns a claim or behaviour the diff edits, or a statement that
+    contradicts what the diff now makes true, in at most one file outside the diff. The
+    run's own design, plan and ADR docs and BACKLOG.md are in the diff. A finding out of
+    scope is deferred.
+  - An in-scope finding whose fix needs a new decision goes to the user through the
+    blocker protocol `{ unit, reason, ≤3 options }`: fold it with an ADR authored through
+    the decisions flow, or defer it with reason needs its own decision.
+  - An in-scope finding whose fix needs a paid or live probe, waits on an external
+    trigger, or adds feature behaviour is deferred.
+  - Every other finding is folded.
+
+  **Fold**: the session makes the fix itself, in prose, or in source and tests that add
+  no feature behaviour, never while a role agent is working in the tree. One commit per
+  fold, typed by what it changes (`docs(<scope>):`, `fix(<scope>):`, `test(<scope>):`).
+  A fold beyond prose commits only on a green `gates.part`. A fold that turns red has its
+  uncommitted edit discarded and is deferred with reason the fix did not pass its gate,
+  its `expected:` being the first failing line. After each fold commit, append
+  `FOLDED(<file>): <finding> -> <sha>`, one line per locus file. A finding with no locus
+  file of its own keys on the run's design doc path. A source fold made after the
+  executing-harness started ends its line with `(outside the executing-harness run)`,
+  which is how the PR trailer names it. A fold adds no feature behaviour, so it never
+  triggers the scope-expansion rule above.
+
+  **Defer**: through `run-ledger.sh defer <run-id> <phase>`, one entry on stdin:
+
+  ```text
+  title: install hook leaves stale symlink on re-run
+  locus: scripts/worktree-setup.sh:L88
+  reason: out of scope
+  proof:
+    bash scripts/worktree-setup.sh "$tmp" && bash scripts/worktree-setup.sh "$tmp"; ls -l "$tmp/.claude"
+  expected: .claude -> <stale target>
+  ```
+
+  Its `reason:` line gives the reason: out of scope, needs its own decision, needs a
+  probe, waits on an external trigger, adds feature behaviour, or the fix did not pass
+  its gate. No proof, no entry: `defer` refuses (exit 2, nothing written) an entry with
+  no `proof:` body, no `expected:` line, a locus that is absolute, home-rooted or holds
+  whitespace, or another reason. It appends the entry to the store and
+  `DEFERRED(<file>): I<n> <title>` to the ledger, and prints `I<n>`. Only the
+  orchestrator defers; a role agent reports an `IMPACT(` line and never acts on it. With
+  no open run (a standalone phase) `defer` refuses and the impacts are listed in the
+  phase's final output. The `impact-triage` phase judges every deferred entry before
+  `propose`.
+
+  The `<finding>`, `<title>` and `<reason>` text follows the same discipline as
+  `<file>`: paths repo-relative, an out-of-repo location named by placeholder
+  (`<worktree>`, `<main-repo-dir>`), and no secret or env assignment copied from a
+  handback.
 
 - **Artifact is the handoff**: every delegated agent's contribution must be in a
   committed artifact before the phase closes. A dead agent = fresh respawn fed from
@@ -627,6 +695,7 @@ instead of trusting the summary it just produced.
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
    | `lessons` | a `LESSONS:` or `NO-OP(lessons):` line means done; otherwise re-run the harvest from step 1 (step 3 dedupes drafts already committed). |
+   | `impact-triage` | every `DEFERRED` id has a `TRIAGED` line and a `FILED` line exists for each `backlog:*` verdict (or the `NO-OP(impact-triage):` line) → step 5. Some `TRIAGED` lines missing → re-spawn over the missing ids only. All triaged but the `docs(<slug>): file triaged impacts` commit absent from `git log` → step 4. The store is on disk beside the ledger, so a rebuild never loses a deferral. |
    | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |
    | `integrate` (after teardown) | check `git worktree list` from `<main-repo-dir>`: when the worktree is gone, teardown already ran — skip step 3 and continue at step 4. The ledger outlives the worktree; `Done` derives the delta and the `--since` isos from it, never from a summary. |
 6. **Walk from `next`.**
@@ -711,7 +780,7 @@ line. A phase with no transcript records
 `.claude/craft-memory.md`.
 
 `run-ledger.sh close <run-id>` — the last ledger action, once the run record has been read for
-the final message: it removes the pointer and the ledger. On an already-closed run it is a
+the final message: it removes the pointer, the ledger and the impacts store. On an already-closed run it is a
 silent exit 0, so a session restarted after its process died re-runs it and loses nothing.
 
 **Driver hand-off.** Once `close` has run, run `driver-state.sh active`; exit 1 skips this

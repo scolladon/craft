@@ -84,3 +84,43 @@ test('Given the impact-triage procedure, when read, then it records verdicts thr
   assert.ok(sut.includes('**Discovered impacts:**'));
   assert.ok(sut.includes('NO-OP(impact-triage): no file-backed backlog — verdicts in the PR body only'));
 });
+
+const RUN_SKILL = read('skills', 'run', 'SKILL.md');
+
+test('Given the run skill impacts invariant, when its region is read, then it names fold, defer, the defer verb, the user route and the no-proof refusal', () => {
+  const sut = sliceProse(RUN_SKILL, /^- \*\*Impacts: fold or defer at discovery\*\*/, /^- \*\*Artifact is the handoff\*\*/);
+
+  for (const phrase of ['folded or deferred', 'run-ledger.sh defer', 'blocker protocol', 'No proof, no entry', 'IMPACT(', 'never while a role agent is working in the tree']) {
+    assert.ok(sut.includes(phrase), `missing: ${phrase}`);
+  }
+});
+
+test('Given the run skill token table, when read, then it names both impact tokens and moves FILED to impact-triage', () => {
+  const sut = sliceProse(RUN_SKILL, /^### Run-record tokens/, /^## /);
+
+  for (const phrase of ['DEFERRED(<file>): I<n> <title>', 'TRIAGED(I<n>): <verdict> — <rationale>', 'FILED(<file>): I<n> <title> — not folded: <reason>']) {
+    assert.ok(sut.includes(phrase), `missing: ${phrase}`);
+  }
+});
+
+test('Given walk step 1 and step 5, when read, then impact-triage auto-skips on no DEFERRED line and waits for awaitingHarnesses', () => {
+  const probe = sliceProse(RUN_SKILL, /^1\. \*\*Necessity probe/, /^2\. \*\*Resolve the skill\*\*/);
+  const whole = sliceProse(RUN_SKILL, /^# /, TO_END);
+
+  assert.ok(probe.includes('auto-skip: impact-triage — evaluated unnecessary (no deferred findings)'));
+  assert.match(whole, /- `delivery` \(`impact-triage`\):.*?awaitingHarnesses/);
+});
+
+test('Given the rebuild resume table, when read, then it carries an impact-triage row', () => {
+  const sut = sliceProse(RUN_SKILL, /^## Rebuild after compaction/, /^## Done/);
+
+  assert.ok(sut.includes('| `impact-triage` |'));
+  assert.ok(sut.includes('re-spawn over the missing ids only'));
+});
+
+test('Given section 0 and the Done close paragraph, when read, then open creates and close removes the impacts store', () => {
+  const sut = sliceProse(RUN_SKILL, /^## Done/, TO_END);
+
+  assert.ok(RUN_SKILL.includes('<run-id>.impacts.md'));
+  assert.ok(sut.includes('the ledger and the impacts store'));
+});

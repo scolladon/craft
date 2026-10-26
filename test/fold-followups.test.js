@@ -47,6 +47,7 @@ const AUTHORING_PHRASE = 'new backlog follow-up entries';
 const FOLD_PHRASE = 'fold in-scope findings';
 const RETIRED_DESCRIPTION_PHRASE = 'author follow-ups';
 const FILE_REST_PHRASE = 'file the rest';
+const DEFER_REST_PHRASE = 'defer the rest';
 
 const doc = fs.readFileSync(DOC_SKILL_PATH, 'utf8');
 const spec = fs.readFileSync(RUN_RECORD_SPEC_PATH, 'utf8');
@@ -99,7 +100,7 @@ test('Given the run skill\'s delivery documentation bullet, when it is read up t
   const sut = sliceProse(run, DOC_BULLET_START, PROPOSE_BULLET_START);
 
   assert.ok(sut.includes(FOLD_PHRASE));
-  assert.ok(sut.includes(FILE_REST_PHRASE));
+  assert.ok(sut.includes(DEFER_REST_PHRASE));
 });
 
 test('Given the run-record spec, the run skill\'s token table and the documentation synthesis step, when each region is read, then each names both fold tokens', () => {
