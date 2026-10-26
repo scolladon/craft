@@ -692,6 +692,7 @@ describe('gitDestructivePredicate() — a quoted subscript substitution in a wor
     "let a[${x:-$}\\(git' push -f origin'\\)]",
     "let a[{$,}\\(git' push -f origin'\\)]",
     "let a[$(printf '$')\\(git' push -f origin'\\)]",
+    "let a[$x\\(git' push -f origin'\\)]",
     "(\\\n( '$(git push -f origin)' ))",
   ]);
 

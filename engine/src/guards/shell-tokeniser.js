@@ -200,6 +200,8 @@ const createContext = (source, depth) => ({
   escapedBracket: false,
   openSubscript: false,
   joinedOpener: false,
+  dollarTail: false,
+  nameTail: false,
   braceFailedUntil: 0,
   parameter: false,
   arithmeticFloor: NO_ARITHMETIC,
@@ -229,17 +231,26 @@ const tracksSubscript = (open, text) => {
 };
 
 const JOINING_OPENER = /^[({`]/;
-const DOLLAR_END = /[$})`]$/;
+const DOLLAR_TAIL = /[$}]$/;
+const NAME_TEXT = /^\w+$/;
 
 const appendText = (context, text) => {
   context.piece = (context.piece ?? '') + text;
   context.openSubscript = tracksSubscript(context.openSubscript, text);
 };
 
-// A literal ( { or ` after what may end in a $ at run time (a $, an expansion, a brace group) can still join it into an opener.
+// Kept per append, never read off the piece, so a long word costs no re-scan.
+const tracksDollarTail = (context, text) => {
+  if (text === '') return;
+  context.nameTail &&= NAME_TEXT.test(text);
+  context.dollarTail = context.nameTail || DOLLAR_TAIL.test(text);
+};
+
+// A literal ( { or ` after what may end in a $ at run time (a $, any expansion, a brace group) can still join it into an opener.
 const append = (context, text) => {
-  context.joinedOpener ||= JOINING_OPENER.test(text) && DOLLAR_END.test(context.piece ?? '');
+  context.joinedOpener ||= JOINING_OPENER.test(text) && context.dollarTail;
   appendText(context, text);
+  tracksDollarTail(context, text);
 };
 
 const isHeadWord = (context, { text }) =>
@@ -274,11 +285,11 @@ const escapeHidesSubscript = context =>
 
 const holdsBracket = context => context.escapedBracket || context.piece.includes(OPEN_BRACKET);
 const holdsDollar = context => context.literalOpener || context.piece.includes(DOLLAR);
-const joinsSubscriptOpener = context => context.joinedOpener && holdsBracket(context) && holdsDollar(context);
+const joinsSubscriptOpener = context => context.joinedOpener && holdsBracket(context);
 
 const holdsSubscriptSubstitution = context =>
-  (context.literalOpener && (bracketBeforeOpener(context.piece) || escapeHidesSubscript(context))) ||
-  joinsSubscriptOpener(context);
+  (context.literalOpener && bracketBeforeOpener(context.piece)) ||
+  (holdsDollar(context) && (escapeHidesSubscript(context) || joinsSubscriptOpener(context)));
 
 const resetWordFlags = context => {
   context.dynamic = false;
@@ -289,6 +300,8 @@ const resetWordFlags = context => {
   context.escapedBracket = false;
   context.openSubscript = false;
   context.joinedOpener = false;
+  context.dollarTail = false;
+  context.nameTail = false;
 };
 
 const endWord = context => {
@@ -541,6 +554,8 @@ const absorb = (context, child) => {
 
 const markExpansion = (context, start, end) => {
   appendText(context, context.source.slice(start, end));
+  context.dollarTail = true;
+  context.nameTail = false;
   context.index = end;
   context.dynamic = true;
 };
@@ -692,6 +707,8 @@ const enterDollarParen = context => {
 
 const onVariable = context => {
   markExpansion(context, context.index, context.index + 2);
+  // The rest of the name arrives as literal text, and the expansion only ends with it.
+  context.nameTail = true;
 };
 
 const enterBrace = context =>

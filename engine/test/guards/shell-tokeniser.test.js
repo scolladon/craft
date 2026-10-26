@@ -1034,6 +1034,17 @@ describe('parseShellCommands() — an escaped opener in a word holding a subscri
       "let a[${x:-$}\\{y}]",
       "let \"a[${x:-$}(git push -f origin)]\"",
       "printf \"[%s] ${c}(%s)\" a b",
+      "let a$'\\x5b'\"$\"$'\\x28git push -f origin\\x29\\x5d'",
+      "let a[$x\\(git' push -f origin'\\)]",
+      "let a[$x'(git push -f origin)']",
+      "let a[$x\"(git push -f origin)\"]",
+      "let a[\"$x\"\\(git' push -f origin'\\)]",
+      "let a[\"$x(\"git' push -f origin'\\)]",
+      "let a[$long_name\\(git' push -f origin'\\)]",
+      "let a[$1\\(git' push -f origin'\\)]",
+      "let a[$*\\(git' push -f origin'\\)]",
+      "let a[$@'(git push -f origin)']",
+      "(( a[$x\\(git' push -f origin'\\)] ))",
     ].map(input => [input, SUBSCRIPT_IN_STRING]),
   );
 });
@@ -1081,5 +1092,7 @@ describe('parseShellCommands() — ANSI-C escapes that decode to no opener in a 
     ['grep -E "[0-9]+$|${PAT}" f', [['grep', '-E', dyn('[0-9]+$|${PAT}'), 'f']]],
     ['echo "- [${t}](${u})"', [['echo', dyn('- [${t}](${u})')]]],
     ["jq '.[] | select(.id == $id)' f", [['jq', '.[] | select(.id == $id)', 'f']]],
+    ['echo "a[$x]" "(y)"', [['echo', dyn('a[$x]'), '(y)']]],
+    ['echo "a[${x}] (y)"', [['echo', dyn('a[${x}] (y)')]]],
   ]);
 });
