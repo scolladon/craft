@@ -690,6 +690,8 @@ const expandDollar = context => {
   if (next === OPEN_BRACE) return enterBrace(context);
   if (next === OPEN_BRACKET) return enterArithmetic(context, BRACKET_ARITHMETIC);
   if (next !== undefined && VARIABLE_START.test(next)) return onVariable(context);
+  // A $ bash leaves unexpanded here still opens a substitution once quote removal joins it to an escaped (.
+  context.literalOpener = true;
   onLiteral(context);
 };
 

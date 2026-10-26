@@ -782,6 +782,7 @@ describe('parseShellCommands() — line continuations inside an arithmetic opene
   assertParsesWords([
     [`echo $(${CONTINUATION}git status)`, [['git', 'status'], ['echo', dyn(`$(${CONTINUATION}git status)`)]]],
     [`echo $(( 1 + 2 ${CONTINUATION}))`, [['echo', dyn(`$(( 1 + 2 ${CONTINUATION}))`)]]],
+    [`(${CONTINUATION} echo hi)`, [['echo', 'hi']]],
   ]);
 });
 
@@ -917,6 +918,10 @@ describe('parseShellCommands() — a quoted substitution inside an arithmetic re
       "(( $'$\\x28git push -f origin)' ))",
       "(( $'$\\50git push -f origin)' ))",
       "x=abc; echo ${x:$'$\\x7by:-$\\x28git push -f origin)}'}",
+      "(( $'$\\x7b git push -f origin; }' ))",
+      "(( $'\\x5b' ))",
+      "a[1+'$(git push -f origin)']=1",
+      "let x'[][''$(git push -f origin)'",
     ].map(input => [input, QUOTED_ARITHMETIC_SUBSTITUTION]),
   );
 });
@@ -1012,6 +1017,13 @@ describe('parseShellCommands() — an escaped opener in a word holding a subscri
       'x="a[\\$(git push -f origin)]"; echo $(( x ))',
       'x=a[\\$\\(git\\ push\\ -f\\ origin\\)]; echo $(( x ))',
       'x=a\\[\\$\\(git\\ push\\ -f\\ origin\\)\\]; echo $(( x ))',
+      "let a[$\\(git' push -f origin'\\)]",
+      "let 'a['$\\(git' push -f origin'\\)']'",
+      "let a\\[$\\(git' push -f origin'\\)]",
+      "let $'a\\x5b'$\\(git' push -f origin'\\)]",
+      "let a[$\\{x:-$\\(git' push -f origin'\\)}]",
+      "[[ a[$\\(git' push -f origin'\\)] -eq 1 ]]",
+      "(( a[$\\(git' push -f origin'\\)] ))",
     ].map(input => [input, SUBSCRIPT_IN_STRING]),
   );
 });
@@ -1038,6 +1050,7 @@ describe('parseShellCommands() — an ANSI-C span holding an opener in a word ho
       "x=$'a[\\540git push -f origin\\5400]'; echo $(( x ))",
       "let $'a[$\\x28git push -f origin)]'",
       "let $'a[$\\50git push -f origin)]'",
+      "let $'a[$\\x7b git push -f origin; }]'",
     ].map(input => [input, SUBSCRIPT_IN_STRING]),
   );
 });
@@ -1052,5 +1065,7 @@ describe('parseShellCommands() — ANSI-C escapes that decode to no opener in a 
     ["echo $'\\x28'", [['echo', opaqueWord('x28')]]],
     ["echo $'\\x5b'", [['echo', opaqueWord('x5b')]]],
     ["printf $'\\x5b%s\\x5d' x", [['printf', opaqueWord('x5b%sx5d'), 'x']]],
+    ["echo $'\\x24' 'a[$x'", [['echo', opaqueWord('x24'), 'a[$x']]],
+    ["echo $'\\x5b' '$x'", [['echo', opaqueWord('x5b'), '$x']]],
   ]);
 });
