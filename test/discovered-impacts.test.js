@@ -124,3 +124,25 @@ test('Given section 0 and the Done close paragraph, when read, then open creates
   assert.ok(RUN_SKILL.includes('<run-id>.impacts.md'));
   assert.ok(sut.includes('the ledger and the impacts store'));
 });
+
+test('Given the documentation synthesis step, when read, then it defers through the script and authors no backlog entry', () => {
+  const sut = sliceProse(read('skills', 'documentation', 'SKILL.md'), /^3\. \*\*Synthesis/, TO_END);
+
+  assert.ok(sut.includes('run-ledger.sh defer'));
+  assert.ok(sut.includes('**Defer**'));
+  assert.ok(!sut.includes('new backlog follow-up entries'));
+  assert.ok(!sut.includes('FILED('));
+});
+
+test('Given the documentation frontmatter, when read, then it defers the rest to impact triage', () => {
+  const sut = sliceProse(read('skills', 'documentation', 'SKILL.md'), /^description: /, /^---$/);
+
+  assert.ok(sut.includes('defer the rest to impact triage'));
+});
+
+test('Given the documentation PR-body draft, when read, then it writes the discovered-impacts line as triage pending', () => {
+  const sut = sliceProse(read('skills', 'documentation', 'SKILL.md'), /^3\. \*\*Synthesis/, TO_END);
+
+  assert.ok(sut.includes('**Discovered impacts:**'));
+  assert.ok(sut.includes('triage pending'));
+});
