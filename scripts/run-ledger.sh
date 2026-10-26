@@ -5,6 +5,7 @@
 #   <git-common-dir>/craft-runs/<run-id>.md       the run's append-only ledger
 #   <git-common-dir>/craft-runs/<run-id>.pointer  "<run-key> <ledger-path>"
 #   <git-common-dir>/craft-runs/<run-id>.impacts.md  the run's discovered-impacts store
+#   <git-common-dir>/craft-runs/<run-id>.impacts.ids/  one directory per claimed impact id
 #
 # Usage: run-ledger.sh open <run-id>
 #        run-ledger.sh append <run-id> <phase>
@@ -26,6 +27,8 @@ readonly POINTER_SUFFIX='.pointer'
 readonly LEDGER_SUFFIX='.md'
 readonly IMPACTS_HEADER='# craft discovered impacts (append-only)'
 readonly IMPACTS_SUFFIX='.impacts.md'
+readonly IMPACT_CLAIMS_SUFFIX='.impacts.ids'
+readonly PARENT_STEP_PATTERN='(^|/)\.\.(/|:|$)'
 readonly IMPACT_HEADING_PATTERN='^## I[0-9]+$'
 readonly IMPACT_ID_PATTERN='^I[1-9][0-9]*$'
 readonly LOCUS_PATTERN='^locus: [^[:space:]]+$'
@@ -109,6 +112,10 @@ ledger_path() {
 
 impacts_path() {
   printf '%s/%s%s' "$(runs_dir)" "$1" "$IMPACTS_SUFFIX"
+}
+
+impact_claims_path() {
+  printf '%s/%s%s' "$(runs_dir)" "$1" "$IMPACT_CLAIMS_SUFFIX"
 }
 
 # Sets `key` and `ledger` (script-scoped, deliberately not `local`) from the
@@ -258,7 +265,13 @@ is_known_reason() {
 }
 
 is_relative_locus() {
-  [[ $1 != /* && $1 != '~'* ]]
+  [[ $1 != /* && $1 != '~'* && ! $1 =~ $PARENT_STEP_PATTERN ]]
+}
+
+# Tabs may indent a proof body; any other control character could forge a record
+# for a terminal or a model reading the ledger.
+has_control_chars() {
+  printf '%s' "$1" | LC_ALL=C tr -d '\t\n' | LC_ALL=C grep -q '[[:cntrl:]]'
 }
 
 has_known_reason() {
@@ -275,6 +288,7 @@ validate_entry() {
   local entry="$1"
   entry_error=''
   if [ "$(count_matching "$entry" '^#')" -ne 0 ]; then entry_error='a line starting with #'; return; fi
+  if has_control_chars "$entry"; then entry_error='a control character'; return; fi
   has_one_line "$entry" title '^title: .*[^[:space:]]' || { entry_error='exactly one non-empty title line is required'; return; }
   has_one_line "$entry" locus "$LOCUS_PATTERN" || { entry_error='exactly one locus line without whitespace is required'; return; }
   is_relative_locus "$(field_value "$entry" locus)" || { entry_error='the locus must be a relative path'; return; }
@@ -289,15 +303,26 @@ require_writable_store() {
   if is_symlinked "$store"; then die "refusing a symlinked impacts store: $store"; fi
 }
 
-next_impact_id() {
-  printf 'I%s' "$(( $(grep -c -E -e "$IMPACT_HEADING_PATTERN" "$1" || true) + 1 ))"
+require_ledger() {
+  [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
+}
+
+# mkdir is atomic, so two concurrent defers never claim the same id.
+claim_impact_id() {
+  local store="$1" claims="$2" n
+  if is_symlinked "$claims"; then die "refusing symlinked impact claims: $claims"; fi
+  mkdir -p "$claims" || die "cannot create impact claims: $claims"
+  n=$(( $(grep -c -E -e "$IMPACT_HEADING_PATTERN" "$store" || true) + 1 ))
+  until mkdir "$claims/I$n" 2>/dev/null; do n=$((n + 1)); done
+  printf 'I%s' "$n"
 }
 
 record_impact() {
   local run_id="$1" phase="$2" entry="$3" store id locus
   store="$(impacts_path "$run_id")"
   require_writable_store "$store"
-  id="$(next_impact_id "$store")"
+  require_ledger
+  id="$(claim_impact_id "$store" "$(impact_claims_path "$run_id")")" || exit 1
   locus="$(field_value "$entry" locus)"
   printf '\n## %s\n%s\n' "$id" "$entry" >> "$store"
   printf '%s %s DEFERRED(%s): %s %s\n' "$run_id" "$phase" "${locus%%:*}" "$id" "$(field_value "$entry" title)" >> "$ledger"
@@ -317,11 +342,14 @@ cmd_defer() {
   record_impact "$run_id" "$phase" "$entry"
 }
 
-# Sets `rationale` to the one non-blank stdin line; dies 2 on none or several.
+# Sets `rationale` to the single stdin line; dies 2 on a blank one, a second line
+# (a blank one included) or a control character.
 read_rationale() {
   local input
   input="$(cat)"
-  [ "$(count_matching "$input" '[^[:space:]]')" -eq 1 ] || die "verdict: exactly one non-blank rationale line is required" 2
+  if [[ $input == *$'\n'* || ! $input =~ [^[:space:]] ]] || has_control_chars "$input"; then
+    die "verdict: exactly one non-blank rationale line is required" 2
+  fi
   rationale="$input"
 }
 
@@ -348,6 +376,7 @@ cmd_verdict() {
   require_trusted_pointer "$run_id"
   store="$(impacts_path "$run_id")"
   require_writable_store "$store"
+  require_ledger
   require_open_impact "$store" "$id"
   printf '\n### %s verdict: %s — %s\n' "$id" "$verdict" "$rationale" >> "$store"
   printf '%s %s TRIAGED(%s): %s — %s\n' "$run_id" "$TRIAGE_PHASE" "$id" "$verdict" "$rationale" >> "$ledger"
@@ -402,6 +431,7 @@ cmd_close() {
   require_run_id "$run_id"
   resolve_git_common || die "not inside a git repository's work tree"
   rm -f "$(pointer_path "$run_id")" "$(ledger_path "$run_id")" "$(impacts_path "$run_id")"
+  rm -rf "$(impact_claims_path "$run_id")"
 }
 
 cmd_dir() {
