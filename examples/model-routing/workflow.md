@@ -31,6 +31,6 @@ Routing the wrong tier hurts quality, not safety:
 the contract and gates bind regardless of model.
 
 Valid agent keys are the craft agents (`designer`, `planner`, `reviewer`, `part-implementer`,
-`refactor-executor`, `validation-triager`, `docs-writer`, `backlog-ticker`) plus `fallback`.
+`refactor-executor`, `harness-triager`, `impact-triager`, `docs-writer`, `backlog-ticker`) plus `fallback`.
 
 > In your real repo this file lives at the project root as `.claude/workflow.md`.

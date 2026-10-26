@@ -292,6 +292,7 @@ test('Given each recognized craft agentType via an injected sub-agent context, w
     'craft:backlog-ticker': 'documentation',
     'craft:requirements-writer': 'requirements',
     'craft:refactor-executor': 'refactoring',
+    'craft:impact-triager': 'impact-triage',
   };
   const usageLine = JSON.stringify({
     type: 'assistant',

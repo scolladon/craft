@@ -323,7 +323,7 @@ test('Given an event whose time exactly equals the since cutoff, when parseLines
 
 // ── 11. parseLines — role→phase mapping for all 9 craft roles ───────────────────
 
-test('Given each of the 9 craft-<role> agent names, when parseLines runs, then phase maps to the correct vendor-neutral label', async () => {
+test('Given each of the 10 craft-<role> agent names, when parseLines runs, then phase maps to the correct vendor-neutral label', async () => {
   const ROLE_PHASE_MAP = {
     'craft-designer': 'design',
     'craft-planner': 'planning',
@@ -334,6 +334,7 @@ test('Given each of the 9 craft-<role> agent names, when parseLines runs, then p
     'craft-backlog-ticker': 'documentation',
     'craft-requirements-writer': 'requirements',
     'craft-refactor-executor': 'refactoring',
+    'craft-impact-triager': 'impact-triage',
   };
   const sut = parseLines;
 

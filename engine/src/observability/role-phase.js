@@ -32,6 +32,7 @@ const ROLE_TO_PHASE = Object.freeze({
   'backlog-ticker': 'documentation',
   'requirements-writer': 'requirements',
   'refactor-executor': 'refactoring',
+  'impact-triager': 'impact-triage',
 });
 
 /**
