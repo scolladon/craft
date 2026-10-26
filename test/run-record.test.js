@@ -432,7 +432,7 @@ test('Given the run skill and the run-record spec, when read, then both place th
 
   assert.ok(runSkillText.includes('<git-common-dir>/craft-runs/<run-id>.md'));
   assert.ok(spec.includes('<git-common-dir>/craft-runs/<run-id>.md'));
-  assert.ok(spec.includes('`open`/`append`/`close`'));
+  assert.ok(spec.includes('`open`/`append`/`defer`/`verdict`/`close`'));
   assert.ok(!spec.includes('snapshot') && !spec.includes('.delta.json'));
 });
 
@@ -461,7 +461,7 @@ test('Given every run-ledger.sh invocation the skills, the spec and the hooks na
     [...fs.readFileSync(file, 'utf8').matchAll(/run-ledger\.sh"?\)?"? ([a-z]+)\b/g)].map((match) => ({ file: path.relative(ROOT, file), verb: match[1] })),
   );
 
-  assert.deepStrictEqual([...verbs].sort(), ['append', 'close', 'dir', 'locate', 'open']);
+  assert.deepStrictEqual([...verbs].sort(), ['append', 'close', 'defer', 'dir', 'locate', 'open', 'verdict']);
   assert.ok(named.length > 0, 'expected run-ledger.sh invocations in the prose');
   const unknown = named.filter(({ verb }) => !verbs.has(verb));
   assert.deepStrictEqual(unknown, [], `unknown run-ledger.sh verbs: ${JSON.stringify(unknown)}`);

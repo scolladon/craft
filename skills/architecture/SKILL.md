@@ -45,4 +45,6 @@ description: Craft architecture phase - run the repo's boundary-check harness ov
    <scope>` for an exception-only landing); global + architecture-phase `context:` files
    verbatim; the technique's `triage-procedure` ref (if declared).
 3. Verify the triager's commit; run the phase gate; record per-finding outcomes in the
-   run record.
+   run record. A triager `IMPACT(` line gets its verdict under the run skill invariant
+   **Impacts: fold or defer at discovery** when the triage result lands; EXCEPTION
+   semantics are unchanged.

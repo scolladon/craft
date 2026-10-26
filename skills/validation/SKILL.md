@@ -214,6 +214,8 @@ sub-concern also no-op'd.
      document a provable benign result.
 2. **The PR waits for triage** (orchestrator invariant): when each triage-mode run
    lands and its triager commits, verify the triager's commit; run `gates.phase`; record
-   per-finding outcomes in the run record.
+   per-finding outcomes in the run record. A triager `IMPACT(` line gets its verdict under
+   the run skill invariant **Impacts: fold or defer at discovery** when the triage result
+   lands; EXCEPTION semantics are unchanged.
 3. **Never destroy the worktree while the run is alive** — `worktree-teardown.sh`
    refuses on the lock; don't fight it.

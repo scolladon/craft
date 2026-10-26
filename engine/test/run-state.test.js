@@ -501,3 +501,22 @@ test('Given planning-no-op.md cut after PHASE-START(implementation), when derive
   assert.equal(result.state.next, 'review');
   assert.deepEqual(result.state.warnings, []);
 });
+
+test('Given DEFERRED, TRIAGED and FILED lines and impact-triage in effective, when deriveRunState runs, then warnings is empty and impact-triage is in flight', () => {
+  const sut = deriveRunState;
+
+  const result = sut(
+    [
+      'demo resolve AWAITING(propose): validation',
+      'demo review DEFERRED(engine/src/run-state.js): I1 stale doc',
+      'demo impact-triage PHASE-START(impact-triage): 2026-10-26T10:00:00Z',
+      'demo impact-triage TRIAGED(I1): backlog:ready — reproduced at HEAD',
+      'demo impact-triage FILED(engine/src/run-state.js): I1 stale doc — not folded: out of scope',
+    ],
+    RUN_ID,
+    makeResolution([...DEFAULT_IDS.slice(0, -2), 'impact-triage', 'propose', 'integrate'], ['validation']),
+  );
+
+  assert.deepEqual(result.state.warnings, []);
+  assert.deepEqual(result.state.inFlight.map((entry) => entry.phase), ['impact-triage']);
+});

@@ -37,8 +37,10 @@ subjects:
     removed); `delta` is the array of buffered `{ concern, payload }` observations for this run;
     `deps` carries `writeStore: (path, content) => void`, optional `ref` (the configured
     `memory.ref`, default `.claude/craft-memory.md`, joined under `repoRoot` with the same
-    traversal containment as `load`), optional `caps`, and optional `run` provenance
-    (`{ run, commit, date }`). A `ref` that escapes the root skips the write with a `writeNote`
+    traversal containment as `load`), optional `validators` (the same validate-on-read map
+    `load` takes), optional `caps`, and optional `run` provenance (`{ run, commit, date }`). A
+    delta observation that fails its concern's validator is dropped before reconciliation, so a
+    save never writes an entry the next `load` would evict; retractions are never dropped. A `ref` that escapes the root skips the write with a `writeNote`
     warning — it never writes outside the repo. `save` reads `view.degraded`: a view that never
     saw the store's real content must never be reconciled and flushed, because that composes two
     individually-correct behaviours into a destructive one — a delta-only rewrite that silently

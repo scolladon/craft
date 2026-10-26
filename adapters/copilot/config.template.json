@@ -13,6 +13,7 @@
       "craft-designer": { "model": "inherit", "effortLevel": "inherit" },
       "craft-planner": { "model": "inherit", "effortLevel": "inherit" },
       "craft-reviewer": { "model": "inherit", "effortLevel": "inherit" },
+      "craft-impact-triager": { "model": "inherit", "effortLevel": "inherit" },
       "craft-requirements-writer": { "model": "inherit", "effortLevel": "inherit" },
       "craft-part-implementer": { "model": "inherit", "effortLevel": "inherit" },
       "craft-harness-triager": { "model": "inherit", "effortLevel": "inherit" },

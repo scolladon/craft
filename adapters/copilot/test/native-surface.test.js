@@ -17,6 +17,7 @@ const ROLE_TIERS = {
   designer: 'opus',
   planner: 'opus',
   reviewer: 'opus',
+  'impact-triager': 'opus',
   'requirements-writer': 'opus',
   'part-implementer': 'sonnet',
   'harness-triager': 'sonnet',

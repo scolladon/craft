@@ -350,6 +350,18 @@ const EXPECTED_DESCRIPTORS = [
     turn_budget: null,
   },
   {
+    id: 'impact-triage',
+    archetype: 'delivery',
+    enabled: true,
+    contract: ['delivery'],
+    procedure: 'craft:impact-triage',
+    role: 'craft:impact-triager',
+    consumes: ['change'],
+    self_supply: [],
+    produces: ['impact-verdicts'],
+    turn_budget: null,
+  },
+  {
     id: 'propose',
     archetype: 'delivery',
     enabled: true,
@@ -380,9 +392,9 @@ const STRUCTURAL_FIELDS = [
   'role', 'consumes', 'self_supply', 'produces', 'turn_budget',
 ];
 
-test('Given default.yml, when parsePipeline runs, then it yields exactly 14 descriptors', () => {
+test('Given default.yml, when parsePipeline runs, then it yields exactly 15 descriptors', () => {
   const result = parsePipeline(DEFAULT_YAML);
-  assert.equal(result.length, 14);
+  assert.equal(result.length, 15);
 });
 
 test('Given default.yml, when parsePipeline runs, then requirements and architecture are disabled', () => {

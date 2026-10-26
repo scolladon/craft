@@ -1,13 +1,14 @@
 'use strict';
-const { test } = require('node:test');
+const { test, describe, before, after } = require('node:test');
 const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const {
   LEDGER_SCRIPT,
   LEDGER_HEADER,
+  IMPACTS_HEADER,
   git,
   runsDirOf,
   createRunRepo,
@@ -20,6 +21,7 @@ const RUN_KEY_PATTERN = /^demo@\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const PAST_STAMP = '2026-01-01T00:00:00Z';
 
 const ledgerOf = (main, runId = 'demo') => path.join(runsDirOf(main), `${runId}.md`);
+const impactsOf = (main, runId = 'demo') => path.join(runsDirOf(main), `${runId}.impacts.md`);
 const pointerOf = (main, runId = 'demo') => path.join(runsDirOf(main), `${runId}.pointer`);
 
 function withTempDir(prefix, act) {
@@ -65,6 +67,32 @@ test('Given a fresh repo, when open demo runs from the checkout, then stdout car
     assert.strictEqual(ledger, ledgerOf(main));
     assert.strictEqual(fs.readFileSync(ledger, 'utf8'), `${LEDGER_HEADER}\n`);
     assert.strictEqual(fs.readFileSync(pointerOf(main), 'utf8'), `${key} ${ledger}\n`);
+  });
+});
+
+test('Given a fresh repo, when open demo runs, then the impacts store holds its header alone', () => {
+  withRepo(({ main }) => {
+    const sut = runLedger;
+
+    sut(main, ['open', 'demo']);
+
+    assert.strictEqual(fs.readFileSync(impactsOf(main), 'utf8'), `${IMPACTS_HEADER}\n`);
+  });
+});
+
+test('Given the impacts store path is a symlink to a file outside the git dir, when open runs, then it exits 1, writes no pointer and leaves the target unchanged', () => {
+  withRepo(({ main, parent }) => {
+    const outside = path.join(parent, 'outside-impacts.txt');
+    fs.writeFileSync(outside, 'untouched\n');
+    fs.mkdirSync(runsDirOf(main), { recursive: true });
+    fs.symlinkSync(outside, impactsOf(main));
+    const sut = runLedger;
+
+    const result = sut(main, ['open', 'demo']);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.existsSync(pointerOf(main)), false);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'untouched\n');
   });
 });
 
@@ -495,6 +523,389 @@ for (const [label, phase] of [['a bad phase', 'Bad'], ['a phase carrying a newli
 }
 
 // ---------------------------------------------------------------------------
+// discovered impacts — defer
+// ---------------------------------------------------------------------------
+
+const VALID_ENTRY = [
+  'title: install hook leaves stale symlink on re-run',
+  'locus: scripts/worktree-setup.sh:L88',
+  'reason: out of scope',
+  'proof:',
+  '  bash scripts/worktree-setup.sh "$tmp"; ls -l "$tmp/.claude"',
+  'expected: .claude -> <stale target>',
+].join('\n');
+
+const SECOND_ENTRY = VALID_ENTRY.replace('install hook leaves stale symlink on re-run', 'second finding');
+
+test('Given an open run, when two valid entries are deferred, then stdout prints I1 then I2, the store holds both blocks and the ledger gains one DEFERRED line each', () => {
+  withRun({}, (run) => {
+    const sut = runLedger;
+
+    const first = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    const second = sut(run.main, ['defer', 'demo', 'review'], SECOND_ENTRY);
+
+    assert.strictEqual(first.stdout, 'I1\n');
+    assert.strictEqual(second.stdout, 'I2\n');
+    assert.strictEqual(
+      fs.readFileSync(impactsOf(run.main), 'utf8'),
+      `${IMPACTS_HEADER}\n\n## I1\n${VALID_ENTRY}\n\n## I2\n${SECOND_ENTRY}\n`,
+    );
+    assert.strictEqual(
+      fs.readFileSync(run.ledgerPath, 'utf8'),
+      `${LEDGER_HEADER}\n` +
+        'demo review DEFERRED(scripts/worktree-setup.sh): I1 install hook leaves stale symlink on re-run\n' +
+        'demo review DEFERRED(scripts/worktree-setup.sh): I2 second finding\n',
+    );
+  });
+});
+
+const BODY_LINE = /^ {2}bash.*\n/m;
+const without = (prefix) => VALID_ENTRY.split('\n').filter((l) => !l.startsWith(prefix)).join('\n');
+const withLine = (prefix, replacement) =>
+  VALID_ENTRY.split('\n').map((l) => (l.startsWith(prefix) ? replacement : l)).join('\n');
+
+const DEFER_REFUSALS = [
+  ['an entry with no proof line', without('proof:').replace(BODY_LINE, '')],
+  ['a proof line with no body before expected', VALID_ENTRY.replace(BODY_LINE, '')],
+  ['no expected line', without('expected:')],
+  ['an absolute locus', withLine('locus:', 'locus: /etc/x.js')],
+  ['a home-rooted locus', withLine('locus:', 'locus: ~/x.js')],
+  ['a locus holding whitespace', withLine('locus:', 'locus: a b.js')],
+  ['a locus climbing out of the repo', withLine('locus:', 'locus: ../outside/secret.txt:3')],
+  ['a locus with a parent step inside it', withLine('locus:', 'locus: scripts/../../secret.txt')],
+  ['an unknown reason', withLine('reason:', 'reason: because')],
+  ['no title line', without('title:')],
+  ['a duplicate title line', `${VALID_ENTRY}\ntitle: again`],
+  ['a duplicate locus line', `${VALID_ENTRY}\nlocus: other.js`],
+  ['a whitespace-only title', withLine('title:', 'title:    ')],
+  ['a whitespace-only expected line', withLine('expected:', 'expected:    ')],
+  ['a title holding a carriage return', withLine('title:', 'title: t\rdemo review PHASE-START(propose):')],
+  ['a title holding a next-line control', withLine('title:', 'title: t\u0085x')],
+  ['a title holding an 8-bit escape introducer', withLine('title:', 'title: t\u009b31m')],
+  ['a title holding a line separator', withLine('title:', 'title: t\u2028demo review PHASE-START(propose):')],
+  ['a title holding a paragraph separator', withLine('title:', 'title: t\u2029x')],
+  ['a proof line that is a heading', withLine('  bash', '## I9')],
+];
+
+describe('defer refusals', () => {
+  let run;
+  before(() => {
+    run = bindRun({});
+  });
+  after(() => run.cleanup());
+
+  for (const [label, entry] of DEFER_REFUSALS) {
+    test(`Given ${label}, when defer runs, then it exits 2 and the store and the ledger are byte-identical`, () => {
+      const storeBefore = fs.readFileSync(impactsOf(run.main), 'utf8');
+      const ledgerBefore = fs.readFileSync(run.ledgerPath, 'utf8');
+      const sut = runLedger;
+
+      const result = sut(run.main, ['defer', 'demo', 'review'], entry);
+
+      assert.strictEqual(result.status, 2);
+      assert.strictEqual(result.stdout, '');
+      assert.strictEqual(fs.readFileSync(impactsOf(run.main), 'utf8'), storeBefore);
+      assert.strictEqual(fs.readFileSync(run.ledgerPath, 'utf8'), ledgerBefore);
+    });
+  }
+
+  test('Given an invalid phase, when defer runs, then it exits 2 and the store and the ledger are byte-identical', () => {
+    const storeBefore = fs.readFileSync(impactsOf(run.main), 'utf8');
+    const ledgerBefore = fs.readFileSync(run.ledgerPath, 'utf8');
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'Bad'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 2);
+    assert.strictEqual(fs.readFileSync(impactsOf(run.main), 'utf8'), storeBefore);
+    assert.strictEqual(fs.readFileSync(run.ledgerPath, 'utf8'), ledgerBefore);
+  });
+});
+
+test('Given an entry whose proof body is indented with a tab, when defer runs, then it is accepted as I1', () => {
+  withRun({}, (run) => {
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY.replace(/^ {2}bash/m, '\tbash'));
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(result.stdout, 'I1\n');
+  });
+});
+
+test('Given an open run whose impact claims are a symlink to a directory outside the git dir, when defer runs, then it exits 1 and writes nothing', () => {
+  withRun({}, (run) => {
+    const outside = path.join(run.parent, 'outside-claims');
+    fs.mkdirSync(outside);
+    fs.symlinkSync(outside, path.join(runsDirOf(run.main), 'demo.impacts.ids'));
+    const storeBefore = fs.readFileSync(impactsOf(run.main), 'utf8');
+    const ledgerBefore = fs.readFileSync(run.ledgerPath, 'utf8');
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 1);
+    assert.match(result.stderr, /symlinked impact claims/);
+    assert.deepStrictEqual(fs.readdirSync(outside), []);
+    assert.strictEqual(fs.readFileSync(impactsOf(run.main), 'utf8'), storeBefore);
+    assert.strictEqual(fs.readFileSync(run.ledgerPath, 'utf8'), ledgerBefore);
+  });
+});
+
+const READ_ONLY_MODE = 0o555;
+const WRITABLE_MODE = 0o755;
+const CLAIM_TIMEOUT_MS = 10000;
+
+// A hung defer forks a command-substitution subshell; killing only the direct child
+// would orphan it, so the whole process group goes on timeout.
+function deferWithDeadline(cwd, entry, deadlineMs) {
+  return new Promise((resolve) => {
+    const child = spawn('bash', [LEDGER_SCRIPT, 'defer', 'demo', 'review'], { cwd, detached: true });
+    let stderr = '';
+    child.stderr.on('data', (chunk) => {
+      stderr += chunk;
+    });
+    const timer = setTimeout(() => process.kill(-child.pid, 'SIGKILL'), deadlineMs);
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      resolve({ status: null, signal: null, stderr: String(error) });
+    });
+    child.on('close', (status, signal) => {
+      clearTimeout(timer);
+      resolve({ status, signal, stderr });
+    });
+    child.stdin.end(entry);
+  });
+}
+
+test('Given impact claims that refuse new entries, when defer runs, then it exits 1 instead of spinning', async () => {
+  const run = bindRun({});
+  const claims = path.join(runsDirOf(run.main), 'demo.impacts.ids');
+  try {
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    fs.chmodSync(claims, READ_ONLY_MODE);
+    const sut = deferWithDeadline;
+
+    const result = await sut(run.main, SECOND_ENTRY, CLAIM_TIMEOUT_MS);
+
+    assert.strictEqual(result.signal, null);
+    assert.strictEqual(result.status, 1);
+    assert.match(result.stderr, /cannot claim impact id/);
+  } finally {
+    fs.chmodSync(claims, WRITABLE_MODE);
+    run.cleanup();
+  }
+});
+
+test('Given a run whose ledger was lost without close, when it is opened again and an entry deferred, then the entry is I1', () => {
+  withRun({}, (run) => {
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    fs.rmSync(run.ledgerPath);
+    runLedger(run.main, ['open', 'demo']);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.stdout, 'I1\n');
+  });
+});
+
+test('Given an open run whose store was removed, when defer runs, then it exits 1 and does not recreate the store', () => {
+  withRun({}, (run) => {
+    fs.rmSync(impactsOf(run.main));
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.existsSync(impactsOf(run.main)), false);
+  });
+});
+
+test('Given an open run whose ledger was removed, when defer runs, then it exits 1 and does not recreate the ledger', () => {
+  withRun({}, (run) => {
+    fs.rmSync(run.ledgerPath);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.existsSync(run.ledgerPath), false);
+  });
+});
+
+function deferAsync(cwd, entry) {
+  return new Promise((resolve) => {
+    const child = spawn('bash', [LEDGER_SCRIPT, 'defer', 'demo', 'review'], { cwd });
+    let stdout = '';
+    child.stdout.on('data', (chunk) => {
+      stdout += chunk;
+    });
+    child.on('error', (error) => resolve({ status: null, stdout: String(error) }));
+    child.on('close', (status) => resolve({ status, stdout }));
+    child.stdin.end(entry);
+  });
+}
+
+const CONCURRENT_DEFERS = 8;
+
+test('Given an open run, when several defer calls run at once, then every call gets a distinct id', async () => {
+  const run = bindRun({});
+  try {
+    const sut = deferAsync;
+
+    const results = await Promise.all(
+      Array.from({ length: CONCURRENT_DEFERS }, (_, n) => sut(run.main, SECOND_ENTRY.replace('second finding', `finding ${n}`))),
+    );
+
+    const ids = results.map((result) => result.stdout.trim());
+    assert.deepStrictEqual(results.map((result) => result.status), Array(CONCURRENT_DEFERS).fill(0));
+    assert.strictEqual(new Set(ids).size, CONCURRENT_DEFERS);
+    const headings = fs.readFileSync(impactsOf(run.main), 'utf8').split('\n').filter((l) => l.startsWith('## I'));
+    assert.strictEqual(new Set(headings).size, CONCURRENT_DEFERS);
+  } finally {
+    run.cleanup();
+  }
+});
+
+test('Given no open run, when defer runs with a valid entry, then it exits 1', () => {
+  withRepo(({ main }) => {
+    const sut = runLedger;
+
+    const result = sut(main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 1);
+  });
+});
+
+test('Given defer with no phase, when the script runs, then it exits 2', () => {
+  withRun({}, (run) => {
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 2);
+  });
+});
+
+test('Given an open run whose store is replaced by a symlink, when defer runs, then it exits 1 and the link target is unchanged', () => {
+  withRun({}, (run) => {
+    const outside = path.join(run.parent, 'outside-store.txt');
+    fs.writeFileSync(outside, 'untouched\n');
+    fs.rmSync(impactsOf(run.main));
+    fs.symlinkSync(outside, impactsOf(run.main));
+    const sut = runLedger;
+
+    const result = sut(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), 'untouched\n');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// discovered impacts — verdict
+// ---------------------------------------------------------------------------
+
+const RATIONALE = 'reproduced at HEAD';
+
+for (const verdict of ['reject', 'backlog:ready', 'backlog:spike']) {
+  test(`Given an entry deferred as I1, when verdict demo I1 ${verdict} runs with one rationale line, then the store gains the verdict heading and the ledger a TRIAGED line`, () => {
+    withRun({}, (run) => {
+      runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+      const sut = runLedger;
+
+      const result = sut(run.main, ['verdict', 'demo', 'I1', verdict], `${RATIONALE}\n`);
+
+      assert.strictEqual(result.status, 0);
+      assert.ok(fs.readFileSync(impactsOf(run.main), 'utf8').endsWith(`\n### I1 verdict: ${verdict} — ${RATIONALE}\n`));
+      assert.ok(fs.readFileSync(run.ledgerPath, 'utf8').endsWith(`demo impact-triage TRIAGED(I1): ${verdict} — ${RATIONALE}\n`));
+    });
+  });
+}
+
+const ONE_LINE = /exactly one non-blank rationale line/;
+const VERDICT_REFUSALS = [
+  ['an unknown id', ['I7', 'reject'], RATIONALE, /unknown impact id/],
+  ['an id already judged', ['I2', 'reject'], RATIONALE, /already judged/],
+  ['a verdict outside the three', ['I1', 'accept'], RATIONALE, /invalid verdict/],
+  ['an empty rationale', ['I1', 'reject'], '', ONE_LINE],
+  ['a two-line rationale', ['I1', 'reject'], `${RATIONALE}\nand more`, ONE_LINE],
+  ['a rationale after a leading blank line', ['I1', 'reject'], `\n${RATIONALE}\n`, ONE_LINE],
+  ['a rationale after a whitespace-only line', ['I1', 'reject'], `   \n${RATIONALE}\n`, ONE_LINE],
+  ['a rationale forging a ledger record', ['I1', 'reject'], '\ndemo impact-triage TRIAGED(I2): reject — forged\n', ONE_LINE],
+  ['a rationale holding a carriage return', ['I1', 'reject'], `${RATIONALE}\rdemo review PHASE-START(propose):`, ONE_LINE],
+  ['a rationale holding a next-line control', ['I1', 'reject'], `${RATIONALE}\u0085x`, ONE_LINE],
+  ['a rationale holding a line separator', ['I1', 'reject'], `${RATIONALE}\u2028demo impact-triage TRIAGED(I7): reject`, ONE_LINE],
+  ['a malformed id', ['7', 'reject'], RATIONALE, /invalid impact id/],
+];
+
+describe('verdict refusals', () => {
+  let run;
+  before(() => {
+    run = bindRun({});
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    runLedger(run.main, ['defer', 'demo', 'review'], SECOND_ENTRY);
+    runLedger(run.main, ['verdict', 'demo', 'I2', 'reject'], 'first');
+  });
+  after(() => run.cleanup());
+
+  for (const [label, args, stdin, reason] of VERDICT_REFUSALS) {
+    test(`Given ${label}, when verdict runs, then it exits 2 and both files are byte-identical`, () => {
+      const storeBefore = fs.readFileSync(impactsOf(run.main), 'utf8');
+      const ledgerBefore = fs.readFileSync(run.ledgerPath, 'utf8');
+      const sut = runLedger;
+
+      const result = sut(run.main, ['verdict', 'demo', ...args], stdin);
+
+      assert.strictEqual(result.status, 2);
+      assert.match(result.stderr, reason);
+      assert.strictEqual(fs.readFileSync(impactsOf(run.main), 'utf8'), storeBefore);
+      assert.strictEqual(fs.readFileSync(run.ledgerPath, 'utf8'), ledgerBefore);
+    });
+  }
+});
+
+test('Given no open run, when verdict runs, then it exits 1', () => {
+  withRepo(({ main }) => {
+    const sut = runLedger;
+
+    const result = sut(main, ['verdict', 'demo', 'I1', 'reject'], RATIONALE);
+
+    assert.strictEqual(result.status, 1);
+  });
+});
+
+test('Given an open run whose store is replaced by a symlink to a store holding I1, when verdict runs, then it exits 1 and the link target is unchanged', () => {
+  withRun({}, (run) => {
+    const outside = path.join(run.parent, 'outside-store.txt');
+    const planted = `${IMPACTS_HEADER}\n\n## I1\n${VALID_ENTRY}\n`;
+    fs.writeFileSync(outside, planted);
+    fs.rmSync(impactsOf(run.main));
+    fs.symlinkSync(outside, impactsOf(run.main));
+    const sut = runLedger;
+
+    const result = sut(run.main, ['verdict', 'demo', 'I1', 'reject'], RATIONALE);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.readFileSync(outside, 'utf8'), planted);
+  });
+});
+
+test('Given an entry deferred as I1 and the ledger removed, when verdict runs, then it exits 1 and does not recreate the ledger', () => {
+  withRun({}, (run) => {
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    fs.rmSync(run.ledgerPath);
+    const sut = runLedger;
+
+    const result = sut(run.main, ['verdict', 'demo', 'I1', 'reject'], RATIONALE);
+
+    assert.strictEqual(result.status, 1);
+    assert.strictEqual(fs.existsSync(run.ledgerPath), false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // locate
 // ---------------------------------------------------------------------------
 
@@ -761,6 +1172,32 @@ for (const entry of UNTRUSTED_POINTERS) {
       assert.strictEqual(fs.readFileSync(ledger, 'utf8'), before);
     });
   });
+
+  test(`Given a planted pointer with ${entry.label}, when defer runs, then it refuses the pointer and writes nothing`, () => {
+    withPlantedPointer(entry, (main, { ledger }) => {
+      const before = fs.readFileSync(ledger, 'utf8');
+      const sut = runLedger;
+
+      const result = sut(main, ['defer', 'demo', 'review'], VALID_ENTRY);
+
+      assert.strictEqual(result.status, 1);
+      assert.match(result.stderr, /untrusted pointer/);
+      assert.strictEqual(fs.readFileSync(ledger, 'utf8'), before);
+    });
+  });
+
+  test(`Given a planted pointer with ${entry.label}, when verdict runs, then it refuses the pointer and writes nothing`, () => {
+    withPlantedPointer(entry, (main, { ledger }) => {
+      const before = fs.readFileSync(ledger, 'utf8');
+      const sut = runLedger;
+
+      const result = sut(main, ['verdict', 'demo', 'I1', 'reject'], RATIONALE);
+
+      assert.strictEqual(result.status, 1);
+      assert.match(result.stderr, /untrusted pointer/);
+      assert.strictEqual(fs.readFileSync(ledger, 'utf8'), before);
+    });
+  });
 }
 
 const SYMLINKED_READ_PATHS = [
@@ -862,7 +1299,22 @@ test('Given an open run, when close demo runs, then the pointer and the ledger a
     assert.strictEqual(result.status, 0);
     assert.strictEqual(fs.existsSync(pointerOf(run.main)), false);
     assert.strictEqual(fs.existsSync(run.ledgerPath), false);
+    assert.strictEqual(fs.existsSync(impactsOf(run.main)), false);
     assert.strictEqual(fs.existsSync(ledgerOf(run.main, 'other')), true);
+    assert.strictEqual(fs.existsSync(impactsOf(run.main, 'other')), true);
+  });
+});
+
+test('Given an open run with a deferred entry, when close demo runs, then its impact claims are removed', () => {
+  withRun({}, (run) => {
+    runLedger(run.main, ['defer', 'demo', 'review'], VALID_ENTRY);
+    const claims = path.join(runsDirOf(run.main), 'demo.impacts.ids');
+    const sut = runLedger;
+
+    const result = sut(run.main, ['close', 'demo']);
+
+    assert.strictEqual(result.status, 0);
+    assert.strictEqual(fs.existsSync(claims), false);
   });
 });
 

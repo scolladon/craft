@@ -65,7 +65,7 @@ const REAL_FRAGMENTS = {
   refinement:     readFileSync(join(__dir, '..', '..', 'contracts', 'refinement.md'), 'utf8'),
 };
 
-// Canonical SC1 phase order (12 enabled phases)
+// Canonical SC1 phase order (13 enabled phases)
 const SC1_IDS = [
   'workspace',
   'design',
@@ -77,6 +77,7 @@ const SC1_IDS = [
   'validation',
   'documentation',
   'lessons',
+  'impact-triage',
   'propose',
   'integrate',
 ];
@@ -89,7 +90,7 @@ const CODE_PRODUCING_IDS = ['implementation', 'refactoring'];
 
 // ─── SC1: zero-config golden ─────────────────────────────────────────────────
 
-test('SC1 Given no manifest, when resolvePipeline runs, then 12 enabled phases in canonical order with all executions agent', () => {
+test('SC1 Given no manifest, when resolvePipeline runs, then 13 enabled phases in canonical order with all executions agent', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('SC1');
   const sut = resolvePipeline;
@@ -931,7 +932,7 @@ test('S-full Given profile:full manifest, when resolvePipeline runs, then every 
   }
 });
 
-test('S-full Given profile:full manifest, when resolvePipeline runs, then effective length equals 12 (matches SC1)', () => {
+test('S-full Given profile:full manifest, when resolvePipeline runs, then effective length equals 13 (matches SC1)', () => {
   const defaults = loadDefault();
   const manifest = loadScenarioManifest('S-full');
   const sut = resolvePipeline;
@@ -961,7 +962,7 @@ test('S-reorder Given reorder:[validation, review], when resolvePipeline runs, t
 // between them, so the full order pins that non-reordered phases keep their positions.
 const S_REORDER_IDS = [
   'workspace', 'design', 'decisions', 'planning', 'implementation',
-  'validation', 'refactoring', 'review', 'documentation', 'lessons', 'propose', 'integrate',
+  'validation', 'refactoring', 'review', 'documentation', 'lessons', 'impact-triage', 'propose', 'integrate',
 ];
 
 test('S-reorder Given reorder:[validation, review], when resolvePipeline runs, then effective order matches the S-reorder golden (refactoring stays put)', () => {
@@ -992,7 +993,7 @@ test('S-reorder Given reorder:[validation, review], when resolvePipeline runs, t
 
 const SC3_EFFECTIVE_IDS = [
   'workspace', 'design', 'decisions', 'planning', 'implementation',
-  'validation', 'review', 'bench', 'documentation', 'lessons', 'propose', 'integrate',
+  'validation', 'review', 'bench', 'documentation', 'lessons', 'impact-triage', 'propose', 'integrate',
 ];
 
 test('SC3 Given skip:refactoring + insert:bench after validation + reorder:[validation,review], when resolvePipeline runs, then ok:true', () => {

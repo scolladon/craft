@@ -902,6 +902,7 @@ test('Given a models map naming every valid agent role key, when validateManifes
         'harness-triager': 'sonnet',
         'docs-writer': 'sonnet',
         'backlog-ticker': 'sonnet',
+        'impact-triager': 'opus',
       },
     },
     { fileExists: ALWAYS_EXISTS },
@@ -4164,6 +4165,17 @@ test('Given a tool name at the length bound, when validatePhases runs, then a we
 });
 
 // ─── lessons ─────────────────────────────────────────────────────────────────
+
+test('Given phases.impact-triage with a turn_budget, when validateManifest runs, then ok:true', () => {
+  const sut = validateManifest;
+
+  const result = sut(
+    { phases: { 'impact-triage': { turn_budget: 20 } } },
+    { fileExists: ALWAYS_EXISTS },
+  );
+
+  assert.equal(result.ok, true, `expected ok but got: ${JSON.stringify(result.errors)}`);
+});
 
 test('Given phases.lessons with a turn_budget, when validateManifest runs, then ok:true', () => {
   const sut = validateManifest;

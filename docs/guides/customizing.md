@@ -23,14 +23,15 @@ zero-config sequence is:
 
 ```
 workspace → design → decisions → planning → implementation → review
-          → refactoring → validation → documentation → lessons → propose → integrate
+          → refactoring → validation → documentation → lessons
+          → impact-triage → propose → integrate
 ```
 
 Two more phases ship **default-off** and turn on with one line: `requirements` (front-of-pipeline
 product spec) and `architecture` (a dependency/layering harness). Phases fall into a few
 **archetypes** — *setup* (`workspace`), *specification* (`requirements`/`design`/`decisions`/`planning`),
 *construction* (`implementation`), *harness* (`review`/`validation`/`architecture`/…), *refinement*
-(`refactoring`), *delivery* (`documentation`/`lessons`/`propose`/`integrate`). A **harness** is the reusable
+(`refactoring`), *delivery* (`documentation`/`lessons`/`impact-triage`/`propose`/`integrate`). A **harness** is the reusable
 one: an automated, repeatable verification of a single concern, expressed as *a gate plus an optional
 AI triage step*, configurable per repo. Review, validation, and architecture are all executing-harnesses;
 declare techniques per repo — see `examples/`. You can tune them or add your own.

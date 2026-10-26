@@ -4,14 +4,20 @@
 # Every run file lives in the git common dir, which no commit can write:
 #   <git-common-dir>/craft-runs/<run-id>.md       the run's append-only ledger
 #   <git-common-dir>/craft-runs/<run-id>.pointer  "<run-key> <ledger-path>"
+#   <git-common-dir>/craft-runs/<run-id>.impacts.md  the run's discovered-impacts store
+#   <git-common-dir>/craft-runs/<run-id>.impacts.ids/  one directory per claimed impact id
 #
 # Usage: run-ledger.sh open <run-id>
 #        run-ledger.sh append <run-id> <phase>
+#        run-ledger.sh defer <run-id> <phase>
+#        run-ledger.sh verdict <run-id> <impact-id> <verdict>
 #        run-ledger.sh locate --transcript <path>
 #        run-ledger.sh locate --run <run-id>
 #        run-ledger.sh close <run-id>
 #        run-ledger.sh dir
 # append stamps each PHASE-START(<phase>): record with its own UTC clock.
+# defer reads one impact entry on stdin, stores it as the next `## I<n>` block
+# and ledgers a DEFERRED record; a malformed entry is refused, nothing written.
 set -euo pipefail
 export LC_ALL=C
 
@@ -19,6 +25,15 @@ readonly LEDGER_HEADER='# craft run record (append-only)'
 readonly RUNS_SUBDIR='craft-runs'
 readonly POINTER_SUFFIX='.pointer'
 readonly LEDGER_SUFFIX='.md'
+readonly IMPACTS_HEADER='# craft discovered impacts (append-only)'
+readonly IMPACTS_SUFFIX='.impacts.md'
+readonly IMPACT_CLAIMS_SUFFIX='.impacts.ids'
+readonly UNICODE_CONTROL_PATTERN=$'\xc2[\x80-\x9f]|\xe2\x80[\xa8\xa9]'
+readonly PARENT_STEP_PATTERN='(^|/)\.\.(/|:|$)'
+readonly IMPACT_HEADING_PATTERN='^## I[0-9]+$'
+readonly IMPACT_ID_PATTERN='^I[1-9][0-9]*$'
+readonly LOCUS_PATTERN='^locus: [^[:space:]]+$'
+readonly KNOWN_REASONS='out of scope|needs its own decision|needs a probe|waits on an external trigger|adds feature behaviour|the fix did not pass its gate'
 readonly RUN_ID_PATTERN='^[a-z0-9][a-z0-9-]*$'
 readonly PHASE_PATTERN='^[a-z][a-z0-9-]*$'
 readonly RUN_KEY_PATTERN='^[a-z0-9][a-z0-9-]*@[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$'
@@ -27,11 +42,14 @@ readonly UTC_STAMP_FORMAT='+%Y-%m-%dT%H:%M:%SZ'
 readonly DATE_BIN='/bin/date'
 readonly PHASE_START_PATTERN='^(PHASE-START\([a-z][a-z0-9-]*\):)( +(.*))?$'
 readonly OPEN_RUN_EXIT=3
+readonly TRIAGE_PHASE='impact-triage'
 
 usage_exit() {
   cat >&2 <<'EOF'
 usage: run-ledger.sh open <run-id>
        run-ledger.sh append <run-id> <phase>
+       run-ledger.sh defer <run-id> <phase>
+       run-ledger.sh verdict <run-id> <impact-id> <verdict>
        run-ledger.sh locate --transcript <path> | --run <run-id>
        run-ledger.sh close <run-id>
        run-ledger.sh dir
@@ -77,6 +95,10 @@ require_run_id() {
   is_valid_run_id "$1" || die "invalid run-id: $1" 2
 }
 
+require_ledger() {
+  [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
+}
+
 utc_now() {
   "$DATE_BIN" -u "$UTC_STAMP_FORMAT"
 }
@@ -91,6 +113,14 @@ pointer_path() {
 
 ledger_path() {
   printf '%s/%s%s' "$(runs_dir)" "$1" "$LEDGER_SUFFIX"
+}
+
+impacts_path() {
+  printf '%s/%s%s' "$(runs_dir)" "$1" "$IMPACTS_SUFFIX"
+}
+
+impact_claims_path() {
+  printf '%s/%s%s' "$(runs_dir)" "$1" "$IMPACT_CLAIMS_SUFFIX"
 }
 
 # Sets `key` and `ledger` (script-scoped, deliberately not `local`) from the
@@ -183,6 +213,8 @@ cmd_open() {
   refuse_if_open "$run_id"
   target="$(ledger_path "$run_id")"
   write_atomically "$target" "$LEDGER_HEADER"
+  write_atomically "$(impacts_path "$run_id")" "$IMPACTS_HEADER"
+  rm -rf "$(impact_claims_path "$run_id")"
   warn_if_replacing "$run_id"
   run_key="$run_id@$(utc_now)"
   write_atomically "$(pointer_path "$run_id")" "$run_key $target"
@@ -207,7 +239,7 @@ cmd_append() {
   is_valid_phase "$phase" || die "invalid phase: $phase" 2
   resolve_git_common || die "not inside a git repository's work tree"
   require_trusted_pointer "$run_id"
-  [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
+  require_ledger
   local wrote=0 line record
   while IFS= read -r line || [ -n "$line" ]; do
     [ -n "$line" ] || continue
@@ -216,6 +248,144 @@ cmd_append() {
     wrote=1
   done
   [ "$wrote" -eq 1 ] || die "no non-blank input for $run_id $phase"
+}
+
+# Number of lines of $1 matching the extended regex $2 (0 when none).
+count_matching() {
+  printf '%s\n' "$1" | grep -c -E -e "$2" || true
+}
+
+# A field is valid when exactly one line opens with `<field>:` and that line
+# also fits the full pattern.
+has_one_line() {
+  local entry="$1" field="$2" pattern="$3"
+  [ "$(count_matching "$entry" "^$field:")" -eq 1 ] && [ "$(count_matching "$entry" "$pattern")" -eq 1 ]
+}
+
+field_value() {
+  printf '%s\n' "$1" | sed -n "s/^$2: //p"
+}
+
+is_known_reason() {
+  [[ $1 =~ ^($KNOWN_REASONS)$ ]]
+}
+
+is_relative_locus() {
+  [[ $1 != /* && $1 != '~'* && ! $1 =~ $PARENT_STEP_PATTERN ]]
+}
+
+# Tabs may indent a proof body; any other control character, a UTF-8 C1 control
+# or a line/paragraph separator could forge a record for a terminal or a model
+# reading the ledger.
+has_control_chars() {
+  printf '%s' "$1" | LC_ALL=C tr -d '\t\n' | LC_ALL=C grep -q -E "[[:cntrl:]]|$UNICODE_CONTROL_PATTERN"
+}
+
+has_known_reason() {
+  has_one_line "$1" reason '^reason: .+$' || return 1
+  is_known_reason "$(field_value "$1" reason)"
+}
+
+has_proof_body() {
+  printf '%s\n' "$1" | awk '/^proof:$/ { inside = 1; next } /^expected: / { exit } inside && /[^[:space:]]/ { found = 1 } END { exit !found }'
+}
+
+# Sets `entry_error` to the first reason the entry is refused; empty when valid.
+validate_entry() {
+  local entry="$1"
+  entry_error=''
+  if [ "$(count_matching "$entry" '^#')" -ne 0 ]; then entry_error='a line starting with #'; return; fi
+  if has_control_chars "$entry"; then entry_error='a control character'; return; fi
+  has_one_line "$entry" title '^title: .*[^[:space:]]' || { entry_error='exactly one non-empty title line is required'; return; }
+  has_one_line "$entry" locus "$LOCUS_PATTERN" || { entry_error='exactly one locus line without whitespace is required'; return; }
+  is_relative_locus "$(field_value "$entry" locus)" || { entry_error='the locus must be a relative path'; return; }
+  has_known_reason "$entry" || { entry_error='exactly one known reason line is required'; return; }
+  has_one_line "$entry" expected '^expected: .*[^[:space:]]' || { entry_error='exactly one non-empty expected line is required'; return; }
+  has_proof_body "$entry" || entry_error='a proof line followed by a body before expected is required'
+}
+
+require_writable_store() {
+  local store="$1"
+  [ -f "$store" ] || [ -L "$store" ] || die "impacts store is missing, not recreating: $store"
+  if is_symlinked "$store"; then die "refusing a symlinked impacts store: $store"; fi
+}
+
+# mkdir is atomic, so two concurrent defers never claim the same id.
+claim_impact_id() {
+  local store="$1" claims="$2" n
+  if is_symlinked "$claims"; then die "refusing symlinked impact claims: $claims"; fi
+  mkdir -p "$claims" || die "cannot create impact claims: $claims"
+  n=$(( $(grep -c -E -e "$IMPACT_HEADING_PATTERN" "$store" || true) + 1 ))
+  until mkdir "$claims/I$n" 2>/dev/null; do
+    [ -d "$claims/I$n" ] || die "cannot claim impact id I$n in $claims"
+    n=$((n + 1))
+  done
+  printf 'I%s' "$n"
+}
+
+record_impact() {
+  local run_id="$1" phase="$2" entry="$3" store id locus
+  store="$(impacts_path "$run_id")"
+  require_writable_store "$store"
+  require_ledger
+  id="$(claim_impact_id "$store" "$(impact_claims_path "$run_id")")" || exit 1
+  locus="$(field_value "$entry" locus)"
+  printf '\n## %s\n%s\n' "$id" "$entry" >> "$store"
+  printf '%s %s DEFERRED(%s): %s %s\n' "$run_id" "$phase" "${locus%%:*}" "$id" "$(field_value "$entry" title)" >> "$ledger"
+  printf '%s\n' "$id"
+}
+
+cmd_defer() {
+  local run_id="${1:-}" phase="${2:-}" entry
+  [ -n "$phase" ] || usage_exit
+  require_run_id "$run_id"
+  is_valid_phase "$phase" || die "invalid phase: $phase" 2
+  entry="$(cat)"
+  validate_entry "$entry"
+  [ -z "$entry_error" ] || die "defer: $entry_error" 2
+  resolve_git_common || die "not inside a git repository's work tree"
+  require_trusted_pointer "$run_id"
+  record_impact "$run_id" "$phase" "$entry"
+}
+
+# Sets `rationale` to the single stdin line; dies 2 on a blank one, a second line
+# (a blank one included) or a control character.
+read_rationale() {
+  local input
+  input="$(cat)"
+  if [[ $input == *$'\n'* || ! $input =~ [^[:space:]] ]] || has_control_chars "$input"; then
+    die "verdict: exactly one non-blank rationale line is required" 2
+  fi
+  rationale="$input"
+}
+
+require_verdict_args() {
+  [[ "${1:-}" =~ $IMPACT_ID_PATTERN ]] || die "verdict: invalid impact id: ${1:-}" 2
+  case "${2:-}" in
+    reject|backlog:ready|backlog:spike) ;;
+    *) die "verdict: invalid verdict: ${2:-}" 2 ;;
+  esac
+}
+
+require_open_impact() {
+  local store="$1" id="$2"
+  grep -q -x -e "## $id" "$store" || die "verdict: unknown impact id: $id" 2
+  if grep -q -e "^### $id verdict:" "$store"; then die "verdict: already judged: $id" 2; fi
+}
+
+cmd_verdict() {
+  local run_id="${1:-}" id="${2:-}" verdict="${3:-}" rationale store
+  require_run_id "$run_id"
+  require_verdict_args "$id" "$verdict"
+  read_rationale
+  resolve_git_common || die "not inside a git repository's work tree"
+  require_trusted_pointer "$run_id"
+  store="$(impacts_path "$run_id")"
+  require_writable_store "$store"
+  require_ledger
+  require_open_impact "$store" "$id"
+  printf '\n### %s verdict: %s — %s\n' "$id" "$verdict" "$rationale" >> "$store"
+  printf '%s %s TRIAGED(%s): %s — %s\n' "$run_id" "$TRIAGE_PHASE" "$id" "$verdict" "$rationale" >> "$ledger"
 }
 
 # One line per trusted pointer whose ledger still exists, `<key> <ledger>`,
@@ -266,7 +436,8 @@ cmd_close() {
   local run_id="${1:-}"
   require_run_id "$run_id"
   resolve_git_common || die "not inside a git repository's work tree"
-  rm -f "$(pointer_path "$run_id")" "$(ledger_path "$run_id")"
+  rm -f "$(pointer_path "$run_id")" "$(ledger_path "$run_id")" "$(impacts_path "$run_id")"
+  rm -rf "$(impact_claims_path "$run_id")"
 }
 
 cmd_dir() {
@@ -277,6 +448,8 @@ cmd_dir() {
 case "${1:-}" in
   open) shift; cmd_open "$@" ;;
   append) shift; cmd_append "$@" ;;
+  defer) shift; cmd_defer "$@" ;;
+  verdict) shift; cmd_verdict "$@" ;;
   locate) shift; cmd_locate "$@" ;;
   close) shift; cmd_close "$@" ;;
   dir) cmd_dir ;;

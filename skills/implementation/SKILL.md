@@ -55,7 +55,9 @@ description: Craft phase 5 - execute the plan part by part, one part-implementer
    `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh" append <run-id>
    implementation` — `<size>` is one kebab-case shape label for the part (e.g.
    `pure-module`, `docs-prose`), `?` when unknown; a label with a space breaks the token. A landed commit found without a `PART` line on resume is verified
-   first, then gets its line. Spot-check conventions on the diff. Failed/blocked part →
+   first, then gets its line. Spot-check conventions on the diff. Every `IMPACT(` line and deferred observation in the
+   handback gets its verdict under the run skill invariant **Impacts: fold or defer at
+   discovery** before the next part spawns. Failed/blocked part →
    fix in-session or escalate with the agent's options; dead agent → fresh respawn from
    the plan part (artifact handoff); never relaunch blindly.
 3. **Phase-boundary gate:** after the LAST part, run `gates.phase` once in-session.

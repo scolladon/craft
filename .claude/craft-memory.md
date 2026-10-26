@@ -38,7 +38,7 @@ findings:
   - concern: findings
     file: engine/src/guards/shell-tokeniser.js
     pattern: word-rule-opener-spelling-leak
-    severity: HIGH
+    severity: high
     confidence: 1
     provenance:
       run: guard-arith-cleanup

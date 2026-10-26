@@ -292,6 +292,17 @@ function dedupeByKey(concern, entries) {
 }
 
 /**
+ * The concern's validate-on-read predicate; a concern with none accepts every entry.
+ *
+ * @param {{ [concern: string]: (entry: object) => boolean }} validators
+ * @param {string} concern
+ * @returns {(entry: object) => boolean}
+ */
+function validatorFor(validators, concern) {
+  return validators[concern] ?? (() => true);
+}
+
+/**
  * Apply per-concern validate-on-read predicates.
  * Entries that fail are removed from the returned entries and appended to evicted.
  * Same-key duplicates (accreted via hand-editing) are collapsed by dedupeByKey.
@@ -306,7 +317,7 @@ function applyValidators(allEntries, validators) {
   const evicted = [];
 
   for (const concern of CONCERNS) {
-    const isValid = validators[concern] ?? (() => true);
+    const isValid = validatorFor(validators, concern);
     for (const entry of (allEntries[concern] ?? [])) {
       if (isValid(entry)) {
         entries[concern].push(entry);
@@ -679,6 +690,18 @@ function evictToCaps(entries, caps) {
 // ─── save verb ────────────────────────────────────────────────────────────────
 
 /**
+ * Drop observations that fail their concern's validate-on-read predicate, so a save never
+ * writes an entry the next load would evict. Retractions pass: they only remove entries.
+ *
+ * @param {Array<{ concern: string, payload: object, retract?: boolean }>} delta
+ * @param {{ [concern: string]: (entry: object) => boolean }} validators
+ * @returns {Array<{ concern: string, payload: object, retract?: boolean }>}
+ */
+function acceptedObservations(delta, validators) {
+  return delta.filter(({ concern, payload, retract }) => retract === true || validatorFor(validators, concern)(payload));
+}
+
+/**
  * Flush this run's buffered observations into the store.
  * Applies update-semantics reconciliation, then both-caps eviction, then
  * writes the result as a single atomic call to deps.writeStore.
@@ -699,6 +722,7 @@ function evictToCaps(entries, caps) {
  *   decayed, and a retraction with no matching stored entry adds nothing.
  * @param {{
  *   writeStore: (path: string, content: string) => void,
+ *   validators?: { [concern: string]: (entry: object) => boolean },
  *   ref?: string,
  *   caps?: { maxEntries: number, maxBytes: number },
  *   run?: { run: string, commit: string, date: string }
@@ -712,7 +736,7 @@ export function save(repoRoot, view, delta, deps) {
   const caps = deps.caps ?? { maxEntries: 1000, maxBytes: Infinity };
   const provenance = deps.run ?? { run: 'unknown', commit: 'unknown', date: new Date().toISOString().slice(0, 10) };
 
-  const reconciledEntries = reconcile(view.entries, delta, provenance);
+  const reconciledEntries = reconcile(view.entries, acceptedObservations(delta, deps.validators ?? {}), provenance);
   const evictedEntries = evictToCaps(reconciledEntries, caps);
 
   const finalView = { entries: evictedEntries, evicted: [], loadNote: null, degraded: view.degraded === true };

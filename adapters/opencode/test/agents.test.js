@@ -14,6 +14,7 @@ const ROLE_TIERS = {
   designer: 'opus',
   planner: 'opus',
   reviewer: 'opus',
+  'impact-triager': 'opus',
   'requirements-writer': 'opus',
   'part-implementer': 'sonnet',
   'harness-triager': 'sonnet',
@@ -170,6 +171,12 @@ describe('craft-<role>.md — permission capability contract', () => {
 
   it('Given the read-only reviewer, when permissions are parsed, then edit is deny', () => {
     const result = readPermission('reviewer');
+
+    assert.equal(result.edit, 'deny');
+  });
+
+  it('Given the read-only impact-triager, when permissions are parsed, then edit is deny', () => {
+    const result = readPermission('impact-triager');
 
     assert.equal(result.edit, 'deny');
   });

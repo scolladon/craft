@@ -65,7 +65,10 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    from the fix set. Apply every accepted actionable finding yourself, batched per
    dimension; each batch gates on the targeted checks (`gates.part` over touched
    files) + `gates.review-batch` before its conventional commit (e.g.
-   `refactor(<scope>): apply code-review fixes`); `gates.phase` after the round.
+   `refactor(<scope>): apply code-review fixes`); `gates.phase` after the round. A finding
+   whose locus is outside the review's diff scope is an impact, not an actionable finding:
+   it gets its verdict under the run skill invariant **Impacts: fold or defer at
+   discovery**.
 4. **Converge per dimension, up to `max_cycles` cycles** (default 3), per
    `phase.harness.reviewPlan.stop_rule` (engine-emitted, binding). Both rules below
    count only **actionable** findings (Step 3) — a `RULED-OUT` record never blocks

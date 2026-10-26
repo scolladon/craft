@@ -24,7 +24,7 @@ flowchart LR
   end
   verify --> ship
   subgraph ship [ship]
-    DO[documentation] --> LE[lessons] --> PR[propose] --> IN{{"integrate 🧑"}}
+    DO[documentation] --> LE[lessons] --> IT[impact-triage] --> PR[propose] --> IN{{"integrate 🧑"}}
   end
 ```
 
@@ -118,6 +118,7 @@ refactoring     → whole-codebase lens, behavior-preserving; may be an honest n
 validation      → your repo's engineering harness runs; findings fixed or proven benign
 documentation   → affected pages refreshed, backlog entry ticked
 lessons         → evidence-backed lessons harvested from the run, linted, committed
+impact-triage   → deferred findings re-verified, triaged, filed to the backlog
 propose         → pre-PR gate, push, PR created
 integrate   🧑  → CI to green; you confirm the merge; worktree torn down
 ```
@@ -223,8 +224,8 @@ in code where a silent regression is expensive to discover later.
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
-receipts: [97 design docs](docs/contributing/design/), [95 parted plans](docs/contributing/plan/),
-[698 ADRs](docs/contributing/adr/), [8 lessons](docs/contributing/lessons/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
+receipts: [98 design docs](docs/contributing/design/), [96 parted plans](docs/contributing/plan/),
+[709 ADRs](docs/contributing/adr/), [10 lessons](docs/contributing/lessons/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 

@@ -1,6 +1,6 @@
 ---
 name: documentation
-description: Craft phase 9 - refresh affected documentation pages, tick the backlog entry under guard, fold in-scope findings into the PR and file the rest as follow-ups; runs in parallel with the background validation run.
+description: Craft phase 9 - refresh affected documentation pages, tick the backlog entry under guard, fold in-scope findings into the PR and defer the rest to impact triage; runs in parallel with the background validation run.
 ---
 
 # craft:documentation
@@ -42,48 +42,23 @@ Runs in parallel with the validation phase's background run.
      not framework-asserted.
 
    Commit `docs(<slug>): backlog flip`.
-3. **Synthesis — session-owned, never delegated.** Fold before file: every finding the
-   run surfaced is triaged before any backlog entry is authored.
-   1. **Inventory** every finding no phase resolved: out-of-scope lines in agent
-      handbacks, triage EXCEPTIONs, the session's own observations, and discoveries from
-      step 1. Read them from the ledger and the handbacks; nothing new is written for it.
-      A triage EXCEPTION the background harness lands after this step gets the same
-      triage before `propose`.
-   2. **Triage** each finding to one verdict, folded or filed:
-      - A finding the brief or the design lists as out of scope is filed, whatever the
-        boundary says.
-      - It is in scope when its locus file is in `git diff --name-only <base>...HEAD`, or
-        when it concerns a claim or behaviour the diff edits, or a statement that
-        contradicts what the diff now makes true, in at most one file outside the diff.
-        The run's own design, plan and ADR docs and `BACKLOG.md` are in the diff. A
-        finding out of scope is filed.
-      - An in-scope finding whose fix needs a new decision goes to the user through the
-        blocker protocol `{ unit, reason, ≤3 options }`: fold it with an ADR authored
-        through the decisions flow, or file it. It is never folded or filed silently.
-      - An in-scope finding whose fix needs a paid or live probe, waits on an external
-        trigger, or adds feature behaviour is filed.
-      - Every other finding is folded.
-   3. **Fold:** the session makes each fix itself, in prose, or in source and tests that
-      add no feature behaviour. One commit per fold, typed by what it changes
-      (`docs(<scope>):`, `fix(<scope>):`, `test(<scope>):`). A fold beyond prose commits
-      only on a green `gates.part`. A fold that turns red has its uncommitted edit
-      discarded and is filed with
-      `Not folded: the fix did not pass <gate> — <first failing line>`. After each fold
-      commit, append `FOLDED(<file>): <finding> -> <sha>` to the ledger, one line per
-      locus file. A finding with no locus file of its own keys on the run's design doc
-      path. A source fold's line ends with `(outside the executing-harness run)`,
-      which is how the PR trailer names it.
-   4. **File** the rest as new backlog follow-up entries (full context, cross-links,
-      placed per the repo's ordering convention); they are what a future craft run
-      resolves from. Each entry carries one sentence that opens `Not folded: ` and gives
-      the reason: out of scope, needs its own decision, needs a probe, waits on an
-      external trigger, adds feature behaviour, or the fix did not pass its gate. After
-      each entry commit, append `FILED(<file>): <finding> — not folded: <reason>` to the
-      ledger, one line per locus file.
-
-   The `<finding>` and `<reason>` text follows the same discipline as `<file>`: paths
-   repo-relative, an out-of-repo location named by placeholder (`<worktree>`,
-   `<main-repo-dir>`), and no secret or env assignment copied from a handback.
+3. **Synthesis — session-owned, never delegated.** Fold before defer: every finding
+   this step inventories gets its verdict under the run skill's cross-phase invariant
+   **Impacts: fold or defer at discovery**, which holds the scope boundary, the fold
+   limits and the deferral form. This step authors no backlog entry and appends no
+   filing line: the `impact-triage` phase files triaged impacts.
+   1. **Inventory** every finding no phase resolved: the session's own observations,
+      discoveries from step 1, and triage EXCEPTIONs or `IMPACT(` lines an earlier phase
+      has not yet given a verdict. Read them from the ledger and the handbacks; nothing
+      new is written for it. A triage EXCEPTION the background harness lands after this
+      step gets the same triage before `propose`.
+   2. **Triage** each finding to one verdict, folded or deferred, by the invariant's rule.
+   3. **Fold:** the session makes each fix itself under the invariant's fold limits, then
+      appends `FOLDED(<file>): <finding> -> <sha>` after the fold commit, one line per
+      locus file.
+   4. **Defer** the rest through `run-ledger.sh defer <run-id> documentation` (the run
+      skill's shimmed `$ledger`), one entry per finding with its re-runnable proof. With
+      no open run (standalone), `defer` refuses: list the findings in the final output.
 
    No findings → the fold step records nothing. The PR body drafts here
    too, per the default template (repo's own `templates/pr-body.md`, else
@@ -93,3 +68,6 @@ Runs in parallel with the validation phase's background run.
    **Code** (a grouped high-level walkthrough of the diff) — then a **Provenance &
    verification** trailer carrying decisions + ADR numbers, design doc path, divergences,
    pinned behaviours, test plan, the run record.
+   The trailer's `- **Discovered impacts:**` line reads `<n> deferred, triage pending`,
+   counted from this run's `DEFERRED(` lines, or `none`; the `impact-triage` phase
+   rewrites it with the verdicts.

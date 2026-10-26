@@ -17,7 +17,7 @@ export const TOP_KEYS = Object.freeze(new Set([
 export const PHASE_NAMES = Object.freeze(new Set([
   'workspace', 'requirements', 'design', 'decisions', 'planning',
   'implementation', 'review', 'refactoring', 'validation',
-  'architecture', 'documentation', 'lessons', 'propose', 'integrate',
+  'architecture', 'documentation', 'lessons', 'impact-triage', 'propose', 'integrate',
 ]));
 
 /** Fields accepted on each phase block (skip is intentionally absent — use top-level pipeline.skip instead). */
@@ -40,7 +40,7 @@ export const SCRIPT_FIELDS = Object.freeze(new Set(['post-setup', 'pre-teardown'
 export const MODELS_KEYS = Object.freeze(new Set([
   'fallback', 'designer', 'planner', 'reviewer',
   'part-implementer', 'refactor-executor', 'harness-triager',
-  'docs-writer', 'backlog-ticker',
+  'docs-writer', 'backlog-ticker', 'impact-triager',
 ]));
 
 /** Old agent name that has been renamed to `harness-triager`. */
