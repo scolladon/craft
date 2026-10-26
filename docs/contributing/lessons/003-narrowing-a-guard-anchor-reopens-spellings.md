@@ -9,14 +9,15 @@ evidence:
   - engine/test/guards/shell-git-invocations.test.js:546
   - engine/test/guards/shell-git-invocations.test.js:554
   - engine/test/guards/shell-git-invocations.test.js:583
-  - engine/test/guards/git-ext-diff-predicate.test.js:594
-  - engine/test/guards/git-ext-diff-predicate.test.js:636
-  - engine/test/guards/git-ext-diff-predicate.test.js:644
-  - engine/test/guards/git-ext-diff-predicate.test.js:669
+  - engine/test/guards/git-ext-diff-predicate.test.js:598
+  - engine/test/guards/git-ext-diff-predicate.test.js:640
+  - engine/test/guards/git-ext-diff-predicate.test.js:648
+  - engine/test/guards/git-ext-diff-predicate.test.js:673
+  - engine/test/guards/shell-tokeniser.test.js:1037
 source: { run: guard-fuzz-scale-ext-diff-widen, phase: review, date: 2026-10-20 }
 status: active
 supersedes: []
-last-verified: 2026-10-23
+last-verified: 2026-10-26
 ---
 # 003 — Narrowing a guard anchor reopens other spellings of the same word
 
@@ -42,3 +43,5 @@ A token test written against the literal word (`config`, `git`) misses every she
 `engine/test/guards/shell-git-invocations.test.js` holds the reopened spellings as blocked rows (`command $G con[f]ig alias.x st` at line 546, `{/usr/bin/g?t,config,alias.x,y}` at line 554) and the removed over-block as an allow row (`echo $X alias` at line 583). Reverting the glob-aware `holdsGitToken` in `engine/src/guards/shell-git-invocations.js` turns the line-554 row red.
 
 Dropping bare `git show` from the ext-diff default-deny reopened the argv the parser never reads: a split global-option value (`D=". diff"; git -C $D show`, line 636), an argv appender in any spelling (`$(echo xargs) git show`, line 644) and `env -S` re-splitting (`env -S 'git show #' --ext-diff`, line 669). A deny-list of appender names leaked twice in review. The allow-list of argv-preserving wrappers in `engine/src/guards/shell-git-invocations.js` (`PLAIN_WRAPPERS`) closed the class, and line 594 pins the over-block it removed.
+
+Removing a fail-closed flag counts as a narrowing too: dropping the bare-`$` flag because a broader rule covered its rows reopened `let a$'\x5b'"$"$'\x28git push -f origin\x29\x5d'` (`engine/test/guards/shell-tokeniser.test.js:1037`), which the escape path reached only through that flag.

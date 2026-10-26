@@ -6,17 +6,19 @@ phases: [design, review]
 kind: trap
 trigger: a guard fix narrows a refusal to the positions where bash treats a token specially
 evidence:
-  - engine/src/guards/shell-tokeniser.js:229
-  - engine/src/guards/shell-tokeniser.js:546
-  - engine/src/guards/shell-tokeniser.js:602
-  - engine/test/guards/shell-tokeniser.test.js:788
-  - engine/test/guards/shell-tokeniser.test.js:759
-  - engine/test/guards/shell-tokeniser.test.js:813
-  - engine/test/guards/shell-tokeniser.test.js:814
+  - engine/src/guards/shell-tokeniser.js:264
+  - engine/src/guards/shell-tokeniser.js:659
+  - engine/src/guards/shell-tokeniser.js:717
+  - engine/test/guards/shell-tokeniser.test.js:826
+  - engine/test/guards/shell-tokeniser.test.js:797
+  - engine/test/guards/shell-tokeniser.test.js:851
+  - engine/test/guards/shell-tokeniser.test.js:852
+  - engine/src/guards/shell-tokeniser.js:251
+  - engine/test/guards/shell-tokeniser.test.js:1027
 source: { run: arith-expansion-comsub-bypass, phase: review, date: 2026-10-23 }
 status: active
 supersedes: []
-last-verified: 2026-10-25
+last-verified: 2026-10-26
 ---
 # 007 — A guard rule that enumerates bash's positions leaks; refuse the construct
 
@@ -44,8 +46,10 @@ substitution opens with `${` plus a blank or `|`.
 
 ## Evidence
 
-`pushWord` at `engine/src/guards/shell-tokeniser.js:229` refuses any `case` word in a paren-closed
-body; `engine/test/guards/shell-tokeniser.test.js:788` (`x|esac)`) passed the narrowed rule.
-`closerEnd` at `:546` fails closed on an unpaired body; `engine/test/guards/shell-tokeniser.test.js:759`
-pins it. `enterBrace` at `:602` refuses every function substitution;
-`engine/test/guards/shell-tokeniser.test.js:813` and `:814` passed the command-start rule.
+`pushWord` at `engine/src/guards/shell-tokeniser.js:264` refuses any `case` word in a paren-closed
+body; `engine/test/guards/shell-tokeniser.test.js:826` (`x|esac)`) passed the narrowed rule.
+`closerEnd` at `:659` fails closed on an unpaired body; `engine/test/guards/shell-tokeniser.test.js:797`
+pins it. `enterBrace` at `:717` refuses every function substitution;
+`engine/test/guards/shell-tokeniser.test.js:851` and `:852` passed the command-start rule.
+
+A later run repeated the pattern on a word rule: escapes, a bare `$`, a `${x:-$}` body, a brace group and substitution output each built `$(` after the scan, one per review round. Refusing the join itself, `append` at `engine/src/guards/shell-tokeniser.js:251`, closed them all; `engine/test/guards/shell-tokeniser.test.js:1027` is the first row it caught.
