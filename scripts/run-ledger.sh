@@ -95,6 +95,10 @@ require_run_id() {
   is_valid_run_id "$1" || die "invalid run-id: $1" 2
 }
 
+require_ledger() {
+  [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
+}
+
 utc_now() {
   "$DATE_BIN" -u "$UTC_STAMP_FORMAT"
 }
@@ -235,7 +239,7 @@ cmd_append() {
   is_valid_phase "$phase" || die "invalid phase: $phase" 2
   resolve_git_common || die "not inside a git repository's work tree"
   require_trusted_pointer "$run_id"
-  [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
+  require_ledger
   local wrote=0 line record
   while IFS= read -r line || [ -n "$line" ]; do
     [ -n "$line" ] || continue
@@ -304,10 +308,6 @@ require_writable_store() {
   local store="$1"
   [ -f "$store" ] || [ -L "$store" ] || die "impacts store is missing, not recreating: $store"
   if is_symlinked "$store"; then die "refusing a symlinked impacts store: $store"; fi
-}
-
-require_ledger() {
-  [ -f "$ledger" ] || die "ledger is missing, not recreating: $ledger"
 }
 
 # mkdir is atomic, so two concurrent defers never claim the same id.
