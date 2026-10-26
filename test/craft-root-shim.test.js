@@ -17,6 +17,7 @@ const TARGET_FILES = [
   { file: 'skills/decisions/SKILL.md', count: 1 },
   { file: 'skills/design/SKILL.md', count: 1 },
   { file: 'skills/documentation/SKILL.md', count: 1 },
+  { file: 'skills/impact-triage/SKILL.md', count: 1 },
   { file: 'skills/implementation/SKILL.md', count: 1 },
   { file: 'skills/init/SKILL.md', count: 5 },
   { file: 'skills/integrate/SKILL.md', count: 1 },

@@ -50,3 +50,37 @@ test('Given the backlog spec Filing section, when read, then filing is not a por
   assert.ok(sut.includes('source: custom'));
   assert.ok(sut.includes('NO-OP(impact-triage): no file-backed backlog — verdicts in the PR body only'));
 });
+
+const impactSkill = () => read('skills', 'impact-triage', 'SKILL.md');
+
+test('Given the impact-triage skill, when its preamble is read, then it waits for awaitingHarnesses and names its heading', () => {
+  const skill = impactSkill();
+
+  const sut = sliceProse(skill, /^## Preamble/, /^## Procedure/);
+
+  assert.ok(skill.includes('# craft:impact-triage'));
+  assert.ok(sut.includes('Cross-phase wait'));
+  assert.ok(sut.includes('awaitingHarnesses'));
+});
+
+test('Given the impact-triage procedure, when read, then the verdict table comes before the backlog-write consult and FILED comes after the commit', () => {
+  const sut = sliceProse(impactSkill(), /^## Procedure/, TO_END);
+
+  const table = sut.indexOf('verdict table');
+  const consult = sut.indexOf('`backlog-write`');
+  const commit = sut.indexOf('docs(<slug>): file triaged impacts');
+  const filed = sut.indexOf('FILED(<file>): I<n>');
+  assert.ok(table >= 0 && consult >= 0 && commit >= 0 && filed >= 0);
+  assert.ok(table < consult);
+  assert.ok(commit < filed);
+});
+
+test('Given the impact-triage procedure, when read, then it records verdicts through the script, frames spikes and writes the trailer line', () => {
+  const sut = sliceProse(impactSkill(), /^## Procedure/, TO_END);
+
+  assert.ok(sut.includes('verdict <run-id> I<n>'));
+  assert.ok(sut.includes('Spike — '));
+  assert.ok(sut.includes('Question: '));
+  assert.ok(sut.includes('**Discovered impacts:**'));
+  assert.ok(sut.includes('NO-OP(impact-triage): no file-backed backlog — verdicts in the PR body only'));
+});
