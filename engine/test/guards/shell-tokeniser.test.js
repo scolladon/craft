@@ -1096,3 +1096,32 @@ describe('parseShellCommands() — ANSI-C escapes that decode to no opener in a 
     ['echo "a[${x}] (y)"', [['echo', dyn('a[${x}] (y)')]]],
   ]);
 });
+
+describe('parseShellCommands() — a literal opener that no earlier text can join', () => {
+  assertParsesWords([
+    ['a[${x}]', [[patternWord('a[${x}]')]]],
+    ['\\(a[$x]', [[patternWord('(a[$x]')]]],
+    ['a\\(b[$x]', [[patternWord('a(b[$x]')]]],
+    ['echo \\(a[$x]', [['echo', patternWord('(a[$x]')]]],
+    ['echo a\\(b[$x]', [['echo', patternWord('a(b[$x]')]]],
+    ["echo $x'a('[1]", [['echo', patternWord('$xa([1]')]]],
+    ["echo 'a$b'\\([1]", [['echo', patternWord('a$b([1]')]]],
+    ["echo $x'-b'\\([1]", [['echo', patternWord('$x-b([1]')]]],
+    ["echo $x'b-'\\([1]", [['echo', patternWord('$xb-([1]')]]],
+    ['echo $(ls)a\\([1]', [['ls'], ['echo', patternWord('$(ls)a([1]')]]],
+  ]);
+  assertFails([["echo $x'ab'\\([1]", SUBSCRIPT_IN_STRING]]);
+});
+
+describe('parseShellCommands() — an escaped or quoted opener that sits outside a subscript', () => {
+  assertParsesWords([
+    ['echo \\`', [['echo', '`']]],
+    ["echo '$('[", [['echo', patternWord('$([')]]],
+    ['echo \\a[$(ls)]', [['ls'], ['echo', patternWord('a[$(ls)]')]]],
+  ]);
+  assertFails([['echo \\$a[$(ls)]', SUBSCRIPT_IN_STRING]]);
+});
+
+describe('parseShellCommands() — an unterminated ANSI-C quote inside an arithmetic command', () => {
+  assertFails([["(( $'$(ls)x", UNTERMINATED_QUOTE]]);
+});

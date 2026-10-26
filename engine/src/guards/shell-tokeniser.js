@@ -227,6 +227,7 @@ const LITERAL_OPERATORS = new Set(['[', '[[', '{']);
 const tracksSubscript = (open, text) => {
   const lastOpen = text.lastIndexOf(OPEN_BRACKET);
   const lastClose = text.lastIndexOf(CLOSE_BRACKET);
+  // equivalent mutant (EqualityOperator lastOpen >= lastClose): the equal case is already answered by the ternary's first branch, so > and >= agree on every other input
   return lastOpen === lastClose ? open : lastOpen > lastClose;
 };
 
@@ -438,6 +439,7 @@ const inArithmeticReach = context =>
   context.arithmeticFloor !== NO_ARITHMETIC || context.parameter || context.openSubscript;
 
 // A $'…' numeric escape decodes before bash evaluates the text, so \x24, \140 or \x28 is live syntax there.
+// equivalent mutant (Regex c[\S\S], [\S\S]): a whitespace char after \c or a lone backslash is never an escape start, so leaving it unmatched yields the same NaN code and the same remaining escapes
 const ANSI_C_ESCAPE = /\\(?:x([0-9A-Fa-f]{1,2})|u([0-9A-Fa-f]{1,4})|U([0-9A-Fa-f]{1,8})|([0-7]{1,3})|c[\s\S]|[\s\S])/g;
 const HEX_RADIX = 16;
 const OCTAL_RADIX = 8;
@@ -509,6 +511,7 @@ const readAnsiC = context => {
   const from = context.index + 2;
   const close = findUnescaped(context.source, from, SINGLE_QUOTE);
   if (close !== -1) inspectAnsiCSpan(context, context.source.slice(from, close));
+  // equivalent mutant (ConditionalExpression false): the scan that follows only appends text, and fail keeps the first reason with ??=, so the verdict is unchanged
   if (context.failure !== null) return;
   append(context, '');
   context.index += 2;
