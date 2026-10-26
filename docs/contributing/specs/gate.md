@@ -68,7 +68,12 @@ hook set:
   `$(( … ))` or `$[ … ]` body reach the predicates; a `'` in that body, a body whose parens do not
   pair, and a line continuation after `$`, between `$(` and `(` or between the closing `))` are
   unparseable, and so are any `case` word in a `$( )`, `<( )` or `>( )` body and any bash 5.3
-  `${ …; }`/`${| …; }` function substitution (ADR-687 to ADR-693). Node prints
+  `${ …; }`/`${| …; }` function substitution (ADR-687 to ADR-693). A `'…'` or
+  `$'…'` span holding `$(`, a backtick or `${` (or a `$'…'` numeric escape that decodes to `$` or a
+  backtick) inside `(( ))`, `for (( ))`, a `${ }` body or an open `[` subscript is unparseable. So
+  is a word holding a literal `$` or backtick, quoted or escaped, with a `[` before `$(`, `${` or a
+  backtick (`let 'a[$(…)]'`, `[[ 'a[$(…)]' -eq 0 ]]`, `x='a[$(…)]'`). bash evaluates such a
+  subscript as arithmetic wherever the string is read (ADR-694 to ADR-697). Node prints
   exactly one token: `allow`, on which the hook exits 0 with no output, or
   `{ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny",
   permissionDecisionReason: "craft: <engine reason>" } }`, which the hook prints as given. The
