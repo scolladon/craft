@@ -544,8 +544,8 @@ bring their own `procedure`, dispatched verbatim (step 2).
   Its `reason:` line gives the reason: out of scope, needs its own decision, needs a
   probe, waits on an external trigger, adds feature behaviour, or the fix did not pass
   its gate. No proof, no entry: `defer` refuses (exit 2, nothing written) an entry with
-  no `proof:` body, no `expected:` line, a locus that is absolute, home-rooted or holds
-  whitespace, or another reason. It appends the entry to the store and
+  no `proof:` body, no `expected:` line, a locus that is absolute, home-rooted, holds
+  whitespace or climbs out with a `..` step, a control character, or another reason. It appends the entry to the store and
   `DEFERRED(<file>): I<n> <title>` to the ledger, and prints `I<n>`. Only the
   orchestrator defers; a role agent reports an `IMPACT(` line and never acts on it. With
   no open run (a standalone phase) `defer` refuses and the impacts are listed in the
@@ -695,7 +695,7 @@ instead of trusting the summary it just produced.
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
    | `lessons` | a `LESSONS:` or `NO-OP(lessons):` line means done; otherwise re-run the harvest from step 1 (step 3 dedupes drafts already committed). |
-   | `impact-triage` | every `DEFERRED` id has a `TRIAGED` line and a `FILED` line exists for each `backlog:*` verdict (or the `NO-OP(impact-triage):` line) → step 5. Some `TRIAGED` lines missing → re-spawn over the missing ids only. All triaged but the `docs(<slug>): file triaged impacts` commit absent from `git log` → step 4. The store is on disk beside the ledger, so a rebuild never loses a deferral. |
+   | `impact-triage` | every `DEFERRED` id has a `TRIAGED` line and a `FILED` line exists for each `backlog:*` verdict (or the `NO-OP(impact-triage):` line, or this phase's `POLICY(` line refusing `backlog-write`) → step 5. Some `TRIAGED` lines missing → re-spawn over the missing ids only. All triaged but the `docs(<slug>): file triaged impacts` commit absent from `git log` → step 4. The store is on disk beside the ledger, so a rebuild never loses a deferral. |
    | `propose` / `integrate` | query the PR's state (VCS port) before `pr create`, and CI and merge state before merging. |
    | `integrate` (after teardown) | check `git worktree list` from `<main-repo-dir>`: when the worktree is gone, teardown already ran — skip step 3 and continue at step 4. The ledger outlives the worktree; `Done` derives the delta and the `--since` isos from it, never from a summary. |
 6. **Walk from `next`.**

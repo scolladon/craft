@@ -48,7 +48,8 @@ the BACKLOG write live in the session.
      nothing, and goes to step 5.
    - On proceed, write every drafted `backlog:*` entry under one section
      `### Open (scoped <date> — follow-ups surfaced by the <slug> run, triaged)`, following
-     the repo's ordering convention. Each entry keeps its `Not folded: <reason>` sentence. A
+     the repo's ordering convention. Proof output stays inside its fenced code block; any of it
+     outside a fence is fenced before writing. Each entry keeps its `Not folded: <reason>` sentence. A
      spike entry opens with `Spike — ` and carries `Question: <what the probe must answer>`.
    - Commit `docs(<slug>): file triaged impacts`, then append one
      `FILED(<file>): I<n> <title> — not folded: <reason>` line per filed entry.

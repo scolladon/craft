@@ -148,7 +148,8 @@ The tokens below are greppable only: no regex row, and `run-state` does not cons
   appended after its fold commit. `<file>` is the finding's repo-relative locus file; a
   fold that spans several files writes one line per file. A finding with no locus file of
   its own keys on the run's design doc path. `<sha>` is the fold commit. Nothing splits
-  on the ` -> `. A source fold's line ends with `(outside the executing-harness run)`.
+  on the ` -> `. A source fold made after the executing-harness started ends its line with
+  `(outside the executing-harness run)`.
 - `FILED(<file>): I<n> <title> — not folded: <reason>` — emitted by the `impact-triage`
   phase after the BACKLOG commit, one line per filed entry. `<file>` is keyed as for
   `FOLDED`, so both verdicts on one file grep by the same key; `<reason>` is the entry's
@@ -213,10 +214,12 @@ orchestrator's very next tool call — never held longer than that.
    window.
 3. **`defer`**, when a phase discovers an impact it does not fold. Stores the entry and
    appends its `DEFERRED` line. It refuses — exit 2, nothing written — an entry with no
-   proof, no expected, a bad locus or an unknown reason.
+   proof, no expected, a bad locus (absolute, home-rooted, holding whitespace or a `..`
+   step), an unknown reason or a control character. Concurrent calls never share an id.
 4. **`verdict`**, in the `impact-triage` phase, one per entry. Records the judgement in
-   the store and appends the `TRIAGED` line.
-5. **`close`, at `Done`.** Removes the pointer, the ledger and the store, once the run
+   the store and appends the `TRIAGED` line. The rationale is exactly one line with no
+   control character.
+5. **`close`, at `Done`.** Removes the pointer, the ledger, the store and its id claims, once the run
    record has been read for the final message. On an already-closed run it is a silent
    exit 0, so a restarted session that re-runs it loses nothing.
 
