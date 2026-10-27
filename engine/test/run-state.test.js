@@ -534,3 +534,18 @@ test('Given with-effective.md, when deriveRunState runs with and without its EFF
 
   assert.deepEqual(result, sut(withoutEffective, RUN_ID, resolution));
 });
+
+for (const separator of ['\u2028', '\u2029']) {
+  test(`Given a PHASE-DONE outcome holding the code point ${separator.codePointAt(0).toString(16)}, when deriveRunState runs, then the phase still completes`, () => {
+    const lines = [
+      'demo resolve AWAITING(propose): validation',
+      'demo workspace PHASE-START(workspace): 2026-09-22T10:00:00Z',
+      `demo workspace PHASE-DONE(workspace): worktree${separator}ready`,
+    ];
+    const sut = deriveRunState;
+
+    const result = sut(lines, RUN_ID, DEFAULT_RESOLUTION);
+
+    assert.deepEqual(result.state.completed, ['workspace']);
+  });
+}

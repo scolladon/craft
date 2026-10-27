@@ -310,3 +310,19 @@ test('Given the full impacts-and-cycles.md, when projectProgress runs, then only
   const withChildren = result.items.filter((item) => item.children.length > 0).map((item) => item.id);
   assert.deepEqual(withChildren, ['implementation', 'review']);
 });
+
+test('Given a PHASE-DONE outcome holding a line separator, when projectProgress runs, then the phase completes with the separator stripped from its note', () => {
+  // Arrange
+  const lines = [
+    'demo resolve EFFECTIVE: workspace,design',
+    'demo workspace PHASE-START(workspace): 2026-10-27T09:00:00Z',
+    `demo workspace PHASE-DONE(workspace): worktree${String.fromCharCode(0x2028)}ready`,
+  ];
+
+  // Act
+  const result = projectProgress(lines, RUN_ID);
+
+  // Assert
+  assert.equal(result.items[0].status, 'completed');
+  assert.equal(result.items[0].note, 'worktreeready');
+});
