@@ -718,3 +718,8 @@ discovered-impacts implementation turns=117 tool_calls=124 tokens=3408774 durati
 discovered-impacts planning turns=113 tool_calls=114 tokens=14951362 duration_ms=3531508 cache_read=14387324 cache_creation=462438 output=101372 avg_ctx=131416 equiv=2523868
 discovered-impacts refactoring turns=5 tool_calls=5 tokens=88424 duration_ms=67352 cache_read=68626 cache_creation=18856 output=932 avg_ctx=17498 equiv=35103
 discovered-impacts review turns=130 tool_calls=138 tokens=4450563 duration_ms=1941671 cache_read=4011809 cache_creation=359552 output=78942 avg_ctx=33628 equiv=1245591
+run-visibility-task-list design turns=84 tool_calls=88 tokens=8645337 duration_ms=909516 cache_read=8401964 cache_creation=175661 output=67544 avg_ctx=102117 equiv=1397661
+run-visibility-task-list implementation turns=138 tool_calls=143 tokens=7695009 duration_ms=1297828 cache_read=7303016 cache_creation=302154 output=89559 avg_ctx=55112 equiv=1556069
+run-visibility-task-list planning turns=82 tool_calls=89 tokens=9197276 duration_ms=1153509 cache_read=8927165 cache_creation=185823 output=84124 avg_ctx=111136 equiv=1545779
+run-visibility-task-list review turns=106 tool_calls=117 tokens=4728993 duration_ms=998891 cache_read=4321852 cache_creation=337086 output=69843 avg_ctx=43954 equiv=1202970
+run-visibility-task-list validation turns=15 tool_calls=16 tokens=468102 duration_ms=259354 cache_read=421815 cache_creation=37424 output=8833 avg_ctx=30618 equiv=133157
