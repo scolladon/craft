@@ -15,6 +15,10 @@ export const LEDGER_SUFFIX = '.md'
 const LEDGER_SCRIPT = 'scripts/run-ledger.sh'
 const LOG_PLUGIN = 'craft'
 const DONE_LABEL = 'done'
+export const KILL_PROBE_TIMEOUT_MS = 2_000
+export const WORKING = 'working'
+export const WAITING_ON_YOU = 'waiting on you'
+export const WAITING_ON_BACKGROUND = 'waiting on background'
 
 type Entry = { name: string; size: number; mtimeMs: number; isLink?: boolean }
 export type Host = {
@@ -75,6 +79,10 @@ export function ledgerEntry(
   return entries.find(entry => entry.name === `${runId}${LEDGER_SUFFIX}`)
 }
 
+function currentPhase(view: ProgressView): string {
+  return view.inFlight[0] ?? view.next ?? DONE_LABEL
+}
+
 function completedCount(view: ProgressView): number {
   return view.items.filter(item => item.status === 'completed').length
 }
@@ -84,8 +92,7 @@ export function statusLine(
   view: ProgressView,
   attention: string,
 ): string {
-  const current = view.inFlight[0] ?? view.next ?? DONE_LABEL
-  const line = `craft ${runId} · ${current} · ${completedCount(view)}/${view.items.length}`
+  const line = `craft ${runId} · ${currentPhase(view)} · ${completedCount(view)}/${view.items.length}`
   return attention === '' ? line : `${line} · ${attention}`
 }
 
@@ -141,4 +148,41 @@ export async function failOpen(
     const message = error instanceof Error ? error.message : String(error)
     $.ui.log(`${LOG_PLUGIN}: ${event}: ${message}`, { to: 'debug' })
   }
+}
+
+async function isAlive($: Host, pid: number): Promise<boolean> {
+  let alive = false
+  await failOpen($, 'kill-probe', async () => {
+    const probe = await $.process.run(['kill', '-0', String(pid)], {
+      timeoutMs: KILL_PROBE_TIMEOUT_MS,
+    })
+    alive = probe.exitCode === 0
+  })
+  return alive
+}
+
+export function waitingOnYou(view: ProgressView): string {
+  return `${WAITING_ON_YOU} — ${currentPhase(view)}`
+}
+
+export async function attentionAfterTurn(
+  $: Host,
+  view: ProgressView,
+): Promise<string> {
+  for (const { phase, pid } of view.background) {
+    if (await isAlive($, pid)) return `${WAITING_ON_BACKGROUND} — ${phase}`
+  }
+  return waitingOnYou(view)
+}
+
+export function withAttention(
+  $: Host,
+  state: ProgressState,
+  attention: string,
+): ProgressState {
+  const { binding, view } = state
+  if (binding !== null && view !== null) {
+    $.ui.status(statusLine(binding.runId, view, attention))
+  }
+  return { ...state, attention }
 }
