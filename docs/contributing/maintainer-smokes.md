@@ -473,3 +473,21 @@ On demand, open a fresh Codespace from the README badge. Confirm the post-create
 `claude --version` runs, `bash scripts/ci.sh` passes, and
 `claude --plugin-dir .` lists `/craft:run`. Record the wall-clock time from create to ready: only a
 recorded time may back a duration in the README. Optionally repeat in a local arm64 devcontainer.
+
+## Run-progress mod smoke — not CI-gated
+
+CI has no `claude` binary, so the run-progress mod under `hooks/progress` is checked by hand. From
+the repo root:
+
+```
+claude plugin validate .
+claude plugin test .
+```
+
+Live check: in a throwaway git repo run `claude --plugin-dir <worktree>` and approve the prompt
+to turn mods on. Have the session run `run-ledger.sh open demo`, then append a seeded block
+holding an `EFFECTIVE:` line and some `PHASE-START` / `PHASE-DONE` lines. Confirm the status
+line and the `/craft-progress` pane follow the ledger and survive `/compact`. Then turn
+mods off and confirm craft's command hooks still fire: the PreToolUse guard refuses a `git diff`
+without `--no-ext-diff`. Record whether the pane auto-opens on a fullscreen terminal and stays
+closed on the main screen.

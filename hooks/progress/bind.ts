@@ -19,6 +19,7 @@ export const KILL_PROBE_TIMEOUT_MS = 2_000
 export const WORKING = 'working'
 export const WAITING_ON_YOU = 'waiting on you'
 export const WAITING_ON_BACKGROUND = 'waiting on background'
+export const CLOSED = 'closed'
 
 type Entry = { name: string; size: number; mtimeMs: number; isLink?: boolean }
 export type Host = {
@@ -100,6 +101,34 @@ function sameGate(entry: Entry, gate: LedgerGate | null): boolean {
   return gate?.mtimeMs === entry.mtimeMs && gate.size === entry.size
 }
 
+export function unbind($: Host, state: ProgressState): ProgressState {
+  $.ui.status(undefined)
+  return {
+    ...state,
+    binding: null,
+    gate: null,
+    view: null,
+    attention: '',
+    isPaneOpened: false,
+  }
+}
+
+function markClosed($: Host, state: ProgressState): ProgressState {
+  const { binding, view } = state
+  if (state.attention === CLOSED) return state
+  if (binding !== null && view !== null) {
+    $.ui.status(statusLine(binding.runId, view, CLOSED))
+  }
+  return { ...state, attention: CLOSED }
+}
+
+function refuseLink($: Host, state: ProgressState): ProgressState {
+  $.ui.log(`${LOG_PLUGIN}: ledger entry is a link, refusing to read it`, {
+    to: 'debug',
+  })
+  return unbind($, state)
+}
+
 export async function refresh(
   $: Host,
   state: ProgressState,
@@ -107,7 +136,9 @@ export async function refresh(
   const { binding, runsDir } = state
   if (binding === null || runsDir.kind !== 'known') return state
   const entry = ledgerEntry(await $.fs.list(runsDir.path), binding.runId)
-  if (entry === undefined || sameGate(entry, state.gate)) return state
+  if (entry === undefined) return markClosed($, state)
+  if (entry.isLink) return refuseLink($, state)
+  if (sameGate(entry, state.gate)) return state
   const text = await $.fs.read(binding.ledgerPath)
   if (typeof text !== 'string') return state
   const view = projectProgress(text.split('\n'), binding.runId) as ProgressView

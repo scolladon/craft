@@ -32,6 +32,7 @@ export type ProgressState = {
   gate: LedgerGate | null
   view: ProgressView | null
   attention: string
+  isPaneOpened: boolean
 }
 
 declare module 'claude-code' {
