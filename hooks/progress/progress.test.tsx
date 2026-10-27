@@ -24,19 +24,43 @@ const result = (exitCode: number, stdout: string) => ({
   value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
 })
 
-type Rig = { spawned: string[][]; statuses: (string | undefined)[]; logs: string[]; reads: number }
+type Rig = {
+  spawned: string[][]
+  timeouts: (number | undefined)[]
+  statuses: (string | undefined)[]
+  logs: string[]
+  reads: number
+  readPaths: string[]
+  lists: number
+}
+type Opts = {
+  entries: () => unknown[]
+  dirExit?: number
+  runsDir?: string
+  text?: () => string | { base64: string }
+  locateThrows?: boolean
+  locateStdout?: () => string
+  runsDirExists?: boolean
+}
 
-function rig(on: On, opts: { entries: () => unknown[]; dirExit?: number; text?: () => string; locateThrows?: boolean }) {
-  const state: Rig = { spawned: [], statuses: [], logs: [], reads: 0 }
+function rig(on: On, opts: Opts) {
+  const state: Rig = { spawned: [], timeouts: [], statuses: [], logs: [], reads: 0, readPaths: [], lists: 0 }
+  const runsDir = opts.runsDir ?? RUNS
   on('process.run', (_, e) => {
     state.spawned.push([...e.argv])
+    state.timeouts.push(e.init?.timeoutMs)
     const verb = e.argv[2]
-    if (verb === 'dir') return result(opts.dirExit ?? 0, `${RUNS}\n`)
+    if (verb === 'dir') return result(opts.dirExit ?? 0, `${runsDir}\n`)
     if (opts.locateThrows) return { deny: 'locate exploded' }
-    return result(0, `demo ${LEDGER}\n`)
+    return result(0, opts.locateStdout?.() ?? `demo ${runsDir}/demo.md\n`)
   })
-  on('fs.list', () => ({ value: opts.entries() }))
-  on('fs.read', () => { state.reads += 1; return { value: (opts.text ?? (() => ledgerText([])))() } })
+  on('fs.exists', () => ({ value: opts.runsDirExists ?? true }))
+  on('fs.list', () => { state.lists += 1; return { value: opts.entries() } })
+  on('fs.read', (_, e) => {
+    state.reads += 1
+    state.readPaths.push(e.path)
+    return { value: (opts.text ?? (() => ledgerText([])))() }
+  })
   on('ui.status', (_, e) => { state.statuses.push(e.text); return { value: undefined } })
   on('ui.log', (_, e) => { state.logs.push(`${e.to}|${e.text}`); return { value: undefined } })
   on('classic.PostToolUse', (_, e) => e)
@@ -132,4 +156,81 @@ test('Given process.run throws on locate, when the hook runs, then it completes,
   expect(sut.logs.filter(line => line.startsWith('debug|')).length).toBe(1)
   expect(sut.logs[0]).toContain('classic.PostToolUse')
   expect(sut.logs[0]).toContain('locate exploded')
+})
+
+test('Given a pointer, when the session binds, then locate runs the ledger script on the transcript and every spawn carries a timeout', async ($, on) => {
+  const sut = rig(on, { entries: () => [POINTER, ledgerEntry(10, 100)] })
+
+  await $.classic.PostToolUse(bash() as never)
+
+  const locateArgv = sut.spawned.find(argv => argv[2] === 'locate')
+  expect(locateArgv?.slice(1)).toEqual([expect.stringMatching(/\/scripts\/run-ledger\.sh$/), 'locate', '--transcript', '/t/demo.jsonl'])
+  expect(locateArgv?.[0]).toBe('bash')
+  expect(sut.timeouts.every(timeout => typeof timeout === 'number' && timeout > 0)).toBe(true)
+})
+
+test('Given a runs dir whose path holds a space, when the session binds, then the ledger under that dir is read', async ($, on) => {
+  const sut = rig(on, { entries: () => [POINTER, ledgerEntry(10, 100)], runsDir: '/my repo/runs' })
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.readPaths).toEqual(['/my repo/runs/demo.md'])
+  expect(sut.statuses).toEqual(['craft demo · planning · 3/9'])
+})
+
+test('Given a bound session, when only the ledger size changes, then the ledger is re-read', async ($, on) => {
+  let entries: unknown[] = [POINTER, ledgerEntry(10, 100)]
+  const sut = rig(on, { entries: () => entries })
+  await $.classic.PostToolUse(bash() as never)
+  entries = [POINTER, ledgerEntry(10, 140)]
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.reads).toBe(2)
+})
+
+test('Given the only pointer is a link, when a main-loop Bash PostToolUse runs, then locate is never spawned', async ($, on) => {
+  const sut = rig(on, { entries: () => [{ ...POINTER, isLink: true }] })
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.spawned.map(argv => argv[2])).toEqual(['dir'])
+})
+
+test('Given locate keeps missing on an unchanged pointer set, when many triggers run, then locate is spawned only twice', async ($, on) => {
+  const sut = rig(on, { entries: () => [POINTER], locateStdout: () => '' })
+
+  for (const _ of [1, 2, 3, 4]) await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.spawned.filter(argv => argv[2] === 'locate').length).toBe(2)
+})
+
+test('Given locate missed until exhausted, when a new pointer appears, then locate runs again', async ($, on) => {
+  let entries: unknown[] = [POINTER]
+  const sut = rig(on, { entries: () => entries, locateStdout: () => '' })
+  for (const _ of [1, 2, 3]) await $.classic.PostToolUse(bash() as never)
+  entries = [POINTER, { ...POINTER, name: 'other.pointer', mtimeMs: 5 }]
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.spawned.filter(argv => argv[2] === 'locate').length).toBe(3)
+})
+
+test('Given the runs dir does not exist yet, when a trigger runs, then it is not listed and nothing is logged', async ($, on) => {
+  const sut = rig(on, { entries: () => [], runsDirExists: false })
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.lists).toBe(0)
+  expect(sut.logs).toEqual([])
+})
+
+test('Given the ledger is not text, when the session binds, then a debug line names the run and an unchanged ledger is not read again', async ($, on) => {
+  const sut = rig(on, { entries: () => [POINTER, ledgerEntry(10, 100)], text: () => ({ base64: 'AA==' }) })
+  await $.classic.PostToolUse(bash() as never)
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.reads).toBe(1)
+  expect(sut.logs.some(line => line.startsWith('debug|') && line.includes('demo'))).toBe(true)
 })

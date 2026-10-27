@@ -52,6 +52,7 @@ function rig(on: On, ledger: string[]): Opens {
     return <Text>engine</Text>
   })
   on('process.run', (_, e) => result(0, e.argv[2] === 'dir' ? `${RUNS}\n` : `demo ${LEDGER}\n`))
+  on('fs.exists', () => ({ value: true }))
   on('fs.list', () => ({ value: [POINTER, ENTRY] }))
   on('fs.read', () => ({ value: ledger.join('\n') }))
   on('ui.status', () => ({ value: undefined }))
@@ -73,6 +74,17 @@ test('Given a bound session in review with two cycles, when the craft-progress p
   expect((await sut.find({ type: 'Text', text: /· propose/ }))?.text).toContain('· propose')
   expect((await sut.find({ type: 'Text', text: /^ {2}✓ cycle 1/ }))?.text).toContain('cycle 1')
   expect((await sut.find({ type: 'Text', text: /^ {2}▸ cycle 2/ }))?.text).toContain('cycle 2')
+  await sut.unmount()
+})
+
+test('Given a bound session in review with two cycles, when the craft-progress pane renders, then completed items and cycles carry their notes', async ($, on) => {
+  rig(on, REVIEW_LEDGER)
+  await $.classic.PostToolUse(bash() as never)
+
+  const sut = await $.ui.mount(PANE)
+
+  expect(await sut.find({ type: 'Text', text: ' worktree' })).toBeDefined()
+  expect(await sut.find({ type: 'Text', text: ' n=5' })).toBeDefined()
   await sut.unmount()
 })
 

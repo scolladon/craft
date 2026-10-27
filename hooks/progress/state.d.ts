@@ -22,13 +22,15 @@ export type RunsDir =
   | { kind: 'unknown' }
   | { kind: 'unavailable' }
   | { kind: 'known'; path: string }
-export type Binding = { runId: string; ledgerPath: string }
+export type Binding = { runId: string }
 export type LedgerGate = { mtimeMs: number; size: number }
+export type LocateMiss = { signature: string; attempts: number }
 
 export type ProgressState = {
   envelope: Envelope | null
   runsDir: RunsDir
   binding: Binding | null
+  locateMiss: LocateMiss | null
   gate: LedgerGate | null
   view: ProgressView | null
   attention: string

@@ -221,3 +221,20 @@ test('GUARD Given the full impacts-and-cycles.md, when projectProgress runs, the
   assert.equal(result.items.find((item) => item.id === 'impact-triage').status, 'in_progress');
   assert.equal(result.items.find((item) => item.id === 'review').status, 'completed');
 });
+
+test('Given another run writes EFFECTIVE and outcomes after this run, when projectProgress runs, then only this run shapes the items and notes', () => {
+  // Arrange
+  const lines = [
+    ...readFixture('with-effective.md'),
+    'other resolve EFFECTIVE: design,propose',
+    'other workspace PHASE-DONE(workspace): foreign outcome',
+  ];
+
+  // Act
+  const result = projectProgress(lines, RUN_ID);
+
+  // Assert
+  assert.equal(result.items.length, 9);
+  assert.equal(result.items[0].id, 'workspace');
+  assert.ok(!result.items[0].note.includes('foreign'));
+});

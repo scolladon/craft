@@ -75,7 +75,8 @@
 The plugin-authoring facts the design relies on come from the bundled skill's `reference.md`
 and `types/claude-code.d.ts` (build 2.1.310). They are cited by symbol, not by path:
 `$.plugin.root`; `$.fs.read` (rejects files over 4 MiB); `$.fs.list(dir)` → `{ name, kind, size,
-mtimeMs, isLink }` per entry (there is no `$.fs.stat`); `$.process.run(argv, { cwd, timeoutMs })`
+mtimeMs, isLink }` per entry (`$.fs.stat` exists too; the listing is kept because one call
+yields both the ledger entry and the pointer set); `$.process.run(argv, { cwd, timeoutMs })`
 (30 s default); `$.ui.open({ id, title })` + `ui.render` on `{ component: 'Pane', requestId }`;
 `$.ui.status(text)` (one line per plugin under the prompt); `atom`/`read`/`update`;
 `$.command.register`; the events `session.start`, `session.compact`, `session.end`,
@@ -252,10 +253,16 @@ export const register: Register = on => {
   `classic.*` event, or `classic.SessionStart`'s. The stdout `<run-id> <ledger-path>` is cached
   in the atom. The `open` call's own PostToolUse cannot bind, because the run-key sits in the
   not-yet-written result (E6). The same Bash call appends the seeded lines (`open && append`),
-  so the next trigger binds: the workspace `PHASE-START` call, or `turn.complete`. On every
+  so the next trigger binds: the workspace `PHASE-START` call, or `turn.complete`. A miss is
+  cached against the pointer set's signature (each non-link pointer's name and mtime): an
+  unchanged set is located at most twice, so a session that does not own the live run stops
+  spawning `locate` after its second trigger. The run id is the text before the first space of
+  `locate`'s output, and the ledger path is built from the runs dir, so a path holding a space
+  binds. On every
   trigger, binding runs before the refresh and the attention update.
 - **Refresh (candidate 2 (a)).** On each trigger while bound, one `$.fs.list(runsDir)` gives the
-  ledger entry's `(mtimeMs, size)`. There is no `$.fs.stat`. If the pair is unchanged, the
+  ledger entry's `(mtimeMs, size)`; `$.fs.exists` guards a runs dir no run has created yet. If
+  the pair is unchanged, the
   module does nothing. If it changed, the module runs `$.fs.read` → `projectProgress` →
   `update($, view, …)`, which redraws the pane and resets the status line. An entry with
   `isLink` is refused, the same as `run-ledger.sh`'s symlink refusal. A ledger entry that is

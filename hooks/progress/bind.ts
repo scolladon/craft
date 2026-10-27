@@ -1,8 +1,8 @@
 import { projectProgress } from '../../engine/src/run-progress.js'
 import type {
-  Binding,
   Envelope,
   LedgerGate,
+  LocateMiss,
   ProgressState,
   ProgressView,
   RunsDir,
@@ -15,11 +15,26 @@ export const LEDGER_SUFFIX = '.md'
 const LEDGER_SCRIPT = 'scripts/run-ledger.sh'
 const LOG_PLUGIN = 'craft'
 const DONE_LABEL = 'done'
+const RUN_KEY_SEPARATOR = ' '
+// The pointer lands one tool call before the transcript holds its run-key, so a new
+// pointer set earns one retry before its miss is trusted.
+const MAX_LOCATE_ATTEMPTS = 2
+// `kill -0` on 0 or 1 addresses the caller's process group or init and always succeeds.
+const MIN_PROBED_PID = 2
 export const KILL_PROBE_TIMEOUT_MS = 2_000
 export const WORKING = 'working'
 export const WAITING_ON_YOU = 'waiting on you'
 export const WAITING_ON_BACKGROUND = 'waiting on background'
 export const CLOSED = 'closed'
+
+export type Patch = Partial<ProgressState>
+export const UNBOUND: Patch = {
+  binding: null,
+  gate: null,
+  view: null,
+  attention: '',
+  isPaneOpened: false,
+}
 
 type Entry = { name: string; size: number; mtimeMs: number; isLink?: boolean }
 export type Host = {
@@ -32,6 +47,7 @@ export type Host = {
   }
   fs: {
     list: (path?: string) => Promise<Entry[]>
+    exists: (path: string) => Promise<boolean>
     read: (path: string) => Promise<string | { base64: string }>
   }
   ui: {
@@ -44,7 +60,11 @@ function ledgerArgv($: Host, ...args: string[]): string[] {
   return ['bash', `${$.plugin.root}/${LEDGER_SCRIPT}`, ...args]
 }
 
-export async function resolveRunsDir($: Host, cwd: string): Promise<RunsDir> {
+function logDebug($: Host, text: string): void {
+  $.ui.log(`${LOG_PLUGIN}: ${text}`, { to: 'debug' })
+}
+
+async function resolveRunsDir($: Host, cwd: string): Promise<RunsDir> {
   const result = await $.process.run(ledgerArgv($, 'dir'), {
     cwd,
     timeoutMs: DIR_TIMEOUT_MS,
@@ -53,31 +73,41 @@ export async function resolveRunsDir($: Host, cwd: string): Promise<RunsDir> {
   return { kind: 'known', path: result.stdout.trim() }
 }
 
-export function hasPointer(entries: readonly Entry[]): boolean {
-  return entries.some(
-    entry => entry.name.endsWith(POINTER_SUFFIX) && !entry.isLink,
-  )
+async function listRuns($: Host, runsDir: string): Promise<Entry[]> {
+  if (!(await $.fs.exists(runsDir))) return []
+  return $.fs.list(runsDir)
 }
 
-export async function locate(
-  $: Host,
-  envelope: Envelope,
-): Promise<Binding | null> {
+function pointerSignature(entries: readonly Entry[]): string {
+  return entries
+    .filter(entry => entry.name.endsWith(POINTER_SUFFIX) && !entry.isLink)
+    .map(entry => `${entry.name}@${entry.mtimeMs}`)
+    .sort()
+    .join(',')
+}
+
+function isExhausted(miss: LocateMiss | null, signature: string): boolean {
+  return miss?.signature === signature && miss.attempts >= MAX_LOCATE_ATTEMPTS
+}
+
+function nextMiss(miss: LocateMiss | null, signature: string): LocateMiss {
+  const attempts = miss?.signature === signature ? miss.attempts : 0
+  return { signature, attempts: attempts + 1 }
+}
+
+async function locate($: Host, envelope: Envelope): Promise<string | null> {
   const argv = ledgerArgv($, 'locate', '--transcript', envelope.transcriptPath)
   const result = await $.process.run(argv, {
     cwd: envelope.cwd,
     timeoutMs: LOCATE_TIMEOUT_MS,
   })
-  const [runId, ledgerPath] = result.stdout.trim().split(/\s+/)
-  if (!runId || !ledgerPath) return null
-  return { runId, ledgerPath }
+  const line = result.stdout.trim()
+  const end = line.indexOf(RUN_KEY_SEPARATOR)
+  return end > 0 ? line.slice(0, end) : null
 }
 
-export function ledgerEntry(
-  entries: readonly Entry[],
-  runId: string,
-): Entry | undefined {
-  return entries.find(entry => entry.name === `${runId}${LEDGER_SUFFIX}`)
+function ledgerName(runId: string): string {
+  return `${runId}${LEDGER_SUFFIX}`
 }
 
 function currentPhase(view: ProgressView): string {
@@ -97,75 +127,84 @@ export function statusLine(
   return attention === '' ? line : `${line} · ${attention}`
 }
 
+export function statusText(state: ProgressState): string | undefined {
+  const { binding, view } = state
+  if (binding === null || view === null) return undefined
+  return statusLine(binding.runId, view, state.attention)
+}
+
 function sameGate(entry: Entry, gate: LedgerGate | null): boolean {
   return gate?.mtimeMs === entry.mtimeMs && gate.size === entry.size
 }
 
-export function unbind($: Host, state: ProgressState): ProgressState {
-  $.ui.status(undefined)
-  return {
-    ...state,
-    binding: null,
-    gate: null,
-    view: null,
-    attention: '',
-    isPaneOpened: false,
-  }
+function closedPatch(state: ProgressState): Patch {
+  return state.attention === CLOSED ? {} : { attention: CLOSED }
 }
 
-function markClosed($: Host, state: ProgressState): ProgressState {
-  const { binding, view } = state
-  if (state.attention === CLOSED) return state
-  if (binding !== null && view !== null) {
-    $.ui.status(statusLine(binding.runId, view, CLOSED))
-  }
-  return { ...state, attention: CLOSED }
+function refuseLink($: Host, entries: readonly Entry[]): Patch {
+  logDebug($, 'ledger entry is a link, refusing to read it')
+  const signature = pointerSignature(entries)
+  return { ...UNBOUND, locateMiss: { signature, attempts: MAX_LOCATE_ATTEMPTS } }
 }
 
-function refuseLink($: Host, state: ProgressState): ProgressState {
-  $.ui.log(`${LOG_PLUGIN}: ledger entry is a link, refusing to read it`, {
-    to: 'debug',
-  })
-  return unbind($, state)
-}
-
-export async function refresh(
+async function readLedger(
   $: Host,
-  state: ProgressState,
-): Promise<ProgressState> {
+  path: string,
+  runId: string,
+  gate: LedgerGate,
+): Promise<Patch> {
+  const text = await $.fs.read(path)
+  if (typeof text !== 'string') {
+    logDebug($, `ledger of ${runId} is not text, keeping the previous view`)
+    return { gate }
+  }
+  const view = projectProgress(text.split('\n'), runId) as ProgressView
+  return { view, gate }
+}
+
+export async function refresh($: Host, state: ProgressState): Promise<Patch> {
   const { binding, runsDir } = state
-  if (binding === null || runsDir.kind !== 'known') return state
-  const entry = ledgerEntry(await $.fs.list(runsDir.path), binding.runId)
-  if (entry === undefined) return markClosed($, state)
-  if (entry.isLink) return refuseLink($, state)
-  if (sameGate(entry, state.gate)) return state
-  const text = await $.fs.read(binding.ledgerPath)
-  if (typeof text !== 'string') return state
-  const view = projectProgress(text.split('\n'), binding.runId) as ProgressView
-  $.ui.status(statusLine(binding.runId, view, state.attention))
-  return {
-    ...state,
-    view,
-    gate: { mtimeMs: entry.mtimeMs, size: entry.size },
-  }
+  if (binding === null || runsDir.kind !== 'known') return {}
+  const entries = await listRuns($, runsDir.path)
+  const name = ledgerName(binding.runId)
+  const entry = entries.find(candidate => candidate.name === name)
+  if (entry === undefined) return closedPatch(state)
+  if (entry.isLink) return refuseLink($, entries)
+  if (sameGate(entry, state.gate)) return {}
+  const gate = { mtimeMs: entry.mtimeMs, size: entry.size }
+  return readLedger($, `${runsDir.path}/${name}`, binding.runId, gate)
 }
 
-async function withRunsDir($: Host, state: ProgressState, cwd: string) {
-  if (state.runsDir.kind !== 'unknown') return state
-  return { ...state, runsDir: await resolveRunsDir($, cwd) }
-}
-
-export async function bind(
+async function knownRunsDir(
   $: Host,
   state: ProgressState,
-): Promise<ProgressState> {
+  cwd: string,
+): Promise<RunsDir> {
+  if (state.runsDir.kind !== 'unknown') return state.runsDir
+  return resolveRunsDir($, cwd)
+}
+
+async function locatePatch(
+  $: Host,
+  state: ProgressState,
+  envelope: Envelope,
+  signature: string,
+): Promise<Patch> {
+  const runId = await locate($, envelope)
+  if (runId === null) return { locateMiss: nextMiss(state.locateMiss, signature) }
+  return { binding: { runId }, locateMiss: null }
+}
+
+export async function bind($: Host, state: ProgressState): Promise<Patch> {
   const { envelope } = state
-  if (state.binding !== null || envelope === null) return state
-  const resolved = await withRunsDir($, state, envelope.cwd)
-  if (resolved.runsDir.kind !== 'known') return resolved
-  const entries = await $.fs.list(resolved.runsDir.path)
-  if (!hasPointer(entries)) return resolved
-  return { ...resolved, binding: await locate($, envelope) }
+  if (state.binding !== null || envelope === null) return {}
+  const runsDir = await knownRunsDir($, state, envelope.cwd)
+  if (runsDir.kind !== 'known') return { runsDir }
+  const signature = pointerSignature(await listRuns($, runsDir.path))
+  if (signature === '' || isExhausted(state.locateMiss, signature)) {
+    return { runsDir }
+  }
+  return { runsDir, ...(await locatePatch($, state, envelope, signature)) }
 }
 
 export async function failOpen(
@@ -177,11 +216,16 @@ export async function failOpen(
     await fn()
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error)
-    $.ui.log(`${LOG_PLUGIN}: ${event}: ${message}`, { to: 'debug' })
+    logDebug($, `${event}: ${message}`)
   }
 }
 
+function isProbeablePid(pid: number): boolean {
+  return Number.isSafeInteger(pid) && pid >= MIN_PROBED_PID
+}
+
 async function isAlive($: Host, pid: number): Promise<boolean> {
+  if (!isProbeablePid(pid)) return false
   let alive = false
   await failOpen($, 'kill-probe', async () => {
     const probe = await $.process.run(['kill', '-0', String(pid)], {
@@ -204,16 +248,4 @@ export async function attentionAfterTurn(
     if (await isAlive($, pid)) return `${WAITING_ON_BACKGROUND} — ${phase}`
   }
   return waitingOnYou(view)
-}
-
-export function withAttention(
-  $: Host,
-  state: ProgressState,
-  attention: string,
-): ProgressState {
-  const { binding, view } = state
-  if (binding !== null && view !== null) {
-    $.ui.status(statusLine(binding.runId, view, attention))
-  }
-  return { ...state, attention }
 }

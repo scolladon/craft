@@ -82,7 +82,7 @@ prefers an alternative changes only the named part.
   writing any `hooks/progress` code: its `reference.md` and `types/claude-code.d.ts` hold the
   exact signatures. Facts the design pinned (CLI 2.1.311): `$.plugin.root`;
   `$.fs.read(path)` (rejects over 4 MiB); `$.fs.list(dir)` returns entries
-  `{ name, kind, size, mtimeMs, isLink }` (there is no `$.fs.stat`);
+  `{ name, kind, size, mtimeMs, isLink }` (`$.fs.stat` exists too, unused);
   `$.process.run(argv, { cwd, timeoutMs })`; `$.ui.status(text)` (one line under the
   prompt); `$.ui.open({ id, title })` plus `on('ui.render', { component: 'Pane', requestId })`;
   `$.ui.log`; `atom` / `read` / `update`; `$.command.register`; events `session.start`,

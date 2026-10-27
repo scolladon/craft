@@ -26,7 +26,7 @@ const result = (exitCode: number, stdout: string) => ({
 })
 
 type Rig = { statuses: (string | undefined)[]; logs: string[]; probed: string[]; seenByAsk: (string | undefined)[] }
-type Opts = { ledger: string[]; killExit?: number; killDenied?: boolean }
+type Opts = { ledger: string[]; killExit?: number; killDenied?: boolean; entries?: () => unknown[]; holdRead?: () => Promise<void> | undefined }
 
 function rig(on: On, opts: Opts) {
   const state: Rig = { statuses: [], logs: [], probed: [], seenByAsk: [] }
@@ -37,8 +37,12 @@ function rig(on: On, opts: Opts) {
     }
     return result(0, e.argv[2] === 'dir' ? `${RUNS}\n` : `demo ${LEDGER}\n`)
   })
-  on('fs.list', () => ({ value: ENTRIES }))
-  on('fs.read', () => ({ value: opts.ledger.join('\n') }))
+  on('fs.exists', () => ({ value: true }))
+  on('fs.list', () => ({ value: (opts.entries ?? (() => ENTRIES))() }))
+  on('fs.read', async () => {
+    await opts.holdRead?.()
+    return { value: opts.ledger.join('\n') }
+  })
   on('ui.status', (_, e) => { state.statuses.push(e.text); return { value: undefined } })
   on('ui.log', (_, e) => { state.logs.push(`${e.to}|${e.text}`); return { value: undefined } })
   on('tool.call', () => { state.seenByAsk.push(state.statuses.at(-1)); return { result: {} } })
@@ -133,4 +137,46 @@ test('Given a bound session, when an AskUserQuestion tool call is open, then the
 
   expect(sut.seenByAsk).toEqual(['craft demo · planning · 1/3 · waiting on you — planning'])
   expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · working')
+})
+
+test('Given a background pid of zero, when turn.complete runs, then no kill probe runs and the status ends with waiting on you', async ($, on) => {
+  const ledger = VALIDATION_LEDGER.map(line => line.replace('pid=4242', 'pid=0'))
+  const sut = rig(on, { ledger })
+  await $.classic.PostToolUse(bash() as never)
+
+  await $.turn.complete(turnComplete() as never)
+
+  expect(sut.probed).toEqual([])
+  expect(sut.statuses.at(-1)).toBe('craft demo · validation · 1/3 · waiting on you — validation')
+})
+
+test('Given an unbound session, when turn.start carries an agentId, then nothing is spawned and no status is set', async ($, on) => {
+  const sut = rig(on, { ledger: PLANNING_LEDGER })
+
+  await $.turn.start(turnStart({ agentId: 'a1' }) as never)
+
+  expect(sut.statuses).toEqual([])
+  expect(sut.probed).toEqual([])
+})
+
+test('Given a sub-agent refresh still reading the ledger, when turn.complete lands meanwhile, then the waiting attention survives the refresh', async ($, on) => {
+  let entries: unknown[] = ENTRIES
+  let hold: Promise<void> | undefined
+  let release = () => {}
+  const takeHold = () => {
+    const held = hold
+    hold = undefined
+    return held
+  }
+  const sut = rig(on, { ledger: PLANNING_LEDGER, entries: () => entries, holdRead: takeHold })
+  await $.classic.PostToolUse(bash() as never)
+  entries = [POINTER, { name: 'demo.md', kind: 'file', size: 120, mtimeMs: 11, isLink: false }]
+  hold = new Promise(resolve => { release = resolve })
+  const refreshing = $.classic.PostToolUse({ ...bash(), agent_id: 'a1' } as never)
+
+  await $.turn.complete(turnComplete() as never)
+  release()
+  await refreshing
+
+  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · waiting on you — planning')
 })

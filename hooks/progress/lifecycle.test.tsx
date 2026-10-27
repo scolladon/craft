@@ -26,6 +26,7 @@ function rig(on: On, entries: () => unknown[], readFails: () => boolean = () => 
     state.spawned.push([...e.argv])
     return result(0, e.argv[2] === 'dir' ? `${RUNS}\n` : `demo ${LEDGER}\n`)
   })
+  on('fs.exists', () => ({ value: true }))
   on('fs.list', () => ({ value: entries() }))
   on('fs.read', () => {
     state.reads += 1
@@ -106,4 +107,17 @@ test('Given the ledger read is refused, when a trigger runs, then the previous v
 
   expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3')
   expect(sut.logs.some(line => line.startsWith('debug|'))).toBe(true)
+})
+
+test('Given the ledger entry is a link, when later triggers run, then locate is not spawned again', async ($, on) => {
+  let entries: unknown[] = [POINTER, ENTRY]
+  const sut = rig(on, () => entries)
+  await $.classic.PostToolUse(bash() as never)
+  entries = [POINTER, { ...LINKED_ENTRY, mtimeMs: 11 }]
+  await $.classic.PostToolUse(bash() as never)
+
+  await $.classic.PostToolUse(bash() as never)
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(spawnedLocates(sut)).toBe(1)
 })

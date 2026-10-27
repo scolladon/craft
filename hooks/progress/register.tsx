@@ -7,16 +7,16 @@ import {
   CLOSED,
   failOpen,
   refresh,
-  unbind,
+  statusText,
+  UNBOUND,
   waitingOnYou,
   WORKING,
-  withAttention,
 } from './bind'
-import type { Host } from './bind'
+import type { Host, Patch } from './bind'
 import { PANE, PANE_TITLE, progressPane } from './pane'
 import type { ProgressState, ProgressView } from './state'
 
-const SHAPE = 'progress-1'
+const SHAPE = 'progress-2'
 const BASH_TOOL = 'Bash'
 const ASK_TOOL = 'AskUserQuestion'
 const COMMAND_NAME = 'craft-progress'
@@ -28,6 +28,7 @@ const EMPTY: ProgressState = {
   envelope: null,
   runsDir: { kind: 'unknown' },
   binding: null,
+  locateMiss: null,
   gate: null,
   view: null,
   attention: '',
@@ -42,32 +43,50 @@ type Ctx = Host & StateDollar
 type Surface = { isDocked: boolean }
 type MainLoopEnvelope = { transcript_path: string; cwd: string }
 
-function cacheEnvelope($: Ctx, e: MainLoopEnvelope) {
-  return update($, progress, state => ({
-    ...state,
-    envelope: { transcriptPath: e.transcript_path, cwd: e.cwd },
-  }))
+function showStatus($: Ctx, before: ProgressState, after: ProgressState) {
+  const text = statusText(after)
+  if (text !== statusText(before)) $.ui.status(text)
+}
+
+// Merging the patch into the current value keeps a write made by another hook while
+// this one awaited I/O; replacing the whole state would drop it.
+async function commit($: Ctx, patch: Patch): Promise<ProgressState> {
+  if (Object.keys(patch).length === 0) return read($, progress)
+  let before = EMPTY
+  const after = await update($, progress, current => {
+    before = current
+    return { ...current, ...patch }
+  })
+  showStatus($, before, after)
+  return after
+}
+
+async function cacheEnvelope($: Ctx, e: MainLoopEnvelope) {
+  const { envelope } = await read($, progress)
+  const isSame =
+    envelope?.transcriptPath === e.transcript_path && envelope.cwd === e.cwd
+  if (isSame) return
+  const next = { transcriptPath: e.transcript_path, cwd: e.cwd }
+  await commit($, { envelope: next, locateMiss: null })
 }
 
 async function openPaneOnce($: Ctx, surface: Surface) {
   const state = await read($, progress)
   if (!surface.isDocked || state.binding === null || state.isPaneOpened) return
-  await update($, progress, current => ({ ...current, isPaneOpened: true }))
+  await commit($, { isPaneOpened: true })
   await $.ui.open({ id: PANE, title: PANE_TITLE })
 }
 
 async function bindAndRefresh($: Ctx, surface: Surface) {
-  const state = await read($, progress)
-  const next = await refresh($, await bind($, state))
-  await update($, progress, () => next)
+  const bound = await commit($, await bind($, await read($, progress)))
+  await commit($, await refresh($, bound))
   await openPaneOnce($, surface)
 }
 
 async function refreshBound($: Ctx) {
   const state = await read($, progress)
   if (state.binding === null) return
-  const next = await refresh($, state)
-  await update($, progress, () => next)
+  await commit($, await refresh($, state))
 }
 
 async function setAttention(
@@ -77,29 +96,22 @@ async function setAttention(
   const state = await read($, progress)
   const { binding, view } = state
   if (binding === null || view === null || state.attention === CLOSED) return
-  const next = withAttention($, state, await attention(view))
-  await update($, progress, () => next)
-}
-
-async function resetProgress($: Ctx) {
-  const state = await read($, progress)
-  await update($, progress, () => unbind($, state))
+  await commit($, { attention: await attention(view) })
 }
 
 async function onSessionEnd($: Ctx) {
-  const state = await read($, progress)
-  await update($, progress, () => ({ ...unbind($, state), envelope: null }))
+  await commit($, { ...UNBOUND, envelope: null, locateMiss: null })
 }
 
 async function onTurnStart($: Ctx, surface: Surface) {
   const { attention } = await read($, progress)
-  if (attention === CLOSED) return resetProgress($)
+  if (attention === CLOSED) return commit($, UNBOUND)
   await bindAndRefresh($, surface)
   await setAttention($, () => WORKING)
 }
 
 async function onSessionCompact($: Ctx, surface: Surface) {
-  await update($, progress, state => ({ ...state, gate: null }))
+  await commit($, { gate: null })
   await bindAndRefresh($, surface)
 }
 
@@ -129,6 +141,8 @@ function onBash(
 }
 
 export const register: Register = on => {
+  // Docking is only visible to a render, and a render may not write state, so the
+  // AbovePrompt draw records it here; after a reload it reads false until the next draw.
   const surface: Surface = { isDocked: false }
 
   on('classic.SessionStart', async ($, e, next) => {
