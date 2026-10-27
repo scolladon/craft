@@ -264,21 +264,13 @@ as fail open. Evidence: `docs/contributing/specs/codex-poc-record.md`,
 
 ### Open — D. Run visibility
 
-**Show a craft run as a live task list in Claude Code.** A run's progress lives only in the ledger
-(`<git-common-dir>/craft-runs/<run-id>.md`); the user sees it as scattered phase messages. Project the
-ledger onto the host's task-list surface: one item per phase in `Resolution.effective[]`, plan parts
-nested under `implementation`, review cycles under `review`, statuses `pending → in_progress →
-completed` (auto-skips and no-ops completed with their reason). The ledger stays the single source of
-truth and the list is a derived view: `engine/bin/run-state.js` already derives
-`completed`/`inFlight`/`next`/`parts` from it, so a rebuild after compaction re-projects instead of
-trusting the summary. Decision candidates for the design: (1) the binding — the orchestrator calls the
-host's task-list tool at each `PHASE-START`/`PHASE-DONE`/`PART` (model tool calls, every run), or a
-Claude Code mod (`plugin-authoring`: a panel or status line beside the chat) renders `run-state`
-output itself (no model calls); (2) a new port (e.g. `Progress`, `docs/contributing/specs/`) with the
-Claude binding and a no-op for hosts without a task list (pi, codex), so the engine stays
-host-agnostic. Probe first: on 2026-10-23 a ToolSearch for a todo or task tool in a craft session
-returned none, so which task-list tool the installed Claude Code exposes, and whether it is
-available to the orchestrator, is unverified.
+Delivered 2026-10-27 (run-visibility-task-list): no task-list tool reaches the orchestrator
+(probe on Claude Code 2.1.311), so a Claude Code mod inside the craft plugin
+(`hooks/progress/`, wired by `hooks/hooks.json` `"modules"`) projects the run ledger through the
+pure `engine/src/run-progress.js` into a pane (`/craft-progress`) and a status line, with
+`waiting on you` / `waiting on background` derived from host events. The ledger gains one seeded
+`EFFECTIVE:` token; there is no `Progress` port. Design:
+docs/contributing/design/run-visibility-task-list.md; ADR-710 to ADR-717.
 
 ### Open — C. Waiting on an external trigger
 
