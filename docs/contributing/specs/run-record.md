@@ -73,7 +73,7 @@ like a bare repository is never taken for the git dir.
 
 ## Token vocabulary
 
-Seven more fixed, greppable tokens join the existing run-record family (`NO-OP(<phase>):`,
+Eight more fixed, greppable tokens join the existing run-record family (`NO-OP(<phase>):`,
 `GATE(<phase>):`, `auto-skip:`, `WAIVER:`, `POLICY(...)`, `INTENTION-DRIFT(<page>):`,
 `INTENTION-WAIVE(<page>):`, `STUB-FOUND(<file>):`, `STUB-WAIVE(<file>):`,
 `SLOP-FOUND(<file>):`, `SLOP-WAIVE(<file>):`, `MODEL-RETRY(<role>):`,
@@ -82,6 +82,7 @@ Seven more fixed, greppable tokens join the existing run-record family (`NO-OP(<
 | Token | Regex over `<record>` | Emitted by |
 |---|---|---|
 | `RESOLVE: <craft flags verbatim, or none>` | `^RESOLVE: (.*)$` (not consumed by `run-state`) | run skill §0 step 4 |
+| `EFFECTIVE: <Resolution.effective[].id comma-joined>` | `^EFFECTIVE: ([a-z][a-z0-9-]*(?:,[a-z][a-z0-9-]*)*)$` (consumed by `run-progress`, not by `run-state`) | run skill §0 step 4 |
 | `AWAITING(propose): <ids comma-joined, or none>` | `^AWAITING\(propose\): (.+)$` — trimmed; `none` → `[]`, else split on `,`, each id trimmed, empty ids dropped | run skill §0 step 1d, appended at step 4 |
 | `PHASE-START(<phase>): <iso8601>` | `^PHASE-START\(([a-z][a-z0-9-]*)\): (\S+)$` | run skill walk step 4; the `<iso8601>` is stamped by `run-ledger.sh append` |
 | `PHASE-DONE(<phase>): <one-line outcome>` | `^PHASE-DONE\(([a-z][a-z0-9-]*)\): (.*)$` | run skill walk step 7 |
@@ -91,6 +92,11 @@ Seven more fixed, greppable tokens join the existing run-record family (`NO-OP(<
 
 A record that starts with a new token's literal prefix but fails that token's full regex
 adds a `warnings[]` entry (`run-state`) instead of parsing.
+
+**Derived views.** `engine/src/run-progress.js` `projectProgress` is the only reader of
+`EFFECTIVE:`; a malformed one is a view warning plus the ledger-only fallback, never a
+`run-state` warning; a ledger without it (opened before the token existed) lists only the
+phases it names.
 
 The tokens below are greppable only: no regex row, and `run-state` does not consume them.
 

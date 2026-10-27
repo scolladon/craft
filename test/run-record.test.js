@@ -466,3 +466,27 @@ test('Given every run-ledger.sh invocation the skills, the spec and the hooks na
   const unknown = named.filter(({ verb }) => !verbs.has(verb));
   assert.deepStrictEqual(unknown, [], `unknown run-ledger.sh verbs: ${JSON.stringify(unknown)}`);
 });
+
+test('Given skills/run/SKILL.md §0 step 4, when the open-record region is read, then the heredoc seeds EFFECTIVE between RESOLVE and AWAITING', () => {
+  const result = sliceProse(runSkill, /^4\. Open the \*\*run record\*\*/, /^## Phase walk/);
+
+  const resolve = result.indexOf('RESOLVE: <craft flags');
+  const effective = result.indexOf('EFFECTIVE: <Resolution.effective[].id comma-joined>');
+  const awaiting = result.indexOf('AWAITING(propose): <ids');
+  assert.ok(effective > resolve && resolve >= 0, 'expected EFFECTIVE after RESOLVE');
+  assert.ok(effective < awaiting, 'expected EFFECTIVE before AWAITING');
+});
+
+test('Given the run-skill token sentence, when the region is read, then it names EFFECTIVE:', () => {
+  const result = sliceProse(runSkill, /^### Run-record tokens/, /^\| Token \|/);
+
+  assert.ok(result.includes('`EFFECTIVE:`'), 'expected the EFFECTIVE: token in the walk-token sentence');
+});
+
+test('Given the run-record spec token table, when the EFFECTIVE row is read, then it names run-progress as its reader', () => {
+  const row = runRecordSpec.split('\n').find((line) => line.startsWith('|') && line.includes('`EFFECTIVE:'));
+
+  assert.ok(row, 'expected an EFFECTIVE row in the token table');
+  const words = row.replaceAll('`', '');
+  assert.ok(words.includes('run-progress') && words.includes('not by run-state'));
+});

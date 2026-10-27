@@ -5,7 +5,7 @@
 
 import { autoSkipPhasesInText } from './observability/skip-signals.js';
 import {
-  PHASE_ID, PHASE_START_RE, PHASE_DONE_RE, recordsForRun, lastAwaiting, deriveRunState,
+  PHASE_ID, PHASE_START_RE, PHASE_DONE_RE, NO_OP_RELEASE_RE, recordsForRun, lastAwaiting, deriveRunState,
 } from './run-state.js';
 
 const EFFECTIVE_PREFIX = 'EFFECTIVE:';
@@ -16,6 +16,12 @@ const SOURCE_LEDGER_ONLY = 'ledger-only';
 const STATUS_PENDING = 'pending';
 const STATUS_IN_PROGRESS = 'in_progress';
 const STATUS_COMPLETED = 'completed';
+const NOTE_MAX_CHARS = 120;
+const AUTO_SKIP_FALLBACK_NOTE = 'auto-skipped';
+const AUTO_SKIP_SIGNAL_RE = /\(([^()]*)\)\s*$/;
+const CONTROL_CHARS_RE = /[\u0000-\u0008\u000B-\u001F\u007F-\u009F\u2028\u2029\u202A-\u202E\u2066-\u2069]/gu;
+const IMPLEMENTATION = 'implementation';
+const REVIEW = 'review';
 
 /**
  * @typedef {object} ProgressView
@@ -59,6 +65,77 @@ function runningBackground(state) {
     .map(({ phase, pid }) => ({ phase, pid }));
 }
 
+function sanitizeNote(text) {
+  return [...text.replace(CONTROL_CHARS_RE, '')].slice(0, NOTE_MAX_CHARS).join('');
+}
+
+function lastNoteFrom(records, noteOf) {
+  return records.map(noteOf).filter((note) => note !== null).at(-1) ?? null;
+}
+
+function noOpNote(records, id) {
+  return lastNoteFrom(records, ({ record }) => {
+    const match = NO_OP_RELEASE_RE.exec(record);
+    return match?.[1] === id ? record.slice(match[0].length).trim() : null;
+  });
+}
+
+function autoSkipNote(records, id) {
+  return lastNoteFrom(records, ({ record }) => {
+    if (!autoSkipPhasesInText(record).includes(id)) return null;
+    return AUTO_SKIP_SIGNAL_RE.exec(record)?.[1] ?? AUTO_SKIP_FALLBACK_NOTE;
+  });
+}
+
+function doneNote(records, id) {
+  return lastNoteFrom(records, ({ record }) => {
+    const match = PHASE_DONE_RE.exec(record);
+    return match?.[1] === id ? match[2] : null;
+  });
+}
+
+function phaseNote(records, id, status) {
+  if (status !== STATUS_COMPLETED) return '';
+  const note = noOpNote(records, id) ?? autoSkipNote(records, id) ?? doneNote(records, id) ?? '';
+  return sanitizeNote(note);
+}
+
+function partChildren(state) {
+  return state.parts.map(({ n, outcome, sha }) => {
+    const passed = outcome === 'pass';
+    return {
+      label: `part ${n}`,
+      status: passed ? STATUS_COMPLETED : STATUS_IN_PROGRESS,
+      note: sanitizeNote(passed ? sha : 'blocked'),
+    };
+  });
+}
+
+function cycleChildren(state, reviewStatus) {
+  const countByCycle = new Map();
+  for (const { cycle, count } of state.findings) {
+    countByCycle.set(cycle, (countByCycle.get(cycle) ?? 0) + count);
+  }
+  const cycles = [...countByCycle.keys()].sort((a, b) => a - b);
+  const newest = cycles.at(-1);
+  return cycles.map((cycle) => ({
+    label: `cycle ${cycle}`,
+    status: cycle === newest && reviewStatus === STATUS_IN_PROGRESS ? STATUS_IN_PROGRESS : STATUS_COMPLETED,
+    note: `n=${countByCycle.get(cycle)}`,
+  }));
+}
+
+function childrenOf(id, state, status) {
+  if (id === IMPLEMENTATION) return partChildren(state);
+  if (id === REVIEW) return cycleChildren(state, status);
+  return [];
+}
+
+function itemOf(id, records, state) {
+  const status = statusOf(id, state);
+  return { id, status, note: phaseNote(records, id, status), children: childrenOf(id, state, status) };
+}
+
 /**
  * @param {string[]} lines
  * @param {string} runId
@@ -75,7 +152,7 @@ export function projectProgress(lines, runId) {
   return {
     run: runId,
     source,
-    items: ids.map((id) => ({ id, status: statusOf(id, state), note: '', children: [] })),
+    items: ids.map((id) => itemOf(id, records, state)),
     inFlight: state.inFlight.map((entry) => entry.phase),
     next: state.next,
     background: runningBackground(state),
