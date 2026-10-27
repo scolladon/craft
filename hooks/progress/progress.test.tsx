@@ -234,3 +234,42 @@ test('Given the ledger is not text, when the session binds, then a debug line na
   expect(sut.reads).toBe(1)
   expect(sut.logs.some(line => line.startsWith('debug|') && line.includes('demo'))).toBe(true)
 })
+
+test('Given locate missed until exhausted, when the same pointer is rewritten, then locate runs again', async ($, on) => {
+  let entries: unknown[] = [POINTER]
+  const sut = rig(on, { entries: () => entries, locateStdout: () => '' })
+  for (const _ of [1, 2, 3]) await $.classic.PostToolUse(bash() as never)
+  entries = [{ ...POINTER, mtimeMs: 2 }]
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.spawned.filter(argv => argv[2] === 'locate').length).toBe(3)
+})
+
+test('Given locate missed until exhausted, when the transcript changes, then locate runs again', async ($, on) => {
+  const sut = rig(on, { entries: () => [POINTER], locateStdout: () => '' })
+  for (const _ of [1, 2, 3]) await $.classic.PostToolUse(bash() as never)
+
+  await $.classic.PostToolUse(bash({ transcript_path: '/t/resumed.jsonl' }) as never)
+
+  expect(sut.spawned.filter(argv => argv[2] === 'locate').length).toBe(3)
+})
+
+test('Given locate prints a run id with no ledger path, when a trigger runs, then the session does not bind', async ($, on) => {
+  const sut = rig(on, { entries: () => [POINTER, ledgerEntry(10, 100)], locateStdout: () => 'demo\n' })
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.statuses).toEqual([])
+  expect(sut.reads).toBe(0)
+})
+
+test('Given a runs dir with no pointer, when many triggers run, then state is written only while it changes', async ($, on) => {
+  rig(on, { entries: () => [] })
+  let writes = 0
+  on('state.set', (_, e, next) => { writes += 1; return next(e) })
+
+  for (const _ of [1, 2, 3, 4]) await $.classic.PostToolUse(bash() as never)
+
+  expect(writes).toBe(2)
+})

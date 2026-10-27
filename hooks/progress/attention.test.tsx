@@ -139,6 +139,17 @@ test('Given a bound session, when an AskUserQuestion tool call is open, then the
   expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · working')
 })
 
+test('Given a background pid of one, when turn.complete runs, then no kill probe runs and the status ends with waiting on you', async ($, on) => {
+  const ledger = VALIDATION_LEDGER.map(line => line.replace('pid=4242', 'pid=1'))
+  const sut = rig(on, { ledger })
+  await $.classic.PostToolUse(bash() as never)
+
+  await $.turn.complete(turnComplete() as never)
+
+  expect(sut.probed).toEqual([])
+  expect(sut.statuses.at(-1)).toBe('craft demo · validation · 1/3 · waiting on you — validation')
+})
+
 test('Given a background pid of zero, when turn.complete runs, then no kill probe runs and the status ends with waiting on you', async ($, on) => {
   const ledger = VALIDATION_LEDGER.map(line => line.replace('pid=4242', 'pid=0'))
   const sut = rig(on, { ledger })
@@ -150,13 +161,14 @@ test('Given a background pid of zero, when turn.complete runs, then no kill prob
   expect(sut.statuses.at(-1)).toBe('craft demo · validation · 1/3 · waiting on you — validation')
 })
 
-test('Given an unbound session, when turn.start carries an agentId, then nothing is spawned and no status is set', async ($, on) => {
+test('Given a bound session waiting on you, when turn.start carries an agentId, then the status still says waiting on you', async ($, on) => {
   const sut = rig(on, { ledger: PLANNING_LEDGER })
+  await $.classic.PostToolUse(bash() as never)
+  await $.turn.complete(turnComplete() as never)
 
   await $.turn.start(turnStart({ agentId: 'a1' }) as never)
 
-  expect(sut.statuses).toEqual([])
-  expect(sut.probed).toEqual([])
+  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · waiting on you — planning')
 })
 
 test('Given a sub-agent refresh still reading the ledger, when turn.complete lands meanwhile, then the waiting attention survives the refresh', async ($, on) => {

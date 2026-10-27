@@ -175,13 +175,13 @@ export async function refresh($: Host, state: ProgressState): Promise<Patch> {
   return readLedger($, `${runsDir.path}/${name}`, binding.runId, gate)
 }
 
-async function knownRunsDir(
+async function runsDirPatch(
   $: Host,
   state: ProgressState,
   cwd: string,
-): Promise<RunsDir> {
-  if (state.runsDir.kind !== 'unknown') return state.runsDir
-  return resolveRunsDir($, cwd)
+): Promise<{ runsDir?: RunsDir }> {
+  if (state.runsDir.kind !== 'unknown') return {}
+  return { runsDir: await resolveRunsDir($, cwd) }
 }
 
 async function locatePatch(
@@ -198,13 +198,14 @@ async function locatePatch(
 export async function bind($: Host, state: ProgressState): Promise<Patch> {
   const { envelope } = state
   if (state.binding !== null || envelope === null) return {}
-  const runsDir = await knownRunsDir($, state, envelope.cwd)
-  if (runsDir.kind !== 'known') return { runsDir }
+  const resolved = await runsDirPatch($, state, envelope.cwd)
+  const runsDir = resolved.runsDir ?? state.runsDir
+  if (runsDir.kind !== 'known') return resolved
   const signature = pointerSignature(await listRuns($, runsDir.path))
   if (signature === '' || isExhausted(state.locateMiss, signature)) {
-    return { runsDir }
+    return resolved
   }
-  return { runsDir, ...(await locatePatch($, state, envelope, signature)) }
+  return { ...resolved, ...(await locatePatch($, state, envelope, signature)) }
 }
 
 export async function failOpen(
