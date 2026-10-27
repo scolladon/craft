@@ -47,6 +47,7 @@ function ledgerOnlyIds(records) {
 function resolveIds(records) {
   const effective = records.map((entry) => entry.record).filter((record) => record.startsWith(EFFECTIVE_PREFIX));
   const last = effective.at(-1);
+  // equivalent mutant (always exec): exec(undefined) coerces to "undefined", which never matches the EFFECTIVE grammar
   const match = last === undefined ? null : EFFECTIVE_RE.exec(last);
   if (match) return { ids: match[1].split(ID_SEPARATOR), source: SOURCE_EFFECTIVE, warnings: [] };
   const warnings = last === undefined ? [] : [`malformed EFFECTIVE record: ${last}`];
@@ -96,6 +97,7 @@ function doneNote(records, id) {
 
 function phaseNote(records, id, status) {
   if (status !== STATUS_COMPLETED) return '';
+  // equivalent mutant (fallback literal): a completed phase always has a PHASE-DONE or auto-skip record, so doneNote never yields null here
   const note = noOpNote(records, id) ?? autoSkipNote(records, id) ?? doneNote(records, id) ?? '';
   return sanitizeNote(note);
 }

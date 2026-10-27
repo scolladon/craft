@@ -238,3 +238,75 @@ test('Given another run writes EFFECTIVE and outcomes after this run, when proje
   assert.equal(result.items[0].id, 'workspace');
   assert.ok(!result.items[0].note.includes('foreign'));
 });
+
+test('Given a ledger with no EFFECTIVE record, when projectProgress runs, then no ledger-only warning is raised', () => {
+  const sut = projectProgress;
+  const lines = ['demo resolve AWAITING(propose): none', 'demo decisions auto-skip: decisions (none)'];
+
+  const result = sut(lines, RUN_ID);
+
+  assert.deepEqual(result.warnings, []);
+});
+
+test('Given an auto-skip record with several parentheticals, when projectProgress runs, then the note is the trailing one', () => {
+  const sut = projectProgress;
+  const lines = ['demo resolve EFFECTIVE: decisions', 'demo decisions auto-skip: decisions (first) then (last)'];
+
+  const result = sut(lines, RUN_ID);
+
+  assert.equal(noteOf(result, 'decisions'), 'last');
+});
+
+test('Given an auto-skip record whose trailing parenthetical is followed by spaces, when projectProgress runs, then the note is still that parenthetical', () => {
+  const sut = projectProgress;
+  const lines = ['demo resolve EFFECTIVE: decisions', 'demo decisions auto-skip: decisions (no candidates)  '];
+
+  const result = sut(lines, RUN_ID);
+
+  assert.equal(noteOf(result, 'decisions'), 'no candidates');
+});
+
+test('Given a phase restarted after its PHASE-DONE, when projectProgress runs, then the in-progress phase carries no note', () => {
+  const sut = projectProgress;
+  const lines = [
+    'demo resolve EFFECTIVE: decisions',
+    'demo decisions PHASE-DONE(decisions): ok',
+    'demo decisions PHASE-START(decisions): 2026-10-27T09:00:00Z',
+  ];
+
+  const result = sut(lines, RUN_ID);
+
+  assert.equal(result.items[0].status, 'in_progress');
+  assert.equal(noteOf(result, 'decisions'), '');
+});
+
+test('Given review findings recorded out of cycle order, when projectProgress runs, then cycles are numerically ordered and only the newest is in progress', () => {
+  const sut = projectProgress;
+  const lines = [
+    'demo resolve EFFECTIVE: review',
+    'demo review PHASE-START(review): 2026-10-27T09:00:00Z',
+    'demo review FINDINGS(code): c3 /x/c3.json n=1',
+    'demo review FINDINGS(code): c10 /x/c10.json n=2',
+    'demo review FINDINGS(code): c1 /x/c1.json n=3',
+    'demo review FINDINGS(code): c2 /x/c2.json n=4',
+  ];
+
+  const result = sut(lines, RUN_ID);
+
+  assert.deepEqual(result.items[0].children, [
+    { label: 'cycle 1', status: 'completed', note: 'n=3' },
+    { label: 'cycle 2', status: 'completed', note: 'n=4' },
+    { label: 'cycle 3', status: 'completed', note: 'n=1' },
+    { label: 'cycle 10', status: 'in_progress', note: 'n=2' },
+  ]);
+});
+
+test('Given the full impacts-and-cycles.md, when projectProgress runs, then only implementation and review carry children', () => {
+  const sut = projectProgress;
+  const lines = readFixture('impacts-and-cycles.md');
+
+  const result = sut(lines, RUN_ID);
+
+  const withChildren = result.items.filter((item) => item.children.length > 0).map((item) => item.id);
+  assert.deepEqual(withChildren, ['implementation', 'review']);
+});
