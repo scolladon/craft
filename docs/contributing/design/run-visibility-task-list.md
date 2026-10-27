@@ -255,8 +255,10 @@ export const register: Register = on => {
   not-yet-written result (E6). The same Bash call appends the seeded lines (`open && append`),
   so the next trigger binds: the workspace `PHASE-START` call, or `turn.complete`. A miss is
   cached against the pointer set's signature (each non-link pointer's name and mtime): an
-  unchanged set is located at most twice, so a session that does not own the live run stops
-  spawning `locate` after its second trigger. The run id is the text before the first space of
+  unchanged set is located at most twice per turn, so a session that does not own the live run
+  stops spawning `locate` after its second trigger. `turn.complete` forgets the miss: every
+  hook of a parallel tool batch runs before the batch's results reach the transcript, so an
+  `open` run beside another call can spend both attempts on a run-key not yet written. The run id is the text before the first space of
   `locate`'s output, and the ledger path is built from the runs dir, so a path holding a space
   binds. On every
   trigger, binding runs before the refresh and the attention update.

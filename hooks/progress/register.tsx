@@ -115,7 +115,15 @@ async function onSessionCompact($: Ctx, surface: Surface) {
   await bindAndRefresh($, surface)
 }
 
+// Every hook of a parallel tool batch runs before the batch's results reach the
+// transcript, so its misses can exhaust the retries; by the turn's end they are written.
+async function forgetLocateMiss($: Ctx) {
+  const { locateMiss } = await read($, progress)
+  if (locateMiss !== null) await commit($, { locateMiss: null })
+}
+
 async function onTurnComplete($: Ctx, surface: Surface) {
+  await forgetLocateMiss($)
   await bindAndRefresh($, surface)
   await setAttention($, view => attentionAfterTurn($, view))
 }
