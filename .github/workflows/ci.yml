@@ -30,6 +30,12 @@ jobs:
       - name: Substrate gate
         run: bash scripts/ci.sh
 
+      - name: Install Claude Code
+        run: npm install -g @anthropic-ai/claude-code@2.1.311
+
+      - name: Run-progress mod gate
+        run: claude plugin validate . && claude plugin test .
+
   readme-drift:
     runs-on: ubuntu-latest
     steps:

@@ -379,7 +379,7 @@ candidates below are the choices left inside it.
 - **Prose pins (CI).** `test/run-record.test.js` gains: the §0 step 4 heredoc holds `EFFECTIVE:`
   between `RESOLVE:` and `AWAITING(propose):`, and the run-record regex table holds the
   `EFFECTIVE:` row.
-- **Mod (local, maintainer smoke, not CI: CI has no `claude`).** `claude plugin validate .` and
+- **Mod (CI-gated: the ci job installs a pinned `claude`; the tests need no credentials).** `claude plugin validate .` and
   `claude plugin test .` from the repo root (E7: only the mod's tests run). Each
   `hooks/progress/*.test.tsx` stubs the engine beneath the plugin, as the plugin-authoring
   example does (`on('process.run'…)`, `on('fs.list'…)`, `on('fs.read'…)`, `on('ui.status'…)`):
