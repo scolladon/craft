@@ -325,3 +325,61 @@ test(
     assert.deepStrictEqual(result, []);
   },
 );
+
+const PURE_PROGRESS_ENTRY = 'engine/src/run-progress.js';
+const NODE_BUILTINS = new Set(require('node:module').builtinModules);
+
+function isNodeBuiltin(specifier) {
+  return specifier.startsWith('node:') || NODE_BUILTINS.has(specifier);
+}
+
+// Walks relative specifiers transitively from the entry, so a built-in
+// imported two hops away is still reported. `readSource` is injected: the real
+// tree and a synthetic map share one code path.
+function detectNodeBuiltinImports(entryFile, readSource) {
+  const visited = new Set();
+  const offenders = [];
+  const pending = [entryFile];
+  while (pending.length > 0) {
+    const file = pending.pop();
+    if (visited.has(file)) continue;
+    visited.add(file);
+    for (const specifier of extractSpecifiers(readSource(file))) {
+      const resolved = resolveSpecifier(file, specifier);
+      if (resolved !== null) pending.push(resolved);
+      else if (isNodeBuiltin(specifier)) offenders.push({ file, specifier });
+    }
+  }
+  return { visited: [...visited], offenders };
+}
+
+test(
+  'Given the real run-progress import closure, when the purity rule runs, then it imports no Node built-in',
+  () => {
+    const sut = detectNodeBuiltinImports;
+
+    const result = sut(PURE_PROGRESS_ENTRY, (file) => fs.readFileSync(path.join(ROOT, file), 'utf8'));
+
+    assert.deepStrictEqual(result.offenders, []);
+    assert.ok(result.visited.includes('engine/src/run-state.js'));
+    assert.ok(result.visited.includes('engine/src/observability/skip-signals.js'));
+  },
+);
+
+test(
+  'Given a synthetic closure whose second hop imports a built-in, when the purity rule runs, then the detector reports it',
+  () => {
+    const sut = detectNodeBuiltinImports;
+    const sources = {
+      'engine/src/a.js': "import { x } from './b.js';",
+      'engine/src/b.js': "import { readFileSync } from 'fs';\nimport { join } from 'node:path';",
+    };
+
+    const result = sut('engine/src/a.js', (file) => sources[file]);
+
+    assert.deepStrictEqual(result.offenders, [
+      { file: 'engine/src/b.js', specifier: 'fs' },
+      { file: 'engine/src/b.js', specifier: 'node:path' },
+    ]);
+  },
+);

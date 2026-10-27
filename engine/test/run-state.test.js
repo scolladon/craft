@@ -520,3 +520,17 @@ test('Given DEFERRED, TRIAGED and FILED lines and impact-triage in effective, wh
   assert.deepEqual(result.state.warnings, []);
   assert.deepEqual(result.state.inFlight.map((entry) => entry.phase), ['impact-triage']);
 });
+
+test('Given with-effective.md, when deriveRunState runs with and without its EFFECTIVE line, then both states are deep-equal', () => {
+  const sut = deriveRunState;
+  const lines = readFixture('with-effective.md');
+  const withoutEffective = lines.filter((line) => !line.includes('EFFECTIVE:'));
+  const resolution = makeResolution(
+    ['workspace', 'design', 'decisions', 'planning', 'implementation', 'review', 'validation', 'propose', 'integrate'],
+    ['validation'],
+  );
+
+  const result = sut(lines, RUN_ID, resolution);
+
+  assert.deepEqual(result, sut(withoutEffective, RUN_ID, resolution));
+});
