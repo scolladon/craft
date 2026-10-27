@@ -69,6 +69,7 @@ function rig(on: On, opts: Opts) {
 }
 
 const bash = (extra: object = {}) => ({ ...ENVELOPE, tool_name: 'Bash', tool_input: {}, tool_response: {}, tool_use_id: 'u', ...extra })
+const turnComplete = () => ({ answer: '', durationMs: 1, isAborted: false, turnId: 't1', reason: 'answer', text: '' })
 
 test('Given a runs dir with no pointer, when a main-loop Bash PostToolUse runs, then only the dir lookup is spawned and no status is set', async ($, on) => {
   const sut = rig(on, { entries: () => [] })
@@ -255,6 +256,23 @@ test('Given locate missed until exhausted, when the transcript changes, then loc
   expect(sut.spawned.filter(argv => argv[2] === 'locate').length).toBe(3)
 })
 
+test('Given a parallel batch spent both locate attempts before its results reached the transcript, when turn.complete runs, then the session binds and the status line is set', async ($, on) => {
+  let isRunKeyWritten = false
+  const sut = rig(on, {
+    entries: () => [POINTER, ledgerEntry(10, 100)],
+    locateStdout: () => (isRunKeyWritten ? `demo ${RUNS}/demo.md\n` : ''),
+  })
+  on('turn.complete', (_, e) => e as never)
+  await $.classic.PostToolUse(bash() as never)
+  await $.classic.PostToolUse(bash() as never)
+  isRunKeyWritten = true
+  await $.classic.PostToolUse(bash() as never)
+
+  await $.turn.complete(turnComplete() as never)
+
+  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 3/9 · waiting on you — planning')
+})
+
 test('Given locate prints a run id with no ledger path, when a trigger runs, then the session does not bind', async ($, on) => {
   const sut = rig(on, { entries: () => [POINTER, ledgerEntry(10, 100)], locateStdout: () => 'demo\n' })
 
@@ -272,4 +290,17 @@ test('Given a runs dir with no pointer, when many triggers run, then state is wr
   for (const _ of [1, 2, 3, 4]) await $.classic.PostToolUse(bash() as never)
 
   expect(writes).toBe(2)
+})
+
+test('Given a runs dir with no pointer, when turn.complete runs, then state is not written', async ($, on) => {
+  rig(on, { entries: () => [] })
+  on('turn.complete', (_, e) => e as never)
+  let writes = 0
+  on('state.set', (_, e, next) => { writes += 1; return next(e) })
+  await $.classic.PostToolUse(bash() as never)
+  const before = writes
+
+  await $.turn.complete(turnComplete() as never)
+
+  expect(writes).toBe(before)
 })
