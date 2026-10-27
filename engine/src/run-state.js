@@ -6,8 +6,9 @@
 
 import { autoSkipPhasesInText } from './observability/skip-signals.js';
 
-const LINE_RE = /^(\S+) (\S+) (.*)$/;
-const PHASE_ID = '[a-z][a-z0-9-]*';
+// dotAll keeps a record holding U+2028/U+2029; equivalent mutant (no `$`): a greedy dotAll `.*` always reaches the end
+const LINE_RE = /^(\S+) (\S+) (.*)$/s;
+export const PHASE_ID = '[a-z][a-z0-9-]*';
 // Dimension and technique ids come from a manifest, which accepts any label a
 // token can carry unambiguously: no parentheses, colon or whitespace.
 const TOKEN_ID = '[^():\\s]+';
@@ -21,13 +22,13 @@ const TOKEN_ID = '[^():\\s]+';
 // whose last group is a fixed `(pass|blocked)` alternation that does NOT
 // self-extend, so dropping it there is observable.
 const AWAITING_RE = /^AWAITING\(propose\): (.+)$/;
-const PHASE_START_RE = new RegExp(`^PHASE-START\\((${PHASE_ID})\\): (\\S+)$`);
-const PHASE_DONE_RE = new RegExp(`^PHASE-DONE\\((${PHASE_ID})\\): (.*)$`);
+export const PHASE_START_RE = new RegExp(`^PHASE-START\\((${PHASE_ID})\\): (\\S+)$`);
+export const PHASE_DONE_RE = new RegExp(`^PHASE-DONE\\((${PHASE_ID})\\): (.*)$`, 's');
 const PART_RE = /^PART\((\d+)\): ([0-9a-f]{7,40}) size=(\S+) outcome=(pass|blocked)$/;
 const FINDINGS_RE = new RegExp(`^FINDINGS\\((${TOKEN_ID})\\): c(\\d+) (\\S+) n=(\\d+)$`);
 const HARNESS_BG_RE = new RegExp(`^HARNESS-BG\\((${PHASE_ID}):(${TOKEN_ID})\\): pid=(\\d+) out=(\\S+) spec=(\\S+)$`);
 const GATE_RE = new RegExp(`^GATE\\((${PHASE_ID})\\): (green|red)$`);
-const NO_OP_RELEASE_RE = new RegExp(`^NO-OP\\((${PHASE_ID})\\):`);
+export const NO_OP_RELEASE_RE = new RegExp(`^NO-OP\\((${PHASE_ID})\\):`);
 
 /**
  * @param {string} line
@@ -45,7 +46,7 @@ function parseRecord(line) {
  * @param {string} runId
  * @returns {{ runId: string, phase: string, record: string }[]}
  */
-function recordsForRun(lines, runId) {
+export function recordsForRun(lines, runId) {
   return lines
     .map(parseRecord)
     .filter((entry) => entry !== null && entry.runId === runId);
@@ -56,7 +57,7 @@ function recordsForRun(lines, runId) {
  * @param {{ record: string }[]} records
  * @returns {string[] | null}
  */
-function lastAwaiting(records) {
+export function lastAwaiting(records) {
   let found = null;
   for (const { record } of records) {
     const match = AWAITING_RE.exec(record);

@@ -466,6 +466,29 @@ craft never writes the user's settings — no script and no orchestrator instruc
 `autoCompactWindow`. Raising the window is a one-time choice you make in your own
 configuration.
 
+### Run progress — pane and status line (Claude Code)
+
+craft ships a Claude Code mod that shows where a run stands. Inside a craft run the line under
+the prompt reads `craft <run-id> · <phase> · <done>/<total> · <attention>`, where `<attention>`
+is one of:
+
+- `working` — the run is mid-turn;
+- `waiting on you — <phase>` — the turn ended or a question is open, and the run needs your input;
+- `waiting on background — <phase>` — the turn ended while a background validation job is alive;
+- `closed` — the run's ledger is gone; the line clears at your next turn.
+
+The `/craft-progress` command opens a pane listing every pipeline item with its state
+(`✓` done, `▸` in progress, `·` pending) and its note, review cycles nested under the review item,
+and a footer counting warnings. On a surface that docks panes the pane opens by itself once the
+session binds to a run; elsewhere only the command opens it.
+
+Mods must be turned on in Claude Code for any of this to draw; with mods off, craft's command
+hooks keep working and only the status line and pane are missing. The mod is read-only — it
+reads the run ledger and never writes it — and fail-open: outside a craft run nothing is
+drawn, and a failure inside the mod is logged at debug level and skipped. A run opened before
+the `EFFECTIVE:` line existed shows only the phases it has reached, plus
+`pipeline list unavailable` in the pane footer.
+
 ---
 
 ## 5. Tailor in one sitting

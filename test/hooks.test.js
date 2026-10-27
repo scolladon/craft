@@ -724,6 +724,16 @@ test(
   },
 );
 
+test('Given hooks/hooks.json, when parsed, then modules lists the progress module, that file exists and the hook events are still declared', () => {
+  const sut = readHooksConfig();
+
+  const result = sut.modules;
+
+  assert.deepStrictEqual(result, ['./progress/register.tsx']);
+  assert.ok(fs.statSync(path.join(HOOKS_DIR, 'progress/register.tsx')).isFile());
+  assert.deepStrictEqual(Object.keys(sut.hooks).sort(), ['PreCompact', 'PreToolUse', 'SessionStart']);
+});
+
 test('Given hooks/hooks.json, when parsed, then PreToolUse binds Bash to the quoted git-no-ext-diff command', () => {
   const sut = readHooksConfig();
 

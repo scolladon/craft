@@ -152,6 +152,7 @@ Input: `$ARGUMENTS`
    ledger="${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/run-ledger.sh"
    "$ledger" open <run-id> && "$ledger" append <run-id> resolve <<'EOF'
    RESOLVE: <craft flags verbatim, or none>
+   EFFECTIVE: <Resolution.effective[].id comma-joined>
    <Resolution.record[] lines>
    <config/load notes from steps 0b and 1c-mem/1c-int>
    <waivers from step 1e>
@@ -201,7 +202,7 @@ Input: `$ARGUMENTS`
 
 Every ledger line opens with a fixed, greppable token. Besides the walk's own
 (`PHASE-START`, `PHASE-DONE`, `NO-OP(<phase>):`, `GATE(<phase>):`, `auto-skip:`, `WAIVER:`,
-`POLICY(...)`, `AWAITING(propose):`, `MODEL-RETRY(<role>):`, `MODEL-DEGRADED(<tier>):`),
+`POLICY(...)`, `AWAITING(propose):`, `EFFECTIVE:`, `MODEL-RETRY(<role>):`, `MODEL-DEGRADED(<tier>):`),
 these are emitted elsewhere — full definitions in
 `docs/contributing/specs/run-record.md` Token vocabulary:
 
