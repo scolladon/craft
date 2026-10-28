@@ -25,3 +25,6 @@
 
 # claude plugin eval results (local runs only, never committed)
 /evals/results/
+
+# written by Claude Code when it loads the mod; extends the self-ignored .claude-plugin/types
+/tsconfig.json
