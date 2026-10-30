@@ -18,7 +18,7 @@ const SMOKE_START = /^## Run-progress mod smoke$/;
 
 const GUIDE_TOKENS = [
   '■',
-  'next',
+  '`next`',
   'waiting on you',
   'waiting on background',
   'mods',
