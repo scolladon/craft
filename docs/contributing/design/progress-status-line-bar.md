@@ -2,7 +2,7 @@
 
 > Brief: remove the run-progress pane and the `/craft-progress` command. The status line becomes
 > the only surface and shows done / working / remaining as a segmented bar:
-> `craft ■■■■■▶□□□□□ 5/11 · ▸ review c2 · next refactoring · waiting on you`. When the line is
+> `craft ■■■■■▶□□□□□ 5/11 · ▸ review c2 · next refactoring · working`. When the line is
 > too narrow, `next` goes first, then the bar. `<done>/<total> · ▸ <phase> · <attention>` always
 > stays. A run with no pipeline list gets no bar and no `next`. This reverses decision 1 (a) of
 > `run-visibility-task-list` (ADR-710), so a new ADR supersedes that choice.
@@ -206,7 +206,7 @@ literal; every glyph is one code point):
 
 | View / attention | Line (cells) |
 |---|---|
-| 11 items, 5 done, review c2, next refactoring, `waiting on you` | `craft ■■■■■▶□□□□□ 5/11 · ▸ review c2 · next refactoring · waiting on you` (72: full) |
+| 11 items, 5 done, review c2, next refactoring, `working` | `craft ■■■■■▶□□□□□ 5/11 · ▸ review c2 · next refactoring · working` (65: full) |
 | same, `waiting on background — review` | full is 88, so: `craft ■■■■■▶□□□□□ 5/11 · ▸ review c2 · waiting on background — review` (69: without `next`) |
 | 12 items, 8 done, `validation ∥ documentation`, next lessons, `working` | `craft ■■■■■■■■▶▶□□ 8/12 · ▸ validation ∥ documentation · next lessons · working` (79: full) |
 | same, `waiting on background — validation` | full 106, without `next` 91, so: `craft 8/12 · ▸ validation ∥ documentation · waiting on background — validation` (78: minimal) |
@@ -311,7 +311,7 @@ Titles are Given/When/Then, bodies are AAA, and the unit under test is `sut`. A 
 - **`hooks/progress/status-line.test.tsx` (new, pure, P1).** It imports `statusLine` and builds
   `ProgressView` literals. No `$` stubs.
   1. Effective view, 11 items, 5 done, review `in_progress` with cycle 2 `in_progress`, next
-     `refactoring`, `waiting on you` → the 72-cell full worked example (R1–R4).
+     `refactoring`, `working` → the 65-cell full worked example (R1–R4).
   2. Bar glyphs: completed, in_progress and pending map to `■▶□` in item order, and two
      in_progress items give `▶▶` (R2).
   3. Parallel in-flight `validation`, `documentation` → `▸ validation ∥ documentation` (R3).

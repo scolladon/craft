@@ -472,7 +472,7 @@ craft ships a Claude Code mod that shows where a run stands. Inside a craft run 
 the prompt reads:
 
 ```
-craft ■■■■■▶□□□□□ 5/11 · ▸ review c2 · next refactoring · waiting on you
+craft ■■■■■▶□□□□□ 5/11 · ▸ review c2 · next refactoring · working
 ```
 
 - the bar has one cell per pipeline phase: `■` done, `▶` in progress, `□` pending;

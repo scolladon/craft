@@ -9,7 +9,9 @@ const NEXT_LABEL = 'next '
 export const DONE_LABEL = 'done'
 const REVIEW = 'review'
 const CYCLE_LABEL = /^cycle (\d+)$/
-const IN_PROGRESS = 'in_progress'
+const COMPLETED: ProgressItem['status'] = 'completed'
+const IN_PROGRESS: ProgressItem['status'] = 'in_progress'
+const PENDING: ProgressItem['status'] = 'pending'
 const BAR_GLYPHS: Record<ProgressItem['status'], string> = {
   completed: '■',
   in_progress: '▶',
@@ -17,7 +19,7 @@ const BAR_GLYPHS: Record<ProgressItem['status'], string> = {
 }
 
 export function completedCount(view: ProgressView): number {
-  return view.items.filter(item => item.status === 'completed').length
+  return view.items.filter(item => item.status === COMPLETED).length
 }
 
 function bar(items: ProgressItem[]): string {
@@ -48,7 +50,7 @@ function phaseSegment(view: ProgressView): string {
 function nextSegment(view: ProgressView): string | null {
   const named = namedPhases(view)
   const upcoming = view.items.find(
-    item => item.status === 'pending' && !named.includes(item.id),
+    item => item.status === PENDING && !named.includes(item.id),
   )
   return upcoming === undefined ? null : NEXT_LABEL + upcoming.id
 }
