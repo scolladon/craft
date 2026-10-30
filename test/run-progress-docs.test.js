@@ -12,23 +12,26 @@ const CI_WORKFLOW = path.join(ROOT, '.github/workflows/ci.yml');
 const yaml = require(path.join(ROOT, 'engine/node_modules/js-yaml'));
 const PINNED_CLAUDE = /^npm install -g @anthropic-ai\/claude-code@\d+\.\d+\.\d+$/m;
 
-const GUIDE_START = /^### Run progress — pane and status line \(Claude Code\)$/;
+const GUIDE_START = /^### Run progress — status line \(Claude Code\)$/;
 const GUIDE_END = /^#{2,3} |^---$/;
 const SMOKE_START = /^## Run-progress mod smoke$/;
 
 const GUIDE_TOKENS = [
-  '/craft-progress',
+  '■',
+  'next',
   'waiting on you',
   'waiting on background',
   'mods',
-  'pipeline list unavailable',
+  'craft <run-id>',
 ];
+const GUIDE_GONE = ['/craft-progress', 'pane'];
 const SMOKE_TOKENS = ['claude plugin validate', 'claude plugin test', '--plugin-dir', 'mods off'];
 
-test('Given the customizing guide, when the run-progress subsection is sliced, then it names /craft-progress, the status line, the attention values and that mods must be on', () => {
+test('Given the customizing guide, when the run-progress subsection is sliced, then it names the bar, the attention values, the ledger-only line and that mods must be on, and no longer the pane', () => {
   const sut = sliceRegion(fs.readFileSync(CUSTOMIZING_PATH, 'utf8'), GUIDE_START, GUIDE_END);
 
   for (const token of GUIDE_TOKENS) assert.ok(sut.includes(token), `missing ${token}`);
+  for (const token of GUIDE_GONE) assert.ok(!sut.includes(token), `still names ${token}`);
 });
 
 test('Given the maintainer smokes, when the run-progress smoke is sliced, then it names claude plugin validate, claude plugin test, --plugin-dir and the mods-off check', () => {

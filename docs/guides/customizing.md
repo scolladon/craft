@@ -466,28 +466,38 @@ craft never writes the user's settings — no script and no orchestrator instruc
 `autoCompactWindow`. Raising the window is a one-time choice you make in your own
 configuration.
 
-### Run progress — pane and status line (Claude Code)
+### Run progress — status line (Claude Code)
 
 craft ships a Claude Code mod that shows where a run stands. Inside a craft run the line under
-the prompt reads `craft <run-id> · <phase> · <done>/<total> · <attention>`, where `<attention>`
-is one of:
+the prompt reads:
 
-- `working` — the run is mid-turn;
-- `waiting on you — <phase>` — the turn ended or a question is open, and the run needs your input;
-- `waiting on background — <phase>` — the turn ended while a background validation job is alive;
-- `closed` — the run's ledger is gone; the line clears at your next turn.
+```
+craft ■■■■■▶□□□□□ 5/11 · ▸ review c2 · next refactoring · waiting on you
+```
 
-The `/craft-progress` command opens a pane listing every pipeline item with its state
-(`✓` done, `▸` in progress, `·` pending) and its note, review cycles nested under the review item,
-and a footer counting warnings. On a surface that docks panes the pane opens by itself once the
-session binds to a run; elsewhere only the command opens it.
+- the bar has one cell per pipeline phase: `■` done, `▶` in progress, `□` pending;
+- `5/11` counts done phases over total phases;
+- `▸` names the phase in flight; parallel phases are joined with `∥`, a review cycle shows as `c<n>`;
+- `next` names the first pending phase not already shown after `▸`;
+- the last field is the attention value:
+  - `working` — the run is mid-turn;
+  - `waiting on you — <phase>` — the turn ended or a question is open, and the run needs your input;
+  - `waiting on background — <phase>` — the turn ended while a background validation job is alive;
+  - `closed` — the run's ledger is gone; the line clears at your next turn.
 
-Mods must be turned on in Claude Code for any of this to draw; with mods off, craft's command
-hooks keep working and only the status line and pane are missing. The mod is read-only — it
-reads the run ledger and never writes it — and fail-open: outside a craft run nothing is
-drawn, and a failure inside the mod is logged at debug level and skipped. A run opened before
-the `EFFECTIVE:` line existed shows only the phases it has reached, plus
-`pipeline list unavailable` in the pane footer.
+The line fits 80 cells whatever the terminal. Past that, `next` goes first, then the bar;
+`<done>/<total> · ▸ <phase> · <attention>` always stays. A terminal narrower than 80 columns may
+clip or wrap it.
+
+A run opened before the `EFFECTIVE:` line existed shows
+`craft <run-id> · <phase> · <done>/<total> · <attention>`, with no bar and no `next`.
+
+For more detail than the line gives, ask Claude in the chat.
+
+Mods must be turned on in Claude Code for the line to draw; with mods off, craft's command
+hooks keep working and only the status line is missing. The mod is read-only — it reads the run
+ledger and never writes it — and fail-open: outside a craft run nothing is drawn, and a failure
+inside the mod is logged at debug level and skipped.
 
 ---
 
