@@ -723,3 +723,7 @@ run-visibility-task-list implementation turns=138 tool_calls=143 tokens=7695009 
 run-visibility-task-list planning turns=82 tool_calls=89 tokens=9197276 duration_ms=1153509 cache_read=8927165 cache_creation=185823 output=84124 avg_ctx=111136 equiv=1545779
 run-visibility-task-list review turns=106 tool_calls=117 tokens=4728993 duration_ms=998891 cache_read=4321852 cache_creation=337086 output=69843 avg_ctx=43954 equiv=1202970
 run-visibility-task-list validation turns=15 tool_calls=16 tokens=468102 duration_ms=259354 cache_read=421815 cache_creation=37424 output=8833 avg_ctx=30618 equiv=133157
+progress-status-line-bar design turns=70 tool_calls=89 tokens=4169197 duration_ms=865746 cache_read=3943248 cache_creation=166228 output=59581 avg_ctx=58709 equiv=900155
+progress-status-line-bar implementation turns=25 tool_calls=27 tokens=777347 duration_ms=359146 cache_read=669179 cache_creation=90905 output=17213 avg_ctx=30405 equiv=266664
+progress-status-line-bar planning turns=28 tool_calls=31 tokens=2172755 duration_ms=397507 cache_read=2027597 cache_creation=109760 output=35342 avg_ctx=76336 equiv=516726
+progress-status-line-bar review turns=47 tool_calls=49 tokens=1437382 duration_ms=295063 cache_read=1222341 cache_creation=194418 output=20529 avg_ctx=30146 equiv=467996
