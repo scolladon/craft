@@ -33,7 +33,6 @@ export const UNBOUND: Patch = {
   gate: null,
   view: null,
   attention: '',
-  isPaneOpened: false,
 }
 
 type Entry = { name: string; size: number; mtimeMs: number; isLink?: boolean }

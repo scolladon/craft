@@ -13,17 +13,11 @@ import {
   WORKING,
 } from './bind'
 import type { Host, Patch } from './bind'
-import { PANE, PANE_TITLE, progressPane } from './pane'
 import type { ProgressState, ProgressView } from './state'
 
-const SHAPE = 'progress-2'
+const SHAPE = 'progress-3'
 const BASH_TOOL = 'Bash'
 const ASK_TOOL = 'AskUserQuestion'
-const COMMAND_NAME = 'craft-progress'
-const COMMAND = {
-  name: COMMAND_NAME,
-  description: 'Show the progress of the current craft run in a pane',
-}
 const EMPTY: ProgressState = {
   envelope: null,
   runsDir: { kind: 'unknown' },
@@ -32,7 +26,6 @@ const EMPTY: ProgressState = {
   gate: null,
   view: null,
   attention: '',
-  isPaneOpened: false,
 }
 
 const progress = atom({ plugin: 'craft', key: 'progress' } as const, EMPTY, {
@@ -40,7 +33,6 @@ const progress = atom({ plugin: 'craft', key: 'progress' } as const, EMPTY, {
 })
 
 type Ctx = Host & StateDollar
-type Surface = { isDocked: boolean }
 type MainLoopEnvelope = { transcript_path: string; cwd: string }
 
 function showStatus($: Ctx, before: ProgressState, after: ProgressState) {
@@ -70,17 +62,9 @@ async function cacheEnvelope($: Ctx, e: MainLoopEnvelope) {
   await commit($, { envelope: next, locateMiss: null })
 }
 
-async function openPaneOnce($: Ctx, surface: Surface) {
-  const state = await read($, progress)
-  if (!surface.isDocked || state.binding === null || state.isPaneOpened) return
-  await commit($, { isPaneOpened: true })
-  await $.ui.open({ id: PANE, title: PANE_TITLE })
-}
-
-async function bindAndRefresh($: Ctx, surface: Surface) {
+async function bindAndRefresh($: Ctx) {
   const bound = await commit($, await bind($, await read($, progress)))
   await commit($, await refresh($, bound))
-  await openPaneOnce($, surface)
 }
 
 async function refreshBound($: Ctx) {
@@ -103,16 +87,16 @@ async function onSessionEnd($: Ctx) {
   await commit($, { ...UNBOUND, envelope: null, locateMiss: null })
 }
 
-async function onTurnStart($: Ctx, surface: Surface) {
+async function onTurnStart($: Ctx) {
   const { attention } = await read($, progress)
   if (attention === CLOSED) return commit($, UNBOUND)
-  await bindAndRefresh($, surface)
+  await bindAndRefresh($)
   await setAttention($, () => WORKING)
 }
 
-async function onSessionCompact($: Ctx, surface: Surface) {
+async function onSessionCompact($: Ctx) {
   await commit($, { gate: null })
-  await bindAndRefresh($, surface)
+  await bindAndRefresh($)
 }
 
 // Every hook of a parallel tool batch runs before the batch's results reach the
@@ -122,69 +106,56 @@ async function forgetLocateMiss($: Ctx) {
   if (locateMiss !== null) await commit($, { locateMiss: null })
 }
 
-async function onTurnComplete($: Ctx, surface: Surface) {
+async function onTurnComplete($: Ctx) {
   await forgetLocateMiss($)
-  await bindAndRefresh($, surface)
+  await bindAndRefresh($)
   await setAttention($, view => attentionAfterTurn($, view))
 }
 
-async function onAsk($: Ctx, surface: Surface) {
-  await bindAndRefresh($, surface)
+async function onAsk($: Ctx) {
+  await bindAndRefresh($)
   await setAttention($, waitingOnYou)
 }
 
-async function onMainLoop($: Ctx, surface: Surface, e: MainLoopEnvelope) {
+async function onMainLoop($: Ctx, e: MainLoopEnvelope) {
   await cacheEnvelope($, e)
-  await bindAndRefresh($, surface)
+  await bindAndRefresh($)
 }
 
-function onBash(
-  $: Ctx,
-  surface: Surface,
-  e: MainLoopEnvelope & { agent_id?: string },
-) {
-  return e.agent_id === undefined
-    ? onMainLoop($, surface, e)
-    : refreshBound($)
+function onBash($: Ctx, e: MainLoopEnvelope & { agent_id?: string }) {
+  return e.agent_id === undefined ? onMainLoop($, e) : refreshBound($)
 }
 
 export const register: Register = on => {
-  // Docking is only visible to a render, and a render may not write state, so the
-  // AbovePrompt draw records it here; after a reload it reads false until the next draw.
-  const surface: Surface = { isDocked: false }
-
   on('classic.SessionStart', async ($, e, next) => {
-    await failOpen($, 'classic.SessionStart', async () => {
-      await $.command.register(COMMAND)
-      await onMainLoop($, surface, e)
-    })
+    await failOpen($, 'classic.SessionStart', () => onMainLoop($, e))
     return next(e)
   })
 
   on('classic.PostToolUse', async ($, e, next) => {
     if (e.tool_name === BASH_TOOL) {
-      await failOpen($, 'classic.PostToolUse', () => onBash($, surface, e))
+      await failOpen($, 'classic.PostToolUse', () => onBash($, e))
     }
     return next(e)
   })
 
   on('turn.start', async ($, e, next) => {
     if (e.agentId === undefined) {
-      await failOpen($, 'turn.start', () => onTurnStart($, surface))
+      await failOpen($, 'turn.start', () => onTurnStart($))
     }
     return next(e)
   })
 
   on('turn.complete', async ($, e, next) => {
     if (e.agentId === undefined) {
-      await failOpen($, 'turn.complete', () => onTurnComplete($, surface))
+      await failOpen($, 'turn.complete', () => onTurnComplete($))
     }
     return next(e)
   })
 
   on('tool.call', async ($, e, next) => {
     if (e.tool !== ASK_TOOL) return next(e)
-    await failOpen($, 'tool.call', () => onAsk($, surface))
+    await failOpen($, 'tool.call', () => onAsk($))
     try {
       return await next(e)
     } finally {
@@ -194,28 +165,12 @@ export const register: Register = on => {
 
   on('session.compact', async ($, e, next) => {
     const compacted = await next(e)
-    await failOpen($, 'session.compact', () => onSessionCompact($, surface))
+    await failOpen($, 'session.compact', () => onSessionCompact($))
     return compacted
   })
 
   on('session.end', async ($, e, next) => {
     await failOpen($, 'session.end', () => onSessionEnd($))
     return next(e)
-  })
-
-  on('command.run', { command: COMMAND_NAME }, async $ => {
-    await $.ui.open({ id: PANE, title: PANE_TITLE })
-    return { text: 'craft run progress pane opened.' }
-  })
-
-  on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
-    surface.isDocked = e.viewport?.isFullscreen === true
-    return next(e)
-  })
-
-  on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e, next) => {
-    const { view } = await read($, progress)
-    if (view === null) return next(e)
-    return progressPane($.ui.resolve(e), view, e.props.bodyColumns)
   })
 }
