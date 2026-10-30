@@ -54,7 +54,7 @@ test('Given a bound session and an unchanged ledger entry, when session.compact 
   await $.session.compact(compact() as never)
 
   expect(sut.reads).toBe(2)
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation')
 })
 
 test('Given session.end, when it runs, then the status line is cleared and the next trigger re-runs locate', async ($, on) => {
@@ -78,7 +78,7 @@ test('Given a bound session whose ledger entry is gone from the listing, when a 
   const closed = sut.statuses.at(-1)
   await $.turn.start(turnStart() as never)
 
-  expect(closed).toBe('craft demo · planning · 1/3 · closed')
+  expect(closed).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation · closed')
   expect(sut.statuses.at(-1)).toBeUndefined()
 })
 
@@ -105,7 +105,7 @@ test('Given the ledger read is refused, when a trigger runs, then the previous v
 
   await $.classic.PostToolUse(bash() as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation')
   expect(sut.logs.some(line => line.startsWith('debug|'))).toBe(true)
 })
 

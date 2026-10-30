@@ -94,7 +94,7 @@ test('Given a pointer and a locate stdout, when a main-loop Bash PostToolUse run
 
   await $.classic.PostToolUse(bash() as never)
 
-  expect(sut.statuses).toEqual(['craft demo · planning · 3/9'])
+  expect(sut.statuses).toEqual(['craft ■■■▶□□□□□ 3/9 · ▸ planning · next implementation'])
 })
 
 test('Given a bound session and an unchanged ledger entry, when a second trigger runs, then the ledger is not re-read', async ($, on) => {
@@ -116,7 +116,7 @@ test('Given the ledger entry changed, when a trigger runs, then it is re-read an
 
   await $.classic.PostToolUse(bash() as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · implementation · 4/9')
+  expect(sut.statuses.at(-1)).toBe('craft ■■■■□□□□□ 4/9 · ▸ implementation · next review')
 })
 
 test('Given an unbound session, when a PostToolUse carrying agent_id runs, then locate is never spawned', async ($, on) => {
@@ -137,7 +137,7 @@ test('Given a bound session, when a sub-agent PostToolUse runs and the entry cha
 
   await $.classic.PostToolUse(bash({ agent_id: 'a1' }) as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · implementation · 4/9')
+  expect(sut.statuses.at(-1)).toBe('craft ■■■■□□□□□ 4/9 · ▸ implementation · next review')
 })
 
 test('Given a non-Bash PostToolUse, when it runs, then nothing is spawned', async ($, on) => {
@@ -176,7 +176,7 @@ test('Given a runs dir whose path holds a space, when the session binds, then th
   await $.classic.PostToolUse(bash() as never)
 
   expect(sut.readPaths).toEqual(['/my repo/runs/demo.md'])
-  expect(sut.statuses).toEqual(['craft demo · planning · 3/9'])
+  expect(sut.statuses).toEqual(['craft ■■■▶□□□□□ 3/9 · ▸ planning · next implementation'])
 })
 
 test('Given a bound session, when only the ledger size changes, then the ledger is re-read', async ($, on) => {
@@ -270,7 +270,7 @@ test('Given a parallel batch spent both locate attempts before its results reach
 
   await $.turn.complete(turnComplete() as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 3/9 · waiting on you — planning')
+  expect(sut.statuses.at(-1)).toBe('craft ■■■▶□□□□□ 3/9 · ▸ planning · waiting on you — planning')
 })
 
 test('Given locate prints a run id with no ledger path, when a trigger runs, then the session does not bind', async ($, on) => {
@@ -303,4 +303,33 @@ test('Given a runs dir with no pointer, when turn.complete runs, then state is n
   await $.turn.complete(turnComplete() as never)
 
   expect(writes).toBe(before)
+})
+
+const LEDGER_ONLY_TEXT = () => [
+  '# craft run record (append-only)',
+  'demo workspace PHASE-START(workspace): 2026-10-27T09:00:00Z',
+  'demo workspace PHASE-DONE(workspace): worktree',
+  'demo planning PHASE-START(planning): 2026-10-27T09:10:00Z',
+].join('\n')
+
+test('Given a bound ledger with no effective line, when a trigger runs, then the pushed line has no bar glyph and no next', async ($, on) => {
+  const sut = rig(on, { entries: () => [POINTER, ledgerEntry(10, 100)], text: LEDGER_ONLY_TEXT })
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.statuses).toEqual(['craft demo · planning · 1/2'])
+})
+
+const LONG_RUN_ID = 'a-run-with-an-id-long-enough-to-push-the-legacy-line-past-eighty-cells'
+
+test('Given a ledger-only run whose id pushes the old line past 80 cells, when a trigger runs, then the line is pushed whole', async ($, on) => {
+  const sut = rig(on, {
+    entries: () => [POINTER, { name: `${LONG_RUN_ID}.md`, kind: 'file', size: 100, mtimeMs: 10, isLink: false }],
+    locateStdout: () => `${LONG_RUN_ID} ${RUNS}/${LONG_RUN_ID}.md\n`,
+    text: () => LEDGER_ONLY_TEXT().replaceAll('demo ', `${LONG_RUN_ID} `),
+  })
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.statuses).toEqual([`craft ${LONG_RUN_ID} · planning · 1/2`])
 })

@@ -65,7 +65,7 @@ test('Given a bound session, when turn.start runs on the main loop, then the sta
 
   await $.turn.start(turnStart() as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · working')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation · working')
 })
 
 test('Given a bound session in planning, when turn.complete runs without agentId, then the status line ends with waiting on you and the phase', async ($, on) => {
@@ -75,7 +75,7 @@ test('Given a bound session in planning, when turn.complete runs without agentId
 
   await $.turn.complete(turnComplete() as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · waiting on you — planning')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation · waiting on you — planning')
 })
 
 test('Given a bound session that is working, when turn.complete runs with an agentId, then the attention is unchanged', async ($, on) => {
@@ -87,7 +87,7 @@ test('Given a bound session that is working, when turn.complete runs with an age
   await $.turn.complete(turnComplete({ agentId: 'a1' }) as never)
 
   expect(sut.statuses.length).toBe(before)
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · working')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation · working')
 })
 
 test('Given an unbound session, when turn.start and turn.complete run, then no status is set', async ($, on) => {
@@ -106,7 +106,7 @@ test('Given an in-flight validation holding an alive background pid, when turn.c
   await $.turn.complete(turnComplete() as never)
 
   expect(sut.probed).toEqual(['kill -0 4242'])
-  expect(sut.statuses.at(-1)).toBe('craft demo · validation · 1/3 · waiting on background — validation')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ validation · next propose · waiting on background — validation')
 })
 
 test('Given the background pid is dead, when turn.complete runs, then the status line ends with waiting on you and the phase', async ($, on) => {
@@ -115,7 +115,7 @@ test('Given the background pid is dead, when turn.complete runs, then the status
 
   await $.turn.complete(turnComplete() as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · validation · 1/3 · waiting on you — validation')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ validation · next propose · waiting on you — validation')
 })
 
 test('Given the kill probe throws, when turn.complete runs, then the pid counts as dead and one debug line names the failure', async ($, on) => {
@@ -124,7 +124,7 @@ test('Given the kill probe throws, when turn.complete runs, then the pid counts 
 
   await $.turn.complete(turnComplete() as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · validation · 1/3 · waiting on you — validation')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ validation · next propose · waiting on you — validation')
   expect(sut.logs.filter(line => line.startsWith('debug|') && line.includes('kill exploded')).length).toBe(1)
 })
 
@@ -135,8 +135,8 @@ test('Given a bound session, when an AskUserQuestion tool call is open, then the
 
   await $.tool.call({ tool: 'AskUserQuestion', questions: [] } as never)
 
-  expect(sut.seenByAsk).toEqual(['craft demo · planning · 1/3 · waiting on you — planning'])
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · working')
+  expect(sut.seenByAsk).toEqual(['craft ■▶□ 1/3 · ▸ planning · next implementation · waiting on you — planning'])
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation · working')
 })
 
 test('Given a background pid of one, when turn.complete runs, then no kill probe runs and the status ends with waiting on you', async ($, on) => {
@@ -147,7 +147,7 @@ test('Given a background pid of one, when turn.complete runs, then no kill probe
   await $.turn.complete(turnComplete() as never)
 
   expect(sut.probed).toEqual([])
-  expect(sut.statuses.at(-1)).toBe('craft demo · validation · 1/3 · waiting on you — validation')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ validation · next propose · waiting on you — validation')
 })
 
 test('Given a background pid of zero, when turn.complete runs, then no kill probe runs and the status ends with waiting on you', async ($, on) => {
@@ -158,7 +158,7 @@ test('Given a background pid of zero, when turn.complete runs, then no kill prob
   await $.turn.complete(turnComplete() as never)
 
   expect(sut.probed).toEqual([])
-  expect(sut.statuses.at(-1)).toBe('craft demo · validation · 1/3 · waiting on you — validation')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ validation · next propose · waiting on you — validation')
 })
 
 test('Given a bound session waiting on you, when turn.start carries an agentId, then the status still says waiting on you', async ($, on) => {
@@ -168,7 +168,7 @@ test('Given a bound session waiting on you, when turn.start carries an agentId, 
 
   await $.turn.start(turnStart({ agentId: 'a1' }) as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · waiting on you — planning')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation · waiting on you — planning')
 })
 
 test('Given a sub-agent refresh still reading the ledger, when turn.complete lands meanwhile, then the waiting attention survives the refresh', async ($, on) => {
@@ -190,5 +190,5 @@ test('Given a sub-agent refresh still reading the ledger, when turn.complete lan
   release()
   await refreshing
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3 · waiting on you — planning')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation · waiting on you — planning')
 })
