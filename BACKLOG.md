@@ -270,7 +270,7 @@ Delivered 2026-10-27 (run-visibility-task-list): no task-list tool reaches the o
 pure `engine/src/run-progress.js` into a pane (`/craft-progress`) and a status line, with
 `waiting on you` / `waiting on background` derived from host events. The ledger gains one seeded
 `EFFECTIVE:` token; there is no `Progress` port. Design:
-docs/contributing/design/run-visibility-task-list.md; ADR-710 (superseded by ADR-718) to ADR-717.
+docs/contributing/design/run-visibility-task-list.md; ADR-711 to ADR-717; its pane decision is superseded by ADR-718.
 
 ### Open — C. Waiting on an external trigger
 
