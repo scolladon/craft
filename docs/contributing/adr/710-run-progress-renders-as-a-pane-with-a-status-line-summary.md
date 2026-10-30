@@ -4,9 +4,12 @@ subjects:
 ---
 # 710 — Run progress renders as a pane with a status-line summary
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-718
 - **Date:** 2026-10-27
 - **Design:** docs/contributing/design/run-visibility-task-list.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-718.** The pane, its unasked opening, and the `/craft-progress` command
+> are removed; the status line stays as the run's summary surface.
 
 ## Context
 

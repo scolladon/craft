@@ -14,14 +14,42 @@ const LEDGER_LINES = [
   'demo workspace PHASE-DONE(workspace): worktree',
   'demo planning PHASE-START(planning): 2026-10-27T09:10:00Z',
 ]
+const PANE = {
+  plugin: 'craft',
+  component: 'Pane',
+  requestId: 'craft-progress',
+  surface: 'terminal',
+  props: {
+    title: 'craft run',
+    isFocused: false,
+    bodyColumns: 60,
+    placement: 'dock',
+    scroll: { offset: 0, bodyRows: 20 },
+    view: {},
+  },
+} as const
+const BAND = {
+  plugin: 'craft',
+  component: 'AbovePrompt',
+  requestId: 'band',
+  props: { hasSurvey: false, isWorking: false, maxRows: 10, bodyColumns: 100, scroll: { offset: 0, bodyRows: 10 } },
+} as const
+const docked = (isFullscreen: boolean) => ({ columns: 200, rows: 50, isFullscreen })
 const result = (exitCode: number, stdout: string) => ({
   value: { exitCode, stdout, stderr: '', isStdoutTruncated: false, isStderrTruncated: false },
 })
 
-type Rig = { spawned: string[][]; statuses: (string | undefined)[]; logs: string[]; reads: number }
+type Rig = {
+  spawned: string[][]
+  statuses: (string | undefined)[]
+  logs: string[]
+  reads: number
+  registered: string[]
+  opened: string[]
+}
 
 function rig(on: On, entries: () => unknown[], readFails: () => boolean = () => false) {
-  const state: Rig = { spawned: [], statuses: [], logs: [], reads: 0 }
+  const state: Rig = { spawned: [], statuses: [], logs: [], reads: 0, registered: [], opened: [] }
   on('process.run', (_, e) => {
     state.spawned.push([...e.argv])
     return result(0, e.argv[2] === 'dir' ? `${RUNS}\n` : `demo ${LEDGER}\n`)
@@ -34,6 +62,13 @@ function rig(on: On, entries: () => unknown[], readFails: () => boolean = () => 
   })
   on('ui.status', (_, e) => { state.statuses.push(e.text); return { value: undefined } })
   on('ui.log', (_, e) => { state.logs.push(`${e.to}|${e.text}`); return { value: undefined } })
+  on('command.register', (_, e) => { state.registered.push(e.name); return { value: { command: e.name } } })
+  on('ui.open', (_, e) => { state.opened.push(e.id); return { value: { isPlaced: true } } })
+  on('ui.render', ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>engine</Text>
+  })
+  on('classic.SessionStart', (_, e) => e)
   on('turn.start', (_, e) => ({ turnId: e.turnId }))
   on('classic.PostToolUse', (_, e) => e)
   on('session.compact', (_, e) => ({ messages: e.messages }))
@@ -54,7 +89,7 @@ test('Given a bound session and an unchanged ledger entry, when session.compact 
   await $.session.compact(compact() as never)
 
   expect(sut.reads).toBe(2)
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation')
 })
 
 test('Given session.end, when it runs, then the status line is cleared and the next trigger re-runs locate', async ($, on) => {
@@ -78,7 +113,7 @@ test('Given a bound session whose ledger entry is gone from the listing, when a 
   const closed = sut.statuses.at(-1)
   await $.turn.start(turnStart() as never)
 
-  expect(closed).toBe('craft demo · planning · 1/3 · closed')
+  expect(closed).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation · closed')
   expect(sut.statuses.at(-1)).toBeUndefined()
 })
 
@@ -105,7 +140,7 @@ test('Given the ledger read is refused, when a trigger runs, then the previous v
 
   await $.classic.PostToolUse(bash() as never)
 
-  expect(sut.statuses.at(-1)).toBe('craft demo · planning · 1/3')
+  expect(sut.statuses.at(-1)).toBe('craft ■▶□ 1/3 · ▸ planning · next implementation')
   expect(sut.logs.some(line => line.startsWith('debug|'))).toBe(true)
 })
 
@@ -120,4 +155,42 @@ test('Given the ledger entry is a link, when later triggers run, then locate is 
   await $.classic.PostToolUse(bash() as never)
 
   expect(spawnedLocates(sut)).toBe(1)
+})
+
+test('Given a session start, when it runs, then no command is registered', async ($, on) => {
+  const sut = rig(on, () => [POINTER, ENTRY])
+
+  await $.classic.SessionStart({ ...ENVELOPE, source: 'startup' } as never)
+
+  expect(sut.registered).toEqual([])
+})
+
+test('Given a fullscreen AbovePrompt band was drawn, when the session binds, then no pane is opened', async ($, on) => {
+  const sut = rig(on, () => [POINTER, ENTRY])
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal', viewport: docked(true) } as never)
+
+  await $.classic.PostToolUse(bash() as never)
+
+  expect(sut.opened).toEqual([])
+  await band.unmount()
+})
+
+test('Given a fullscreen band, when it mounts, then neither a status nor a pane is pushed by the mount', async ($, on) => {
+  const sut = rig(on, () => [POINTER, ENTRY])
+
+  const band = await $.ui.mount({ ...BAND, surface: 'terminal', viewport: docked(true) } as never)
+
+  expect(sut.statuses).toEqual([])
+  expect(sut.opened).toEqual([])
+  await band.unmount()
+})
+
+test('Given a bound session, when the craft-progress Pane is mounted, then the engine own content renders', async ($, on) => {
+  rig(on, () => [POINTER, ENTRY])
+  await $.classic.PostToolUse(bash() as never)
+
+  const sut = await $.ui.mount(PANE)
+
+  expect(await sut.find({ type: 'Text', text: 'engine' })).toBeDefined()
+  await sut.unmount()
 })

@@ -487,13 +487,13 @@ claude plugin test .
 The live check below stays by hand — not CI-gated. Live check: in a throwaway git repo run `claude --plugin-dir <worktree>` and approve the prompt
 to turn mods on. Have the session run `run-ledger.sh open demo`, then append a seeded block
 holding an `EFFECTIVE:` line and some `PHASE-START` / `PHASE-DONE` lines. Confirm the status
-line and the `/craft-progress` pane follow the ledger and survive `/compact`. Then confirm
+line's bar, count and `▸` phase follow the ledger and survive `/compact`. Then confirm
 craft's command hooks fire without the mod: copy the worktree without `.git`, drop `modules`
 from the copy's `hooks/hooks.json` (`jq 'del(.modules)'`), start `claude --plugin-dir <copy>`, and
 check that the PreToolUse guard refuses a `git diff` without `--no-ext-diff`. A `--plugin-dir`
 module loads with no prompt, and no flag or setting switches it off, so the copy stands in for
-mods off. Record whether the pane auto-opens on a fullscreen terminal and stays closed on the
-main screen.
+mods off. Record, at a terminal narrower than 80 columns, whether the status line clips or
+wraps, and whether a pinned engine notice on the status row shortens the visible line.
 
 Run 2026-10-27 (Claude Code 2.1.311): the status line followed `open` + seeded block
 (`design · 1/5`) and an appended `PHASE-DONE` / `PHASE-START` (`planning · 2/5`); the status line
@@ -502,3 +502,6 @@ closed on the main screen; with the module present and with it absent, the guard
 `git diff HEAD`. A `run-ledger.sh open` run in parallel with another fast Bash call lost the
 transcript race in 3 of 3 `claude -p` probes: both locate attempts missed and the status stayed
 unset. Fixed in PR #100: `turn.complete` forgets the miss.
+
+The pane and `/craft-progress` named in this record were removed later; the status line now
+carries the bar and is the mod's only surface.

@@ -7,6 +7,7 @@ import type {
   ProgressView,
   RunsDir,
 } from './state'
+import { DONE_LABEL, completedCount, statusLine } from './status-line'
 
 export const LOCATE_TIMEOUT_MS = 5_000
 export const DIR_TIMEOUT_MS = 5_000
@@ -14,7 +15,6 @@ export const POINTER_SUFFIX = '.pointer'
 export const LEDGER_SUFFIX = '.md'
 const LEDGER_SCRIPT = 'scripts/run-ledger.sh'
 const LOG_PLUGIN = 'craft'
-const DONE_LABEL = 'done'
 const RUN_KEY_SEPARATOR = ' '
 // The pointer lands one tool call before the transcript holds its run-key, so a new
 // pointer set earns one retry before its miss is trusted.
@@ -33,7 +33,6 @@ export const UNBOUND: Patch = {
   gate: null,
   view: null,
   attention: '',
-  isPaneOpened: false,
 }
 
 type Entry = { name: string; size: number; mtimeMs: number; isLink?: boolean }
@@ -114,11 +113,7 @@ function currentPhase(view: ProgressView): string {
   return view.inFlight[0] ?? view.next ?? DONE_LABEL
 }
 
-function completedCount(view: ProgressView): number {
-  return view.items.filter(item => item.status === 'completed').length
-}
-
-export function statusLine(
+function legacyStatusLine(
   runId: string,
   view: ProgressView,
   attention: string,
@@ -130,7 +125,8 @@ export function statusLine(
 export function statusText(state: ProgressState): string | undefined {
   const { binding, view } = state
   if (binding === null || view === null) return undefined
-  return statusLine(binding.runId, view, state.attention)
+  if (view.source === 'effective') return statusLine(view, state.attention)
+  return legacyStatusLine(binding.runId, view, state.attention)
 }
 
 function sameGate(entry: Entry, gate: LedgerGate | null): boolean {
