@@ -3,18 +3,20 @@ subjects:
   - hooks/progress/attention.test.tsx
   - hooks/progress/progress.test.tsx
   - hooks/progress/register.tsx
+  - hooks/progress/status-line.test.tsx
 phases: [implementation, review]
 kind: trap
 trigger: a test pins a guard that sits behind earlier early-return exits
 evidence:
   - hooks/progress/attention.test.tsx:164
-  - hooks/progress/register.tsx:164
-  - hooks/progress/progress.test.tsx:249
-  - hooks/progress/register.tsx:70
+  - hooks/progress/register.tsx:143
+  - hooks/progress/progress.test.tsx:250
+  - hooks/progress/register.tsx:62
+  - hooks/progress/status-line.test.tsx:142
 source: { run: run-visibility-task-list, phase: review, date: 2026-10-27 }
 status: active
 supersedes: []
-last-verified: 2026-10-27
+last-verified: 2026-10-30
 ---
 # 011 — A guard test must start past the earlier exits
 
@@ -41,6 +43,11 @@ guard is the only thing standing between the input and the wrong outcome.
 ## Evidence
 
 The rewritten test at `hooks/progress/attention.test.tsx:164` binds and reaches `waiting on you`
-first; deleting the guard at `hooks/progress/register.tsx:164` now fails it. The test at
-`hooks/progress/progress.test.tsx:249` exhausts locate before changing the transcript, so dropping
-the reset at `hooks/progress/register.tsx:70` fails it.
+first; deleting the guard at `hooks/progress/register.tsx:143` now fails it. The test at
+`hooks/progress/progress.test.tsx:250` exhausts locate before changing the transcript, so dropping
+the reset at `hooks/progress/register.tsx:62` fails it.
+
+A later run repeated the trap in a pure renderer test: a "no cycle number once review is done" guard
+put review out of flight, so the cycle lookup never ran and a mutant reading the last child
+survived. The replacement at `hooks/progress/status-line.test.tsx:142` keeps review in flight with
+every cycle completed, and the mutant now fails it.
