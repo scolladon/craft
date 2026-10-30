@@ -7,12 +7,17 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+## [2.1.0] - 2026-10-30
+
 ### Added
 - In Claude Code, a craft run shows in the status line as a segmented bar of done, in-progress and pending phases, with the phase in flight, the next phase and whether the run waits on you; the line fits 80 cells. Mods must be on.
+- Discovered impacts: every phase folds an in-scope finding into the PR at discovery and defers the rest with a reproducing proof; an impact-triage phase re-runs each proof read-only before `propose` and files only the entries that survive.
 
 ### Fixed
 - The reviewer contract names the finding fields `normalize-findings` reads (`file`, `line`, `fix?`); a reviewer that followed the old `file:line` / `suggested fix` wording with a JSON array made the review phase's normalization exit 2.
-- `normalize-findings` no longer drops or corrupts JSON finding fields silently. A key outside `file`, `line`, `severity`, `finding`, `fix`, `status` (such as a leftover `suggested fix`) now exits 2 naming the key. A `line` that is not a non-negative safe integer or a digit string (such as `"12x"`, `null`, `""`) now exits 2 instead of normalizing to `null` or `0`.
+- `normalize-findings` no longer drops or corrupts finding fields silently. A JSON key outside `file`, `line`, `severity`, `finding`, `fix`, `status` (such as a leftover `suggested fix`) now exits 2 naming the key. A `line` that is not a non-negative safe integer or a digit string (such as `"12x"`, `null`, `""`), or a per-line record whose line number exceeds the safe-integer range, now exits 2 instead of normalizing to `null`, `0` or a rounded value.
+- The git guard sees through command substitutions inside arithmetic expansion (`$(( … ))`, `$[ … ]`, `(( ))`, `${ }` bodies and subscripts), and fails closed on the quoted or escaped substitution openers there that it cannot judge.
+- The git guard fails closed on a `;` after a heredoc inside a `$( )` body, which bash 5.3 drops when it re-prints the body.
 
 ## [2.0.0] - 2026-10-21
 
@@ -84,7 +89,8 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 - Seven native bindings under `adapters/` (pi, opencode, copilot, codex, cursor, aider, antigravity) proving the ports are pluggable.
 - Comprehension and intention debt management: design docs, parted TDD plans, ADRs with user-ratified decisions.
 
-[Unreleased]: https://github.com/scolladon/craft/compare/v2.0.0...HEAD
+[Unreleased]: https://github.com/scolladon/craft/compare/v2.1.0...HEAD
+[2.1.0]: https://github.com/scolladon/craft/compare/v2.0.0...v2.1.0
 [2.0.0]: https://github.com/scolladon/craft/compare/v1.1.0...v2.0.0
 [1.1.0]: https://github.com/scolladon/craft/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/scolladon/craft/releases/tag/v1.0.0
