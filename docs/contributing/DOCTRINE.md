@@ -12,7 +12,7 @@ Principles distilled from user-ratified decisions. The decisions phase cites an 
 ## D-2 — Close the class of a proven hole, not the vector; no compatibility fallback
 - **Trigger:** A hole is proven and a fix patches one vector or keeps a fallback for the old behaviour.
 - **Rule:** Remove the whole class, delete the fallback, and accept the breaking cost.
-- **Evidence:** ADR-564, ADR-384, ADR-569
+- **Evidence:** ADR-564, ADR-384
 - **Counter-cases:** none
 
 ## D-3 — A proven defect the change exposes is fixed in the change, not filed
