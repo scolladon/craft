@@ -97,6 +97,26 @@ describe('doctrine-lint main', () => {
     assert.equal(result.out, 'doctrine-lint: 2 entries, 3 ADR citations — OK\n');
   });
 
+  it('Given evidence and counter-case citations, when main runs, then both are counted', () => {
+    const doctrine = `${entry(1, { 'Counter-cases': 'ADR-101 — why' })}\n`
+    const adrs = { '546-a.md': adr(), '101-b.md': adr() };
+    const argv = [DOCTRINE, ADR_DIR];
+
+    const result = run(argv, { doctrine, adrs });
+
+    assert.equal(result.out, 'doctrine-lint: 1 entries, 2 ADR citations — OK\n');
+  });
+
+  it('Given an ADR holding DOCTRINE(D-10) and no D-10 entry, when main runs, then it reports the orphan citation', () => {
+    const doctrine = `${entry(1)}\n`;
+    const adrs = { '546-a.md': `${adr()}\nSee DOCTRINE(D-10).\n` };
+    const argv = [DOCTRINE, ADR_DIR];
+
+    const result = run(argv, { doctrine, adrs });
+
+    assert.equal(result.out, `doctrine-lint: ${ADR_DIR}/546-a.md: DOCTRINE(D-10) names no entry\n`);
+  });
+
   it('Given a doctrine with a malformed heading, when main runs, then it prints the parser error with file and line and returns 2', () => {
     const doctrine = '# Doctrine\n\n## nonsense\n';
     const argv = [DOCTRINE, ADR_DIR];
