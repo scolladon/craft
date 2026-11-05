@@ -4,6 +4,7 @@ export const DOCTRINE_BULLETS = Object.freeze(['Trigger', 'Rule', 'Evidence', 'C
 const BULLET = /^- \*\*([^*]+):\*\*(.*)$/;
 const ADR_REF = /ADR-(\d{3})\b/g;
 const NO_COUNTER_CASES = 'none';
+const ADR_REF_WITHOUT_REASON = /ADR-\d{3}\b(?! — \S)/;
 const CODE_FENCE = /^\s*(```|~~~)/;
 const BULLET_LABELS = DOCTRINE_BULLETS.join(', ');
 const MALFORMED_HEADING = 'heading must be "## D-<n> — <title>"';
@@ -42,47 +43,46 @@ function parseBullets(body) {
 function checkReferences(id, evidence, counterText, counterCases) {
   const messages = [];
   if (evidence.length === 0) messages.push(`D-${id}: evidence is empty`);
-  if (counterText !== NO_COUNTER_CASES && counterCases.length === 0) {
+  const malformedCounterCases = counterCases.length === 0 || ADR_REF_WITHOUT_REASON.test(counterText);
+  if (counterText !== NO_COUNTER_CASES && malformedCounterCases) {
     messages.push(`D-${id}: counter-cases must be none or ADR-NNN — <why> items`);
   }
   return messages;
 }
 
-function buildEntry(section, id, title, errors) {
+function buildEntry(section, id, title) {
   const values = parseBullets(section.body);
   if (!values) {
-    errors.push({ line: section.line, message: `D-${id}: bullets must be exactly, in order: ${BULLET_LABELS}` });
-    return null;
+    return { entry: null, errors: [{ line: section.line, message: `D-${id}: bullets must be exactly, in order: ${BULLET_LABELS}` }] };
   }
   const [trigger, rule, evidenceText, counterText] = values;
   const evidence = adrRefs(evidenceText);
   const counterCases = adrRefs(counterText);
-  const messages = checkReferences(id, evidence, counterText, counterCases);
-  messages.forEach((message) => errors.push({ line: section.line, message }));
-  return { id, title, trigger, rule, evidence, counterCases, line: section.line };
+  const errors = checkReferences(id, evidence, counterText, counterCases).map((message) => ({ line: section.line, message }));
+  return { entry: { id, title, trigger, rule, evidence, counterCases, line: section.line }, errors };
 }
 
-function checkId(id, line, state, errors) {
-  if (state.seen.has(id)) errors.push({ line, message: `duplicate id D-${id}` });
-  else if (id < state.previous) errors.push({ line, message: `D-${id} out of order` });
-  state.seen.add(id);
-  state.previous = Math.max(state.previous, id);
+function idErrors(id, line, state) {
+  if (state.seen.has(id)) return [{ line, message: `duplicate id D-${id}` }];
+  if (id < state.previous) return [{ line, message: `D-${id} out of order` }];
+  return [];
+}
+
+function parseSection(section, state) {
+  const match = ENTRY_HEADING.exec(section.heading);
+  if (!match) return { entry: null, errors: [{ line: section.line, message: MALFORMED_HEADING }], state };
+  const id = Number(match[1]);
+  const built = buildEntry(section, id, match[2]);
+  const nextState = { seen: new Set([...state.seen, id]), previous: Math.max(state.previous, id) };
+  return { entry: built.entry, errors: [...idErrors(id, section.line, state), ...built.errors], state: nextState };
 }
 
 export function parseDoctrine(content) {
-  const entries = [];
-  const errors = [];
-  const state = { seen: new Set(), previous: 0 };
-  for (const section of splitSections(content)) {
-    const match = ENTRY_HEADING.exec(section.heading);
-    if (!match) {
-      errors.push({ line: section.line, message: MALFORMED_HEADING });
-      continue;
-    }
-    const id = Number(match[1]);
-    checkId(id, section.line, state, errors);
-    const entry = buildEntry(section, id, match[2], errors);
-    if (entry) entries.push(entry);
-  }
-  return { entries, errors };
+  const initial = { entries: [], errors: [], state: { seen: new Set(), previous: 0 } };
+  const result = splitSections(content).reduce((acc, section) => {
+    const parsed = parseSection(section, acc.state);
+    const entries = parsed.entry ? [...acc.entries, parsed.entry] : acc.entries;
+    return { entries, errors: [...acc.errors, ...parsed.errors], state: parsed.state };
+  }, initial);
+  return { entries: result.entries, errors: result.errors };
 }

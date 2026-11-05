@@ -37,7 +37,7 @@ test('Given a valid doctrine and ADR dir, when the doctrine-lint bin is spawned,
   const result = sut(VALID_DOCTRINE);
 
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-  assert.ok(result.stdout.includes('doctrine-lint: 1 entries, 1 ADR citations — OK'));
+  assert.equal(result.stdout, 'doctrine-lint: 1 entries, 1 ADR citations — OK\n');
 });
 
 test('Given an invalid doctrine, when the doctrine-lint bin is spawned, then it exits 2', () => {
@@ -46,7 +46,7 @@ test('Given an invalid doctrine, when the doctrine-lint bin is spawned, then it 
   const result = sut('## nonsense\n');
 
   assert.equal(result.status, 2);
-  assert.ok(result.stdout.includes('doctrine-lint: doctrine.md:1:'));
+  assert.equal(result.stdout, 'doctrine-lint: doctrine.md:1: heading must be "## D-<n> — <title>"\n');
 });
 
 test('Given the bin imported as a module, when loaded, then main does not run', () => {

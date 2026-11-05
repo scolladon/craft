@@ -3,7 +3,7 @@
  * ADR directory, and orphan `DOCTRINE(D-<n>)` citations inside ADRs.
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseDoctrine } from './doctrine.js';
 import { isDirectoryPath, isRegularFile } from './cli-io.js';
@@ -22,6 +22,7 @@ const DEFAULT_DEPS = {
   listDir: readdirSync,
   isFile: isRegularFile,
   isDirectory: isDirectoryPath,
+  isRegularEntry: (p) => lstatSync(p).isFile(),
   cwd: () => process.cwd(),
 };
 
@@ -33,7 +34,9 @@ function missingInput(doctrineArg, adrArg, deps) {
 
 function lintFindings(doctrineArg, adrArg, deps) {
   const adrDir = resolve(deps.cwd(), adrArg);
-  const names = deps.listDir(adrDir).filter((name) => name.endsWith(ADR_EXTENSION)).sort();
+  const names = deps.listDir(adrDir)
+    .filter((name) => name.endsWith(ADR_EXTENSION) && deps.isRegularEntry(resolve(adrDir, name)))
+    .sort();
   const readAdr = (name) => deps.readFile(resolve(adrDir, name));
   const doctrine = parseDoctrine(deps.readFile(resolve(deps.cwd(), doctrineArg)));
   const findings = [
