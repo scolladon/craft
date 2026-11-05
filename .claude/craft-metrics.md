@@ -727,3 +727,9 @@ progress-status-line-bar design turns=70 tool_calls=89 tokens=4169197 duration_m
 progress-status-line-bar implementation turns=25 tool_calls=27 tokens=777347 duration_ms=359146 cache_read=669179 cache_creation=90905 output=17213 avg_ctx=30405 equiv=266664
 progress-status-line-bar planning turns=28 tool_calls=31 tokens=2172755 duration_ms=397507 cache_read=2027597 cache_creation=109760 output=35342 avg_ctx=76336 equiv=516726
 progress-status-line-bar review turns=47 tool_calls=49 tokens=1437382 duration_ms=295063 cache_read=1222341 cache_creation=194418 output=20529 avg_ctx=30146 equiv=467996
+decisions-doctrine-layer design turns=59 tool_calls=60 tokens=4214479 duration_ms=836230 cache_read=4027375 cache_creation=131394 output=55592 avg_ctx=70490 equiv=845058
+decisions-doctrine-layer impact-triage turns=9 tool_calls=9 tokens=177582 duration_ms=67328 cache_read=151833 cache_creation=21962 output=3769 avg_ctx=19313 equiv=61499
+decisions-doctrine-layer implementation turns=78 tool_calls=87 tokens=2632082 duration_ms=1287922 cache_read=2368271 cache_creation=214348 output=49307 avg_ctx=33113 equiv=751453
+decisions-doctrine-layer planning turns=54 tool_calls=54 tokens=4225197 duration_ms=520347 cache_read=4050159 cache_creation=126392 output=48538 avg_ctx=77346 equiv=805804
+decisions-doctrine-layer review turns=62 tool_calls=68 tokens=2315113 duration_ms=560858 cache_read=2018191 cache_creation=249780 output=47018 avg_ctx=36582 equiv=749258
+decisions-doctrine-layer validation turns=21 tool_calls=23 tokens=793146 duration_ms=243612 cache_read=740640 cache_creation=42301 output=10163 avg_ctx=37285 equiv=177797
