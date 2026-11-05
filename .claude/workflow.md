@@ -5,6 +5,7 @@ paths:
   plan: docs/contributing/plan
   lessons: docs/contributing/lessons
   dod: docs/contributing/DOD.md
+  doctrine: docs/contributing/DOCTRINE.md
 phases:
   validation:
     harness:

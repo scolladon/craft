@@ -13,10 +13,11 @@ and where a craft run writes its own artifacts.
 | [`archive/`](archive/) | closed, dated program docs |
 | [`prd/`](prd/) | legacy product/design/plan docs absorbed from craft's early history |
 | [`DOD.md`](DOD.md) | craft's own Definition of Done |
+| [`DOCTRINE.md`](DOCTRINE.md) | principles distilled from user-ratified decisions, cited by the decisions phase when it adopts a recommendation |
 | [`maintainer-smokes.md`](maintainer-smokes.md) | on-demand, non-CI release smokes run by hand, and the behavioural eval suite |
 | [`releasing.md`](releasing.md) | how a release is cut: choosing the bump, the changelog section, the version bump, and the maintainer's tag |
 | [`metrics-baseline.report.json`](metrics-baseline.report.json) | committed telemetry baseline compared against on each run |
 
-`.claude/workflow.md` declares `paths.design`, `paths.adr`, `paths.plan`, `paths.lessons`, and `paths.dod`
+`.claude/workflow.md` declares `paths.design`, `paths.adr`, `paths.plan`, `paths.lessons`, `paths.dod`, and `paths.doctrine`
 pointing at the trees above, so a craft run on this repository writes its own new design
 docs, decisions, and plans directly into them.
