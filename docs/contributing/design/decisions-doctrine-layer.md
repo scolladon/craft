@@ -87,6 +87,15 @@ Each is its own ruling and none is citable as a principle. That is the doctrine 
 - README `README.md:227`: `[100 design docs](docs/contributing/design/)` and `[720 ADRs]` are
   recomputed from disk by `scripts/readme-drift.sh`.
 
+### Why a standing rule, not one missing fact
+
+One stated fact (for example "the user prefers the recommendation") would not cover the
+corpus: 9 of 177 rulings went against the recommendation, and they split across distinct
+principles (root cause over deferral, fixed bound over tracked state, a proven risk earns its
+machinery). A single fact either adopts those 9 wrongly or escalates the other 168 as before.
+The doctrine file carries the per-principle facts; the threshold is the procedure that applies
+them, and the harvest is how a new fact enters.
+
 ## Requirements
 
 1. **R1 — doctrine file.** A doctrine file resolves per consumer: `paths.doctrine`, else
