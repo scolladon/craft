@@ -19,8 +19,8 @@ appended to a worker's prompt.
 
 Drop the protocol in `.claude/workflow/slack-escalation.md` (here), point
 `phases.decisions.context` at it: whenever the decisions phase reaches a candidate already
-triaged as a genuine fork, the session conducts that one conversation over Slack instead of
-in-terminal. Everything else the decisions phase does — triage, adoption, the no-op record,
+triaged as escalated, the session conducts that conversation, and the doctrine harvest
+draft that follows its ruling, over Slack instead of in-terminal. Everything else the decisions phase does — triage, adoption, the no-op record,
 the cross-candidate check, ADR authoring, scope-fold — is unchanged.
 
 Posting to Slack is an outward, hard-to-reverse send, so it falls under the `external-send`
