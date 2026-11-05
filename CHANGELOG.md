@@ -7,6 +7,12 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Added
+- A doctrine file (`docs/DOCTRINE.md`, or `paths.doctrine`) that the decisions phase reads and grows from your rulings, and a `doctrine-lint` check that every doctrine citation points at a live ADR.
+
+### Changed
+- The decisions phase escalates only on a conflict with an ADR or doctrine entry, an irreversible or outward-facing choice, or an uncovered trade-off; the rest are adopted and listed in the PR body with their basis.
+
 ## [2.1.0] - 2026-10-30
 
 ### Added
