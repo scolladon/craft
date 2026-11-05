@@ -351,7 +351,7 @@ Graders:
 | File | Type / arm | Asserts |
 |---|---|---|
 | `fired.md` | `tool_used` Skill `craft:decisions` | the skill fired |
-| `adopts-citing-doctrine.md` | `llm`, both | "The reply does not ask the user to choose between options. It adopts option (a) for the piped-output candidate and names D-1 (docs/DOCTRINE.md) or ADR 002 as the principle it aligns with." |
+| `adopts-citing-doctrine.md` | `llm`, both | "The reply does not ask the user to choose between options. It adopts option (a) for the piped-output candidate and names doctrine entry D-1 (docs/DOCTRINE.md) as the basis for adopting it." |
 | `adr-authored.md` | `file_exists` `docs/adr/003-*.md`, both | the adopted choice is still authored |
 | `doctrine-cite.md` | `regex` `trace`, with-only | `DOCTRINE\(D-1\)` |
 | `noop-token.md` | `regex` `trace`, with-only | `NO-OP\(decisions\):(?! no user-judgment decisions — [<…])` (copied from noop-when-clear) |

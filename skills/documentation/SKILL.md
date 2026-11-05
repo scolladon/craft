@@ -69,8 +69,8 @@ Runs in parallel with the validation phase's background run.
    verification** trailer carrying decisions + ADR numbers, design doc path, divergences,
    pinned behaviours, test plan, the run record. The Decisions line splits ratified from
    adopted ADRs, both read from this run's ADRs: an ADR whose Decision carries the
-   `adopted-as-recommended` marker is adopted, listed with the `— <basis>` suffix that
-   follows the marker; the rest are ratified. No run-record token is read for it.
+   `adopted-as-recommended` marker is adopted, listed as `ADR-NNN (<basis>)`, where `<basis>` is the basis named right after the marker's ` — ` (`ADR-NNN`, `DOCTRINE(D-<n>)` or
+   `no trade-off`); the rest are ratified. No run-record token is read for it.
    The trailer's `- **Discovered impacts:**` line reads `<n> deferred, triage pending`,
    counted from this run's `DEFERRED(` lines, or `none`; the `impact-triage` phase
    rewrites it with the verdicts.

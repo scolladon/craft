@@ -37,7 +37,10 @@ ENTIRELY session-owned — never delegated.
    Any trigger escalates; a covering entry never overrides (a) or (b). An entry covers a
    candidate when its Trigger describes the candidate's trade-off and its Rule picks the
    recommended option; a Rule that picks another option is a conflict (a). Covering and
-   aligning stay a session judgment. ADOPT every other candidate and cite its basis:
+   aligning stay a session judgment. When the file exists, run
+   `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/doctrine-lint.js" <doctrine-file> <adr-dir>`
+   first: an entry doctrine-lint flags covers nothing, so a candidate resting on it falls
+   under (c). ADOPT every other candidate and cite its basis:
    ADR-NNN, DOCTRINE(D-<n>), or "no trade-off" (alternatives that differ only in mechanics).
 2. **Escalated candidates → user conversation.** Per escalated candidate: present ≤3 options
    with the design's recommendation; capture the user's decision.
@@ -55,15 +58,16 @@ ENTIRELY session-owned — never delegated.
    (ADR-NNN, DOCTRINE(D-<n>) or no trade-off), so the no-op is auditable, not asserted; the
    run record is carried into the PR body (documentation phase), so the no-op is
    stated, not hidden. Never invent questions to manufacture a conversation. Adopted recommendations stand as the design states them; they ARE
-   still authored as ADRs (see step 5), each marked **adopted-as-recommended (no user
-   judgment)** so the decision trail is complete — the no-op concerns the *escalation
+   still authored as ADRs (see step 5), each marked **adopted-as-recommended (no user judgment)** — <basis>
+   so the decision trail is complete — the no-op concerns the *escalation
    conversation*, not the ADR record.
 4. **Cross-candidate interaction check (before authoring):** once all candidates are
    settled (escalated ones ratified, the rest adopted), check whether any settled
    choice's rationale is voided or altered by another (a later choice can invalidate an
    earlier one's premise — including a ratified fork voiding an adopted choice). If so,
-   re-surface the affected choice — escalating an adopted choice to the user if its
-   premise is now in genuine doubt — before authoring.
+   re-surface the affected choice — an adopted choice whose premise is now in genuine
+   doubt is escalated to the user under trigger (c), and its ruling goes through step 2b
+   — before authoring.
 5. Author each settled decision — ratified (escalated-and-decided) *and* adopted
    (taken-as-recommended) — as `<adr-dir>/NNN-<title>.md` from the template; commit each
    as `docs(adr): NNN <title>`. An adopted choice's ADR marks its Decision section
@@ -74,8 +78,9 @@ ENTIRELY session-owned — never delegated.
    highest id + 1; an amendment edits in place: narrow the Rule or add evidence /
    counter-cases; never delete or renumber), creating the file at the resolved path with the
    H1 `# Doctrine` and the intro line when absent. Run
-   `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/doctrine-lint.js" <doctrine-file> <adr-dir>`;
-   commit alone as `docs(doctrine): D-<n> <title>`.
+   `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/doctrine-lint.js" <doctrine-file> <adr-dir>`
+   and commit only when it exits 0, alone, as `docs(doctrine): D-<n> <title>`; on a finding,
+   fix the entry, re-showing the draft to the user when the fix changes its Rule.
 
    **Supersession authoring obligations.** When a settled decision supersedes ADR-N, the
    same commit satisfies `adr-lint`: write the new ADR's `supersedes: [{ adr: "N",
@@ -86,8 +91,8 @@ ENTIRELY session-owned — never delegated.
    with "nothing survives" stated explicitly (`Carried forward from ADR-N: nothing —
    <why>`) rather than by omitting the anchor; sweep the live-tier citations, updating
    every non-exempt `ADR-N` mention in the tracked tree to reflect the supersession; when a
-   superseded ADR is cited as doctrine evidence, re-point the citation to the superseding ADR
-   in the same commit.
+   superseded ADR is cited as doctrine evidence or counter-case, re-point the citation to the
+   superseding ADR in the same commit.
    Then emit one `DECISION-REVERSAL(ADR-N): <scope> -> ADR-M` line per `supersedes`
    entry authored this run, `<scope>` the same string verbatim as the frontmatter's
    `scope` field so the token and the ADR cannot disagree.
