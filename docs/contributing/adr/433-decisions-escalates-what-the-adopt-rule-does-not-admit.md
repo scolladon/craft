@@ -7,9 +7,13 @@ supersedes:
 ---
 # 433 — `decisions` escalates every candidate the adopt rule does not admit
 
-- **Status:** accepted
+- **Status:** superseded by ADR-727
 - **Date:** 2026-10-10
 - **Design:** none (harness prune review) · **Supersedes/Refines:** supersedes ADR-100 (escalation wording only)
+
+> **Superseded by ADR-727** for the adopt threshold: the decisions phase now escalates only on a
+> conflict with an ADR or doctrine entry, an irreversible or outward-facing choice, or an uncovered
+> trade-off, and adopts every other candidate.
 
 ## Context
 
