@@ -110,7 +110,7 @@ try `/craft:review` on a branch, or `/craft:run` on a brief.
 
 workspace       → feature branch + isolated git worktree, deps installed
 design          → designer agent writes the design doc, self-reviews to convergence
-decisions   🧑  → you ratify each load-bearing choice; each becomes an ADR
+decisions   🧑  → you rule on the real forks; the rest are adopted from your ADRs and doctrine and listed in the PR
 planning        → TDD plan split into parts, each with its own pre-chewed context block
 implementation  → one implementer agent per part; RED → GREEN → REFACTOR; one commit per part
 review          → parallel reviewers, one dimension each; fixes applied until convergence
@@ -224,8 +224,8 @@ in code where a silent regression is expensive to discover later.
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
-receipts: [100 design docs](docs/contributing/design/), [98 parted plans](docs/contributing/plan/),
-[720 ADRs](docs/contributing/adr/), [11 lessons](docs/contributing/lessons/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
+receipts: [101 design docs](docs/contributing/design/), [99 parted plans](docs/contributing/plan/),
+[729 ADRs](docs/contributing/adr/), [12 lessons](docs/contributing/lessons/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 

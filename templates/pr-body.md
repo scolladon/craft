@@ -32,7 +32,7 @@
 <!-- Craft's traceability payload, kept as a checklist rather than prose. Fill every line
      the run produced; where one is genuinely empty, write "none" instead of dropping it. -->
 
-- **Decisions:** <ADR-### … or none>
+- **Decisions:** <ratified: ADR-### …; adopted: ADR-### (ADR-NNN | DOCTRINE(D-n) | no trade-off) …; or none>
 - **Design:** <docs/contributing/design/<slug>.md or none>
 - **Divergences:** <plan → implementation deltas, or none>
 - **Pinned behaviours:** <invariants locked by tests, or none>

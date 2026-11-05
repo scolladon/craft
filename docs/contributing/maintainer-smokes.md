@@ -144,14 +144,14 @@ with-craft plans by hand against the rubric in
 | `skills/planning`, `agents/planner.md` | `planning-plan-lints` |
 | `agents/reviewer.md` | `reviewer-tests-findings` |
 | `agents/part-implementer.md`, `contracts/construction.md` | `implementer-runs-guards`, `implementer-guard-outside-part` |
-| `skills/decisions` | `decisions-noop-when-clear`, `decisions-escalates-fork` |
+| `skills/decisions` | `decisions-noop-when-clear`, `decisions-escalates-fork`, `decisions-adopts-covered-tradeoff` |
 | `skills/prune`, `contracts/core.md` | `prune-refuses-core` |
 
 A unit missing from this table has no behavioural evidence. Say so in the proposal rather than
 implying coverage.
 
 **Tags and cost.** `trigger`: the three run cases, on the session model, run without a tool
-grant. `phase`: the two decisions cases and prune. `agent`: planning and reviewer, the
+grant. `phase`: the three decisions cases and prune. `agent`: planning and reviewer, the
 opus-pinned roles, and the two implementer cases, `implementer-runs-guards` and
 `implementer-guard-outside-part`, which drive the sonnet-pinned part-implementer. Measured
 `costUsd` per case, one run in each arm (suite pilot, 2026-10-06):

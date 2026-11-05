@@ -128,6 +128,10 @@ The tokens below are greppable only: no regex row, and `run-state` does not cons
   run-record token and never appears here — under the hard-blocking lint posture a
   finding stops `ci.sh` and there is no run to fold it into; it is the lint's stdout
   format only.
+- `DOCTRINE-HARVEST(<candidate>): D-<n> added | D-<n> amended | declined — <reason> | none — covered by D-<n> | none — one-off`
+  — emitted by the `decisions` phase, exactly one line per escalated candidate after the
+  user rules; `<candidate>` is `#<k> <slug>` from the design's candidate table (the ADR
+  number is not yet assigned). Greppable only, no `run-state` row.
 - `MEMORY-RETRACT(<concern>): <merge-key>` — emitted by the phase that owns a concern's
   write surface, on a mechanical re-check that disproves a stored entry (never a
   judgment call). Derived at `skills/run/SKILL.md` `## Done` into

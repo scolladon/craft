@@ -6,12 +6,14 @@
 > `.claude/workflow/slack-escalation.md`; because the decisions phase is session-owned, the
 > session reads this file inline at phase start rather than appending it to a spawned agent.
 
-When the decisions phase reaches a candidate already triaged as a genuine fork (triage itself
+When the decisions phase reaches a candidate already triaged as escalated (triage itself
 stays the engine default), conduct that one conversation over Slack instead of in-terminal:
 
-1. **Applies to step 2 only.** Only the fork conversation itself moves to Slack. Adoption, the
-   no-op record, the cross-candidate check, ADR authoring, and scope-fold all continue exactly
-   as the engine default — nothing here alters them.
+1. **Applies to steps 2 and 2b only.** Only the fork conversation and the doctrine harvest
+   draft that follows its ruling move to Slack; the draft is posted and answered (accept, edit
+   or decline) the same way as the fork. Adoption, the no-op record, the cross-candidate check,
+   ADR authoring, and scope-fold all continue exactly as the engine default — nothing here
+   alters them.
 2. **Preconditions / secrets.** Read `$SLACK_WEBHOOK_URL`, `$SLACK_BOT_TOKEN`, and
    `$SLACK_CHANNEL_ID` from the environment. Never hardcode a secret. If any is unset, announce
    the fallback loudly in the run record and conduct the fork the normal in-session way

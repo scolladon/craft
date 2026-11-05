@@ -1,0 +1,330 @@
+import { strict as assert } from 'node:assert'
+import { describe, it } from 'node:test'
+import { DOCTRINE_BULLETS, parseDoctrine } from '../src/doctrine.js'
+
+const entry = (id, overrides = {}) => {
+  const bullets = {
+    Trigger: 'a trigger',
+    Rule: 'a rule',
+    Evidence: 'ADR-546 — why',
+    'Counter-cases': 'none',
+    ...overrides,
+  }
+  const lines = Object.entries(bullets).map(([k, v]) => `- **${k}:** ${v}`)
+  return [`## D-${id} — Title ${id}`, ...lines].join('\n')
+}
+
+describe('parseDoctrine', () => {
+  const sut = parseDoctrine
+
+  it('Given a one-entry doctrine, when parsed, then the entry carries id, title, bullets, evidence ids and heading line', () => {
+    const content = `# Doctrine\n\nprose\n\n${entry(1)}\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+    assert.deepEqual(result.entries, [
+      {
+        id: 1,
+        title: 'Title 1',
+        trigger: 'a trigger',
+        rule: 'a rule',
+        evidence: ['546'],
+        counterCases: [],
+        line: 5,
+      },
+    ])
+  })
+
+  it('Given several entries, when parsed, then they are returned in order', () => {
+    const content = `${entry(1)}\n\n${entry(2)}\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(
+      result.entries.map(e => e.id),
+      [1, 2],
+    )
+  })
+
+  it('Given counter-cases none, when parsed, then counterCases is empty', () => {
+    const content = entry(1, { 'Counter-cases': 'none' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.entries[0].counterCases, [])
+  })
+
+  it('Given counter-cases with two ADR items, when parsed, then both ids are kept in order', () => {
+    const content = entry(1, { 'Counter-cases': 'ADR-546 — why; ADR-551 — why' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+    assert.deepEqual(result.entries[0].counterCases, ['546', '551'])
+  })
+
+  it('Given a counter-case whose reason cites another ADR, when parsed, then it is well-formed and only the item head is an id', () => {
+    const content = entry(1, { 'Counter-cases': 'ADR-546 — superseded by ADR-551 in part' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+    assert.deepEqual(result.entries[0].counterCases, ['546'])
+  })
+
+  it('Given too-short and too-long ADR references in evidence, when parsed, then neither is an id', () => {
+    const content = entry(1, { Evidence: 'ADR-12 and ADR-1234 and ADR-321' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.entries[0].evidence, ['321'])
+  })
+
+  it('Given a heading without the em dash, when parsed, then it reports the heading error and returns no entry', () => {
+    const content = `# T\n\n## D-1 - Title\n- **Trigger:** x\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      { line: 3, message: 'heading must be "## D-<n> — <title>"' },
+    ])
+    assert.deepEqual(result.entries, [])
+  })
+
+  it('Given a heading with a non-integer id, when parsed, then it reports the heading error', () => {
+    const content = '## D-x — Title\n'
+
+    const result = sut(content)
+
+    assert.equal(result.errors[0].message, 'heading must be "## D-<n> — <title>"')
+  })
+
+  it('Given duplicate ids, when parsed, then it reports the duplicate at the second heading', () => {
+    const content = `${entry(2)}\n\n${entry(2)}\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [{ line: 7, message: 'duplicate id D-2' }])
+  })
+
+  it('Given D-3 after D-5, when parsed, then it reports D-3 out of order', () => {
+    const content = `${entry(5)}\n\n${entry(3)}\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [{ line: 7, message: 'D-3 out of order' }])
+  })
+
+  it('Given D-1 then D-4, when parsed, then gaps raise no error', () => {
+    const content = `${entry(1)}\n\n${entry(4)}\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+    assert.equal(result.entries.length, 2)
+  })
+
+  const BULLETS_ERROR =
+    'D-1: bullets must be exactly, in order: Trigger, Rule, Evidence, Counter-cases'
+
+  it('Given an entry missing a bullet, when parsed, then it reports the bullets error and drops the entry', () => {
+    const content = entry(1).split('\n').slice(0, 4).join('\n')
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [{ line: 1, message: BULLETS_ERROR }])
+    assert.deepEqual(result.entries, [])
+  })
+
+  it('Given an entry with reordered bullets, when parsed, then it reports the bullets error', () => {
+    const [heading, trigger, rule, ...rest] = entry(1).split('\n')
+    const content = [heading, rule, trigger, ...rest].join('\n')
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [{ line: 1, message: BULLETS_ERROR }])
+    assert.deepEqual(result.entries, [])
+  })
+
+  it('Given an entry with an empty bullet value, when parsed, then it reports the bullets error', () => {
+    const content = entry(1, { Rule: '   ' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [{ line: 1, message: BULLETS_ERROR }])
+    assert.deepEqual(result.entries, [])
+  })
+
+  it('Given an entry with an extra bullet, when parsed, then it reports the bullets error', () => {
+    const content = `${entry(1)}\n- **Extra:** more`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [{ line: 1, message: BULLETS_ERROR }])
+    assert.deepEqual(result.entries, [])
+  })
+
+  it('Given evidence without an ADR id, when parsed, then it reports evidence is empty', () => {
+    const content = entry(1, { Evidence: 'no ids here' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      { line: 1, message: 'D-1: evidence is empty' },
+    ])
+  })
+
+  it('Given free-text counter-cases, when parsed, then it reports the counter-cases shape error', () => {
+    const content = entry(1, { 'Counter-cases': 'sometimes it fails' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      {
+        line: 1,
+        message: 'D-1: counter-cases must be none or ADR-NNN — <why> items',
+      },
+    ])
+  })
+
+  for (const fence of ['```', '~~~']) {
+    it(`Given an entry heading inside a ${fence} fence, when parsed, then it is not an entry and raises no error`, () => {
+      const content = `# T\n\n${fence}\n## not a heading\n${entry(9)}\n${fence}\n\n${entry(1)}\n`
+
+      const result = sut(content)
+
+      assert.deepEqual(result.errors, [])
+      assert.deepEqual(
+        result.entries.map(e => e.id),
+        [1],
+      )
+    })
+  }
+
+  it('Given D-5, D-3 then D-4, when parsed, then both later ids are reported out of order', () => {
+    const content = `${entry(5)}\n\n${entry(3)}\n\n${entry(4)}\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      { line: 7, message: 'D-3 out of order' },
+      { line: 13, message: 'D-4 out of order' },
+    ])
+  })
+
+  for (const counterCases of ['ADR-546', 'ADR-546 — why; ADR-101', 'ADR-546 —']) {
+    it(`Given the counter-cases "${counterCases}" with an ADR lacking its reason, when parsed, then it reports the counter-cases shape error`, () => {
+      const content = entry(1, { 'Counter-cases': counterCases })
+
+      const result = sut(content)
+
+      assert.deepEqual(result.errors, [
+        { line: 1, message: 'D-1: counter-cases must be none or ADR-NNN — <why> items' },
+      ])
+    })
+  }
+
+  it('Given an entry heading inside an indented fence, when parsed, then it is not an entry', () => {
+    const content = `  \`\`\`\n${entry(9)}\n  \`\`\`\n\n${entry(1)}\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+    assert.deepEqual(result.entries.map(e => e.id), [1])
+  })
+
+  it('Given a two-digit entry id, when parsed, then the entry carries that id', () => {
+    const content = entry(10)
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+    assert.deepEqual(result.entries.map(e => e.id), [10])
+  })
+
+  it('Given a first entry with id 0, when parsed, then it is not out of order', () => {
+    const content = entry(0)
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+  })
+
+  it('Given a heading carrying the entry form after other text, when parsed, then it is malformed', () => {
+    const content = '## x ## D-1 — Title\n'
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [{ line: 1, message: 'heading must be "## D-<n> — <title>"' }])
+  })
+
+  it('Given a title holding a line separator, when parsed, then the heading is malformed', () => {
+    const content = '## D-1 — A\u2028B\n'
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [{ line: 1, message: 'heading must be "## D-<n> — <title>"' }])
+  })
+
+  it('Given a bullet value holding a line separator, when parsed, then the bullets are rejected', () => {
+    const content = entry(1, { Trigger: 'a\u2028b' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      { line: 1, message: 'D-1: bullets must be exactly, in order: Trigger, Rule, Evidence, Counter-cases' },
+    ])
+  })
+
+  it('Given a bullet preceded by other text, when parsed, then the bullets are rejected', () => {
+    const content = entry(1).replace('- **Trigger:**', 'x - **Trigger:**')
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      { line: 1, message: 'D-1: bullets must be exactly, in order: Trigger, Rule, Evidence, Counter-cases' },
+    ])
+  })
+
+  it('Given a counter-case item preceded by other text, when parsed, then it reports the counter-cases shape error', () => {
+    const content = entry(1, { 'Counter-cases': 'see ADR-546 — why' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      { line: 1, message: 'D-1: counter-cases must be none or ADR-NNN — <why> items' },
+    ])
+  })
+
+  it('Given a fence marker in the middle of a line, when parsed, then it does not open a fence', () => {
+    const content = `use \`\`\` inline\n\n${entry(1)}\n`
+
+    const result = sut(content)
+
+    assert.deepEqual(result.entries.map(e => e.id), [1])
+  })
+
+  it('Given a whitespace-only line inside an entry, when parsed, then it is not a bullet', () => {
+    const content = entry(1).replace('- **Rule:**', '   \n- **Rule:**')
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+  })
+
+  it('Given malformed counter-cases, when parsed, then the kept entry has empty counterCases', () => {
+    const content = entry(1, { 'Counter-cases': 'ADR-546' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.entries[0].counterCases, [])
+  })
+
+  it('Given the exported bullet labels, then they are the four in order and frozen', () => {
+    const labels = DOCTRINE_BULLETS
+
+    assert.deepEqual(labels, ['Trigger', 'Rule', 'Evidence', 'Counter-cases'])
+    assert.ok(Object.isFrozen(labels))
+  })
+})
