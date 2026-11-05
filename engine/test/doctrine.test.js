@@ -6,7 +6,7 @@ const entry = (id, overrides = {}) => {
   const bullets = {
     Trigger: 'a trigger',
     Rule: 'a rule',
-    Evidence: 'ADR-100 — why',
+    Evidence: 'ADR-546 — why',
     'Counter-cases': 'none',
     ...overrides,
   }
@@ -27,7 +27,7 @@ describe('parseDoctrine', () => {
         title: 'Title 1',
         trigger: 'a trigger',
         rule: 'a rule',
-        evidence: ['100'],
+        evidence: ['546'],
         counterCases: [],
         line: 5,
       },
@@ -61,7 +61,7 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries[0].counterCases, ['546', '551'])
   })
 
-  it('Given ADR-12 and ADR-1234 in evidence, when parsed, then neither is an id', () => {
+  it('Given too-short and too-long ADR references in evidence, when parsed, then neither is an id', () => {
     const sut = entry(1, { Evidence: 'ADR-12 and ADR-1234 and ADR-321' })
 
     const result = parseDoctrine(sut)
