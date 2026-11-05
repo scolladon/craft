@@ -80,7 +80,9 @@ ENTIRELY session-owned — never delegated.
    H1 `# Doctrine` and the intro line when absent. Run
    `node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/doctrine-lint.js" <doctrine-file> <adr-dir>`
    and commit only when it exits 0, alone, as `docs(doctrine): D-<n> <title>`; on a finding,
-   fix the entry, re-showing the draft to the user when the fix changes its Rule.
+   fix the entry, re-showing the draft to the user when the fix changes its Rule; a finding
+   that predates this write is fixed in the same commit or escalated through the blocker
+   protocol.
 
    **Supersession authoring obligations.** When a settled decision supersedes ADR-N, the
    same commit satisfies `adr-lint`: write the new ADR's `supersedes: [{ adr: "N",

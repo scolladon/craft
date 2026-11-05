@@ -60,7 +60,17 @@ describe('parseDoctrine', () => {
 
     const result = sut(content)
 
+    assert.deepEqual(result.errors, [])
     assert.deepEqual(result.entries[0].counterCases, ['546', '551'])
+  })
+
+  it('Given a counter-case whose reason cites another ADR, when parsed, then it is well-formed and only the item head is an id', () => {
+    const content = entry(1, { 'Counter-cases': 'ADR-546 — superseded by ADR-551 in part' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+    assert.deepEqual(result.entries[0].counterCases, ['546'])
   })
 
   it('Given too-short and too-long ADR references in evidence, when parsed, then neither is an id', () => {

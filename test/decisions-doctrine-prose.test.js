@@ -139,6 +139,7 @@ test('Given the decisions skill step 5, when read, then the doctrine write lints
   assert.ok(result.includes('docs(doctrine): D-<n> <title>'));
   assert.ok(result.includes('never delete or renumber'));
   assert.ok(result.includes('commit only when it exits 0'));
+  assert.ok(result.includes('a finding that predates this write is fixed in the same commit or escalated'));
   assert.ok(result.includes('cited as doctrine evidence or counter-case'));
   assert.match(result, /re-point the citation to the superseding ADR/);
 });

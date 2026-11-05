@@ -4,7 +4,8 @@ export const DOCTRINE_BULLETS = Object.freeze(['Trigger', 'Rule', 'Evidence', 'C
 const BULLET = /^- \*\*([^*]+):\*\*(.*)$/;
 const ADR_REF = /ADR-(\d{3})\b/g;
 const NO_COUNTER_CASES = 'none';
-const ADR_REF_WITHOUT_REASON = /ADR-\d{3}\b(?! — \S)/;
+const COUNTER_CASE_ITEM = /^ADR-(\d{3}) — \S/;
+const COUNTER_CASE_SEPARATOR = ';';
 const CODE_FENCE = /^\s*(```|~~~)/;
 const BULLET_LABELS = DOCTRINE_BULLETS.join(', ');
 const MALFORMED_HEADING = 'heading must be "## D-<n> — <title>"';
@@ -40,13 +41,16 @@ function parseBullets(body) {
   return values.every((value) => value !== '') ? values : null;
 }
 
-function checkReferences(id, evidence, counterText, counterCases) {
+function counterCaseIds(counterText) {
+  if (counterText === NO_COUNTER_CASES) return [];
+  const heads = counterText.split(COUNTER_CASE_SEPARATOR).map((item) => COUNTER_CASE_ITEM.exec(item.trim()));
+  return heads.every(Boolean) ? heads.map((match) => match[1]) : null;
+}
+
+function checkReferences(id, evidence, counterCases) {
   const messages = [];
   if (evidence.length === 0) messages.push(`D-${id}: evidence is empty`);
-  const malformedCounterCases = counterCases.length === 0 || ADR_REF_WITHOUT_REASON.test(counterText);
-  if (counterText !== NO_COUNTER_CASES && malformedCounterCases) {
-    messages.push(`D-${id}: counter-cases must be none or ADR-NNN — <why> items`);
-  }
+  if (counterCases === null) messages.push(`D-${id}: counter-cases must be none or ADR-NNN — <why> items`);
   return messages;
 }
 
@@ -57,9 +61,9 @@ function buildEntry(section, id, title) {
   }
   const [trigger, rule, evidenceText, counterText] = values;
   const evidence = adrRefs(evidenceText);
-  const counterCases = adrRefs(counterText);
-  const errors = checkReferences(id, evidence, counterText, counterCases).map((message) => ({ line: section.line, message }));
-  return { entry: { id, title, trigger, rule, evidence, counterCases, line: section.line }, errors };
+  const counterCases = counterCaseIds(counterText);
+  const errors = checkReferences(id, evidence, counterCases).map((message) => ({ line: section.line, message }));
+  return { entry: { id, title, trigger, rule, evidence, counterCases: counterCases ?? [], line: section.line }, errors };
 }
 
 function idErrors(id, line, state) {
