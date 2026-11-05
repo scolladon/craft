@@ -14,7 +14,7 @@ const VALID_DOCTRINE = [
   '## D-1 — A title',
   '- **Trigger:** a trigger',
   '- **Rule:** a rule',
-  '- **Evidence:** ADR-100 — why',
+  '- **Evidence:** ADR-546 — why',
   '- **Counter-cases:** none',
   '',
 ].join('\n');
@@ -23,7 +23,7 @@ function runWithDoctrine(content) {
   const root = mkdtempSync(join(tmpdir(), 'doctrinelint-bin-'));
   try {
     mkdirSync(join(root, 'adr'));
-    writeFileSync(join(root, 'adr', '100-first.md'), '# ADR\n\n- **Status:** accepted\n');
+    writeFileSync(join(root, 'adr', '546-first.md'), '# ADR\n\n- **Status:** accepted\n');
     writeFileSync(join(root, 'doctrine.md'), content);
     return spawnSync(process.execPath, [BIN, 'doctrine.md', 'adr'], { encoding: 'utf8', cwd: root });
   } finally {

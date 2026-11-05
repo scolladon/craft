@@ -13,7 +13,7 @@ const entry = (id, overrides = {}) => {
   const bullets = {
     Trigger: 'a trigger',
     Rule: 'a rule',
-    Evidence: 'ADR-100 — why',
+    Evidence: 'ADR-546 — why',
     'Counter-cases': 'none',
     ...overrides,
   };
@@ -74,8 +74,8 @@ describe('doctrine-lint main', () => {
   });
 
   it('Given a valid two-entry doctrine citing live ADRs, when main runs, then it prints the OK line and returns 0', () => {
-    const doctrine = `# Doctrine\n\n${entry(1)}\n\n${entry(2, { Evidence: 'ADR-100 — a, ADR-101 — b' })}\n`;
-    const adrs = { '100-a.md': adr(), '101-b.md': adr() };
+    const doctrine = `# Doctrine\n\n${entry(1)}\n\n${entry(2, { Evidence: 'ADR-546 — a, ADR-101 — b' })}\n`;
+    const adrs = { '546-a.md': adr(), '101-b.md': adr() };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
@@ -101,44 +101,44 @@ describe('doctrine-lint main', () => {
     const result = run(sut, { doctrine, adrs: {} });
 
     assert.equal(result.code, EXIT_INVALID);
-    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-100 does not resolve\n`);
+    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-546 does not resolve\n`);
   });
 
-  it('Given two files sharing the prefix 100-, when main runs, then it reports the id does not resolve', () => {
+  it('Given two files sharing the prefix 546-, when main runs, then it reports the id does not resolve', () => {
     const doctrine = `${entry(1)}\n`;
-    const adrs = { '100-a.md': adr(), '100-b.md': adr() };
+    const adrs = { '546-a.md': adr(), '546-b.md': adr() };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
 
     assert.equal(result.code, EXIT_INVALID);
-    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-100 does not resolve\n`);
+    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-546 does not resolve\n`);
   });
 
   it('Given a non-markdown file with the prefix, when main runs, then it is ignored and the id does not resolve', () => {
     const doctrine = `${entry(1)}\n`;
-    const adrs = { '100-a.txt': adr() };
+    const adrs = { '546-a.txt': adr() };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
 
-    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-100 does not resolve\n`);
+    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-546 does not resolve\n`);
   });
 
-  it('Given a cited file whose Status is "superseded by ADR-009", when main runs, then it reports it is superseded', () => {
+  it('Given a cited file whose Status is superseded, when main runs, then it reports it is superseded', () => {
     const doctrine = `${entry(1)}\n`;
-    const adrs = { '100-a.md': adr('superseded by ADR-009') };
+    const adrs = { '546-a.md': adr('superseded by ADR-009') };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
 
     assert.equal(result.code, EXIT_INVALID);
-    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-100 is superseded\n`);
+    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-546 is superseded\n`);
   });
 
   it('Given a counter-case id that is superseded, when main runs, then it reports it is superseded', () => {
     const doctrine = `${entry(1, { 'Counter-cases': 'ADR-101 — exception' })}\n`;
-    const adrs = { '100-a.md': adr(), '101-b.md': adr('superseded by ADR-009') };
+    const adrs = { '546-a.md': adr(), '101-b.md': adr('superseded by ADR-009') };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
@@ -149,7 +149,7 @@ describe('doctrine-lint main', () => {
 
   it('Given an ADR mentioning superseded only outside its Status line, when main runs, then it is live', () => {
     const doctrine = `${entry(1)}\n`;
-    const adrs = { '100-a.md': '# ADR\n\nsuperseded in prose\n\n- **Status:** accepted\n' };
+    const adrs = { '546-a.md': '# ADR\n\nsuperseded in prose\n\n- **Status:** accepted\n' };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
@@ -159,29 +159,29 @@ describe('doctrine-lint main', () => {
 
   it('Given an ADR holding DOCTRINE(D-9) and no D-9 entry, when main runs, then it reports the orphan citation and returns 2', () => {
     const doctrine = `${entry(1)}\n`;
-    const adrs = { '100-a.md': `${adr()}\nSee DOCTRINE(D-9).\n` };
+    const adrs = { '546-a.md': `${adr()}\nSee DOCTRINE(D-9).\n` };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
 
     assert.equal(result.code, EXIT_INVALID);
-    assert.equal(result.out, `doctrine-lint: ${ADR_DIR}/100-a.md: DOCTRINE(D-9) names no entry\n`);
+    assert.equal(result.out, `doctrine-lint: ${ADR_DIR}/546-a.md: DOCTRINE(D-9) names no entry\n`);
   });
 
   it('Given DOCTRINE(D-1) inside a fenced block of an ADR and no D-1 entry, when main runs, then it is still a finding', () => {
     const doctrine = `${entry(2)}\n`;
-    const adrs = { '100-a.md': `${adr()}\n\`\`\`\nDOCTRINE(D-1)\n\`\`\`\n` };
+    const adrs = { '546-a.md': `${adr()}\n\`\`\`\nDOCTRINE(D-1)\n\`\`\`\n` };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
 
     assert.equal(result.code, EXIT_INVALID);
-    assert.equal(result.out, `doctrine-lint: ${ADR_DIR}/100-a.md: DOCTRINE(D-1) names no entry\n`);
+    assert.equal(result.out, `doctrine-lint: ${ADR_DIR}/546-a.md: DOCTRINE(D-1) names no entry\n`);
   });
 
   it('Given an ADR citing an existing entry, when main runs, then it reports nothing', () => {
     const doctrine = `${entry(1)}\n`;
-    const adrs = { '100-a.md': `${adr()}\nDOCTRINE(D-1)\n` };
+    const adrs = { '546-a.md': `${adr()}\nDOCTRINE(D-1)\n` };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
@@ -191,7 +191,7 @@ describe('doctrine-lint main', () => {
 
   it('Given an ADR holding only the placeholder DOCTRINE(D-n), when main runs, then it reports nothing and returns 0', () => {
     const doctrine = `${entry(1)}\n`;
-    const adrs = { '100-a.md': `${adr()}\nDOCTRINE(D-n) and DOCTRINE(D-<n>)\n` };
+    const adrs = { '546-a.md': `${adr()}\nDOCTRINE(D-n) and DOCTRINE(D-<n>)\n` };
     const sut = [DOCTRINE, ADR_DIR];
 
     const result = run(sut, { doctrine, adrs });
