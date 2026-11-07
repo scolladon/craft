@@ -73,12 +73,12 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries[0].counterCases, ['546'])
   })
 
-  it('Given too-short and too-long ADR references in evidence, when parsed, then neither is an id', () => {
+  it('Given a too-short ADR reference beside three- and four-digit ones in evidence, when parsed, then only the short one is dropped', () => {
     const content = entry(1, { Evidence: 'ADR-12 and ADR-1234 and ADR-321' })
 
     const result = sut(content)
 
-    assert.deepEqual(result.entries[0].evidence, ['321'])
+    assert.deepEqual(result.entries[0].evidence, ['1234', '321'])
   })
 
   it('Given a heading without the em dash, when parsed, then it reports the heading error and returns no entry', () => {
