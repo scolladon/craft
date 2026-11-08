@@ -6,7 +6,7 @@
  *
  * C0 — declaration form: a *present* frontmatter fence's `subjects` must be a
  *   list of non-empty strings and each `supersedes` entry must be
- *   `{ adr: <3-digit id>, scope: <non-empty string> }`. A missing fence is
+ *   `{ adr: <id of three or more digits>, scope: <non-empty string> }`. A missing fence is
  *   never a finding — that is what keeps every legacy ADR green structurally.
  * C1 — target status flip: the file `<adr-dir>` resolves the `adr` id's
  *   filename prefix to must carry `- **Status:** superseded by ADR-<M>`.
@@ -70,8 +70,8 @@ const DEFAULT_PATHS = Object.freeze({ design: 'docs/design', plan: 'docs/plan' }
 /** git grep output can be large on a wide corpus; 1 MiB (Node's default) is not enough. */
 const GIT_GREP_MAX_BUFFER = 64 * 1024 * 1024;
 
-/** The `adr` id is the zero-padded 3-digit string as it appears in filenames and `ADR-NNN` prose. */
-const ADR_ID_PATTERN = /^\d{3}$/;
+/** The `adr` id is the zero-padded id of three or more digits, as it appears in filenames and `ADR-NNN` prose. */
+const ADR_ID_PATTERN = /^\d{3,}$/;
 
 /**
  * Regular-file predicate that deliberately uses `lstatSync`, NOT `statSync`:
@@ -254,7 +254,7 @@ function checkC0Form(relPath, declaration) {
   }
   declaration.supersedes.forEach((entry, idx) => {
     if (!isValidSupersedesEntry(entry)) {
-      findings.push(`${relPath}: supersedes[${idx}] must be { adr: <3-digit id>, scope: <non-empty string> }`);
+      findings.push(`${relPath}: supersedes[${idx}] must be { adr: <id of three or more digits>, scope: <non-empty string> }`);
     }
   });
   return findings;

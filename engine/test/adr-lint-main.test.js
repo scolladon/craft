@@ -998,22 +998,23 @@ test('Given a directory named like an ADR inside the ADR dir, when main runs, th
   );
 });
 
-test('Given a supersedes adr id that is not exactly three digits, when main runs, then the form check rejects it', () => {
+test('Given a supersedes adr id shorter than three digits, when main runs, then the form check rejects it and a four-digit id passes it', () => {
   const sut = main;
   const root = tmpRoot();
   writeFixture(root, 'adr/013-short.md', '---\nsupersedes:\n  - adr: "01"\n    scope: "x"\n---\n# 013 — Test\n');
-  writeFixture(root, 'adr/014-long.md', '---\nsupersedes:\n  - adr: "0012"\n    scope: "x"\n---\n# 014 — Test\n');
+  writeFixture(root, 'adr/014-long.md', '---\nsupersedes:\n  - adr: "1012"\n    scope: "x"\n---\n# 014 — Test\n');
   const io = makeCaptureIo();
 
   const result = sut([join(root, 'adr')], io);
 
-  // Length is the substitute for the word boundary `git grep -E` cannot carry:
+  // A minimum length is the substitute for the word boundary `git grep -E` cannot carry:
   // an id of "01" would make the pattern match a longer id such as 012 and
-  // mis-attribute the hit.
+  // mis-attribute the hit. A repository past ADR-999 carries four-digit ids, which
+  // the filenames and `ADR-NNNN` prose spell in full, so they pass.
   assert.equal(result, 2);
   const out = io.stdout.joined();
   assert.ok(out.includes('adr/013-short.md: supersedes[0] must be'), `stdout was: ${out}`);
-  assert.ok(out.includes('adr/014-long.md: supersedes[0] must be'), `stdout was: ${out}`);
+  assert.ok(!out.includes('adr/014-long.md: supersedes[0] must be'), `stdout was: ${out}`);
 });
 
 test('Given no git binary at all, when main runs, then the sweep records a skip and exit stays 0', () => {
