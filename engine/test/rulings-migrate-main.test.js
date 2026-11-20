@@ -535,3 +535,39 @@ test('Given a refusing directory, when register runs, then stderr holds only the
 
   assert.equal(result.err, 'rulings-migrate: refuse 901: missing or malformed H1\n');
 });
+
+test('Given option items wrapped over several lines with the marker on a continuation line, when register runs, then the marked option is recommended and a wrapped title comes out whole', () => {
+  const sut = run;
+  const options = [
+    '1. **The `decisions` phase only** — pros: the write already',
+    '   routes through the port / cons: the lane grows only when',
+    '   `decisions` runs. *(designer\'s recommendation)*',
+    '2. Any phase that reads',
+    '   an ADR backfills it — pros: fastest / cons: makes a reader a writer.',
+  ];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Any phase that reads an ADR backfills it.'));
+});
+
+const unstarred = (title, marker) => test(`Given the unstarred marker ${title}, when register runs, then the option is recommended`, () => {
+  const sut = run;
+  const options = [`1. **Alpha** ${marker} — a`, '2. **Beta** — b'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta.'));
+});
+
+unstarred('designer recommendation with possessive', "(designer's recommendation)");
+unstarred('designer recommendation', '(designer recommendation)');
+
+test('Given an adopted lead with the period inside the bold, when register runs, then it is adopted with its basis', () => {
+  const sut = run;
+  const decision = ['**adopted-as-recommended (no user judgment).** — follows the review.'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options: TWO_OPTIONS, decision }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta. Adopted: follows the review.'));
+});

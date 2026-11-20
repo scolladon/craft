@@ -19,11 +19,14 @@ const H1_PATTERN = /^# (\d+) — (.+)$/;
 const STATUS_PREFIX = '- **Status:**';
 const OPTION_HEADINGS = ['## Options considered', '## Options'];
 const OPTION_ITEM = /^(\d+)\. (.*)$/;
+const CONTINUATION = /^\s+\S/;
 const BOLD_RUN = /^\*\*(.+?)\*\*/;
 const TITLE_SEPARATOR = ' — ';
 const RECOMMENDED_MARKERS = [
   '*(recommended)*',
   '(recommended)',
+  "(designer's recommendation)",
+  '(designer recommendation)',
   "*(designer's recommendation)*",
   '*(designer recommendation)*',
   '*(designer recommended)*',
@@ -34,7 +37,7 @@ const RECOMMENDED_MARKERS = [
 const CHOSEN_MARKERS = ['*(chosen)*', '*(user choice)*', "*(user's choice)*"];
 const DECISION_HEADING = '## Decision';
 const ADOPTED_TOKEN = 'adopted-as-recommended';
-const ADOPTED_LEAD = `**${ADOPTED_TOKEN} (no user judgment)**`;
+const ADOPTED_LEAD = new RegExp(`^\\*\\*${ADOPTED_TOKEN} \\(no user judgment\\)\\.?\\*\\*`);
 const DEFAULT_BASIS = 'as recommended';
 const REVIEW_BASES = [
   [/adopted in review \(no user judgment\)/, 'in review'],
@@ -96,19 +99,29 @@ function optionTitle(body) {
 }
 
 function toOption(match) {
-  const [line, number, body] = match;
+  const [text, number, body] = match;
   return {
     number: Number(number),
     title: optionTitle(body),
-    recommended: RECOMMENDED_MARKERS.some((m) => line.includes(m)),
-    chosen: CHOSEN_MARKERS.some((m) => line.includes(m)),
+    recommended: RECOMMENDED_MARKERS.some((m) => text.includes(m)),
+    chosen: CHOSEN_MARKERS.some((m) => text.includes(m)),
   };
 }
 
+function joinItems(lines) {
+  const items = [];
+  let open = false;
+  for (const l of lines) {
+    if (OPTION_ITEM.test(l)) items.push(l);
+    else if (open && CONTINUATION.test(l)) items[items.length - 1] += ` ${l.trim()}`;
+    open = OPTION_ITEM.test(l) || (open && CONTINUATION.test(l));
+  }
+  return items;
+}
+
 function readOptions(lines) {
-  return sectionLines(lines, (l) => OPTION_HEADINGS.includes(l))
+  return joinItems(sectionLines(lines, (l) => OPTION_HEADINGS.includes(l)))
     .map((l) => OPTION_ITEM.exec(l))
-    .filter(Boolean)
     .map(toOption);
 }
 
@@ -128,18 +141,18 @@ function reviewBasis(status) {
 }
 
 function leadBasis(lead) {
-  const basis = lead.slice(ADOPTED_LEAD.length).replace(/^\s*—\s*/, '').replace(/\.$/, '').trim();
+  const basis = lead.replace(ADOPTED_LEAD, '').replace(/^\s*—\s*/, '').replace(/\.$/, '').trim();
   return basis === '' ? DEFAULT_BASIS : basis.replace(/ADR-(\d{3,})/g, 'R-$1');
 }
 
 function isRecognisedAdoption({ status, heading, lead }) {
-  return lead.startsWith(ADOPTED_LEAD) || status.includes(ADOPTED_TOKEN) || heading.includes(ADOPTED_TOKEN);
+  return ADOPTED_LEAD.test(lead) || status.includes(ADOPTED_TOKEN) || heading.includes(ADOPTED_TOKEN);
 }
 
 function adoption({ status, heading, lead }) {
   const review = reviewBasis(status);
   if (!isRecognisedAdoption({ status, heading, lead }) && review === null) return null;
-  if (lead.startsWith(ADOPTED_LEAD)) return leadBasis(lead);
+  if (ADOPTED_LEAD.test(lead)) return leadBasis(lead);
   return review ?? DEFAULT_BASIS;
 }
 
