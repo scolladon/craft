@@ -530,3 +530,4 @@ commit deletes every waived citation in this change):
 DECISION-CITE-WAIVE(BACKLOG.md): dated backlog history; rewritten to R- ids by rulings-migrate cite in this change
 DECISION-CITE-WAIVE(engine/test/doctrine-lint-main.test.js): synthetic fixture ids, rewritten when doctrine-lint moves to the register in this change
 DECISION-CITE-WAIVE(engine/test/doctrine.test.js): synthetic fixture ids, rewritten when doctrine-lint moves to the register in this change
+DECISION-CITE-WAIVE(docs/contributing/specs/run-record.md): token vocabulary still documents the pre-change tokens; rewritten when the decisions skill and run-record spec move to the register in this change

@@ -78,7 +78,7 @@ Principles distilled from user-ratified decisions. The decisions phase cites an 
 ## D-13 — A waiver is a fixed column-0 token line with a non-empty reason
 - **Trigger:** A check needs an escape hatch.
 - **Rule:** Waive it with a fixed token starting at column 0, outside a fence, followed by a non-empty reason.
-- **Evidence:** ADR-357, ADR-479, ADR-482, ADR-483
+- **Evidence:** ADR-479, ADR-482, ADR-483
 - **Counter-cases:** none
 
 ## D-14 — Decide by measurement or probe, not assumption

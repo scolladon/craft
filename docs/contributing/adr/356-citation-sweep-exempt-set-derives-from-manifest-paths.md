@@ -4,9 +4,11 @@ subjects:
 ---
 # 356 — The citation-sweep exempt set derives from resolved manifest paths
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-735
 - **Date:** 2026-08-18
 - **Design:** docs/contributing/design/decision-drift-propagation.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-735** for the citation-sweep exempt set: there is no sweep.
 
 ## Context
 

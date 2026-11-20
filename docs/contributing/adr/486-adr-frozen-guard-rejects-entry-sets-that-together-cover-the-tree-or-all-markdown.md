@@ -6,9 +6,11 @@ subjects:
 ---
 # 486 — The adr.frozen guard rejects entry sets that together cover the tree or all markdown
 
-- **Status:** accepted
+- **Status:** superseded by ADR-735
 - **Date:** 2026-10-12
 - **Design:** docs/contributing/design/backlog-sweep-six-entries.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-735** for the adr.frozen guard: the adr manifest key is removed.
 
 ## Context
 

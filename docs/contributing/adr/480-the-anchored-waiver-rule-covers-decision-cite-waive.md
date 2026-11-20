@@ -4,9 +4,11 @@ subjects:
 ---
 # 480 — The anchored waiver rule covers DECISION-CITE-WAIVE too
 
-- **Status:** accepted
+- **Status:** superseded by ADR-735
 - **Date:** 2026-10-11
 - **Design:** docs/contributing/design/waiver-mention-not-waiver.md · **Supersedes/Refines:** refines ADR-357
+
+> **Superseded by ADR-735** for the anchored waiver rule's coverage of DECISION-CITE-WAIVE: the token is retired.
 
 ## Context
 

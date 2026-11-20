@@ -5,9 +5,11 @@ subjects:
 ---
 # 357 — `DECISION-CITE-WAIVE` is its own token
 
-- **Status:** accepted
+- **Status:** superseded by ADR-735
 - **Date:** 2026-08-18
 - **Design:** docs/contributing/design/decision-drift-propagation.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-735** for the DECISION-CITE-WAIVE token: retired with the sweep.
 
 ## Context
 
