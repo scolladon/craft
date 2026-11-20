@@ -238,7 +238,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    After an implementation no-op (the run record holds `NO-OP(implementation):`), the
    `review`, `refactoring`, `validation` and `architecture` signals are evaluated over
    `<base>...HEAD` instead of "since `implementation`", so source that an earlier phase
-   committed is still probed. `<base>` is the default branch the workspace phase probed (`origin/HEAD` → `main` → `master`). A run whose only commits are the design doc, its ADRs and
+   committed is still probed. `<base>` is the default branch the workspace phase probed (`origin/HEAD` → `main` → `master`). A run whose only commits are the design doc, its rulings and
    their citation sweeps still auto-skips all four.
 
    When provably empty: (a) append the fixed token
@@ -519,11 +519,11 @@ bring their own `procedure`, dispatched verbatim (step 2).
   - It is in scope when its locus file is in `git diff --name-only <base>...HEAD`, or
     when it concerns a claim or behaviour the diff edits, or a statement that
     contradicts what the diff now makes true, in at most one file outside the diff. The
-    run's own design, plan and ADR docs and BACKLOG.md are in the diff. A finding out of
+    run's own design doc, plan, rulings and BACKLOG.md are in the diff. A finding out of
     scope is deferred.
   - An in-scope finding whose fix needs a new decision goes to the user through the
-    blocker protocol `{ unit, reason, ≤3 options }`: fold it with an ADR authored through
-    the decisions flow, or defer it with reason needs its own decision.
+    blocker protocol `{ unit, reason, ≤3 options }`: fold it with a ruling recorded
+    through the decisions flow, or defer it with reason needs its own decision.
   - An in-scope finding whose fix needs a paid or live probe, waits on an external
     trigger, or adds feature behaviour is deferred.
   - Every other finding is folded.

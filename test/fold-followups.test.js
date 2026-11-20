@@ -28,7 +28,7 @@ const PROPOSE_BULLET_START = /^\s+- `delivery` \(`propose`\):/;
 const NOT_FOUND = -1;
 const VERDICT_PHRASES = ['one verdict, folded or deferred',
   'the brief or the design lists as out of scope is deferred, whatever the boundary says',
-  'fold it with an ADR authored through the decisions flow, or defer it',
+  'fold it with a ruling recorded through the decisions flow, or defer it',
   'It is never folded or deferred silently',
   'the reason: out of scope, needs its own decision, needs a probe, waits on an external trigger, adds feature behaviour, or the fix did not pass its gate'];
 const HARNESS_EXCEPTION_PHRASE = 'A triage EXCEPTION the background harness lands after this step gets the same triage before `propose`';
