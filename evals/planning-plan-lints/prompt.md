@@ -6,4 +6,4 @@ max_turns: 40
 timeout_seconds: 900
 allowed_tools: [Read, Glob, Grep, Skill, Agent, Write, Bash]
 ---
-Run the craft planning phase standalone in the git repository in the current working directory, for the accepted design docs/design/shout-flag.md (decision in R-001); write the plan to docs/plan/shout-flag.md.
+Run the craft planning phase standalone in the git repository in the current working directory, for the accepted design docs/design/shout-flag.md (decision in ruling R-001 of docs/RULINGS.md); write the plan to docs/plan/shout-flag.md.
