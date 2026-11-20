@@ -571,3 +571,79 @@ test('Given an adopted lead with the period inside the bold, when register runs,
 
   assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta. Adopted: follows the review.'));
 });
+
+function runCite(files, names = Object.keys(files), regular = () => true) {
+  const io = makeCaptureIo();
+  const written = {};
+  const deps = {
+    cwd: () => '/work',
+    readFile: (p) => {
+      const content = files[p.split('/').pop()];
+      if (content === undefined) throw new Error('ENOENT');
+      return content;
+    },
+    writeFile: (p, content) => {
+      written[p.split('/').pop()] = content;
+    },
+    isRegularEntry: regular,
+  };
+  const code = main(['cite', ...names], io, deps);
+  return { code, out: io.stdout.joined(), err: io.stderr.joined(), written };
+}
+
+test('Given a file citing a three-digit ADR id, when cite runs, then the file reads the ruling id', () => {
+  const sut = runCite;
+
+  const result = sut({ 'a.md': 'See ADR-901.\n' });
+
+  assert.equal(result.code, 0);
+  assert.equal(result.written['a.md'], 'See R-901.\n');
+  assert.equal(result.out, 'rulings-migrate: cite a.md: 1 rewrites\n');
+});
+
+test('Given links, bare paths and a two-digit id, when cite runs, then each form is rewritten and the two-digit id is kept', () => {
+  const sut = runCite;
+  const text = [
+    '[x](../contributing/adr/901-a-b.md#ctx)',
+    'see `docs/contributing/adr/902-c-d.md` and docs/contributing/adr/903-e-f.md:1 and ADR-12',
+    '',
+  ].join('\n');
+
+  const result = sut({ 'a.md': text });
+
+  assert.equal(
+    result.written['a.md'],
+    ['[x](../contributing/RULINGS.md)', 'see `R-902` and R-903 and ADR-12', ''].join('\n'),
+  );
+  assert.equal(result.out, 'rulings-migrate: cite a.md: 3 rewrites\n');
+});
+
+test('Given a file without any citation, when cite runs, then nothing is written or reported', () => {
+  const sut = runCite;
+
+  const result = sut({ 'a.md': 'Nothing here, only ADR-12.\n' });
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.written, {});
+  assert.equal(result.out, '');
+});
+
+test('Given an unreadable file among readable ones, when cite runs, then it exits 2 and writes nothing', () => {
+  const sut = runCite;
+
+  const result = sut({ 'a.md': 'ADR-901\n' }, ['a.md', 'missing.md']);
+
+  assert.equal(result.code, 2);
+  assert.match(result.out, /^rulings-migrate: refuse missing\.md: /);
+  assert.deepEqual(result.written, {});
+});
+
+test('Given a non-regular file, when cite runs, then it exits 2 and writes nothing', () => {
+  const sut = runCite;
+
+  const result = sut({ 'a.md': 'ADR-901\n' }, ['a.md'], () => false);
+
+  assert.equal(result.code, 2);
+  assert.match(result.out, /refuse a\.md: not a regular file/);
+  assert.deepEqual(result.written, {});
+});

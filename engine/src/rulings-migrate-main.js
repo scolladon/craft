@@ -2,7 +2,7 @@
  * `rulings-migrate` — derives decision-register lines from ADR files.
  */
 
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { lstatSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { load } from 'js-yaml';
 import { extractFrontmatter } from './frontmatter.js';
@@ -12,7 +12,7 @@ import { REGISTER_HEADER, formatRulingLine, parseRulingLine, registerFindings } 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
 
-const USAGE = 'usage: rulings-migrate register <adr-dir> [--chosen <file.json>]\n';
+const USAGE = 'usage: rulings-migrate register <adr-dir> [--chosen <file.json>]\n       rulings-migrate cite <file>...\n';
 const PREFIX = 'rulings-migrate';
 const ADR_NAME = /^(\d+)-.+\.md$/;
 const H1_PATTERN = /^# (\d+) — (.+)$/;
@@ -51,10 +51,20 @@ const ID_WIDTH = 3;
 const SUPERSEDED_STATUS = /^superseded by ADR-(\d{3,})/;
 const REJECTED_STATUS = /^rejected — (.+)$/;
 
+const LINK_TARGET = /\]\(((?:[\w.-]+\/)*)adr\/\d{3,}-[\w-]+\.md(?:#[^)\s]*)?\)/g;
+const BARE_PATH = /(?<![\w.-])(?:[\w.-]+\/)*adr\/(\d{3,})-[\w-]+\.md(?::\d+)?/g;
+const ADR_ID = /\bADR-(\d{3,})\b/g;
+const CITE_RULES = [
+  [LINK_TARGET, ']($1RULINGS.md)'],
+  [BARE_PATH, 'R-$1'],
+  [ADR_ID, 'R-$1'],
+];
+
 const DEFAULT_DEPS = {
   readFile: (p) => readFileSync(p, 'utf8'),
   listDir: readdirSync,
   isRegularEntry: (p) => lstatSync(p).isFile(),
+  writeFile: (p, content) => writeFileSync(p, content),
   cwd: () => process.cwd(),
 };
 
@@ -336,10 +346,16 @@ function selfCheck(results) {
   return results.map((r) => (failing.has(r) ? { adr: r.adr, ...refuse(failing.get(r)) } : r));
 }
 
-function parseArgs(argv) {
+function parseRegisterArgs(argv) {
   const [verb, dir, flag, chosen, ...extra] = argv;
   const shaped = verb === 'register' && dir && extra.length === 0 && (flag === undefined || (flag === '--chosen' && chosen !== undefined));
-  return shaped ? { dir, chosen: flag === undefined ? null : chosen } : null;
+  return shaped ? { verb, dir, chosen: flag === undefined ? null : chosen } : null;
+}
+
+function parseArgs(argv) {
+  const [verb, ...files] = argv;
+  if (verb === 'cite') return files.length > 0 ? { verb, files } : null;
+  return parseRegisterArgs(argv);
 }
 
 function fail(io, message) {
@@ -370,6 +386,43 @@ function report(results, io) {
   return EXIT_INVALID;
 }
 
+function rewriteCitations(text) {
+  let rewrites = 0;
+  const content = CITE_RULES.reduce(
+    (acc, [pattern, replacement]) => acc.replace(pattern, (...m) => {
+      rewrites += 1;
+      return replacement.replace(/\$(\d)/g, (_, i) => m[Number(i)]);
+    }),
+    text,
+  );
+  return { content, rewrites };
+}
+
+function readCiteTarget(file, deps) {
+  const path = resolve(deps.cwd(), file);
+  try {
+    if (!deps.isRegularEntry(path)) return refuse('not a regular file');
+    return { file, path, text: deps.readFile(path) };
+  } catch (error) {
+    return refuse(`cannot read: ${error.message}`);
+  }
+}
+
+function citeAll(files, io, deps) {
+  const targets = files.map((file) => ({ file, ...readCiteTarget(file, deps) }));
+  const refused = targets.filter((t) => t.reason);
+  refused.forEach((t) => io.stdout.write(`${PREFIX}: refuse ${safeLabel(t.file)}: ${safeLabel(t.reason)}\n`));
+  if (refused.length > 0) return EXIT_INVALID;
+  targets
+    .map((t) => ({ ...t, ...rewriteCitations(t.text) }))
+    .filter((t) => t.content !== t.text)
+    .forEach((t) => {
+      deps.writeFile(t.path, t.content);
+      io.stdout.write(`${PREFIX}: cite ${safeLabel(t.file)}: ${t.rewrites} rewrites\n`);
+    });
+  return EXIT_OK;
+}
+
 /**
  * @param {string[]} argv
  * @param {{ stdout: { write(s: string): void }, stderr: { write(s: string): void } }} io
@@ -383,6 +436,7 @@ export function main(argv, io, deps = {}) {
     io.stderr.write(USAGE);
     return EXIT_INVALID;
   }
+  if (args.verb === 'cite') return citeAll(args.files, io, resolved);
   const table = args.chosen === null ? { entries: new Map() } : parseTable(args.chosen, resolved);
   if (table.reason) return fail(io, table.reason);
   const dir = resolve(resolved.cwd(), args.dir);
