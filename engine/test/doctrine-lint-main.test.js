@@ -225,4 +225,30 @@ describe('doctrine-lint main', () => {
     assert.ok(io.stdout.joined().startsWith('doctrine-lint: a\\x1bb.md:'));
     assert.ok(!io.stdout.joined().includes('\u001b'));
   });
+
+  it('Given a register path holding a control character, when its parse and orphan findings are reported, then every label escapes it', () => {
+    const io = makeCaptureIo();
+    const argv = [DOCTRINE, 'a\u001bb.md'];
+    const registerText = register(line(546), '- nonsense', line(547, ' Adopted: DOCTRINE(D-9).'));
+    const deps = { cwd: () => WORK, isFile: () => true, readFile: (p) => (p.endsWith(DOCTRINE) ? `${entry(1)}\n` : registerText) };
+
+    const code = sut(argv, io, deps);
+
+    const labelled = io.stdout.joined().split('\n').filter((l) => l.startsWith('doctrine-lint: a\\x1bb.md:'));
+    assert.equal(code, EXIT_INVALID);
+    assert.equal(labelled.length, 2);
+    assert.ok(!io.stdout.joined().includes('\u001b'));
+  });
+
+  it('Given a doctrine path holding a control character, when a citation does not resolve, then the citation label escapes it', () => {
+    const io = makeCaptureIo();
+    const argv = ['a\u001bb.md', REGISTER];
+    const deps = { cwd: () => WORK, isFile: () => true, readFile: (p) => (p.endsWith(REGISTER) ? register(line(546)) : `${entry(1, { Evidence: 'R-999' })}\n`) };
+
+    const code = sut(argv, io, deps);
+
+    assert.equal(code, EXIT_INVALID);
+    assert.match(io.stdout.joined(), /^doctrine-lint: a\\x1bb\.md:\d+: .*R-999 does not resolve/m);
+    assert.ok(!io.stdout.joined().includes('\u001b'));
+  });
 });

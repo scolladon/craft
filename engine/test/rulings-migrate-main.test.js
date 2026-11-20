@@ -884,11 +884,11 @@ test('Given a subject ending in a slash, when register runs, then it migrates to
 
 test('Given a bare path followed by an extension suffix, when cite runs, then it is left untouched', () => {
   const sut = runCite;
-  const text = 'a/adr/019-b.mdx docs/adr/020-c.md5 docs/adr/021-d.md.\n';
+  const text = 'a/adr/019-b.mdx docs/adr/020-c.md5 docs/adr/022-e.md-x docs/adr/021-d.md.\n';
 
   const result = sut({ 'a.md': text });
 
-  assert.equal(result.written['a.md'], 'a/adr/019-b.mdx docs/adr/020-c.md5 R-021.\n');
+  assert.equal(result.written['a.md'], 'a/adr/019-b.mdx docs/adr/020-c.md5 docs/adr/022-e.md-x R-021.\n');
 });
 
 test('Given a title holding a control character, when register runs, then it refuses naming the control character', () => {
