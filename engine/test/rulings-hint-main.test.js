@@ -79,6 +79,22 @@ test('Given blank and duplicate stdin lines, When the slice is built, Then each 
   assert.equal(result.out, `${HEADER}\n${MATCHING}\n`);
 });
 
+test('Given only blank stdin lines, When a ruling matches every path, Then nothing is printed', () => {
+  const register = registerOf('- R-906 [**] Keep everything settled.');
+
+  const result = run({ register, stdin: '\n  \n' });
+
+  assert.deepEqual(result, { code: 0, out: '', err: '' });
+});
+
+test('Given a stdin path padded with spaces, When it is the only touched path, Then the trimmed path matches', () => {
+  const register = registerOf(MATCHING);
+
+  const result = run({ register, stdin: '  src/a.js  \n' });
+
+  assert.equal(result.out, `${HEADER}\n${MATCHING}\n`);
+});
+
 test('Given a missing register, When main runs, Then a stderr note is written and the exit is 0', () => {
   const sut = run;
 

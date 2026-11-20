@@ -73,12 +73,25 @@ describe('parseRulingLine', () => {
     assert.equal(result.ruling.statement, 'Use a.b; c | d. Then e');
   });
 
+  it('Given a superseded line whose scope is a single character, when parsed, then the status carries that scope', () => {
+    const sut = parseRulingLine;
+
+    const result = sut('- R-911 [] S. Superseded by R-912: a.', 1);
+
+    assert.deepEqual(result.ruling.status, { kind: 'superseded', by: 912, scope: 'a' });
+  });
+
   const NOT_A_RULING = 'not a ruling line: expected "- R-NNN [paths] statement."';
   const refusals = [
     ['markers are out of order', '- R-911 [] S. Adopted: x. Refused: a.', 'reserved markers are out of order'],
     ['a marker repeats', '- R-911 [] S. Refused: a. Refused: b.', 'reserved marker "Refused:" repeats'],
     ['superseded and rejected are both present', '- R-911 [] S. Superseded by R-912: x. Rejected: y.', 'a ruling cannot be both superseded and rejected'],
     ['an item is empty', '- R-911 [] S. Refused: a ·  · b.', 'empty refused item'],
+    ['an item is blank', '- R-911 [] S. Refused: a ·   · b.', 'empty refused item'],
+    ['a marker leads the tail and repeats', '- R-911 []  Refused: a. Refused: b.', 'reserved marker "Refused:" repeats'],
+    ['the superseding id is prefixed by junk', '- R-911 [] S. Superseded by R-x912: y.', 'superseded status needs an id and a scope'],
+    ['the line is prefixed by junk', 'x - R-911 [] S.', NOT_A_RULING],
+    ['the line holds a unicode line separator', '- R-911 [] S.\u2028more', NOT_A_RULING],
     ['a scope is empty', '- R-911 [] S. Superseded by R-912: .', 'superseded status needs an id and a scope'],
     ['a scope is blank', '- R-911 [] S. Superseded by R-912:  .', 'superseded status needs an id and a scope'],
     ['a reason is empty', '- R-911 [] S. Rejected: .', 'empty rejection reason'],
@@ -288,6 +301,15 @@ describe('sliceRulings', () => {
     const result = sut(rulings, ['src/a.js', 'src/a.js']);
 
     assert.deepEqual(result.matched.map((r) => r.id), [901, 902, 903]);
+  });
+
+  it('Given a ruling whose only path is a bare wildcard, when any path is touched, then it matches', () => {
+    const sut = sliceRulings;
+    const everything = [parseRulingLine('- R-908 [**] Everywhere.', 1).ruling];
+
+    const result = sut(everything, ['a.js']);
+
+    assert.deepEqual(result.matched.map((r) => r.id), [908]);
   });
 
   it('Given no touched path, when sliced, then nothing matches', () => {

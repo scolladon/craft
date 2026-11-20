@@ -492,3 +492,14 @@ test('Given a rulings claim off by one from the register, when main runs, then i
   assert.equal(result, 1);
   assert.match(stdout(), /rulings-counts: docs\/contributing\/RULINGS\.md claims 4, register holds 3/);
 });
+
+test('Given a rulings claim whose register file is missing, when main runs, then it returns 1 and reports the rulings-counts surface as unusable', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+  const readme = [CLEAN_README, '', `[3 rulings](${RULINGS_FILE})`, ''].join('\n');
+
+  const result = withFixtureRoot({ readme }, (root) => sut([root], io));
+
+  assert.equal(result, 1);
+  assert.match(stdout(), /rulings-counts: unusable input/);
+});

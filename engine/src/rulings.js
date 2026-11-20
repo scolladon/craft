@@ -28,6 +28,8 @@ function markerError(tail) {
   const repeated = found.find(({ marker }) => occurrences(tail, marker) > 1);
   if (repeated) return `reserved marker "${repeated.marker.trim()}" repeats`;
   const positions = found.map(({ at }) => at);
+  // equivalent mutant (i > 0 → true / i >= 0): positions[-1] is undefined and `at < undefined` is false, so the guard adds nothing
+  // equivalent mutant (< → <=): two distinct markers cannot start at one index — none is a prefix of another
   if (positions.some((at, i) => i > 0 && at < positions[i - 1])) return 'reserved markers are out of order';
   if (found.some(({ marker }) => marker === SUPERSEDED_MARKER) && found.some(({ marker }) => marker === REJECTED_MARKER)) {
     return 'a ruling cannot be both superseded and rejected';
@@ -45,6 +47,8 @@ function splitSegments(tail) {
   return segments;
 }
 
+// equivalent mutant (drop the trailing $): `.` never matches a line terminator and LINE_PATTERN's `(.+)$` already rejects any
+// line holding one, so `.*` always runs to the end of the segment
 const SUPERSEDED_PATTERN = /^(\d{3,}): (.*\S.*)$/;
 
 function undotted(segments) {
@@ -190,6 +194,7 @@ const finding = (ruling, message) => ({ line: ruling.line, message });
 function orderFindings(rulings) {
   const seen = new Set();
   const findings = [];
+  // equivalent mutant (< → <= on the order check): an equal id is already in `seen`, so the duplicate branch takes it first
   rulings.forEach((ruling, i) => {
     if (seen.has(ruling.id)) findings.push(finding(ruling, `duplicate id ${formatId(ruling.id)}`));
     else if (i > 0 && ruling.id < rulings[i - 1].id) findings.push(finding(ruling, `${formatId(ruling.id)} out of order`));
@@ -198,6 +203,7 @@ function orderFindings(rulings) {
   return findings;
 }
 
+// equivalent mutant (startsWith('/') → endsWith('/')): a leading or trailing '/' yields an empty segment, which NON_CANONICAL_SEGMENTS refuses either way
 const isUnsafePath = (path) =>
   path.startsWith('/') || path.startsWith('~') || path.split('/').some((segment) => NON_CANONICAL_SEGMENTS.has(segment)) || SAFE_PATH_BREAKERS.test(path);
 

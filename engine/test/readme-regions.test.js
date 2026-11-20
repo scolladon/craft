@@ -377,6 +377,14 @@ test('Given a counted link targeting the rulings register, when extractReadmeReg
   assert.deepEqual(result.rulingsClaims, [{ file: 'docs/contributing/RULINGS.md', claimed: 3 }]);
 });
 
+test('Given a multi-digit count linking the rulings register, when extractReadmeRegions runs, then the whole count is claimed', () => {
+  const sut = extractReadmeRegions;
+
+  const result = sut('see [12 rulings](docs/contributing/RULINGS.md)');
+
+  assert.deepEqual(result.rulingsClaims, [{ file: 'docs/contributing/RULINGS.md', claimed: 12 }]);
+});
+
 test('Given a counted link targeting another file, when extractReadmeRegions runs, then it is not read as a rulings claim', () => {
   const sut = extractReadmeRegions;
 

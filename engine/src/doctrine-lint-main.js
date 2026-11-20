@@ -70,6 +70,7 @@ function citationFindings(entries, label, rulingsById) {
   return entries.flatMap((entry) => entryFindings(entry, `${label}:${entry.line}`, rulingsById));
 }
 
+// equivalent mutant (StringLiteral on the `?? ''` fallback): any non-empty fallback lacking `DOCTRINE(D-n)` matches nothing, so no input distinguishes it
 function orphanFindings(rulings, entries, registerArg) {
   const known = new Set(entries.map(({ id }) => id));
   return rulings.flatMap((ruling) => [...(ruling.adopted ?? '').matchAll(DOCTRINE_CITATION)]

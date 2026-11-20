@@ -20,6 +20,7 @@ const DEFAULT_DEPS = Object.freeze({
   readStdin: () => readFileSync(0, 'utf8'),
 });
 
+// equivalent mutant (drop `argv[i + 1] === undefined`): a dangling flag is always the last pair, so it only assigns undefined to options.register, which the final check treats as a usage error
 function parseArgs(argv) {
   const options = {};
   for (let i = 0; i < argv.length; i += 2) {
