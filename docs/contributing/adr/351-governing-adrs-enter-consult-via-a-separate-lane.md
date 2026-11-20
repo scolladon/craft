@@ -5,9 +5,11 @@ subjects:
 ---
 # 351 — Governing ADRs enter `consult` via a separate enumeration lane
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-739
 - **Date:** 2026-08-18
 - **Design:** docs/contributing/design/decision-drift-propagation.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-739** for how governing decisions reach the phases: a rulings-hint bin at design, decisions and planning entry replaces consult's governing lane.
 
 ## Context
 
