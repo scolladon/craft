@@ -2,16 +2,16 @@ const ENTRY_HEADING = /^## D-(\d+) — (.+)$/;
 const SECTION_HEADING_PREFIX = '## ';
 export const DOCTRINE_BULLETS = Object.freeze(['Trigger', 'Rule', 'Evidence', 'Counter-cases']);
 const BULLET = /^- \*\*([^*]+):\*\*(.*)$/;
-const ADR_REF = /ADR-(\d{3,})\b/g;
+const RULING_REF = /\bR-(\d{3,})\b/g;
 const NO_COUNTER_CASES = 'none';
-const COUNTER_CASE_ITEM = /^ADR-(\d{3,}) — \S/;
+const COUNTER_CASE_ITEM = /^R-(\d{3,}) — \S/;
 const COUNTER_CASE_SEPARATOR = ';';
 const CODE_FENCE = /^\s*(```|~~~)/;
 const BULLET_LABELS = DOCTRINE_BULLETS.join(', ');
 const MALFORMED_HEADING = 'heading must be "## D-<n> — <title>"';
 
-function adrRefs(text) {
-  return [...text.matchAll(ADR_REF)].map((match) => match[1]);
+function rulingRefs(text) {
+  return [...text.matchAll(RULING_REF)].map((match) => match[1]);
 }
 
 function splitSections(content) {
@@ -50,7 +50,7 @@ function counterCaseIds(counterText) {
 function checkReferences(id, evidence, counterCases) {
   const messages = [];
   if (evidence.length === 0) messages.push(`D-${id}: evidence is empty`);
-  if (counterCases === null) messages.push(`D-${id}: counter-cases must be none or ADR-NNN — <why> items`);
+  if (counterCases === null) messages.push(`D-${id}: counter-cases must be none or R-NNN — <why> items`);
   return messages;
 }
 
@@ -60,7 +60,7 @@ function buildEntry(section, id, title) {
     return { entry: null, errors: [{ line: section.line, message: `D-${id}: bullets must be exactly, in order: ${BULLET_LABELS}` }] };
   }
   const [trigger, rule, evidenceText, counterText] = values;
-  const evidence = adrRefs(evidenceText);
+  const evidence = rulingRefs(evidenceText);
   const counterCases = counterCaseIds(counterText);
   const errors = checkReferences(id, evidence, counterCases).map((message) => ({ line: section.line, message }));
   return { entry: { id, title, trigger, rule, evidence, counterCases: counterCases ?? [], line: section.line }, errors };

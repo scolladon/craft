@@ -14,7 +14,7 @@ const VALID_DOCTRINE = [
   '## D-1 — A title',
   '- **Trigger:** a trigger',
   '- **Rule:** a rule',
-  '- **Evidence:** ADR-546 — why',
+  '- **Evidence:** R-546 — why',
   '- **Counter-cases:** none',
   '',
 ].join('\n');

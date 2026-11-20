@@ -13,7 +13,7 @@ const entry = (id, overrides = {}) => {
   const bullets = {
     Trigger: 'a trigger',
     Rule: 'a rule',
-    Evidence: 'ADR-546 — why',
+    Evidence: 'R-546 — why',
     'Counter-cases': 'none',
     ...overrides,
   };
@@ -87,7 +87,7 @@ describe('doctrine-lint main', () => {
   });
 
   it('Given a valid two-entry doctrine citing live ADRs, when main runs, then it prints the OK line and returns 0', () => {
-    const doctrine = `# Doctrine\n\n${entry(1)}\n\n${entry(2, { Evidence: 'ADR-546 — a, ADR-102 — b' })}\n`;
+    const doctrine = `# Doctrine\n\n${entry(1)}\n\n${entry(2, { Evidence: 'R-546 — a, R-102 — b' })}\n`;
     const adrs = { '546-a.md': adr(), '102-b.md': adr() };
     const argv = [DOCTRINE, ADR_DIR];
 
@@ -98,7 +98,7 @@ describe('doctrine-lint main', () => {
   });
 
   it('Given evidence and counter-case citations, when main runs, then both are counted', () => {
-    const doctrine = `${entry(1, { 'Counter-cases': 'ADR-102 — why' })}\n`
+    const doctrine = `${entry(1, { 'Counter-cases': 'R-102 — why' })}\n`
     const adrs = { '546-a.md': adr(), '102-b.md': adr() };
     const argv = [DOCTRINE, ADR_DIR];
 
@@ -170,7 +170,7 @@ describe('doctrine-lint main', () => {
   });
 
   it('Given a counter-case id that is superseded, when main runs, then it reports it is superseded', () => {
-    const doctrine = `${entry(1, { 'Counter-cases': 'ADR-102 — exception' })}\n`;
+    const doctrine = `${entry(1, { 'Counter-cases': 'R-102 — exception' })}\n`;
     const adrs = { '546-a.md': adr(), '102-b.md': adr('superseded by ADR-009') };
     const argv = [DOCTRINE, ADR_DIR];
 
