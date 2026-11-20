@@ -24,7 +24,7 @@ description: Craft phase 4 - produce the parted TDD implementation plan via the 
 
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
-1. Spawn **craft:planner** with: the design doc path (or brief) + the accepted ADR paths; the
+1. Spawn **craft:planner** with: the design doc path (or brief) + the R-ids of the rulings this run's decisions phase appended (the rulings hint carries the rest); the
    absolute working directory; the output path `<plan-dir>/<slug>.md`; the template
    `"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/templates/plan.md"`; the part-gate command (manifest
    `gates.part`, or probe: the repo's test runner over touched files, falling back to
@@ -51,7 +51,7 @@ description: Craft phase 4 - produce the parted TDD implementation plan via the 
    - **Not the run's own paperwork:** a sha whose
      `git diff-tree --no-commit-id --name-only -r <sha>` touches only the design directory, the plan directory and `README.md`
      fails — the design commit (with its README corpus-count bump) always lands before
-     planning and delivers no requirement. An ADR commit is not rejected here: a decision
+     planning and delivers no requirement. A rulings commit is not rejected here: a decision
      can be the deliverable, so the spot-check below judges it.
    - **Delivers what it claims:** read each cited commit's `git show --stat` and confirm it
      delivers the requirement mapped to it (the same spot-check Procedure 3 runs on parts).

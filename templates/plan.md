@@ -1,6 +1,6 @@
 # Plan — <topic>
 
-> Source: design doc `<path>` · ADRs `<numbers or none>`
+> Source: design doc `<path>` · Rulings `<R-ids or none>`
 > The plan is the implementation script AND the knowledge handoff. Part agents start
 > with zero context: whatever a part block omits is paid later as agent rediscovery.
 > `plan-lint.sh` enforces the schema below — the plan phase cannot close without it.
