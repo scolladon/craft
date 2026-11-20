@@ -126,42 +126,13 @@ run_prose_lint() {
   while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     case "$f" in
-      docs/contributing/adr/*|docs/contributing/design/*|docs/contributing/archive/*|docs/contributing/specs/*|docs/contributing/prd/*|docs/contributing/plan/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
+      docs/contributing/design/*|docs/contributing/archive/*|docs/contributing/specs/*|docs/contributing/prd/*|docs/contributing/plan/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
+      docs/contributing/RULINGS.md) ;;  # generated register quotes refused wording
       *.md) docs+=("$f"); waivers+=(--waiver-source "$f") ;;
     esac
   done < "$hygiene_touched"
   [ "${#docs[@]}" -eq 0 ] && return 0
   node engine/bin/prose-lint.js --gate "$hygiene_gate" ${waivers[@]+"${waivers[@]}"} -- "${docs[@]}"
 }
-# adr-lint is hard-blocking and whole-corpus (it has no hygiene.gate knob: a
-# superseded decision left un-propagated is a correctness fact, not a style
-# smell). It sits here only because it needs the same touched-*.md waiver
-# sources the hygiene gates build — without them DECISION-CITE-WAIVE would be
-# documented but unreachable, leaving adr.frozen as the sole escape, which
-# disables the gate wholesale instead of waiving one line.
-run_adr_lint() {
-  local -a waivers=()
-  local f
-  # The sweep is WHOLE-CORPUS, so its waiver sources must be whole-corpus too.
-  # Scoping them to the merge-base touched set (what the hygiene gates do, and
-  # correctly, because their SCANNED set is also touched-scoped) would make a
-  # waiver last exactly one PR: on a push to main the touched set is empty, and
-  # every previously waived citation would fail a knob-less blocking gate.
-  # The dated-ledger tier is the stable home for a waiver — it is where the
-  # decision that justifies the citation is already written down.
-  while IFS= read -r -d '' f; do
-    [ -n "$f" ] || continue
-    waivers+=(--waiver-source "$f")
-  done < <(git ls-files -z -- 'docs/contributing/design/*.md' 'docs/contributing/plan/*.md')
-  while IFS= read -r -d '' f; do
-    [ -n "$f" ] || continue
-    case "$f" in
-      docs/contributing/design/*|docs/contributing/plan/*) ;;  # already collected above
-      *.md) waivers+=(--waiver-source "$f") ;;
-    esac
-  done < "$hygiene_touched"
-  bash scripts/adr-lint.sh docs/contributing/adr ${waivers[@]+"${waivers[@]}"}
-}
 run_stub_lint
 run_prose_lint
-run_adr_lint

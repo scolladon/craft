@@ -44,7 +44,7 @@ craft externalizes the delivery loop so it survives the transcript:
   Kill the session mid-run; the next agent resumes from the last committed artifact.
 - **Never commit on red.** The engine runs your repo's gate at every cadence boundary.
   Non-negotiable.
-- **Decisions are yours, captured as ADRs.** The design phase surfaces decision
+- **Decisions are yours, captured as rulings.** The design phase surfaces decision
   candidates; you ratify them; the *why* outlives the run.
 - **Review and validation are real phases**, not vibes — configurable dimensions,
   convergence rounds, and triage, each gating the PR.
@@ -76,7 +76,7 @@ A given tool in a category may add more — check it.
 |---|---|---|---|
 | Where the process lives | in the prompt you wrote | in templates and instructions the agent follows | in hooks, scripts and versioned [contracts](contracts/) |
 | Committing on a red test suite | not prevented by the approach itself | varies by tool | forbidden by contract, with a gate run at every code-producing phase boundary — [the contract](contracts/core.md) |
-| Why a choice was made survives the session | not by the approach itself | in the spec, when written | as a ratified [decision record](docs/contributing/adr/) |
+| Why a choice was made survives the session | not by the approach itself | in the spec, when written | as a ratified [ruling](docs/contributing/RULINGS.md) |
 | Review and validation before the PR | when you ask | varies by tool | gated phases — [the review phase](skills/review/SKILL.md) |
 | Resume after a killed session | from the transcript, if the tool keeps one | from the spec files | from the last committed artifact — [plans](docs/contributing/plan/) |
 | Cost against a plain prompt | baseline | varies by tool | higher — [measured, with where craft lost](docs/guides/comparison.md#where-craft-lost) |
@@ -110,7 +110,7 @@ try `/craft:review` on a branch, or `/craft:run` on a brief.
 
 workspace       → feature branch + isolated git worktree, deps installed
 design          → designer agent writes the design doc, self-reviews to convergence
-decisions   🧑  → you rule on the real forks; the rest are adopted from your ADRs and doctrine and listed in the PR
+decisions   🧑  → you rule on the real forks; the rest are adopted from your rulings and doctrine and listed in the PR
 planning        → TDD plan split into parts, each with its own pre-chewed context block
 implementation  → one implementer agent per part; RED → GREEN → REFACTOR; one commit per part
 review          → parallel reviewers, one dimension each; fixes applied until convergence
@@ -224,8 +224,8 @@ in code where a silent regression is expensive to discover later.
 ## craft builds craft
 
 Every feature in this repo was delivered by a craft run, and the artifacts are the
-receipts: [101 design docs](docs/contributing/design/), [99 parted plans](docs/contributing/plan/),
-[729 ADRs](docs/contributing/adr/), [12 lessons](docs/contributing/lessons/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
+receipts: [102 design docs](docs/contributing/design/), [100 parted plans](docs/contributing/plan/),
+[742 rulings](docs/contributing/RULINGS.md), [14 lessons](docs/contributing/lessons/), and [raw telemetry for 25 runs](docs/contributing/metrics-baseline.report.json)
 — plus an [instantiation record](docs/contributing/archive/SC5-second-instantiation-record.md)
 proving the zero-config pipeline on a second, unrelated Python/pytest repo.
 
@@ -315,7 +315,7 @@ session resumes from the last artifact — the plan's context blocks, not scroll
 | [guides/customizing.md](docs/guides/customizing.md) | mental model + full injection catalog |
 | [guides/concepts.md](docs/guides/concepts.md) | why craft is shaped this way, in five familiar frames |
 | [DESIGN-customizable-engine.md](docs/contributing/prd/DESIGN-customizable-engine.md) | living architecture: phases, ports, enforcement |
-| [docs/contributing/adr/](docs/contributing/adr/) | decision records |
+| [docs/contributing/RULINGS.md](docs/contributing/RULINGS.md) | rulings register |
 | [examples/](examples/) | one runnable sample per injection point |
 
 Contributing to craft itself? Start at [CONTRIBUTING.md](CONTRIBUTING.md).

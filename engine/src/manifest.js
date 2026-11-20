@@ -9,7 +9,6 @@
 import { resolveAlias } from './alias-map.js';
 import { POLICY_ACTIONS, VERDICTS } from './policy.js';
 import { checkFileRef } from './manifest-file-ref.js';
-import { coversEveryPath, matchesEveryPath, MARKDOWN_PROBE_PATHS, PROBE_PATHS } from './glob.js';
 import { validateExtends, registeredBacklogNames } from './extends-validation.js';
 import { parseDod, validateDodCriteria } from './dod.js';
 import {
@@ -385,49 +384,6 @@ function validateLessons(lessons, errors) {
   }
 }
 
-/**
- * Validate the `adr` sub-object.
- * @param {unknown} adr
- * @param {string[]} errors
- */
-function validateAdr(adr, errors) {
-  if (typeof adr !== 'object' || adr === null || Array.isArray(adr)) {
-    errors.push('adr must be an object { frozen }');
-    return;
-  }
-  for (const k of Object.keys(adr)) {
-    if (k !== 'frozen') errors.push(`unknown adr field: ${k}`);
-  }
-  const { frozen } = adr;
-  if (frozen === undefined) return;
-  if (!isListOfNonEmptyStrings(frozen)) {
-    errors.push('adr.frozen must be a list of non-empty strings');
-    return;
-  }
-  errors.push(...frozenCoverageErrors(frozen));
-}
-
-const FROZEN_SET_WHOLE_TREE_ERROR = 'adr.frozen entries together exempt the whole tree, which disables the citation sweep';
-const FROZEN_EVERY_MARKDOWN_ERROR = 'adr.frozen exempts every markdown file, which disables the citation sweep where ADR citations live';
-
-/**
- * Errors for frozen globs that would switch the citation sweep off: per entry first,
- * then the set as a whole, whole-tree before markdown.
- * @param {string[]} frozen
- * @returns {string[]}
- */
-function frozenCoverageErrors(frozen) {
-  const perEntry = frozen
-    .filter((glob) => matchesEveryPath(glob))
-    .map((glob) => `adr.frozen entry '${glob}' exempts the whole tree, which disables the citation sweep`);
-  if (perEntry.length > 0) return perEntry;
-  if (coversEveryPath(frozen, PROBE_PATHS)) return [FROZEN_SET_WHOLE_TREE_ERROR];
-  if (coversEveryPath(frozen, MARKDOWN_PROBE_PATHS)) return [FROZEN_EVERY_MARKDOWN_ERROR];
-  return [];
-}
-
-
-
 /** Prefix that routes a tool name to the full-MCP shape instead of the plain shape. */
 const MCP_TOOL_PREFIX = 'mcp__';
 const MAX_TOOL_NAME_LENGTH = 128;
@@ -638,9 +594,6 @@ export function validateManifest(manifest, opts) {
         break;
       case 'memory':
         validateMemory(value, fileExists, errors);
-        break;
-      case 'adr':
-        validateAdr(value, errors);
         break;
       case 'intention':
         validateIntention(value, fileExists, errors);

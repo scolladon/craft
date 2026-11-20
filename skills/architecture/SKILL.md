@@ -10,7 +10,7 @@ description: Craft architecture phase - run the repo's boundary-check harness ov
 1. Manifest read (lint if standalone). Standalone: scope = current branch vs default
    branch.
 2. **Resolve the active technique set** from `phase.harness` (the resolved descriptor),
-   using the same ADR-149 discovery precedence — default-off favours no-op:
+   using the same R-149 discovery precedence — default-off favours no-op:
    - **Declared** — `phase.harness.techniquePlan` (engine-emitted) wins outright: each
      entry specifies technique `id`, `run` command, `mode` (`gate` | `triage`), optional
      `scope`, optional `triage-procedure` ref. `run-style` defaults to `sync`.

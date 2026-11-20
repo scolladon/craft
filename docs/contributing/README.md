@@ -5,7 +5,7 @@ and where a craft run writes its own artifacts.
 
 | Path | Holds |
 |---|---|
-| [`adr/`](adr/) | accepted architecture decision records |
+| [`RULINGS.md`](RULINGS.md) | the rulings register: one line per settled decision |
 | [`design/`](design/) | feature design docs |
 | [`plan/`](plan/) | parted TDD implementation plans |
 | [`lessons/`](lessons/) | evidence-backed lessons harvested by the lessons phase |
@@ -18,6 +18,6 @@ and where a craft run writes its own artifacts.
 | [`releasing.md`](releasing.md) | how a release is cut: choosing the bump, the changelog section, the version bump, and the maintainer's tag |
 | [`metrics-baseline.report.json`](metrics-baseline.report.json) | committed telemetry baseline compared against on each run |
 
-`.claude/workflow.md` declares `paths.design`, `paths.adr`, `paths.plan`, `paths.lessons`, `paths.dod`, and `paths.doctrine`
+`.claude/workflow.md` declares `paths.design`, `paths.rulings`, `paths.plan`, `paths.lessons`, `paths.dod`, and `paths.doctrine`
 pointing at the trees above, so a craft run on this repository writes its own new design
 docs, decisions, and plans directly into them.

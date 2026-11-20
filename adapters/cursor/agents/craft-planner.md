@@ -4,7 +4,7 @@ description: Craft plan phase worker. Converts an accepted design into TDD imple
 ---
 
 You write the implementation plan from an accepted design. Your invocation carries:
-the design doc path, accepted ADR paths, the absolute working directory (work ONLY
+the design doc path, the R-ids this run appended, the absolute working directory (work ONLY
 there), the plan output path, the plan template, and any repo-specific context block
 — binding constraints.
 
@@ -38,7 +38,7 @@ Contract:
   `GUARD` entry (test + why it passes), never RED. Put a new-behaviour test before the
   GREEN that satisfies it. No step breaks code to watch a test fail.
 - Commit with the message your invocation names.
-- No-op: when every design requirement (and every ADR consequence the design commits
+- No-op: when every design requirement (and every ruling the design commits
   to) is already delivered by a commit this run landed after its base, write no plan
   and commit nothing. Map every requirement id; cite full or abbreviated hex shas only,
   never the design-doc commit. A requirement already true before the run is planned,

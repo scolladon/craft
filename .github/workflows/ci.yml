@@ -58,8 +58,10 @@ jobs:
 
       # Offline mode: verifies every relative link and #fragment across the repo's
       # markdown deterministically (no network flakes); external URLs are not checked.
+      # Links into docs/contributing/adr/ are dated-tier history: that directory was
+      # retired into docs/contributing/RULINGS.md and git history keeps its files.
       - name: Check markdown links
         uses: lycheeverse/lychee-action@v2
         with:
-          args: --offline --include-fragments --no-progress --exclude-path engine/node_modules './**/*.md'
+          args: --offline --include-fragments --no-progress --exclude-path engine/node_modules --exclude '/docs/contributing/adr/' './**/*.md'
           fail: true

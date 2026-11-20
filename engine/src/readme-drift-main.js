@@ -1,7 +1,7 @@
 /**
  * README drift-guard orchestrator — reads README.md, pipeline/default.yml and the
- * telemetry report under a resolved root, runs all four sub-guards (manifest snippet,
- * phase names, telemetry claims, corpus counts), and prints every finding it collects.
+ * telemetry report under a resolved root, runs all five sub-guards (manifest snippet,
+ * phase names, telemetry claims, corpus counts, rulings counts), and prints every finding it collects.
  * Run-all, not fail-fast: one invocation surfaces every drift at once.
  */
 
@@ -12,6 +12,7 @@ import { load } from 'js-yaml';
 import { extractFrontmatter } from './frontmatter.js';
 import { validateManifest } from './manifest.js';
 import { extractReadmeRegions } from './readme-regions.js';
+import { parseRegister } from './rulings.js';
 import { enabledPhaseIds } from './phase-truth.js';
 import { recomputeClaims, compareClaims } from './telemetry-claims.js';
 
@@ -127,6 +128,21 @@ function corpusCountFindings(root, corpusClaims) {
 }
 
 /**
+ * Sub-guard 5: every rulings count the README advertises must match the number of
+ * rulings the register file holds.
+ * @param {string} root
+ * @param {Array<{file: string, claimed: number}>} rulingsClaims
+ * @returns {string[]} findings
+ */
+function rulingsCountFindings(root, rulingsClaims) {
+  return rulingsClaims.flatMap(({ file, claimed }) => {
+    const actual = parseRegister(readFileSync(join(root, file), 'utf8')).rulings.length;
+    if (actual === claimed) return [];
+    return [`rulings-counts: ${file} claims ${claimed}, register holds ${actual}`];
+  });
+}
+
+/**
  * @param {string[]} findings
  * @param {{ stdout: { write(s: string): void } }} io
  */
@@ -176,6 +192,7 @@ export function main(argv, io) {
     ...guarded('phase-names', () => phaseNameFindings(root, regions)),
     ...guarded('telemetry', () => telemetryFindings(root, regions.costClaims)),
     ...guarded('corpus-counts', () => corpusCountFindings(root, regions.corpusClaims)),
+    ...guarded('rulings-counts', () => rulingsCountFindings(root, regions.rulingsClaims)),
   ];
 
   printFindings(findings, io);

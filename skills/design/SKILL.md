@@ -1,6 +1,6 @@
 ---
 name: design
-description: Craft phase 2 - produce the feature design doc via the designer agent; returns decision candidates for the ADR conversation.
+description: Craft phase 2 - produce the feature design doc via the designer agent; returns decision candidates for the decisions phase.
 ---
 
 # craft:design

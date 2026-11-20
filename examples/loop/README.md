@@ -10,7 +10,7 @@ is the acceptance bar the loop converges on.
 
 ---
 
-## 1. Canonical recipe — `/loop /craft:run` (ADR-112, ADR-114)
+## 1. Canonical recipe — `/loop /craft:run` (R-112, R-114)
 
 ```
 /loop /craft:run <backlog-id | spec file | feature description>
@@ -42,7 +42,7 @@ what points the `validation` phase at the sample DoD this loop converges on.
 
 ---
 
-## 2. Headless contrast — `craft-pi` exit code (ADR-113, prose only)
+## 2. Headless contrast — `craft-pi` exit code (R-113, prose only)
 
 For a **fully unattended** loop (cron, CI re-trigger, Makefile target — no Claude in the
 loop), the only non-interactive entry point is `craft-pi`, which **prints no run record**:
@@ -53,7 +53,7 @@ This is the **escape hatch, not the recommendation.**
 
 **DoD-presence precondition (check once, before looping).** Assert that a DoD resolves —
 either `docs/DOD.md` or the manifest's `paths.dod` target. If neither exists, refuse to
-start. A DoD-absent pass also exits `0` (ADR-107 makes DoD-absence a non-blocking
+start. A DoD-absent pass also exits `0` (R-107 makes DoD-absence a non-blocking
 `NO-OP(verify):`); without the precondition, `exit 0` would be ambiguous between "met" and
 "absent." The precondition is what makes `exit == 0 ⇒ MET` sound.
 
@@ -74,7 +74,7 @@ may not advance — the iteration bound is the safety net.
 
 ---
 
-## 3. Why example-first, not an engine-native loop (ADR-111)
+## 3. Why example-first, not an engine-native loop (R-111)
 
 | Axis | Example-first (this recipe) | Engine-native `loop:` phase / flag |
 |---|---|---|

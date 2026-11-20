@@ -16,17 +16,17 @@ description: Craft phase 11 - monitor CI to green, merge on user confirmation, c
    land as conventional commits through the same gates as review fixes.
 2. **Consult `integrate` action** (see `docs/contributing/specs/policy.md` for surface semantics).
    Obey the returned surface:
-   - `ask` (default, ADR-127) — ask the user to confirm the merge;
+   - `ask` (default, R-127) — ask the user to confirm the merge;
      on approval proceed, on decline record `POLICY(ask:integrate→declined)` and block.
    - `never` — refuse; record `POLICY(never:integrate)`; phase no-ops.
    - `always` — proceed with no confirmation; record `POLICY(always:integrate)`;
-     no merge confirmation (ADR-128).
+     no merge confirmation (R-128).
 
    Then invoke the VCS port `integrate(prUrl)` (see `docs/contributing/specs/vcs.md`); the adapter
    owns the host CLI. `--squash` / `--delete-branch` / `merge-flags` semantics live in
    the adapter binding. Always delete-branch: no merged branch lingers on the remote.
 3. **Consult `teardown`, then tear the worktree down.** Consult the `teardown` action
-   separately before worktree teardown (per-verb granularity, ADR-126; see
+   separately before worktree teardown (per-verb granularity, R-126; see
    `docs/contributing/specs/policy.md`), append its `POLICY(...)` line, and:
    ```bash
    "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/scripts/worktree-teardown.sh" <main-repo-dir> <worktree-path> \

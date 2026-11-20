@@ -30,19 +30,17 @@ import { parseLesson, evidencePath } from './lesson.js';
  * is listed in `skipped`.
  *
  * @param {string[]} scope repo-relative paths (the change/phase touched set)
- * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[], listGoverning?: () => string[], listLessons?: () => string[] }} deps
+ * @param {{ readPage: (page: string) => string | null, listCorpus: () => string[], listLessons?: () => string[] }} deps
  * @returns {IntentionView}
  */
 export function consult(scope, deps) {
   const entries = [];
   const living = readSubjectPages(deps.listCorpus(), deps.readPage);
-  const governing = readSubjectPages(deps.listGoverning?.() ?? [], deps.readPage);
-  const subjectPages = mergeLanes(living.subjectPages, governing.subjectPages);
   const lessonLane = readSubjectPages(deps.listLessons?.() ?? [], deps.readPage);
   const lessons = collectLessonRows(scope, lessonLane.subjectPages);
-  const skipped = mergeLanes(mergeLanes(living.skipped, governing.skipped), mergeLanes(lessonLane.skipped, lessons.skipped));
+  const skipped = mergeLanes(living.skipped, mergeLanes(lessonLane.skipped, lessons.skipped));
 
-  for (const { page, content, subjects } of subjectPages) {
+  for (const { page, content, subjects } of living.subjectPages) {
     if (matchingPaths(scope, subjects).length > 0) {
       entries.push({ path: page, purpose: extractPurpose(content) });
     }
@@ -194,8 +192,8 @@ function classifySubjects(content) {
 }
 
 /**
- * Read one corpus lane, classifying each page's subjects. Shared by `consult`'s living
- * and governing lanes and by `assertFresh`'s single (living) lane — both verbs read
+ * Read one corpus lane, classifying each page's subjects. Shared by `consult`'s lanes
+ * (living, lessons) and by `assertFresh`'s single (living) lane — both verbs read
  * pages and skip unusable ones identically, diverging only in what they do with a
  * valid subject-page.
  *
@@ -221,7 +219,7 @@ function readSubjectPages(list, readPage) {
 }
 
 /**
- * Concatenate two corpus-lane result arrays (living + governing) into one.
+ * Concatenate two corpus-lane result arrays (living + lessons) into one.
  * @param {object[]} a
  * @param {object[]} b
  * @returns {object[]}

@@ -27,7 +27,7 @@ description: Craft phase 7 - widen the lens to the whole codebase for structural
    symbols/files, expected mechanical test changes, blast radius), then spawn
    **craft:refactor-executor** with the specs, gates, and context files.
    Integrate-don't-defer: in-scope gains land NOW in this change; only a genuinely
-   feature-sized refactor (own design + ADRs) is deferred under the run skill invariant
+   feature-sized refactor (own design + rulings) is deferred under the run skill invariant
    **Impacts: fold or defer at discovery**. A refactor the executor reports and does not
    execute (contracts/refinement.md, the "reported in the final message" rule) is an impact.
 4. **Re-review, scoped to the refactor diff only**, via craft:review's procedure

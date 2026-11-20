@@ -1,48 +1,42 @@
 /**
  * `doctrine-lint` — the doctrine file gate: entry form, citation resolution against the
- * ADR directory, and orphan `DOCTRINE(D-<n>)` citations inside ADRs.
+ * rulings register, and orphan `DOCTRINE(D-<n>)` adoption bases inside the register.
  */
 
-import { lstatSync, readFileSync, readdirSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseDoctrine } from './doctrine.js';
-import { isDirectoryPath, isRegularFile } from './cli-io.js';
+import { parseRegister } from './rulings.js';
+import { isRegularFile, safeLabel } from './cli-io.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
 
-const USAGE = 'usage: doctrine-lint <doctrine-file> <adr-dir>\n';
+const USAGE = 'usage: doctrine-lint <doctrine-file> <register-file>\n';
 const PREFIX = 'doctrine-lint';
-const ADR_EXTENSION = '.md';
 const DOCTRINE_CITATION = /DOCTRINE\(D-(\d+)\)/g;
-const SUPERSEDED_STATUS = '- **Status:** superseded';
+const SUPERSEDED_KIND = 'superseded';
 
 const DEFAULT_DEPS = {
   readFile: (p) => readFileSync(p, 'utf8'),
-  listDir: readdirSync,
   isFile: isRegularFile,
-  isDirectory: isDirectoryPath,
-  isRegularEntry: (p) => lstatSync(p).isFile(),
   cwd: () => process.cwd(),
 };
 
-function missingInput(doctrineArg, adrArg, deps) {
-  if (!deps.isFile(resolve(deps.cwd(), doctrineArg))) return `no such file ${doctrineArg}`;
-  if (!deps.isDirectory(resolve(deps.cwd(), adrArg))) return `no such directory ${adrArg}`;
-  return null;
+function missingInput(args, deps) {
+  const absent = args.find((arg) => !deps.isFile(resolve(deps.cwd(), arg)));
+  return absent === undefined ? null : `no such file ${safeLabel(absent)}`;
 }
 
-function lintFindings(doctrineArg, adrArg, deps) {
-  const adrDir = resolve(deps.cwd(), adrArg);
-  const names = deps.listDir(adrDir)
-    .filter((name) => name.endsWith(ADR_EXTENSION) && deps.isRegularEntry(resolve(adrDir, name)))
-    .sort();
-  const readAdr = (name) => deps.readFile(resolve(adrDir, name));
+function lintFindings(doctrineArg, registerArg, deps) {
   const doctrine = parseDoctrine(deps.readFile(resolve(deps.cwd(), doctrineArg)));
+  const { rulings, errors } = parseRegister(deps.readFile(resolve(deps.cwd(), registerArg)));
+  const rulingsById = groupById(rulings);
   const findings = [
-    ...doctrine.errors.map((error) => formatFinding(`${doctrineArg}:${error.line}`, error.message)),
-    ...citationFindings(doctrine.entries, doctrineArg, names, readAdr),
-    ...orphanFindings(names, doctrine.entries, adrArg, readAdr),
+    ...doctrine.errors.map((error) => formatFinding(`${safeLabel(doctrineArg)}:${error.line}`, error.message)),
+    ...errors.map((error) => formatFinding(`${safeLabel(registerArg)}:${error.line}`, error.message)),
+    ...citationFindings(doctrine.entries, safeLabel(doctrineArg), rulingsById),
+    ...orphanFindings(rulings, doctrine.entries, safeLabel(registerArg)),
   ];
   return { findings, doctrine };
 }
@@ -51,36 +45,37 @@ function formatFinding(label, message) {
   return `${PREFIX}: ${label}: ${message}\n`;
 }
 
-function hasIdPrefix(name, id) {
-  return name.startsWith(`${id}-`);
+function groupById(rulings) {
+  const byId = new Map();
+  for (const ruling of rulings) byId.set(ruling.id, [...(byId.get(ruling.id) ?? []), ruling]);
+  return byId;
 }
 
-function isSuperseded(content) {
-  return content.split('\n').some((line) => line.trim().startsWith(SUPERSEDED_STATUS));
+function citationProblem(id, rulingsById) {
+  const matches = rulingsById.get(Number(id)) ?? [];
+  if (matches.length === 0) return `R-${id} does not resolve`;
+  if (matches.length > 1) return `R-${id} is ambiguous`;
+  const [ruling] = matches;
+  return ruling.status?.kind === SUPERSEDED_KIND ? `R-${id} is superseded` : null;
 }
 
-function citationProblem(id, names, readAdr) {
-  const matches = names.filter((name) => hasIdPrefix(name, id));
-  if (matches.length !== 1) return `ADR-${id} does not resolve`;
-  return isSuperseded(readAdr(matches[0])) ? `ADR-${id} is superseded` : null;
-}
-
-function entryFindings(entry, label, names, readAdr) {
+function entryFindings(entry, label, rulingsById) {
   return [...entry.evidence, ...entry.counterCases]
-    .map((id) => citationProblem(id, names, readAdr))
+    .map((id) => citationProblem(id, rulingsById))
     .filter((problem) => problem !== null)
     .map((problem) => formatFinding(label, `D-${entry.id}: ${problem}`));
 }
 
-function citationFindings(entries, label, names, readAdr) {
-  return entries.flatMap((entry) => entryFindings(entry, `${label}:${entry.line}`, names, readAdr));
+function citationFindings(entries, label, rulingsById) {
+  return entries.flatMap((entry) => entryFindings(entry, `${label}:${entry.line}`, rulingsById));
 }
 
-function orphanFindings(names, entries, adrArg, readAdr) {
+// equivalent mutant (StringLiteral on the `?? ''` fallback): any non-empty fallback lacking `DOCTRINE(D-n)` matches nothing, so no input distinguishes it
+function orphanFindings(rulings, entries, registerArg) {
   const known = new Set(entries.map(({ id }) => id));
-  return names.flatMap((name) => [...readAdr(name).matchAll(DOCTRINE_CITATION)]
+  return rulings.flatMap((ruling) => [...(ruling.adopted ?? '').matchAll(DOCTRINE_CITATION)]
     .filter((match) => !known.has(Number(match[1])))
-    .map((match) => formatFinding(`${adrArg}/${name}`, `DOCTRINE(D-${match[1]}) names no entry`)));
+    .map((match) => formatFinding(`${registerArg}:${ruling.line}`, `DOCTRINE(D-${match[1]}) names no entry`)));
 }
 
 function citationCount(entries) {
@@ -99,15 +94,15 @@ export function main(argv, io, deps = {}) {
     io.stderr.write(USAGE);
     return EXIT_INVALID;
   }
-  const [doctrineArg, adrArg] = argv;
-  const missing = missingInput(doctrineArg, adrArg, resolved);
+  const [doctrineArg, registerArg] = argv;
+  const missing = missingInput(argv, resolved);
   if (missing) {
     io.stdout.write(`${PREFIX}: ${missing}\n`);
     return EXIT_INVALID;
   }
-  const { findings, doctrine } = lintFindings(doctrineArg, adrArg, resolved);
+  const { findings, doctrine } = lintFindings(doctrineArg, registerArg, resolved);
   for (const finding of findings) io.stdout.write(finding);
   if (findings.length > 0) return EXIT_INVALID;
-  io.stdout.write(`${PREFIX}: ${doctrine.entries.length} entries, ${citationCount(doctrine.entries)} ADR citations — OK\n`);
+  io.stdout.write(`${PREFIX}: ${doctrine.entries.length} entries, ${citationCount(doctrine.entries)} ruling citations — OK\n`);
   return EXIT_OK;
 }

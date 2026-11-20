@@ -28,12 +28,12 @@ Runs in parallel with the validation phase's background run.
    page is a human decision, escalated per the Preamble, never auto-created. No affected
    pages → skip honestly (run record).
 2. **Backlog tick — guarded by source** (see `docs/contributing/specs/backlog.md`):
-   - `source: file` — **consult `backlog-write` action** (default `always`, ADR-127;
+   - `source: file` — **consult `backlog-write` action** (default `always`, R-127;
      see `docs/contributing/specs/policy.md` for surface semantics); then spawn **craft:backlog-ticker**
      with the exact entry line and the exact reference suffix. **Accept ONLY if the diff
      touches exactly the expected line(s)** — otherwise discard and do the one-line edit
      yourself.
-   - `source: custom` — **consult `external-send` action** (default `ask`, ADR-127;
+   - `source: custom` — **consult `external-send` action** (default `ask`, R-127;
      see `docs/contributing/specs/policy.md`); on proceed, run `ref` with argv `["complete", id, ...refs]`;
      `id`/`refs` are untrusted, passed as discrete arguments (never spliced into a shell
      string) and `id` validated against the source's id-form before invoking (see the spec's
@@ -66,11 +66,12 @@ Runs in parallel with the validation phase's background run.
    three reader-first narrative sections — **Background** (the system as it stands),
    **Intuition** (the core idea, a toy example, a mermaid diagram where it helps),
    **Code** (a grouped high-level walkthrough of the diff) — then a **Provenance &
-   verification** trailer carrying decisions + ADR numbers, design doc path, divergences,
+   verification** trailer carrying decisions + ruling ids, design doc path, divergences,
    pinned behaviours, test plan, the run record. The Decisions line splits ratified from
-   adopted ADRs, both read from this run's ADRs: an ADR whose Decision carries the
-   `adopted-as-recommended` marker is adopted, listed as `ADR-NNN (<basis>)`, where `<basis>` is the basis named right after the marker's ` — ` (`ADR-NNN`, `DOCTRINE(D-<n>)` or
-   `no trade-off`); the rest are ratified. No run-record token is read for it.
+   adopted rulings, read from the register lines this run appended
+   (`git diff <base>...HEAD -- <rulings-file>`): a line with an `Adopted: <basis>.` segment is adopted,
+   listed `R-NNN (<basis>)` where `<basis>` is the segment's basis (`R-NNN`, `DOCTRINE(D-<n>)` or
+   `no trade-off`); the others are ratified. The trailer carries R-ids, not ADR numbers. No run-record token is read for it.
    The trailer's `- **Discovered impacts:**` line reads `<n> deferred, triage pending`,
    counted from this run's `DEFERRED(` lines, or `none`; the `impact-triage` phase
    rewrites it with the verdicts.

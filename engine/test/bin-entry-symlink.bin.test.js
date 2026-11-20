@@ -41,14 +41,14 @@ function spawnThroughLink(binName, argv) {
   }
 }
 
-test('Given engine/bin, when its *.js files are enumerated, then the set is non-empty and includes adr-lint.js', () => {
+test('Given engine/bin, when its *.js files are enumerated, then the set is non-empty and includes rulings-lint.js', () => {
   const sut = binFileNames();
 
-  assert.ok(sut.includes('adr-lint.js'), `enumerated: ${sut.join(', ')}`);
+  assert.ok(sut.includes('rulings-lint.js'), `enumerated: ${sut.join(', ')}`);
 });
 
-test('Given the adr-lint bin reached through a symlinked engine dir, when spawned with a nonexistent ADR dir, then it exits 2', () => {
-  const sut = spawnThroughLink('adr-lint.js', DEFAULT_LOUD_ARGV);
+test('Given the rulings-lint bin reached through a symlinked engine dir, when spawned with a nonexistent register file, then it exits 2', () => {
+  const sut = spawnThroughLink('rulings-lint.js', DEFAULT_LOUD_ARGV);
 
   assert.equal(sut.error, undefined);
   assert.equal(sut.status, 2, `stdout: ${sut.stdout} stderr: ${sut.stderr}`);

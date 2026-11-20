@@ -6,7 +6,7 @@
 ## Context
 
 greet.sh prints `Hello, <name>!` for its first argument, `world` by default. It must stay
-portable to bash 3.2 (docs/adr/001-greet-stays-bash-3-portable.md). Some callers pipe its
+portable to bash 3.2 (R-001). Some callers pipe its
 output into scripts that match on `Hello`.
 
 ## Requirements

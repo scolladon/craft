@@ -27,10 +27,10 @@ test('Given the decisions skill Procedure step 1, when read, then it names the t
 
   const result = sliceProse(sut, STEP_1, STEP_2);
 
-  assert.match(result, /\(a\) its recommendation conflicts with an existing ADR/);
+  assert.match(result, /\(a\) its recommendation conflicts with an existing ruling/);
   assert.match(result, /\(b\) it is irreversible or outward-facing/);
-  assert.match(result, /\(c\) it carries a real user-judgment trade-off that no ADR or doctrine entry covers/);
-  assert.ok(result.includes('ADR-NNN, DOCTRINE(D-<n>), or "no trade-off"'));
+  assert.match(result, /\(c\) it carries a real user-judgment trade-off that no ruling or doctrine entry covers/);
+  assert.ok(result.includes('R-NNN, DOCTRINE(D-<n>), or "no trade-off"'));
 });
 
 test('Given the decisions skill Procedure step 1, when read, then it guards irreversible and conflicting choices against doctrine', () => {
@@ -109,7 +109,7 @@ test('Given the decisions skill step 3, when read, then the no-op token and the 
   assert.ok(result.includes('NO-OP(decisions): no user-judgment decisions — <justification>'));
   assert.match(result, /No escalated candidates/);
   assert.ok(result.includes('DOCTRINE(D-<n>)'));
-  assert.ok(result.includes('**adopted-as-recommended (no user judgment)** — <basis>'));
+  assert.ok(result.includes('Adopted: <basis>.'));
 });
 
 test('Given the decisions skill step 4, when read, then a re-escalated adopted choice falls under trigger (c) and goes through the harvest', () => {
@@ -126,7 +126,7 @@ test('Given the decisions skill step 5, when read, then the adopted marker carri
 
   const result = sliceProse(sut, STEP_5, STEP_6);
 
-  assert.ok(result.includes('**adopted-as-recommended (no user judgment)** — <basis>'));
+  assert.ok(result.includes('Adopted: <basis>.'));
 });
 
 test('Given the decisions skill step 5, when read, then the doctrine write lints through the shim and commits on its own', () => {
@@ -141,7 +141,7 @@ test('Given the decisions skill step 5, when read, then the doctrine write lints
   assert.ok(result.includes('commit only when it exits 0'));
   assert.ok(result.includes('a finding that predates this write is fixed in the same commit or escalated'));
   assert.ok(result.includes('cited as doctrine evidence or counter-case'));
-  assert.match(result, /re-point the citation to the superseding ADR/);
+  assert.match(result, /re-point the citation to the superseding ruling/);
 });
 
 test('Given the decisions skill, when scanned, then it holds no numbered ADR id and no numbered doctrine citation', () => {
@@ -150,6 +150,24 @@ test('Given the decisions skill, when scanned, then it holds no numbered ADR id 
   const numberedAdr = /ADR-\d/.test(sut);
   const numberedDoctrine = /DOCTRINE\(D-\d/.test(sut);
 
+  const numberedRuling = /R-\d/.test(sut);
+  const adrWording = /\bADRs?\b/.test(sut);
+
   assert.equal(numberedAdr, false);
+  assert.equal(numberedRuling, false);
+  assert.equal(adrWording, false);
   assert.equal(numberedDoctrine, false);
+});
+
+test('Given the decisions skill, when read, then it appends one register line per settled decision and reverses by superseding', () => {
+  const sut = skill();
+
+  const preamble = sliceProse(sut, PREAMBLE, PROCEDURE);
+  const authoring = sliceProse(sut, STEP_5, STEP_6);
+
+  assert.ok(preamble.includes('paths.rulings'));
+  assert.ok(preamble.includes('docs/RULINGS.md'));
+  assert.ok(authoring.includes('docs(rulings): R-NNN <statement>'));
+  assert.ok(authoring.includes('Superseded by R-M: <scope>.'));
+  assert.ok(authoring.includes('DECISION-REVERSAL(R-N): <scope> -> R-M'));
 });

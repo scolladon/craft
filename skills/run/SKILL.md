@@ -7,7 +7,7 @@ argument-hint: <backlog-id | path/to/spec.md | "feature description">
 # craft — orchestrator
 
 You are running the craft workflow. The SESSION is the orchestrator: it resolves the
-input, talks to the user (ADRs, escalations, merge confirmation), verifies every
+input, talks to the user (rulings, escalations, merge confirmation), verifies every
 delegated artifact, applies review fixes, runs phase-boundary gates, and owns all
 synthesis (run record, backlog follow-ups, PR body). Heavy work runs in the craft role
 agents per each phase skill's instructions.
@@ -83,22 +83,18 @@ Input: `$ARGUMENTS`
     justifications, probe results, and forced actions are appended.
 
 1c-mem. **Load memory store (once per run).** Resolve the store path from the
-    manifest's `memory.ref` (default `.claude/craft-memory.md`, ADR-118/121), rooted
+    manifest's `memory.ref` (default `.claude/craft-memory.md`, R-118/121), rooted
     at the repo ROOT (the worktree/checkout root — NEVER `${CLAUDE_PLUGIN_ROOT}`, hard
     constraint). Call `load(repoRoot, deps)` — see `docs/contributing/specs/memory.md` Claude
     binding. Hold the single `MemoryView` in-session beside the run record for the
     duration of this run. A cold, absent, or malformed store yields an empty view and
     records a load no-op — the run proceeds without hints (advisory-only, never a
-    blocker; ADR-116/120). `load` is called **once per run, not per phase**.
+    blocker; R-116/120). `load` is called **once per run, not per phase**.
 
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
     the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
     procedure. With no `intention:` manifest key, probe the zero-config corpus — the living pages
-    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`)
-    plus the resolved ADR directory for the governing lane — where
-    `scripts/governing-corpus.sh` emits only the decision records that carry a line-1
-    frontmatter fence, so the lane's READ is bounded to the records that opted in rather
-    than the whole corpus, and an empty governing lane is normal, not an error;
+    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`);
     hold the single `IntentionView` in-session beside the run record for the duration of
     this run. A cold or absent corpus yields an empty view and records a load no-op —
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
@@ -119,7 +115,7 @@ Input: `$ARGUMENTS`
     (`proposeGateReleased: true` — e.g. `validation`/`architecture`); those arrive
     via step 1c. For every OTHER waiver (a skipped `review`/`refactoring`,
     `proposeGateReleased: false` — the engine writes no record line), append your own
-    loud waiver notice to the run record so **every** skip is visible (ADR-005).
+    loud waiver notice to the run record so **every** skip is visible (R-005).
     Use `waivers[]` for the gate-release decision (each `proposeGateReleased: true`
     releases that phase's `propose`-gate).
 
@@ -210,8 +206,7 @@ these are emitted elsewhere — full definitions in
 |---|---|
 | `INTENTION-DRIFT(<page>): <changed-path>`, `INTENTION-WAIVE(<page>): <reason>` | the `validation` phase's `assert-fresh` walk (`docs/contributing/specs/intention.md`) |
 | `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`, `SLOP-FOUND(<file>): <entry>`, `SLOP-WAIVE(<file>): <reason>` | the `ci.sh` hygiene cadence |
-| `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` | the `decisions` phase, one line per `supersedes` entry authored that run |
-| `DECISION-CITE-WAIVE(<file>): <reason>` | the `adr-lint` C3 waiver, collected from the same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE` |
+| `DECISION-REVERSAL(R-NNN): <what changed> -> R-MMM` | the `decisions` phase, one line per reversal |
 | `MEMORY-RETRACT(<concern>): <merge-key>` | the phase that owns a concern's write surface, on a mechanical re-check that disproves a stored entry |
 | `FOLDED(<file>): <finding> -> <sha>` | the phase that folds, under the invariant **Impacts: fold or defer at discovery**, one line per locus file |
 | `DEFERRED(<file>): I<n> <title>` | `run-ledger.sh defer`, phase column = the capturing phase, one line per entry |
@@ -242,7 +237,7 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    After an implementation no-op (the run record holds `NO-OP(implementation):`), the
    `review`, `refactoring`, `validation` and `architecture` signals are evaluated over
    `<base>...HEAD` instead of "since `implementation`", so source that an earlier phase
-   committed is still probed. `<base>` is the default branch the workspace phase probed (`origin/HEAD` → `main` → `master`). A run whose only commits are the design doc, its ADRs and
+   committed is still probed. `<base>` is the default branch the workspace phase probed (`origin/HEAD` → `main` → `master`). A run whose only commits are the design doc, its rulings and
    their citation sweeps still auto-skips all four.
 
    When provably empty: (a) append the fixed token
@@ -322,6 +317,19 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    intersect the phase's touched set. If the slice is non-empty, prepend it into the SAME
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
    means the phase runs its own probes. See `docs/contributing/specs/intention.md`.
+
+   **Rulings hint (advisory).** For the `design`, `decisions` and `planning` phases only, build
+   the hint with one call (`<rulings-file>` = `paths.rulings`, else `docs/RULINGS.md`), the phase
+   touched set on stdin:
+
+   ```
+   git diff --name-only <base>...HEAD | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/rulings-hint.js" --register "<rulings-file>"
+   ```
+
+   Append the brief path (`design`) or the design doc path (`decisions`, `planning`) to stdin.
+   Prepend non-empty output into the SAME slot-1 prepend. It reads the working tree, so
+   `planning` sees the lines this run's `decisions` phase committed. A proposal that re-opens a
+   listed ruling escalates.
 
    **Lessons hint (advisory).** At **every** phase entry, build the hint with one call
    (`<lessons-dir>` = `paths.lessons`, else `docs/lessons/`), the phase touched set on stdin:
@@ -510,11 +518,11 @@ bring their own `procedure`, dispatched verbatim (step 2).
   - It is in scope when its locus file is in `git diff --name-only <base>...HEAD`, or
     when it concerns a claim or behaviour the diff edits, or a statement that
     contradicts what the diff now makes true, in at most one file outside the diff. The
-    run's own design, plan and ADR docs and BACKLOG.md are in the diff. A finding out of
+    run's own design doc, plan, rulings and BACKLOG.md are in the diff. A finding out of
     scope is deferred.
   - An in-scope finding whose fix needs a new decision goes to the user through the
-    blocker protocol `{ unit, reason, ≤3 options }`: fold it with an ADR authored through
-    the decisions flow, or defer it with reason needs its own decision.
+    blocker protocol `{ unit, reason, ≤3 options }`: fold it with a ruling recorded
+    through the decisions flow, or defer it with reason needs its own decision.
   - An in-scope finding whose fix needs a paid or live probe, waits on an external
     trigger, or adds feature behaviour is deferred.
   - Every other finding is folded.
@@ -689,9 +697,9 @@ instead of trusting the summary it just produced.
 
    | In-flight phase | Resume from |
    |---|---|
-   | any agent phase except review | the phase's committed artifact (design doc, plan, ADRs, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
+   | any agent phase except review | the phase's committed artifact (design doc, plan, register lines, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
    | `workspace` | `../<repo>-<slug>` exists on `<type>/<slug>` but setup may have failed part-way: re-run `worktree-setup.sh <abs-worktree-path> [manifest scripts.post-setup]`; escalate if it fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
-   | `decisions` | ADRs are committed one at a time; the user's answers survive as verbatim user messages. |
+   | `decisions` | register lines are committed one at a time; the user's answers survive as verbatim user messages. |
    | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. No plan and the ledger holds `NO-OP(planning):`: append `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` if absent, run `gates.phase` (fixing a red one first), and close the phase only on a green gate (`GATE(implementation): green` and `PHASE-DONE` in one append). |
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
@@ -757,7 +765,7 @@ is the payload split on the first run of whitespace, first field `file`, remaind
 `writeStore`/`validators`/`caps`/`run`/`ref` — the same validate-on-read map `load` took, so
 an observation that breaks the store's schema (e.g. an upper-case finding `severity`) is dropped
 rather than written. A failed save is a recorded
-warning in the run record — **never a blocker** (ADR-120); no locking (last-flush-wins).
+warning in the run record — **never a blocker** (R-120); no locking (last-flush-wins).
 Writes are buffered all run and flushed once here, so a phase that blocked mid-run leaves
 the store unchanged (atomicity; Req 6).
 

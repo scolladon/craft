@@ -1,6 +1,6 @@
 ---
 name: requirements
-description: Craft requirements phase - produce the product-requirements doc via the requirements-writer agent; returns decision candidates for the ADR conversation.
+description: Craft requirements phase - produce the product-requirements doc via the requirements-writer agent; returns decision candidates for the rulings conversation.
 ---
 
 # craft:requirements

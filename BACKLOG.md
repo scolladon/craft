@@ -6,7 +6,7 @@
 > customization.
 
 > SoT — *intent:* `docs/contributing/prd/PRD-customizable-engine.md` · *architecture:* `docs/contributing/prd/DESIGN-customizable-engine.md`
-> · *decisions:* `docs/contributing/adr/` · *build scripts:* `docs/contributing/archive/PLAN-*.md` · *spikes:* `docs/contributing/archive/SPIKE.md`
+> · *decisions:* `docs/contributing/RULINGS.md` · *build scripts:* `docs/contributing/archive/PLAN-*.md` · *spikes:* `docs/contributing/archive/SPIKE.md`
 
 ## Status — PRD program complete (P0–P16 ✅)
 
@@ -19,7 +19,7 @@ itself tagged *"(next program)"*; anything beyond is un-PRD'd backlog (see *Cand
 **P18 delivered 2026-06-21** — walk/parallelism enforcement: the resolver emits a `reviewPlan`
 (`passes` + named `stop_rule`) on the review descriptor, so `passes`/`convergence` are engine-enforced
 rather than walk-judgment, and a repeatable per-invocation `--harness <phase>.<knob>=<value>` overlay
-lands at CLI-wins precedence (ADRs 096–099; discharges the re-parked ADR-064).
+lands at CLI-wins precedence (ADRs 096–099; discharges the re-parked R-064).
 **P19 delivered 2026-06-21** — "nothing to do" is now a recorded, first-class outcome for both
 judgment phases: `decisions` adopts clear, ADR/principle-aligned recommendations without escalating
 (escalating only genuine forks), and both phases record a single greppable `NO-OP(<phase>):` line
@@ -111,7 +111,7 @@ phases (`validation`, `architecture`) collapse onto ONE generic gate-harness mec
 `validateTechnique`, an engine-emitted `harness.techniquePlan` (`deriveTechniquePlan`, mirroring
 `deriveReviewPlan`; `isExecutingHarness` extracted to a shared `engine/src/exec-harness.js`), and a
 skill that resolves its technique set by **declared → derived (README/CONTRIBUTING/config) → fallback
-(language test-script) → clean no-op** precedence (ADR-149 reframed `validation` from a mutation-locked
+(language test-script) → clean no-op** precedence (R-149 reframed `validation` from a mutation-locked
 phase into the project's general engineering harness; discovery is skill judgment, engine stays
 agnostic). One generic `harness-triager` replaces both technique triagers; delivery (`propose`/`integrate`)
 routes through the VCS port verbs `propose(title,body)`/`integrate(prUrl)` with `gh` confined to the
@@ -154,13 +154,13 @@ criterion is mechanically asserted against the run's recorded per-phase gate evi
 | P15 | Second-instantiation — non-tsgit Python/pytest repo, zero-manifest (SC5/G9) | 076–082 |
 | P16 | Provider-agnostic — six port seams + Pi adapter PoC; **G13 met** | 084–092 |
 | P17 | Pi adapter productized — `craft-pi` full 11-phase walk bin + live `tool_call` wrapper (first post-PRD candidate) | 093–095 |
-| P18 | Walk/parallelism enforcement — resolver emits a `reviewPlan` on the review descriptor (passes/convergence now engine-enforced) + repeatable per-invocation `--harness` overlay; discharges ADR-064 | 096–099 |
+| P18 | Walk/parallelism enforcement — resolver emits a `reviewPlan` on the review descriptor (passes/convergence now engine-enforced) + repeatable per-invocation `--harness` overlay; discharges R-064 | 096–099 |
 | P19 | "Nothing to do" as a first-class phase outcome — `decisions` adopts clear ADR-aligned recommendations without escalating; both judgment phases record a greppable `NO-OP(<phase>):` no-op carried into the PR body | 100–103 |
 | P20 | DoD-aware verification — optional DoD artifact (`docs/DOD.md` / `paths.dod`) folds into `validation` (default-ON); per-criterion assertion, warn-on-absence `NO-OP(verify):`, DoD subsumes (1)/(2), `paths.dod` lint-validated | 104–110 |
 | P21 | Running craft in a loop — operator-owned outer-loop recipe (`/loop /craft:run` self-paced on the run-record verdict; headless `craft-pi` exit-code contrast); docs + `examples/loop/`, no engine change | 111–115 |
 | P29 | Usage telemetry miner — new Telemetry port (`collect`/`aggregate`); `telemetry-claude` binding + per-model pricing table; deterministic `usage-aggregate.js` core; `.claude/craft-metrics.md` writer upgraded to real `cache_read`/`cache_creation` split; `craft:metrics` standalone skill (advisory, never gating) | 182–188 |
 
-Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*.md`, and `docs/contributing/adr/` — not here.
+Per-part history lives in `git log`, `docs/contributing/archive/{DESIGN,PLAN}-P*.md`, and `docs/contributing/RULINGS.md` — not here.
 
 **Standing invariants (the working contract):**
 - **Data is the SoT, not prose.** `pipeline/default.yml` (the 13-descriptor table) is authoritative.
@@ -178,23 +178,23 @@ Beyond the PRD program. Real features, scoped but unscheduled — each is a cohe
 ### Open — A. Git guard rules (local code, runnable)
 
 Both earlier entries delivered 2026-10-20 (guard-fuzz-scale-ext-diff-widen): the scaled fuzz
-census is a gate (generator fixed at the composer, ADR-661), and the shared ext-diff rule denies
-`--ext-diff` on every git verb and any `git config` naming an alias or include key (ADR-660).
+census is a gate (generator fixed at the composer, R-661), and the shared ext-diff rule denies
+`--ext-diff` on every git verb and any `git config` naming an alias or include key (R-660).
 Delivered 2026-10-21 (git-show-ext-diff-default-deny): bare `git show` leaves the default-deny on
 every binding. It is judged on `--ext-diff`, and like `diff` when its argv may shift. git 2.17.0
-through 2.56.0 run no external diff for `show` without `--ext-diff` (ADR-662, ADR-663).
+through 2.56.0 run no external diff for `show` without `--ext-diff` (R-662, R-663).
 Delivered 2026-10-23 (arith-expansion-comsub-bypass): the commands inside a `$(( … ))` or `$[ … ]`
 body reach the predicates; the entry's claim that `$[ … ]` already blocked was wrong (a single-quoted
 body ran). A `'` in such a body, an unpaired body, a line continuation inside the opener or closer, a
-`case` word in a `$( )` body and every bash 5.3 function substitution fail closed (ADR-687 to
-ADR-693).
+`case` word in a `$( )` body and every bash 5.3 function substitution fail closed (R-687 to
+R-693).
 Delivered 2026-10-26 (guard-arith-cleanup): a `'…'` or `$'…'` span holding `$(`, a backtick or
 `${`, or a `$'…'` numeric escape decoding to `$`, a backtick, `(`, `{` or `[`, fails closed inside
 `(( ))`, `for (( ))`, a `${ }` body and an open `[` subscript. A word holding a literal `$` or
 backtick, quoted or escaped, with a `[` before a substitution opener fails closed wherever it is
 written, as does a word with `[` and a `$` where a literal `(`, `{` or backtick follows an
 expansion, a `$` or a brace group. So `let`, `[[ … -eq … ]]`, `declare -i` and a variable read by
-`$(( x ))` no longer run a hidden substitution (ADR-694 to ADR-698). A value the command text never holds whole in one word is closed
+`$(( x ))` no longer run a hidden substitution (R-694 to R-698). A value the command text never holds whole in one word is closed
 as won't-do.
 
 ### Open — B. Agent-CLI re-probes (throwaway homes, stub git, attended)
@@ -202,7 +202,7 @@ as won't-do.
 Delivered 2026-10-21 (copilot-write-bash-pty-probe): on copilot 1.0.98 `write_bash` reaches no
 shell. It is not a model tool in headless or interactive (pty) sessions (3/3 each), and an async
 shell's stdin is `/dev/null`. Record: `docs/contributing/specs/copilot-poc-record.md` row 21
-(ADR-664, ADR-665, ADR-666). A copilot version whose request `tools` list carries `write_bash`
+(R-664, R-665, R-666). A copilot version whose request `tools` list carries `write_bash`
 again reopens it.
 
 Delivered 2026-10-22 (codex-tui-malformed-rules-probe): on codex 0.162.1 the interactive TUI takes
@@ -210,11 +210,11 @@ the app-server path. It starts a detached `codex app-server` daemon, and with a 
 `craft.rules` that daemon logs `Error parsing rules; custom rules not applied.` while `git clean -f`
 runs and nothing shows on screen (fails open, 3/3); with the committed rules it is rejected.
 Record: `docs/contributing/specs/codex-poc-record.md`, *Re-probe — codex-cli 0.162.1*. The binding
-is unchanged: ADR-574 already treats a malformed rules file as fail open.
+is unchanged: R-574 already treats a malformed rules file as fail open.
 
 Closed 2026-10-22 (codex-0163-reprobe): craft's shared skills still do not load by reference on
 codex 0.163.0 (0 of 20 versus 20 of 20 through the symlinks). Closed as a standing codex
-limitation, no re-probe scheduled; the symlink route stays required (ADR-674). Entry and
+limitation, no re-probe scheduled; the symlink route stays required (R-674). Entry and
 history: *Closed — won't-do*.
 
 Delivered 2026-10-22 (codex-0163-rules-reprobe): on codex 0.163.0 a malformed `craft.rules`
@@ -270,7 +270,7 @@ Delivered 2026-10-27 (run-visibility-task-list): no task-list tool reaches the o
 pure `engine/src/run-progress.js` into a pane (`/craft-progress`) and a status line, with
 `waiting on you` / `waiting on background` derived from host events. The ledger gains one seeded
 `EFFECTIVE:` token; there is no `Progress` port. Design:
-docs/contributing/design/run-visibility-task-list.md; ADR-711 to ADR-717; its pane decision is superseded by ADR-718.
+docs/contributing/design/run-visibility-task-list.md; R-711 to R-717; its pane decision is superseded by R-718.
 
 ### Open — C. Waiting on an external trigger
 
@@ -281,13 +281,13 @@ four seed batches 101,202,303,404,505 / 11,22,33,44,55 / 66,77,88,99,111 /
 `$( )`/`<( )` body, and its new function substitution `${ …; }`/`${| …; }`, and drops the first
 `;` after a heredoc in it, merging the two commands around it. The guard now refuses that `;`
 fail-closed in all three, and the generator tags the
-construct `heredoc-list-in-substitution` (ADR-684, ADR-685, ADR-686). bash 5.0-5.2 were not
+construct `heredoc-list-in-substitution` (R-684, R-685, R-686). bash 5.0-5.2 were not
 measured.
 
 **Drop the `typed-rest-client` override once Stryker resolves past the exact `qs` pin.**
 `engine/package.json` overrides `typed-rest-client` to 2.3.0 because 2.3.1 (picked under
 `@stryker-mutator/core@10.0.0`'s `~2.3.0`) pins `qs` at 6.15.1, which carries GHSA-q8mj
-(ADR-572). **Trigger:** a Stryker release whose `typed-rest-client` range admits a fixed `qs`, or a
+(R-572). **Trigger:** a Stryker release whose `typed-rest-client` range admits a fixed `qs`, or a
 `typed-rest-client` 2.3.x that unpins it. Then remove the override, `npm install`, and confirm
 `npm --prefix engine audit` shows no Stryker-tree advisory.
 
@@ -313,7 +313,7 @@ a demo that can be gated.
 ### Open (scoped 2026-10-18 — follow-ups surfaced by the codex-git-destructive-predicate-hook run, not yet scheduled)
 
 **Close codex's `write_stdin` channel past the guard hook — delivered 2026-10-18**
-([PR #80](https://github.com/scolladon/craft/pull/80), ADR-642: the config template sets `[features] unified_exec_tty = false` and the documented `codex exec` command passes `-c features.unified_exec_tty=false`, so codex refuses `tty: true` and `write_stdin` finds stdin closed).
+([PR #80](https://github.com/scolladon/craft/pull/80), R-642: the config template sets `[features] unified_exec_tty = false` and the documented `codex exec` command passes `-c features.unified_exec_tty=false`, so codex refuses `tty: true` and `write_stdin` finds stdin closed).
 On codex-cli 0.162.1, `exec_command` with
 `tty: true` reaches the PreToolUse hook as `{ command }` only, and `write_stdin` fires no hook at all: a
 shell opened without mentioning git runs whatever is typed into it (offline probe, benign marker; see
@@ -327,7 +327,7 @@ probe of the resulting tool surface.
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the driver-contract-in-craft-run run, not yet scheduled)
 
 **A driven run killed between `close` and its status write has no rebuild path — delivered 2026-10-18**
-([PR #76](https://github.com/scolladon/craft/pull/76), ADR-631: a supervisor-restarted session re-runs the idempotent `close` and writes its status; a summary-rebuilt one follows the new Closed run path, keyed on the PR state).
+([PR #76](https://github.com/scolladon/craft/pull/76), R-631: a supervisor-restarted session re-runs the idempotent `close` and writes its status; a summary-rebuilt one follows the new Closed run path, keyed on the PR state).
 In a driven run,
 `skills/run/SKILL.md` §Done writes the status after `run-ledger.sh close`. A kill in that window leaves
 a merged PR, no ledger and no `status`, and the "Rebuild after compaction" table has no row for a closed
@@ -336,7 +336,7 @@ driven toy run right after `close` and resume it. Not folded: it needs a probe, 
 (`docs/contributing/design/driver-contract-in-craft-run.md`) lists it as out of scope.
 
 **`CRAFT_DRIVER_STATE` through `claude --bg --resume` is unprobed — delivered 2026-10-18**
-([PR #76](https://github.com/scolladon/craft/pull/76), ADR-634: a bg session takes the background service's env; the driver passes the variable through `--settings` env, which survives `--resume`).
+([PR #76](https://github.com/scolladon/craft/pull/76), R-634: a bg session takes the background service's env; the driver passes the variable through `--settings` env, which survives `--resume`).
 The live probe showed the variable
 reaching a fresh `claude --bg` session (CLI 2.1.302); `docs/contributing/specs/driver.md` tells a driver to
 set it again on `--resume`, but whether a resumed or supervisor-restarted session sees the launcher's env
@@ -344,7 +344,7 @@ was not tested. Proof: resume a stopped probe session with and without the varia
 Not folded: it needs a probe.
 
 **`strategy: in-place` cannot run in a `claude --bg` session — delivered 2026-10-18**
-([PR #76](https://github.com/scolladon/craft/pull/76), ADR-632: workspace STOPs before `git switch` when `CLAUDE_JOB_DIR` is set).
+([PR #76](https://github.com/scolladon/craft/pull/76), R-632: workspace STOPs before `git switch` when `CLAUDE_JOB_DIR` is set).
 A background session refuses Write/Edit in
 the shared checkout until it isolates (the guard message names `worktree.bgIsolation`), and the in-place
 strategy keeps every edit there. The workspace skill (`skills/workspace/SKILL.md` step 2) does not say so.
@@ -352,7 +352,7 @@ Fix candidates: document the limit, or refuse `in-place` when the session is a b
 it is out of scope (listed in the design) and needs its own decision.
 
 **`.craft-validation.lock` is not git-ignored — delivered 2026-10-18**
-([PR #76](https://github.com/scolladon/craft/pull/76), ADR-633: the run-lock moved to the per-worktree git dir, so no repo can commit it).
+([PR #76](https://github.com/scolladon/craft/pull/76), R-633: the run-lock moved to the per-worktree git dir, so no repo can commit it).
 The validation skill writes the run-lock into the
 worktree root while `documentation` agents commit in parallel; `git check-ignore .craft-validation.lock`
 prints nothing in this repo, so a broad `git add` could commit it. Fix: an ignore entry, or a lock under
@@ -361,7 +361,7 @@ the git common dir. Not folded: it is out of scope (no file of this change holds
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the supersede-adr-253-symlink-route run, not yet scheduled)
 
 **The codex `craft` marketplace entry installs and loads nothing — delivered 2026-10-18**
-([PR #77](https://github.com/scolladon/craft/pull/77), ADR-635: the entry is retired; the marketplace declares `craft-codex` only).
+([PR #77](https://github.com/scolladon/craft/pull/77), R-635: the entry is retired; the marketplace declares `craft-codex` only).
 `adapters/codex/README.md:18`
 tells users to run `codex plugin add craft@craft-codex-marketplace`, but the cache copy drops the
 entry's only payload, its out-of-tree `skills` reference (`docs/contributing/specs/codex-poc-record.md`
@@ -373,15 +373,15 @@ outside a docs/ADR change ([design](docs/contributing/design/supersede-adr-253-s
 candidate 1 (c)).
 
 **The codex binding-home ADR still says the marketplace carries hooks, skills and agents as one unit — delivered 2026-10-18**
-([PR #77](https://github.com/scolladon/craft/pull/77), ADR-635: only `craft-run` arrives through the marketplace; the guard is wired by hand in `$CODEX_HOME/config.toml`, and the agents are not carried).
-`docs/contributing/adr/252-codex-binding-home-and-load-path.md` option 1 claims the marketplace is "the
+([PR #77](https://github.com/scolladon/craft/pull/77), R-635: only `craft-run` arrives through the marketplace; the guard is wired by hand in `$CODEX_HOME/config.toml`, and the agents are not carried).
+`R-252` option 1 claims the marketplace is "the
 only one that carries `hooks` + `skills` + agents as one installable unit". `adapters/codex/README.md`
 L31–46 pins that only `craft-run` arrives that way: the cached manifest drops `hooks`, and the nine
 agents are not carried. Fix: a user-ratified ADR superseding that claim. Not folded: it is out of scope
 for this change, a different claim (hooks and agents) from the shared-skills load path the codex symlink-route ADR corrects.
 
 **Planning cannot record that no part remains — delivered 2026-10-18**
-([PR #78](https://github.com/scolladon/craft/pull/78), ADR-636–639: the planner declares `NO-OP: no part remains — <R → sha, …>`, the orchestrator verifies coverage, sha shape, landed-this-run and a spot-check, no plan file is committed, and implementation records `NO-OP(implementation):` while still running the phase gate).
+([PR #78](https://github.com/scolladon/craft/pull/78), R-636–639: the planner declares `NO-OP: no part remains — <R → sha, …>`, the orchestrator verifies coverage, sha shape, landed-this-run and a spot-check, no plan file is committed, and implementation records `NO-OP(implementation):` while still running the phase gate).
 `scripts/plan-lint.sh` requires at least one part,
 and `skills/planning/SKILL.md` has no no-op outcome. In the supersede-adr-253-symlink-route run, adr-lint
 C1/C3 forced the whole change (new ADR, status flips, the `BACKLOG.md` citation sweep, the README count)
@@ -393,7 +393,7 @@ commit plan is already landed. Not folded: it is out of scope, an engine change 
 ### Open (scoped 2026-10-17 — follow-ups surfaced by the unattended-backlog-driver spike, not yet scheduled)
 
 **A driver contract in `craft:run` — delivered 2026-10-18**
-([PR #75](https://github.com/scolladon/craft/pull/75), ADR-619–630: `CRAFT_DRIVER_STATE` names a per-entry dir where `scripts/driver-state.sh` writes `next.md`, `next.prompt` with `--policy` stripped, then `status`; the workspace reaches its worktree by absolute path, no `EnterWorktree`). An outside driver
+([PR #75](https://github.com/scolladon/craft/pull/75), R-619–630: `CRAFT_DRIVER_STATE` names a per-entry dir where `scripts/driver-state.sh` writes `next.md`, `next.prompt` with `--policy` stripped, then `status`; the workspace reaches its worktree by absolute path, no `EnterWorktree`). An outside driver
 ([spike report](https://github.com/scolladon/craft/blob/feat/unattended-backlog-driver-spike/spike/backlog-driver/REPORT.md))
 learns that a run finished only from a status file it writes as its last action, and it needs the next-item
 election in a file rather than in chat. Today every driven brief had to ask for both by hand. Found in the
@@ -410,7 +410,7 @@ the election there, and strips `--policy` flags from the elected prompt. The wor
 worktree in a background session without a prompt.
 
 **The run ledger trusts the model for its timestamps — delivered 2026-10-17**
-([PR #74](https://github.com/scolladon/craft/pull/74), ADR-615–618: `run-ledger.sh append` stamps `PHASE-START` itself, overwriting a supplied time).
+([PR #74](https://github.com/scolladon/craft/pull/74), R-615–618: `run-ledger.sh append` stamps `PHASE-START` itself, overwriting a supplied time).
 `PHASE-START(<phase>): <iso>` lines carry a
 time the orchestrator writes into the text. In the spike's runs, late-phase stamps were round minutes
 that postdate the events: `PHASE-START(propose): 15:10:00Z` and `integrate: 15:15:00Z` after PR #70
@@ -421,8 +421,8 @@ the spike branch, `evidence/bg-loop2/ledgers/`). Any timing derived from them is
 ### Open (scoped 2026-10-16 — follow-ups surfaced by the native-surface-skills-title-fix run, not yet scheduled)
 
 **The codex shared-skills ADR still records that codex loads the shared skills by reference — delivered 2026-10-17**
-([PR #73](https://github.com/scolladon/craft/pull/73): the `$CODEX_HOME/skills` symlink route, scope ratified as the by-reference mechanism only; ADR-635 later retired the `craft` entry it kept).
-`docs/contributing/adr/253-codex-shared-skills-by-reference.md:1` is titled "Codex loads shared craft
+([PR #73](https://github.com/scolladon/craft/pull/73): the `$CODEX_HOME/skills` symlink route, scope ratified as the by-reference mechanism only; R-635 later retired the `craft` entry it kept).
+`R-253` is titled "Codex loads shared craft
 skills by reference" with status `accepted`, and its Decision chose the by-reference marketplace entry.
 `docs/contributing/specs/codex-poc-record.md:332` marks that claim DISPROVEN on 0.145.0 and 0.162.1
 (0 of 19 by reference; 19 of 19 through the `$CODEX_HOME/skills` symlinks), and
@@ -433,26 +433,26 @@ user-ratified ADR that supersedes 253 with the symlink route (its option 3), kee
 ### Open (scoped 2026-10-16 — follow-ups surfaced by the copilot-git-argv-normalising-guard run, not yet scheduled)
 
 **Compose the destructive-git predicate into the codex hook — delivered 2026-10-18**
-(fix/codex-git-destructive-predicate-hook, ADR-640, ADR-641: the codex hook judges a Bash call with the
+(fix/codex-git-destructive-predicate-hook, R-640, R-641: the codex hook judges a Bash call with the
 shared verdict — plain-command gate, then destructive git, then ext-diff — and `git -C . push origin main`
 now exits 2). `adapters/codex/src/execpolicy-rules.js`
 discloses that `git -C . push` and `--git-dir=… push` bypass its `.rules` prefix match. The copilot binding
 judged normalised argv with `gitDestructivePredicate`; the codex guard hook did not compose it
-(scoped to copilot until ADR-640). Proof to run first: feed `adapters/codex/hooks/craft-guard.js` a
+(scoped to copilot until R-640). Proof to run first: feed `adapters/codex/hooks/craft-guard.js` a
 `git -C . push origin main` payload and confirm it exits 0 (allows). Then decide whether codex also
 takes the plain-command gate.
 
 **The Claude ext-diff hook shares the anchor and global-option gaps — delivered 2026-10-18**
-(fix/claude-ext-diff-hook-gaps, ADR-646, ADR-647, ADR-648: the bash hook keeps its crash contract and
+(fix/claude-ext-diff-hook-gaps, R-646, R-647, R-648: the bash hook keeps its crash contract and
 takes its verdict from a node CLI running `gitExtDiffPredicate`, so every form below is denied and quoted
 text is no longer falsely denied). Design:
 [claude-ext-diff-hook-gaps](docs/contributing/design/claude-ext-diff-hook-gaps.md). Original entry:
 `hooks/git-no-ext-diff.sh` (a separate bash matcher) allows `(git diff)`, `FOO=1 git diff`, `env/command/!/time git diff`,
 `{ git diff; }`, `git --no-pager diff`, `git -p diff` and `git --git-dir .git diff` (pinned read-only in
-the design doc's Pinned A table). Its crash contract (ADR-533…541) makes a rewrite its own change.
+the design doc's Pinned A table). Its crash contract (R-533…541) makes a rewrite its own change.
 
 **A copilot-level differential fuzz arm — delivered 2026-10-18**
-(fix/copilot-guard-differential-fuzz-arm, ADR-649, ADR-650, ADR-651, ADR-652, ADR-653: a plain-gate
+(fix/copilot-guard-differential-fuzz-arm, R-649, R-650, R-651, R-652, R-653: a plain-gate
 generator, engine/test-helpers/plain-gate-generator.js, feeds one judged fragment per command, from
 idiom bodies, evaluator builtins, redirect and reserved-word prefixes, unlisted wrappers and string
 runners, to real `/bin/bash` and the first bash ≥ 5 on PATH, and
@@ -470,12 +470,12 @@ builtins, redirect/reserved-word prefixes, unlisted wrappers) judged through `co
 **Craft's heredoc commit idiom fails under macOS `/bin/bash` 3.2 when the message holds an apostrophe
 — delivered 2026-10-17** (fix/bash32-heredoc-commit-idiom). Craft never taught the idiom (harness
 defaults emit it); `contracts/core.md` now teaches a `Commit form:` both shells parse — double-quoted
-`git commit -m "…"`, or `git commit -F <file>` when the message holds `` " $ ` \ ! `` (ADR-605, ADR-607),
+`git commit -m "…"`, or `git commit -F <file>` when the message holds `` " $ ` \ ! `` (R-605, R-607),
 pinned by `CORE_MARKERS` and a substance test. Pinned on bash 3.2.57: an odd quote, odd backtick or
 unbalanced `(` in the body is a syntax error, and an unbalanced `)` closes the substitution early and
 runs the rest as shell — `git commit -m "$(cat <<'EOF'⏎x)"; git branch -D victim; echo "⏎EOF⏎)"` was
 allowed by `copilotGuard` and deleted the branch. The copilot plain-command gate now denies the idiom
-(ADR-606), and the copilot README and gate spec state the taught form. Design:
+(R-606), and the copilot README and gate spec state the taught form. Design:
 [bash32-heredoc-commit-idiom](docs/contributing/design/bash32-heredoc-commit-idiom.md). Original entry:
 `git commit -m "$(cat <<'EOF' … don't … EOF)"` is a syntax error in bash 3.2 (reproduced locally and live
 on copilot, which runs `/bin/bash`); bash 5 accepts it. The copilot guard allows the idiom; bash rejects
@@ -483,7 +483,7 @@ it. Document the workaround for bindings that shell out to bash 3.2 (multiple `-
 quotes), or pick a commit form both shells parse.
 
 **The copilot "intended false blocks" list understates the quoted-word rule — delivered 2026-10-18**
-(fix/copilot-guard-differential-fuzz-arm, ADR-654: `adapters/copilot/README.md` and
+(fix/copilot-guard-differential-fuzz-arm, R-654: `adapters/copilot/README.md` and
 `docs/contributing/specs/gate.md` now state the rule — a `$` or backtick in any quoted word, or a `\`
 or `!` in a double-quoted one — and the copilot fuzz arm's `quoted-expansion` tag pins it). Design:
 [copilot-guard-differential-fuzz-arm](docs/contributing/design/copilot-guard-differential-fuzz-arm.md).
@@ -507,7 +507,7 @@ it (`docs/contributing/design/harden-prove-codex-binding.md`) asked for a launch
 and none was wired. Open question: wire it into a launch or install path, or keep it on
 demand. Question only; no fix is scoped.
 
-**Decision (2026-10-16): kept on demand** (ADR-599, ADR-600).
+**Decision (2026-10-16): kept on demand** (R-599, R-600).
 `git grep -n assertRulesIntegrity -- adapters bin engine scripts` still matches only the
 definition and its test. (i) The binding launches nothing: `buildLaunchArgs` builds argv only,
 its sole caller is the conformance probe, and operators run `codex exec` themselves, so the
@@ -528,11 +528,11 @@ entry below. Pinned matrix and design context:
 (docs/codex-rules-deploy-step). `adapters/codex/README.md` *Configure* now runs, from the repository
 root, `mkdir -p` / `rm -f` / `cp` / `cmp` / `test ! -L` on `${CODEX_HOME:-$HOME/.codex}/rules/craft.rules`;
 the last two lines are the verification (byte-identical to the committed file, and not a symlink).
-Copy, never symlink (ADR-601): on codex 0.162.1 a symlinked rules file is not loaded (5/5) yet passes
+Copy, never symlink (R-601): on codex 0.162.1 a symlinked rules file is not loaded (5/5) yet passes
 `cmp` and `codex execpolicy check`, and `cp` onto an existing link writes through it, hence the `rm -f`
-(ADR-602). Pinned in `adapters/codex/test/native-surface.test.js`: Configure-scoped pins plus a
-README-wide no-symlink check with its spelling table (ADR-603); observations recorded in the POC
-record's 0.162.1 re-probe table (ADR-604). Design:
+(R-602). Pinned in `adapters/codex/test/native-surface.test.js`: Configure-scoped pins plus a
+README-wide no-symlink check with its spelling table (R-603); observations recorded in the POC
+record's 0.162.1 re-probe table (R-604). Design:
 [codex-rules-deploy-step](docs/contributing/design/codex-rules-deploy-step.md). Original entry:
 `adapters/codex/README.md` lists the execpolicy `.rules` file as a guard layer (*Guard — honest enforcement profile* table),
 but neither *Load* nor *Configure* tells an operator to copy `adapters/codex/craft.rules` into
@@ -551,7 +551,7 @@ wrote. The same holds for a stale copy once the rule body changes: it parses and
 (`engine/src/guards/shell-tokeniser.js`), git global-option normaliser (`git-argv.js`) and invocation
 anchor (`shell-git-invocations.js`): escapes, `( )`, `{ }`, `!`, `time`, `env`/`command`/`exec`, `NAME=v`
 prefixes, quote removal and every git 2.54 global option are modelled, and a git invocation starts at
-any word named git (ADR-580). Unparseable or unmodelled shell fails closed (ADR-582, ADR-594); the
+any word named git (R-580). Unparseable or unmodelled shell fails closed (R-582, R-594); the
 parser is linear and capped at 131072 characters. Differentially fuzzed against `/bin/bash` and real git
 (0 false allows over 30000 generated commands). Exotic adversarial shapes stay ext-diff residuals on
 bindings other than copilot (the guard protects parsed output, not a sandbox). Original entry:
@@ -576,12 +576,12 @@ residuals with `block: false` tests.
 
 **`isEntryPoint` fails open when argv[1]'s symlink is swapped after the module loads — delivered
 2026-10-14** (fix/entry-guard-symlink-swap-race). `isEntryPoint(import.meta)` now returns Node's own
-`import.meta.main` and throws an error naming the supported range when it is undefined (ADR-563,
-ADR-564); argv[1] is never read. `engine/package.json` declares `^22.18.0 || >=24.2.0`, a breaking
-change (ADR-569). A committed preload swaps a test-made link while the entry's dependencies load
-(ADR-567): `engine/test/bin-entry-swap-race.bin.test.js` (adr-lint) and
+`import.meta.main` and throws an error naming the supported range when it is undefined (R-563,
+R-564); argv[1] is never read. `engine/package.json` declares `^22.18.0 || >=24.2.0`, a breaking
+change (R-569). A committed preload swaps a test-made link while the entry's dependencies load
+(R-567): `engine/test/bin-entry-swap-race.bin.test.js` (adr-lint) and
 `adapters/codex/test/trust-hook.bin.test.js` (`--check`) assert exit 2 and that the swap fired
-(ADR-566). Before the fix, repoint and unlink exited 0 with no output; after it, both exit 2.
+(a pin superseded by R-730). Before the fix, repoint and unlink exited 0 with no output; after it, both exit 2.
 Original entry:
 `isEntryPoint` (`engine/src/cli-io.js:84-91`) real-paths `process.argv[1]` again after Node has
 already resolved and loaded the main module. If that link is repointed or unlinked in between
@@ -593,15 +593,15 @@ Reproduced in a sealed sandbox with a `module.register` load hook that swaps the
 0. It affects all 24 engine bins and both adapter entries. Fix candidate: prefer Node's own
 answer, `import.meta.main ?? isEntryPoint(import.meta.url, process.argv[1])`. `import.meta.main`
 is true when run and false when imported on Node 22.22.3, and undefined on older Node (engine
-declares `>=18`). That needs an ADR on the real-path comparison (ADR-564 supersedes it), and a test
+declares `>=18`). That needs an ADR on the real-path comparison (R-564 supersedes it), and a test
 that reproduces the race.
 
 ### Open (scoped 2026-10-14 — follow-ups surfaced by the entry-guard-symlink-swap-race run, not yet scheduled)
 
 **Stryker stays pinned to 8.7.1 for a Node floor the engine no longer declares — delivered
 2026-10-14** (chore/stryker-9-upgrade). `@stryker-mutator/core` and `tap-runner` are exact-pinned at
-10.0.0 (ADR-570 supersedes the P9-hardening DC-2a/2b; ADR-571), and a `typed-rest-client` 2.3.0
-override keeps `qs` past its advisories (ADR-572): Stryker-tree `npm audit` advisories 15 → 0.
+10.0.0 (R-570 supersedes the P9-hardening DC-2a/2b; R-571), and a `typed-rest-client` 2.3.0
+override keeps `qs` past its advisories (R-572): Stryker-tree `npm audit` advisories 15 → 0.
 8.7.1 could not score on the supported 24 line: on Node 24.11.0 a narrowed `cli-io.js` run gives 0
 killed and 28 errors, against 29 killed on 10.0.0 (Node 22, 24 and 25 alike). Full runs on Node
 22.22.3: 8.7.1 scored 94.07% over 10141 mutants in 37m27s (under load); 10.0.0 scores 94.17% over
@@ -610,7 +610,7 @@ adds, 3 survived the full suite and now die to new tests, one of them a guard ga
 `git diff` before a `;`/`&&`/`|`/newline separator was untested. Design context:
 [stryker-9-upgrade](docs/contributing/design/stryker-9-upgrade.md). Original entry:
 the P9-hardening decisions (DC-2a/2b) chose `@stryker-mutator/core@8.7.1` because 9.x requires Node
-`>=20` and the engine declared `>=18`. The engine now declares `^22.18.0 || >=24.2.0` (ADR-564), so
+`>=20` and the engine declared `>=18`. The engine now declares `^22.18.0 || >=24.2.0` (R-564), so
 that reason is gone. Moving to 9.x is a separate change: it needs its own ADR against that decision
 and a full mutation run to compare scores and timings with 8.7.1.
 
@@ -619,13 +619,13 @@ and a full mutation run to compare scores and timings with 8.7.1.
 **Adapter entry points exit 0 silently when invoked through a symlinked path — delivered
 2026-10-14** (fix/adapter-entry-symlink-guard). `adapters/codex/bin/trust-hook.js` and
 `adapters/pi/src/cli.js` now guard `main` with `isEntryPoint(import.meta.url, process.argv[1])`,
-imported directly from `engine/src/cli-io.js` (ADR-561). Each entry has its own behavioural link
-test, and the pi literal-string pin is gone (ADR-562). `adapters/codex/test/trust-hook.bin.test.js`
+imported directly from `engine/src/cli-io.js` (R-561). Each entry has its own behavioural link
+test, and the pi literal-string pin is gone (R-562). `adapters/codex/test/trust-hook.bin.test.js`
 and `adapters/pi/test/cli.test.js` spawn each entry through a test-made link, through npm's
 extensionless bin link (pi), and from an importer script. Before the fix, the link tests failed
 with exit 0; after it, codex passes 3 of 3 and pi 10 of 10. Original entry:
 `adapters/codex/bin/trust-hook.js:54` and `adapters/pi/src/cli.js:4` still guard `main` with
-`process.argv[1] === fileURLToPath(import.meta.url)`, the same defect the engine bins had (ADR-559
+`process.argv[1] === fileURLToPath(import.meta.url)`, the same defect the engine bins had (R-559
 kept them out of that change). Through a symlinked checkout each exits 0 with no output; from the
 physical path each exits 2 (design `docs/contributing/design/bin-entry-symlink-guard.md`, Out of
 scope). Fix: import `isEntryPoint` from `engine/src/cli-io.js` (the adapters already import from
@@ -636,9 +636,9 @@ into a behavioural symlink check like `engine/test/bin-entry-symlink.bin.test.js
 
 **Engine bins exit 0 silently when invoked through a symlinked path — delivered 2026-10-14**
 (fix/bin-entry-symlink-guard). All 24 bins now guard `main` with `isEntryPoint(import.meta.url,
-process.argv[1])` from `engine/src/cli-io.js` (ADR-556), which then real-pathed both sides; only
-`ENOENT` on argv[1] meant "not the entry point" (both behaviours superseded by ADR-564). `engine/test/bin-entry-symlink.bin.test.js`
-spawns every bin through a test-made symlink and asserts it is loud (ADR-560). It failed 25 of 26
+process.argv[1])` from `engine/src/cli-io.js` (R-556), which then real-pathed both sides; only
+`ENOENT` on argv[1] meant "not the entry point" (both behaviours superseded by R-564). `engine/test/bin-entry-symlink.bin.test.js`
+spawns every bin through a test-made symlink and asserts it is loud (R-560). It failed 25 of 26
 before the fix and passes 26 of 26 after. Original entry: every `engine/bin/*.js`
 (24 of 24) runs `main` only when `process.argv[1] === fileURLToPath(import.meta.url)`. Node
 resolves `import.meta.url` to the real path, while `argv[1]` keeps the symlinked one, so a bin
@@ -730,8 +730,8 @@ context:
 (codex-hooks-quote-plugin-root). Proven first: codex-cli 0.161.0 runs a hook command as
 `<login shell> -c <command>`, the shell taken from the user database with `$SHELL` ignored
 (offline fake-provider smoke, no auth copied). From a spaced root, zsh runs the unquoted form but
-bash, sh and dash split it. Both registrations now quote the whole path (ADR-512, literal TOML
-string per ADR-513), and `trust-hook`'s matcher accepts that one double-quoted operand. Review
+bash, sh and dash split it. Both registrations now quote the whole path (R-512, literal TOML
+string per R-513), and `trust-hook`'s matcher accepts that one double-quoted operand. Review
 then proved the matcher's own contract leaky; it is now an allow-list: a bare or absolute `node`,
 one operand rooted at `/` or at the shim plus `/`, path characters only (ADRs 514, 515, 517;
 `/proc/self/cwd` aliases bounded as a non-goal beside the accepted `..` traversal case). A live run
@@ -742,18 +742,18 @@ trusted the quoted hook and the guard denied `git diff` with no bypass flag. Des
 
 **Quote the plugin-root placeholder in `hooks/hooks.json` — delivered 2026-10-12**
 (backlog-sweep-hooks-quote-dev-tools). The three commands now double-quote the whole path,
-`"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/<script>.sh"` (ADR-508). Exec form was rejected
-because it has no shell to expand the `CRAFT_ROOT` override (ADR-217). `claude plugin validate .`
+`"${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/hooks/<script>.sh"` (R-508). Exec form was rejected
+because it has no shell to expand the `CRAFT_ROOT` override (R-217). `claude plugin validate .`
 reports no hooks warnings. `test/hooks.test.js` expands each registered command under `sh -c`
 from a plugin root containing a space, with `CRAFT_ROOT` unset and set. Design context:
 [backlog-sweep-hooks-quote-dev-tools](docs/contributing/design/backlog-sweep-hooks-quote-dev-tools.md).
 
 **CI installs `bats` and `yq` that nothing runs — delivered 2026-10-12**
-(backlog-sweep-hooks-quote-dev-tools). The user chose to drop both (ADR-509).
+(backlog-sweep-hooks-quote-dev-tools). The user chose to drop both (R-509).
 `scripts/install-dev-tools.sh` now installs only `shellcheck` and `jq`. The yq download, the
 checksums and the architecture probe are gone, along with their tests. The orphaned
 `test/helpers/{hooks,worktree,manifest-lint}.bash` are deleted. The inline-install guard covers
-apt only (ADR-510), and the devcontainer smoke no longer checks yq (ADR-511). Design context:
+apt only (R-510), and the devcontainer smoke no longer checks yq (R-511). Design context:
 [backlog-sweep-hooks-quote-dev-tools](docs/contributing/design/backlog-sweep-hooks-quote-dev-tools.md).
 
 ### Open (scoped 2026-10-12 — follow-ups surfaced by the provenance-sweep-part-two run, not yet scheduled)
@@ -761,7 +761,7 @@ apt only (ADR-510), and the devcontainer smoke no longer checks yq (ADR-511). De
 **A step id still sits in a test title — delivered 2026-10-12**
 (test/memory-port-doc-title). The `test/memory-store.test.js` title "Given the memory port doc
 was authored in S4" now reads "Given the memory port doc ships under the contributing specs",
-which states what the test checks without the step id. Class E (ADR-490) still does not match
+which states what the test checks without the step id. Class E (R-490) still does not match
 `S\d+`: `engine/test/scenarios.test.js` uses `S1`–`S9` as scenario names it defines itself, so
 no narrower rule is added. Design context:
 [provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md).
@@ -774,10 +774,10 @@ no narrower rule is added. Design context:
 the `R3` comment in `engine/src/observability/metrics-line.js` states the composition-root rule
 in words. Class E's shipped-code scan gains a `(?-i:[RTF]\d+)` token, case-sensitive inside the
 case-insensitive scan, so `-f2-` in `scripts/run-ledger.sh` and a lower-case `r1` are not
-reported (ADR-489). The seven test lines citing `R10` or `F6` say what they pin without the id
-(ADR-492); the other test-side single-letter ids, and the `R1`–`R3` rule names in
+reported (R-489). The seven test lines citing `R10` or `F6` say what they pin without the id
+(R-492); the other test-side single-letter ids, and the `R1`–`R3` rule names in
 `test/architecture-boundaries.test.js`, are unchanged. Design:
-[provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md); ADR-489–492.
+[provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md); R-489–492.
 
 **Provenance refs in tests are unguarded — delivered 2026-10-12**
 (chore/provenance-sweep-part-two). The 46 test comments and titles carrying provenance are
@@ -785,26 +785,26 @@ reworded to give the reason, along with three assert messages, three fixture hea
 example-data lines that read as refs. Class E now also scans `engine/test`, `test` and
 `adapters/*/test`, reporting a hit only on a comment line or a line-anchored
 `test`/`it`/`describe` title, with no allowlist; the 146 remaining hits are fixture data
-(ADR-490). `test/p10-structure.test.js`, `test/p20-dod.test.js` and `test/p22-memory.test.js`
+(R-490). `test/p10-structure.test.js`, `test/p20-dod.test.js` and `test/p22-memory.test.js`
 are now `test/plugin-structure.test.js`, `test/repo-dod.test.js` and `test/memory-store.test.js`,
-and the `subjects:` of ADR-436 and ADR-449 follow (ADR-491). Design:
-[provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md); ADR-489–492.
+and the `subjects:` of R-436 and R-449 follow (R-491). Design:
+[provenance-sweep-part-two](docs/contributing/design/provenance-sweep-part-two.md); R-489–492.
 
 ### Open (scoped 2026-10-11 — follow-ups surfaced by the stub-lint-ci-self-reference run, not yet scheduled)
 
 **A waiver token quoted in prose is a live waiver — delivered 2026-10-12**
 (fix/waiver-mention-not-waiver). `collectWaived` in `engine/src/hygiene-lint-core.js` now
 counts a waiver only on a line that starts at column 0 with the token followed by `: <reason>`
-(non-empty), outside a fenced code block (ADR-479, ADR-482, ADR-483). The core composes that
+(non-empty), outside a fenced code block (R-479, R-482, R-483). The core composes that
 anchor around each gate's bare pattern, so the gate constants and call sites are unchanged
-(ADR-481). The fix covers `STUB-WAIVE`, `SLOP-WAIVE` and `DECISION-CITE-WAIVE`, since all three
-reach the same function (ADR-480). Fences use a line-based CommonMark subset: CRLF-safe, with
-the closer indented at most max(3, opener indent) columns (ADR-484). The 962 tracked `.md`
+(R-481). The fix covers `STUB-WAIVE`, `SLOP-WAIVE` and `DECISION-CITE-WAIVE`, since all three
+reach the same function (the DECISION-CITE-WAIVE half superseded by R-735). Fences use a line-based CommonMark subset: CRLF-safe, with
+the closer indented at most max(3, opener indent) columns (R-484). The 962 tracked `.md`
 files now yield 0 live waivers, down from 83 raw matches. A differential fuzz against
 markdown-it leaves two accepted fail-open classes, both needing a fence that is not a fence or
 is left unclosed. Design:
 [waiver-mention-not-waiver](docs/contributing/design/waiver-mention-not-waiver.md);
-ADR-479–484.
+R-479–484.
 
 **Residual prose-marker findings in tracked source — delivered 2026-10-12**
 (fix/residual-prose-markers). The six non-self-reference hits are reworded comments now: prose
@@ -812,18 +812,18 @@ ADR-479–484.
 `engine/src/hygiene-gate-main.js`, and prose "placeholder" in `engine/src/gates.js`,
 `adapters/pi/src/run.js` and `engine/src/observability/adapters/aider/telemetry.js`.
 `stub-lint` prints nothing for all six files. The marker set and the case-insensitive rule
-(ADR-210) are unchanged, and no identifier was renamed.
+(R-210) are unchanged, and no identifier was renamed.
 
 ### Open (scoped 2026-10-11 — follow-ups surfaced by the transient-model-retry run, not yet scheduled)
 
 **Four process suites each carry their own region slicer — delivered 2026-10-11**
 (test/centralise-region-slicer). One helper, `test/helpers/region-slice.js`, replaces the four
 copies, and its own suite is `test/region-slice.test.js`. There were 38 call sites, not 4. No
-single join kept all four suites green, so the helper has two shapes (ADR-472): `sliceRegion`
+single join kept all four suites green, so the helper has two shapes (R-472): `sliceRegion`
 returns the exact lines joined with `'\n'`, which the concepts Sources bullet count needs for
 its `^…/m` anchor, and `sliceProse` collapses whitespace for the word-wrapped pins in
 run-record and model-retry. "From the top" and "to the end" are now the `FROM_TOP` / `TO_END`
-sentinels (ADR-473). A start or end pattern that is given but not found fails the assertion.
+sentinels (R-473). A start or end pattern that is given but not found fails the assertion.
 A `null`, `undefined`, string or omitted boundary throws `TypeError`, which also closes a
 second widening path: run-record's slicer used to slice to EOF when the end argument was left
 out. Before switching to fail-loud, every call site that used to widen was checked against
@@ -833,15 +833,15 @@ its target file. Each end marker exists, so no hidden false pass was exposed.
 
 **`ci.sh` lint chain fails open — delivered 2026-10-09** (fix/ci-lint-chain-fail-closed). The
 static lints moved to `scripts/static-lints.sh`, which has its own `set -euo pipefail` and runs
-one statement per line. `ci.sh` calls it as a bare line (ADR-429, ADR-430). In the old
+one statement per line. `ci.sh` calls it as a bare line (R-429, R-430). In the old
 `&&` list, seven of the ten lints failed open: shellcheck, pipeline-lint, pipeline-resolve,
 contracts-lint and the three `docs-structure-lint.sh` calls. Now every failing lint stops the
 build with that lint's own exit status.
 
 `test/static-lints-ci.test.js` copies the shipped script into a mktemp throwaway with stubbed
-lints and appends one trailing statement (ADR-432). The trailing statement is needed because a
+lints and appends one trailing statement (R-432). The trailing statement is needed because a
 `&&` list that ends its own script already propagates its status. The test fails each of the ten
-positions in turn (ADR-431). It was 9 of 10 red against a verbatim move of the old list, and
+positions in turn (R-431). It was 9 of 10 red against a verbatim move of the old list, and
 12 of 12 green after the fix. It also pins `ci.sh`'s bare call and its errexit. Bash 3.2 is
 pinned locally; CI's ubuntu run is the first bash 5 run.
 
@@ -1042,7 +1042,7 @@ totals or drift, and exit codes are unchanged. A `--phase` call prints nothing; 
 without `--session` (or with an empty one) writes one stderr note instead. `Done` passes
 `--session "$CLAUDE_CODE_SESSION_ID"` on both calls and relays the line in the final message.
 Design: [compaction-estimate-at-done](docs/contributing/design/compaction-estimate-at-done.md);
-ADR-455–461.
+R-455–461.
 
 **The miner double-counts a compaction the CLI re-appends — delivered 2026-10-11**
 (fix/miner-compaction-uuid-dedup). `parseLines` now skips a `compact_boundary` or
@@ -1064,23 +1064,23 @@ recording `MODEL-DEGRADED(<tier>): fallback=<tier> cause=<overload|unavailable>`
 per spawn; once a tier is degraded, later spawns and retries go straight to the fallback.
 `docs/contributing/specs/model.md` states the same rule; both tokens join the run-record family.
 Pinned by `test/model-retry-token.test.js`. Design:
-[transient-model-retry](docs/contributing/design/transient-model-retry.md); ADR-462–465.
+[transient-model-retry](docs/contributing/design/transient-model-retry.md); R-462–465.
 
 **`stub-lint` flags `scripts/ci.sh`'s own mentions of `stub-lint` — delivered 2026-10-11**
 (fix/stub-lint-ci-self-reference). The lint's own name is now a token, not a marker:
 `engine/src/stub-lint-main.js` strips `stub-lint` (case-insensitive, word-bounded) from each line
-before matching (ADR-474, ADR-477). The exemption is per token, never per line or file, so a real
+before matching (R-474, R-477). The exemption is per token, never per line or file, so a real
 `# TODO: x` or `# stub: fill in` in `ci.sh` is still reported, and `stub-linter`, `STUB-WAIVE(x)`
-and `STUB-FOUND(x)` still fire (ADR-476). The `ci.sh` hygiene header now names the lints instead
-of using a bare prose "stub" (ADR-475). `node engine/bin/stub-lint.js --gate blocking --
+and `STUB-FOUND(x)` still fire (R-476). The `ci.sh` hygiene header now names the lints instead
+of using a bare prose "stub" (R-475). `node engine/bin/stub-lint.js --gate blocking --
 scripts/ci.sh` prints nothing. Pinned by fixture tests in `engine/test/stub-lint-main.test.js`,
-not a process test over the real file (ADR-478). Design:
+not a process test over the real file (R-478). Design:
 [stub-lint-ci-self-reference](docs/contributing/design/stub-lint-ci-self-reference.md);
-ADR-474–478.
+R-474–478.
 
 **The lint mains re-implement helpers `cli-io.js` already exports — delivered 2026-10-12**
 (chore/backlog-sweep-six-entries). `isRegularFile`, `isDirectoryPath` and `isNonEmptyString`
-now have one definition each, exported from `engine/src/cli-io.js` (ADR-487). The local copies
+now have one definition each, exported from `engine/src/cli-io.js` (R-487). The local copies
 in `adr-lint-main.js`, `intention-lint-main.js`, `manifest-lint-main.js`, `plan-lint-main.js`
 and `intention.js` are deleted; the suites of those modules stayed green unedited.
 `adr-lint`'s lstat-based `isNonSymlinkFile` and the list-form predicates are untouched. Design:
@@ -1089,7 +1089,7 @@ and `intention.js` are deleted; the suites of those modules stayed green unedite
 **`adr.frozen` can still exempt every citation without tripping the whole-tree guard — delivered
 2026-10-12** (chore/backlog-sweep-six-entries). Both guard sites (manifest validation and the
 adr-lint sweep) now also reject a frozen list whose entries together match every whole-tree
-probe path, or every markdown probe path (ADR-486). `**/*.md` and `['*', '*/**']` are rejected
+probe path, or every markdown probe path (a guard superseded by R-735). `**/*.md` and `['*', '*/**']` are rejected
 (the second turned adr-lint into `exit 0` with no citation checked); a root-only `*` stays
 accepted, and the per-entry check and its message are unchanged. `docs/guides/customizing.md`
 states the rule; its old claim that `*` is rejected is corrected. The probe sets are
@@ -1109,7 +1109,7 @@ re-mine: its 15 `review-waste` entries became the 4 that `billedTurns > 85` sele
 is byte-identical, so the README cost claims and the calibration pin are unchanged. The
 regeneration command lives in `docs/contributing/specs/telemetry.md` § "Committed baseline
 replay". Design:
-[baseline-review-waste-replay-guard](docs/contributing/design/baseline-review-waste-replay-guard.md) (ADR-493–499).
+[baseline-review-waste-replay-guard](docs/contributing/design/baseline-review-waste-replay-guard.md) (R-493–499).
 
 **Two spawn sites still carry the defects their siblings just had fixed — delivered 2026-10-12**
 (fix/sibling-spawn-site-defects). `listTrackedFiles` in `test/source-hygiene.test.js` no longer
@@ -1129,7 +1129,7 @@ delivered 2026-10-12** (chore/backlog-sweep-six-entries). `createTmpGitRepo` now
 `{ root, env, cleanup }`, where `env` is its allowlisted git env, and `sut` spawns the lint under
 it. A new decoy test plants `GIT_DIR`/`GIT_WORK_TREE`/`GIT_INDEX_FILE` on the parent process and
 expects exit 2 naming the three stray dirs; it exited 0 before the fix. `withAmbientEnv` moved
-to the shared `test/helpers/ambient-env.js` with its own suite (ADR-488). Design:
+to the shared `test/helpers/ambient-env.js` with its own suite (R-488). Design:
 [backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
 
 **`docs/contributing/specs/memory.md` is a living spec no freshness guard can see — delivered
@@ -1151,44 +1151,44 @@ guides (they span the whole engine). Design:
 stripped with each sentence kept. A whole-tree source-hygiene test now greps shipped code
 (`engine/src`, `engine/bin`, `hooks`, `scripts`, adapter source/bin/extension/hook/plugin
 trees) for phase, decision-record, part, backlog and design-candidate numbering and fails with
-each `file:line` (ADR-485); it runs with an ambient `GIT_LITERAL_PATHSPECS` stripped, which
+each `file:line` (R-485); it runs with an ambient `GIT_LITERAL_PATHSPECS` stripped, which
 would otherwise hide every adapter match. Tests, skills and templates are out of its scope.
 Design: [backlog-sweep-six-entries](docs/contributing/design/backlog-sweep-six-entries.md).
 
 **Committed docs disclose the maintainer's home directory — delivered 2026-10-11**
 (fix/scrub-home-dir-from-docs). The real count was 83 lines in 31 tracked files, not 18: a
 second form, the dashed Claude projects-dir name (`-Users-<name>-…`), carried the username
-too, including a captured aider fixture. Every file was swept in place, `archive/` and ADR-035
-included, with only the path text changed (ADR-466). Out-of-repo locations are now named by
-placeholder (`<worktree>`, `<main-repo-dir>`, `<node-bin>`; ADR-471), and the two engine
-fixtures use the `x` placeholder home (ADR-470). Git history is not rewritten.
+too, including a captured aider fixture. Every file was swept in place, `archive/` and R-035
+included, with only the path text changed (R-466). Out-of-repo locations are now named by
+placeholder (`<worktree>`, `<main-repo-dir>`, `<node-bin>`; R-471), and the two engine
+fixtures use the `x` placeholder home (R-470). Git history is not rewritten.
 
 No template mandated the absolute path: spawn briefs pass it, and planners transcribed it. A
 `contracts/core.md` invariant now tells every role that committed artifacts carry repo-relative
-paths, and the `templates/plan.md` Gate note says the same (ADR-468; plan-lint unchanged,
-ADR-469). Class D in `test/source-hygiene.test.js` blocks a home-rooted path anywhere in the
-tracked tree (ADR-467). Review hardened its first cut: the anchor is now a fail-closed negative
+paths, and the `templates/plan.md` Gate note says the same (R-468; plan-lint unchanged,
+R-469). Class D in `test/source-hygiene.test.js` blocks a home-rooted path anywhere in the
+tracked tree (R-467). Review hardened its first cut: the anchor is now a fail-closed negative
 lookbehind, matching is case-insensitive, the scan runs `git grep -naiE` from a git env
 stripped of `GIT_DIR`, and an unparsable row throws. Placeholders such as `/Users/<name>/` in
 this file pass.
 
 ### Open (scoped 2026-07-30 — follow-ups surfaced by the orchestrator-tax-hardening run, not yet scheduled)
 
-**Newline-delimited scope specs — delivered 2026-07-31** (scheduled-backlog-sweep, ADR-323).
+**Newline-delimited scope specs — delivered 2026-07-31** (scheduled-backlog-sweep, R-323).
 `parseScopeSpec` now splits on the newline instead of the comma — a path containing a comma
 parses as one legitimate entry, and the retired comma-joined form is unsupported by design
 rather than by accident. Per-entry trimming survives unchanged. One correction the closing
-run surfaced mid-implementation: ADR-323's own consequence text claimed the retired
-comma-joined form would throw — verified false. A narrow guard (ADR-327) now rejects the
+run surfaced mid-implementation: R-323's own consequence text claimed the retired
+comma-joined form would throw — verified false. A narrow guard (R-327) now rejects the
 common swallowed-entry shape (a whole comma-joined spec arriving as a single entry, whose
 file part still carries another entry's range), without disturbing colon-bearing paths or
 comma-bearing paths, which stay supported. One residual hole is deliberate and recorded in
-ADR-327, not fixed: a comma-joined spec whose *first* entry carries no range still collapses
+R-327, not fixed: a comma-joined spec whose *first* entry carries no range still collapses
 silently, because every formulation that catches it also rejects a legitimate comma-bearing
 path.
 
 **Locality-advisory specificity — closed by measurement, detector unchanged, 2026-07-31**
-(scheduled-backlog-sweep, ADR-324). Re-measured over the whole committed corpus: 24 plans, 15
+(scheduled-backlog-sweep, R-324). Re-measured over the whole committed corpus: 24 plans, 15
 emitting, 54 warnings, 41 two-part. The originally recorded 49/14-of-23/37 reproduces exactly
 once the plan doc added 2026-07-31 is subtracted, so nothing drifted structurally — one plan
 was added. A trap in the original framing: the recorded `49` was always the *mergeable*
@@ -1204,7 +1204,7 @@ labelled sample before it is a result; that stays a backlog direction, not somet
 shipped.
 
 **Windows path separators in the boundary filter — half closed by evidence, half documented,
-2026-07-31** (scheduled-backlog-sweep, ADR-325). The colon-rejection claim is **false**:
+2026-07-31** (scheduled-backlog-sweep, R-325). The colon-rejection claim is **false**:
 `C:\repo\a.js:*` and `C:\repo\a.js:1-9` both parse correctly today, because the greedy head
 that lets a colon inside a path survive to the pattern's last colon is deliberate and already
 documented in the module comment — that half of the original entry never held.
@@ -1216,7 +1216,7 @@ Windows support the rest of the repo cannot honour. A fix lands only alongside a
 job that exercises it.
 
 **Line-length cap reaches a new call-site — delivered 2026-07-31** (scheduled-backlog-sweep,
-ADR-321). One defect, closed together with the sibling entry under "sp9-findings-adoption"
+R-321). One defect, closed together with the sibling entry under "sp9-findings-adoption"
 below. `parseLine`'s pipe-split now uses a linear lookaround delimiter (`/(?<=\s)\|(?=\s)/u`)
 plus a 16,384-character cap in `parseLineShape`, raised with a dedicated cap-named error
 before the split ever runs. Measured at 200,000 characters: 20,550 ms → 0.48 ms (independently
@@ -1265,7 +1265,7 @@ doc.
 ### Open (scoped 2026-07-26 — follow-ups surfaced by the sp9-findings-adoption run, not yet scheduled)
 
 **Line-length cap in the findings normalizer — delivered 2026-07-31** (scheduled-backlog-sweep,
-ADR-321). The same defect as the "Line-length cap reaches a new call-site" entry above under
+R-321). The same defect as the "Line-length cap reaches a new call-site" entry above under
 "orchestrator-tax-hardening" — closed together, one fix. `parseLine`'s pipe-split now uses a
 linear lookaround delimiter and a 16,384-character cap in `parseLineShape`, raised past the
 existing 5,000-character ReDoS guards so they still exercise the split rather than the cap,
@@ -1275,7 +1275,7 @@ never specifically "a whitespace run before a trailing `|`" — any interior whi
 immediately followed by `|`+whitespace was quadratic, pipe or no pipe.
 
 **Adapter agent-mirror sync tooling — delivered 2026-07-31** (scheduled-backlog-sweep,
-ADR-326). Shipped as `scripts/sync-adapter-agents.sh`: read-only `--check` by default, an
+R-326). Shipped as `scripts/sync-adapter-agents.sh`: read-only `--check` by default, an
 explicit `--write` required to mutate anything, replacing each mirror's body only while
 preserving its own frontmatter byte-for-byte (aider's body-only, no-fence, leading-newline-
 stripped variant is encoded as its own write shape, not folded into the frontmatter-preserving
@@ -1284,8 +1284,8 @@ one adapter of the six that lacked one — is added, so all six mirrors are inde
 guarded rather than five; the tool is never the only thing checking itself.
 
 **findings.js mutation-baseline hardening — delivered 2026-07-31** (scheduled-backlog-sweep,
-ADR-322). Measured baseline was 34 unkilled of 224 instrumented (27 survived + 7 uncovered),
-not the ~20 originally recorded. Three redundant empty/shape guards were deleted (ADR-322 —
+R-322). Measured baseline was 34 unkilled of 224 instrumented (27 survived + 7 uncovered),
+not the ~20 originally recorded. Three redundant empty/shape guards were deleted (R-322 —
 the array guard in `parseJsonShape`, `parseLineShape`'s empty-`nonBlank` early return, and
 `normalizeFindings`'s empty-string guard, all provably unreachable or redundant, verified by
 differential over the empty/whitespace/JSON probe set and the full existing suite); the
@@ -1302,17 +1302,17 @@ in-place equivalent-mutant comments, not 7.
 **Public front-door completion set — delivered 2026-10-12** (public-front-door-completion).
 README now carries a `## How craft compares` table that compares approach categories (plain
 agent prompting, spec-driven kits, craft) rather than named products, with every craft cell
-linked to evidence in this repo and no digits (ADR-500, ADR-501), plus a plugin-version badge
-read from `.claude-plugin/plugin.json` and an "Open in Codespaces" shields badge (ADR-507).
+linked to evidence in this repo and no digits (R-500, R-501), plus a plugin-version badge
+read from `.claude-plugin/plugin.json` and an "Open in Codespaces" shields badge (R-507).
 `.devcontainer/devcontainer.json` and the CI `ci` job share `scripts/install-dev-tools.sh`,
-which verifies yq against pinned per-arch SHA-256 checksums (ADR-505); the Codespace cold start
+which verifies yq against pinned per-arch SHA-256 checksums (R-505); the Codespace cold start
 is a not-CI-gated maintainer smoke, and README states no duration until it is measured.
-CONTRIBUTING.md (any process; `scripts/ci.sh` green + Conventional Commits, ADR-506),
-SECURITY.md (a detail-free public contact request, ADR-504) and four issue forms landed.
+CONTRIBUTING.md (any process; `scripts/ci.sh` green + Conventional Commits, R-506),
+SECURITY.md (a detail-free public contact request, R-504) and four issue forms landed.
 CHANGELOG.md backfills 1.0.0 and cuts 1.1.0; `docs/contributing/releasing.md` holds the
 procedure, and `plugin.json` moved to 1.1.0 so marketplace users receive the post-tag work
-(ADR-503). Tagging `v1.1.0` stays a maintainer action after merge. Each claim is pinned by a
-root repo-shape test (ADR-502). Design context:
+(R-503). Tagging `v1.1.0` stays a maintainer action after merge. Each claim is pinned by a
+root repo-shape test (R-502). Design context:
 [public-front-door-completion](docs/contributing/design/public-front-door-completion.md).
 
 ### Open (scoped 2026-07-23 — follow-ups surfaced by the aider binding, not yet scheduled)
@@ -1347,12 +1347,12 @@ own narrower `gitGuardPredicate`. The residual duplication this entry also flagg
 relocated) predicate and opencode's — **delivered 2026-07-21** (harden-prove-codex-binding, A1):
 the three constants now live once in `engine/src/guards/git-ext-diff-predicate.js` (with
 `gitExtDiffPredicate`); `tool-call-guard.js` imports it and opencode's `git-guard-predicate.js`
-is a thin re-export (ADR-267). `REASON_GIT_EXT_DIFF` stays module-private (no external consumer).
+is a thin re-export (R-267). `REASON_GIT_EXT_DIFF` stays module-private (no external consumer).
 
 **Deduplicate the acceptance-probe harness across four bindings — delivered 2026-07-21**
 (harden-prove-codex-binding, A2). The four near-verbatim `adapters/{opencode,copilot,codex,pi}/src/probe.js`
 copies now wrap one shared `engine/src/probe-harness.js` exporting
-`runProbeHarness({ runner, fsOps, versionKey, portsExercised, extraRunnerArgs })` (ADR-266).
+`runProbeHarness({ runner, fsOps, versionKey, portsExercised, extraRunnerArgs })` (R-266).
 `portsExercised` was added to the original signature — it genuinely varies (codex binds no VCS
 port: 3 ports vs the others' 4); `extraRunnerArgs` is a function of `targetPath` (copilot/codex
 compute `launchArgs` from it, opencode/pi omit it). Each binding keeps its exported
@@ -1386,7 +1386,7 @@ arriving in the `patch` or `text` field had no test proving the guard saw it at 
 
 **Provenance refs leak in `engine/src/observability/adapters/claude/` — delivered 2026-07-21**
 (harden-prove-codex-binding, A3). The user ratified the BROAD option over the scoped one
-(ADR-265): all `engine/src` is provenance-clean source, no engine-internal exemption. A new
+(R-265): all `engine/src` is provenance-clean source, no engine-internal exemption. A new
 `engine/test/source-hygiene.test.js` extends the guard to `engine/src/**` (pinning the 8 known
 offenders positively and asserting a non-empty scan set), and all 15 comment refs across 8 files
 (`claude/{telemetry,pricing}.js`, `manifest{,-harness,-vocabulary,-pipeline-edits}.js`, `gates.js`,
@@ -1396,9 +1396,9 @@ offenders positively and asserting a non-empty scan set), and all 15 comment ref
 **Stronger destructive-git denial for the Copilot binding — delivered 2026-10-16**
 (feat/copilot-git-argv-normalising-guard). A live probe showed copilot >= 1.0.92 honours a
 `preToolUse` deny (`permissionDecision: "deny"`; the 1.0.63 probe used a key copilot ignores), so the
-hook now enforces (ADR-578): a plain-command gate (ADR-596, ADR-606) → `gitDestructivePredicate` over
+hook now enforces (R-578): a plain-command gate (R-596, R-606) → `gitDestructivePredicate` over
 normalised argv (push, `reset --hard`, forced branch delete, non-dry-run clean, inline aliases and
-config channels; ADR-583/584/590/640) → the shared guard, with the verdict computed in a worker thread
+config channels; R-583/584/590/640) → the shared guard, with the verdict computed in a worker thread
 and denied at a 5 s deadline so copilot's ~30 s hook timeout cannot fail open. `--deny-tool` stays the
 floor. Ground truth on copilot 1.0.92 and 1.0.98 (bare-remote ref unmoved; allow direction executes).
 Original entry: `--deny-tool` is **prefix matching on the
@@ -1514,7 +1514,7 @@ and network, not merely a documented selection.
 (harden-prove-codex-binding, A4). Removed; `engine/test/mutation-config.test.js` gained a positive
 pin (`existsSync(adapters/pi/stryker.conf.json) === false`) plus a sweep asserting no per-adapter
 `stryker.conf.json` exists across the four binding dirs. `engine/stryker.conf.json` already covered
-`adapters/pi/src/tool-call-hook.js` (ADR-263).
+`adapters/pi/src/tool-call-hook.js` (R-263).
 
 ---
 
@@ -1544,9 +1544,9 @@ shadow a user-scope config. New `craft:promote-config` skill relocates a named c
 
 **Intention self-governance + corpus single-source — delivered 2026-07-04** (`harness-hygiene-prune-gates`).
 `docs/adapters/intention.md` now carries `subjects: [engine/src/intention*.js, engine/src/glob.js]`,
-so the port dogfoods its own freshness guard (ADR-207). The living-corpus enumeration is
+so the port dogfoods its own freshness guard (R-207). The living-corpus enumeration is
 single-sourced behind `scripts/living-corpus.sh`, consumed by both `scripts/ci.sh` and
-`test/intention-lint-ci.test.js` (ADR-208).
+`test/intention-lint-ci.test.js` (R-208).
 
 **Pre-completion hygiene gates + `craft:prune` — delivered 2026-07-04** (same run). Two
 advisory-first lints (`engine/bin/{stub,prose}-lint.js`) run in `ci.sh` over the branch-diff
@@ -1554,7 +1554,7 @@ touched set: a stub-marker gate over touched source and a prose anti-slop gate o
 docs (+ the PR body as a capability), governed by one `hygiene.gate: advisory|blocking`
 manifest knob (default advisory, ADRs 210–212) with `STUB-WAIVE`/`SLOP-WAIVE` prose waivers.
 `skills/prune/SKILL.md` is an on-demand, propose-never-dispose harness-prune review with
-`contracts/core.md` as a fail-closed denylist (ADR-209; the five automation balloon axes were
+`contracts/core.md` as a fail-closed denylist (R-209; the five automation balloon axes were
 put to the user and declined).
 
 **Hygiene-lint follow-up set — closed 2026-07-04** (design
@@ -1750,16 +1750,16 @@ recommendation and one attended end-to-end loop over two real entries.
   model-resolution chain (`models.<role>` → `descriptor.model` → `models.fallback` → engine
   default `sonnet`) already resolves a model-less registered phase via fallback. Seeding a fixed
   `model` into `foldRegisteredPhases` would shadow `models.fallback` (a flexibility **regression**);
-  inheriting the replaced default's tier violates ADR-073 (full-replace = no field inheritance).
+  inheriting the replaced default's tier violates R-073 (full-replace = no field inheritance).
   A registered phase that wants a tier sets it in its own descriptor or via `models.<role>`.
 - **P13.5 broader scope (ban-split across every rule)** — the headline `--no-verify` question is
-  resolved (P13.5/ADR-083). The remaining bans (`git-no-ext-diff` difftastic safety; contract
+  resolved (P13.5/R-083). The remaining bans (`git-no-ext-diff` difftastic safety; contract
   provenance / suppression / swallowed-error bans) are *correctly* engine invariants; splitting
   adapter-mechanism from engine-invariant for them is unwarranted unless a consumer needs it.
 - **Live `gh`/`jira` round-trip E2E** for the custom backlog recipes — a real `gh issue close` /
   Jira transition mutates a tracker and needs credentials CI lacks. The recipes are pinned
   empirically (read-only probes) + prose; a gated opt-in test is the home if ever wanted.
-- **`backlog.id-pattern` manifest knob** (machine-enforced `file` id-form) — ADR-060: `file`
+- **`backlog.id-pattern` manifest knob** (machine-enforced `file` id-form) — R-060: `file`
   id-form stays orchestrator prose-judgment until a repo actually needs the machine check. YAGNI.
 - **A `macos-latest` job for the hooks' `LC_ALL=C` guard** — *premise refuted 2026-10-11.* The
   entry assumed CI's awk never aborts, so the multibyte-locale hook tests passed vacuously on
@@ -1810,13 +1810,13 @@ recommendation and one attended end-to-end loop over two real entries.
   retired: no re-probe is scheduled. A re-measure stays possible through the throwaway-entry route.
   Evidence: `docs/contributing/specs/codex-poc-record.md`, *Re-probe — codex-cli 0.163.0*.
 - **A data-flow rule for a substitution that reaches arithmetic through a variable value**
-  — *closed 2026-10-26 (guard-arith-cleanup, ADR-696).*
+  — *closed 2026-10-26 (guard-arith-cleanup, R-696).*
   `printf -v x 'a[%s]' '$(git push -f origin)'; echo $(( x ))` and
   `x='a['; y='$(git push -f origin)]'; echo $(( $x$y ))` run git under /bin/bash 3.2.57
   and bash 5.3.20 (stub git, benign marker). So does a value that an earlier Bash call put
   in a file, an environment variable or a function argument. Both predicates allow them,
   because no single word of the command holds the `[` and the opener together. The literal
-  spellings (rows 57 and 94–100) block through the word rule (ADR-695). Closing the rest
+  spellings (rows 57 and 94–100) block through the word rule (R-695). Closing the rest
   needs a refusal of every arithmetic read of a variable, which denies 34 of 210 allowed
   bash scripts in the measured disk corpus (16%), for example `$((OPTIND - 1))` and
   `[[ $# -gt 0 ]]`. Probe rows: 101, 102 and table K of

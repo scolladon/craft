@@ -68,7 +68,7 @@ description: Craft phase 8 - run the repo's engineering harness over the change,
    the technique id + config fingerprint discovered this run. Keep distinct from and
    non-interfering with the gating probe's "phase ends here" exit below.
 4. **Resolve the active technique set** from `phase.harness` (the resolved descriptor),
-   using ADR-149 discovery precedence:
+   using R-149 discovery precedence:
    - **Declared** — `phase.harness.techniquePlan` (engine-emitted, binding, same way
      `review` reads `reviewPlan`) wins outright: each entry specifies technique `id`,
      `run` command, `mode` (`gate` | `triage`), optional `run-style` (`sync` |

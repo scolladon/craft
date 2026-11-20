@@ -396,12 +396,12 @@ test('Given a tree with a renamed phase, an unknown snippet key, and a telemetry
 // are hand-maintained and drift on every run that adds a doc, so this sub-guard
 // counts the tree instead of trusting the sentence.
 function readmeClaiming(count) {
-  return [CLEAN_README, '', `receipts: [${count} ADRs](docs/contributing/adr/)`, ''].join('\n');
+  return [CLEAN_README, '', `receipts: [${count} notes](docs/contributing/corpus/)`, ''].join('\n');
 }
 
 function withAdrFixture(overrides, run) {
   return withFixtureRoot(overrides, (root) => {
-    const dir = join(root, 'docs', 'contributing', 'adr');
+    const dir = join(root, 'docs', 'contributing', 'corpus');
     mkdirSync(dir, { recursive: true });
     for (const name of overrides.adrFiles ?? []) writeFileSync(join(dir, name), 'x');
     return run(root);
@@ -431,7 +431,7 @@ test('Given a claimed corpus count that has drifted from the tree, when main run
   );
 
   assert.equal(result, 1);
-  assert.match(stdout(), /corpus-counts: docs\/contributing\/adr\/ claims 270, tree holds 2/);
+  assert.match(stdout(), /corpus-counts: docs\/contributing\/corpus\/ claims 270, tree holds 2/);
 });
 
 test('Given only non-markdown files beside the markdown ones, when main runs, then they are not counted toward the claim', () => {
@@ -454,4 +454,52 @@ test('Given a claimed directory that does not exist in the tree, when main runs,
 
   assert.equal(result, 1);
   assert.match(stdout(), /corpus-counts: unusable input/);
+});
+
+// ─── rulings counts ──────────────────────────────────────────────────────────
+
+const RULINGS_FILE = 'docs/contributing/RULINGS.md';
+
+function registerOf(count) {
+  const lines = Array.from({ length: count }, (_, i) => `- R-${String(i + 1).padStart(3, '0')} [**] Rule ${i + 1}.`);
+  return ['# Rulings', '', ...lines, ''].join('\n');
+}
+
+function withRegisterFixture(claimed, held, run) {
+  const readme = [CLEAN_README, '', `[${claimed} rulings](${RULINGS_FILE})`, ''].join('\n');
+  return withFixtureRoot({ readme }, (root) => {
+    writeFileSync(join(root, RULINGS_FILE), registerOf(held));
+    return run(root);
+  });
+}
+
+test('Given a rulings claim that matches the register, when main runs, then it returns 0 and writes no finding', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+
+  const result = withRegisterFixture(3, 3, (root) => sut([root], io));
+
+  assert.equal(result, 0);
+  assert.equal(stdout(), '');
+});
+
+test('Given a rulings claim off by one from the register, when main runs, then it returns 1 and names both counts', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+
+  const result = withRegisterFixture(4, 3, (root) => sut([root], io));
+
+  assert.equal(result, 1);
+  assert.match(stdout(), /rulings-counts: docs\/contributing\/RULINGS\.md claims 4, register holds 3/);
+});
+
+test('Given a rulings claim whose register file is missing, when main runs, then it returns 1 and reports the rulings-counts surface as unusable', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+  const readme = [CLEAN_README, '', `[3 rulings](${RULINGS_FILE})`, ''].join('\n');
+
+  const result = withFixtureRoot({ readme }, (root) => sut([root], io));
+
+  assert.equal(result, 1);
+  assert.match(stdout(), /rulings-counts: unusable input/);
 });

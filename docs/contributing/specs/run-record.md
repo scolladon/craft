@@ -8,7 +8,7 @@ subjects:
 
 One append-only markdown file per run, `<git-common-dir>/craft-runs/<run-id>.md` — the
 directory `run-ledger.sh dir` prints — never `${CLAUDE_PLUGIN_ROOT}` and never inside a
-working tree (ADR-384). The git common dir is shared by every worktree of the repository
+working tree (R-384). The git common dir is shared by every worktree of the repository
 and no commit can write inside it, so the ledger has one root for the whole run, whatever
 the workspace strategy: `open` creates it at §0 step 4, every later write goes to it, and
 nothing moves it. A cloned repository can never plant or seed it. `skills/run/SKILL.md`
@@ -53,7 +53,7 @@ since `save` performs no validation on the write path.
 
 Every run-scoped file lives under one directory, inside the git common dir, where no
 commit can write — so a cloned repository can never plant a pointer or a ledger
-(ADR-384):
+(R-384):
 
 ```
 <git-common-dir>/craft-runs/              <git-common-dir> = `git rev-parse --path-format=absolute --git-common-dir`; shared by every worktree
@@ -107,31 +107,19 @@ The tokens below are greppable only: no regex row, and `run-state` does not cons
 - `LESSON-REVERIFY(<lesson>): <changed-path>` — emitted by the `validation` phase, one
   line per changed path on each unwaived `assert-fresh` lessons row; resolved by the
   `lessons` phase. It never joins the drift set and never reaches `intention.gate`.
-- `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` — `NNN` is the superseded
-  target, `MMM` the superseding ADR, `<what changed>` is the `scope` string from the
-  strict `supersedes` declaration verbatim, so the token and the ADR cannot disagree.
-  Emitted by the `decisions` phase, one line per `supersedes` entry authored that run.
+- `DECISION-REVERSAL(R-NNN): <what changed> -> R-MMM` — `NNN` is the superseded
+  target, `MMM` the superseding ruling, `<what changed>` is the `Superseded by` scope
+  string from the register line verbatim, so the token and the register cannot disagree.
+  Emitted by the `decisions` phase, one line per reversal authored that run.
   The scope string folds to one line before it is appended (the one-record-one-line
   rule). The token is greppable, never parsed — nothing splits on the ` -> `, so a `->`
   inside a scope string is a cosmetic wart, not an ambiguity. A refinement emits
-  nothing — only a reversal is a reversal. A supersession authored outside a craft run
-  emits no token at all; that is why `adr-lint` and this token are separate mechanisms,
-  and neither substitutes for the other.
-- `DECISION-CITE-WAIVE(<file>): <reason>` — the `adr-lint` C3 live-tier-citation waiver,
-  collected from `--waiver-source` files (the design doc and the PR body), exactly as
-  for `STUB-WAIVE` and `INTENTION-WAIVE`. A `STUB-WAIVE`, `SLOP-WAIVE` or
-  `DECISION-CITE-WAIVE` waiver is a line that starts with the token followed by
-  `: <reason>`, outside a fenced code block; the same token mid-sentence, in an inline
-  code span, a table cell or a fence is a mention and waives nothing. It belongs to the
-  `ci.sh` hygiene cadence
-  family, not to a phase procedure. `DECISION-CITE-FOUND(<file>):` is **not** a
-  run-record token and never appears here — under the hard-blocking lint posture a
-  finding stops `ci.sh` and there is no run to fold it into; it is the lint's stdout
-  format only.
+  nothing — only a reversal is a reversal. A reversal recorded outside a craft run
+  emits no token at all.
 - `DOCTRINE-HARVEST(<candidate>): D-<n> added | D-<n> amended | declined — <reason> | none — covered by D-<n> | none — one-off`
   — emitted by the `decisions` phase, exactly one line per escalated candidate after the
-  user rules; `<candidate>` is `#<k> <slug>` from the design's candidate table (the ADR
-  number is not yet assigned). Greppable only, no `run-state` row.
+  user rules; `<candidate>` is `#<k> <slug>` from the design's candidate table (the ruling
+  id is not yet assigned). Greppable only, no `run-state` row.
 - `MEMORY-RETRACT(<concern>): <merge-key>` — emitted by the phase that owns a concern's
   write surface, on a mechanical re-check that disproves a stored entry (never a
   judgment call). Derived at `skills/run/SKILL.md` `## Done` into
@@ -241,7 +229,7 @@ executing-harness). The compaction hooks only read.
 ## Lifetime — run-local, not committed
 
 The ledger lives inside the git common dir, which git never tracks, so it is never
-committed and no `.gitignore` change ships for it (ADR-384). It is run-local: `close`
+committed and no `.gitignore` change ships for it (R-384). It is run-local: `close`
 removes it at `Done`.
 
 It survives a context reset and `scripts/worktree-teardown.sh` alike — teardown removes
@@ -251,7 +239,7 @@ and against worktree loss**: `Done` reads the whole run from the ledger after
 
 ## Derivation at Done
 
-The memory `delta` (`docs/contributing/adr/303-memory-delta-derives-from-the-ledger.md`)
+The memory `delta` (`R-303`)
 is derived — read — from the ledger's run-id lines at `Done`, after the whole phase walk,
 teardown included: the ledger outlives the worktree, so the derivation reads the file,
 never a summary, and `save` runs exactly once, unweakened (R3).
@@ -260,7 +248,7 @@ never a summary, and `save` runs exactly once, unweakened (R3).
 
 A failed ledger append is surfaced to the user in-session and the run continues; it is
 **not** recorded into the ledger itself (that would be circular). Same posture as a
-failed `save` (ADR-120): a write failure never blocks delivery work.
+failed `save` (R-120): a write failure never blocks delivery work.
 
 A refused `open` (exit 3) is not a write failure: the orchestrator STOPs, because a run
 that continued would append into the other run's ledger.

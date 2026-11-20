@@ -6,7 +6,7 @@ const entry = (id, overrides = {}) => {
   const bullets = {
     Trigger: 'a trigger',
     Rule: 'a rule',
-    Evidence: 'ADR-546 — why',
+    Evidence: 'R-546 — why',
     'Counter-cases': 'none',
     ...overrides,
   }
@@ -55,8 +55,8 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries[0].counterCases, [])
   })
 
-  it('Given counter-cases with two ADR items, when parsed, then both ids are kept in order', () => {
-    const content = entry(1, { 'Counter-cases': 'ADR-546 — why; ADR-551 — why' })
+  it('Given counter-cases with two ruling items, when parsed, then both ids are kept in order', () => {
+    const content = entry(1, { 'Counter-cases': 'R-546 — why; R-551 — why' })
 
     const result = sut(content)
 
@@ -64,8 +64,8 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries[0].counterCases, ['546', '551'])
   })
 
-  it('Given a counter-case whose reason cites another ADR, when parsed, then it is well-formed and only the item head is an id', () => {
-    const content = entry(1, { 'Counter-cases': 'ADR-546 — superseded by ADR-551 in part' })
+  it('Given a counter-case whose reason cites another ruling, when parsed, then it is well-formed and only the item head is an id', () => {
+    const content = entry(1, { 'Counter-cases': 'R-546 — superseded by R-551 in part' })
 
     const result = sut(content)
 
@@ -73,12 +73,12 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries[0].counterCases, ['546'])
   })
 
-  it('Given too-short and too-long ADR references in evidence, when parsed, then neither is an id', () => {
-    const content = entry(1, { Evidence: 'ADR-12 and ADR-1234 and ADR-321' })
+  it('Given a too-short ruling reference beside three- and four-digit ones in evidence, when parsed, then only the short one is dropped', () => {
+    const content = entry(1, { Evidence: 'R-12 and R-1234 and R-321' })
 
     const result = sut(content)
 
-    assert.deepEqual(result.entries[0].evidence, ['321'])
+    assert.deepEqual(result.entries[0].evidence, ['1234', '321'])
   })
 
   it('Given a heading without the em dash, when parsed, then it reports the heading error and returns no entry', () => {
@@ -165,7 +165,42 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries, [])
   })
 
-  it('Given evidence without an ADR id, when parsed, then it reports evidence is empty', () => {
+  it('Given an entry whose evidence is a ruling id, when parsed, then the evidence ids carry its number', () => {
+    const content = entry(1, { Evidence: 'R-901 — why' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [])
+    assert.deepEqual(result.entries[0].evidence, ['901'])
+  })
+
+  it('Given an entry whose evidence is a legacy ADR id, when parsed, then it reports evidence is empty', () => {
+    const content = entry(1, { Evidence: 'ADR-901 — why' })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      { line: 1, message: 'D-1: evidence is empty' },
+    ])
+  })
+
+  it('Given a counter-case citing a legacy ADR id, when parsed, then it reports the counter-cases shape error', () => {
+    const content = entry(1, {
+      Evidence: 'R-901 — why',
+      'Counter-cases': 'ADR-901 — why',
+    })
+
+    const result = sut(content)
+
+    assert.deepEqual(result.errors, [
+      {
+        line: 1,
+        message: 'D-1: counter-cases must be none or R-NNN — <why> items',
+      },
+    ])
+  })
+
+  it('Given evidence without a ruling id, when parsed, then it reports evidence is empty', () => {
     const content = entry(1, { Evidence: 'no ids here' })
 
     const result = sut(content)
@@ -183,7 +218,7 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.errors, [
       {
         line: 1,
-        message: 'D-1: counter-cases must be none or ADR-NNN — <why> items',
+        message: 'D-1: counter-cases must be none or R-NNN — <why> items',
       },
     ])
   })
@@ -213,14 +248,14 @@ describe('parseDoctrine', () => {
     ])
   })
 
-  for (const counterCases of ['ADR-546', 'ADR-546 — why; ADR-101', 'ADR-546 —']) {
-    it(`Given the counter-cases "${counterCases}" with an ADR lacking its reason, when parsed, then it reports the counter-cases shape error`, () => {
+  for (const counterCases of ['R-546', 'R-546 — why; R-102', 'R-546 —']) {
+    it(`Given the counter-cases "${counterCases}" with a ruling lacking its reason, when parsed, then it reports the counter-cases shape error`, () => {
       const content = entry(1, { 'Counter-cases': counterCases })
 
       const result = sut(content)
 
       assert.deepEqual(result.errors, [
-        { line: 1, message: 'D-1: counter-cases must be none or ADR-NNN — <why> items' },
+        { line: 1, message: 'D-1: counter-cases must be none or R-NNN — <why> items' },
       ])
     })
   }
@@ -288,12 +323,12 @@ describe('parseDoctrine', () => {
   })
 
   it('Given a counter-case item preceded by other text, when parsed, then it reports the counter-cases shape error', () => {
-    const content = entry(1, { 'Counter-cases': 'see ADR-546 — why' })
+    const content = entry(1, { 'Counter-cases': 'see R-546 — why' })
 
     const result = sut(content)
 
     assert.deepEqual(result.errors, [
-      { line: 1, message: 'D-1: counter-cases must be none or ADR-NNN — <why> items' },
+      { line: 1, message: 'D-1: counter-cases must be none or R-NNN — <why> items' },
     ])
   })
 
@@ -314,7 +349,7 @@ describe('parseDoctrine', () => {
   })
 
   it('Given malformed counter-cases, when parsed, then the kept entry has empty counterCases', () => {
-    const content = entry(1, { 'Counter-cases': 'ADR-546' })
+    const content = entry(1, { 'Counter-cases': 'R-546' })
 
     const result = sut(content)
 

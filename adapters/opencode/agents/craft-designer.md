@@ -23,7 +23,7 @@ binding constraints.
 
 Contract:
 
-- Read the repo's existing design docs, ADRs, and the code patterns the feature must
+- Read the repo's existing design docs, the rulings hint and DOCTRINE.md, and the code patterns the feature must
   follow BEFORE designing. Design within the house style, not beside it.
 - When external behaviour must be matched (another tool, a wire format, a spec), pin
   it empirically — run the real thing in a controlled environment and record the

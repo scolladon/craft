@@ -12,7 +12,7 @@ criteria:
     kind: judgment
   - id: coverage-80
     kind: judgment
-  - id: design-adrs-authored
+  - id: design-rulings-recorded
     kind: judgment
   - id: conventional-commits
     kind: judgment
@@ -45,7 +45,7 @@ checklist's stated terms. Each checklist line names its criterion id.
 
 - [ ] TDD: Red → Green → Refactor followed; failing test written before implementation. `tdd-followed`
 - [ ] Coverage ≥ 80 % for every changed source file (engine + process node:test suites). `coverage-80`
-- [ ] Design doc and ADRs authored for load-bearing choices; backlog entry closed. `design-adrs-authored`
+- [ ] Design doc and rulings recorded for load-bearing choices; backlog entry closed. `design-rulings-recorded`
 - [ ] Conventional commit: one-line `<type>(scope): description`, no co-author trailer. `conventional-commits`
 - [ ] No dead code, no primitive obsession, no nesting > 2, no magic values. `code-quality`
 - [ ] All errors handled or re-thrown with context; none swallowed silently. `error-handling`
@@ -95,7 +95,7 @@ design doc is where a change states what "done" means for itself.
 ---
 
 _Reference (kept out of the verbatim-asserted checklist lines above): the DoD-assertion mechanism
-is specified in `docs/contributing/archive/DESIGN-P20-dod-aware-verification.md` and ADRs 104–110._
+is specified in `docs/contributing/archive/DESIGN-P20-dod-aware-verification.md` and rulings R-104 to R-110._
 
 _Structured sidecar (opt-in): a DoD file may carry a YAML frontmatter `criteria` list tagging
 each entry `kind: auto` or `kind: judgment`. Auto criteria are verified mechanically against

@@ -12,9 +12,7 @@ subjects:
   intersect `scope`, as `{ path, purpose }` pairs.
   - **pre**: `scope` is a set of repo-relative paths — the touched set for the change or phase
     under consideration; `deps` carries `readPage: (page) => string|null`,
-    `listCorpus: () => string[]`, and an optional `listGoverning: () => string[]`, all injected.
-    An absent `listGoverning` yields an empty governing lane — `consult` behaves exactly as it
-    does with the living corpus alone. The port never touches the filesystem itself.
+    `listCorpus: () => string[]`, all injected. The port never touches the filesystem itself.
   - **post**: `entries` contains one `{ path, purpose }` pair per page whose subjects intersect
     `scope` — `purpose` is the page's one-line summary (its heading or first summary line). A
     page that carries no usable subjects is omitted from `entries` and listed in `skipped` as
@@ -28,14 +26,14 @@ subjects:
   }
   ```
 
-- `record(entry, deps) → refs` — persist an ADR, a page refresh, or a page creation, and return
+- `record(entry, deps) → refs` — persist a ruling, a page refresh, or a page creation, and return
   the refs that were written.
-  - **pre**: `entry` describes what is being persisted — its kind (ADR / page refresh / page
+  - **pre**: `entry` describes what is being persisted — its kind (ruling / page refresh / page
     creation), target, and content; `deps` carries the backend's write primitive, injected.
-  - **post**: `refs` is the list of references written (an ADR id, a page path, …). A `record`
+  - **post**: `refs` is the list of references written (a ruling id, a page path, …). A `record`
     that cannot complete escalates as a blocker rather than silently dropping the entry.
 
-  For the built-in `file` backend this verb is a thin relabel of today's ADR and living-page
+  For the built-in `file` backend this verb is a thin relabel of today's ruling and living-page
   writes — no new write path, no new location. The verb exists as a seam so a non-file backend
   receives the same writes at the same call sites; what "persisting" means for that backend is
   entirely its own concern.
@@ -163,33 +161,17 @@ must be governed by at least one page's subjects; a scope matched by no page is 
 Without a `covers` declaration, the coverage check is a recorded no-op — probing may *propose* a
 covers list, never *impose* one.
 
-**Governing lane.** `consult`'s corpus is two lanes, enumerated separately:
-`scripts/living-corpus.sh` walks the living pages, `scripts/governing-corpus.sh <adr-dir>` walks
-the decision records. Both lanes share the same `subjects:` frontmatter key and the same
-classification rules — a decision record opts into `consult` exactly the way a living page does.
-Only the living lane reaches `assert-fresh`: the governing lane exists for `consult` alone, so a
-decision record can declare `subjects` and be surfaced by `consult` without ever becoming a
-freshness-guard input.
-
-The governing enumerator emits **only records carrying a line-1 frontmatter fence**. Without that
-filter the lane's OUTPUT would grow by use while its INPUT was the whole corpus from run one —
-every unfenced record read, classified `no-subjects`, and discarded, which on a mature corpus is
-the overwhelming majority of the read. The filter is on the FENCE, not on `subjects:`, so a
-present-but-broken fence stays in the lane and still reads as broken. Two consequences follow:
-an empty governing lane is the ordinary pre-adoption state and is **not** an error (the opposite
-of the living lane's zero-page rule), and a record joins the lane the first time it is given a
-fence — the lazy-backfill curve, now true of the read as well as the result.
+**Decision memory.** Decision records do not reach the phases through `consult`: the rulings hint
+(`engine/bin/rulings-hint.js`, run by the design, decisions and planning phases) slices the
+rulings register for the phase's touched set. Only the living lane reaches `assert-fresh`.
 
 **Zero-config probe.** With no `intention:` configuration key at all, the `file` backend probes
 the conventional corpus: `docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`,
-`docs/contributing/DOD.md`, `docs/guides/customizing.md`, `docs/guides/concepts.md`, plus the
-resolved ADR directory for the governing lane. Pages in that corpus without `subjects` yield
-advisory notes only — a bare repository runs exactly as it does today. A decision record may
-carry `subjects` and still be frozen: no governing-lane path is ever passed to `assert-fresh`, so
-no decision record can appear in `stale[]`, `uncovered[]`, or `skipped[]` of a freshness report.
+`docs/contributing/DOD.md`, `docs/guides/customizing.md`, `docs/guides/concepts.md`. Pages in that corpus without `subjects` yield
+advisory notes only — a bare repository runs exactly as it does today.
 
-**`record` for `file`.** ADR writes and living-page refresh/create route through today's existing
-write locations, unchanged — this backend's `record` adds no new write path.
+**`record` for `file`.** A decision is recorded by appending one line to the rulings register;
+living-page refresh/create route through today's existing write locations, unchanged.
 
 ## Lessons lane
 
@@ -233,7 +215,7 @@ whose `subjects` glob never names the changed file itself.
   the corpus to build `{ entries, skipped }`; prints the `IntentionView` JSON on stdout.
 - **record / assert:** documented only, not exercised here. A code-graph server has no natural
   write verb for architectural intention, so a script wrapping one typically delegates `record`
-  and `assert` to the `file` adapter's existing ADR/page writes and glob ∩ diff arithmetic — only
+  and `assert` to the `file` adapter's existing ruling/page writes and glob ∩ diff arithmetic — only
   `consult`'s input set changes.
 - **scope-form (enforce before invoking):** each `scope` entry must be a repo-relative path with
   no leading `/` and no `..` segment — `^(?!/)(?!.*\.\.)[\w./-]+$` — refuse (blocker) on a miss.

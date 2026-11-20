@@ -1,9 +1,9 @@
 ---
 paths:
   design: docs/contributing/design
-  adr: docs/contributing/adr
   plan: docs/contributing/plan
   lessons: docs/contributing/lessons
+  rulings: docs/contributing/RULINGS.md
   dod: docs/contributing/DOD.md
   doctrine: docs/contributing/DOCTRINE.md
 phases:

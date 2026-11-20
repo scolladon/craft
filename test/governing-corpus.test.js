@@ -2,43 +2,46 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const { execFileSync, spawnSync } = require('node:child_process');
-const { mkdtempSync, rmSync, readdirSync, readFileSync, writeFileSync, symlinkSync, mkdirSync } = require('node:fs');
+const { mkdtempSync, rmSync, writeFileSync, symlinkSync, mkdirSync } = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..');
 const SCRIPT = path.join(ROOT, 'scripts', 'governing-corpus.sh');
-const ADR_DIR_RELATIVE = 'docs/contributing/adr';
+function withFencedFixture(run) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'governing-corpus-fixture-'));
+  try {
+    writeFileSync(path.join(dir, 'b-fenced.md'), '---\nsubjects: []\n---\n# B\n');
+    writeFileSync(path.join(dir, 'a-fenced.md'), '---\nsubjects: []\n---\n# A\n');
+    writeFileSync(path.join(dir, 'c-unfenced.md'), '# C\n');
+    return run(dir);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
-test('Given the repo\'s ADR directory, when governing-corpus.sh runs, then it emits one line per FENCED .md file, LC_ALL=C-sorted', () => {
-  const out = execFileSync('bash', [SCRIPT, ADR_DIR_RELATIVE], { cwd: ROOT, encoding: 'utf8' });
+test('Given a directory with two fenced and one unfenced markdown file, when governing-corpus.sh runs, then it emits one line per FENCED .md file, LC_ALL=C-sorted', () => {
+  withFencedFixture(dir => {
+    const out = execFileSync('bash', [SCRIPT, dir], { cwd: ROOT, encoding: 'utf8' });
 
-  const lines = out.split('\n').filter(Boolean);
-  // readdirSync + an independent first-line read, not the same find the script
-  // runs — a real second opinion on both the enumeration and the fence filter.
-  const allMarkdown = readdirSync(path.join(ROOT, ADR_DIR_RELATIVE)).filter(name => name.endsWith('.md'));
-  const expected = allMarkdown
-    .filter(name => readFileSync(path.join(ROOT, ADR_DIR_RELATIVE, name), 'utf8').split('\n')[0] === '---')
-    .map(name => `${ADR_DIR_RELATIVE}/${name}`);
+    const lines = out.split('\n').filter(Boolean);
 
-  assert.strictEqual(lines.length, expected.length, 'expected one line per fenced .md file (independent readdirSync count)');
-  assert.deepStrictEqual(new Set(lines), new Set(expected));
-  assert.ok(
-    expected.length < allMarkdown.length,
-    'fixture precondition: the corpus must hold unfenced ADRs, or the filter proves nothing'
-  );
+    assert.deepStrictEqual(lines, [path.join(dir, 'a-fenced.md'), path.join(dir, 'b-fenced.md')]);
+  });
 });
 
-test('Given the governing corpus output, when read as LC_ALL=C-sorted lines, then it matches sort -c', () => {
-  const out = execFileSync('bash', [SCRIPT, ADR_DIR_RELATIVE], { cwd: ROOT, encoding: 'utf8' });
+test('Given the corpus output of a fixture directory, when read as LC_ALL=C-sorted lines, then it matches sort -c', () => {
+  withFencedFixture(dir => {
+    const out = execFileSync('bash', [SCRIPT, dir], { cwd: ROOT, encoding: 'utf8' });
 
-  const result = spawnSync('sort', ['-c'], {
-    input: out,
-    encoding: 'utf8',
-    env: { ...process.env, LC_ALL: 'C' },
+    const result = spawnSync('sort', ['-c'], {
+      input: out,
+      encoding: 'utf8',
+      env: { ...process.env, LC_ALL: 'C' },
+    });
+
+    assert.strictEqual(result.status, 0, `expected LC_ALL=C-sorted output; sort -c stderr: ${result.stderr}`);
   });
-
-  assert.strictEqual(result.status, 0, `expected LC_ALL=C-sorted output; sort -c stderr: ${result.stderr}`);
 });
 
 test('Given a corpus whose records carry no fence, when governing-corpus.sh runs, then it exits 0 with an empty-lane note', () => {
