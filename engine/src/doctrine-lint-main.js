@@ -31,7 +31,7 @@ function missingInput(args, deps) {
 function lintFindings(doctrineArg, registerArg, deps) {
   const doctrine = parseDoctrine(deps.readFile(resolve(deps.cwd(), doctrineArg)));
   const { rulings, errors } = parseRegister(deps.readFile(resolve(deps.cwd(), registerArg)));
-  const rulingsById = new Map(rulings.map((ruling) => [ruling.id, ruling]));
+  const rulingsById = groupById(rulings);
   const findings = [
     ...doctrine.errors.map((error) => formatFinding(`${doctrineArg}:${error.line}`, error.message)),
     ...errors.map((error) => formatFinding(`${registerArg}:${error.line}`, error.message)),
@@ -45,9 +45,17 @@ function formatFinding(label, message) {
   return `${PREFIX}: ${label}: ${message}\n`;
 }
 
+function groupById(rulings) {
+  const byId = new Map();
+  for (const ruling of rulings) byId.set(ruling.id, [...(byId.get(ruling.id) ?? []), ruling]);
+  return byId;
+}
+
 function citationProblem(id, rulingsById) {
-  const ruling = rulingsById.get(Number(id));
-  if (ruling === undefined) return `R-${id} does not resolve`;
+  const matches = rulingsById.get(Number(id)) ?? [];
+  if (matches.length === 0) return `R-${id} does not resolve`;
+  if (matches.length > 1) return `R-${id} is ambiguous`;
+  const [ruling] = matches;
   return ruling.status?.kind === SUPERSEDED_KIND ? `R-${id} is superseded` : null;
 }
 

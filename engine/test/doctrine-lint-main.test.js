@@ -120,6 +120,17 @@ describe('doctrine-lint main', () => {
     assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: R-901 does not resolve\n`);
   });
 
+  it('Given a cited id on two register lines, the first superseded, when main runs, then it reports the id is ambiguous', () => {
+    const doctrine = `${entry(1, { Evidence: 'R-901 — why' })}\n`;
+    const registerText = register(line(901, ' Superseded by R-902: the whole ruling.'), line(901), line(902));
+    const argv = [DOCTRINE, REGISTER];
+
+    const result = run(argv, { doctrine, registerText });
+
+    assert.equal(result.code, EXIT_INVALID);
+    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: R-901 is ambiguous\n`);
+  });
+
   it('Given a cited ruling that is superseded, when main runs, then it reports it is superseded', () => {
     const doctrine = `${entry(1, { Evidence: 'R-901 — why' })}\n`;
     const registerText = register(line(901, ' Superseded by R-902: the whole ruling.'), line(902));

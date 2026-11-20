@@ -255,6 +255,15 @@ describe('sliceRulings', () => {
     assert.deepEqual(result.matched.map((r) => r.id), [901, 902, 903]);
   });
 
+  it('Given a literal path ruling, when a sibling path with the same prefix is touched, then it does not match', () => {
+    const sut = sliceRulings;
+    const literal = [parseRulingLine('- R-906 [src/a.js] Literal.', 1).ruling];
+
+    const result = sut(literal, ['src/a.jsx', 'src/a', 'xsrc/a.js']);
+
+    assert.deepEqual(result.matched, []);
+  });
+
   it('Given pathless rulings, when sliced, then they are never matched and are counted', () => {
     const sut = sliceRulings;
 

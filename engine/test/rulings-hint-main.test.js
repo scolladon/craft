@@ -6,6 +6,7 @@ import { makeCaptureIo } from '../test-helpers/capture-io.js';
 const REGISTER_FILE = 'docs/RULINGS.md';
 const MATCHING = '- R-900 [src/a.js] Keep a settled.';
 const PATHLESS = '- R-901 [] Keep b settled.';
+const PARSE_MESSAGE = 'not a ruling line: expected "- R-NNN [paths] statement."';
 const HEADER = 'Rulings (settled for these paths — a proposal that re-opens one escalates):';
 
 const registerOf = (...lines) => `# Rulings\n\n${lines.join('\n')}\n`;
@@ -79,9 +80,11 @@ test('Given blank and duplicate stdin lines, When the slice is built, Then each 
 });
 
 test('Given a missing register, When main runs, Then a stderr note is written and the exit is 0', () => {
-  const sut = run({ register: undefined, stdin: 'src/a.js\n' });
+  const sut = run;
 
-  assert.deepEqual(sut, { code: 0, out: '', err: 'craft-rulings-hint: ENOENT: no such file\n' });
+  const result = sut({ register: undefined, stdin: 'src/a.js\n' });
+
+  assert.deepEqual(result, { code: 0, out: '', err: 'craft-rulings-hint: ENOENT: no such file\n' });
 });
 
 test('Given a register with a parse error, When main runs, Then a stderr note names the line and the exit is 0', () => {
@@ -91,7 +94,24 @@ test('Given a register with a parse error, When main runs, Then a stderr note na
 
   assert.equal(result.code, 0);
   assert.equal(result.out, '');
-  assert.match(result.err, /^craft-rulings-hint: .*line/);
+  assert.equal(result.err, `craft-rulings-hint: ${REGISTER_FILE} has parse errors (line 4: ${PARSE_MESSAGE})\n`);
+});
+
+test('Given a register path with a control character, When the tail is printed, Then the path is escaped', () => {
+  const register = registerOf(MATCHING, PATHLESS);
+
+  const result = run({ register, stdin: 'src/a.js\n', argv: ['--register', 'a\u001bb'] });
+
+  assert.equal(result.out, `${HEADER}\n${MATCHING}\n(1 rulings carry no paths — search a\\x1bb by topic)\n`);
+});
+
+test('Given a register path with a control character, When the register has a parse error, Then the note escapes it', () => {
+  const register = registerOf('- R-905 broken');
+
+  const result = run({ register, stdin: 'src/a.js\n', argv: ['--register', 'a\u001bb'] });
+
+  assert.ok(result.err.startsWith('craft-rulings-hint: a\\x1bb has parse errors'));
+  assert.ok(!result.err.includes('\u001b'));
 });
 
 for (const argv of [[], ['--register'], ['--other', 'x'], ['--register', 'a', '--bogus']]) {

@@ -164,17 +164,23 @@ export function parseRegister(content) {
   return acc;
 }
 
-const touchesRuling = (ruling, touched) =>
-  ruling.paths.some((glob) => touched.some((path) => matchGlob(path, glob)));
+const GLOB_SYNTAX = /[*?[\]{}()!+@\\]/;
+
+const touchesGlob = (glob, touched, touchedSet) =>
+  GLOB_SYNTAX.test(glob) ? touched.some((path) => matchGlob(path, glob)) : touchedSet.has(glob);
+
+const touchesRuling = (ruling, touched, touchedSet) =>
+  ruling.paths.some((glob) => touchesGlob(glob, touched, touchedSet));
 
 export function sliceRulings(rulings, touched) {
+  const touchedSet = new Set(touched);
   return {
-    matched: rulings.filter((ruling) => touchesRuling(ruling, touched)),
+    matched: rulings.filter((ruling) => touchesRuling(ruling, touched, touchedSet)),
     pathless: rulings.filter((ruling) => ruling.paths.length === 0).length,
   };
 }
 
-const SAFE_PATH_BREAKERS = /[\s,[\]]/;
+const SAFE_PATH_BREAKERS = /[\s,[]/;
 const BASIS_RULING_REF = /R-(\d{3,})/g;
 
 const finding = (ruling, message) => ({ line: ruling.line, message });

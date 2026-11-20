@@ -2,5 +2,5 @@
 import { isEntryPoint } from '../src/cli-io.js';
 import { main } from '../src/rulings-hint-main.js';
 if (isEntryPoint(import.meta)) {
-  process.exit(main(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr }));
+  process.exitCode = main(process.argv.slice(2), { stdout: process.stdout, stderr: process.stderr });
 }

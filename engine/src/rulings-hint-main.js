@@ -4,6 +4,7 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { safeLabel } from './cli-io.js';
 import { parseRegister, sliceRulings } from './rulings.js';
 
 const EXIT_OK = 0;
@@ -34,13 +35,13 @@ function parseScope(text) {
 
 function formatHint({ matched, pathless }, register) {
   if (matched.length === 0) return '';
-  const tail = pathless > 0 ? [`(${pathless} rulings carry no paths — search ${register} by topic)`] : [];
-  return `${[HEADER, ...matched.map((ruling) => ruling.raw), ...tail].join('\n')}\n`;
+  const tail = pathless > 0 ? [`(${pathless} rulings carry no paths — search ${safeLabel(register)} by topic)`] : [];
+  return `${[HEADER, ...matched.map((ruling) => safeLabel(ruling.raw)), ...tail].join('\n')}\n`;
 }
 
 function buildHint(register, scope, readFile) {
   const { rulings, errors } = parseRegister(readFile(register));
-  if (errors.length > 0) throw new Error(`${register} has parse errors (line ${errors[0].line}: ${errors[0].message})`);
+  if (errors.length > 0) throw new Error(`${safeLabel(register)} has parse errors (line ${errors[0].line}: ${errors[0].message})`);
   return formatHint(sliceRulings(rulings, scope), register);
 }
 
@@ -60,7 +61,7 @@ export function main(argv, io, deps = {}) {
   try {
     io.stdout.write(buildHint(options.register, parseScope(readStdin()), readFile));
   } catch (error) {
-    io.stderr.write(`${NOTE_PREFIX} ${error.message}\n`);
+    io.stderr.write(`${NOTE_PREFIX} ${safeLabel(error.message)}\n`);
   }
   return EXIT_OK;
 }

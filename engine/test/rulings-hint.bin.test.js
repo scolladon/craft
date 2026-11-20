@@ -36,3 +36,17 @@ test('Given no arguments, When the bin runs, Then it exits 2 with usage on stder
   assert.equal(sut.status, 2);
   assert.match(sut.stderr, /^usage: rulings-hint/);
 });
+
+test('Given a slice larger than a pipe buffer, When the bin output is piped, Then every byte reaches the reader', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rulings-hint-'));
+  tmpDirs.push(dir);
+  const file = join(dir, 'RULINGS.md');
+  const lines = Array.from({ length: 1500 }, (_, i) => `- R-${String(900 + i).padStart(3, '0')} [src/a.js] ${'Keep a settled. '.repeat(4).trim()}`);
+  writeFileSync(file, `# Rulings\n\n${lines.join('\n')}\n`);
+  const sut = `${JSON.stringify(process.execPath)} ${JSON.stringify(BIN)} --register ${JSON.stringify(file)}`;
+
+  const piped = spawnSync('sh', ['-c', `${sut} | wc -c`], { input: 'src/a.js\n', encoding: 'utf8' });
+
+  const direct = spawnSync(process.execPath, [BIN, '--register', file], { input: 'src/a.js\n', encoding: 'utf8', maxBuffer: 1 << 26 });
+  assert.equal(Number(piped.stdout.trim()), Buffer.byteLength(direct.stdout));
+});
