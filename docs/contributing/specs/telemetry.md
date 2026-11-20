@@ -14,10 +14,10 @@ explicitly. The glob is left as-is rather than narrowed — the same advisory ov
   usage events that the pure core can aggregate.
   - **pre**: `opts` carries a `runFilter` (optional, restricts which run IDs to include),
     `includeInline` flag (default `true` — main-loop usage is included unless the front door's
-    `--no-inline` opts it back out, see [main-loop inclusion](#main-loop-inclusion----no-inline-adr-329));
+    `--no-inline` opts it back out, see [main-loop inclusion](#main-loop-inclusion----no-inline-r-329));
     `deps` carries
     `readTranscripts: () => AsyncIterable<string>` and an optional `sessionId` (the run-identity
-    string, see [R-186 below](#run-identity-sessionid-adr-186)). The adapter never receives an absolute
+    string, see [R-186 below](#run-identity-sessionid-r-186)). The adapter never receives an absolute
     path; the `readTranscripts` provider owns the runtime path.
   - **post**: each returned `UsageEvent` is path-free, PII-free, and carries only the fields the
     core expects: `run`, `slug?`, `phase`, `role?`, `model`, `tokens`, `messages`,

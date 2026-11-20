@@ -55,8 +55,15 @@ const LINK_TARGET = /\]\(((?:[\w.-]+\/)*)adr\/\d{3,}-[\w-]+\.md(?:#[^)\s]*)?\)/g
 const PATH_TOKEN = /(?<![\w.\/-])[\w.\/-]+\.md(?::\d+)?(?![\w-])/g;
 const ADR_PATH = /^(?:[\w.-]+\/)*adr\/(\d{3,})-[\w-]+\.md(?::\d+)?$/;
 const ADR_ID = /\bADR-(\d{3,})\b/g;
+const FRAGMENT_LINK = /\]\(([^)\s#]*)#([^)\s]*)\)/g;
+const FRAGMENT_ADR_ID = /(?<=^|-)adr-(\d{3,})(?=-|$)/g;
+const rulingSlug = (fragment) => fragment.replace(FRAGMENT_ADR_ID, 'r-$1');
 const CITE_RULES = [
   [LINK_TARGET, (_match, prefix) => `](${prefix}RULINGS.md)`],
+  [FRAGMENT_LINK, (_match, target, fragment) => {
+    const slug = rulingSlug(fragment);
+    return slug === fragment ? undefined : `](${target}#${slug})`;
+  }],
   [PATH_TOKEN, (match) => (ADR_PATH.test(match) ? match.replace(ADR_PATH, 'R-$1') : undefined)],
   [ADR_ID, (_match, id) => `R-${id}`],
 ];

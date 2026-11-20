@@ -1299,3 +1299,22 @@ test('Given a decision heading followed only by blank lines, when register runs,
 
   assert.equal(result.out, line('- R-901 [] Title 901.'));
 });
+
+test('Given a heading citing an id and a fragment link to it, when cite runs, then the fragment follows the rewritten heading slug', () => {
+  const sut = runCite;
+  const text = 'See [below](#run-identity-adr-901) and [elsewhere](other.md#x-adr-902-y).\n\n## Run identity (ADR-901)\n';
+
+  const result = sut({ 'a.md': text });
+
+  assert.equal(result.written['a.md'], 'See [below](#run-identity-r-901) and [elsewhere](other.md#x-r-902-y).\n\n## Run identity (R-901)\n');
+});
+
+test('Given fragments that only resemble a ruling slug, when cite runs, then they are left untouched', () => {
+  const sut = runCite;
+  const text = 'See [a](#adr-12) and [b](#xadr-901) and [c](#adr-901x).\n';
+
+  const result = sut({ 'a.md': text });
+
+  assert.equal(result.written['a.md'], undefined);
+  assert.equal(result.out, '');
+});
