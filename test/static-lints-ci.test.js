@@ -35,7 +35,7 @@ const LINT_IDS = [
   'docs-structure-lint --audience docs',
   'lesson-lint docs/contributing/lessons',
   'rulings-lint docs/contributing/RULINGS.md',
-  'doctrine-lint docs/contributing/DOCTRINE.md docs/contributing/adr',
+  'doctrine-lint docs/contributing/DOCTRINE.md docs/contributing/RULINGS.md',
   'sync-adapter-agents --check',
 ];
 const LOOP_FOLLOWERS = new Map([

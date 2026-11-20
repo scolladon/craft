@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -19,35 +19,24 @@ const VALID_DOCTRINE = [
   '',
 ].join('\n');
 
-function runWithDoctrine(content, { adrNamedDirectory = false } = {}) {
+function runWithDoctrine(content) {
   const root = mkdtempSync(join(tmpdir(), 'doctrinelint-bin-'));
   try {
-    mkdirSync(join(root, 'adr'));
-    if (adrNamedDirectory) mkdirSync(join(root, 'adr', '999-dir.md'));
-    writeFileSync(join(root, 'adr', '546-first.md'), '# ADR\n\n- **Status:** accepted\n');
+    writeFileSync(join(root, 'register.md'), '# Rulings\n\n- R-546 [] A statement.\n');
     writeFileSync(join(root, 'doctrine.md'), content);
-    return spawnSync(process.execPath, [BIN, 'doctrine.md', 'adr'], { encoding: 'utf8', cwd: root });
+    return spawnSync(process.execPath, [BIN, 'doctrine.md', 'register.md'], { encoding: 'utf8', cwd: root });
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
 }
 
-test('Given a valid doctrine and ADR dir, when the doctrine-lint bin is spawned, then it exits 0 with the OK line', () => {
+test('Given a valid doctrine and register, when the doctrine-lint bin is spawned, then it exits 0 with the OK line', () => {
   const sut = runWithDoctrine;
 
   const result = sut(VALID_DOCTRINE);
 
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-  assert.equal(result.stdout, 'doctrine-lint: 1 entries, 1 ADR citations — OK\n');
-});
-
-test('Given an ADR dir holding a directory named like an ADR, when the doctrine-lint bin is spawned, then it skips it and exits 0 with the OK line', () => {
-  const sut = runWithDoctrine;
-
-  const result = sut(VALID_DOCTRINE, { adrNamedDirectory: true });
-
-  assert.equal(result.status, 0, `stderr: ${result.stderr}`);
-  assert.equal(result.stdout, 'doctrine-lint: 1 entries, 1 ADR citations — OK\n');
+  assert.equal(result.stdout, 'doctrine-lint: 1 entries, 1 ruling citations — OK\n');
 });
 
 test('Given an invalid doctrine, when the doctrine-lint bin is spawned, then it exits 2', () => {
