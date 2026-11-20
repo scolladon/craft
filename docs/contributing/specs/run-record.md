@@ -107,16 +107,15 @@ The tokens below are greppable only: no regex row, and `run-state` does not cons
 - `LESSON-REVERIFY(<lesson>): <changed-path>` — emitted by the `validation` phase, one
   line per changed path on each unwaived `assert-fresh` lessons row; resolved by the
   `lessons` phase. It never joins the drift set and never reaches `intention.gate`.
-- `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` — `NNN` is the superseded
-  target, `MMM` the superseding ADR, `<what changed>` is the `scope` string from the
-  strict `supersedes` declaration verbatim, so the token and the ADR cannot disagree.
-  Emitted by the `decisions` phase, one line per `supersedes` entry authored that run.
+- `DECISION-REVERSAL(R-NNN): <what changed> -> R-MMM` — `NNN` is the superseded
+  target, `MMM` the superseding ruling, `<what changed>` is the `Superseded by` scope
+  string from the register line verbatim, so the token and the register cannot disagree.
+  Emitted by the `decisions` phase, one line per reversal authored that run.
   The scope string folds to one line before it is appended (the one-record-one-line
   rule). The token is greppable, never parsed — nothing splits on the ` -> `, so a `->`
   inside a scope string is a cosmetic wart, not an ambiguity. A refinement emits
-  nothing — only a reversal is a reversal. A supersession authored outside a craft run
-  emits no token at all; that is why `adr-lint` and this token are separate mechanisms,
-  and neither substitutes for the other.
+  nothing — only a reversal is a reversal. A reversal recorded outside a craft run
+  emits no token at all.
 - `DECISION-CITE-WAIVE(<file>): <reason>` — the `adr-lint` C3 live-tier-citation waiver,
   collected from `--waiver-source` files (the design doc and the PR body), exactly as
   for `STUB-WAIVE` and `INTENTION-WAIVE`. A `STUB-WAIVE`, `SLOP-WAIVE` or

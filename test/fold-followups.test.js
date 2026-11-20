@@ -18,7 +18,7 @@ const VOCABULARY_START = /^## Token vocabulary/;
 const COMPACTION_START = /^## Compaction survival/;
 const NEXT_H2 = /^## /;
 const RUN_TOKENS_START = /^### Run-record tokens/;
-const GREPPABLE_ONLY_TOKENS = ['DECISION-REVERSAL(ADR-NNN):', 'DECISION-CITE-WAIVE(<file>):',
+const GREPPABLE_ONLY_TOKENS = ['DECISION-REVERSAL(R-NNN):', 'DECISION-CITE-WAIVE(<file>):',
   'MEMORY-RETRACT(<concern>):'];
 const TABLE_ROW_PREFIX = '|';
 const DESCRIPTION_START = /^description: /;

@@ -7,7 +7,7 @@ argument-hint: <backlog-id | path/to/spec.md | "feature description">
 # craft — orchestrator
 
 You are running the craft workflow. The SESSION is the orchestrator: it resolves the
-input, talks to the user (ADRs, escalations, merge confirmation), verifies every
+input, talks to the user (rulings, escalations, merge confirmation), verifies every
 delegated artifact, applies review fixes, runs phase-boundary gates, and owns all
 synthesis (run record, backlog follow-ups, PR body). Heavy work runs in the craft role
 agents per each phase skill's instructions.
@@ -206,7 +206,7 @@ these are emitted elsewhere — full definitions in
 |---|---|
 | `INTENTION-DRIFT(<page>): <changed-path>`, `INTENTION-WAIVE(<page>): <reason>` | the `validation` phase's `assert-fresh` walk (`docs/contributing/specs/intention.md`) |
 | `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`, `SLOP-FOUND(<file>): <entry>`, `SLOP-WAIVE(<file>): <reason>` | the `ci.sh` hygiene cadence |
-| `DECISION-REVERSAL(ADR-NNN): <what changed> -> ADR-MMM` | the `decisions` phase, one line per `supersedes` entry authored that run |
+| `DECISION-REVERSAL(R-NNN): <what changed> -> R-MMM` | the `decisions` phase, one line per reversal |
 | `DECISION-CITE-WAIVE(<file>): <reason>` | the `adr-lint` C3 waiver, collected from the same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE` |
 | `MEMORY-RETRACT(<concern>): <merge-key>` | the phase that owns a concern's write surface, on a mechanical re-check that disproves a stored entry |
 | `FOLDED(<file>): <finding> -> <sha>` | the phase that folds, under the invariant **Impacts: fold or defer at discovery**, one line per locus file |
@@ -698,9 +698,9 @@ instead of trusting the summary it just produced.
 
    | In-flight phase | Resume from |
    |---|---|
-   | any agent phase except review | the phase's committed artifact (design doc, plan, ADRs, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
+   | any agent phase except review | the phase's committed artifact (design doc, plan, register lines, commits). A dead or lost spawn is a fresh respawn from the artifact (existing invariant). |
    | `workspace` | `../<repo>-<slug>` exists on `<type>/<slug>` but setup may have failed part-way: re-run `worktree-setup.sh <abs-worktree-path> [manifest scripts.post-setup]`; escalate if it fails again. Never re-create the worktree, because the collision rule would STOP on the run's own tree. |
-   | `decisions` | ADRs are committed one at a time; the user's answers survive as verbatim user messages. |
+   | `decisions` | register lines are committed one at a time; the user's answers survive as verbatim user messages. |
    | `implementation` | `parts[]` + `git log` against the plan. A landed commit without a `PART` line is verified, then gets its line (with `size=?` if unknown). Continue at the first part with neither. No plan and the ledger holds `NO-OP(planning):`: append `NO-OP(implementation): no plan parts — planning recorded NO-OP(planning)` if absent, run `gates.phase` (fixing a red one first), and close the phase only on a green gate (`GATE(implementation): green` and `PHASE-DONE` in one append). |
    | `review` | reload `findings[]` for the current cycle; `git log` fix commits; `RULED-OUT` lines. A dimension with no `FINDINGS` line for the cycle is re-spawned, because a compaction right after the fan-out returns can drop reviewer output before it is persisted. |
    | `validation` / `architecture` | `background[]`: pid alive (`kill -0`) → wait. Dead with non-empty `out` → triage. Dead with empty `out` → the existing empty-output blocker. |
