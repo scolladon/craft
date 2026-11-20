@@ -207,7 +207,6 @@ these are emitted elsewhere — full definitions in
 | `INTENTION-DRIFT(<page>): <changed-path>`, `INTENTION-WAIVE(<page>): <reason>` | the `validation` phase's `assert-fresh` walk (`docs/contributing/specs/intention.md`) |
 | `STUB-FOUND(<file>): <marker>@L<n>`, `STUB-WAIVE(<file>): <reason>`, `SLOP-FOUND(<file>): <entry>`, `SLOP-WAIVE(<file>): <reason>` | the `ci.sh` hygiene cadence |
 | `DECISION-REVERSAL(R-NNN): <what changed> -> R-MMM` | the `decisions` phase, one line per reversal |
-| `DECISION-CITE-WAIVE(<file>): <reason>` | the `adr-lint` C3 waiver, collected from the same `--waiver-source` files as `STUB-WAIVE`/`INTENTION-WAIVE` |
 | `MEMORY-RETRACT(<concern>): <merge-key>` | the phase that owns a concern's write surface, on a mechanical re-check that disproves a stored entry |
 | `FOLDED(<file>): <finding> -> <sha>` | the phase that folds, under the invariant **Impacts: fold or defer at discovery**, one line per locus file |
 | `DEFERRED(<file>): I<n> <title>` | `run-ledger.sh defer`, phase column = the capturing phase, one line per entry |

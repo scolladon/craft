@@ -12,7 +12,7 @@ const RUN_RECORD_SPEC_PATH = path.join('docs', 'contributing', 'specs', 'run-rec
 const DECISIONS_SKILL_PATH = path.join('skills', 'decisions', 'SKILL.md');
 const REVIEW_SKILL_PATH = path.join('skills', 'review', 'SKILL.md');
 
-const NEW_TOKENS = ['DECISION-REVERSAL(', 'DECISION-CITE-WAIVE(', 'MEMORY-RETRACT('];
+const NEW_TOKENS = ['DECISION-REVERSAL(', 'MEMORY-RETRACT('];
 
 function grepCount(pattern, file) {
   try {
@@ -28,12 +28,20 @@ function presentSubset(file) {
   return NEW_TOKENS.filter((token) => grepCount(token, file) > 0);
 }
 
-test('Given the run skill and the run-record spec, when both are scanned for the three new tokens, then each document names all three', () => {
+test('Given the run skill and the run-record spec, when both are scanned for the new tokens, then each document names both', () => {
   const runSkillSubset = presentSubset(RUN_SKILL_PATH);
   const runRecordSpecSubset = presentSubset(RUN_RECORD_SPEC_PATH);
 
   assert.deepStrictEqual(runSkillSubset, NEW_TOKENS);
   assert.deepStrictEqual(runRecordSpecSubset, NEW_TOKENS);
+});
+
+test('Given the run skill and the run-record spec, when both are scanned, then neither names the retired DECISION-CITE-WAIVE token', () => {
+  const retiredToken = 'DECISION-CITE-WAIVE(';
+
+  const result = [RUN_SKILL_PATH, RUN_RECORD_SPEC_PATH].filter((file) => grepCount(retiredToken, file) > 0);
+
+  assert.deepStrictEqual(result, []);
 });
 
 test('Given skills/decisions/SKILL.md, when scanned, then it pins DECISION-REVERSAL(', () => {
