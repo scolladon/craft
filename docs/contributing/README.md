@@ -5,7 +5,7 @@ and where a craft run writes its own artifacts.
 
 | Path | Holds |
 |---|---|
-| [`adr/`](adr/) | accepted architecture decision records |
+| [`RULINGS.md`](RULINGS.md) | the rulings register: one line per settled decision |
 | [`design/`](design/) | feature design docs |
 | [`plan/`](plan/) | parted TDD implementation plans |
 | [`lessons/`](lessons/) | evidence-backed lessons harvested by the lessons phase |
