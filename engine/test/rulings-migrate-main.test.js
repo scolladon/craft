@@ -22,15 +22,24 @@ function adr({ id, title = `Title ${id}`, status = 'accepted', options = [], dec
   ].join('\n');
 }
 
+const TABLE_FILE = 'table.json';
+
 function run(files, extra = []) {
   const io = makeCaptureIo();
+  const [flag, tableText] = extra;
+  const tree = flag === '--chosen' ? { ...files, [TABLE_FILE]: tableText } : files;
+  const argv = flag === '--chosen' ? [flag, TABLE_FILE] : extra;
   const deps = {
     cwd: () => '/work',
-    listDir: () => Object.keys(files),
-    readFile: (p) => files[p.split('/').pop()],
+    listDir: () => Object.keys(tree),
+    readFile: (p) => {
+      const content = tree[p.split('/').pop()];
+      if (content === undefined) throw new Error('ENOENT');
+      return content;
+    },
     isRegularEntry: () => true,
   };
-  const code = main(['register', 'adr', ...extra], io, deps);
+  const code = main(['register', 'adr', ...argv], io, deps);
   return { code, out: io.stdout.joined(), err: io.stderr.joined() };
 }
 
@@ -165,9 +174,9 @@ test('Given the Decision lead form with a basis citing an id, when register runs
   const sut = run;
   const lead = ['**adopted-as-recommended (no user judgment)** — follows ADR-905', 'and more.'];
 
-  const result = sut({ '901-a.md': adr({ id: 901, decision: lead }) });
+  const result = sut({ '901-a.md': adr({ id: 901, decision: lead }), '905-e.md': adr({ id: 905 }) });
 
-  assert.equal(result.out, line('- R-901 [] Title 901. Adopted: follows R-905 and more.'));
+  assert.equal(result.out, line('- R-901 [] Title 901. Adopted: follows R-905 and more.\n- R-905 [] Title 905.'));
 });
 
 test('Given the Decision lead form without basis, when register runs, then the default basis is used', () => {
@@ -370,4 +379,159 @@ test('Given an adopted ADR whose lead names another option, when register runs, 
   const result = sut({ '901-a.md': adr({ id: 901, options: TWO_OPTIONS, decision }) });
 
   assert.equal(result.code, 0);
+});
+
+test('Given a --chosen path that cannot be read, when register runs, then it exits 2 naming the file', () => {
+  const io = makeCaptureIo();
+  const deps = { cwd: () => '/work', listDir: () => [], readFile: () => { throw new Error('ENOENT'); }, isRegularEntry: () => true };
+
+  const code = main(['register', 'adr', '--chosen', 'absent.json'], io, deps);
+
+  assert.equal(code, 2);
+  assert.match(io.stderr.joined(), /^rulings-migrate: --chosen cannot read absent\.json/);
+});
+
+const supersedes = (...entries) => `---\nsupersedes:\n${entries.map(([n, scope]) => `  - { adr: "${n}", scope: "${scope}" }`).join('\n')}\n---`;
+
+test('Given an ADR superseded by a later one carrying a scope, when register runs, then its line ends with the superseding ruling and scope', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }),
+    '902-b.md': adr({ id: 902, frontmatter: supersedes(['901', 'the old layout.']) }),
+  };
+
+  const result = sut(files);
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Superseded by R-902: the old layout.\n- R-902 [] Title 902.'));
+});
+
+test('Given a supersession chain, when register runs, then the first ADR points at the live tail with the direct successor scope', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }),
+    '902-b.md': adr({ id: 902, status: 'superseded by ADR-903', frontmatter: supersedes(['901', 'first scope']) }),
+    '903-c.md': adr({ id: 903 }),
+  };
+
+  const result = sut(files);
+
+  assert.match(result.out, /- R-901 \[\] Title 901\. Superseded by R-903: first scope\.\n/);
+});
+
+test('Given a superseding ADR without a scope entry, when register runs, then the line points at the direct successor', () => {
+  const sut = run;
+  const files = { '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }), '902-b.md': adr({ id: 902 }) };
+
+  const result = sut(files);
+
+  assert.match(result.out, /- R-901 \[\] Title 901\. Superseded by R-902: see R-902\.\n/);
+});
+
+test('Given a supersession cycle, when register runs, then it refuses both ADRs', () => {
+  const sut = run;
+  const files = { '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }), '902-b.md': adr({ id: 902, status: 'superseded by ADR-901' }) };
+
+  const result = sut(files);
+
+  assert.equal(result.code, 2);
+  assert.match(result.err, /refuse 901: supersession cycle/);
+  assert.match(result.err, /refuse 902: supersession cycle/);
+});
+
+test('Given a successor with no file, when register runs, then it refuses the superseded ADR', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901, status: 'superseded by ADR-950' }) });
+
+  assert.match(result.err, /refuse 901: superseding ADR 950 has no file/);
+});
+
+test('Given a rejected ADR, when register runs, then its line ends with the rejection reason', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901, status: 'rejected — reverted by hand.' }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Rejected: reverted by hand.'));
+});
+
+test('Given a supersession scope holding a reserved marker, when register runs, then it refuses the superseded ADR', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }),
+    '902-b.md': adr({ id: 902, frontmatter: supersedes(['901', 'moved. Superseded by R-1: x']) }),
+  };
+
+  const result = sut(files);
+
+  assert.equal(result.code, 2);
+  assert.match(result.err, /refuse 901: /);
+});
+
+test('Given a refused option title holding the item separator, when register runs, then it refuses the ADR', () => {
+  const sut = run;
+  const options = ['1. **Alpha** *(recommended)* — a', '2. **Beta · Gamma** — b'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+  assert.equal(result.code, 2);
+  assert.match(result.err, /refuse 901: /);
+});
+
+test('Given an ADR superseded by an earlier one, when register runs, then the register finding refuses it', () => {
+  const sut = run;
+  const files = { '900-a.md': adr({ id: 900 }), '901-b.md': adr({ id: 901, status: 'superseded by ADR-900' }) };
+
+  const result = sut(files);
+
+  assert.equal(result.code, 2);
+  assert.match(result.err, /refuse 901: superseded by R-900 which is not a later ruling/);
+});
+
+test('Given a subject path that is not repo-relative, when register runs, then the register finding refuses it', () => {
+  const sut = run;
+  const frontmatter = '---\nsubjects:\n  - ../outside\n---';
+
+  const result = sut({ '901-a.md': adr({ id: 901, frontmatter }) });
+
+  assert.equal(result.code, 2);
+  assert.match(result.err, /refuse 901: path "\.\.\/outside" must be repo-relative/);
+});
+
+test('Given ADRs from every chosen source, when register runs, then stderr reports the counts and the review lists', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, options: TWO_OPTIONS }),
+    '902-b.md': adr({ id: 902, options: ['1. **Alpha** *(recommended)* — a', '2. **Beta** *(chosen)* — b'], decision: ['Option 2.'] }),
+    '903-c.md': adr({ id: 903, status: 'accepted — adopted-as-recommended', options: TWO_OPTIONS }),
+    '904-d.md': adr({ id: 904, options: TWO_OPTIONS }),
+    '905-e.md': adr({ id: 905 }),
+    '906-f.md': adr({ id: 906, decision: ['Settled.', '', 'Note adopted-as-recommended mid-text.'] }),
+  };
+
+  const result = sut(files, ['--chosen', '{"901": 2}']);
+
+  assert.equal(result.code, 0);
+  assert.equal(result.err, [
+    'rulings-migrate: chosen table=1 chosen-marker=1 adopted=1 recommended=1 none=2',
+    'rulings-migrate: not-recommended R-901, R-902',
+    'rulings-migrate: adopted-mention-unrecognised R-906',
+    '',
+  ].join('\n'));
+});
+
+test('Given nothing to flag, when register runs, then the review lists read (none)', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901 }) });
+
+  assert.match(result.err, /not-recommended \(none\)\n/);
+  assert.match(result.err, /adopted-mention-unrecognised \(none\)\n/);
+});
+
+test('Given a refusing directory, when register runs, then stderr holds only the refusals', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': 'no heading' });
+
+  assert.equal(result.err, 'rulings-migrate: refuse 901: missing or malformed H1\n');
 });

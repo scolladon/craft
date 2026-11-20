@@ -4,13 +4,15 @@
 
 import { lstatSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { load } from 'js-yaml';
+import { extractFrontmatter } from './frontmatter.js';
 import { parseSubjects } from './intention-subjects.js';
-import { REGISTER_HEADER, formatRulingLine, parseRulingLine } from './rulings.js';
+import { REGISTER_HEADER, formatRulingLine, parseRulingLine, registerFindings } from './rulings.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
 
-const USAGE = 'usage: rulings-migrate register <adr-dir> [--chosen <json>]\n';
+const USAGE = 'usage: rulings-migrate register <adr-dir> [--chosen <file.json>]\n';
 const PREFIX = 'rulings-migrate';
 const ADR_NAME = /^(\d+)-.+\.md$/;
 const H1_PATTERN = /^# (\d+) — (.+)$/;
@@ -42,6 +44,9 @@ const NAMED_OPTION = /(recommended )?option (\d+)/gi;
 const DEVIATION = /deviat|against the [^.]*recommendation/i;
 const SUSPECT_REASON = 'suspect chosen option — add a --chosen entry';
 const NONE = 'none';
+const ID_WIDTH = 3;
+const SUPERSEDED_STATUS = /^superseded by ADR-(\d{3,})/;
+const REJECTED_STATUS = /^rejected — (.+)$/;
 
 const DEFAULT_DEPS = {
   readFile: (p) => readFileSync(p, 'utf8'),
@@ -127,12 +132,14 @@ function leadBasis(lead) {
   return basis === '' ? DEFAULT_BASIS : basis.replace(/ADR-(\d{3,})/g, 'R-$1');
 }
 
+function isRecognisedAdoption({ status, heading, lead }) {
+  return lead.startsWith(ADOPTED_LEAD) || status.includes(ADOPTED_TOKEN) || heading.includes(ADOPTED_TOKEN);
+}
+
 function adoption({ status, heading, lead }) {
-  const leadForm = lead.startsWith(ADOPTED_LEAD);
   const review = reviewBasis(status);
-  const adopted = leadForm || review !== null || status.includes(ADOPTED_TOKEN) || heading.includes(ADOPTED_TOKEN);
-  if (!adopted) return null;
-  if (leadForm) return leadBasis(lead);
+  if (!isRecognisedAdoption({ status, heading, lead }) && review === null) return null;
+  if (lead.startsWith(ADOPTED_LEAD)) return leadBasis(lead);
   return review ?? DEFAULT_BASIS;
 }
 
@@ -145,11 +152,17 @@ function conflicts(entry, marker) {
   return entry !== undefined && marker !== null && entry !== marker;
 }
 
-function chosenNumber(options, entry) {
+function recommendedSource(recommended, adopted) {
+  if (recommended === null) return { number: null, source: NONE };
+  return { number: recommended, source: adopted === null ? 'recommended' : 'adopted' };
+}
+
+function chosenNumber(options, entry, adopted) {
   const marker = only(options, 'chosen');
   if (conflicts(entry, marker)) return refuse('--chosen entry contradicts the chosen marker');
-  if (entry !== undefined) return { number: entry === NONE ? null : entry };
-  return { number: marker ?? only(options, 'recommended') };
+  if (entry !== undefined) return { number: entry === NONE ? null : entry, source: 'table' };
+  if (marker !== null) return { number: marker, source: 'chosen-marker' };
+  return recommendedSource(only(options, 'recommended'), adopted);
 }
 
 function namesOtherOption(lead, recommended) {
@@ -175,11 +188,11 @@ function refusedTitles(options, number) {
 function choose(options, entry, parts) {
   if (typeof entry === 'number' && !options.some((o) => o.number === entry)) return refuse(`--chosen option ${entry} is out of range`);
   if (needsTableEntry(entry, options, parts)) return refuse(SUSPECT_REASON);
-  return chosenNumber(options, entry);
+  return chosenNumber(options, entry, parts.adopted);
 }
 
 function sameShape(parsed, ruling) {
-  return JSON.stringify([parsed.statement, parsed.refused, parsed.adopted]) === JSON.stringify([ruling.statement, ruling.refused, ruling.adopted]);
+  return JSON.stringify([parsed.statement, parsed.refused, parsed.adopted, parsed.status]) === JSON.stringify([ruling.statement, ruling.refused, ruling.adopted, ruling.status]);
 }
 
 function roundTrips(ruling) {
@@ -192,27 +205,91 @@ function statusLine(lines) {
   return found ? found.slice(STATUS_PREFIX.length).trim() : '';
 }
 
-function deriveRuling(id, content, entry) {
+function successorOf(content) {
+  const match = SUPERSEDED_STATUS.exec(statusLine(content.split('\n')));
+  return match ? Number(match[1]) : null;
+}
+
+function scopeFor(id, successorContent) {
+  const block = extractFrontmatter(successorContent);
+  const entries = block === null ? null : load(block)?.supersedes;
+  const entry = Array.isArray(entries) ? entries.find((e) => Number(e?.adr) === id) : undefined;
+  return typeof entry?.scope === 'string' ? entry.scope.replace(/\.$/, '') : null;
+}
+
+function liveTail(id, docs) {
+  const visited = new Set([id]);
+  let current = id;
+  for (;;) {
+    const next = successorOf(docs.get(current));
+    if (next === null) return { tail: current };
+    if (!docs.has(next)) return refuse(`superseding ADR ${next} has no file`);
+    if (visited.has(next)) return refuse('supersession cycle');
+    visited.add(next);
+    current = next;
+  }
+}
+
+function supersededStatus(id, docs) {
+  const direct = successorOf(docs.get(id));
+  const tail = liveTail(id, docs);
+  if (tail.reason) return tail;
+  const scope = scopeFor(id, docs.get(direct));
+  return { status: { kind: 'superseded', by: tail.tail, scope: scope ?? `see R-${direct}` } };
+}
+
+function rejectedStatus(lines) {
+  const match = REJECTED_STATUS.exec(statusLine(lines));
+  return match ? { kind: 'rejected', reason: match[1].replace(/\.$/, '') } : null;
+}
+
+function statusOf(id, docs) {
+  if (successorOf(docs.get(id)) !== null) return supersededStatus(id, docs);
+  return { status: rejectedStatus(docs.get(id).split('\n')) };
+}
+
+function buildRuling({ id, subjects, heading, options, adopted, chosen, status }) {
+  return { id, paths: subjects.paths, statement: heading.title, refused: refusedTitles(options, chosen.number), adopted, status };
+}
+
+function describe(ruling, chosen, options, unrecognised) {
+  return { ruling, source: chosen.source, notRecommended: chosen.number !== only(options, 'recommended'), unrecognised };
+}
+
+function deriveRuling(id, content, entry, docs) {
   const lines = content.split('\n');
   const heading = readHeading(lines, id);
   if (heading.reason) return heading;
   const subjects = readPaths(content);
   if (subjects.reason) return subjects;
   const options = readOptions(lines);
-  const decision = readDecision(lines);
-  const adopted = adoption({ status: statusLine(lines), ...decision });
-  const chosen = choose(options, entry, { adopted, lead: decision.lead });
+  const parts = { status: statusLine(lines), ...readDecision(lines) };
+  const adopted = adoption(parts);
+  const chosen = choose(options, entry, { adopted, lead: parts.lead });
   if (chosen.reason) return chosen;
-  const ruling = { id, paths: subjects.paths, statement: heading.title, refused: refusedTitles(options, chosen.number), adopted, status: null };
-  return roundTrips(ruling) ? { ruling } : refuse('title, option or basis holds a reserved marker');
+  const superseded = statusOf(id, docs);
+  if (superseded.reason) return superseded;
+  const ruling = buildRuling({ id, subjects, heading, options, adopted, chosen, status: superseded.status });
+  if (!roundTrips(ruling)) return refuse('title, option or basis holds a reserved marker');
+  return describe(ruling, chosen, options, content.includes(ADOPTED_TOKEN) && !isRecognisedAdoption(parts));
 }
 
-function parseTable(json) {
+function readTableFile(path, deps) {
+  try {
+    return { text: deps.readFile(resolve(deps.cwd(), path)) };
+  } catch (error) {
+    return refuse(`--chosen cannot read ${path}: ${error.message}`);
+  }
+}
+
+function parseTable(path, deps) {
+  const file = readTableFile(path, deps);
+  if (file.reason) return file;
   let table;
   try {
-    table = JSON.parse(json);
+    table = JSON.parse(file.text);
   } catch (error) {
-    return refuse(`--chosen is not valid JSON: ${error.message}`);
+    return refuse(`--chosen ${path} is not valid JSON: ${error.message}`);
   }
   const isObject = table !== null && typeof table === 'object' && !Array.isArray(table);
   const valid = isObject && Object.entries(table).every(([id, v]) => /^\d+$/.test(id) && (v === NONE || (Number.isInteger(v) && v > 0)));
@@ -228,17 +305,28 @@ function listAdrs(dir, deps) {
 
 function deriveAll(adrs, dir, entries, deps) {
   const seen = new Set();
+  const docs = new Map(adrs.map((adr) => [adr.id, deps.readFile(resolve(dir, adr.name))]));
   return adrs.map((adr) => {
     if (seen.has(adr.id)) return { adr, ...refuse('repeated id') };
     seen.add(adr.id);
-    return { adr, ...deriveRuling(adr.id, deps.readFile(resolve(dir, adr.name)), entries.get(adr.id)) };
+    return { adr, ...deriveRuling(adr.id, docs.get(adr.id), entries.get(adr.id), docs) };
   });
 }
 
+const HEADER_LINES = REGISTER_HEADER.split('\n').length - 1;
+
+function selfCheck(results) {
+  const derived = results.filter((r) => r.ruling);
+  const register = REGISTER_HEADER + derived.map((r) => `${formatRulingLine(r.ruling)}\n`).join('');
+  const byLine = new Map(registerFindings(register).map((f) => [f.line, f.message]));
+  const failing = new Map(derived.map((r, i) => [r, byLine.get(HEADER_LINES + i + 1)]).filter(([, message]) => message !== undefined));
+  return results.map((r) => (failing.has(r) ? { adr: r.adr, ...refuse(failing.get(r)) } : r));
+}
+
 function parseArgs(argv) {
-  const [verb, dir, flag, json, ...extra] = argv;
-  const shaped = verb === 'register' && dir && extra.length === 0 && (flag === undefined || (flag === '--chosen' && json !== undefined));
-  return shaped ? { dir, json: flag === undefined ? null : json } : null;
+  const [verb, dir, flag, chosen, ...extra] = argv;
+  const shaped = verb === 'register' && dir && extra.length === 0 && (flag === undefined || (flag === '--chosen' && chosen !== undefined));
+  return shaped ? { dir, chosen: flag === undefined ? null : chosen } : null;
 }
 
 function fail(io, message) {
@@ -246,10 +334,23 @@ function fail(io, message) {
   return EXIT_INVALID;
 }
 
+const SOURCES = ['table', 'chosen-marker', 'adopted', 'recommended', 'none'];
+const NO_IDS = '(none)';
+
+const idList = (results) => (results.length ? results.map((r) => `R-${String(r.ruling.id).padStart(ID_WIDTH, '0')}`).join(', ') : NO_IDS);
+
+function writeSummary(results, io) {
+  const counts = SOURCES.map((source) => `${source}=${results.filter((r) => r.source === source).length}`);
+  io.stderr.write(`${PREFIX}: chosen ${counts.join(' ')}\n`);
+  io.stderr.write(`${PREFIX}: not-recommended ${idList(results.filter((r) => r.notRecommended))}\n`);
+  io.stderr.write(`${PREFIX}: adopted-mention-unrecognised ${idList(results.filter((r) => r.unrecognised))}\n`);
+}
+
 function report(results, io) {
   const refused = results.filter((r) => r.reason);
   if (refused.length === 0) {
     io.stdout.write(REGISTER_HEADER + results.map((r) => `${formatRulingLine(r.ruling)}\n`).join(''));
+    writeSummary(results, io);
     return EXIT_OK;
   }
   refused.forEach((r) => io.stderr.write(`${PREFIX}: refuse ${r.adr.label}: ${safeLabel(r.reason)}\n`));
@@ -269,11 +370,11 @@ export function main(argv, io, deps = {}) {
     io.stderr.write(USAGE);
     return EXIT_INVALID;
   }
-  const table = args.json === null ? { entries: new Map() } : parseTable(args.json);
+  const table = args.chosen === null ? { entries: new Map() } : parseTable(args.chosen, resolved);
   if (table.reason) return fail(io, table.reason);
   const dir = resolve(resolved.cwd(), args.dir);
   const adrs = listAdrs(dir, resolved);
   const unknown = [...table.entries.keys()].find((id) => !adrs.some((a) => a.id === id));
   if (unknown !== undefined) return fail(io, `--chosen names unknown id ${unknown}`);
-  return report(deriveAll(adrs, dir, table.entries, resolved), io);
+  return report(selfCheck(deriveAll(adrs, dir, table.entries, resolved)), io);
 }
