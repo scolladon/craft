@@ -1,5 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, relative } from 'node:path';
 import { main } from '../src/rulings-migrate-main.js';
 import { REGISTER_HEADER } from '../src/rulings.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
@@ -898,4 +901,401 @@ test('Given a title holding a control character, when register runs, then it ref
 
   assert.equal(result.code, 2);
   assert.match(result.err, /refuse 901: title, option or basis holds a control character/);
+});
+
+const raw = (...parts) => parts.join('\n');
+const H1 = (id) => `# ${id} ${EM_DASH} Title ${id}`;
+const USAGE_TEXT = 'usage: rulings-migrate register <adr-dir> [--chosen <file.json>]\n       rulings-migrate cite <file>...\n';
+
+test('Given malformed argv shapes, when main runs, then it prints the exact usage and exits 2', () => {
+  const shapes = [
+    ['bogus', 'adr'],
+    ['register'],
+    ['register', 'adr', '--chosen', 't.json', 'extra'],
+    ['register', 'adr', '--bogus', 'x'],
+    ['register', 'adr', '--chosen'],
+    ['cite'],
+  ];
+
+  shapes.forEach((argv) => {
+    const io = makeCaptureIo();
+
+    const code = main(argv, io, { cwd: () => '/work' });
+
+    assert.equal(code, 2, argv.join(' '));
+    assert.equal(io.stderr.joined(), USAGE_TEXT, argv.join(' '));
+    assert.equal(io.stdout.joined(), '', argv.join(' '));
+  });
+});
+
+test('Given a --chosen id with no ADR, when register runs, then the message names the id', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901 }) }, ['--chosen', '{"999": 1}']);
+
+  assert.equal(result.err, 'rulings-migrate: --chosen names unknown id 999\n');
+});
+
+test('Given files whose names only contain an ADR name, when register runs, then only the anchored names are listed', () => {
+  const sut = run;
+  const files = {
+    '901-a.md.bak': adr({ id: 901 }),
+    'draft-903-c.md': adr({ id: 903 }),
+    '902-b.md': adr({ id: 902 }),
+  };
+
+  const result = sut(files);
+
+  assert.equal(result.out, line('- R-902 [] Title 902.'));
+});
+
+test('Given ids of different digit counts, when register runs, then lines follow the numeric id order', () => {
+  const sut = run;
+
+  const result = sut({ '1000-a.md': adr({ id: 1000 }), '999-b.md': adr({ id: 999 }) });
+
+  assert.equal(result.out, line('- R-999 [] Title 999.\n- R-1000 [] Title 1000.'));
+});
+
+test('Given a repeated id, when register runs, then the later name in sort order is refused as repeated', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901 }), '0901-b.md': adr({ id: 901 }) });
+
+  assert.equal(result.err, 'rulings-migrate: refuse 901: repeated id\n');
+});
+
+test('Given an H1 not at the line start or with a carriage return, when register runs, then it refuses as malformed', () => {
+  const sut = run;
+  const embedded = raw(`# See # 901 ${EM_DASH} Title`, '');
+  const crlf = raw(`# 901 ${EM_DASH} Title\r`, '');
+
+  assert.match(sut({ '901-a.md': embedded }).err, /refuse 901: missing or malformed H1/);
+  assert.match(sut({ '901-a.md': crlf }).err, /refuse 901: missing or malformed H1/);
+});
+
+test('Given a title with trailing spaces, when register runs, then the statement is trimmed', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': raw(`# 901 ${EM_DASH} Padded   `, '') });
+
+  assert.equal(result.out, line('- R-901 [] Padded.'));
+});
+
+test('Given malformed frontmatter, when register runs, then the refusal carries the parser message', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901, frontmatter: '---\nsubjects: [a\n---' }) });
+
+  assert.doesNotMatch(result.err, /non-empty strings/);
+});
+
+test('Given subjects with an empty entry or a non-string entry, when register runs, then it refuses', () => {
+  const sut = run;
+
+  ["['a', '']", '[1]'].forEach((subjects) => {
+    const result = sut({ '901-a.md': adr({ id: 901, frontmatter: `---\nsubjects: ${subjects}\n---` }) });
+
+    assert.equal(result.err, 'rulings-migrate: refuse 901: subjects is not a list of non-empty strings\n', subjects);
+  });
+});
+
+test('Given a numbered list outside any options section, when register runs, then no option is read', () => {
+  const sut = run;
+  const content = raw(H1(901), '', ...TWO_OPTIONS, '', '## Decision', '', 'Settled.', '');
+
+  const result = sut({ '901-a.md': content });
+
+  assert.equal(result.out, line('- R-901 [] Title 901.'));
+});
+
+test('Given an options heading on the first line, when register runs, then its items are read', () => {
+  const sut = run;
+  const content = raw('## Options considered', ...TWO_OPTIONS, H1(901), '');
+
+  const result = sut({ '901-a.md': content });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta.'));
+});
+
+test('Given a numbered list in the section after the options, when register runs, then it is not read as options', () => {
+  const sut = run;
+  const content = raw(H1(901), '', '## Options considered', '', ...TWO_OPTIONS, '', '## Decision', '', '3. **Gamma** *(recommended)* — c', '');
+
+  const result = sut({ '901-a.md': content });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta.'));
+});
+
+test('Given an options heading directly followed by another heading, when register runs, then no option is read', () => {
+  const sut = run;
+  const content = raw(H1(901), '', '## Options considered', '## Decision', '', ...TWO_OPTIONS, '');
+
+  const result = sut({ '901-a.md': content });
+
+  assert.equal(result.out, line('- R-901 [] Title 901.'));
+});
+
+test('Given an options section ending the file without a trailing newline, when register runs, then the last item is read', () => {
+  const sut = run;
+  const content = raw(H1(901), '', '## Options considered', '', '1. **Alpha** — a', '2. **Beta** *(recommended)* — b');
+
+  const result = sut({ '901-a.md': content });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Alpha.'));
+});
+
+test('Given an option numbered above nine, when register runs, then it is read as an option', () => {
+  const sut = run;
+  const options = ['1. **Alpha** — a', '10. **Ten** *(recommended)* — b'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Alpha.'));
+});
+
+test('Given a lead naming the recommended option numbered above nine, when register runs, then it is not a suspect', () => {
+  const sut = run;
+  const options = ['1. **Alpha** — a', '10. **Ten** *(recommended)* — b'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options, decision: ['Option 10 it is.'] }) });
+
+  assert.equal(result.code, 0);
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Alpha.'));
+});
+
+test('Given an unanchored or carriage-return numbered line in the options section, when register runs, then it is not an option', () => {
+  const sut = run;
+  const embedded = ['1. **Alpha** — a', 'see 2. **Beta** *(recommended)* — b'];
+  const carriageReturn = ['1. **Alpha** *(recommended)* — a', '2. **Beta** — b\r'];
+
+  assert.equal(sut({ '901-a.md': adr({ id: 901, options: embedded }) }).out, line('- R-901 [] Title 901.'));
+  assert.equal(sut({ '901-a.md': adr({ id: 901, options: carriageReturn }) }).out, line('- R-901 [] Title 901.'));
+});
+
+test('Given stray lines after an option item, when register runs, then only an indented line directly continuing it is joined', () => {
+  const sut = run;
+  const cases = [
+    ['1. **Alpha** — a', 'stray *(recommended)* text', '2. **Beta** — b'],
+    ['1. **Alpha** — a', '', '  stray *(recommended)*', '2. **Beta** — b'],
+    ['1. **Alpha** — a', 'plain', '  stray *(recommended)*', '2. **Beta** — b'],
+  ];
+
+  cases.forEach((options) => {
+    const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+    assert.equal(result.out, line('- R-901 [] Title 901.'), options.join('|'));
+  });
+});
+
+test('Given a continuation indented by one space, when register runs, then it is joined to its item', () => {
+  const sut = run;
+  const options = ['1. **Alpha** — a', ' *(recommended)*', '2. **Beta** — b'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta.'));
+});
+
+test('Given a marker wrapped across a deeply indented continuation, when register runs, then the lines join with a single space', () => {
+  const sut = run;
+  const options = ["1. **Alpha** (designer's", '      recommendation) — a', '2. **Beta** — b'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta.'));
+});
+
+test('Given option titles in several shapes, when register runs, then each refused title is normalised', () => {
+  const sut = run;
+  const options = ['1. **Alpha** *(chosen)* — a', '2. Plain **bold** words — b', '3. ** Padded ** — c', '4. **Be  ta   Two** — d', '5. Gamma*(recommended)*Delta — e'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Plain **bold** words · Padded · Be ta Two · Gamma Delta.'));
+});
+
+test('Given a decision section on the first line, when register runs, then its lead is read', () => {
+  const sut = run;
+  const content = raw('## Decision', '', `**adopted-as-recommended (no user judgment).** ${EM_DASH} because.`, '', H1(901), '');
+
+  const result = sut({ '901-a.md': content });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Adopted: because.'));
+});
+
+test('Given an ADR without a decision section, when register runs, then it is migrated without an adoption', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': raw(H1(901), '', '- **Status:** accepted', '') });
+
+  assert.equal(result.out, line('- R-901 [] Title 901.'));
+});
+
+test('Given decision lead shapes, when register runs, then the lead is the first non-blank paragraph, trimmed', () => {
+  const sut = run;
+  const lead = '**adopted-as-recommended (no user judgment).**';
+  const cases = [
+    [raw(H1(901), '', '## Decision', '   ', `  ${lead} ${EM_DASH} x.`, ''), 'x'],
+    [raw(H1(901), '', '## Decision', `${lead} ${EM_DASH} y.`), 'y'],
+    [raw(H1(901), '', '## Decision', '', `${lead} ${EM_DASH} z.`), 'z'],
+    [raw(H1(901), '', '## Decision', '', lead, '   ', `${EM_DASH} later.`, ''), 'as recommended'],
+    [raw(H1(901), '', '## Decision', '', lead, '', `${EM_DASH} later.`, ''), 'as recommended'],
+  ];
+
+  cases.forEach(([content, basis]) => {
+    const result = sut({ '901-a.md': content });
+
+    assert.equal(result.out, line(`- R-901 [] Title 901. Adopted: ${basis}.`), content);
+  });
+});
+
+test('Given lead bases in several shapes, when register runs, then the basis follows the dash rule', () => {
+  const sut = run;
+  const marker = '**adopted-as-recommended (no user judgment).**';
+  const cases = [
+    [`${marker} because ${EM_DASH} x.`, 'as recommended'],
+    [`${marker}${EM_DASH} tight.`, 'tight'],
+    [`${marker} ${EM_DASH}reason.`, 'reason'],
+    [`${marker} ${EM_DASH}`, 'as recommended'],
+    [`${marker} ${EM_DASH} spaced .`, 'spaced'],
+    [`${marker} ${EM_DASH} option 10`, 'as recommended'],
+    [`${marker} ${EM_DASH} option 1x`, 'option 1x'],
+    [`${marker} ${EM_DASH} see option 1`, 'see option 1'],
+    [`${marker} ${EM_DASH} option 1 is better`, 'option 1 is better'],
+  ];
+
+  cases.forEach(([lead, basis]) => {
+    const result = sut({ '901-a.md': adr({ id: 901, decision: [lead] }) });
+
+    assert.equal(result.out, line(`- R-901 [] Title 901. Adopted: ${basis}.`), lead);
+  });
+});
+
+test('Given a table entry agreeing with the chosen marker, when register runs, then it is accepted', () => {
+  const sut = run;
+  const options = ['1. **Alpha** — a', '2. **Beta** *(chosen)* — b'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }) }, ['--chosen', '{"901": 2}']);
+
+  assert.equal(result.code, 0);
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Alpha.'));
+});
+
+test('Given several adopted ADRs and one recommended, when register runs, then the sources are counted apart', () => {
+  const sut = run;
+  const adopted = (id) => adr({ id, status: 'accepted — adopted-as-recommended', options: TWO_OPTIONS });
+  const files = { '901-a.md': adopted(901), '902-b.md': adopted(902), '903-c.md': adr({ id: 903, options: TWO_OPTIONS }) };
+
+  const result = sut(files);
+
+  assert.match(result.err, /^rulings-migrate: chosen table=0 chosen-marker=0 adopted=2 recommended=1 none=0\n/);
+});
+
+test('Given a status that merely mentions a supersession or a rejection, when register runs, then no status is derived', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'accepted (was superseded by ADR-902 once)' }),
+    '902-b.md': adr({ id: 902, status: 'accepted (not rejected — see above)' }),
+    '903-c.md': adr({ id: 903, status: 'rejected — a b' }),
+  };
+
+  const result = sut(files);
+
+  assert.equal(result.out, line('- R-901 [] Title 901.\n- R-902 [] Title 902.\n- R-903 [] Title 903.'));
+});
+
+test('Given a rejection reason and a scope holding inner dots, when register runs, then only the final dot is dropped', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }),
+    '902-b.md': adr({ id: 902, frontmatter: supersedes(['901', 'see v1.2 notes.']) }),
+    '903-c.md': adr({ id: 903, status: 'rejected — needs v1.2 first.' }),
+  };
+
+  const result = sut(files);
+
+  assert.match(result.out, /Superseded by R-902: see v1\.2 notes\.\n/);
+  assert.match(result.out, /- R-903 \[\] Title 903\. Rejected: needs v1\.2 first\./);
+});
+
+test('Given a successor whose frontmatter parses to nothing or lists a null entry, when register runs, then the entry for the id still resolves', () => {
+  const sut = run;
+  const successor = (frontmatter) => adr({ id: 902, frontmatter });
+  const withNull = '---\nsupersedes:\n  - ~\n  - { adr: "901", scope: "kept." }\n---';
+
+  const empty = sut({ '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }), '902-b.md': successor('---\n~\n---') });
+  const listed = sut({ '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }), '902-b.md': successor(withNull) });
+
+  assert.match(empty.out, /Superseded by R-902: see R-902\./);
+  assert.match(listed.out, /Superseded by R-902: kept\./);
+});
+
+test('Given --chosen JSON of an invalid shape, when register runs, then it refuses with the shape message', () => {
+  const sut = run;
+  const files = { '901-a.md': adr({ id: 901, options: TWO_OPTIONS }), '902-b.md': adr({ id: 902 }) };
+  const invalid = ['null', '5', '[]', '"abc"', '{"901": 1, "902": "x"}', '{"x901": 1}', '{"901x": 1}', '{"901": 0}', '{"901": -1}', '{"901": 1.5}'];
+
+  invalid.forEach((table) => {
+    const result = sut(files, ['--chosen', table]);
+
+    assert.equal(result.code, 2, table);
+    assert.equal(result.err, 'rulings-migrate: --chosen must map ids to a positive integer or "none"\n', table);
+  });
+});
+
+test('Given links without an anchor and bare paths with long line suffixes, when cite runs, then each is rewritten', () => {
+  const sut = runCite;
+  const text = '[x](../adr/901-a.md) docs/adr/902-b.md:12 docs/adr/903-c.md.md\n';
+
+  const result = sut({ 'a.md': text });
+
+  assert.equal(result.written['a.md'], '[x](../RULINGS.md) R-902 docs/adr/903-c.md.md\n');
+});
+
+test('Given the default dependencies, when cite runs over a real relative path, then the file is rewritten in place', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rulingsmigrate-cite-'));
+  try {
+    const file = join(dir, 'a.md');
+    writeFileSync(file, 'See ADR-901.\n');
+    const io = makeCaptureIo();
+
+    const code = main(['cite', relative(process.cwd(), file)], io);
+
+    assert.equal(code, 0);
+    assert.equal(readFileSync(file, 'utf8'), 'See R-901.\n');
+    assert.equal(io.stdout.joined(), `rulings-migrate: cite ${relative(process.cwd(), file)}: 1 rewrites\n`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Given the default dependencies, when cite runs over a directory, then it refuses as not a regular file', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rulingsmigrate-cite-'));
+  try {
+    const io = makeCaptureIo();
+
+    const code = main(['cite', dir], io);
+
+    assert.equal(code, 2);
+    assert.match(io.stdout.joined(), /: refuse .*: not a regular file\n/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('Given malformed --chosen JSON, when register runs, then the refusal names the parse failure', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901 }) }, ['--chosen', '{not json']);
+
+  assert.match(result.err, /^rulings-migrate: --chosen table\.json is not valid JSON: /);
+});
+
+test('Given a decision heading followed only by blank lines, when register runs, then it is migrated without an adoption', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901, decision: [] }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901.'));
 });

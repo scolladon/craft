@@ -72,6 +72,7 @@ const DEFAULT_DEPS = {
 const refuse = (reason) => ({ reason });
 
 function readHeading(lines, id) {
+  // equivalent mutant (StringLiteral on the `?? ''` fallback): H1_PATTERN needs a leading '# ', which no non-empty fallback lacking it supplies — nothing matches either way
   const match = H1_PATTERN.exec(lines.find((l) => l.startsWith('# ')) ?? '');
   if (!match) return refuse('missing or malformed H1');
   if (Number(match[1]) !== id) return refuse(`H1 number ${match[1]} does not match the filename`);
@@ -94,6 +95,7 @@ function readPaths(content) {
 
 function sectionLines(lines, isHeading) {
   const start = lines.findIndex(isHeading);
+  // equivalent mutant (ArrayDeclaration): a lone non-item line never opens an item, so it yields the same empty item list as []
   if (start < 0) return [];
   const rest = lines.slice(start + 1);
   const end = rest.findIndex((l) => l.startsWith('## '));
@@ -122,6 +124,7 @@ function toOption(match) {
 
 function joinItems(lines) {
   const items = [];
+  // equivalent mutant (BooleanLiteral true): before the first item a continuation only writes items[-1], a property no reader looks at
   let open = false;
   for (const l of lines) {
     if (OPTION_ITEM.test(l)) items.push(l);
@@ -139,11 +142,14 @@ function readOptions(lines) {
 
 function readDecision(lines) {
   const index = lines.findIndex((l) => l === DECISION_HEADING || l.startsWith(`${DECISION_HEADING}${TITLE_SEPARATOR}`));
+  // equivalent mutant (StringLiteral heading/lead): heading and lead are only searched for the adoption token, adoption lead, deviation phrase and option names, none of which "Stryker was here!" holds
   if (index < 0) return { heading: '', lead: '' };
   const body = lines.slice(index + 1);
   const first = body.findIndex((l) => l.trim() !== '');
+  // equivalent mutant (ArrayDeclaration, and `false` condition): first < 0 means every body line is blank, so slice(-1) is one blank line or nothing and the lead is '' either way; an extra mutant line only adds a lead that no adoption, deviation or option pattern reads
   const paragraph = first < 0 ? [] : body.slice(first);
   const end = paragraph.findIndex((l) => l.trim() === '');
+  // equivalent mutant (`end <= 0`): paragraph[0] is non-blank by construction, so end is never 0
   return { heading: lines[index], lead: (end < 0 ? paragraph : paragraph.slice(0, end)).join(' ').trim() };
 }
 
@@ -153,6 +159,7 @@ function reviewBasis(status) {
 }
 
 const BASIS_DASH = /^\s*—\s*/;
+// equivalent mutant (Regex without `^`): the lazy group can always reach `$`, so the leftmost match starts at 0 anyway
 const FIRST_SENTENCE = /^(.*?)(?:\.(?:\s|$)|$)/s;
 const BARE_OPTION = /^option \d+\W*$/i;
 
@@ -214,6 +221,7 @@ function needsTableEntry(entry, options, parts) {
 }
 
 function refusedTitles(options, number) {
+  // equivalent mutant (`options.length < 2` → false): number is always an existing option, so with a single option the filter below yields [] anyway
   if (number === null || options.length < 2) return [];
   return options.filter((o) => o.number !== number).map((o) => o.title);
 }
@@ -237,6 +245,7 @@ function roundTripRefusal(ruling) {
 
 function statusLine(lines) {
   const found = lines.find((l) => l.startsWith(STATUS_PREFIX));
+  // equivalent mutant (StringLiteral fallback): every status reader anchors on a fixed prefix or token that "Stryker was here!" lacks
   return found ? found.slice(STATUS_PREFIX.length).trim() : '';
 }
 
@@ -247,12 +256,14 @@ function successorOf(content) {
 
 function scopeFor(id, successorContent) {
   const block = extractFrontmatter(successorContent);
+  // equivalent mutant (`false` condition): load(null) parses the string 'null' to null, and null?.supersedes is undefined like the null branch
   const entries = block === null ? null : load(block)?.supersedes;
   const entry = Array.isArray(entries) ? entries.find((e) => Number(e?.adr) === id) : undefined;
   return typeof entry?.scope === 'string' ? toRulingIds(entry.scope.replace(/\.$/, '')) : null;
 }
 
 function liveTail(id, docs) {
+  // equivalent mutant (ArrayDeclaration): without the start id a cycle through it is refused one step later with the same reason
   const visited = new Set([id]);
   let current = id;
   for (;;) {
