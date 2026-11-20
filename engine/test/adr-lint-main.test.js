@@ -1009,7 +1009,7 @@ test('Given a supersedes adr id shorter than three digits, when main runs, then 
 
   // A minimum length is the substitute for the word boundary `git grep -E` cannot carry:
   // an id of "01" would make the pattern match a longer id such as 012 and
-  // mis-attribute the hit. A repository past ADR-999 carries four-digit ids, which
+  // mis-attribute the hit. A repository past id 999 carries four-digit ids, which
   // the filenames and `ADR-NNNN` prose spell in full, so they pass.
   assert.equal(result, 2);
   const out = io.stdout.joined();
