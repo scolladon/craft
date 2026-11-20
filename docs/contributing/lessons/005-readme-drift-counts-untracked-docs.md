@@ -1,6 +1,5 @@
 ---
 subjects:
-  - docs/contributing/adr/*.md
   - docs/contributing/design/*.md
   - docs/contributing/plan/*.md
   - docs/contributing/lessons/*.md
@@ -33,4 +32,4 @@ The corpus-count guard lists the directory with `readdirSync`, so it sees every 
 
 ## Evidence
 
-`engine/src/readme-drift-main.js:121` counts with `readdirSync(join(root, dir))`, so an untracked `docs/contributing/adr/*.md` changes the expected count.
+`engine/src/readme-drift-main.js:121` counts with `readdirSync(join(root, dir))`, so an untracked `docs/contributing/plan/*.md` changes the expected count.

@@ -7,6 +7,9 @@ plugin users is the `version` field of `.claude-plugin/plugin.json`.
 
 ## [Unreleased]
 
+### Breaking
+- Decision memory is `DOCTRINE.md` plus a rulings register (`paths.rulings`, default `docs/RULINGS.md`) that replaces the ADR directory. Removed: the `adr` manifest key (`adr.frozen`), `adr-lint`, `DECISION-CITE-WAIVE`, `templates/adr.md`; `paths.adr` becomes `paths.rulings`. `doctrine-lint` takes the register file. Consumers migrate once with `rulings-migrate register <adr-dir> [--chosen <file.json>]`, then `rulings-migrate cite <files>`.
+
 ### Added
 - A doctrine file (`docs/DOCTRINE.md`, or `paths.doctrine`) that the decisions phase reads and grows from your rulings, and a `doctrine-lint` check that every doctrine citation points at a live ADR.
 

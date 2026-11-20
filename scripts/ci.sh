@@ -126,7 +126,7 @@ run_prose_lint() {
   while IFS= read -r -d '' f; do
     [ -n "$f" ] || continue
     case "$f" in
-      docs/contributing/adr/*|docs/contributing/design/*|docs/contributing/archive/*|docs/contributing/specs/*|docs/contributing/prd/*|docs/contributing/plan/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
+      docs/contributing/design/*|docs/contributing/archive/*|docs/contributing/specs/*|docs/contributing/prd/*|docs/contributing/plan/*) ;;  # provenance/design docs necessarily quote ban-list words — advisory noise
       docs/contributing/RULINGS.md) ;;  # generated register quotes refused wording
       *.md) docs+=("$f"); waivers+=(--waiver-source "$f") ;;
     esac

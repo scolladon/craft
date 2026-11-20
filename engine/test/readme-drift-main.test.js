@@ -396,12 +396,12 @@ test('Given a tree with a renamed phase, an unknown snippet key, and a telemetry
 // are hand-maintained and drift on every run that adds a doc, so this sub-guard
 // counts the tree instead of trusting the sentence.
 function readmeClaiming(count) {
-  return [CLEAN_README, '', `receipts: [${count} ADRs](docs/contributing/adr/)`, ''].join('\n');
+  return [CLEAN_README, '', `receipts: [${count} notes](docs/contributing/corpus/)`, ''].join('\n');
 }
 
 function withAdrFixture(overrides, run) {
   return withFixtureRoot(overrides, (root) => {
-    const dir = join(root, 'docs', 'contributing', 'adr');
+    const dir = join(root, 'docs', 'contributing', 'corpus');
     mkdirSync(dir, { recursive: true });
     for (const name of overrides.adrFiles ?? []) writeFileSync(join(dir, name), 'x');
     return run(root);
@@ -431,7 +431,7 @@ test('Given a claimed corpus count that has drifted from the tree, when main run
   );
 
   assert.equal(result, 1);
-  assert.match(stdout(), /corpus-counts: docs\/contributing\/adr\/ claims 270, tree holds 2/);
+  assert.match(stdout(), /corpus-counts: docs\/contributing\/corpus\/ claims 270, tree holds 2/);
 });
 
 test('Given only non-markdown files beside the markdown ones, when main runs, then they are not counted toward the claim', () => {

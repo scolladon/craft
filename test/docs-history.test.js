@@ -15,7 +15,6 @@ const MOVED = [
   // Representatives must pre-date the audience-split branch: the squash-merge
   // collapses a branch-internal create+move into a create at the final path,
   // so a file authored on that branch has no pre-move path in main's history.
-  ['docs/contributing/adr/001-descriptor-storage-form.md', 'docs/adr/001-descriptor-storage-form.md'],
   ['docs/contributing/design/sp9-findings-adoption.md', 'docs/design/sp9-findings-adoption.md'],
   ['docs/contributing/plan/sp9-findings-adoption.md', 'docs/plan/sp9-findings-adoption.md'],
   ['docs/contributing/archive/SPIKE.md', 'docs/archive/SPIKE.md'],

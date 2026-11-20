@@ -338,7 +338,7 @@ test('Given all four regions surrounded by unrelated prose and blank lines, when
 // here to be checked against the tree rather than trusted.
 const RECEIPTS_LINE = [
   'receipts: [25 design docs](docs/contributing/design/), [24 parted plans](docs/contributing/plan/),',
-  '[320 ADRs](docs/contributing/adr/), and [raw telemetry for 27 runs](docs/contributing/report.json)',
+  '[320 notes](docs/contributing/corpus/), and [raw telemetry for 27 runs](docs/contributing/report.json)',
 ].join('\n');
 
 test('Given a readme whose receipts sentence links sized corpora, when extractReadmeRegions runs, then each directory link yields its claimed count', () => {
@@ -349,7 +349,7 @@ test('Given a readme whose receipts sentence links sized corpora, when extractRe
   assert.deepEqual(result.corpusClaims, [
     { dir: 'docs/contributing/design/', claimed: 25 },
     { dir: 'docs/contributing/plan/', claimed: 24 },
-    { dir: 'docs/contributing/adr/', claimed: 320 },
+    { dir: 'docs/contributing/corpus/', claimed: 320 },
   ]);
 });
 
