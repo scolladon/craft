@@ -1,8 +1,10 @@
 # 101 — Adopted-without-escalation choices are still authored as ADRs, marked adopted-as-recommended
 
-- **Status:** accepted
+- **Status:** superseded by ADR-730
 - **Date:** 2026-06-21
 - **Design:** docs/DESIGN-P19-noop-first-class-phase-outcome.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-730** for the record form: an adopted choice is written as a register line marked Adopted, not as an ADR file.
 
 ## Context
 

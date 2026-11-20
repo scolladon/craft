@@ -6,9 +6,11 @@ supersedes: []
 ---
 # 728 — The PR body splits ratified from adopted decisions, read from the ADRs
 
-- **Status:** accepted
+- **Status:** superseded by ADR-730
 - **Date:** 2026-11-05
 - **Design:** docs/contributing/design/decisions-doctrine-layer.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-730** for the PR body's source: ratified and adopted decisions are read from register lines, not ADR files.
 
 ## Context
 

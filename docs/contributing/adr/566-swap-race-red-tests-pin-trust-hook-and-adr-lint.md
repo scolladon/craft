@@ -5,9 +5,11 @@ subjects:
 ---
 # 566 — The swap-race tests pin `trust-hook --check` and `adr-lint`, not a sweep
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-730
 - **Date:** 2026-10-14
 - **Design:** docs/contributing/design/entry-guard-symlink-swap-race.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-730** for the adr-lint half of the swap-race pins: adr-lint is retired.
 
 ## Context
 

@@ -60,7 +60,7 @@ Principles distilled from user-ratified decisions. The decisions phase cites an 
 ## D-10 — Heuristics advise; correctness facts block
 - **Trigger:** A lint or detector is proposed as blocking.
 - **Rule:** A heuristic warns and leaves the exit code unchanged; only a correctness fact fails the gate.
-- **Evidence:** ADR-306, ADR-312, ADR-324, ADR-355
+- **Evidence:** ADR-306, ADR-312, ADR-324, ADR-730
 - **Counter-cases:** none
 
 ## D-11 — One verdict, one implementation, shared by every caller

@@ -5,9 +5,11 @@ subjects:
 ---
 # 355 — `adr-lint` is whole-corpus and hard-blocking
 
-- **Status:** accepted
+- **Status:** superseded by ADR-730
 - **Date:** 2026-08-18
 - **Design:** docs/contributing/design/decision-drift-propagation.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-730** for adr-lint as the whole-corpus hard-blocking gate: rulings-lint replaces it.
 
 ## Context
 

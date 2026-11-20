@@ -522,3 +522,11 @@ are registered as `test/every-test-file-registers.test.js` requires.
 - A release (version bump, tag): this change lands under Unreleased; releasing is its own run.
 - Changing `DOCTRINE.md` entries beyond the id sweep and candidate #9, or the decisions triage
   triggers.
+
+Citation waivers held while this run's own ADRs supersede the ADR machinery (the pre-change
+`adr-lint` C3 sweep reads them from this doc; `rulings-migrate cite` rewrites or the retire
+commit deletes every waived citation in this change):
+
+DECISION-CITE-WAIVE(BACKLOG.md): dated backlog history; rewritten to R- ids by rulings-migrate cite in this change
+DECISION-CITE-WAIVE(engine/test/doctrine-lint-main.test.js): synthetic fixture ids, rewritten when doctrine-lint moves to the register in this change
+DECISION-CITE-WAIVE(engine/test/doctrine.test.js): synthetic fixture ids, rewritten when doctrine-lint moves to the register in this change

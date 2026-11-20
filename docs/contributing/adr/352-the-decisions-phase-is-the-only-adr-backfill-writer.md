@@ -4,9 +4,11 @@ subjects:
 ---
 # 352 — The `decisions` phase is the only ADR backfill writer
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-730
 - **Date:** 2026-08-18
 - **Design:** docs/contributing/design/decision-drift-propagation.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-730** for the ADR backfill writer: the decisions phase is the only register writer and may add paths to a path-less line.
 
 ## Context
 
