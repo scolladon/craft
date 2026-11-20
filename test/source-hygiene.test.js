@@ -128,8 +128,8 @@ function listHomePathLeakLocations(candidates) {
 // Class E: phase, decision-record, part and backlog numbering (contracts/core.md).
 // Shipped code is scanned whole-line, single-letter review ids included. Tests are scanned in
 // comments and titles only: test code and fixtures carry these tokens as data. Skills and
-// templates are not scanned: their decision citations are deliberate and adr-lint checks them.
-const PROVENANCE_REF_TOKENS = 'ADR-?\\d+|P\\d+|Part\\s+\\d+|backlog\\s*#\\d+|DC-\\d+';
+// templates are not scanned: their decision-memory citations are deliberate and the decision-memory lints check them.
+const PROVENANCE_REF_TOKENS = 'ADR-?\\d+|P\\d+|Part\\s+\\d+|backlog\\s*#\\d+|DC-\\d+|R-\\d{3,}';
 // Case-sensitive inside the -i scan: a `-f2-` cut field or an `r1` variable is not a review id.
 const REVIEW_ID_TOKEN = '(?-i:[RTF]\\d+)';
 const PROVENANCE_REF_PATTERN = `\\b(${PROVENANCE_REF_TOKENS})\\b`;
@@ -589,6 +589,22 @@ test('Given a git repo tracking a decision-candidate ref in engine source and a 
     const result = sut(repo, hermeticGitEnv());
 
     assert.deepStrictEqual(result, ['engine/src/a.js:1:// DC-3: x']);
+  });
+});
+
+test('Given a git repo tracking a ruling id in engine source and in a test string literal, when the provenance scans run, then the source line is reported and the non-comment test line is not', () => {
+  const files = {
+    'engine/src/a.js': '// see R-123\n',
+    'engine/test/a.test.js': "const data = 'R-123';\n",
+  };
+  withThrowawayRepo(files, (repo) => {
+    const sut = listProvenanceRefLines;
+
+    const result = sut(repo, hermeticGitEnv());
+    const testResult = listTestProvenanceRefLines(repo, hermeticGitEnv());
+
+    assert.deepStrictEqual(result, ['engine/src/a.js:1:// see R-123']);
+    assert.deepStrictEqual(testResult, []);
   });
 });
 
