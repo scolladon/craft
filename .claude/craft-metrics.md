@@ -733,3 +733,9 @@ decisions-doctrine-layer implementation turns=78 tool_calls=87 tokens=2632082 du
 decisions-doctrine-layer planning turns=54 tool_calls=54 tokens=4225197 duration_ms=520347 cache_read=4050159 cache_creation=126392 output=48538 avg_ctx=77346 equiv=805804
 decisions-doctrine-layer review turns=62 tool_calls=68 tokens=2315113 duration_ms=560858 cache_read=2018191 cache_creation=249780 output=47018 avg_ctx=36582 equiv=749258
 decisions-doctrine-layer validation turns=21 tool_calls=23 tokens=793146 duration_ms=243612 cache_read=740640 cache_creation=42301 output=10163 avg_ctx=37285 equiv=177797
+doctrine-register design turns=74 tool_calls=78 tokens=7214169 duration_ms=994601 cache_read=6962349 cache_creation=170389 output=81283 avg_ctx=96390 equiv=1315784
+doctrine-register impact-triage turns=23 tool_calls=23 tokens=772241 duration_ms=178598 cache_read=719208 cache_creation=42309 output=10678 avg_ctx=33111 equiv=178243
+doctrine-register implementation turns=361 tool_calls=393 tokens=12548080 duration_ms=3578334 cache_read=11339493 cache_creation=977400 output=230463 avg_ctx=34121 equiv=3508738
+doctrine-register planning turns=77 tool_calls=79 tokens=9822996 duration_ms=1125693 cache_read=9486404 cache_creation=225939 output=110499 avg_ctx=126136 equiv=1783713
+doctrine-register review turns=176 tool_calls=185 tokens=8349543 duration_ms=1735043 cache_read=7711070 cache_creation=512236 output=125885 avg_ctx=46725 equiv=2041179
+doctrine-register validation turns=44 tool_calls=47 tokens=2566936 duration_ms=894335 cache_read=2351849 cache_creation=158502 output=56497 avg_ctx=57055 equiv=715885
