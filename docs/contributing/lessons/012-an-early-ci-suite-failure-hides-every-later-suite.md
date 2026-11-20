@@ -9,7 +9,7 @@ evidence:
 source: { run: decisions-doctrine-layer, phase: review, date: 2026-11-05 }
 status: active
 supersedes: []
-last-verified: 2026-11-05
+last-verified: 2026-11-20
 ---
 # 012 — An early ci.sh suite failure hides every later suite
 

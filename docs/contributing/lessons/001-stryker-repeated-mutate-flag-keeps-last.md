@@ -11,7 +11,7 @@ evidence:
 source: { run: lessons-corpus, phase: design, date: 2026-10-19 }
 status: active
 supersedes: []
-last-verified: 2026-10-26
+last-verified: 2026-11-20
 ---
 # 001 — Stryker keeps only the last repeated --mutate flag
 
