@@ -1,6 +1,8 @@
 ---
 subjects:
-  - docs/contributing/specs/codex-poc-record.md adapters/codex/README.md BACKLOG.md
+  - docs/contributing/specs/codex-poc-record.md
+  - adapters/codex/README.md
+  - BACKLOG.md
 supersedes: []
 ---
 # 680 — Codex TUI screen observations stay pinned per version and name their driver
