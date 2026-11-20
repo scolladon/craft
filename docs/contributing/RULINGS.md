@@ -1,0 +1,748 @@
+# Rulings
+
+What is settled, what was refused, for which paths. One line per ruling, append-only; the
+decisions phase writes them, `rulings-lint` checks them. Why a ruling was made is not stored:
+infer it from `DOCTRINE.md` and the code.
+
+- R-001 [] Phase descriptor storage form. Refused: Markdown table in `run/SKILL.md` · JSON data file.
+- R-002 [] The deterministic engine core is a portable Node module. Refused: Extend `manifest-lint.sh` · Orchestrator (LLM) resolves.
+- R-003 [] Engine contract stored as composable fragments. Refused: One sectioned `contract.md` · Leave in skill preambles.
+- R-004 [] Phase-name alias map is shared data. Refused: Hardcoded in the resolver only · Per-phase `aliases:` field.
+- R-005 [] Skip/reorder strictness: graph-only, harnesses waivable. Refused: Protect validation only · Hard floor: protect all gates.
+- R-006 [] `contract:` field is a list, defaulting to one. Refused: Single bundle name · Free-form contract file per phase.
+- R-007 [] Split the living architecture doc from the migration record. Refused: Keep one merged doc · Fold history into a PRD appendix.
+- R-008 [] Execution mode: per-phase field + profile + top-level default. Refused: Per-phase + profiles only.
+- R-009 [] P3 procedure→skill bridge: invert the alias map in the walk.
+- R-010 [] P3 manifest validation accepts the new manifest surface.
+- R-011 [] P3 rejects the legacy per-phase `skip` field loudly. Refused: Reject loudly with guidance.
+- R-012 [] Manifest shape-validation folds into the Node core. Refused: Fold into the Node core now · Replace with a Node script, repoint all callers.
+- R-013 [] Renamed agent-name in `models.<agent>` is rejected loudly, not aliased. Refused: Alias the old agent name.
+- R-014 [] The backlog doc template ships with the P4 vocabulary rename. Refused: Keep P4 a pure rename.
+- R-015 [] Contract decomposition boundary: U + 6 bundles (incl. `refinement`). Refused: U + 5 bundles · Refine the U-vs-bundle split line-by-line.
+- R-016 [] Fragment loading: the `contract-assemble` bin + `contracts-lint`. Refused: Same bin, defer the lint · Fold assembly into `pipeline-resolve`.
+- R-017 [] Agent thinning depth: fully thin (identity + craft). Refused: Thin + a one-line pointer stub · Keep a partial contract.
+- R-018 [] R8 guard: deterministic assembled-block equivalence, not an LLM diff. Refused: Keep the LLM agent-output diff · Both.
+- R-019 [] `findings-normalize` wiring scope at P5: review now, harnesses at P8. Refused: Wire all harness consumers now · Defer all wiring.
+- R-020 [] Inline role-craft sourcing: load the agent body in-thread. Refused: Trust the phase skill Procedure + contract block; skip the craft inline · Restrict inline to role-less phases.
+- R-021 [] Third profile `lean` + per-archetype profile expansion. Refused: `solo`/`full` only · Open, manifest-defined profiles.
+- R-022 [] Per-invocation args via `pipeline-resolve` bin flags. Refused: Orchestrator writes an ephemeral `mktemp` merged manifest, passes `--manifest <tmp>`. · Walk post-processes `Resolution` in-session..
+- R-023 [] P6 scenario coverage: S-lean + S-full + bin precedence + recorded manual check. Refused: `profile:full` assertion only · No new tests.
+- R-024 [] Reorder surface: relative-permutation `[id, …]`. Refused: Move-directives `reorder: [{id, after}|{id, before}]` · Keep reorder deferred again.
+- R-025 [] Inserted-phase dispatch: verbatim `phase.procedure` (P7/P14 boundary).
+- R-026 [] Reorder validation: graph reuse + a separate CQS applicability guard.
+- R-027 [] P7 scenario coverage: composed SC3 + S-reorder + reorder-refused. Refused: Composed SC3 only · SC3 = §18 literal + standalone S-reorder.
+- R-028 [] PHASE_FIELDS reconciliation: validate the whole honored field set. Refused: Add only `harness` now.
+- R-029 [] Harness override merge: deep-merge one level. Refused: Scalar-replace (status quo) · Recursive deep-merge.
+- R-030 [] validateHarness: typed knobs, allow unknown sub-keys. Refused: Shape-only · Typed + reject unknown.
+- R-031 [] Review defaults relocate to data; S-harness scenario coverage. Refused: Keep defaults in prose; harness block only overrides.
+- R-032 [] Rename the plugin forge → craft (name + derived namespace + version bump). Refused: Keep `forge`.
+- R-033 [] No back-compat `forge:` namespace alias — clean break.
+- R-034 [] Docs sweep scope: rename forge → craft in ALL docs (not the P4-precedent split). Refused: Sweep everything.
+- R-035 [] Repo directory not renamed; out-of-repo references handled explicitly.
+- R-036 [] `.forge-mutation.lock` → `.craft-mutation.lock` — clean rename, no old-name reader. Refused: Rename the writer but have teardown read `.forge-mutation.lock` too for one release. A dead code path for a migration window that doesn't exist (no installed users, no live worktrees)..
+- R-037 [] Negative-path: engine-level `roleExists` probe.
+- R-038 [] S2 hardening: extend the two existing tests, assert full CORE_MARKERS survive.
+- R-039 [] Example swap subject: `implementation.role: acme:tdd-specialist`. Refused: `planning.role: my:domain-planner` · `review.role: my:security-reviewer`.
+- R-040 [] Default-phase `procedure:` override field. Refused: `role:`-only · Also tighten `override:`-file UX.
+- R-041 [] Default `models.fallback` + fable pin retirement.
+- R-042 [] Reject empty-string `procedure:` at lint.
+- R-043 [] Review cadence: single `review` phase is canonical.
+- R-044 [] Planner carve-out for test-infra/docs-only parts.
+- R-045 [] No forge-era migration support (drop `assembleContract` aliasing + warn-lint). Refused: Aliasing + a `manifest-lint` warn · No forge-era support at all.
+- R-046 [] `node --test` explicit glob + count-assert gate.
+- R-047 [] P9-hardening mechanical decisions (consolidated). Superseded by R-570: DC-2a/DC-2b: Stryker core and tap-runner pinned at 8.7.1 for a Node >=18 floor.
+- R-048 [] `requirements` artifact: dedicated template + `docs/requirements/` path. Refused: Reuse design's "Requirements"-section shape, no new template · Free-form doc, no template.
+- R-049 [] `architecture` harness runs synchronously, no lock. Refused: Background run + a new `.craft-arch.lock` · Synchronous but reuse `.craft-mutation.lock`.
+- R-050 [] `architecture` report/exception home + `<arch gate>` resolution. Refused: Committed `docs/architecture/<slug>.md` report + inline `dependency-cruiser-disable` comments · Run-record report; exceptions in a sidecar `architecture-exceptions.md`. Superseded by R-348: dependency-cruiser as the gate, the exception home, and the report producer.
+- R-051 [] P10 agent model pins: both `opus`. Refused: Both opus · Both sonnet.
+- R-052 [] P10 test surface: live-bin inverse-RED + structural (bats).
+- R-053 [] design-skill note for consuming a produced `requirements` artifact. Refused: Add a one-line note.
+- R-054 [] Backlog manifest shape: object `{ source, ref }`, bare string rejected. Refused: Hard-reject · Accept silently as file.
+- R-055 [] Backlog source model: `file` | `custom` only; trackers are custom recipes.
+- R-056 [] Backlog adapter procedures live in one referenced spec doc. Refused: Inline per-skill · Contract clause.
+- R-057 [] Port "adapter failure is a blocker" relies on the core.md contract line. Refused: Reinforce in delivery.md · Only in the adapter spec doc.
+- R-058 [] Backlog failures split by class: config → engine exit, runtime → session blocker. Refused: Always a session blocker · Defer all to a future I/O bin.
+- R-059 [] `custom` complete guard: exit-code blocker + documented idempotency.
+- R-060 [] `file` id-form stays orchestrator prose-judgment (no engine regex). Refused: Manifest knob `backlog.id-pattern` · Hardcode the SP6 regex.
+- R-061 [] The DX guide is one entry doc (mental model + catalog + index). Refused: Two docs · Fold into README + examples/README.
+- R-062 [] Tier-2 catalog entry ships as a gated stub (documented after P14). Refused: Full Tier-2 docs now · Omit Tier 2 entirely.
+- R-063 [] Examples are lint-clean (shipped sample files + a CI gate). Refused: Mini-repo per example · Non-hidden sample dir.
+- R-064 [] Per-invocation `--harness` flag re-parked (precondition unmet). Refused: Implement now.
+- R-065 [] NFR metrics are harness-sourced; no engine telemetry, no subagent self-report.
+- R-066 [] Bin mutation coverage: extract bin logic to engine/src, keep the src mutate glob.
+- R-067 [] Bin test strategy: in-process units alongside retained child-process smoke.
+- R-068 [] Model-class matrix: deterministic R10 guard (CI-gated) + live cross-tier matrix (on-demand).
+- R-069 [] Derived-plugin registration key: flat top-level `extends:`. Refused: `craft.extends:` dotted single key · Nested `craft: { extends: {…} }`.
+- R-070 [] Registered `extends.phases` resolve through the insert path. Refused: A parallel `applyRegistrations` pass · Require the user to also write `pipeline.insert`.
+- R-071 [] `contract-assemble` learns inserted/registered descriptors via `--descriptor-json`. Refused: `--resolution <path>` · Re-resolve inside the bin.
+- R-072 [] `roleExists` registered set = `extends.agents` ∪ registered-phase roles. Refused: `extends.agents` only · Any namespaced ref present anywhere.
+- R-073 [] `extends.phases` may override a default id (full-replace, override-aware pass). Refused: Field-merge over the default · Forbid same-id (insert-only).
+- R-074 [] S7 proof: CI engine fixture + on-demand `--plugin-dir` smoke. Refused: Pure-manifest engine fixture only (CI) · Real second-plugin install in CI.
+- R-075 [] Registered-profile validation: full + typed. Refused: Allow partial maps (missing archetype → `agent` default) · Defer profile registration to a follow-up.
+- R-076 [] SC5 scoped to a test-bearing non-tsgit repo. Refused: SC5 must run end-to-end even on a no-test repo · Core (design→plan→implement→review) must run; the REFUSE counts as PARTIAL.
+- R-077 [] Second repo: a real OSS Python/pytest project.
+- R-078 [] SC5 CI assertion: one explicit resolver-neutrality scenario. Refused: Re-use SC1 as the anchor · A broad SC5 fixture set mirroring S1–S9.
+- R-079 [] Docs refresh: standard scope. Refused: Minimal · Broad.
+- R-080 [] SC5 proof artifact: a committed record doc + on-demand smoke. Refused: A CI-gated scenario/fixture only · A one-shot manual smoke recorded only in the run record / PR body.
+- R-081 [] P15 is docs-only: no skill-probe behaviour edits.
+- R-082 [] Propose-gate releases on a recorded executing-harness runtime no-op. Refused: Declare it already-intended · Defer to a follow-up backlog item.
+- R-083 [] Free `--no-verify` (consumer discretion); keep the red-gate floor as engine-core. Refused: Ship-but-default-off · Drop both.
+- R-084 [] P16 delivered as two sub-parts: boundary first, then Pi PoC.
+- R-085 [] Adapter code lives in a top-level adapters/ tree; engine/ stays core-only.
+- R-086 [] Adapter selected via a separate Pi entrypoint, not a manifest key.
+- R-087 [] Execution/Model ports extracted as documented seams only (no engine/src shim).
+- R-088 [] Pi PoC scope: a single construction-bearing phase end-to-end.
+- R-089 [] Pi adapter run is an on-demand smoke, not CI-gated.
+- R-090 [] Pi execution bound via a headless CLI subprocess (pi -p / --mode json).
+- R-091 [] Complete the docs/adapters/ port-spec set (add vcs.md + gate.md).
+- R-092 [] Per-role model tier lifted into the pipeline descriptor (re-baselined).
+- R-093 [] `craft-pi` entrypoint drives the full 11-phase walk. Refused: Worker subset design→documentation · Full 11-phase walk.
+- R-094 [] `craft-pi` ships its own committed manifest and resolves gates by substitution.
+- R-095 [] `craft-pi` headless semantics for the role-less phases.
+- R-096 [] Engine emits a review-plan field on the resolved review descriptor. Refused: Un-park as binding prose only · Hybrid.
+- R-097 [] Numeric convergence stop rule is a non-LOW finding count. Refused: Count of all remaining findings ≤ n (incl. LOW) · Severity-weighted score ≤ n.
+- R-098 [] `--harness` flag grammar: repeatable phase-relative knob assignment. Refused: Full-path `--harness phases.<id>.harness.<knob>=<value>` · Single CSV `--harness review.passes=2,review.convergence=3`.
+- R-099 [] P18 scope: all three items, two parts. Refused: Items 1+2 only · Item 3 only.
+- R-100 [] `decisions` adopts a recommendation without escalating only when clear and ADR/principle-aligned. Refused: Recommendation-exists · Always-escalate (status quo). Superseded by R-727: the escalate-when conditions and the when-in-doubt default.
+- R-101 [] Adopted-without-escalation choices are still authored as ADRs, marked adopted-as-recommended. Refused: Lightly, no ADR · One batch summary ADR. Superseded by R-730: the record form: an adopted choice is written as a register line marked Adopted, not as an ADR file.
+- R-102 [] A phase no-op's PR-body note is the run-record line carried into the body, not a dedicated bullet.
+- R-103 [] Judgment-phase no-ops use a fixed `NO-OP(<phase>):` token prefix, keeping each phase's idiom.
+- R-104 [] DoD-aware verification folds into the `validation` phase. Refused: New `verify` phase · Fold into the `propose` pre-gate.
+- R-105 [] DoD-aware verification is enabled by default. Refused: Default-OFF.
+- R-106 [] DoD is declared via `paths.dod`, defaulting to `docs/DOD.md`. Refused: `paths.dod` only · Fixed `docs/DOD.md` only. Adopted: as recommended.
+- R-107 [] DoD absence is a recorded `NO-OP(verify):` warning, never a block. Refused: Soft gate that emits a distinct "warning" record and passes · Both. Adopted: as recommended.
+- R-108 [] DoD subsumes architecture-alignment, with an honest gap-note fallback.
+- R-109 [] The DoD is a free-text checklist, judged and recorded per criterion.
+- R-110 [] manifest-lint validates the `paths.dod` file-ref only. Adopted: as recommended.
+- R-111 [] Running craft in a loop is an operator-owned outer harness, not an engine-native loop.
+- R-112 [] The canonical loop recipe is Claude Code's `/loop` driving `/craft:run`, paced on the run-record verdict.
+- R-113 [] The headless loop contrast uses craft-pi's exit code plus a DoD-presence precondition.
+- R-114 [] The loop reads the P20 verdict, is bounded, and threads no per-pass input. Adopted: as recommended.
+- R-115 [] The loop recipe ships as an `examples/loop/` dir plus a GUIDE section, with no shell script.
+- R-116 [] The repo-local memory store is an advisory cache, never a gating source of truth. Refused: Authoritative knowledge base.
+- R-117 [] The memory store is a single markdown file with YAML frontmatter. Refused: Single JSON file · `.claude/`-style dir of files.
+- R-118 [] The memory store lives at `.claude/craft-memory.md`, committed via a repo gitignore re-include. Refused: `.claude/craft-memory.md` + repo re-include · Default gitignored.
+- R-119 [] Run-over-run metrics live in a separate append-only artifact, not the learnings store. Refused: Inside the store file · Run-record only (ephemeral).
+- R-120 [] A failed memory save is a warning that never blocks a run; no locking. Refused: Failed save = blocker · Warning + advisory lockfile.
+- R-121 [] Memory is configured via a new top-level `memory:` manifest key, validated like `backlog`. Refused: Ride `paths` (`paths.memory`) · No config — fixed path.
+- R-122 [] The learnings store is bounded by an entry-count and byte cap, with merge-before-insert and newest-window eviction.
+- R-123 [] The content whitelist is enforced by documentation and the write surface, not a runtime guard. Refused: Reject-at-write only · Document-only.
+- R-124 [] The user-level policy file is `~/.claude/craft-policy.md` with YAML frontmatter.
+- R-125 [] The effective policy rides the Resolution as an additive field, resolved once. Refused: Separate `policy-resolve` bin · Resolve lazily per consult in-session.
+- R-126 [] The policy action vocabulary is the VCS-port verbs verbatim.
+- R-127 [] Unlisted actions default by per-action reversibility, not a blanket verdict.
+- R-128 [] An `always` verdict supersedes the hardcoded merge/propose confirmations. Refused: Supersede · Split.
+- R-129 [] An intra-scope double-verdict is a config error caught at lint. Refused: Strictness ordering `never > ask > always` · Last-listed-wins.
+- R-130 [] Headless `ask` pre-approval reuses the per-invocation `--policy <action>=always` overlay. Refused: Dedicated `--approve <action,…>` flag · Env var / approvals file.
+- R-131 [] The plan-decomposition unit "slice" is renamed "part". Refused: increment · work item.
+- R-132 [] Full rename of the `slice-implementer` agent to `part-implementer`. Refused: Identifier-stable · Full rename + back-compat alias.
+- R-133 [] The `gates.slice` manifest key is renamed `gates.part`. Refused: Keep `gates.slice` · Rename the whole cadence triad.
+- R-134 [] The `slice-sizing` memory concern is migrated to `part-sizing`, committed data included. Refused: Freeze.
+- R-135 [] Dated history docs are swept for the slice→part rename (no frozen-history carve-out). Refused: Freeze all history · Freeze most, treat `DESIGN-customizable-engine.md` as living.
+- R-136 [] A named craft customization is a full named manifest file `.claude/craft-<name>.md`. Refused: (C) Prose/metadata identity in `.claude/workflow.md` · (A) Registered execution profile `extends.profiles.<name>`.
+- R-137 [] P25 ships end-to-end: a new `--config <name>` token resolves `.claude/craft-<name>.md`. Refused: Generator only, resolution deferred · Reuse `--profile <name>`, file-wins precedence.
+- R-138 [] `craft:init` writes the named config by direct overwrite, lint-gated. Refused: Review draft, land on confirm (+ confirm-then-overwrite) · Stdout-only.
+- R-139 [] `craft:init`'s interview is interactive-only (orchestrator `AskUserQuestion`).
+- R-140 [] `craft:init` interviews the full Tier-0/1 customization catalog. Refused: Curated common set + advanced opt-in · Tier-0 only.
+- R-141 [] Discovery reuses a read-only detection helper + the gate probe, never `worktree-setup.sh`. Refused: Call `worktree-setup.sh` + gate probe as-is · Fully purpose-built probe.
+- R-142 [] `craft:init` is a standalone skill, not a walk phase.
+- R-143 [] Auto-skip splits resolver static eligibility from walk dynamic necessity.
+- R-144 [] Auto-skip eligibility is non-floor ∧ strand-clean ∧ not-required. Refused: Archetype allowlist + code-producing categorical exclusion · Broad — also `planning`.
+- R-145 [] `phases.<id>.required` knob: opt-out default, narrow precedence.
+- R-146 [] `auto-skip:` is a distinct, walk-appended fixed token.
+- R-147 [] An auto-skipped executing-harness releases its propose-gate via the recorded-no-op path. Refused: Engine skip-waiver path.
+- R-148 [] One generic `harness-triager` replaces the two technique triagers. Refused: `findings-triager` · Keep two triagers sharing a body.
+- R-149 [] `validation` is a convention-discovered engineering harness, not a declared-only one. Refused: Declared-only (`.claude/workflow.md`) · Auto-detect by tool config filename.
+- R-150 [] Keep `validation` and `architecture` as two phase identities sharing one mechanism.
+- R-151 [] The Pi adapter needs no technique edits. Refused: Parallel-update pi for symmetry.
+- R-152 [] Neutralize both README and GUIDE-customizing, not just the brief's explicit list. Refused: GUIDE only.
+- R-153 [] Rename `mutation-tool` memory concern and `.craft-mutation.lock` to technique-neutral names (breaking).
+- R-154 [] Keep the review→harness advisory coupling, generalized off the mutation noun. Refused: Drop the coupling entirely · Per-technique opt-in channel.
+- R-155 [] Emit `harness.techniquePlan` from the resolver, mirroring `deriveReviewPlan`. Refused: Skill reads `techniques[]` raw and applies defaults itself · Emit the plan only for `validation`, not `architecture`.
+- R-156 [] Hermetic-test guard: both a bats repo-root smoke and a CI repo-root run. Refused: bats repo-root smoke only · second `node --test 'engine/test/.
+- R-157 [] mkdtemp+chdir+finally for no-seam default-branch tests.
+- R-158 [] Shared test helper for cwd and HOME isolation. Refused: inline per test.
+- R-159 [] Include the ambient-$HOME finding (A4) in scope.
+- R-160 [] A4 remedied test-only via import-order $HOME redirect (no production change). Refused: lazy-homedir production change · defer A4.
+- R-161 [] inferArchetype wired as a single post-reorder pass in resolve.js.
+- R-162 [] extends.phases replace branch inherits the slot's archetype.
+- R-163 [] resolution record token for an inferred archetype.
+- R-164 [] inferArchetype rule table and {harness, construction} codomain.
+- R-165 [] shared producersOf helper in engine/src/producers.js.
+- R-166 [] pedagogical stranded-consumer error shape.
+- R-167 [] three-axis customizing card reframes GUIDE §3.
+- R-168 [] bump EXPECTED_TESTS and add an inference bats guard.
+- R-169 [] reject the nested `pipeline.insert` form (fail loud at lint).
+- R-170 [] `validateInsert` strictness: phase-first message, then require `id`, allow unknown keys.
+- R-171 [] insert-shape enforcement is lint-only; resolve stays permissive.
+- R-172 [] resolve-time null-id insert guard fails closed.
+- R-173 [] extract extends-validation module; harness-knob single-source stays a no-op.
+- R-174 [] DC-5 v2 DoD: structured sidecar, criteria verified against engine-recorded evidence.
+- R-175 [] realpath-harden path-containment helpers, fail-closed on escape.
+- R-176 [] github-issues as a tested adapter via extends.backlog-adapters.
+- R-177 [] migrate the bats suite to node:test, all-at-once.
+- R-178 [] DoD auto-criteria assert against recorded per-phase gate evidence. Refused: Coarse "ci passed" boolean.
+- R-179 [] Structure linters guard the live docs, not just the templates. Refused: Migrate `BACKLOG.md` to the template shape, keep the linter strict..
+- R-180 [] The dod-assert bin is a CQS reporter, not a gater. Refused: Gater · Tri-state exit code.
+- R-181 [] The shipped backlog template migrates to the live structure. Refused: Drop `templates/backlog.md` from `backlog-lint` · Keep it via a second generic required-set.
+- R-182 [] Telemetry is a new port, not an extension of Execution. Refused: Extend the Execution port · Plain modules, no port.
+- R-183 [] Pricing table lives in the claude binding with a --prices override. Refused: External `prices.json` · Core constant.
+- R-184 [] Miner complements craft-metrics.md; the writer upgrades cache=na to the split. Refused: Complement, defer the writer fix · Supersede.
+- R-185 [] Report output drops paths entirely. Refused: Hash with a salt · Relativize.
+- R-186 [] Run identity keys on sessionId. Adopted: as recommended.
+- R-187 [] Inline-phase usage is a noted gap with an --include-inline opt-in. Adopted: as recommended.
+- R-188 [] Parser accepts both Agent and Task spawn shapes. Adopted: as recommended.
+- R-189 [] manifest.js splits three ways along its Set-vocabulary / harness / pipeline-edit seams. Refused: 2-way split · 4-way split.
+- R-190 [] observability stack lives in engine/src/observability/ with a nested claude adapter dir. Refused: Sibling package (engine-obs/) · Flat rename (obs- prefix).
+- R-191 [] the vendor-boundary rule is a filename/location check, lint-enforced. Refused: Content token ban with allowlist · Committed allowlist of exempt files.
+- R-192 [] enumerate-and-run plus a registration meta-test replaces the EXPECTED_TESTS pin. Refused: Committed file manifest diffed by lint · Auto-derived count cached between runs.
+- R-193 [] ci.sh drops the doubled repo-root engine run; hermetic-suite is the cwd guard. Refused: Drop it and broaden hermetic-suite first · Keep the doubled run.
+- R-194 [] docs/archive/ receives dated closed-program docs only; customizable-engine SoT stays live. Refused: Also archive slug-named closed docs · Keep customizable-engine docs in the sweep too.
+- R-195 [] a docs-structure lint enforces the archive convention for closed programs. Refused: Checklist prose in the closing chore · backlog-lint cross-check.
+- R-196 [] the drift check's baseline is a committed report.json snapshot. Refused: Rolling window over .claude/craft-metrics.md · Hand-curated baseline file.
+- R-197 [] drift flags on a single default relative threshold with a --threshold override. Refused: Per-dimension thresholds · Include outcome as a dimension now.
+- R-198 [] metrics-split.js lives under observability/adapters/claude/. Refused: Neutral observability core · Inline into a binding.
+- R-199 [] Intention documentation is a first-class port. Refused: Fold into the memory port · No port — lints + prose only.
+- R-200 [] Intention port verb set: consult / record / assert-fresh. Refused: `consult` / `record` only, guard as engine lint · `load` / `save` (memory mirror).
+- R-201 [] File adapter: living pages declare `subjects:` frontmatter. Refused: Central CODEOWNERS-style map file · None — keep the LLM-judgment affected-page probe.
+- R-202 [] Freshness guard is advisory-first with an `intention.gate` knob. Refused: Blocking freshness lint day one · Judgment-only DoD criterion.
+- R-203 [] The freshness guard covers living pages only. Refused: Everything including ADRs · Manifest-declared page list only.
+- R-204 [] Coverage gap in the documentation phase escalates via the blocker protocol. Refused: docs-writer gains template-based page creation · Record the gap advisorily only.
+- R-205 [] `intention-lint` lives in an engine bin, not the bash structure-lint family. Refused: Bash awk (design-lint.sh family) · Fold the form checks into `assert-fresh`, run in CI.
+- R-206 [] Subjects-∩-diff matching uses `node:path` `matchesGlob`. Refused: Hand-rolled glob→RegExp (~20 lines in `engine/src`) · Shell out to git pathspec.
+- R-207 [] Intention port self-governs via `subjects:` on its own port page. Refused: A dedicated new living page.
+- R-208 [] Single-source the living-corpus enumeration behind `scripts/living-corpus.sh`. Refused: A test asserting the two sets match.
+- R-209 [] Standing harness-prune as an on-demand `craft:prune` skill. Refused: Descope B to its own change · Drop B entirely.
+- R-210 [] Stub-marker pre-completion gate over touched source. Refused: A `scripts/*.sh` grep.
+- R-211 [] Prose anti-slop lint over touched docs and PR body. Refused: Fold into the stub gate.
+- R-212 [] Shared `hygiene.gate` knob, waiver tokens, advisory default for the C gates. Refused: Per-gate knobs.
+- R-213 [] `craft:tune` is a propose-diff tuner that acts on the miner's output. Refused: Tuner re-scans transcripts / the PR-body run record itself · Auto-patch every brief-listed knob.
+- R-214 [] Reader-first PR body: Background · Intuition · Code + provenance trailer. Refused: Full replace, weave facts into prose · Narrative + verification-only trailer.
+- R-215 [] opencode binding lives under `adapters/opencode/`. Refused: Separate `@craft/opencode` npm package via `plugin[]` · Generated into a target repo by a `craft:init`-style emitter.
+- R-216 [] opencode commands are thin dispatchers; invariant procedure text is single-sourced. Refused: Fully translate each phase skill into a standalone opencode command · Rely purely on `.claude/skills/` compat, no native commands.
+- R-217 [] binding-neutral `CRAFT_ROOT` shim over `${CLAUDE_PLUGIN_ROOT}`. Refused: opencode-local resolution only · Per-bin wrapper scripts.
+- R-218 [] opencode Execution binding dispatches subagents. Refused: Per-phase `opencode run --agent` subprocess · Inline-only, no fan-out.
+- R-219 [] orchestrator runs primary; role workers are depth-1 subagents. Refused: Flatten to single-level sequential inline phases.
+- R-220 [] opencode binding reuses the agent carve-out (zero-line diff). Refused: Add `OPENCODE_VARIANTS` + a `--binding` flag → exactly-two-line diff · Parameterize the carve-outs another way.
+- R-221 [] opencode model tier map: Anthropic default, swappable, provider-neutral manifest. Refused: Require the user to set every agent's model · Anthropic-only.
+- R-222 [] opencode git-diff guard is a plugin `tool.execute.before` throw. Refused: `permission.bash` pattern · Drop the guard on opencode.
+- R-223 [] the git-guard predicate is re-expressed per binding (not shared). Refused: Extract a shared predicate module all three bindings import · Generate the plugin from the bash script.
+- R-224 [] port the git-diff guard first; evaluate the write-path guard against native permissions. Refused: Port both guards (git-diff + symlink-aware path containment) · Rely solely on opencode native permissions.
+- R-225 [] opencode reuses `.claude/` repo-local state paths verbatim. Refused: Mirror to `.opencode/craft-*.md` · Make the base path a manifest knob.
+- R-226 [] opencode proof: deterministic seams in CI + one on-demand live smoke. Refused: CI-gated live opencode run · Manual-only, no unit tests.
+- R-227 [] opencode telemetry lives in the port home; a generic `--source` selector wires it. Refused: Strictly additive under `adapters/opencode/`, feed a thin CLI into engine `aggregate` · Defer telemetry.
+- R-228 [] the opencode live smoke drives one construction-bearing phase end-to-end. Refused: A short multi-phase slice (design→implementation) · Full default pipeline.
+- R-229 [] the native pi surface is prompt-templates + single-sourced skills + one extension. Refused: Skills only (`/skill:craft-*`), no prompt templates · One extension with `registerCommand("craft:run")` driving everything in JS.
+- R-230 [] the native pi binding extends `adapters/pi/` in place as a pi package. Refused: Sibling `adapters/pi-native/` · Separately-published `@craft/pi` npm/git package.
+- R-231 [] the `/craft:*` entrypoint is a thin pi prompt-template. Refused: Skill `/skill:craft-run` · Extension `pi.registerCommand("craft:run", handler)`.
+- R-232 [] pi git-guard reuses the predicate verbatim and re-expresses the 0.80.10 event adapter. Refused: Author a fresh pi predicate · Extract a shared predicate all bindings import.
+- R-233 [] build the pi telemetry sibling + a generic `--source pi` selector now. Refused: Defer telemetry; metrics via existing paths only.
+- R-234 [] keep the headless bin additive, and align its stale `parseUsage` to pi 0.80.10. Refused: Keep the headless bin as-is; log the `parseUsage` staleness as a follow-up.
+- R-235 [] CRAFT_ROOT is exported by a self-locating pi extension factory. Refused: Launch-context shell `export CRAFT_ROOT` before `pi` · A settings/manifest knob.
+- R-236 [] pi proof is deterministic unit-tested seams + one on-demand live smoke. Refused: CI-gate a live pi run · Manual-only.
+- R-237 [] pi tool-name casing is bridged inside the pi event adapter. Refused: Make the `gate.js` predicate case-insensitive · Add lowercase aliases to the predicate's tool sets.
+- R-238 [] the reserved `pi` telemetry source slot is repurposed for the pidev coding agent. Refused: Name the pidev source `pidev`; leave `pi` reserved for hardware · Keep both conceptually under `pi`.
+- R-239 [] pi contract-equivalence via variant reuse (zero-line diff). Refused: Add `PI_VARIANTS` + a `--binding` flag → an exactly-two-line diff.
+- R-240 [] Copilot target binary: the standalone `copilot` CLI. Refused: The `gh copilot` extension · Support both.
+- R-241 [] Copilot adapter home: in-place `adapters/copilot/`. Refused: Published npm package · Published marketplace plugin.
+- R-242 [] Copilot native surface: plugin `skills/` + `agents/`, `craft-run` entrypoint. Refused: `.github/copilot-instructions.md` / `AGENTS.md` prose · MCP server exposing phases as tools.
+- R-243 [] Copilot git-guard: three layers, two enforcing and one advisory. Refused: `--deny-tool` only · Declare the guard wholly unenforceable. Superseded by R-578: the preToolUse layer is audit-only and the ext-diff rule is advisory on copilot; toolArgs is parsed as a JSON-encoded string only.
+- R-244 [] Copilot execution topology: subagent fan-out. Refused: Role-less / sequential — mirror `adapters/pi/` · Hybrid.
+- R-245 [] Copilot telemetry: build `collect` now, against the OTel file exporter. Refused: Defer entirely · Ship a stub returning `[]`.
+- R-246 [] Copilot `CRAFT_ROOT` resolution: self-locate from `import.meta.url`. Refused: Require the user to export `CRAFT_ROOT` · Derive from `COPILOT_HOME`.
+- R-247 [] Copilot proof strategy: deterministic seams plus an on-demand smoke. Refused: Add a CI-gated live run · Deterministic seams only, no smoke.
+- R-248 [] Copilot contract-equivalence via variant reuse (zero-line diff). Refused: Add a copilot-specific variant set · Add a third mode.
+- R-249 [] `gate.md` binding set: add both `copilot` and `opencode`. Refused: Add neither; document `gate.md` as tracking fully-enforcing guards only · Add `copilot` with an advisory footnote.
+- R-250 [] Copilot telemetry counts `chat` spans only. Refused: Count `invoke_agent` roll-up spans only · Count the `gen_ai.client.token.usage` metric.
+- R-251 [] Copilot loads shared craft skills by reference, not by copy. Refused: Keep copies plus the byte-identity test and the two exemptions · Strip the offending content from the shared `skills/*.md` sources.
+- R-252 [] Codex binding home and load path. Refused: In-place, loaded by symlinking into `$CODEX_HOME/skills/` · Published npm/registry package. Superseded by R-635: the $CODEX_HOME/skills symlink route as a contingency fallback used only if by-reference loading fails.
+- R-253 [] Codex loads shared craft skills by reference. Refused: One plugin whose `skills` points at the repo root · `$CODEX_HOME/skills/` symlink farm. Superseded by R-635: the shared skills load by reference through the craft marketplace entry's skills field, with the $CODEX_HOME/skills symlinks as a fallback only.
+- R-254 [] Codex execution topology: subagent fan-out. Refused: Ask carried in the `codex exec` prompt string · Ship sequential-only, mirroring `adapters/pi`.
+- R-255 [] Codex git-guard binding. Refused: Hook enforces the shared predicate only; destructive-git left entirely to `.rules` · Hook enforces + destructive-git added by extending the shared predicate in `gate.js`.
+- R-256 [] Lift the binding-neutral guard predicate to `engine/src/guards/`. Refused: Import `toolCallGuard` from `adapters/pi/src/gate.js` again, as copilot does · Duplicate the predicate into `adapters/codex/src/`.
+- R-257 [] Codex telemetry built now. Refused: Build now, but pin the persisted rollout shape first · Defer the binding entirely until a rollout file is parsed.
+- R-258 [] Codex telemetry token arithmetic. Refused: `input = input_tokens`, `cacheRead = cached_input_tokens` · `input = input_tokens`, `cacheRead = 0`.
+- R-259 [] Codex model tier map. Refused: All three tiers → a single mid id · Ship `auto`-equivalent placeholders and pin after a live smoke.
+- R-260 [] Codex `CRAFT_ROOT` self-location. Refused: Rely on Codex's `CLAUDE_PLUGIN_ROOT`/`PLUGIN_ROOT` substitution in the hook command template · Literal `<CRAFT_ROOT>` placeholder in `config.template.toml`, substituted by hand at install.
+- R-261 [] Codex proof strategy. Refused: Same, plus CI-gate `codex execpolicy check` against the generated `craft.rules` · Deterministic seams only, no smoke, no harness.
+- R-262 [] Codex contract equivalence via variant reuse. Refused: Add a codex-specific variant set · Reuse the variants but add no new test.
+- R-263 [] Mutation coverage stays consumer-level, not per-adapter. Refused: Ship one for `adapters/codex/src/ · Defer, matching copilot and opencode.
+- R-264 [] Gate/execution/model/telemetry binding sets add codex. Refused: Uniform edit across every port doc's `Binding set` line · Skip `Binding set` line edits entirely.
+- R-265 [] engine/src is provenance-clean source; the guard scans engine/src/**. Refused: Scoped: extend the grep to `engine/src/observability/adapters/ · Exempt: ADR a blanket engine-internal exemption, strip nothing.
+- R-266 [] The shared acceptance-probe harness lives in engine/src/probe-harness.js. Adopted: as recommended.
+- R-267 [] opencode git-guard-predicate becomes a thin re-export of the engine module. Adopted: as recommended.
+- R-268 [] GUIDE-concepts joins the living corpus by explicit filename, not a glob. Refused: Widen the glob · Glob in the enumerator, explicit test pin.
+- R-269 [] GUIDE-concepts carries no `subjects:` frontmatter (advisory-only corpus member). Refused: Broad `subjects:` · Narrow `subjects:` naming only itself.
+- R-270 [] README mental-model hook is a standalone paragraph, not a new section. Refused: New `## The mental model` H2 · Fold a sentence into the *Customize* pointer.
+- R-271 [] README phase-guard truth source is pipeline/default.yml enabled descriptors. Refused: skills/ directory listing · Both, cross-checked.
+- R-272 [] README drift-guard logic lives in engine/src behind a thin script. Refused: Fully bash · Mixed bash + node.
+- R-273 [] README manifest snippets are validated in-process via the engine validator. Refused: mktemp wrap + shell manifest-lint.sh.
+- R-274 [] Telemetry-claim guard recomputes raw values and asserts the author's rounding exactly. Refused: Tolerance bands · Pinned expected-values table.
+- R-275 [] README drift guard runs as a separate readme-drift CI job. Refused: Fold into scripts/ci.sh only · Separate job, steps inlined in YAML.
+- R-276 [] Phase-name guard asserts set-equality over enabled ids only. Refused: Also guard the default-off prose · Order-sensitive sequence match.
+- R-277 [] Finding status: leading colon-suffixed token + optional JSON key. Refused: Trailing status column after finding/fix · Keep `status` out of the canonical `Finding`, prose-only in `REFINED-STATE`. Adopted: as recommended.
+- R-278 [] Status vocabulary disambiguates per-line parsing; JSON value passes through. Refused: Closed-set validated — unknown status throws · Pass-through `String(status)`, unvalidated everywhere. Adopted: as recommended.
+- R-279 [] Actionable set: absent/VERIFIED/SUSPECT/PROBE; RULED-OUT is record-only. Refused: Every status actionable (RULED-OUT "applied" as a no-op record) · Only VERIFIED actionable; SUSPECT/PROBE record-only pending promotion. Adopted: as recommended.
+- R-280 [] RULED-OUT carry-forward rides the existing prior-findings payload. Refused: A separate carried "ruled-out ledger" artifact · Engine-mechanical: a bin computes the carried-forward set. Adopted: as recommended.
+- R-281 [] Deliberation-review ships as a catalog example: fenced agent, de-spiked, design-doc-linked. Refused: Ship a live `agents/deliberation-reviewer.md` as a first-class repo agent · Also port the spike's method section into this branch's archive and deep-link it. Adopted: as recommended.
+- R-282 [] Bounded-state threading: convention text, behaviour-preserving. Refused: Mechanically enforce a bounded shape/size on the threaded review state · Text only, in a single home (concepts frame). Adopted: as recommended.
+- R-283 [] docs move redirects via manifest paths, shipped defaults unchanged. Refused: Change engine/skill defaults to `contributing/` paths · Hybrid (change some defaults, override the rest).
+- R-284 [] readme-drift metrics path stays a literal, updated in place. Refused: Make it manifest-configurable (`paths.metrics`) · Keep the file at `docs/` top level as an exception.
+- R-285 [] intention living-corpus globs updated at their homes. Refused: Add an `intention:` manifest key to craft's manifest · Drop legacy `DESIGN-*` docs from the corpus.
+- R-286 [] audience-split guard extends docs-structure-lint. Refused: New dedicated `docs-audience-lint.sh` + test · A `test/*.test.js` assertion only.
+- R-287 [] breaker sweep plus a standing scoped link-check. Refused: Rewrite breakers, verify by one-shot `git grep` audit · Sweep only load-bearing refs, leave historical links dangling.
+- R-288 [] live references swept; dated ledger history verbatim. Refused: Rewrite all occurrences everywhere · Leave both untouched.
+- R-289 [] migration parts: one green part per moved tree, fence lands last. Refused: Single atomic commit · Moves-first commit, then sweep commit.
+- R-290 [] Guide §4 numbering is the canonical example-index order. Refused: Adopt README, align guide · Renumber both from scratch.
+- R-291 [] New port/knob samples take un-numbered index rows. Refused: New sequential numbers #14–#19 · Number only the two spine knobs.
+- R-292 [] Example-dir coverage guard checks README only. Refused: README + guide §4 · README + §3 catalog.
+- R-293 [] New example dirs use point-descriptive kebab names. Refused: Story-descriptive · Bare-key.
+- R-294 [] Drop the bogus "#10" label on phases.required in guide §2. Refused: Leave §2 untouched (two-table scope only).
+- R-295 [] Slack poll timeout falls back to the in-session conversation. Refused: Record a blocker and stop · Keep polling indefinitely.
+- R-296 [] The example directory is named `decisions-remote`.
+- R-297 [] The Slack escalation context is scoped per-phase, not global.
+- R-298 [] Slack replies are interpreted, with re-ask on genuine ambiguity. Refused: Exact-token only · Interpret freely, best-effort pick.
+- R-299 [] The sample updates both catalog indexes. Refused: README row only.
+- R-300 [] The run record is a single append-only ledger file. Refused: One file per run under `.claude/craft-runs/<run-id>.md` · Reuse `.claude/craft-metrics.md` with a per-line prefix. Superseded by R-384: one .claude/craft-run-record.md file in the working tree shared by every run.
+- R-301 [] The run-record ledger is run-local, not committed. Refused: Committed via a `.gitignore` re-include, beside memory and metrics · Committed from the documentation phase onward. Superseded by R-384: the ledger dies with the worktree, so the memory delta is derived before teardown.
+- R-302 [] The orchestrator is the ledger's only writer, one append per phase boundary. Refused: Orchestrator, additionally on every blocker and gate result within a phase · Each role agent appends its own outcome lines. Superseded by R-372: one append per phase boundary plus open and Done; resume granularity is the phase.
+- R-303 [] The memory delta at `Done` derives from the on-disk ledger. Refused: Keep the in-session buffer as the source; the ledger is a write-only mirror · Buffer normally, ledger as fallback on a detected resume.
+- R-304 [] The boundary filter consumes canonical findings, never raw technique output. Refused: Raw technique output with per-technique parsers in `engine/src` · Raw output plus a manifest-declared per-technique regex.
+- R-305 [] The filter's scope spec is one comma-joined file:range string. Refused: A JSON ranges file passed by path · The bin runs `git diff -U0` itself.
+- R-306 [] The plan overlap check is advisory, never blocking. Refused: Blocking: exit non-zero unless each overlapping part carries a justification line · Advisory by default with an opt-in strict flag.
+- R-307 [] Path detection in a prose context block reads backticked spans. Refused: Any whitespace-delimited token matching a path regex · Require an explicit machine-readable list line and lint only that.
+- R-308 [] plan-lint moves to an engine bin over a pure src module. Refused: Stay in the awk script, extended · Keep the schema check in awk, add overlap as a separate bin.
+- R-309 [] The two prune lenses split by a fixed rationale prefix, not a new token. Refused: Same token, class carried only in free prose · Same token plus a fourth candidate field naming the missing fact.
+- R-310 [] The rule-vs-fact question binds as an asserted DoD criterion. Refused: A non-asserted paragraph below the checklist · Only in the prune skill, not in the DoD.
+- R-311 [] The core contract bans repo-wide git state changes by agents. Refused: Same ban with an explicit exemption clause for reset-on-red · Ban stash, pop, and checkout only, leaving reset to binding-level deny sets.
+- R-312 [] The fan-out advisory fires at pipeline resolution, not manifest lint. Refused: Manifest lint · Both.
+- R-313 [] The fan-out advisory threshold is eight, anchored to double the default. Refused: Warn above six · Warn above four.
+- R-314 [] The concepts guide gains a fifth frame.
+- R-315 [] The codex trust helper is a node bin under the adapter. Refused: `engine/bin/` + `engine/src/` · `scripts/codex-trust-hook.sh`.
+- R-316 [] The codex trust helper trusts, and does nothing else. Refused: A full `install.js` · Fold trust into a launch precondition so every run self-heals.
+- R-317 [adapters/codex/src/hook-trust.js] A `modified` hook re-trusts automatically, gated on the hook command's identity. Refused: Require an explicit `--retrust` flag · Refuse and tell the operator to re-trust interactively. Superseded by R-517: the command-identity check requires exactly two whitespace-separated tokens.
+- R-318 [] The trust helper ships a read-only `--check`. Refused: Trust only, no verify · Wire verification into the launch path so an untrusted hook fails the run.
+- R-319 [] Trust is written by a hand-rolled TOML upsert, not by an unpinned RPC. Refused: Add a TOML parser dependency · Drive codex's own `config/batchWrite` over app-server.
+- R-320 [] The poc record appends a dated re-probe and corrects only falsified rows. Refused: Full rewrite, re-pinning every row to 0.145.0 · Bump the version-identity rows only; evidence lives in the design doc.
+- R-321 [] Oversized findings lines are rejected by a cap, and the pipe split is linear. Refused: Linear delimiter only — no cap, no behaviour change · Cap only, keeping the backtracking delimiter, oversized line returning `null`.
+- R-322 [] Unreachable and redundant guards in the findings normalizer are deleted, not documented. Refused: Delete only the two provably unreachable private guards; keep `normalizeFindings`'s as the executable form of its public contract, documenting its 3 mutants as equivalent · Keep all three and document 9 equivalent mutants.
+- R-323 [] Scope specs are newline-delimited. Refused: Newline or comma — split on `/[\n,]/` · Status quo, with the comma-bearing-path limitation documented in the ADR trail.
+- R-324 [] The locality advisory keeps its current specificity; the negative result is the deliverable. Refused: Ship the edit-versus-reference weighting · Ship the cue-based (quoted-snippet) filter after building a labelled sample to calibrate it.
+- R-325 [] Windows path normalization is documented, not implemented. Refused: Implement separator normalization in `canonicalPath`, proven by string-level unit tests on POSIX · Add a `windows-latest` CI job and implement against it.
+- R-326 [] The adapter mirror sync tool replaces bodies only, and checks by default. Refused: Check-only — no writer · A writer that regenerates frontmatter from a declared per-adapter table.
+- R-327 [] A swallowed scope entry fails loudly. Refused: Re-open the delimiter decision and accept comma as well as newline · Accept the behaviour and correct ADR-323's consequence text only.
+- R-328 [] Sub-agent labels come from the meta sidecar, not spawn rollups. Refused: Sidecar primary, rollup fallback · Rollups label, transcripts supply tokens.
+- R-329 [] Main-loop usage is included by default. Refused: Stay opt-in · Default-on with per-phase bucketing.
+- R-330 [] The metrics ledger row is sourced from the sub-agent transcript. Refused: Leave the writer as-is · Retire per-phase rows; let the miner be the single source.
+- R-331 [] Historical metrics rows are annotated, not migrated. Refused: Migrate — recompute from surviving transcripts · Document the break in the spec page only.
+- R-332 [] The drift baseline is regenerated in this change. Refused: Regenerate and archive the pre-fix snapshot · Delete and re-seed on the next run.
+- R-333 [] Transcript discovery lives in the claude adapter. Refused: `SOURCE_DISCOVERY` lookup holding the walk inline in the front door · Pass the adapter an absolute path.
+- R-334 [] The sidecar context reaches the parser as an opaque blob. Refused: Widen to `parseLines(lines, since, context)`, front door builds the context · Prepend the sidecar as a synthetic first line.
+- R-335 [] The transcript walk is a pinned two-level shape. Refused: Generic bounded-depth recursive walk · Glob pattern from config.
+- R-336 [] The zero-arg read root resolves the dashed cwd. Refused: Fix the SKILL doc to require `--dir` · Out of scope, separate change.
+- R-337 [] Sub-agent messages and duration derive from the transcript. Refused: Join the rollup by `agentId` for these two fields only · Emit `0` for both.
+- R-338 [] Priced cost is corrected for units and current models. Refused: Tokens only; document the dollar gap; file follow-ups · Add `claude-opus-5`/`claude-sonnet-5` only.
+- R-339 [] The dollar reconciliation is a core golden vector. Refused: Golden vector plus an `--until` flag · Live reconciliation script only.
+- R-340 [] Main-loop events carry billed turns but no duration. Refused: Derive both from the transcript, mirroring ADR-337 · Zero both.
+- R-341 [] The min-duration claim renders sub-half-hour runs. Refused: Filter non-craft runs out of the baseline to lift the min · Leave the guard red until a separate change.
+- R-342 [] Usage events are keyed on the assistant message, not the transcript line. Refused: Keep per-line and document it as the convention · Sum only `output_tokens` per line and take input/cache from the first line.
+- R-343 [] `review-waste` keys on billed turns, not spawn count. Refused: Keep `cycles`, raise the threshold 2 → 6 · Two-axis AND: `cycles > 4 && billedTurns > 85`.
+- R-344 [] `review-waste` evidence keeps mirroring its `reviewCycles` entry. Refused: Drop `cycles`, emit only the axis that fired · Keep both and add a `firedOn` discriminator.
+- R-345 [] A test asserting binary-absent behaviour pins its own environment. Refused: Document the `PATH`-stub workaround · Skip the three subprocess tests when `pi` resolves on `PATH`.
+- R-346 [] A subprocess option is proven by its effect, never by its construction. Refused: Leave it, file a follow-up · Rewrite `runSubprocess` from `execFile` to `spawn`.
+- R-347 [] craft dogfoods the `architecture` phase with a repo-native boundary rule. Refused: Land the rule file only, phase stays default-off · Leave everything as-is and record why.
+- R-348 [] `<arch gate>` resolves to the declared technique's own run. Refused: Keep ADR-050 and adopt dependency-cruiser as a devDependency · Leave ADR-050 and the placeholder untouched.
+- R-349 [] Repaired store confidences are rescaled onto the integer ladder and lifted off the floor. Refused: Rescale the 45 fractional values to `max(1, min(5, round(v × CEILING)))`, leave the 22 legal `1`s · Set all 67 to a single uniform value.
+- R-350 [] A degraded load declines the save. Refused: No engine change · Write the reconciled result to a quarantine sidecar.
+- R-351 [engine/src/intention.js, scripts/governing-corpus.sh] Governing ADRs enter `consult` via a separate enumeration lane. Refused: One widened corpus, distinct `governs:` key · One corpus plus a `frozen: true` flag. Adopted: Option 1. The split lands at the enumeration boundary, where the corpus is already single-sourced. `scripts/living-corpus.sh` keeps its exact output; `scripts/governing-corpus.sh <adr-dir>` is its sibling. `readSubjectPages(list, readPage)` is parameterised by the list it walks and nothing else. The frontmatter key stays `subjects:` in both lanes — one convention, one parser. Superseded by R-739: how governing decisions reach the phases: a rulings-hint bin at design, decisions and planning entry replaces consult's governing lane.
+- R-352 [skills/decisions/SKILL.md] The `decisions` phase is the only ADR backfill writer. Refused: Any phase that reads an ADR backfills it · No automatic backfill. Adopted: Option 1. Every ADR write stays behind the one verb that already owns them, so the backfill inherits `record`'s blocker semantics and its byte-for-byte file-adapter routing. Superseded by R-730: the ADR backfill writer: the decisions phase is the only register writer and may add paths to a path-less line.
+- R-353 [templates/adr.md, engine/src/adr-lint-main.js] Supersession declares itself in ADR frontmatter. Refused: A second strict header line · Reuse `Supersedes/Refines:` under a strict grammar. Adopted: Option 1. The machine-readable fact lives in the frontmatter block; `scope` is required and must be non-empty. `adr` is the zero-padded 3-digit id exactly as it appears in the filename and in `ADR-NNN` prose (`"050"`, not `50`), so one string serves the filename lookup, the status line and the citation regex with no padding arithmetic. `supersedes` absent is the 350-file default and makes every dependent check inert. Superseded by R-734: where supersession is declared: a superseded-by segment on the superseded register line replaces the supersedes frontmatter.
+- R-354 [engine/src/adr-lint-main.js, skills/decisions/SKILL.md] Supersession scope is two required body anchors. Refused: Structured `superseded[]` / `carried[]` lists in frontmatter · The one-line `scope:` alone. Superseded by R-734: the two required body anchors: a register line has no body; the scope travels on the superseded line.
+- R-355 [scripts/adr-lint.sh, scripts/ci.sh] `adr-lint` is whole-corpus and hard-blocking. Refused: Touched-diff scoped, honouring `hygiene.gate` · Whole-corpus but advisory-only. Superseded by R-730: adr-lint as the whole-corpus hard-blocking gate: rulings-lint replaces it.
+- R-356 [engine/src/adr-lint-main.js] The citation-sweep exempt set derives from resolved manifest paths. Refused: A fixed prefix list in the lint · Inverted — an explicit live allowlist. Adopted: Option 2. Nothing hardcodes a `docs/contributing/…` literal. Exempting `paths.adr` also covers the superseding ADR and its target, so no separate self-flagging rule is needed — a decision record citing another decision record is a historical statement, on the same footing as a dated plan. Superseded by R-735: the citation-sweep exempt set: there is no sweep.
+- R-357 [engine/src/adr-lint-main.js, docs/contributing/specs/run-record.md] `DECISION-CITE-WAIVE` is its own token. Refused: Reuse the generic `WAIVER:` token · An inline marker in the citing file. Superseded by R-735: the DECISION-CITE-WAIVE token: retired with the sweep.
+- R-358 [engine/src/observability/memory.js] A retraction is a marker on the delta observation. Refused: A separate `retractions` argument to `save` · A sentinel `confidence: FLOOR` payload. Adopted: Option 1. No second lookup path exists, so none can drift from the first.
+- R-359 [skills/review/SKILL.md, docs/contributing/specs/memory.md] Only the concern-owning phase may retract, on a mechanical re-check. Refused: Any phase may retract any concern on an observed contradiction · Derived at `Done` from the ledger. Adopted: Option 1. `skills/review/SKILL.md` step 3 retracts a `findings` entry when the run re-checked that entry's own `file` + `pattern` at that location and it is absent.
+- R-360 [engine/src/observability/memory.js, docs/contributing/specs/run-record.md] `MEMORY-RETRACT` carries a retraction across the ledger hop. Refused: A polarity marker on the phase's existing buffered `findings` line · No ledger hop — mutate the in-session `MemoryView` directly.
+- R-361 [contracts/core.md, engine/src/contract.js] Turn budget is enforced by agent self-count, audited by telemetry. Refused: Orchestrator checkpoints on commit cadence · Contract line only, telemetry as after-the-fact audit.
+- R-362 [agents, engine/src/manifest-vocabulary.js, engine/src/manifest.js] tools: is a hard allowlist; the phases knob is declarative. Refused: Agent def carries a default; init emits a repo-local agent override file · No knob; a repo that needs more forks the agent def.
+- R-363 [skills/run/SKILL.md, engine/bin/metrics-emit.js] The metrics bin replaces the run skill's prose procedure. Refused: Prose stays and calls the bin, manual path kept as fallback · Add the bin, leave the prose alone.
+- R-364 [engine/src/contract.js, contracts/core.md, pipeline/default.yml] @@TURN_BUDGET@@ resolves on the descriptor axis, not the execution-mode axis. Refused: Mode-driven like the existing two markers · No marker; append the budget as a separate line after the core block.
+- R-365 [pipeline/default.yml, engine/src/contract.js] Turn budgets key on archetype plus executing-harness. Refused: Archetype alone · Key on descriptor id in the pipeline, no table.
+- R-366 [contracts/core.md, contracts/harness-exec.md] Only the token-cost half of the harness-exec digest rule promotes to core. Refused: The whole line promotes; `harness-exec` line 4 is deleted · Cost half plus a generically-reworded untrusted-input rule.
+- R-367 [engine/src/plan-lint-main.js] The plan file ceiling blocks while the overlap check keeps warning. Refused: Ceiling warns, consistent with the overlap posture · Warn now, block later.
+- R-368 [engine/src/observability/adapters/claude/telemetry.js, engine/src/observability/usage-aggregate.js, docs/contributing/specs/telemetry.md] Tool calls are stamped by the telemetry port, not recounted by the bin. Refused: The emitter counts tool-use blocks itself, leaving the port untouched.
+- R-369 [engine/src/observability/metrics-line.js] equiv weights are fixed constants, never price-derived. Refused: Derived per row from the `--prices` table · No `equiv` column.
+- R-370 [engine/src/plan-lint-main.js] The file ceiling counts declared paths, resolved or not. Refused: Reuse `declaredFiles` unchanged · Any path-shaped span, resolved or not.
+- R-371 [engine/bin/metrics-emit.js, engine/src/observability/adapters/claude/discovery.js] The metrics emitter identifies transcripts by stamped phase and a since-window. Refused: The orchestrator passes the spawn's tool-use id; the bin matches it against sidecars · A window alone, every transcript in it.
+- R-372 [skills/run/SKILL.md, docs/contributing/specs/run-record.md] The run ledger is appended per line, as each line is produced.
+- R-373 [hooks/hooks.json, hooks/reorient-after-compact.sh] The reorient-after-compaction hook is always on. Refused: Opt-in manifest key · Opt-in settings snippet the user copies.
+- R-374 [docs/guides/customizing.md] craft recommends `autoCompactWindow: 233000` and never writes it. Refused: 283000 (fires at 250k) · Document the formula, no value.
+- R-375 [hooks/hooks.json] A PreCompact hook steers the summariser for the active run. Refused: Not now; add it only if a live compaction shows drift.
+- R-376 [hooks/reorient-after-compact.sh, skills/review/SKILL.md] Sub-agents survive compaction through the reorient guard and a reviewer respawn rule. Refused: Option 1 plus one `contracts/core.md` line · A per-spawn state file.
+- R-377 [scripts/run-ledger.sh, hooks/reorient-after-compact.sh] The active run is a pointer file bound to its session by a run-key in the transcript. Refused: Scan `git worktree list` and probe ledgers, same binding · A pointer bound by `session_id`. Superseded by R-384: the pointer's location under <main>/.claude/craft-runs/.
+- R-378 [scripts/run-ledger.sh, docs/contributing/specs/run-record.md] Pre-workspace lines land in a scratch ledger under `.claude/craft-runs/`. Refused: An out-of-tree mktemp file named by the pointer · No scratch file; re-run §0 after a pre-workspace compaction. Superseded by R-384: the scratch, delta and snapshot location under <main>/.claude/craft-runs/.
+- R-379 [skills/run/SKILL.md, docs/contributing/specs/run-record.md] `PHASE-START` and `PHASE-DONE` tokens record phase state in the ledger. Refused: `PHASE-DONE` only · No token; infer from artifacts and the existing tokens.
+- R-380 [scripts/run-ledger.sh] `scripts/run-ledger.sh` is the ledger's one write and locate surface. Refused: Raw `>>` at each write point, with each hook re-implementing the lookup · A node engine bin.
+- R-381 [skills/review/SKILL.md] Review findings persist out of tree, one file per dimension and cycle. Refused: `<worktree>/.claude/craft-review/` · Inline in the ledger.
+- R-382 [engine/src/observability/adapters/claude/telemetry.js, engine/src/observability/usage-aggregate.js] The estimated compaction cost is reported by the miner only, never in totals. Refused: Also a metrics-ledger column · Also one advisory line from `emit-metrics` at `Done`.
+- R-383 [scripts/run-ledger.sh, docs/contributing/specs/run-record.md] Run state lives under the git common dir, where no commit can write. Refused: Keep `.claude/craft-runs/` and check tracked-ness case-insensitively from the root. Superseded by R-384: in-tree ledgers guarded by a case-insensitive tracked check, and the scratch-then-move hand-off.
+- R-384 [scripts/run-ledger.sh, skills/run/SKILL.md, docs/contributing/specs/run-record.md] The run ledger lives in the git common dir, one file per run. Refused: Keep the in-tree ledger and patch each vector.
+- R-385 [evals/**, .claude-plugin/plugin.json] The eval suite lives in `evals/` with no plugin-manifest key. Refused: `evals/` plus an explicit `experimental.evals` · A custom directory via the key or `--eval-dir`. Adopted: Option 1. Cases live under `evals/<case>/` at the repo root; `.claude-plugin/plugin.json` stays unchanged and no documented command passes `--eval-dir`.
+- R-386 [evals/**, docs/contributing/maintainer-smokes.md] Eval fixtures reach the sandbox through a per-case scaffold script. Refused: `context.add_dirs` read grant · Fixture embedded in the prompt.
+- R-387 [evals/**] Craft-only token graders are with-only; every eval case keeps a both-arm outcome grader. Refused: Every grader `both` · `--ablation none` for craft-only cases. Adopted: Option 1. A grader that matches a craft-only token is `arm: with-only`. Every case carries at least one `arm: both` outcome grader stating behaviour a bare model could in principle satisfy. `tool_used: Skill` trigger graders leave `arm` unset (display-only).
+- R-388 [evals/**] Eval cases drive the phase skill, except the fan-out reviewer, which is driven directly. Refused: Always the phase skill · Always the agent. Adopted: Option 1. `run`, `decisions`, `prune` and `planning` cases drive the skill; the reviewer case drives `craft:reviewer` on one dimension through `Agent`.
+- R-389 [docs/contributing/maintainer-smokes.md, docs/guides/model-class-matrix.md] The model-class sweep reaches agent tiers through the sub-agent model override. Refused: Session tier only; agent rows recorded "pinned: opus" · No eval sweep.
+- R-390 [docs/contributing/maintainer-smokes.md, docs/guides/model-class-matrix.md] The eval sweep fills only the planner and structured-review matrix rows. Refused: A separate eval-sweep section owning every row it can · Replace the full-pipeline sweep with evals. Adopted: Option 1. The eval sweep fills the planner and structured-review cells (PASS = with-arm mean 1.0, PARTIAL ≥ 0.5, FAIL < 0.5). The trigger, decisions and prune results go in a one-line note under the table. The matrix template's shape does not change.
+- R-391 [docs/contributing/maintainer-smokes.md] The eval judge is sonnet-tier and never the agent model. Refused: Always opus · CLI default haiku. Adopted: Option 1. Every documented command passes `--judge-model claude-sonnet-5-5`, except the sweep's sonnet column, which passes `claude-opus-5-5`.
+- R-392 [docs/contributing/maintainer-smokes.md] Eval budgets derive from the pilot cost. Refused: One fixed documented ceiling (USD 20) · No ceiling.
+- R-393 [test/plugin-evals-local-only.test.js, scripts/ci.sh, evals/**] The eval suite is checked by the CLI and paid pilots, never by a CI test over `evals/`. Refused: A local-only checker bin, unit-tested, not wired into CI · A structural test over `evals/` in CI. Adopted: Option 1. `test/plugin-evals-local-only.test.js` pins that no CI path invokes the eval CLI or names `evals/`, that `/evals/results/` is gitignored, and that every fenced `claude plugin eval` run command in the maintainer smokes carries `--no-publish` and none carries `--trust-plugin`. No test reads `evals/`.
+- R-394 [skills/run/SKILL.md, skills/prune/SKILL.md] Eval discovery wording lands in the run skill's smoke list and prune only. Refused: Also a line beside integrate's baseline-refresh offer · Leave the run skill untouched. Adopted: Option 1. `skills/prune/SKILL.md` gains one advisory paragraph in "Enacting an approved prune" (no new token, no new `*-CANDIDATE(` form); `skills/run/SKILL.md`'s maintainer-smoke list names the behavioural eval suite. Integrate and metrics are unchanged.
+- R-395 [evals/**] The eval suite ships eight cases. Refused: Seven: drop the second trigger phrasing · Six: drop both.
+- R-396 [README.md, docs/guides/model-class-matrix.md] craft does not support a haiku session. Refused: Rework the planning skill so its first actionable step is the spawn.
+- R-397 [agents/reviewer.md, contracts/harness-read.md, adapters/*/agents/craft-reviewer.md] The reviewer agent names the severity scale. Refused: Copy the whole finding shape from the contract into the agent · Point the agent at the contract by path. Adopted: as recommended.
+- R-398 [docs/contributing/maintainer-smokes.md] The eval sweep holds the session at sonnet. Refused: Session at sonnet for the haiku column only · Session = column tier; haiku planner cell marked a session floor.
+- R-399 [evals/reviewer-tests-findings/**, docs/contributing/maintainer-smokes.md] The sandbox-git route is picked by a paid probe.
+- R-400 [evals/reviewer-tests-findings/prompt.md, evals/planning-plan-lints/prompt.md] Agent eval prompts name the working directory. Refused: `append_system_prompt` · A working-tree bullet in `agents/reviewer.md`. Adopted: as recommended.
+- R-401 [docs/guides/model-class-matrix.md] The reviewer before/after uses a fresh baseline. Refused: Reuse the 2026-10-07 sweep · A fresh "before" at the haiku column only. Adopted: as recommended.
+- R-402 [docs/guides/model-class-matrix.md, docs/contributing/maintainer-smokes.md] Model-class matrix columns name the agent tier. Refused: Eval rows by agent tier; full-pipeline haiku cells "n/a" · Define the eval rows only. Adopted: as recommended.
+- R-403 [evals/planning-plan-lints/graders/failing-test-first.md, docs/contributing/maintainer-smokes.md] Grader rewordings are validated through the real judge. Refused: `claude -p` offline replay · No replay; check at the next sweep.
+- R-404 [docs/contributing/maintainer-smokes.md] The judge-replay harness stays throwaway. Refused: A committed replay script under `scripts/` · Nothing recorded.
+- R-405 [evals/planning-plan-lints/graders/failing-test-first.md, docs/guides/model-class-matrix.md] `failing-test-first` ignores steps that add only already-passing tests. Refused: w2: the first sentence allows passing tests in the failing test's step · Keep the current wording and read the planner Δ by hand.
+- R-406 [BACKLOG.md, docs/guides/model-class-matrix.md] The mislabelled-RED plan is evidence for the planner audit. Refused: The matrix note only · The closed recalibration entry only. Adopted: as recommended.
+- R-407 [agents/planner.md, templates/plan.md] The RED-label rule lives in the planner and the plan template. Refused: `agents/planner.md` only · Both, plus a line in `agents/part-implementer.md`. Adopted: as recommended.
+- R-408 [agents/planner.md] A RED test fails at its step and precedes the GREEN that satisfies it. Refused: Label rule only · Ordering only. Adopted: as recommended.
+- R-409 [agents/planner.md, templates/plan.md] An already-passing test is a `GUARD` entry. Refused: Free prose · A fixed token, `CHARACTERISATION`. Adopted: as recommended.
+- R-410 [] The planner audit is baselined per agent tier before the change. Refused: Kept plans as the baseline, after-runs only · One sonnet after-run against the kept plans. Adopted: as recommended.
+- R-411 [] RED-label accuracy is counted by hand. Refused: A new one-clause `llm` grader, validated through the faithful replay · Both. Adopted: as recommended.
+- R-412 [contracts/construction.md, agents/part-implementer.md] The implementer contract runs a `GUARD` entry as passing. Refused: Record the gap and defer it to a follow-up · Planner side only.
+- R-413 [evals/implementer-runs-guards/fixture/**] The implementer case's arriving GUARD fails on fixture bytes alone. Refused: After the RED's GREEN, claim an output that GREEN produces · After the GREEN, a fixture-state claim unrelated to `--shout`. Adopted: as recommended.
+- R-414 [evals/implementer-runs-guards/graders/**, evals/implementer-runs-guards/fixture/test/greet.test.sh] Break-to-prove is graded on runtime test tokens. Refused: `tool_used` regexes over Edit/Write inputs touching greet.sh · An `llm` grader focused on the trace. Adopted: as recommended.
+- R-415 [evals/implementer-runs-guards/scaffold.sh, evals/implementer-runs-guards/prompt.md] The implementer case delivers the assembled production contract. Refused: Copy only `contracts/construction.md` · No contract. Adopted: as recommended.
+- R-416 [evals/implementer-runs-guards/**] The implementer case shares its prompt across arms. Refused: Every outcome grader with-only · Deterministic graders both, `llm` graders with-only. Adopted: as recommended.
+- R-417 [evals/implementer-runs-guards/prompt.md] The implementer case stops at the green gate without committing. Refused: Keep the commit and ask for the cycle lines whatever happens · Route git through an absolute path. Adopted: as recommended.
+- R-418 [evals/**] The eval suite ships nine cases. Refused: Amend ADR-395 in place · Drop or merge a case to stay at eight. Adopted: as recommended.
+- R-419 [docs/contributing/maintainer-smokes.md, docs/guides/model-class-matrix.md] The agent sweep runs the implementer case without filling part-TDD. Refused: The case also fills the part-TDD cell · A separate tag. Adopted: as recommended.
+- R-420 [] The implementer GUARD rule's evidence is the new case alone. Refused: Also one sonnet run on the tree before the clause · The pilot only. Adopted: as recommended.
+- R-421 [contracts/construction.md] A `GUARD` failing on its first run is a RED. Refused: Append one sentence and leave ADR-412's sentence byte-identical · Option 2 plus "a planned RED that passes on its first run stays a blocker".
+- R-422 [contracts/construction.md, agents/part-implementer.md] The arriving-`GUARD` rule lives on the contract's TDD line. Refused: A new line 2 in `contracts/construction.md` · A contract bullet in `agents/part-implementer.md`. Adopted: as recommended.
+- R-423 [agents/part-implementer.md] The part-implementer handback line stays unchanged. Refused: Append how a `GUARD` that failed on its first run is reported. Superseded by R-434: the part-implementer handback line stays unchanged.
+- R-424 [contracts/construction.md, engine/test/contract-equivalence.test.js] The construction contract pins its `GUARD` clauses in CI. Refused: No pin · Pin the new clause in `PHASE_EXPECTATIONS.construction`.
+- R-425 [evals/decisions-escalates-fork/fixture/docs/design/shout-flag.md] The escalates-fork fixture drops only the uncovered-fork sentence. Refused: Also drop the Design pointer · Also drop "on a terminal" from Requirement 1. Adopted: the brief names the edit: drop the sentence, keep the trade-off. Option 1. The Why cell ends "Predictable and simplest, but scripts that match `Hello` break when a caller adds `--shout`.".
+- R-426 [evals/decisions-escalates-fork, docs/contributing/maintainer-smokes.md] The escalates-fork pilot gates the sweep on validity only. Refused: Sweep only on a bare FAIL · Skip the pilot.
+- R-427 [evals/decisions-escalates-fork, docs/contributing/maintainer-smokes.md] An escalates-fork Δ near zero is recorded as prune evidence. Refused: Numbers only · Harden the fixture again.
+- R-428 [docs/contributing/maintainer-smokes.md] The escalates-fork before baseline is the 2026-10-06 pilot. Refused: Also a 3-run on the unedited fixture. Adopted: the brief asks for before → after with no before re-run. Option 1.
+- R-429 [scripts/ci.sh, scripts/static-lints.sh] ci.sh's static lints live in their own script. Refused: `run_static_lints()` function inside `ci.sh` · Text-only assertion.
+- R-430 [scripts/static-lints.sh] Each static lint is its own statement. Refused: `|| exit 1` on each command.
+- R-431 [scripts/static-lints.sh, test/static-lints-ci.test.js] The static-lints test fails each lint position. Refused: One representative failing lint plus the green control.
+- R-432 [test/static-lints-ci.test.js] The static-lints harness appends a trailing statement. Refused: Byte-for-byte copy · Both harnesses.
+- R-433 [skills/decisions/SKILL.md] `decisions` escalates every candidate the adopt rule does not admit. Refused: Keep the wording. Superseded by R-727: the adopt threshold: adopt only a clear recommendation aligned with an ADR or stated principle, escalate the rest.
+- R-434 [agents/part-implementer.md] The handback names a `GUARD` that failed on its first run with a `PLAN-MISMATCH` token. Refused: Prose only · Fixed token, free payload.
+- R-435 [agents/part-implementer.md] The handback's `GUARD` slot covers a `GUARD` that passed on its first run. Refused: Leave "per `GUARD`" open.
+- R-436 [agents/part-implementer.md, test/plugin-structure.test.js] The part-implementer body pins the `PLAN-MISMATCH` token prefix in CI. Refused: No pin · Pin the whole line, payload included.
+- R-437 [evals/implementer-guard-outside-part/fixture/**] The scope case's arriving GUARD checks the out-of-part file directly. Refused: An end-to-end `check` through `greet.sh`, same ownership · As option 1, but Part 2 itself plans the empty-name fix. Adopted: as recommended.
+- R-438 [evals/implementer-guard-outside-part/graders/**] An out-of-part edit is graded on file and trace regexes. Refused: `tool_used` Edit and Write with `max: 0`, plus the file regex · The file regex plus an `llm` grader only. Adopted: as recommended.
+- R-439 [evals/implementer-guard-outside-part/graders/**] The scope case scores scope-keeping. Refused: Score only `arrival-guard-ran-red` · Score the clause as written: a GREEN for the `GUARD` and no blocker. Adopted: as recommended.
+- R-440 [evals/implementer-guard-outside-part/**] The scope case runs at every agent tier. Refused: Sonnet only · Sonnet first, other tiers only if sonnet shows no edit. Adopted: as recommended.
+- R-441 [contracts/construction.md, evals/implementer-guard-outside-part/**] One out-of-part edit triggers the contract fix. Refused: E in at least 2 of 3 runs at one tier · E or B (blocked). Adopted: as recommended.
+- R-442 [evals/**] The eval suite ships ten cases. Refused: Amend ADR-418 in place · Extend `implementer-runs-guards` with a second part. Adopted: as recommended.
+- R-443 [contracts/construction.md] An arriving GUARD whose GREEN lies outside the part is a blocker. Refused: As option 1 without "and the GUARD's check" · Condition "not a blocker" on an in-part GREEN only.
+- R-444 [agents/part-implementer.md] The handback gives an out-of-part GUARD a blocker, not a RED/GREEN line. Refused: Leave the bullet unchanged · Bound the RED/GREEN line to a GREEN inside the part. Adopted: as recommended.
+- R-445 [contracts/construction.md, engine/test/contract-equivalence.test.js] The construction pins cover both arriving-GUARD outcomes. Refused: Pin only the two clause heads · One marker per full sentence. Adopted: as recommended.
+- R-446 [evals/implementer-guard-outside-part/**, contracts/construction.md] The scope fix is accepted on no edited, altered or silent run. Refused: No E (edited) and no T (altered check) run at any tier · Every with-craft run is B (blocked). Adopted: as recommended.
+- R-447 [agents/part-implementer.md] The PLAN-MISMATCH observation is unconditional for an arriving GUARD. Refused: Keep ADR-444's bullet and record the omission as a follow-up · Run more haiku sweeps first. Rejected: reverted after measurement.
+- R-448 [engine/src/findings.js, engine/test/findings.test.js, contracts/harness-read.md] The claim-status pin is behavioural. Refused: Source-read: extract the regex alternatives from `findings.js` text, assert set equality · Export `STATUS_PREFIX_PATTERN` and compare its alternatives.
+- R-449 [engine/test/findings.test.js, test/plugin-structure.test.js] The claim-status pin lives in the engine findings suite. Refused: `test/p10-structure.test.js` beside the sibling pins, reusing `contractSetFor`. Adopted: as recommended.
+- R-450 [scripts/run-ledger.sh, skills/run/SKILL.md, docs/contributing/specs/run-record.md] An open run is a trusted pointer until close. Refused: pid in the pointer + `kill -0` · Worktree/branch existence.
+- R-451 [skills/run/SKILL.md, skills/workspace/SKILL.md] §0 keeps open before the collision check. Refused: Add a type-free §0 probe · Move the collision check to §0.
+- R-452 [scripts/run-ledger.sh, skills/run/SKILL.md] A crashed run is discarded with close. Refused: A new `open <run-id> --force` · Both.
+- R-453 [scripts/run-ledger.sh, skills/run/SKILL.md] A refused open exits 3. Refused: 1, the generic `die` default.
+- R-454 [scripts/run-ledger.sh, docs/contributing/specs/run-record.md] Only a trusted pointer with its ledger blocks open. Refused: Any pointer left after the sweep.
+- R-455 [engine/src/observability/metrics-emit-main.js, engine/src/observability/usage-aggregate.js] emit-metrics prints the compaction estimate line. Refused: The `Done` prose runs the miner and greps the line · A separate compaction bin.
+- R-456 [engine/src/observability/metrics-emit-main.js] Only the run-level emit-metrics call prints the line. Refused: Every call · A new opt-in flag.
+- R-457 [engine/src/observability/metrics-emit-main.js] A missing --session skips the estimate with a stderr note. Refused: Silent · Fold all sessions.
+- R-458 [skills/run/SKILL.md] Done passes the session id to emit-metrics. Refused: The bin defaults `--session` from the env var · The bin finds the session from the run-key.
+- R-459 [engine/src/observability/usage-aggregate.js] One pure export formats the compaction estimate line. Refused: Export both private helpers · Run `aggregate` + `renderMarkdown` and extract the line.
+- R-460 [engine/src/observability/metrics-emit-main.js] The main transcript is parsed in a separate call. Refused: Widen the existing call's scope.
+- R-461 [skills/run/SKILL.md] The Done message relays the compaction line. Refused: Tool output only.
+- R-462 [skills/run/SKILL.md, docs/contributing/specs/model.md] A transient overload retries once before degrading. Refused: Unclassified one retry · Manifest knob `models.retry`.
+- R-463 [skills/run/SKILL.md, docs/contributing/specs/model.md] The retry allowance is per spawn. Refused: Per tier per run · Per phase.
+- R-464 [skills/run/SKILL.md, docs/contributing/specs/run-record.md] Model retry and degradation carry fixed tokens. Refused: Same tokens parsed by run-state · Free prose.
+- R-465 [skills/run/SKILL.md] The same-tier retry does not wait. Refused: Fixed wait (~60 s).
+- R-466 [docs/contributing/plan, docs/contributing/design, docs/contributing/archive, docs/contributing/adr/035-repo-dir-and-out-of-repo-refs.md, docs/contributing/specs/codex-poc-record.md] Home-rooted paths are swept from every tracked file, archive and ADRs included. Refused: Freeze `archive/` and ADR-035 · No sweep, stop new leaks only.
+- R-467 [test/source-hygiene.test.js] A source-hygiene class blocks home-rooted paths across the tracked tree. Refused: New engine bin + `static-lints.sh` line · `$HOME`-derived literal.
+- R-468 [contracts/core.md, templates/plan.md] The core contract forbids absolute paths in committed artifacts. Refused: Rule in 7 agent defs + regenerated adapter mirrors · Template lines only.
+- R-469 [engine/src/plan-lint-main.js] plan-lint does not check home-rooted paths. Refused: Shared detector in `engine/src`, used by plan-lint and the hygiene class.
+- R-470 [engine/test/usage-mine-main.test.js, engine/test/fixtures/aider/real-session.md] Engine test fixtures use the `x` placeholder home. Refused: Exempt the files in the guard.
+- R-471 [docs/contributing/plan, docs/contributing/design] Out-of-repo paths are named by neutral placeholders. Refused: `~`-relative · `$HOME`-relative.
+- R-472 [test/helpers] The region slicer has a faithful and a prose shape. Refused: Named option · Return lines.
+- R-473 [test/helpers] Region boundaries are RegExps or named sentinels. Refused: Keep `null` · Separate entry points.
+- R-474 [engine/src/stub-lint-main.js] stub-lint exempts its own name token, never a whole file. Refused: Path exemption · `STUB-WAIVE(scripts/ci.sh)`.
+- R-475 [scripts/ci.sh] ci.sh names the hygiene lints instead of describing them. Refused: Leave it · Widen the rule.
+- R-476 [engine/src/stub-lint-main.js] The exempt token is `stub-lint` alone. Refused: `stub-lint` plus `STUB-WAIVE` / `STUB-FOUND` · Any `<marker>-lint`.
+- R-477 [engine/src/stub-lint-main.js] The name exemption is a separate pattern stripped before matching. Refused: Negative lookahead special-cased for `STUB` in `MARKER_PATTERN` · Post-filter each match by peeking past its index.
+- R-478 [engine/test/stub-lint-main.test.js] ci.sh stub hygiene is pinned by fixtures, not a process test. Refused: Fixtures plus a process test over the real `ci.sh`.
+- R-479 [engine/src/hygiene-lint-core.js] A waiver is a column-0 token line outside a fenced block. Refused: Line-anchored only · Exclude code spans only · Dedicated `## Waivers` section.
+- R-480 [engine/src/hygiene-lint-core.js] The anchored waiver rule covers DECISION-CITE-WAIVE too. Refused: STUB/SLOP only. Superseded by R-735: the anchored waiver rule's coverage of DECISION-CITE-WAIVE: the token is retired.
+- R-481 [engine/src/hygiene-lint-core.js] The core composes the anchored waiver pattern. Refused: Each gate regex becomes `^TOKEN\(([^)]+)\):\s*\S` with `m` · Gates pass a token name and the core builds the regex.
+- R-482 [engine/src/hygiene-lint-core.js] A waiver token starts at column 0. Refused: 0–3 spaces · Spaces plus `- `, `* `, `> ` markers.
+- R-483 [engine/src/hygiene-lint-core.js] A waiver requires a non-empty reason. Refused: A colon alone is enough.
+- R-484 [engine/src/hygiene-lint-core.js] Fenced blocks are recognized by a line-based CommonMark subset. Refused: Column-0 toggles only · markdown-it dependency.
+- R-485 [test/source-hygiene.test.js] Shipped code carries no provenance refs, pinned by a whole-tree test. Refused: No rule · Dedicated stub-lint-style lint.
+- R-486 [engine/src/glob.js, engine/src/adr-lint-main.js, engine/src/manifest.js] The adr.frozen guard rejects entry sets that together cover the tree or all markdown. Refused: Per-entry markdown class only · Document only. Superseded by R-735: the adr.frozen guard: the adr manifest key is removed.
+- R-487 [engine/src/cli-io.js] cli-io.js is the single home of the shared lint predicates. Refused: fs predicates in `cli-io.js`, `isNonEmptyString` in a new pure module · Keep the `isNonEmptyString` copies.
+- R-488 [test/helpers/ambient-env.js] The ambient-env test helper is shared, not copied. Refused: Copy it into the second suite.
+- R-489 [engine/src/findings.js, engine/src/observability/adapters/claude/telemetry.js, engine/src/observability/metrics-line.js, test/source-hygiene.test.js] Shipped code carries no single-letter review ids, pinned by a case-sensitive token. Refused: Keep R3 as a defined rule name · Strip R10/F6 only, no rule change.
+- R-490 [test/source-hygiene.test.js] Test comments and titles carry no provenance refs, pinned without an allowlist. Refused: Whole-line scope plus a fixture allowlist · Leave tests unguarded.
+- R-491 [test/plugin-structure.test.js, test/repo-dod.test.js, test/memory-store.test.js] Root test files are named for their subject, not their phase. Refused: Keep the names · Rename plus a file-name guard.
+- R-492 [engine/test/findings.test.js, engine/test/model-class-shape.test.js, engine/test/normalize-findings-bin.test.js, engine/test/telemetry-claude.test.js] Tests cite no review id that shipped code no longer carries. Refused: Leave every test id · Reword all 25.
+- R-493 [docs/contributing/metrics-baseline.report.json] The baseline guard replays the report instead of re-mining. Refused: Re-mine first · Replay now, refresh later.
+- R-494 [engine/src/observability/usage-aggregate.js] The replay judges only run-derived recommendation kinds. Refused: `review-waste` only · All kinds.
+- R-495 [engine/src/observability/usage-aggregate.js] A run-derived rec is judged per rec by its run. Refused: Per kind · Fail.
+- R-496 [engine/src/observability/usage-aggregate.js] aggregate and the replay share one run-derived rule table. Refused: Same function, `aggregate` untouched · A new module.
+- R-497 [docs/contributing/metrics-baseline.report.json] The baseline replay guard is a root test. Refused: Engine test beside the calibration pin · A lint bin wired into `static-lints.sh`.
+- R-498 [docs/contributing/metrics-baseline.report.json] The committed report is fixed by the replay function. Refused: A committed `--write` bin · Hand-edit.
+- R-499 [skills/metrics/SKILL.md] The metrics skill is left untouched by the replay guard. Refused: The same, plus a step in `skills/metrics/SKILL.md`.
+- R-500 [README.md] The comparison table compares categories, not products. Refused: Named products with cited links the maintainer verifies · Plain prompting only.
+- R-501 [README.md, docs/guides/comparison.md] The comparison table is a README section. Refused: New `docs/guides/positioning.md` + one README line · Extend `docs/guides/comparison.md`.
+- R-502 [test/, README.md] New README claims are guarded by repo-shape tests. Refused: New readme-drift sub-guards in `engine/src`.
+- R-503 [CHANGELOG.md, .claude-plugin/plugin.json, README.md] Cut release 1.1.0 in this change. Refused: CHANGELOG `[Unreleased]` only · 2.0.0.
+- R-504 [SECURITY.md, .github/ISSUE_TEMPLATE/] Security reports start with a detail-free public issue. Refused: GitHub private vulnerability reporting · A maintainer email address.
+- R-505 [scripts/install-dev-tools.sh, .github/workflows/ci.yml, .devcontainer/devcontainer.json] CI and the devcontainer share one dev-tool install script. Refused: Inline lists in each, plus a test that they match · Devcontainer installs only what `ci.sh` provably uses; CI unchanged.
+- R-506 [CONTRIBUTING.md] Contributions are process-agnostic and gated by CI. Refused: Feature PRs must come from a craft run · Issues only, PRs by invitation.
+- R-507 [README.md, test/source-hygiene.test.js] The Codespaces badge is a shields static badge. Refused: GitHub's `badge.svg` + a wider source-hygiene allowlist · Plain text link.
+- R-508 [hooks/hooks.json, test/hooks.test.js] Hook commands quote the whole plugin-root path. Refused: Quote only the placeholder · Exec form.
+- R-509 [scripts/install-dev-tools.sh, test/install-dev-tools.test.js, test/helpers] The shared dev-tool set drops bats and yq. Refused: Drop both tools, keep the helpers · Wire bats into `scripts/ci.sh`.
+- R-510 [test/install-dev-tools.test.js] The inline-install guard covers apt only. Refused: Keep `/mikefarah\/yq/` · A generic `curl|wget` guard.
+- R-511 [docs/contributing/maintainer-smokes.md] The devcontainer smoke drops the yq check. Refused: Replace it with `shellcheck --version` and `jq --version`.
+- R-512 [adapters/codex/hooks.json, adapters/codex/config.template.toml, adapters/codex/README.md] The codex guard hook quotes the whole plugin-root path. Refused: Keep the unquoted form and document "no whitespace in the root" for bash/sh login shells · Close the entry with no change.
+- R-513 [adapters/codex/config.template.toml, adapters/codex/test/hook-trust.test.js] The codex template spells the guard command as a TOML literal string. Refused: Basic string with `\"` escapes · Multi-line literal `'''…'''`. Adopted: as recommended.
+- R-514 [adapters/codex/src/hook-trust.js, adapters/codex/test/hook-trust.test.js] The trust matcher accepts one inert double-quoted operand. Refused: Accept any double-quoted operand without `"` · Accept only the exact shim plus the tail, or a literal path with no `$`. Superseded by R-517: the quoted operand is trusted unless it holds a double quote, backslash, backtick or $(.
+- R-515 [adapters/codex/src/hook-trust.js, adapters/codex/test/hook-trust.test.js] The trust matcher refuses shell syntax in the interpreter and the bare operand. Refused: Leave the gaps and file a backlog item · Close only the interpreter token.
+- R-516 [adapters/codex/test/config.test.js] The codex hook runtime test runs the registered command under sh and bash. Refused: sh, bash, plus zsh when installed · sh only. Adopted: as recommended.
+- R-517 [adapters/codex/src/hook-trust.js, adapters/codex/test/hook-trust.test.js] The quoted guard operand is an allow-list. Refused: Allow-list plus bare-identifier `$NAME` (not followed by `:` or `[`) and `${NAME}` · Extend the deny-list.
+- R-518 [adapters/codex/hooks/craft-guard.js, adapters/codex/test/craft-guard-hook.test.js] A crashing codex guard denies from one file. Refused: Dynamic imports inside the `try` only · Zero-import entry plus a new body module. Adopted: as recommended.
+- R-519 [adapters/codex/hooks/craft-guard.js, adapters/codex/test/craft-guard-hook.test.js] The codex guard denies when no verdict is reached. Refused: Leave it · `process.exitCode = 2` at the top.
+- R-520 [adapters/codex/hooks/craft-guard.js, adapters/codex/test/craft-guard-hook.test.js] The codex guard handles both uncaught exceptions and rejections. Refused: `uncaughtException` only. Adopted: as recommended.
+- R-521 [adapters/codex/hooks/craft-guard.js, adapters/codex/test/craft-guard-hook.test.js] Guard crash paths are pinned by throwaway-tree fixtures. Refused: The real overflow · No test for the outside-the-try class. Adopted: as recommended.
+- R-522 [adapters/codex/hooks/craft-guard.js] The crash hardening is scoped to the codex guard. Refused: Also audit the sibling guards. Adopted: as recommended.
+- R-523 [adapters/codex/test/hook-trust-differential.test.js] The trust-matcher fuzz runs 2000 generated commands at seed 1. Refused: Cap 3000, seed 1 · Cap 1000. Adopted: as recommended.
+- R-524 [adapters/codex/test/hook-trust-differential.test.js] The trust-matcher fuzz spawns shells through an async pool. Refused: `spawnSync`, as `config.test.js` does. Adopted: as recommended.
+- R-525 [adapters/codex/test/hook-trust-differential.test.js, scripts/install-dev-tools.sh, test/install-dev-tools.test.js] A missing shell skips its leg, and CI installs zsh. Refused: Per-leg skip with a reason only · Hard-fail unless an env allow-list names the missing shell.
+- R-526 [adapters/codex/test/hook-trust-differential.test.js] The trust-matcher fuzz mixes grammar builds and seed mutation. Refused: Grammar only · Mutation only. Adopted: as recommended.
+- R-527 [adapters/codex/test/hook-trust-differential.test.js] The fuzz oracle checks argv, env, stdout and a side-effect marker. Refused: Exit 0, empty stderr, one rooted argv ending in the tail · Option 1 plus a `mark` stub marker and empty stdout. Adopted: as recommended.
+- R-528 [adapters/codex/test/hook-trust-differential.test.js, adapters/codex/src/hook-trust.js] A differential found by the fuzz blocks the change. Refused: Commit the fuzz with the counterexample excluded by a predicate · Fix `hook-trust.js` in this change. Adopted: as recommended.
+- R-529 [adapters/codex/test/hook-trust-differential.test.js] The fuzz uses an unspaced plugin root and a spaced HOME. Refused: Also a spaced-root leg with the legacy shim excluded · Nothing spaced. Adopted: as recommended.
+- R-530 [adapters/codex/test/hook-trust-differential.test.js] The fuzz seed and cap are constants, not env overrides. Refused: Validated env overrides. Adopted: as recommended.
+- R-531 [adapters/codex/test/hook-trust-differential.test.js] The fuzz oracle checks every guard channel, the run directory and the full env. Adopted: from a verified review finding.
+- R-532 [adapters/codex/test/hook-trust-differential.test.js] The fuzz seed is the one with the widest revert margin. Refused: The smallest seed that kills all eleven (ADR-523 as written). Adopted: in review.
+- R-533 [hooks/git-no-ext-diff.sh, test/hooks.test.js] A crashing git hook denies through an EXIT trap. Refused: ERR trap · Up-front `command -v jq` check only. Adopted: as recommended.
+- R-534 [hooks/git-no-ext-diff.sh] The git hook's crash deny uses exit 2 on stderr. Refused: A fixed JSON deny on stdout with exit 0. Adopted: as recommended.
+- R-535 [hooks/git-no-ext-diff.sh, README.md] A git hook crash denies every Bash call. Refused: Deny only calls whose raw stdin loosely contains git + diff/show.
+- R-536 [hooks/git-no-ext-diff.sh, test/hooks.test.js] The git hook matcher allows only on grep's no-match status. Refused: Leave both as out-of-scope lines · Builtin `[[ =~ ]]` with the regex rewritten. Superseded by R-646: grep is fed by a here-string.
+- R-537 [hooks/git-no-ext-diff.sh, docs/contributing/specs/gate.md] Git hook signal deaths stay documented residual. Refused: Add `trap 'exit 143' TERM`. Superseded by R-541: signal deaths stay documented residual.
+- R-538 [hooks/git-no-ext-diff.sh, docs/contributing/specs/gate.md, README.md] The git hook crash contract is written in its header, the gate spec and the README. Refused: Hook header plus a gate.md Claude-binding paragraph linking the design's matrix · Hook header only.
+- R-539 [hooks/git-no-ext-diff.sh] The git hook crash trap is inline. Refused: A `fail_closed` helper in `hooks/bound-run.sh`, sourced. Adopted: as recommended.
+- R-540 [hooks/git-no-ext-diff.sh, test/hooks.test.js] The git hook denies when no verdict is reached. Refused: Accept it; rely on shellcheck and the hook tests before merge. Adopted: as recommended.
+- R-541 [hooks/git-no-ext-diff.sh, test/hooks.test.js, docs/contributing/specs/gate.md] Git hook TERM and HUP deny like a crash. Refused: Keep signals residual; fix the docs and suppress the deny line during signal teardown.
+- R-542 [hooks/git-no-ext-diff.sh, test/hooks.test.js] The git hook matcher allows only on a printed zero count. Refused: Process substitution `< <(printf …)`. Superseded by R-646: the hook's verdict is grep's printed match count over its own regex.
+- R-543 [adapters/cursor/hooks/craft-guard.js] The cursor guard header names the measured exit handling. Refused: Record and BACKLOG only · Option 2 plus a README sentence.
+- R-544 [adapters/cursor/test/craft-guard-hook.test.js] No test pins the cursor guard's crash output. Refused: A throwaway-tree test asserting a non-zero status and empty stdout. Adopted: as recommended.
+- R-545 [docs/contributing/specs/cursor-poc-record.md] The cursor hook shell's node version is recorded, not acted on. Refused: Out of scope, not recorded · Option 2 plus a BACKLOG entry to pin which `node` the hook shell resolves. Adopted: as recommended.
+- R-546 [hooks/git-no-ext-diff.sh, docs/contributing/specs/gate.md] The Claude Code hook-timeout fail-open is documented, not fixed. Refused: Harden through the TERM trap (JSON deny on stdout) · Leave the "unprobed" wording.
+- R-547 [hooks/git-no-ext-diff.sh, docs/contributing/specs/gate.md] The hook-timeout residual gets its own sentence. Refused: One more item in the existing residual list · Delete the "unprobed" parenthetical only. Adopted: as recommended.
+- R-548 [hooks/hooks.json] The git hook registration sets no timeout. Refused: `"timeout": 600` · A short value (e.g. 30). Adopted: as recommended.
+- R-549 [test/hooks.test.js] No test pins the hook-timeout residual. Refused: A test asserting the header and `gate.md` name the timeout · A hook test that sends TERM while the hook waits on a background child. Adopted: as recommended.
+- R-550 [] The timeout ADR refines ADR-541, it does not supersede it. Refused: `supersedes` frontmatter on ADR-541 with a scope · No link. Adopted: as recommended.
+- R-551 [hooks/git-no-ext-diff.sh, docs/contributing/specs/gate.md] The foreground-stall timeout fail-open is documented, not fixed. Refused: Write that the session hangs · A hook-side fix.
+- R-552 [hooks/git-no-ext-diff.sh, docs/contributing/specs/gate.md] The timeout text states the process-tree TERM and the SIGKILL escalation. Refused: Drop the qualifier only · Mechanism in `gate.md` only, minimal header.
+- R-553 [hooks/git-no-ext-diff.sh, docs/contributing/specs/gate.md] Each timeout claim carries the Claude Code version that measured it. Refused: One label, the latest (2.1.299) · One range label, 2.1.296 to 2.1.299. Adopted: as recommended.
+- R-554 [test/hooks.test.js] No test pins the foreground-stall timeout. Refused: A hook test that TERMs the hook's process tree while `cat` blocks on stdin and asserts exit 2 · A wording test on the header and `gate.md`. Adopted: as recommended.
+- R-555 [] The foreground-stall ADR refines ADR-546, it does not supersede it. Refused: `supersedes` frontmatter on ADR-546 with a scope · No link. Adopted: as recommended.
+- R-556 [engine/src/cli-io.js, engine/bin] The bin entry-point check is one `isEntryPoint` export in `cli-io.js`. Refused: New `engine/src/entry-point.js` with its own suite · Inline the real-path comparison in each bin.
+- R-557 [engine/src/cli-io.js] `isEntryPoint` real-paths both argv[1] and the module path. Refused: `realpathSync(argv1) === fileURLToPath(moduleUrl)` · `import.meta.main`. Superseded by R-564: the real-path comparison of argv[1] and the module path.
+- R-558 [engine/src/cli-io.js] `isEntryPoint` maps only `ENOENT` to "not the entry point" and rethrows every other error. Refused: Catch every error → false. Superseded by R-564: ENOENT on argv[1] maps to not-the-entry-point.
+- R-559 [engine/bin] The entry-guard fix covers `engine/bin` only; the two adapter entry points are a follow-up. Refused: Also fix both adapter entry points. Adopted: as recommended.
+- R-560 [engine/bin] A behavioural sweep spawns every `engine/bin` bin through a symlink. Refused: Structural text pin · Both. Adopted: as recommended.
+- R-561 [adapters/codex/bin/trust-hook.js, adapters/pi/src/cli.js] Adapter entry points import `isEntryPoint` from `engine/src/cli-io.js` directly. Refused: Indirection. Adopted: as recommended.
+- R-562 [adapters/codex/test, adapters/pi/test/cli.test.js] Adapter entry points get per-entry behavioural link tests, not a sweep. Refused: ADR-560-style sweep over `adapters/*/bin/*.js` and pi's `bin` · Repo-wide text pin forbidding `process.argv[1] ===`. Adopted: as recommended.
+- R-563 [engine/src/cli-io.js, engine/bin, adapters/codex/bin/trust-hook.js, adapters/pi/src/cli.js] `isEntryPoint` takes the caller's `import.meta`. Refused: Keep the signature; each call site writes `import.meta.main ?? isEntryPoint(…)` · A second export `isMainModule(meta, argv1)` wrapping today's helper.
+- R-564 [engine/src/cli-io.js, engine/package.json] The entry guard requires `import.meta.main` and throws without it. Refused: Keep `>=18` with the real-path fallback · Declare `^22.18.0 || >=24.2.0`, keep the fallback.
+- R-565 [engine/test, adapters/codex/test] The entry swap-race tests run unconditionally. Refused: Skip when `import.meta.main` is not a boolean.
+- R-566 [adapters/codex/test/trust-hook.bin.test.js, engine/test/bin-entry-swap-race.bin.test.js] The swap-race tests pin `trust-hook --check` and `adr-lint`, not a sweep. Refused: A race sweep over all 26 entries · trust-hook only. Superseded by R-730: the adr-lint half of the swap-race pins: adr-lint is retired.
+- R-567 [engine/test-helpers/swap-link-on-load.js] One committed preload swaps the link for both race suites. Refused: Each suite writes the hook into its sandbox. Adopted: as recommended.
+- R-568 [engine/src/cli-io.js] The entry guard's floor error names the supported range and the running Node. Refused: The range only · The range plus a misuse hint. Adopted: as recommended.
+- R-569 [CHANGELOG.md] The Node floor raise ships as a breaking change. Refused: `### Changed`, minor · No floor line.
+- R-570 [engine/package.json, engine/package-lock.json] Stryker core and tap-runner move to 10.0.0. Refused: 9.6.1 · Stay on 8.7.1 with `tap.nodeArgs` set to `--test-reporter=tap`.
+- R-571 [engine/package.json] Stryker devDependencies stay exact pins. Refused: Caret (`"^10.0.0"`) on both.
+- R-572 [engine/package.json, engine/package-lock.json] The Stryker move changes only the Stryker tree in the lockfile. Refused: Install the two packages only · Also run `npm audit fix`.
+- R-573 [adapters/codex/src/execpolicy-rules.js, adapters/codex/craft.rules] The generated craft.rules disclosure is worded version-free. Refused: Docs only · Version-pinned surface split in the generated file.
+- R-574 [docs/contributing/specs/codex-poc-record.md, adapters/codex/README.md, BACKLOG.md] The malformed-rules status is recorded per codex surface, version-pinned. Refused: "Fails open on at least one surface" · "Fails closed on the binding's launch path".
+- R-575 [BACKLOG.md] The .rules backlog entry is amended, and its open questions get a run-scoped section. Refused: Amend in place only · New open follow-up only.
+- R-576 [docs/contributing/specs/codex-poc-record.md, adapters/codex/README.md, BACKLOG.md] Docs describe assertRulesIntegrity as an unwired check. Refused: Keep "install/launch precondition" · Wire it into a launch or trust path now.
+- R-577 [docs/contributing/specs/codex-poc-record.md] The realised credential rotation and its remedy live in the codex POC record. Refused: Also add a fourth mitigation to `adapters/README.md` · A new BACKLOG entry generalising the remedy.
+- R-578 [adapters/copilot/hooks/craft-guard.js, adapters/copilot/src/git-guard-adapter.js, adapters/copilot/src/deny-tool-args.js] Copilot enforces destructive git through the preToolUse hook; --deny-tool stays. Refused: PATH-first `git` shim · Both layered.
+- R-579 [engine/src/guards/git-destructive-predicate.js, adapters/copilot/src/git-guard-adapter.js] The destructive-git predicate is composed by copilot only. Refused: Copilot and codex · Inside `toolCallGuard` for every binding. Superseded by R-640: the destructive-git predicate is composed by copilot only.
+- R-580 [engine/src/guards/shell-git-invocations.js, engine/src/guards/git-ext-diff-predicate.js, engine/src/guards/git-destructive-predicate.js] A git invocation starts at any word named git. Refused: Only the command word after a closed prefix list · Closed list for ext-diff, any word for destructive.
+- R-581 [engine/src/guards/shell-git-invocations.js, engine/src/guards/git-ext-diff-predicate.js, engine/src/guards/git-destructive-predicate.js] An unknown git global option is judged by verb sniffing. Refused: Refuse outright · Allow. Superseded by R-593: an indeterminate invocation is judged by verb sniffing.
+- R-582 [engine/src/guards/shell-git-invocations.js, engine/src/guards/git-ext-diff-predicate.js, engine/src/guards/git-destructive-predicate.js] An unparseable command is denied. Refused: Deny only when the text looks like git.
+- R-583 [engine/src/guards/git-destructive-predicate.js] clean is blocked unless it is a dry run. Refused: Block on a force flag or an inline `clean.requireForce` key · Option 1 plus `checkout -f`/`.`, `restore`, `branch -M`/`-C`, `update-ref -d`, `filter-branch`.
+- R-584 [engine/src/guards/git-ext-diff-predicate.js, engine/src/guards/git-destructive-predicate.js] An inline git alias is blocked. Refused: Expand the alias and judge the expansion · Documented residual.
+- R-585 [adapters/copilot/hooks/craft-guard.js] The copilot hook denies by JSON and crashes by exit 2. Refused: Exit 2 for everything · JSON and exit 2 together. Adopted: as recommended.
+- R-586 [adapters/copilot/hooks/craft-guard.js, adapters/copilot/config.template.json] The copilot hook is renamed craft-guard. Refused: Keep the name. Adopted: as recommended.
+- R-587 [engine/src/guards/git-ext-diff-predicate.js, adapters/opencode/src/git-guard-predicate.js] The GIT_DIFF_SHOW_RE export is removed. Refused: Keep it exported, unused. Adopted: as recommended.
+- R-588 [adapters/copilot/src/probe.js, adapters/copilot/src/deny-tool-args.js] Copilot hook enforcement carries no version gate. Refused: The probe refuses a version below 1.0.92 · Drop `--deny-tool`. Adopted: as recommended.
+- R-589 [engine/test/guards, engine/stryker.conf.json] The differential fuzz lives beside the guards, outside Stryker. Refused: Under `adapters/copilot/test/` · A review-time script. Adopted: as recommended.
+- R-590 [engine/src/guards/git-destructive-predicate.js, engine/src/guards/shell-git-invocations.js] A dynamic reset or branch argument is blocked. Refused: Block only unquoted dynamic words · Documented residual.
+- R-591 [engine/test/guards] The fuzz git leg is exact only on the pinned git. Refused: Exact match everywhere · Skip the leg unless git is 2.54.x. Adopted: as recommended.
+- R-592 [engine/stryker.conf.json, engine/test/mutation-config.test.js] The fuzz is kept out of Stryker by one extglob pattern. Refused: ADR-589's fallback location · A file name not ending in `.test.js`. Adopted: as recommended.
+- R-593 [engine/src/guards/shell-git-invocations.js, engine/src/guards/git-ext-diff-predicate.js, engine/src/guards/git-destructive-predicate.js] A dynamic word at git's option or subcommand position is blocked. Refused: Block in the destructive predicate only · Keep verb sniffing and document the residual.
+- R-594 [engine/src/guards/shell-git-invocations.js, engine/src/guards/git-destructive-predicate.js, engine/src/guards/git-ext-diff-predicate.js, adapters/copilot/hooks/craft-guard.js] The tokeniser fails closed on unmodelled shell constructs and on excess work. Refused: Model each reported construct precisely · Fix the CRITICAL and HIGH findings, document the rest.
+- R-595 [adapters/copilot/hooks/craft-guard.js, adapters/copilot/src/git-guard-adapter.js, engine/src/guards/git-plain-command-gate.js] Copilot allows git only in plain commands and denies at a deadline. Refused: Deadline plus patching the six classes · Ship as defence-in-depth. Superseded by R-606: the commit idiom is recognised and its body treated as data.
+- R-596 [engine/src/guards/git-plain-command-gate.js] Copilot allows only safe inline git config near git. Refused: Deny-list the command-running keys. Adopted: as recommended.
+- R-597 [test/helpers/commit-signing.js, test/helpers/craft-run.js, test/worktree.test.js] Fixture commits opt out of signing per command. Refused: Pinned hermetic env (`pinnedGitEnv()`) in both wrappers · `--no-gpg-sign` on each commit argv. Adopted: as recommended.
+- R-598 [test/helpers/commit-signing.js, test/craft-run.test.js, test/commit-signing.test.js, test/worktree.test.js] Signing regression proof is per fixture. Refused: A suite-level lane re-running the three suites under the hostile config · Both. Adopted: as recommended.
+- R-599 [adapters/codex/src/execpolicy-rules.js, adapters/codex/bin/trust-hook.js, adapters/codex/src/trust-hook-main.js] The rules integrity check stays on demand. Refused: Wire it into `trust-hook.js`, write mode and `--check` · A dedicated `check-rules` bin.
+- R-600 [adapters/codex/src/execpolicy-rules.js, docs/contributing/specs/codex-poc-record.md, BACKLOG.md] The on-demand choice is recorded on every surface that describes the check. Refused: Minimal · Full record plus a README sentence on running the check.
+- R-601 [adapters/codex/README.md, adapters/codex/craft.rules] `craft.rules` is deployed by copy, never by a file symlink. Refused: Symlink the file to the committed `craft.rules` · Symlink the whole `$CODEX_HOME/rules` directory.
+- R-602 [adapters/codex/README.md] The deployed rules copy is verified with `cmp` against the committed file. Refused: `codex execpolicy check --rules <copy> git push`, read `"decision":"forbidden"` · Both.
+- R-603 [adapters/codex/test/native-surface.test.js] The rules deploy pins are scoped to the *Configure* section, plus a README-wide no-symlink pin. Refused: One whole-README regex on `CODEX_HOME/rules` · Pins sliced to the `## Configure` body.
+- R-604 [docs/contributing/specs/codex-poc-record.md] The 0.162.1 rules deploy observations are recorded in the POC record. Refused: Keep them in the design doc and ADRs only.
+- R-605 [contracts/core.md, engine/test-helpers/contract-markers.js] The core contract teaches a commit form bash 3.2 parses. Refused: Document the workaround only · Teach it in each committing bundle.
+- R-606 [engine/src/guards/git-plain-command-gate.js, adapters/copilot/README.md, docs/contributing/specs/gate.md] Copilot denies the heredoc commit idiom. Refused: Keep accepting it; list the early close as a residual · Accept only bash-3.2-safe bodies.
+- R-607 [contracts/core.md] A message the quoted form cannot carry is committed from a file. Refused: Rephrase the message · Single-quoted `-m '…'`. Adopted: as recommended.
+- R-608 [skills/documentation/SKILL.md] A finding folds when it shares a file or a claim with the change. Refused: Same files · Same claim or behaviour, capped at one file outside the diff.
+- R-609 [skills/documentation/SKILL.md, skills/run/SKILL.md] The fold rule lives in documentation synthesis and the run delivery bullet. Refused: Documentation step 3 only · Option 2 plus one line each in the reviewer and harness-triager agents. Superseded by R-709: the fold rule lives in documentation synthesis and the run delivery bullet.
+- R-610 [docs/contributing/specs/run-record.md, skills/run/SKILL.md] Folded and filed findings carry fixed ledger tokens. Refused: The same tokens documented only in the documentation skill · No tokens; a `Folded:` trailer line in the PR template.
+- R-611 [docs/contributing/specs/run-record.md] The fold tokens are keyed by the finding's file. Refused: The entry's bold title · A slug derived from the title.
+- R-612 [skills/documentation/SKILL.md] A fold may fix prose, source or tests that add no behaviour. Refused: Prose and docs only · Option 2 plus behaviour-adding folds that re-enter review and the harness.
+- R-613 [docs/contributing/specs/run-record.md, skills/documentation/SKILL.md] A finding with no file keys on the run's design doc. Refused: File it as a follow-up · Key on a literal `-`.
+- R-614 [adapters/codex/README.md, adapters/codex/.claude-plugin/marketplace.json, adapters/codex/plugins/craft/plugin.json, adapters/codex/test/native-surface.test.js] Codex loads the shared craft skills through `$CODEX_HOME/skills` symlinks. Refused: Keep by-reference as the decision and wait for codex to stop dropping the reference · Copy the shared skills into the plugin directory. Superseded by R-635: the craft marketplace entry stays declared and native-surface.test.js pins both entries.
+- R-615 [scripts/run-ledger.sh, skills/run/SKILL.md, docs/contributing/specs/run-record.md] `run-ledger.sh append` stamps the time of `PHASE-START` records only. Refused: Stamp every line in a third field, `<run-id> <phase> <iso> <record>` · Stamp every line in the first field, `<iso> <run-id> <phase> <record>`.
+- R-616 [scripts/run-ledger.sh] A `PHASE-START` time supplied by the caller is overwritten, with a stderr note. Refused: Reject with exit 2 and write nothing from that call · Keep both, `<script-iso> claimed=<supplied>`.
+- R-617 [scripts/run-ledger.sh, docs/contributing/specs/run-record.md] `HARNESS-BG` records carry no time. Refused: Add `at=<iso>`, stamped by `append`.
+- R-618 [test/run-ledger.test.js] Ledger clock tests bracket the stamp between the call's start and end. Refused: A fake `date` on PATH in the test · A clock override env var in `run-ledger.sh`.
+- R-619 [skills/run/SKILL.md, engine/src/driver-state.js, docs/contributing/specs/driver.md] A driven run finds its state dir in CRAFT_DRIVER_STATE, one dir per entry with fixed file names. Refused: `CRAFT_DRIVER_STATE` + `CRAFT_DRIVER_ENTRY=<N>` → `entry-<N>.status`, `entry-<N>.next-elected.md` · Two variables naming whole file paths.
+- R-620 [skills/run/SKILL.md, engine/src/driver-state.js] The driver state dir reaches the run through the environment only, no craft flag. Adopted: option 1. Craft reads the state dir from `CRAFT_DRIVER_STATE` at each use and holds nothing in session state, so compaction and resume lose nothing. No craft flag exists for it.
+- R-621 [engine/src/driver-state.js, skills/run/SKILL.md] The election is written as next.md (rationale) and next.prompt (the raw prompt). Refused: One markdown file, strip inside the fence · JSON `{ item, rationale, prompt }`. Adopted: option 1. `next.prompt` holds only the ready-to-paste prompt as raw text; `next.md` holds the rationale and never repeats the prompt.
+- R-622 [engine/src/driver-state.js] An elected prompt carries no --policy flag, whatever its verdict. Refused: Strip only `=always` · Strip all craft flags. Adopted: option 1. The written `next.prompt` contains no `--policy` flag token. Approval is the driver's, per entry; an election never carries it. R-130 stands: `--policy` remains the per-invocation overlay.
+- R-623 [engine/src/driver-state.js] The --policy strip removes bare flag tokens only and refuses a prompt that still holds one. Refused: Every occurrence, quoted or not · Option 1 plus refuse any quoted mention. Adopted: option 1. Strip removes what §0 step 0a's grammar treats as a flag: a bare `--policy` and its following `=`-bearing value, or a single `--policy=…` token, on any line. Prose mentions stay. The strip is idempotent; a bare token left after it is a refusal (exit 3) and the run writes the status without an election.
+- R-624 [skills/run/SKILL.md] FINISHED lands in run §Done after close; BLOCKED lands through a cross-phase stop invariant. Refused: `craft:integrate` final summary · A Stop hook deriving the status from the ledger.
+- R-625 [skills/run/SKILL.md] BLOCKED is written only at a terminal stop; escalations are asked first. Refused: Every blocker writes `BLOCKED` at once · STOPs only. Adopted: option 1. One blocker protocol for attended and driven runs. A driven run still asks; only a stop it cannot continue from writes `BLOCKED`.
+- R-626 [skills/run/SKILL.md, engine/src/driver-state.js] A driven run that did not merge reports BLOCKED integrate: not merged. Refused: `FINISHED <pr>` regardless · A third verb `PROPOSED`. Adopted: option 1. `FINISHED <url>` means merged. Any run reaching §Done without a merge closes its ledger as before and writes `BLOCKED integrate: not merged <pr-or-branch>` with no election.
+- R-627 [skills/workspace/SKILL.md] The workspace phase reaches its worktree by absolute path and never relocates the session. Refused: Craft-side: a bg session creates the worktree under `.claude/worktrees/` and enters it · Driver hook only.
+- R-628 [engine/src/driver-state.js, engine/src/driver-state-main.js, engine/bin/driver-state.js, scripts/driver-state.sh] The driver-state contract is an engine module with a bin and a scripts wrapper. Refused: A bash script with node:test · Prose only. Adopted: option 1. Run-skill prose only calls `scripts/driver-state.sh` (`active`, `finished`, `blocked`); the module owns the grammar and the strip; the main owns argv, env and atomic writes.
+- R-629 [engine/src/driver-state-main.js] An existing status file is never overwritten. Refused: Overwrite atomically. Adopted: option 1. When `status` exists (checked with `lstat`, so a planted symlink counts), the script writes nothing and exits 4; the run surfaces it.
+- R-630 [engine/src/driver-state-main.js] A failed driver-state write exits 5 and never leaves a status behind. Refused: Rethrow, node exits 1. Adopted: option 1. A write failure during `finished` or `blocked` removes its temp file, writes nothing further and exits 5 with the cause on stderr; the run surfaces it and finishes.
+- R-631 [skills/run/SKILL.md] A closed run is rebuilt from the PR state, then re-elects and writes its status. Refused: A closed-run marker in the git common dir · Status (intent) before `close`.
+- R-632 [skills/workspace/SKILL.md, skills/run/SKILL.md] Strategy `in-place` stops at workspace in a Claude Code background session. Refused: Document the limit only. · Fall back to strategy `worktree` in a background session..
+- R-633 [skills/validation/SKILL.md, scripts/worktree-teardown.sh, docs/contributing/specs/vcs.md] The validation run-lock lives in the per-worktree git dir. Refused: Keep the in-tree file and add a `.gitignore` entry · The git common dir, beside the ledger..
+- R-634 [docs/contributing/specs/driver.md] The driver passes `CRAFT_DRIVER_STATE` through `--settings` env, never a launcher export. Refused: A craft flag on the prompt..
+- R-635 [adapters/codex/README.md, adapters/codex/.claude-plugin/marketplace.json, adapters/codex/test/native-surface.test.js, docs/contributing/specs/execution.md] The codex marketplace carries only the `craft-run` entrypoint. Refused: Retire the entry, but record it in a second ADR superseding ADR-614 · Keep the entry declared, with the README saying installing it loads nothing.
+- R-636 [skills/planning/SKILL.md, agents/planner.md, docs/contributing/specs/run-record.md] A planning no-op is declared by the planner and verified sha by sha. Refused: The design's commit plan is fully landed · Auto-skip probe.
+- R-637 [skills/planning/SKILL.md, engine/src/plan-lint-main.js] A planning no-op commits no plan file; plan-lint keeps refusing zero parts. Refused: Zero-part plan file.
+- R-638 [skills/implementation/SKILL.md, skills/run/SKILL.md, docs/contributing/specs/run-record.md] Implementation's no-op counterpart lives in its Preamble and still runs the phase gate. Refused: Procedure branch · Skip the phase gate on a no-op.
+- R-639 [skills/run/SKILL.md] Necessity probes read `<base>...HEAD` after an implementation no-op. Refused: Leave "since implementation".
+- R-640 [engine/src/guards/git-bash-verdict.js, adapters/codex/src/git-guard-adapter.js, adapters/copilot/src/git-guard-adapter.js] Codex and copilot share one git Bash verdict. Refused: Compose locally in codex · Keep `.rules`-only.
+- R-641 [adapters/codex/src/git-guard-adapter.js, adapters/codex/hooks/craft-guard.js, engine/src/guards/git-plain-command-gate.js] Codex takes the plain-command gate without a deadline. Refused: Gate plus a worker-thread deadline · Neither.
+- R-642 [adapters/codex/config.template.toml, adapters/codex/README.md] The codex binding disables tty sessions. Refused: Keep tty, disclose.
+- R-643 [adapters/codex/src/launch-args.js] The codex launch path forces tty off. Refused: Opt-out parameter · Template only.
+- R-644 [adapters/codex/config.template.toml] The codex template holds tty-off in its own features table. Refused: A `[features]` table at the end of the file · A dotted top-level `features.unified_exec_tty = false`.
+- R-645 [adapters/codex/test/config.test.js] The tty-off key is pinned by a line-scoped section scan. Refused: Whole-file regex · External TOML parser subprocess.
+- R-646 [hooks/git-no-ext-diff.sh, engine/src/claude-ext-diff-hook-main.js, engine/bin/claude-ext-diff-verdict.js, docs/contributing/specs/gate.md, README.md] The Claude ext-diff hook delegates its verdict to the engine. Refused: Patch the bash matcher · Node entrypoint replaces the bash hook.
+- R-647 [engine/src/claude-ext-diff-hook-main.js] The Claude ext-diff hook judges the ext-diff rule only. Refused: Full `plainGitCommandVerdict`. Adopted: as recommended.
+- R-648 [engine/src/claude-ext-diff-hook-main.js, test/hooks.test.js] The Claude ext-diff hook denies with the engine reason. Refused: Engine verdict plus the old `sed` rewrite · Source offsets in the tokeniser for a parse-derived rewrite. Adopted: as recommended.
+- R-649 [adapters/copilot/test/git-guard.differential.test.js, engine/test-helpers/plain-gate-generator.js] The copilot fuzz arm runs a strict two-sided census. Refused: False-allow only · Strict, residuals not generated.
+- R-650 [engine/src/guards/git-plain-command-gate.js] The gate blocks callback evaluator builtins in command position. Refused: Add them to SHELL_OR_EVALUATOR_WORDS · Flag-aware `-C` rule. Adopted: as recommended.
+- R-651 [engine/test-helpers/plain-gate-generator.js, engine/test-helpers/git-differential-harness.js] The plain-gate generator lives in engine test helpers. Refused: Extend git-differential-harness.js / cons: past 600 lines, two unrelated generators. · A helper under adapters/copilot/test/ / cons: hides a gate-level tool in one binding.. Adopted: as recommended.
+- R-652 [engine/test-helpers/plain-gate-generator.js, engine/test-helpers/git-differential-harness.js] Run-tree stubs are installed by the arm. Refused: A `withTree(act, { stubs })` option / cons: changes a shared signature for one caller.. Adopted: as recommended.
+- R-653 [adapters/copilot/test/git-guard.differential.test.js] The copilot arm judges in-process through decideGuard. Refused: Also spawn the copilot hook per command / cons: +6 s per seed for transport coverage that exists.. Adopted: as recommended.
+- R-654 [adapters/copilot/README.md, docs/contributing/specs/gate.md, BACKLOG.md] The gate docs state the real rules and residuals. Refused: Fold three, leave the quoted-word entry open / cons: docs and census tags disagree.. Adopted: as recommended.
+- R-655 [pipeline/default.yml, skills/lessons/SKILL.md, engine/src/manifest-vocabulary.js] Lessons are harvested by their own `lessons` phase. Refused: A sub-step of `documentation` synthesis.
+- R-656 [skills/lessons/SKILL.md, templates/pr-body.md] PR review and merge ratify lessons. Refused: A per-draft user checkpoint inside the harvest · Defer drafts to the next run's `decisions` phase.
+- R-657 [engine/src/intention.js, engine/src/manifest.js, skills/run/SKILL.md] `lessons.max_injected` defaults to 3, counted per phase. Refused: 5, per phase · 3, per run.
+- R-658 [engine/src/lesson-lint-main.js, skills/lessons/SKILL.md] Lessons are numbered in their own sequence. Refused: One sequence shared with ADRs.
+- R-659 [engine/src/lesson.js, engine/src/intention.js, skills/run/SKILL.md] A lesson is injected as an index line plus a capped rule. Refused: Keep the 20-line cap · Index line only.
+- R-660 [engine/src/guards/git-ext-diff-predicate.js, engine/src/guards/shell-git-invocations.js] The ext-diff rule denies --ext-diff on any verb and git config alias keys. Refused: (a) `--ext-diff` on any verb · (b-ii) as (b-i), writes only · (c) alias/include writes only.
+- R-661 [engine/test-helpers/git-differential-harness.js, engine/test/guards/shell-git-invocations.differential.test.js] Scale-fuzz false blocks are fixed in the generator, not the predicates. Refused: Exempt by stderr or command regex · Make the oracle wait for process substitutions. Adopted: as recommended.
+- R-662 [engine/src/guards/git-argv.js, engine/src/guards/git-ext-diff-predicate.js, engine/src/guards/shell-git-invocations.js] git show is judged on --ext-diff, not default-denied. Refused: (b) Keep it · (c) Keep it only for older git.
+- R-663 [engine/test-helpers/git-differential-harness.js] The fuzz oracle judges show by the any-verb rule. Refused: Change the oracle only. Adopted: as recommended.
+- R-664 [docs/contributing/specs/copilot-poc-record.md] The write_bash evidence is a numbered PoC row. Refused: Extend row 11's shell-surface sentence · A new "Re-probe — copilot 1.0.98" section.
+- R-665 [docs/contributing/specs/gate.md, adapters/copilot/README.md] The closed write_bash fact joins the existing closed bullets. Refused: Fold it into the cross-call shell-state bullets · A standalone closed bullet in each file.
+- R-666 [docs/contributing/design/copilot-git-argv-normalising-guard.md] The copilot guard design doc stays a dated record. Refused: Append a dated superseded note · Rewrite the two lines in place.
+- R-667 [contracts/harness-read.md, engine/src/findings.js] The reviewer contract names the canonical finding fields. Refused: Teach `normalizeFindings` the `file:line` and `suggested fix` aliases · Both.
+- R-668 [contracts/harness-read.md] The reviewer contract marks fix optional. Refused: `fix`. Adopted: as recommended.
+- R-669 [engine/src/findings.js] JSON findings reject every unknown key. Refused: Reject only the legacy aliases `file:line` and `suggested fix`.
+- R-670 [engine/src/findings.js] A JSON finding line accepts integers and digit strings. Refused: Safe non-negative integer only. Adopted: as recommended.
+- R-671 [engine/src/findings.js] An over-range per-line line number throws a per-line message that echoes the line. Refused: Reuse the JSON message · Reuse the no-match message.
+- R-672 [engine/src/findings.js] The per-line range check runs where per-line errors are thrown, not in parseLine. Refused: `parseLine` returns a tagged result · `parseLine` returns null. Adopted: as recommended.
+- R-673 [engine/src/findings.js] Both finding shapes share one line-number predicate. Refused: Inline `Number.isSafeInteger` at the per-line site. Adopted: as recommended.
+- R-674 [BACKLOG.md, adapters/codex/README.md, docs/contributing/specs/codex-poc-record.md] By-reference shared-skill loading on codex is closed as a standing limitation. Refused: Stays OPEN, re-pinned to 0.163.0, re-check on the next minor · Stays OPEN with a narrower trigger.
+- R-675 [adapters/codex/README.md, adapters/README.md] Codex skill-loading claims carry no bare skill count. Refused: Write 20.
+- R-676 [adapters/codex/src/git-guard-adapter.js, adapters/codex/test/fixtures/pre-tool-use-payload.js, adapters/codex/test/git-guard-adapter.test.js] Codex payload pins name the capture version and the re-confirmation separately. Refused: Re-pin all three to 0.163.0 · Recapture the fixture on 0.163.0.
+- R-677 [docs/contributing/specs/codex-poc-record.md, BACKLOG.md] The codex re-probe records the rebuilt `craft` entry by name and source. Refused: Option 1 plus rewording the 0.144.6 BACKLOG paragraph · Describe only "an entry with an out-of-tree `skills` reference". Adopted: as recommended.
+- R-678 [BACKLOG.md, docs/contributing/specs/gate.md, adapters/codex/README.md] Re-observed codex pins get a dated re-confirmation, unobserved halves keep their pin. Refused: Leave them · Re-pin whole sentences to 0.163.0. Adopted: as recommended.
+- R-679 [docs/contributing/specs/codex-poc-record.md] Signed-in codex re-probe rows get their own subsection under the version section. Refused: Append the rows to the existing table · A new top-level section. Adopted: as recommended.
+- R-680 [docs/contributing/specs/codex-poc-record.md, adapters/codex/README.md, BACKLOG.md] Codex TUI screen observations stay pinned per version and name their driver. Refused: Side by side, each pinned to its version · Drop the 0.162.1 wording from current-state docs. Adopted: as recommended.
+- R-681 [docs/contributing/specs/codex-poc-record.md] The stub-git bypass under a login shell is stated in the batch method, not as a general rule. Refused: Option 1 plus a general rule in the open-rows method note · Design doc only. Adopted: as recommended.
+- R-682 [docs/contributing/specs/codex-poc-record.md] The app-server thread/start trust write is recorded without a guard claim. Refused: Option 1 plus a README Guard bullet · Omit it. Adopted: as recommended.
+- R-683 [BACKLOG.md] The codex rules re-probe gets its own group B lead paragraph. Refused: Append a dated clause to the codex-tui-malformed-rules-probe lead · Only the entry's dated re-probe paragraph. Adopted: as recommended.
+- R-684 [engine/src/guards/shell-tokeniser.js, engine/test-helpers/git-differential-harness.js, engine/test/guards/shell-git-invocations.differential.test.js] A `;` after a heredoc in a substitution body fails closed. Refused: Tag only · Tag, plus a second parse modelling bash 5.3's merged reading.
+- R-685 [engine/test-helpers/git-differential-harness.js] The reprinted-body tag is a text check at the substitution writers. Refused: A structural fragment flag propagated through `sequence`. Adopted: as recommended.
+- R-686 [BACKLOG.md] The bash 5 scale census closes on the versions measured. Refused: Close, plus a trigger-only line to re-run on bash 5.0–5.2 · Keep the entry open until a bash 5.0–5.2 box exists.
+- R-687 [engine/src/guards/shell-tokeniser.js] An arithmetic expansion body is scanned as bash expands it. Refused: Fail closed when the body holds a substitution opener · Tokenise the body as a command list, as `(( … ))` is.
+- R-688 [engine/src/guards/shell-tokeniser.js] A single quote in an arithmetic expansion body fails closed. Refused: Treat `'…'` as a span that hides `)` but is still scanned.
+- R-689 [engine/src/guards/shell-tokeniser.js] A `$((` not closed by `))` is a command substitution. Refused: Fail closed with the unterminated reason.
+- R-690 [engine/src/guards/shell-tokeniser.js] The arithmetic body rule covers `$[ … ]`. Refused: `$(( ))` only · Every arithmetic context.
+- R-691 [engine/src/guards/shell-tokeniser.js] A case pattern that would close a substitution body fails closed. Refused: Model case patterns · File it.
+- R-692 [engine/src/guards/shell-tokeniser.js] bash decides `$((` on a paired body and an unsplit closer. Refused: Re-read an unpaired `))` body as `$( … )`; fail closed on a line continuation inside the opener or closer · Model line continuations and bash's pairing everywhere.
+- R-693 [engine/src/guards/shell-tokeniser.js] A bash 5.3 function substitution fails closed. Refused: Keep modelling, failing closed on `[[`, `case` and `=(` in the body · Model `[[ ]]`, case patterns and array values in the body.
+- R-694 [engine/src/guards/shell-tokeniser.js] A quoted substitution opener in an arithmetic reach fails closed. Refused: Route the bodies through the arithmetic-expansion scanner · Option 1 refusing every quote.
+- R-695 [engine/src/guards/shell-tokeniser.js] A word holding a literal subscript substitution fails closed. Refused: Option 1 only when the line holds `let` or `[[` · Grammar position: `let` arguments and `[[` arithmetic operands.
+- R-696 [engine/src/guards/shell-tokeniser.js, BACKLOG.md] An arithmetic read of a variable gets no data-flow rule. Refused: Bounded data-flow rule · Won't-do for row 57 as a whole.
+- R-697 [engine/src/guards/shell-tokeniser.js] Every quoting spelling of the arithmetic rows is covered. Refused: Cover only the `'…'` spelling.
+- R-698 [engine/src/guards/shell-tokeniser.js] A literal opener joined after a possible dollar fails closed. Refused: Patch each spelling · Ship with the spellings open.
+- R-699 [scripts/run-ledger.sh, docs/contributing/specs/run-record.md] The discovered-impacts store sits next to the run ledger. Refused: Committed on the PR branch · No file: `DEFERRED` ledger lines are the store. Adopted: as recommended.
+- R-700 [skills/run/SKILL.md] Policy decides fold or defer, and a fork goes to the user. Refused: Every impact goes to the user · Policy only; a fork is deferred automatically. Adopted: as recommended.
+- R-701 [agents/impact-triager.md] A dedicated impact-triager agent judges deferred impacts. Refused: A mode of `craft:harness-triager` · Session-owned triage. Adopted: as recommended.
+- R-702 [docs/contributing/specs/backlog.md] Filing a triaged impact is not a backlog port operation. Refused: Widen the port with `file(entry)` · Widen it for `file` sources only.
+- R-703 [pipeline/default.yml, skills/impact-triage/SKILL.md, engine/src/manifest-vocabulary.js] Impact triage is a phase after lessons and before propose. Refused: New phase right after `documentation` · A documentation sub-step.
+- R-704 [docs/contributing/specs/run-record.md, skills/run/SKILL.md] Deferred and triaged impacts carry fixed ledger tokens. Refused: No new tokens; the store holds everything · Retire `FILED`. Adopted: as recommended.
+- R-705 [skills/impact-triage/SKILL.md] The session writes triaged backlog entries. Refused: The triager writes with Edit scoped to the backlog. Adopted: as recommended.
+- R-706 [skills/impact-triage/SKILL.md] Verdicts are shown, then backlog-write policy governs the commit. Refused: Always ask, verdicts flippable · A new `backlog-file` policy action.
+- R-707 [agents/impact-triager.md] An impact proof the triager cannot re-run becomes a spike. Refused: `reject` · Ask the user per entry. Adopted: as recommended.
+- R-708 [contracts/core.md, agents/part-implementer.md] Every spawn reports out-of-perimeter findings as IMPACT lines. Refused: A line in each agent def · Nothing; harvest free-form notes. Adopted: as recommended.
+- R-709 [skills/run/SKILL.md, skills/documentation/SKILL.md] The fold-or-defer rule is a cross-phase invariant. Refused: Keep it in documentation step 3; capture points cite that skill. Adopted: as recommended.
+- R-710 [hooks/progress/register.tsx] Run progress renders as a pane with a status-line summary. Refused: Band above the prompt · Status line only. Superseded by R-718: the pane, its unasked opening, and the /craft-progress command.
+- R-711 [hooks/progress/register.tsx, hooks/progress/bind.ts] Run progress refreshes on host events, gated by the ledger's mtime and size. Refused: Timer poll with the same gate · PostToolUse only when the command text names `run-ledger.sh`. Adopted: as recommended.
+- R-712 [hooks/hooks.json, hooks/progress/register.tsx] The run-progress mod ships inside the craft plugin. Refused: A separate plugin dir listed in the marketplace · User-local mods folder.
+- R-713 [engine/src/run-progress.js] Run progress has no host port. Refused: A `Progress` port spec with "none" rows for other hosts · Port spec plus a pi TUI binding now.
+- R-714 [skills/run/SKILL.md, docs/contributing/specs/run-record.md, engine/src/run-progress.js] The ledger seeds an EFFECTIVE phase list. Refused: Re-resolve from `RESOLVE:` per refresh · Ledger-only: list phases the ledger has named.
+- R-715 [hooks/progress/bind.ts] "Waiting on you" derives from host events. Refused: An `ASK`/`ANSWERED` token pair · No distinct status.
+- R-716 [engine/src/run-progress.js] Implementation children are landed PART lines only. Refused: Read the plan doc · A seeded `PLAN: <n>` token. Adopted: as recommended.
+- R-717 [hooks/progress/bind.ts] The mod binds a session to its run through locate --transcript. Refused: Parse the run-key from `open`'s stdout · `locate --run` on a run-id from the command text. Adopted: as recommended.
+- R-718 [hooks/progress/register.tsx, hooks/progress/bind.ts] Run progress renders in the status line only. Refused: Keep the pane, open it only on `/craft-progress` · Band above the prompt.
+- R-719 [hooks/progress/bind.ts] The status line fits a fixed 80-cell budget. Refused: Live width · The same width, applied at the next tool call or turn.
+- R-720 [hooks/progress/bind.ts] A run with no pipeline list keeps the old status line. Refused: Unknown total · Seen total.
+- R-721 [skills/decisions/SKILL.md, .claude/workflow.md] The doctrine file resolves from paths.doctrine, default docs/DOCTRINE.md. Refused: Same knob plus a repo-relative shape check · No knob, `<adr-dir>/../DOCTRINE.md`. Adopted: R-106. The doctrine path is `paths.doctrine`, else `docs/DOCTRINE.md`; an absent file means no entries. craft's own manifest sets `docs/contributing/DOCTRINE.md`.
+- R-722 [skills/decisions/SKILL.md] The decisions phase reads the doctrine file whole. Refused: Join the living pages with `subjects:`. Adopted: R-351. The decisions phase reads the doctrine file whole at step 1. It is not a living page and does not enter the intention hint.
+- R-723 [engine/src/doctrine.js, engine/src/doctrine-lint-main.js, scripts/static-lints.sh] doctrine-lint checks entry shape and that every cited ADR resolves live. Refused: Prose rule only · A check inside adr-lint. Adopted: R-353. A `doctrine-lint` bin fails (exit 2) on a malformed heading, missing or misordered bullets, an evidence or counter-case `ADR-NNN` that does not resolve or is superseded, empty evidence, or a `DOCTRINE(D-<digits>)` in an ADR naming no entry. Superseded by R-732: the citation form and its target: doctrine cites R-NNN register ids, resolved against the register file instead of ADR files.
+- R-724 [docs/contributing/DOCTRINE.md] The doctrine seed is ratified as a batch at the decisions phase. Refused: Seed only entries backed by an against-recommendation ruling, plus D-1 · The part clusters freely; review at PR.
+- R-725 [skills/decisions/SKILL.md] A ruling that matches the recommendation is harvested only when uncovered and general. Refused: Draft for every ruling · Never. Adopted: the brief's goal of asking rarely. A matching ruling is drafted only when no doctrine entry covers its rationale and that rationale applies beyond the candidate. A ruling against the recommendation or against an entry is always drafted.
+- R-726 [skills/decisions/SKILL.md, docs/contributing/specs/run-record.md] A harvested entry lands in its own docs(doctrine) commit with a DOCTRINE-HARVEST line. Refused: Doctrine edit inside the ADR commit, no token. Adopted: R-357. Each escalated ruling records exactly one `DOCTRINE-HARVEST(<candidate>): D-<n> added | D-<n> amended | declined — <reason> | none — covered by D-<n> | none — one-off` line. An accepted entry is committed alone as `docs(doctrine): D-<n> <title>` after its evidence ADR.
+- R-727 [skills/decisions/SKILL.md] decisions escalates only on conflict, irreversibility, or an uncovered trade-off. Refused: Keep ADR-433; add doctrine as an alignment source only.
+- R-728 [templates/pr-body.md, skills/documentation/SKILL.md] The PR body splits ratified from adopted decisions, read from the ADRs. Refused: A new `ADOPTED(ADR-NNN):` run-record token. Adopted: no trade-off. `templates/pr-body.md`'s Decisions line reads `ratified: ADR-### …; adopted: ADR-### (<basis>) …; or none`, derived from the `adopted-as-recommended` marker and its `— <basis>` suffix. Superseded by R-730: the PR body's source: ratified and adopted decisions are read from register lines, not ADR files.
+- R-729 [evals/decisions-adopts-covered-tradeoff/] The covered-trade-off eval pairs byte-for-byte with decisions-escalates-fork. Refused: An aligning ADR only · Both. Adopted: no trade-off. `evals/decisions-adopts-covered-tradeoff/` copies `decisions-escalates-fork`, adds `docs/DOCTRINE.md` (D-1) and R-002, and grades that the reply adopts without asking and cites `DOCTRINE(D-1)`. It runs locally as a maintainer smoke, never in CI.
+- R-730 [skills/decisions/SKILL.md, docs/contributing/adr, templates/adr.md, templates/pr-body.md, scripts/adr-lint.sh, engine/src/adr-lint-main.js, scripts/ci.sh] Decision memory is doctrine plus a rulings register; the ADR corpus retires in this change. Refused: Introduce and wire the register only; ADRs stay authoritative and are still written · Option 2 minus deleting the ADR files.
+- R-731 [docs/contributing/adr, templates/adr.md] Retired ADR files are deleted; git history keeps them. Refused: Move them to `docs/contributing/archive/adr/`, frozen · Leave them in place, frozen.
+- R-732 [docs/contributing/DOCTRINE.md, engine/src/doctrine.js, engine/src/doctrine-lint-main.js] Register ids reuse the ADR numbers with an `R-` prefix. Refused: Reuse the numbers and keep the `ADR-` prefix · Renumber the live lines densely.
+- R-733 [docs/contributing/RULINGS.md, engine/src/rulings.js] Path-less rulings stay an unsliced tail. Refused: Backfill paths from the commit that added each ADR · Backfill by agents reading the ADRs. Adopted: DOCTRINE(D-14). Option 1: the measurement picked the route.
+- R-734 [skills/decisions/SKILL.md, docs/contributing/specs/run-record.md, engine/src/rulings.js] A reversed ruling keeps its line, marked `Superseded by R-M: <scope>.`. Refused: Edit the line in place, the old statement moved into its refused list · Delete the old line.
+- R-735 [engine/src/adr-lint-main.js, engine/src/manifest.js, engine/src/manifest-vocabulary.js, docs/contributing/specs/run-record.md, docs/guides/customizing.md, scripts/ci.sh] The whole-tree citation sweep, its waiver and `adr.frozen` retire. Refused: Port C3 into `rulings-lint` with the waiver and a renamed knob · Port C3 without waiver or knob.
+- R-736 [docs/contributing/RULINGS.md, engine/src/rulings.js, engine/src/rulings-lint-main.js, engine/bin/rulings-lint.js, scripts/static-lints.sh, .claude/workflow.md] The register is one file with a fixed line grammar, gated by `rulings-lint`. Refused: Several files, by area or by hundred · A data file plus a rendered markdown view. Adopted: DOCTRINE(D-11), DOCTRINE(D-14). Option 1: one home for the rulings, one parser (`engine/src/rulings.js`) shared by the lint, the hint, the migration and `doctrine-lint`; the separator was picked by measurement.
+- R-737 [templates/design.md, agents/designer.md] Design docs keep their Decision-candidates table. Refused: Drop it in favour of the register. Adopted: no trade-off: the register keeps only the outcome, the table is the input that produces it.
+- R-738 [docs/contributing/DOCTRINE.md] The security-reporting-channel ruling stays a one-off. Refused: Draft a doctrine entry from it · Leave it unaddressed. Adopted: no trade-off: the harvest rule drafts doctrine only when a ruling's rationale reaches beyond its candidate, and a similar new case still escalates.
+- R-739 [engine/src/rulings-hint-main.js, engine/bin/rulings-hint.js, engine/src/intention.js, scripts/governing-corpus.sh, skills/run/SKILL.md, docs/contributing/specs/intention.md] The rulings slice reaches the phases through a `rulings-hint` bin. Refused: Keep `consult`'s governing lane, its source switched to register lines. Adopted: no trade-off: option 2 is strictly worse for planning. Lines print verbatim, superseded and rejected ones with their status, uncapped; path-less lines are counted, never sliced.
+- R-740 [engine/bin/rulings-migrate.js, engine/src/manifest.js, CHANGELOG.md, docs/guides/customizing.md] Consumer repos take the register as a breaking change. Refused: Dual mode: ADR behaviour kept when `paths.adr` is set and no register exists · Craft-only: consumers keep ADRs.
+- R-741 [engine/src/rulings-migrate-main.js, engine/bin/rulings-migrate.js] Migration refuses until every suspect chosen option is tabled. Refused: Refused lists only on adopted ADRs and table entries · Recommended marker plus the 11-entry table. Adopted: DOCTRINE(D-1). Option 1: an input the script cannot map is refused, not guessed.
+- R-742 [docs/contributing/adr, docs/contributing/RULINGS.md] This change's own rulings land as ADRs, then migrate with the corpus. Refused: Direct register lines, the decisions phase overridden by hand. Adopted: no trade-off: option 2 cannot be gated. A ruling settled after the ADR files are deleted is written straight into the register.

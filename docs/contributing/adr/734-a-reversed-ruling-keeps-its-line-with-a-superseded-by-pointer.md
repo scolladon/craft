@@ -5,7 +5,7 @@ subjects:
   - engine/src/rulings.js
 supersedes:
   - adr: "353"
-    scope: "where supersession is declared: a ' Superseded by R-M: <scope>.' segment on the superseded register line replaces the supersedes frontmatter"
+    scope: "where supersession is declared: a superseded-by segment on the superseded register line replaces the supersedes frontmatter"
   - adr: "354"
     scope: "the two required body anchors: a register line has no body; the scope travels on the superseded line"
 ---

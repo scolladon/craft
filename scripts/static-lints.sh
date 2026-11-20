@@ -14,5 +14,6 @@ bash scripts/docs-structure-lint.sh docs/contributing
 bash scripts/docs-structure-lint.sh docs/guides
 bash scripts/docs-structure-lint.sh --audience docs
 node engine/bin/lesson-lint.js docs/contributing/lessons
+node engine/bin/rulings-lint.js docs/contributing/RULINGS.md
 node engine/bin/doctrine-lint.js docs/contributing/DOCTRINE.md docs/contributing/adr
 bash scripts/sync-adapter-agents.sh --check
