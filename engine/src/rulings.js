@@ -163,3 +163,64 @@ export function sliceRulings(rulings, touched) {
     pathless: rulings.filter((ruling) => ruling.paths.length === 0).length,
   };
 }
+
+const SAFE_PATH_BREAKERS = /[\s,[\]]/;
+const BASIS_RULING_REF = /R-(\d{3,})/g;
+
+const finding = (ruling, message) => ({ line: ruling.line, message });
+
+function orderFindings(rulings) {
+  const seen = new Set();
+  const findings = [];
+  rulings.forEach((ruling, i) => {
+    if (seen.has(ruling.id)) findings.push(finding(ruling, `duplicate id ${formatId(ruling.id)}`));
+    else if (i > 0 && ruling.id < rulings[i - 1].id) findings.push(finding(ruling, `${formatId(ruling.id)} out of order`));
+    seen.add(ruling.id);
+  });
+  return findings;
+}
+
+const isUnsafePath = (path) =>
+  path.startsWith('/') || path.startsWith('~') || path.split('/').includes('..') || SAFE_PATH_BREAKERS.test(path);
+
+const pathFindings = (ruling) => ruling.paths.filter(isUnsafePath).map((path) =>
+  finding(ruling, `path "${path}" must be repo-relative, without whitespace, "..", "~", "," or brackets`));
+
+function supersessionProblem(ruling, byId) {
+  const target = byId.get(ruling.status.by);
+  const name = formatId(ruling.status.by);
+  if (!target) return `superseded by ${name} which has no line`;
+  if (ruling.status.by <= ruling.id) return `superseded by ${name} which is not a later ruling`;
+  if (target.status?.kind === 'superseded') return `superseded by ${name} which is itself superseded`;
+  return null;
+}
+
+function supersessionFindings(ruling, byId) {
+  if (ruling.status?.kind !== 'superseded') return [];
+  const problem = supersessionProblem(ruling, byId);
+  return problem ? [finding(ruling, problem)] : [];
+}
+
+function basisFindings(ruling, byId) {
+  if (ruling.adopted === null) return [];
+  return [...ruling.adopted.matchAll(BASIS_RULING_REF)]
+    .filter((match) => !byId.has(Number(match[1])))
+    .map((match) => finding(ruling, `adoption basis names R-${match[1]} which has no line`));
+}
+
+/**
+ * Whole-register checks: form, order, paths, supersession and adoption references.
+ * @param {string} content
+ * @returns {{ line: number, message: string }[]}
+ */
+export function registerFindings(content) {
+  const { rulings, errors } = parseRegister(content);
+  const byId = new Map(rulings.map((ruling) => [ruling.id, ruling]));
+  const semantic = [
+    ...orderFindings(rulings),
+    ...rulings.flatMap(pathFindings),
+    ...rulings.flatMap((ruling) => supersessionFindings(ruling, byId)),
+    ...rulings.flatMap((ruling) => basisFindings(ruling, byId)),
+  ];
+  return [...errors, ...semantic].sort((a, b) => a.line - b.line);
+}
