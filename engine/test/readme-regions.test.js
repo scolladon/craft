@@ -368,3 +368,19 @@ test('Given a counted link that targets a file rather than a directory, when ext
 
   assert.deepEqual(result.corpusClaims, []);
 });
+
+test('Given a counted link targeting the rulings register, when extractReadmeRegions runs, then it yields a rulings claim', () => {
+  const sut = extractReadmeRegions;
+
+  const result = sut('see [3 rulings](docs/contributing/RULINGS.md)');
+
+  assert.deepEqual(result.rulingsClaims, [{ file: 'docs/contributing/RULINGS.md', claimed: 3 }]);
+});
+
+test('Given a counted link targeting another file, when extractReadmeRegions runs, then it is not read as a rulings claim', () => {
+  const sut = extractReadmeRegions;
+
+  const result = sut('see [27 runs](docs/contributing/metrics-baseline.report.json)');
+
+  assert.deepEqual(result.rulingsClaims, []);
+});

@@ -455,3 +455,40 @@ test('Given a claimed directory that does not exist in the tree, when main runs,
   assert.equal(result, 1);
   assert.match(stdout(), /corpus-counts: unusable input/);
 });
+
+// ─── rulings counts ──────────────────────────────────────────────────────────
+
+const RULINGS_FILE = 'docs/contributing/RULINGS.md';
+
+function registerOf(count) {
+  const lines = Array.from({ length: count }, (_, i) => `- R-${String(i + 1).padStart(3, '0')} [**] Rule ${i + 1}.`);
+  return ['# Rulings', '', ...lines, ''].join('\n');
+}
+
+function withRegisterFixture(claimed, held, run) {
+  const readme = [CLEAN_README, '', `[${claimed} rulings](${RULINGS_FILE})`, ''].join('\n');
+  return withFixtureRoot({ readme }, (root) => {
+    writeFileSync(join(root, RULINGS_FILE), registerOf(held));
+    return run(root);
+  });
+}
+
+test('Given a rulings claim that matches the register, when main runs, then it returns 0 and writes no finding', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+
+  const result = withRegisterFixture(3, 3, (root) => sut([root], io));
+
+  assert.equal(result, 0);
+  assert.equal(stdout(), '');
+});
+
+test('Given a rulings claim off by one from the register, when main runs, then it returns 1 and names both counts', () => {
+  const sut = main;
+  const { io, stdout } = captureIo();
+
+  const result = withRegisterFixture(4, 3, (root) => sut([root], io));
+
+  assert.equal(result, 1);
+  assert.match(stdout(), /rulings-counts: docs\/contributing\/RULINGS\.md claims 4, register holds 3/);
+});

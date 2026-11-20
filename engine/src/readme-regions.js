@@ -32,6 +32,10 @@ const MIN_PATTERN = /(half an hour|under \d+ minutes)/;
 // are checked — adding a counted directory link is enough to put it under guard.
 const CORPUS_CLAIM = /\[(\d+)\s[^\]]*\]\((docs\/[^)]*\/)\)/g;
 
+// A rulings claim counts lines of one register file, not files of a directory, so it
+// is a separate shape: a counted label and a target ending in RULINGS.md.
+const RULINGS_CLAIM = /\[(\d+)\s[^\]]*\]\(([^)\s]*RULINGS\.md)\)/g;
+
 /**
  * Extract the five README drift-guard regions from a README string (or any
  * fragment containing them).
@@ -43,6 +47,7 @@ const CORPUS_CLAIM = /\[(\d+)\s[^\]]*\]\((docs\/[^)]*\/)\)/g;
  *   timelinePhases: string[],
  *   costClaims: {runCount: string|null, median: string|null, min: string|null, max: string|null},
  *   corpusClaims: Array<{dir: string, claimed: number}>,
+ *   rulingsClaims: Array<{file: string, claimed: number}>,
  * }}
  */
 export function extractReadmeRegions(readme) {
@@ -52,6 +57,7 @@ export function extractReadmeRegions(readme) {
     timelinePhases: extractTimelinePhases(extractFencedBlocks(readme, TIMELINE_INFO_STRING)[0]),
     costClaims: extractCostClaims(readme),
     corpusClaims: extractCorpusClaims(readme),
+    rulingsClaims: extractRulingsClaims(readme),
   };
 }
 
@@ -63,6 +69,18 @@ export function extractReadmeRegions(readme) {
 function extractCorpusClaims(readme) {
   return [...readme.matchAll(CORPUS_CLAIM)].map((match) => ({
     dir: match[2],
+    claimed: Number(match[1]),
+  }));
+}
+
+/**
+ * Every counted link to the rulings register, in document order.
+ * @param {string} readme
+ * @returns {Array<{file: string, claimed: number}>}
+ */
+function extractRulingsClaims(readme) {
+  return [...readme.matchAll(RULINGS_CLAIM)].map((match) => ({
+    file: match[2],
     claimed: Number(match[1]),
   }));
 }
