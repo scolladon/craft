@@ -5,9 +5,11 @@ subjects:
 ---
 # 353 — Supersession declares itself in ADR frontmatter
 
-- **Status:** accepted — adopted-as-recommended (no user judgment)
+- **Status:** superseded by ADR-734
 - **Date:** 2026-08-18
 - **Design:** docs/contributing/design/decision-drift-propagation.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-734** for where supersession is declared: a ' Superseded by R-M: <scope>.' segment on the superseded register line replaces the supersedes frontmatter.
 
 ## Context
 

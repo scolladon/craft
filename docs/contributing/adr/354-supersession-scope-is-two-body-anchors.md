@@ -5,9 +5,11 @@ subjects:
 ---
 # 354 — Supersession scope is two required body anchors
 
-- **Status:** accepted
+- **Status:** superseded by ADR-734
 - **Date:** 2026-08-18
 - **Design:** docs/contributing/design/decision-drift-propagation.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-734** for the two required body anchors: a register line has no body; the scope travels on the superseded line.
 
 ## Context
 
