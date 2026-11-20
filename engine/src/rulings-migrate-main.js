@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { load } from 'js-yaml';
 import { extractFrontmatter } from './frontmatter.js';
 import { parseSubjects } from './intention-subjects.js';
-import { REGISTER_HEADER, formatRulingLine, parseRulingLine, registerFindings } from './rulings.js';
+import { REGISTER_HEADER, formatId, formatRulingLine, parseRulingLine, registerFindings } from './rulings.js';
 import { safeLabel } from './cli-io.js';
 
 const EXIT_OK = 0;
@@ -48,16 +48,16 @@ const NAMED_OPTION = /(recommended )?option (\d+)/gi;
 const DEVIATION = /deviat|against the [^.]*recommendation/i;
 const SUSPECT_REASON = 'suspect chosen option — add a --chosen entry';
 const NONE = 'none';
-const ID_WIDTH = 3;
 const SUPERSEDED_STATUS = /^superseded by ADR-(\d{3,})/;
 const REJECTED_STATUS = /^rejected — (.+)$/;
 
 const LINK_TARGET = /\]\(((?:[\w.-]+\/)*)adr\/\d{3,}-[\w-]+\.md(?:#[^)\s]*)?\)/g;
-const BARE_PATH = /(?<![\w.-])(?:[\w.-]+\/)*adr\/(\d{3,})-[\w-]+\.md(?::\d+)?/g;
+const PATH_TOKEN = /(?<![\w.\/-])[\w.\/-]+\.md(?::\d+)?/g;
+const ADR_PATH = /^(?:[\w.-]+\/)*adr\/(\d{3,})-[\w-]+\.md(?::\d+)?$/;
 const ADR_ID = /\bADR-(\d{3,})\b/g;
 const CITE_RULES = [
   [LINK_TARGET, ']($1RULINGS.md)'],
-  [BARE_PATH, 'R-$1'],
+  [PATH_TOKEN, (match) => (ADR_PATH.test(match) ? match.replace(ADR_PATH, 'R-$1') : undefined)],
   [ADR_ID, 'R-$1'],
 ];
 
@@ -334,6 +334,14 @@ function listAdrs(dir, deps) {
     .sort((a, b) => a.id - b.id || a.name.localeCompare(b.name));
 }
 
+function listAdrsSafely(dir, label, deps) {
+  try {
+    return { adrs: listAdrs(dir, deps) };
+  } catch (error) {
+    return refuse(`cannot read ${label}: ${error.message}`);
+  }
+}
+
 function deriveAll(adrs, dir, entries, deps) {
   const seen = new Set();
   const docs = new Map(adrs.map((adr) => [adr.id, deps.readFile(resolve(dir, adr.name))]));
@@ -367,14 +375,14 @@ function parseArgs(argv) {
 }
 
 function fail(io, message) {
-  io.stderr.write(`${PREFIX}: ${message}\n`);
+  io.stderr.write(`${PREFIX}: ${safeLabel(message)}\n`);
   return EXIT_INVALID;
 }
 
 const SOURCES = ['table', 'chosen-marker', 'adopted', 'recommended', 'none'];
 const NO_IDS = '(none)';
 
-const idList = (results) => (results.length ? results.map((r) => `R-${String(r.ruling.id).padStart(ID_WIDTH, '0')}`).join(', ') : NO_IDS);
+const idList = (results) => (results.length ? results.map((r) => formatId(r.ruling.id)).join(', ') : NO_IDS);
 
 function writeSummary(results, io) {
   const counts = SOURCES.map((source) => `${source}=${results.filter((r) => r.source === source).length}`);
@@ -398,8 +406,10 @@ function rewriteCitations(text) {
   let rewrites = 0;
   const content = CITE_RULES.reduce(
     (acc, [pattern, replacement]) => acc.replace(pattern, (...m) => {
+      const replaced = typeof replacement === 'string' ? replacement.replace(/\$(\d)/g, (_, i) => m[Number(i)]) : replacement(...m);
+      if (replaced === undefined) return m[0];
       rewrites += 1;
-      return replacement.replace(/\$(\d)/g, (_, i) => m[Number(i)]);
+      return replaced;
     }),
     text,
   );
@@ -448,7 +458,9 @@ export function main(argv, io, deps = {}) {
   const table = args.chosen === null ? { entries: new Map() } : parseTable(args.chosen, resolved);
   if (table.reason) return fail(io, table.reason);
   const dir = resolve(resolved.cwd(), args.dir);
-  const adrs = listAdrs(dir, resolved);
+  const listed = listAdrsSafely(dir, args.dir, resolved);
+  if (listed.reason) return fail(io, listed.reason);
+  const adrs = listed.adrs;
   const unknown = [...table.entries.keys()].find((id) => !adrs.some((a) => a.id === id));
   if (unknown !== undefined) return fail(io, `--chosen names unknown id ${unknown}`);
   return report(selfCheck(deriveAll(adrs, dir, table.entries, resolved)), io);

@@ -114,7 +114,7 @@ export function parseRulingLine(line, lineNo) {
 }
 
 const ID_WIDTH = 3;
-const formatId = (id) => `R-${String(id).padStart(ID_WIDTH, '0')}`;
+export const formatId = (id) => `R-${String(id).padStart(ID_WIDTH, '0')}`;
 
 function formatStatus(status) {
   if (status === null) return '';

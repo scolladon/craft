@@ -587,17 +587,69 @@ test('Given option items wrapped over several lines with the marker on a continu
   assert.equal(result.out, line('- R-901 [] Title 901. Refused: Any phase that reads an ADR backfills it.'));
 });
 
-const unstarred = (title, marker) => test(`Given the unstarred marker ${title}, when register runs, then the option is recommended`, () => {
+const RECOMMENDED_FORMS = [
+  '*(recommended)*',
+  '(recommended)',
+  "(designer's recommendation)",
+  '(designer recommendation)',
+  "*(designer's recommendation)*",
+  '*(designer recommendation)*',
+  '*(designer recommended)*',
+  '*(recommended by the design)*',
+  '*(recommendation)*',
+  '*(design recommendation)*',
+];
+const CHOSEN_FORMS = ['*(chosen)*', '*(user choice)*', "*(user's choice)*"];
+
+for (const marker of RECOMMENDED_FORMS) {
+  test(`Given the recommended marker ${marker}, when register runs, then the option is recommended`, () => {
+    const sut = run;
+    const options = [`1. **Alpha** ${marker} — a`, '2. **Beta** — b'];
+
+    const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+    assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta.'));
+  });
+}
+
+for (const marker of CHOSEN_FORMS) {
+  test(`Given the chosen marker ${marker} on the second option, when register runs, then the first option is refused`, () => {
+    const sut = run;
+    const options = ['1. **Alpha** *(recommended)* — a', `2. **Beta** ${marker} — b`];
+
+    const result = sut({ '901-a.md': adr({ id: 901, options }) });
+
+    assert.equal(result.out, line('- R-901 [] Title 901. Refused: Alpha.'));
+  });
+}
+
+test('Given a lead deviating from the design recommendation, when register runs, then it is a suspect needing a table entry', () => {
   const sut = run;
-  const options = [`1. **Alpha** ${marker} — a`, '2. **Beta** — b'];
+  const decision = ['We went against the design recommendation.'];
 
-  const result = sut({ '901-a.md': adr({ id: 901, options }) });
+  const result = sut({ '901-a.md': adr({ id: 901, options: TWO_OPTIONS, decision }) });
 
-  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Beta.'));
+  assert.equal(result.code, 2);
+  assert.match(result.err, /refuse 901: suspect chosen option/);
 });
 
-unstarred('designer recommendation with possessive', "(designer's recommendation)");
-unstarred('designer recommendation', '(designer recommendation)');
+test('Given a lead naming the recommended option while another is not, when register runs, then it is not a suspect', () => {
+  const sut = run;
+  const decision = ['We take the recommended option 1.'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options: TWO_OPTIONS, decision }) });
+
+  assert.equal(result.code, 0);
+});
+
+test('Given a lead naming recommended option 2 while option 1 is marked recommended, when register runs, then it is not a suspect', () => {
+  const sut = run;
+  const decision = ['We take recommended option 2.'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options: TWO_OPTIONS, decision }) });
+
+  assert.equal(result.code, 0);
+});
 
 test('Given an adopted lead with the period inside the bold, when register runs, then it is adopted with its basis', () => {
   const sut = run;
@@ -712,4 +764,108 @@ test('Given a supersession scope citing an id, when register runs, then the scop
   const result = sut(files);
 
   assert.equal(result.out, line('- R-901 [] Title 901. Superseded by R-902: the part R-903 kept.\n- R-902 [] Title 902.\n- R-903 [] Title 903.'));
+});
+
+test('Given a successor listing two supersedes entries, when register runs, then the entry for the superseded id supplies the scope', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }),
+    '902-b.md': adr({ id: 902, frontmatter: supersedes(['900', 'scope nine hundred'], ['901', 'scope nine oh one']) }),
+  };
+
+  const result = sut(files);
+
+  assert.match(result.out, /- R-901 \[\] Title 901\. Superseded by R-902: scope nine oh one\.\n/);
+});
+
+test('Given an ADR entry that is not a regular file, when register runs, then it is absent from the output', () => {
+  const io = makeCaptureIo();
+  const tree = { '901-a.md': adr({ id: 901 }), '902-b.md': adr({ id: 902 }) };
+  const deps = {
+    cwd: () => '/work',
+    listDir: () => Object.keys(tree),
+    readFile: (p) => tree[p.split('/').pop()],
+    isRegularEntry: (p) => !p.endsWith('902-b.md'),
+  };
+
+  const code = main(['register', 'adr'], io, deps);
+
+  assert.equal(code, 0);
+  assert.equal(io.stdout.joined(), line('- R-901 [] Title 901.'));
+  assert.match(io.stderr.joined(), /chosen table=0 chosen-marker=0 adopted=0 recommended=0 none=1\n/);
+});
+
+test('Given a three-node supersession cycle, when register runs, then it refuses with a cycle reason', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }),
+    '902-b.md': adr({ id: 902, status: 'superseded by ADR-903' }),
+    '903-c.md': adr({ id: 903, status: 'superseded by ADR-902' }),
+  };
+
+  const result = sut(files);
+
+  assert.equal(result.code, 2);
+  assert.match(result.err, /refuse 901: supersession cycle/);
+});
+
+test('Given a chain whose direct successor carries no scope entry, when register runs, then the fallback names the direct successor', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }),
+    '902-b.md': adr({ id: 902, status: 'superseded by ADR-903' }),
+    '903-c.md': adr({ id: 903 }),
+  };
+
+  const result = sut(files);
+
+  assert.match(result.out, /- R-901 \[\] Title 901\. Superseded by R-903: see R-902\.\n/);
+});
+
+test('Given a rejection reason citing an ADR id, when register runs, then the reason cites the ruling id', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901, status: 'rejected — replaced by ADR-905.' }), '905-e.md': adr({ id: 905 }) });
+
+  assert.match(result.out, /- R-901 \[\] Title 901\. Rejected: replaced by R-905\.\n/);
+});
+
+test('Given a missing ADR directory, when register runs, then it exits 2 with a prefixed message', () => {
+  const io = makeCaptureIo();
+  const deps = { cwd: () => '/work', listDir: () => { throw new Error('ENOENT: no such directory'); } };
+
+  const code = main(['register', 'nowhere'], io, deps);
+
+  assert.equal(code, 2);
+  assert.match(io.stderr.joined(), /^rulings-migrate: cannot read nowhere: ENOENT/);
+});
+
+test('Given a --chosen path holding a control character, when it cannot be read, then the message escapes it', () => {
+  const io = makeCaptureIo();
+  const deps = { cwd: () => '/work', listDir: () => [], readFile: () => { throw new Error('ENOENT'); } };
+
+  const code = main(['register', 'adr', '--chosen', 'a\u001b[31m.json'], io, deps);
+
+  assert.equal(code, 2);
+  assert.equal(io.stderr.joined().includes('\u001b'), false);
+  assert.match(io.stderr.joined(), /a\\x1b\[31m\.json/);
+});
+
+test('Given a very long slash-separated token, when cite runs, then it completes and leaves the text unchanged', () => {
+  const sut = runCite;
+  const text = `${'a/'.repeat(20000)}\n`;
+
+  const result = sut({ 'a.md': text });
+
+  assert.equal(result.code, 0);
+  assert.deepEqual(result.written, {});
+});
+
+test('Given bare paths with a near-miss prefix or suffix, when cite runs, then only the well-formed one is rewritten', () => {
+  const sut = runCite;
+  const text = 'x-adr/901-a.md y/adr/901-a.md:7 adr/12-a.md\n';
+
+  const result = sut({ 'a.md': text });
+
+  assert.equal(result.written['a.md'], 'x-adr/901-a.md R-901 adr/12-a.md\n');
 });
