@@ -94,11 +94,7 @@ Input: `$ARGUMENTS`
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
     the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
     procedure. With no `intention:` manifest key, probe the zero-config corpus — the living pages
-    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`)
-    plus the resolved ADR directory for the governing lane — where
-    `scripts/governing-corpus.sh` emits only the decision records that carry a line-1
-    frontmatter fence, so the lane's READ is bounded to the records that opted in rather
-    than the whole corpus, and an empty governing lane is normal, not an error;
+    (`docs/contributing/specs/*.md`, `docs/contributing/prd/DESIGN-*.md`, `docs/contributing/DOD.md`, `docs/guides/customizing.md`);
     hold the single `IntentionView` in-session beside the run record for the duration of
     this run. A cold or absent corpus yields an empty view and records a load no-op —
     **never a blocker** (advisory). This view is **not** carried in the `MemoryView` — a
@@ -322,6 +318,19 @@ Walk each phase descriptor in `Resolution.effective[]` order. For each phase:
    intersect the phase's touched set. If the slice is non-empty, prepend it into the SAME
    slot-1 prepend, alongside the memory hint — no second injection surface. An empty slice
    means the phase runs its own probes. See `docs/contributing/specs/intention.md`.
+
+   **Rulings hint (advisory).** For the `design`, `decisions` and `planning` phases only, build
+   the hint with one call (`<rulings-file>` = `paths.rulings`, else `docs/RULINGS.md`), the phase
+   touched set on stdin:
+
+   ```
+   git diff --name-only <base>...HEAD | node "${CRAFT_ROOT:-${CLAUDE_PLUGIN_ROOT}}/engine/bin/rulings-hint.js" --register "<rulings-file>"
+   ```
+
+   Append the brief path (`design`) or the design doc path (`decisions`, `planning`) to stdin.
+   Prepend non-empty output into the SAME slot-1 prepend. It reads the working tree, so
+   `planning` sees the lines this run's `decisions` phase committed. A proposal that re-opens a
+   listed ruling escalates.
 
    **Lessons hint (advisory).** At **every** phase entry, build the hint with one call
    (`<lessons-dir>` = `paths.lessons`, else `docs/lessons/`), the phase touched set on stdin:

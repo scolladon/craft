@@ -1,24 +1,21 @@
 #!/usr/bin/env bash
-# craft — single source of truth for the intention port's governing corpus
-# (decision records: the ADR directory passed as $1). Sibling of
-# scripts/living-corpus.sh, which enumerates the living pages; this script
-# enumerates the governing (ADR) lane instead — consult's caller is the run
-# skill's §1c-int, exactly as living-corpus.sh's already is.
+# craft — fenced-record enumerator. Sibling of scripts/living-corpus.sh: emits the
+# markdown records of the directory passed as $1 that carry a line-1 frontmatter fence.
+# Its live caller is the validation skill's lessons enumeration.
 #
 # Operates relative to the caller's cwd — does NOT cd itself.
 # Output: newline-separated paths (in the form the <adr-dir> argument was
 # given), LC_ALL=C-sorted.
 #
-# Only records carrying a line-1 frontmatter fence are emitted. The governing
-# lane's OUTPUT grows by use, but an unfiltered lane's INPUT would be the whole
-# corpus from run one — the overwhelming majority of which classifies as
-# no-subjects and is discarded on arrival. Filtering on the FENCE (not on
+# Only records carrying a line-1 frontmatter fence are emitted. The output grows by
+# use, but an unfiltered input would be the whole directory from run one — the
+# overwhelming majority of which classifies as no-subjects and is discarded on
+# arrival. Filtering on the FENCE (not on
 # `subjects:`) keeps a present-but-broken fence in the lane, so it still reads
 # as broken rather than vanishing.
 #
 # Unlike its living-corpus sibling, ZERO records is normal, not an error: an
-# empty governing lane is the ordinary pre-adoption state of every repo whose
-# ADRs predate the declaration.
+# empty lane is the ordinary pre-adoption state.
 set -euo pipefail
 
 adr_dir="${1:?usage: governing-corpus.sh <adr-dir>}"
