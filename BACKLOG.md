@@ -581,7 +581,7 @@ ADR-564); argv[1] is never read. `engine/package.json` declares `^22.18.0 || >=2
 change (ADR-569). A committed preload swaps a test-made link while the entry's dependencies load
 (ADR-567): `engine/test/bin-entry-swap-race.bin.test.js` (adr-lint) and
 `adapters/codex/test/trust-hook.bin.test.js` (`--check`) assert exit 2 and that the swap fired
-(ADR-566). Before the fix, repoint and unlink exited 0 with no output; after it, both exit 2.
+(a pin superseded by ADR-730). Before the fix, repoint and unlink exited 0 with no output; after it, both exit 2.
 Original entry:
 `isEntryPoint` (`engine/src/cli-io.js:84-91`) real-paths `process.argv[1]` again after Node has
 already resolved and loaded the main module. If that link is repointed or unlinked in between
@@ -798,7 +798,7 @@ counts a waiver only on a line that starts at column 0 with the token followed b
 (non-empty), outside a fenced code block (ADR-479, ADR-482, ADR-483). The core composes that
 anchor around each gate's bare pattern, so the gate constants and call sites are unchanged
 (ADR-481). The fix covers `STUB-WAIVE`, `SLOP-WAIVE` and `DECISION-CITE-WAIVE`, since all three
-reach the same function (ADR-480). Fences use a line-based CommonMark subset: CRLF-safe, with
+reach the same function (the DECISION-CITE-WAIVE half superseded by ADR-735). Fences use a line-based CommonMark subset: CRLF-safe, with
 the closer indented at most max(3, opener indent) columns (ADR-484). The 962 tracked `.md`
 files now yield 0 live waivers, down from 83 raw matches. A differential fuzz against
 markdown-it leaves two accepted fail-open classes, both needing a fence that is not a fence or
@@ -1089,7 +1089,7 @@ and `intention.js` are deleted; the suites of those modules stayed green unedite
 **`adr.frozen` can still exempt every citation without tripping the whole-tree guard — delivered
 2026-10-12** (chore/backlog-sweep-six-entries). Both guard sites (manifest validation and the
 adr-lint sweep) now also reject a frozen list whose entries together match every whole-tree
-probe path, or every markdown probe path (ADR-486). `**/*.md` and `['*', '*/**']` are rejected
+probe path, or every markdown probe path (a guard superseded by ADR-735). `**/*.md` and `['*', '*/**']` are rejected
 (the second turned adr-lint into `exit 0` with no citation checked); a root-only `*` stays
 accepted, and the per-entry check and its message are unchanged. `docs/guides/customizing.md`
 states the rule; its old claim that `*` is rejected is corrected. The probe sets are
