@@ -87,8 +87,8 @@ describe('doctrine-lint main', () => {
   });
 
   it('Given a valid two-entry doctrine citing live ADRs, when main runs, then it prints the OK line and returns 0', () => {
-    const doctrine = `# Doctrine\n\n${entry(1)}\n\n${entry(2, { Evidence: 'ADR-546 — a, ADR-101 — b' })}\n`;
-    const adrs = { '546-a.md': adr(), '101-b.md': adr() };
+    const doctrine = `# Doctrine\n\n${entry(1)}\n\n${entry(2, { Evidence: 'ADR-546 — a, ADR-102 — b' })}\n`;
+    const adrs = { '546-a.md': adr(), '102-b.md': adr() };
     const argv = [DOCTRINE, ADR_DIR];
 
     const result = run(argv, { doctrine, adrs });
@@ -98,8 +98,8 @@ describe('doctrine-lint main', () => {
   });
 
   it('Given evidence and counter-case citations, when main runs, then both are counted', () => {
-    const doctrine = `${entry(1, { 'Counter-cases': 'ADR-101 — why' })}\n`
-    const adrs = { '546-a.md': adr(), '101-b.md': adr() };
+    const doctrine = `${entry(1, { 'Counter-cases': 'ADR-102 — why' })}\n`
+    const adrs = { '546-a.md': adr(), '102-b.md': adr() };
     const argv = [DOCTRINE, ADR_DIR];
 
     const result = run(argv, { doctrine, adrs });
@@ -170,14 +170,14 @@ describe('doctrine-lint main', () => {
   });
 
   it('Given a counter-case id that is superseded, when main runs, then it reports it is superseded', () => {
-    const doctrine = `${entry(1, { 'Counter-cases': 'ADR-101 — exception' })}\n`;
-    const adrs = { '546-a.md': adr(), '101-b.md': adr('superseded by ADR-009') };
+    const doctrine = `${entry(1, { 'Counter-cases': 'ADR-102 — exception' })}\n`;
+    const adrs = { '546-a.md': adr(), '102-b.md': adr('superseded by ADR-009') };
     const argv = [DOCTRINE, ADR_DIR];
 
     const result = run(argv, { doctrine, adrs });
 
     assert.equal(result.code, EXIT_INVALID);
-    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-101 is superseded\n`);
+    assert.equal(result.out, `doctrine-lint: ${DOCTRINE}:1: D-1: ADR-102 is superseded\n`);
   });
 
   it('Given an ADR mentioning superseded only outside its Status line, when main runs, then it is live', () => {

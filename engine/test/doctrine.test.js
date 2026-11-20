@@ -213,7 +213,7 @@ describe('parseDoctrine', () => {
     ])
   })
 
-  for (const counterCases of ['ADR-546', 'ADR-546 — why; ADR-101', 'ADR-546 —']) {
+  for (const counterCases of ['ADR-546', 'ADR-546 — why; ADR-102', 'ADR-546 —']) {
     it(`Given the counter-cases "${counterCases}" with an ADR lacking its reason, when parsed, then it reports the counter-cases shape error`, () => {
       const content = entry(1, { 'Counter-cases': counterCases })
 
