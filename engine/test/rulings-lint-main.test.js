@@ -115,6 +115,20 @@ describe('rulings-lint main', () => {
     expectFinding(result, 7, PATH_MESSAGE('a b/x'));
   });
 
+  for (const [name, paths] of [['a trailing empty path', 'a, '], ['an inner empty path', 'a, , b']]) {
+    it(`Given ${name}, when main runs, then it reports the empty path`, () => {
+      const result = findingsOf(register(`- R-001 [${paths}] First.`));
+
+      expectFinding(result, 7, PATH_MESSAGE(''));
+    });
+  }
+
+  it('Given a path holding a double dot inside a segment, when main runs, then it is clean', () => {
+    const result = findingsOf(register('- R-001 [a..b/x] First.'));
+
+    assert.equal(result.code, EXIT_OK);
+  });
+
   it('Given a relative glob path, when main runs, then it is clean', () => {
     const result = findingsOf(register('- R-001 [engine/src/**, docs/*.md] First.'));
 
@@ -131,6 +145,12 @@ describe('rulings-lint main', () => {
     const result = findingsOf(register('- R-001 [] First.', '- R-002 [] Second. Superseded by R-001: all.'));
 
     expectFinding(result, 8, 'superseded by R-001 which is not a later ruling');
+  });
+
+  it('Given a ruling superseded by itself, when main runs, then it reports it as not a later ruling', () => {
+    const result = findingsOf(register('- R-001 [] First. Superseded by R-001: all.'));
+
+    expectFinding(result, 7, 'superseded by R-001 which is not a later ruling');
   });
 
   it('Given a supersession by a superseded ruling, when main runs, then it reports it', () => {
@@ -155,6 +175,12 @@ describe('rulings-lint main', () => {
     expectFinding(result, 7, 'adoption basis names R-777 which has no line');
   });
 
+  it('Given an adoption basis naming a two-digit ruling id, when main runs, then it is not checked as a ruling reference', () => {
+    const result = findingsOf(register('- R-001 [] First. Adopted: follows R-12.'));
+
+    assert.equal(result.code, EXIT_OK);
+  });
+
   it('Given an adoption basis naming a superseded ruling, when main runs, then it is clean', () => {
     const result = findingsOf(register(
       '- R-001 [] First. Superseded by R-003: all.',
@@ -171,10 +197,26 @@ describe('rulings-lint main', () => {
     assert.equal(result.code, EXIT_OK);
   });
 
-  it('Given a path holding a control character, when main runs, then the output is escaped', () => {
-    const result = findingsOf(register('- R-001 [/a\u001bb] First.'));
+  it('Given a semantic finding before a parse error, when main runs, then the output follows line order', () => {
+    const result = findingsOf(register('- R-001 [/abs] First.', '- R-12 [] Bad.'));
 
-    assert.ok(result.stdout.includes('/a\\x1bb'), result.stdout);
+    assert.equal(result.stdout, [
+      `rulings-lint: ${REGISTER}:7: ${PATH_MESSAGE('/abs')}`,
+      `rulings-lint: ${REGISTER}:8: not a ruling line: expected "- R-NNN [paths] statement."`,
+      '',
+    ].join('\n'));
+  });
+
+  it('Given a register missing the H1, when main runs, then it reports line 1 and exits 2', () => {
+    const result = findingsOf('intro\n\n- R-001 [] First.\n');
+
+    expectFinding(result, 1, 'the register must start with "# Rulings"');
+  });
+
+  it('Given a statement holding an escape sequence, when main runs, then it reports the control character, escaped', () => {
+    const result = findingsOf(register('- R-001 [] Use \u001b[31mMARKER\u001b[0m here.'));
+
+    expectFinding(result, 7, 'control character in ruling line');
     assert.ok(!result.stdout.includes('\u001b'));
   });
 

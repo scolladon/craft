@@ -73,28 +73,37 @@ describe('parseRulingLine', () => {
     assert.equal(result.ruling.statement, 'Use a.b; c | d. Then e');
   });
 
+  const NOT_A_RULING = 'not a ruling line: expected "- R-NNN [paths] statement."';
   const refusals = [
-    ['markers are out of order', '- R-911 [] S. Adopted: x. Refused: a.'],
-    ['a marker repeats', '- R-911 [] S. Refused: a. Refused: b.'],
-    ['superseded and rejected are both present', '- R-911 [] S. Superseded by R-912: x. Rejected: y.'],
-    ['an item is empty', '- R-911 [] S. Refused: a ·  · b.'],
-    ['a scope is empty', '- R-911 [] S. Superseded by R-912: .'],
-    ['a reason is empty', '- R-911 [] S. Rejected: .'],
-    ['a basis is empty', '- R-911 [] S. Adopted: .'],
-    ['the statement is empty', '- R-911 []  Refused: a.'],
-    ['the id has fewer than three digits', '- R-12 [] S.'],
-    ['the path list is missing', '- R-911 S.'],
-    ['the superseding id is malformed', '- R-911 [] S. Superseded by R-x: y.'],
+    ['markers are out of order', '- R-911 [] S. Adopted: x. Refused: a.', 'reserved markers are out of order'],
+    ['a marker repeats', '- R-911 [] S. Refused: a. Refused: b.', 'reserved marker "Refused:" repeats'],
+    ['superseded and rejected are both present', '- R-911 [] S. Superseded by R-912: x. Rejected: y.', 'a ruling cannot be both superseded and rejected'],
+    ['an item is empty', '- R-911 [] S. Refused: a ·  · b.', 'empty refused item'],
+    ['a scope is empty', '- R-911 [] S. Superseded by R-912: .', 'superseded status needs an id and a scope'],
+    ['a scope is blank', '- R-911 [] S. Superseded by R-912:  .', 'superseded status needs an id and a scope'],
+    ['a reason is empty', '- R-911 [] S. Rejected: .', 'empty rejection reason'],
+    ['a reason is blank', '- R-911 [] S. Rejected:  .', 'empty rejection reason'],
+    ['a basis is empty', '- R-911 [] S. Adopted: .', 'empty adoption basis'],
+    ['a basis is blank', '- R-911 [] S. Adopted:  .', 'empty adoption basis'],
+    ['the statement is empty', '- R-911 []  Refused: a.', 'empty statement'],
+    ['the id has fewer than three digits', '- R-12 [] S.', NOT_A_RULING],
+    ['the path list is missing', '- R-911 S.', NOT_A_RULING],
+    ['the superseding id is malformed', '- R-911 [] S. Superseded by R-x: y.', 'superseded status needs an id and a scope'],
+    ['the statement has no terminating dot', '- R-911 [] no dot', 'every segment must end with a dot'],
+    ['a refused segment has no terminating dot', '- R-911 [] x. Refused: a', 'every segment must end with a dot'],
+    ['the statement lacks its dot before a marker', '- R-911 [] x Refused: a.', 'every segment must end with a dot'],
+    ['the statement holds a control character', '- R-911 [] Use \u001b[31mred\u001b[0m.', 'control character in ruling line'],
+    ['a path holds a control character', '- R-911 [a\u0007b] S.', 'control character in ruling line'],
+    ['a DEL character is present', '- R-911 [] S\u007f.', 'control character in ruling line'],
   ];
-  for (const [name, line] of refusals) {
+  for (const [name, line, message] of refusals) {
     it(`Given a line where ${name}, when parsed, then it returns an error carrying the line number`, () => {
       const sut = parseRulingLine;
 
       const result = sut(line, 7);
 
       assert.equal(result.ruling, undefined);
-      assert.equal(result.error.line, 7);
-      assert.ok(result.error.message.length > 0);
+      assert.deepEqual(result.error, { line: 7, message });
     });
   }
 });
@@ -182,7 +191,7 @@ describe('parseRegister', () => {
   });
 
   it('Given blank lines between rulings, when parsed, then they are ignored', () => {
-    const content = `${REGISTER_HEADER}- R-901 [] One.\n\n- R-902 [] Two.\n\n`;
+    const content = `${REGISTER_HEADER}- R-901 [] One.\n\n   \n- R-902 [] Two.\n\n`;
     const sut = parseRegister;
 
     const result = sut(content);
@@ -197,6 +206,14 @@ describe('parseRegister', () => {
     const result = sut(REGISTER_HEADER);
 
     assert.deepEqual(result, { rulings: [], errors: [] });
+  });
+
+  it('Given a content not starting with the H1, when parsed, then the first line is reported', () => {
+    const sut = parseRegister;
+
+    const result = sut('intro\n\n- R-901 [] One.\n');
+
+    assert.deepEqual(result.errors, [{ line: 1, message: 'the register must start with "# Rulings"' }]);
   });
 
   it('Given a malformed ruling line, when parsed, then the error names its line', () => {

@@ -8,6 +8,7 @@ import { load } from 'js-yaml';
 import { extractFrontmatter } from './frontmatter.js';
 import { parseSubjects } from './intention-subjects.js';
 import { REGISTER_HEADER, formatRulingLine, parseRulingLine, registerFindings } from './rulings.js';
+import { safeLabel } from './cli-io.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -68,7 +69,6 @@ const DEFAULT_DEPS = {
   cwd: () => process.cwd(),
 };
 
-const safeLabel = (text) => text.replace(/[\u0000-\u001f\u007f]/g, (c) => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`);
 const refuse = (reason) => ({ reason });
 
 function readHeading(lines, id) {

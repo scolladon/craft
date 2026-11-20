@@ -11,6 +11,7 @@ import { join, dirname } from 'node:path';
 export const EXIT_OK = 0;
 export const EXIT_ERR = 1;
 
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 const SUPPORTED_NODE_RANGE = '^22.18.0 || >=24.2.0';
 
 /**
@@ -84,4 +85,14 @@ export function isEntryPoint(meta) {
     throw new Error(`craft needs Node ${SUPPORTED_NODE_RANGE} (import.meta.main); running ${process.version}`);
   }
   return meta.main;
+}
+
+/**
+ * Render a value for terminal output with every control character hex-escaped, so
+ * untrusted text cannot inject escape sequences.
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function safeLabel(value) {
+  return String(value).replace(CONTROL_CHARS, (c) => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`);
 }

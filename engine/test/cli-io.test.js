@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, writeFileSync, mkdirSync, symlinkSync, rmSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { isRegularFile, isDirectoryPath, isNonEmptyString, fail, isEntryPoint, EXIT_OK, EXIT_ERR } from '../src/cli-io.js';
+import { isRegularFile, isDirectoryPath, isNonEmptyString, fail, isEntryPoint, safeLabel, EXIT_OK, EXIT_ERR } from '../src/cli-io.js';
 import { makeCaptureIo } from '../test-helpers/capture-io.js';
 
 function withTmp(fn) {
@@ -176,4 +176,22 @@ test('Given an import.meta without a boolean main, when isEntryPoint runs, then 
 test('Given the exit-code constants, when read, then EXIT_OK is 0 and EXIT_ERR is 1', () => {
   assert.equal(EXIT_OK, 0);
   assert.equal(EXIT_ERR, 1);
+});
+
+// ─── safeLabel ────────────────────────────────────────────────────────────────
+
+test('Given a value holding C0 and DEL characters, when labelled, then each is hex-escaped', () => {
+  const sut = safeLabel;
+
+  const result = sut('a\u001bb\u007fc\u0000');
+
+  assert.equal(result, 'a\\x1bb\\x7fc\\x00');
+});
+
+test('Given a non-string value, when labelled, then it is stringified', () => {
+  const sut = safeLabel;
+
+  const result = sut(42);
+
+  assert.equal(result, '42');
 });

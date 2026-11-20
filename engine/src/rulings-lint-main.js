@@ -5,21 +5,18 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseRegister, registerFindings } from './rulings.js';
-import { isRegularFile } from './cli-io.js';
+import { isRegularFile, safeLabel } from './cli-io.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
 
 const USAGE = 'usage: rulings-lint <register-file>\n';
-const CONTROL_CHARS = /[\u0000-\u001f\u007f]/g;
 
 const DEFAULT_DEPS = Object.freeze({
   readFile: (p) => readFileSync(p, 'utf8'),
   isRegularFile,
   cwd: () => process.cwd(),
 });
-
-const safeLabel = (value) => String(value).replace(CONTROL_CHARS, (c) => `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`);
 
 /**
  * @param {string[]} argv

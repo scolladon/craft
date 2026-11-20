@@ -13,7 +13,10 @@ const SUPERSEDED_MARKER = ' Superseded by R-';
 const REJECTED_MARKER = ' Rejected: ';
 const MARKERS = [REFUSED_MARKER, ADOPTED_MARKER, SUPERSEDED_MARKER, REJECTED_MARKER];
 
+const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+const DOT = '.';
 const stripDot = (text) => text.replace(/\.$/, '');
+const isBlank = (text) => text.trim() === '';
 
 function occurrences(tail, marker) {
   return tail.split(marker).length - 1;
@@ -33,15 +36,19 @@ function markerError(tail) {
 
 function splitSegments(tail) {
   const found = MARKERS.map((marker) => ({ marker, at: tail.indexOf(marker) })).filter(({ at }) => at >= 0);
-  const segments = { statement: stripDot(found.length ? tail.slice(0, found[0].at) : tail) };
+  const segments = { statement: found.length ? tail.slice(0, found[0].at) : tail };
   found.forEach(({ marker, at }, i) => {
     const end = i + 1 < found.length ? found[i + 1].at : tail.length;
-    segments[marker] = stripDot(tail.slice(at + marker.length, end));
+    segments[marker] = tail.slice(at + marker.length, end);
   });
   return segments;
 }
 
-const SUPERSEDED_PATTERN = /^(\d{3,}): (.+)$/;
+const SUPERSEDED_PATTERN = /^(\d{3,}): (.*\S.*)$/;
+
+function undotted(segments) {
+  return Object.fromEntries(Object.entries(segments).map(([key, text]) => [key, stripDot(text)]));
+}
 
 function parseSuperseded(text) {
   const match = SUPERSEDED_PATTERN.exec(text);
@@ -55,20 +62,21 @@ function parseStatus(segments) {
 }
 
 function emptySegmentError(segments) {
-  if (segments.statement === '') return 'empty statement';
+  if (isBlank(segments.statement)) return 'empty statement';
   const refused = segments[REFUSED_MARKER];
   if (refused !== undefined && refused.split(ITEM_SEPARATOR).some((item) => item.trim() === '')) return 'empty refused item';
   const named = [
     [ADOPTED_MARKER, 'empty adoption basis'],
     [REJECTED_MARKER, 'empty rejection reason'],
   ];
-  const empty = named.find(([marker]) => segments[marker] === '');
+  const empty = named.find(([marker]) => segments[marker] !== undefined && isBlank(segments[marker]));
   return empty ? empty[1] : null;
 }
 
-function segmentError(segments, status) {
+function segmentError(raw, segments, status) {
   const empty = emptySegmentError(segments);
   if (empty) return empty;
+  if (Object.values(raw).some((text) => !text.endsWith(DOT))) return 'every segment must end with a dot';
   if (segments[SUPERSEDED_MARKER] !== undefined && status === null) return 'superseded status needs an id and a scope';
   return null;
 }
@@ -91,14 +99,16 @@ function toRuling(match, lineNo, segments, status) {
 const fail = (line, message) => ({ error: { line, message } });
 
 export function parseRulingLine(line, lineNo) {
+  if (CONTROL_CHARS.test(line)) return fail(lineNo, 'control character in ruling line');
   const match = LINE_PATTERN.exec(line);
   if (!match) return fail(lineNo, 'not a ruling line: expected "- R-NNN [paths] statement."');
   const tail = match[3];
   const markers = markerError(tail);
   if (markers) return fail(lineNo, markers);
-  const segments = splitSegments(tail);
+  const raw = splitSegments(tail);
+  const segments = undotted(raw);
   const status = parseStatus(segments);
-  const problem = segmentError(segments, status);
+  const problem = segmentError(raw, segments, status);
   if (problem) return fail(lineNo, problem);
   return { ruling: toRuling(match, lineNo, segments, status) };
 }
@@ -181,7 +191,7 @@ function orderFindings(rulings) {
 }
 
 const isUnsafePath = (path) =>
-  path.startsWith('/') || path.startsWith('~') || path.split('/').includes('..') || SAFE_PATH_BREAKERS.test(path);
+  path === '' || path.startsWith('/') || path.startsWith('~') || path.split('/').includes('..') || SAFE_PATH_BREAKERS.test(path);
 
 const pathFindings = (ruling) => ruling.paths.filter(isUnsafePath).map((path) =>
   finding(ruling, `path "${path}" must be repo-relative, without whitespace, "..", "~", "," or brackets`));
