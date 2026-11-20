@@ -150,9 +150,17 @@ function reviewBasis(status) {
   return found ? found[1] : null;
 }
 
+const BASIS_DASH = /^\s*—\s*/;
+const FIRST_SENTENCE = /^(.*?)(?:\.(?:\s|$)|$)/s;
+const BARE_OPTION = /^option \d+\W*$/i;
+
+const toRulingIds = (text) => text.replace(ADR_ID, 'R-$1');
+
 function leadBasis(lead) {
-  const basis = lead.replace(ADOPTED_LEAD, '').replace(/^\s*—\s*/, '').replace(/\.$/, '').trim();
-  return basis === '' ? DEFAULT_BASIS : basis.replace(/ADR-(\d{3,})/g, 'R-$1');
+  const afterMarker = lead.replace(ADOPTED_LEAD, '');
+  if (!BASIS_DASH.test(afterMarker)) return DEFAULT_BASIS;
+  const basis = afterMarker.replace(BASIS_DASH, '').match(FIRST_SENTENCE)[1].trim();
+  return basis === '' || BARE_OPTION.test(basis) ? DEFAULT_BASIS : toRulingIds(basis);
 }
 
 function isRecognisedAdoption({ status, heading, lead }) {
@@ -237,7 +245,7 @@ function scopeFor(id, successorContent) {
   const block = extractFrontmatter(successorContent);
   const entries = block === null ? null : load(block)?.supersedes;
   const entry = Array.isArray(entries) ? entries.find((e) => Number(e?.adr) === id) : undefined;
-  return typeof entry?.scope === 'string' ? entry.scope.replace(/\.$/, '') : null;
+  return typeof entry?.scope === 'string' ? toRulingIds(entry.scope.replace(/\.$/, '')) : null;
 }
 
 function liveTail(id, docs) {
@@ -263,7 +271,7 @@ function supersededStatus(id, docs) {
 
 function rejectedStatus(lines) {
   const match = REJECTED_STATUS.exec(statusLine(lines));
-  return match ? { kind: 'rejected', reason: match[1].replace(/\.$/, '') } : null;
+  return match ? { kind: 'rejected', reason: toRulingIds(match[1].replace(/\.$/, '')) } : null;
 }
 
 function statusOf(id, docs) {
@@ -272,7 +280,7 @@ function statusOf(id, docs) {
 }
 
 function buildRuling({ id, subjects, heading, options, adopted, chosen, status }) {
-  return { id, paths: subjects.paths, statement: heading.title, refused: refusedTitles(options, chosen.number), adopted, status };
+  return { id, paths: subjects.paths, statement: toRulingIds(heading.title), refused: refusedTitles(options, chosen.number).map(toRulingIds), adopted, status };
 }
 
 function describe(ruling, chosen, options, unrecognised) {

@@ -187,6 +187,42 @@ test('Given the Decision lead form without basis, when register runs, then the d
   assert.equal(result.out, line('- R-901 [] Title 901. Adopted: as recommended.'));
 });
 
+test('Given a lead with prose but no dash after the marker, when register runs, then the default basis is used', () => {
+  const sut = run;
+  const decision = ['**adopted-as-recommended (no user judgment).** Option 1. The fact lives in the frontmatter.'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, decision }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Adopted: as recommended.'));
+});
+
+test('Given a lead whose basis is followed by more sentences, when register runs, then only the first sentence is kept', () => {
+  const sut = run;
+  const decision = ['**adopted-as-recommended (no user judgment)** — DOCTRINE(D-14). Option 1: the measurement picked the route.'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, decision }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Adopted: DOCTRINE(D-14).'));
+});
+
+test('Given a lead whose basis is only an option number, when register runs, then the default basis is used', () => {
+  const sut = run;
+  const decision = ['**adopted-as-recommended (no user judgment)** — option 1. When status exists it wins.'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, decision }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Adopted: as recommended.'));
+});
+
+test('Given a lead whose basis is an option number without a period, when register runs, then the default basis is used', () => {
+  const sut = run;
+  const decision = ['**adopted-as-recommended (no user judgment)** — Option 2'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, decision }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Adopted: as recommended.'));
+});
+
 test('Given the two review-adopted statuses, when register runs, then each carries its basis', () => {
   const sut = run;
 
@@ -646,4 +682,34 @@ test('Given a non-regular file, when cite runs, then it exits 2 and writes nothi
   assert.equal(result.code, 2);
   assert.match(result.out, /refuse a\.md: not a regular file/);
   assert.deepEqual(result.written, {});
+});
+
+test('Given a title citing an id, when register runs, then the statement cites the ruling id', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901, title: 'Keep ADR-905 as is' }), '905-e.md': adr({ id: 905 }) });
+
+  assert.equal(result.out, line('- R-901 [] Keep R-905 as is.\n- R-905 [] Title 905.'));
+});
+
+test('Given a refused option citing an id, when register runs, then the refused item cites the ruling id', () => {
+  const sut = run;
+  const options = ['1. **Alpha** *(recommended)* — a', '2. **Keep ADR-905** — b'];
+
+  const result = sut({ '901-a.md': adr({ id: 901, options }), '905-e.md': adr({ id: 905 }) });
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Refused: Keep R-905.\n- R-905 [] Title 905.'));
+});
+
+test('Given a supersession scope citing an id, when register runs, then the scope cites the ruling id', () => {
+  const sut = run;
+  const files = {
+    '901-a.md': adr({ id: 901, status: 'superseded by ADR-902' }),
+    '902-b.md': adr({ id: 902, frontmatter: supersedes(['901', 'the part ADR-903 kept']) }),
+    '903-c.md': adr({ id: 903 }),
+  };
+
+  const result = sut(files);
+
+  assert.equal(result.out, line('- R-901 [] Title 901. Superseded by R-902: the part R-903 kept.\n- R-902 [] Title 902.\n- R-903 [] Title 903.'));
 });
