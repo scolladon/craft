@@ -37,7 +37,7 @@ const CORPUS_CLAIM = /\[(\d+)\s[^\]]*\]\((docs\/[^)]*\/)\)/g;
 const RULINGS_CLAIM = /\[(\d+)\s[^\]]*\]\(([^)\s]*RULINGS\.md)\)/g;
 
 /**
- * Extract the five README drift-guard regions from a README string (or any
+ * Extract the six README drift-guard regions from a README string (or any
  * fragment containing them).
  *
  * @param {string} readme

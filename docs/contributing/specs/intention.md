@@ -26,14 +26,14 @@ subjects:
   }
   ```
 
-- `record(entry, deps) → refs` — persist an ADR, a page refresh, or a page creation, and return
+- `record(entry, deps) → refs` — persist a ruling, a page refresh, or a page creation, and return
   the refs that were written.
-  - **pre**: `entry` describes what is being persisted — its kind (ADR / page refresh / page
+  - **pre**: `entry` describes what is being persisted — its kind (ruling / page refresh / page
     creation), target, and content; `deps` carries the backend's write primitive, injected.
-  - **post**: `refs` is the list of references written (an ADR id, a page path, …). A `record`
+  - **post**: `refs` is the list of references written (a ruling id, a page path, …). A `record`
     that cannot complete escalates as a blocker rather than silently dropping the entry.
 
-  For the built-in `file` backend this verb is a thin relabel of today's ADR and living-page
+  For the built-in `file` backend this verb is a thin relabel of today's ruling and living-page
   writes — no new write path, no new location. The verb exists as a seam so a non-file backend
   receives the same writes at the same call sites; what "persisting" means for that backend is
   entirely its own concern.
@@ -215,7 +215,7 @@ whose `subjects` glob never names the changed file itself.
   the corpus to build `{ entries, skipped }`; prints the `IntentionView` JSON on stdout.
 - **record / assert:** documented only, not exercised here. A code-graph server has no natural
   write verb for architectural intention, so a script wrapping one typically delegates `record`
-  and `assert` to the `file` adapter's existing ADR/page writes and glob ∩ diff arithmetic — only
+  and `assert` to the `file` adapter's existing ruling/page writes and glob ∩ diff arithmetic — only
   `consult`'s input set changes.
 - **scope-form (enforce before invoking):** each `scope` entry must be a repo-relative path with
   no leading `/` and no `..` segment — `^(?!/)(?!.*\.\.)[\w./-]+$` — refuse (blocker) on a miss.

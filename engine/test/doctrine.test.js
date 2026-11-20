@@ -55,7 +55,7 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries[0].counterCases, [])
   })
 
-  it('Given counter-cases with two ADR items, when parsed, then both ids are kept in order', () => {
+  it('Given counter-cases with two ruling items, when parsed, then both ids are kept in order', () => {
     const content = entry(1, { 'Counter-cases': 'R-546 — why; R-551 — why' })
 
     const result = sut(content)
@@ -64,7 +64,7 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries[0].counterCases, ['546', '551'])
   })
 
-  it('Given a counter-case whose reason cites another ADR, when parsed, then it is well-formed and only the item head is an id', () => {
+  it('Given a counter-case whose reason cites another ruling, when parsed, then it is well-formed and only the item head is an id', () => {
     const content = entry(1, { 'Counter-cases': 'R-546 — superseded by R-551 in part' })
 
     const result = sut(content)
@@ -73,7 +73,7 @@ describe('parseDoctrine', () => {
     assert.deepEqual(result.entries[0].counterCases, ['546'])
   })
 
-  it('Given a too-short ADR reference beside three- and four-digit ones in evidence, when parsed, then only the short one is dropped', () => {
+  it('Given a too-short ruling reference beside three- and four-digit ones in evidence, when parsed, then only the short one is dropped', () => {
     const content = entry(1, { Evidence: 'R-12 and R-1234 and R-321' })
 
     const result = sut(content)
@@ -200,7 +200,7 @@ describe('parseDoctrine', () => {
     ])
   })
 
-  it('Given evidence without an ADR id, when parsed, then it reports evidence is empty', () => {
+  it('Given evidence without a ruling id, when parsed, then it reports evidence is empty', () => {
     const content = entry(1, { Evidence: 'no ids here' })
 
     const result = sut(content)
@@ -249,7 +249,7 @@ describe('parseDoctrine', () => {
   })
 
   for (const counterCases of ['R-546', 'R-546 — why; R-102', 'R-546 —']) {
-    it(`Given the counter-cases "${counterCases}" with an ADR lacking its reason, when parsed, then it reports the counter-cases shape error`, () => {
+    it(`Given the counter-cases "${counterCases}" with a ruling lacking its reason, when parsed, then it reports the counter-cases shape error`, () => {
       const content = entry(1, { 'Counter-cases': counterCases })
 
       const result = sut(content)

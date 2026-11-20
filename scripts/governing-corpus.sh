@@ -4,7 +4,7 @@
 # Its live caller is the validation skill's lessons enumeration.
 #
 # Operates relative to the caller's cwd — does NOT cd itself.
-# Output: newline-separated paths (in the form the <adr-dir> argument was
+# Output: newline-separated paths (in the form the <dir> argument was
 # given), LC_ALL=C-sorted.
 #
 # Only records carrying a line-1 frontmatter fence are emitted. The output grows by
@@ -18,16 +18,16 @@
 # empty lane is the ordinary pre-adoption state.
 set -euo pipefail
 
-adr_dir="${1:?usage: governing-corpus.sh <adr-dir>}"
+dir="${1:?usage: governing-corpus.sh <dir>}"
 
 # `find` has no `--` separator, so a value beginning with `-` would be parsed as
 # a predicate rather than a path (on GNU find the path then defaults to `.`).
-case "$adr_dir" in
-  -*) adr_dir="./$adr_dir" ;;
+case "$dir" in
+  -*) dir="./$dir" ;;
 esac
 
-if [ ! -d "$adr_dir" ]; then
-  echo "governing-corpus: not a directory: $adr_dir" >&2
+if [ ! -d "$dir" ]; then
+  echo "governing-corpus: not a directory: $dir" >&2
   exit 1
 fi
 
@@ -41,7 +41,7 @@ while IFS= read -r -d '' found; do
   IFS= read -r first_line < "$found" || first_line=''
   [ "$first_line" = '---' ] || continue
   discovered+=("$found")
-done < <(find "$adr_dir" -maxdepth 1 -name '*.md' -print0)
+done < <(find "$dir" -maxdepth 1 -name '*.md' -print0)
 
 if [ "${#discovered[@]}" -eq 0 ]; then
   echo "governing-corpus: no decision record carries a frontmatter fence yet" >&2

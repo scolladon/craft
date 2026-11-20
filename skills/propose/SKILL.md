@@ -44,4 +44,4 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
    Invoke the VCS port `propose(title, body)` (see `docs/contributing/specs/vcs.md`); the adapter
    owns the host CLI. Body: drafted in the documentation phase per `templates/pr-body.md`
    — a Background · Intuition · Code narrative, then a Provenance & verification trailer
-   (decisions + ADRs, design path, divergences, pinned behaviours, test plan, run record).
+   (decisions + rulings, design path, divergences, pinned behaviours, test plan, run record).

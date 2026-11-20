@@ -12,7 +12,7 @@ stays the engine default), conduct that one conversation over Slack instead of i
 1. **Applies to steps 2 and 2b only.** Only the fork conversation and the doctrine harvest
    draft that follows its ruling move to Slack; the draft is posted and answered (accept, edit
    or decline) the same way as the fork. Adoption, the no-op record, the cross-candidate check,
-   ADR authoring, and scope-fold all continue exactly as the engine default — nothing here
+   ruling authoring, and scope-fold all continue exactly as the engine default — nothing here
    alters them.
 2. **Preconditions / secrets.** Read `$SLACK_WEBHOOK_URL`, `$SLACK_BOT_TOKEN`, and
    `$SLACK_CHANNEL_ID` from the environment. Never hardcode a secret. If any is unset, announce
@@ -41,7 +41,7 @@ stays the engine default), conduct that one conversation over Slack instead of i
    re-asked in the channel — never resolved by exact-token matching only, never resolved by a
    best-effort guess.
 6. **Capture.** Record the chosen option as the user's decision and hand back to the engine's
-   default ADR authoring. The run record logs the reply text alongside the option it resolved
+   default ruling authoring. The run record logs the reply text alongside the option it resolved
    to, exactly as an in-terminal fork would.
 
 ## Honest limits

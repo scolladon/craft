@@ -1,6 +1,6 @@
 ---
 name: decisions-noop-when-clear
-description: The decisions phase adopts a clear, ADR-aligned recommendation without asking the user, and still records it as an ADR.
+description: The decisions phase adopts a clear, ADR-aligned recommendation without asking the user, and still records it as a ruling.
 tags: [phase]
 max_turns: 15
 timeout_seconds: 600

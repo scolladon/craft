@@ -30,7 +30,7 @@ bash scripts/ci.sh
 This is CI's main job, in about 10 seconds. CI also runs two more gating jobs:
 
 - `bash scripts/readme-drift.sh` recomputes the README's numeric claims, including the
-  counts of design docs, plans and ADRs. Run it when you change `README.md` or add or
+  counts of design docs, plans and rulings. Run it when you change `README.md` or add or
   remove a file under `docs/contributing/design/`, `docs/contributing/plan/` or
   the rulings register (`docs/contributing/RULINGS.md`).
 - An offline link check over every Markdown file: a broken relative link or `#fragment`
