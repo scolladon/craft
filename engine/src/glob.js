@@ -54,7 +54,7 @@ function literalPrefix(glob) {
 export const PROBE_PATHS = Object.freeze([
   'README.md',
   'Makefile',
-  'engine/src/adr-lint-main.js',
+  'engine/src/example-main.js',
   'docs/contributing/adr/001-example.md',
   'a/b/c/d/e.txt',
 ]);

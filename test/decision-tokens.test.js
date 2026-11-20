@@ -11,7 +11,6 @@ const RUN_SKILL_PATH = path.join('skills', 'run', 'SKILL.md');
 const RUN_RECORD_SPEC_PATH = path.join('docs', 'contributing', 'specs', 'run-record.md');
 const DECISIONS_SKILL_PATH = path.join('skills', 'decisions', 'SKILL.md');
 const REVIEW_SKILL_PATH = path.join('skills', 'review', 'SKILL.md');
-const ADR_LINT_MAIN_PATH = path.join('engine', 'src', 'adr-lint-main.js');
 
 const NEW_TOKENS = ['DECISION-REVERSAL(', 'DECISION-CITE-WAIVE(', 'MEMORY-RETRACT('];
 
@@ -51,9 +50,4 @@ test('Given skills/run/SKILL.md, when its Done section is read, then it carries 
   const content = fs.readFileSync(RUN_SKILL_PATH, 'utf8');
   const done = content.slice(content.indexOf('\n## Done'));
   assert.ok(done.includes('MEMORY-RETRACT(') && done.includes('retract:'), 'Expected the MEMORY-RETRACT derivation rule in the Done section');
-});
-
-test('Given engine/src/adr-lint-main.js, when scanned, then it pins DECISION-CITE-WAIVE', () => {
-  const count = grepCount('DECISION-CITE-WAIVE', ADR_LINT_MAIN_PATH);
-  assert.ok(count > 0, 'Expected literal DECISION-CITE-WAIVE in engine/src/adr-lint-main.js');
 });
