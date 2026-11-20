@@ -42,3 +42,19 @@ test('Given a refusing directory, when the bin is spawned, then it exits 2 with 
   assert.equal(result.stdout, '');
   assert.match(result.stderr, /rulings-migrate: refuse 901: /);
 });
+
+test('Given a register larger than a pipe buffer, when the bin output is piped, then every byte reaches the reader', () => {
+  const root = mkdtempSync(join(tmpdir(), 'rulingsmigrate-bin-'));
+  try {
+    mkdirSync(join(root, 'adr'));
+    const ids = Array.from({ length: 12000 }, (_, i) => 900 + i);
+    ids.forEach((id) => writeFileSync(join(root, 'adr', `${id}-a.md`), adr(id, [])));
+    const expected = REGISTER_HEADER + ids.map((id) => `- R-${id} [] Title ${id}.\n`).join('');
+
+    const result = spawnSync('sh', ['-c', `${JSON.stringify(process.execPath)} ${JSON.stringify(BIN)} register adr | wc -c`], { encoding: 'utf8', cwd: root });
+
+    assert.equal(Number(result.stdout.trim()), Buffer.byteLength(expected));
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

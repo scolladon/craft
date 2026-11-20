@@ -14,6 +14,7 @@ const REJECTED_MARKER = ' Rejected: ';
 const MARKERS = [REFUSED_MARKER, ADOPTED_MARKER, SUPERSEDED_MARKER, REJECTED_MARKER];
 
 const CONTROL_CHARS = /[\u0000-\u001f\u007f]/;
+export const CONTROL_MESSAGE = 'control character in ruling line';
 const DOT = '.';
 const stripDot = (text) => text.replace(/\.$/, '');
 const isBlank = (text) => text.trim() === '';
@@ -99,7 +100,7 @@ function toRuling(match, lineNo, segments, status) {
 const fail = (line, message) => ({ error: { line, message } });
 
 export function parseRulingLine(line, lineNo) {
-  if (CONTROL_CHARS.test(line)) return fail(lineNo, 'control character in ruling line');
+  if (CONTROL_CHARS.test(line)) return fail(lineNo, CONTROL_MESSAGE);
   const match = LINE_PATTERN.exec(line);
   if (!match) return fail(lineNo, 'not a ruling line: expected "- R-NNN [paths] statement."');
   const tail = match[3];
@@ -180,6 +181,7 @@ export function sliceRulings(rulings, touched) {
   };
 }
 
+const NON_CANONICAL_SEGMENTS = new Set(['', '.', '..']);
 const SAFE_PATH_BREAKERS = /[\s,[]/;
 const BASIS_RULING_REF = /R-(\d{3,})/g;
 
@@ -197,10 +199,10 @@ function orderFindings(rulings) {
 }
 
 const isUnsafePath = (path) =>
-  path === '' || path.startsWith('/') || path.startsWith('~') || path.split('/').includes('..') || SAFE_PATH_BREAKERS.test(path);
+  path.startsWith('/') || path.startsWith('~') || path.split('/').some((segment) => NON_CANONICAL_SEGMENTS.has(segment)) || SAFE_PATH_BREAKERS.test(path);
 
 const pathFindings = (ruling) => ruling.paths.filter(isUnsafePath).map((path) =>
-  finding(ruling, `path "${path}" must be repo-relative, without whitespace, "..", "~", "," or brackets`));
+  finding(ruling, `path "${path}" must be repo-relative, canonical, without whitespace, "..", "~", "," or brackets`));
 
 function supersessionProblem(ruling, byId) {
   const target = byId.get(ruling.status.by);

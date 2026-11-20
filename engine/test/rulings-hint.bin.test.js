@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const BIN = join(HERE, '..', 'bin', 'rulings-hint.js');
+const HINT_HEADER = 'Rulings (settled for these paths — a proposal that re-opens one escalates):';
 const RULING = '- R-900 [src/a.js] Keep a settled.';
 
 const tmpDirs = [];
@@ -41,12 +42,12 @@ test('Given a slice larger than a pipe buffer, When the bin output is piped, The
   const dir = mkdtempSync(join(tmpdir(), 'rulings-hint-'));
   tmpDirs.push(dir);
   const file = join(dir, 'RULINGS.md');
-  const lines = Array.from({ length: 1500 }, (_, i) => `- R-${String(900 + i).padStart(3, '0')} [src/a.js] ${'Keep a settled. '.repeat(4).trim()}`);
+  const lines = Array.from({ length: 20000 }, (_, i) => `- R-${String(900 + i).padStart(3, '0')} [src/a.js] ${'Keep a settled. '.repeat(4).trim()}`);
   writeFileSync(file, `# Rulings\n\n${lines.join('\n')}\n`);
   const sut = `${JSON.stringify(process.execPath)} ${JSON.stringify(BIN)} --register ${JSON.stringify(file)}`;
 
   const piped = spawnSync('sh', ['-c', `${sut} | wc -c`], { input: 'src/a.js\n', encoding: 'utf8' });
 
-  const direct = spawnSync(process.execPath, [BIN, '--register', file], { input: 'src/a.js\n', encoding: 'utf8', maxBuffer: 1 << 26 });
-  assert.equal(Number(piped.stdout.trim()), Buffer.byteLength(direct.stdout));
+  const expected = Buffer.byteLength(`${HINT_HEADER}\n${lines.join('\n')}\n`);
+  assert.equal(Number(piped.stdout.trim()), expected);
 });

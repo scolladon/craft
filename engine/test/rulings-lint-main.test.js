@@ -100,8 +100,8 @@ describe('rulings-lint main', () => {
     assert.equal(result.code, EXIT_OK);
   });
 
-  const PATH_MESSAGE = (path) => `path "${path}" must be repo-relative, without whitespace, "..", "~", "," or brackets`;
-  for (const path of ['/etc/x', '~/x', 'a/../b', 'a,b', 'a[b']) {
+  const PATH_MESSAGE = (path) => `path "${path}" must be repo-relative, canonical, without whitespace, "..", "~", "," or brackets`;
+  for (const path of ['/etc/x', '~/x', 'a/../b', 'a,b', 'a[b', 'src//b.js', './src/a.js', 'src/./a.js', 'src/a/']) {
     it(`Given the path ${path}, when main runs, then it reports the path`, () => {
       const result = findingsOf(register(`- R-001 [${path}] First.`));
 

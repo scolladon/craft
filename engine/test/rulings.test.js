@@ -85,6 +85,7 @@ describe('parseRulingLine', () => {
     ['a reason is blank', '- R-911 [] S. Rejected:  .', 'empty rejection reason'],
     ['a basis is empty', '- R-911 [] S. Adopted: .', 'empty adoption basis'],
     ['a basis is blank', '- R-911 [] S. Adopted:  .', 'empty adoption basis'],
+    ['the statement is blank', '- R-911 []   .', 'empty statement'],
     ['the statement is empty', '- R-911 []  Refused: a.', 'empty statement'],
     ['the id has fewer than three digits', '- R-12 [] S.', NOT_A_RULING],
     ['the path list is missing', '- R-911 S.', NOT_A_RULING],
@@ -262,6 +263,15 @@ describe('sliceRulings', () => {
     const result = sut(literal, ['src/a.jsx', 'src/a', 'xsrc/a.js']);
 
     assert.deepEqual(result.matched, []);
+  });
+
+  it('Given a question-mark pattern, when a path fitting it is touched, then the ruling matches', () => {
+    const sut = sliceRulings;
+    const wildcard = [parseRulingLine('- R-907 [src/a?.js] Wild.', 1).ruling];
+
+    const result = sut(wildcard, ['src/ab.js']);
+
+    assert.deepEqual(result.matched.map((r) => r.id), [907]);
   });
 
   it('Given pathless rulings, when sliced, then they are never matched and are counted', () => {

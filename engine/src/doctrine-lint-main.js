@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { parseDoctrine } from './doctrine.js';
 import { parseRegister } from './rulings.js';
-import { isRegularFile } from './cli-io.js';
+import { isRegularFile, safeLabel } from './cli-io.js';
 
 const EXIT_OK = 0;
 const EXIT_INVALID = 2;
@@ -25,7 +25,7 @@ const DEFAULT_DEPS = {
 
 function missingInput(args, deps) {
   const absent = args.find((arg) => !deps.isFile(resolve(deps.cwd(), arg)));
-  return absent === undefined ? null : `no such file ${absent}`;
+  return absent === undefined ? null : `no such file ${safeLabel(absent)}`;
 }
 
 function lintFindings(doctrineArg, registerArg, deps) {
@@ -33,10 +33,10 @@ function lintFindings(doctrineArg, registerArg, deps) {
   const { rulings, errors } = parseRegister(deps.readFile(resolve(deps.cwd(), registerArg)));
   const rulingsById = groupById(rulings);
   const findings = [
-    ...doctrine.errors.map((error) => formatFinding(`${doctrineArg}:${error.line}`, error.message)),
-    ...errors.map((error) => formatFinding(`${registerArg}:${error.line}`, error.message)),
-    ...citationFindings(doctrine.entries, doctrineArg, rulingsById),
-    ...orphanFindings(rulings, doctrine.entries, registerArg),
+    ...doctrine.errors.map((error) => formatFinding(`${safeLabel(doctrineArg)}:${error.line}`, error.message)),
+    ...errors.map((error) => formatFinding(`${safeLabel(registerArg)}:${error.line}`, error.message)),
+    ...citationFindings(doctrine.entries, safeLabel(doctrineArg), rulingsById),
+    ...orphanFindings(rulings, doctrine.entries, safeLabel(registerArg)),
   ];
   return { findings, doctrine };
 }

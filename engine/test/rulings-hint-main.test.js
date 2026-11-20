@@ -121,3 +121,13 @@ for (const argv of [[], ['--register'], ['--other', 'x'], ['--register', 'a', '-
     assert.deepEqual(result, { code: 2, out: '', err: 'usage: rulings-hint --register <file>\n' });
   });
 }
+
+test('Given a read failure naming a control character, When main runs, Then the note escapes it', () => {
+  const io = makeCaptureIo();
+  const readFile = () => { throw new Error('a\u001bb'); };
+
+  const code = main(['--register', REGISTER_FILE], io, { readFile, readStdin: () => 'src/a.js\n' });
+
+  assert.equal(code, 0);
+  assert.equal(io.stderr.joined(), 'craft-rulings-hint: a\\x1bb\n');
+});

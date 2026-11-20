@@ -22,6 +22,7 @@ function adr({ id, title = `Title ${id}`, status = 'accepted', options = [], dec
   ].join('\n');
 }
 
+const TOKEN_SCAN_BUDGET_MS = 1000;
 const TABLE_FILE = 'table.json';
 
 function run(files, extra = []) {
@@ -851,14 +852,17 @@ test('Given a --chosen path holding a control character, when it cannot be read,
   assert.match(io.stderr.joined(), /a\\x1b\[31m\.json/);
 });
 
-test('Given a very long slash-separated token, when cite runs, then it completes and leaves the text unchanged', () => {
+test('Given a very long slash-separated token, when cite runs, then it completes within the time budget and leaves the text unchanged', () => {
   const sut = runCite;
-  const text = `${'a/'.repeat(20000)}\n`;
+  const text = `${'a/'.repeat(40000)}\n`;
 
+  const started = performance.now();
   const result = sut({ 'a.md': text });
+  const elapsed = performance.now() - started;
 
   assert.equal(result.code, 0);
   assert.deepEqual(result.written, {});
+  assert.ok(elapsed < TOKEN_SCAN_BUDGET_MS, `took ${elapsed} ms`);
 });
 
 test('Given bare paths with a near-miss prefix or suffix, when cite runs, then only the well-formed one is rewritten', () => {
@@ -868,4 +872,30 @@ test('Given bare paths with a near-miss prefix or suffix, when cite runs, then o
   const result = sut({ 'a.md': text });
 
   assert.equal(result.written['a.md'], 'x-adr/901-a.md R-901 adr/12-a.md\n');
+});
+
+test('Given a subject ending in a slash, when register runs, then it migrates to the directory glob', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901, frontmatter: "---\nsubjects: ['test/', 'a.md']\n---" }) });
+
+  assert.equal(result.out, line('- R-901 [test/**, a.md] Title 901.'));
+});
+
+test('Given a bare path followed by an extension suffix, when cite runs, then it is left untouched', () => {
+  const sut = runCite;
+  const text = 'a/adr/019-b.mdx docs/adr/020-c.md5 docs/adr/021-d.md.\n';
+
+  const result = sut({ 'a.md': text });
+
+  assert.equal(result.written['a.md'], 'a/adr/019-b.mdx docs/adr/020-c.md5 R-021.\n');
+});
+
+test('Given a title holding a control character, when register runs, then it refuses naming the control character', () => {
+  const sut = run;
+
+  const result = sut({ '901-a.md': adr({ id: 901, title: 'Use a\u001bb' }) });
+
+  assert.equal(result.code, 2);
+  assert.match(result.err, /refuse 901: title, option or basis holds a control character/);
 });

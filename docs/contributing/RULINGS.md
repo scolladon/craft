@@ -505,9 +505,9 @@ infer it from `DOCTRINE.md` and the code.
 - R-499 [skills/metrics/SKILL.md] The metrics skill is left untouched by the replay guard. Refused: The same, plus a step in `skills/metrics/SKILL.md`.
 - R-500 [README.md] The comparison table compares categories, not products. Refused: Named products with cited links the maintainer verifies · Plain prompting only.
 - R-501 [README.md, docs/guides/comparison.md] The comparison table is a README section. Refused: New `docs/guides/positioning.md` + one README line · Extend `docs/guides/comparison.md`.
-- R-502 [test/, README.md] New README claims are guarded by repo-shape tests. Refused: New readme-drift sub-guards in `engine/src`.
+- R-502 [test/**, README.md] New README claims are guarded by repo-shape tests. Refused: New readme-drift sub-guards in `engine/src`.
 - R-503 [CHANGELOG.md, .claude-plugin/plugin.json, README.md] Cut release 1.1.0 in this change. Refused: CHANGELOG `[Unreleased]` only · 2.0.0.
-- R-504 [SECURITY.md, .github/ISSUE_TEMPLATE/] Security reports start with a detail-free public issue. Refused: GitHub private vulnerability reporting · A maintainer email address.
+- R-504 [SECURITY.md, .github/ISSUE_TEMPLATE/**] Security reports start with a detail-free public issue. Refused: GitHub private vulnerability reporting · A maintainer email address.
 - R-505 [scripts/install-dev-tools.sh, .github/workflows/ci.yml, .devcontainer/devcontainer.json] CI and the devcontainer share one dev-tool install script. Refused: Inline lists in each, plus a test that they match · Devcontainer installs only what `ci.sh` provably uses; CI unchanged.
 - R-506 [CONTRIBUTING.md] Contributions are process-agnostic and gated by CI. Refused: Feature PRs must come from a craft run · Issues only, PRs by invitation.
 - R-507 [README.md, test/source-hygiene.test.js] The Codespaces badge is a shields static badge. Refused: GitHub's `badge.svg` + a wider source-hygiene allowlist · Plain text link.
@@ -732,7 +732,7 @@ infer it from `DOCTRINE.md` and the code.
 - R-726 [skills/decisions/SKILL.md, docs/contributing/specs/run-record.md] A harvested entry lands in its own docs(doctrine) commit with a DOCTRINE-HARVEST line. Refused: Doctrine edit inside the ADR commit, no token. Adopted: R-357.
 - R-727 [skills/decisions/SKILL.md] decisions escalates only on conflict, irreversibility, or an uncovered trade-off. Refused: Keep R-433; add doctrine as an alignment source only.
 - R-728 [templates/pr-body.md, skills/documentation/SKILL.md] The PR body splits ratified from adopted decisions, read from the ADRs. Refused: A new `ADOPTED(ADR-NNN):` run-record token. Adopted: no trade-off. Superseded by R-730: the PR body's source: ratified and adopted decisions are read from register lines, not ADR files.
-- R-729 [evals/decisions-adopts-covered-tradeoff/] The covered-trade-off eval pairs byte-for-byte with decisions-escalates-fork. Refused: An aligning ADR only · Both. Adopted: no trade-off.
+- R-729 [evals/decisions-adopts-covered-tradeoff/**] The covered-trade-off eval pairs byte-for-byte with decisions-escalates-fork. Refused: An aligning ADR only · Both. Adopted: no trade-off.
 - R-730 [skills/decisions/SKILL.md, docs/contributing/adr, templates/adr.md, templates/pr-body.md, scripts/adr-lint.sh, engine/src/adr-lint-main.js, scripts/ci.sh] Decision memory is doctrine plus a rulings register; the ADR corpus retires in this change. Refused: Introduce and wire the register only; ADRs stay authoritative and are still written · Option 2 minus deleting the ADR files.
 - R-731 [docs/contributing/adr, templates/adr.md] Retired ADR files are deleted; git history keeps them. Refused: Move them to `docs/contributing/archive/adr/`, frozen · Leave them in place, frozen.
 - R-732 [docs/contributing/DOCTRINE.md, engine/src/doctrine.js, engine/src/doctrine-lint-main.js] Register ids reuse the ADR numbers with an `R-` prefix. Refused: Reuse the numbers and keep the `ADR-` prefix · Renumber the live lines densely.

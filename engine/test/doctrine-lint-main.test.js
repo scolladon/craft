@@ -203,4 +203,26 @@ describe('doctrine-lint main', () => {
     assert.equal(result.code, EXIT_INVALID);
     assert.equal(result.out, `doctrine-lint: ${REGISTER}:4: not a ruling line\n`);
   });
+
+  it('Given a doctrine path holding a control character, when it is absent, then the message escapes it', () => {
+    const io = makeCaptureIo();
+    const argv = ['a\u001bb.md', REGISTER];
+
+    const code = sut(argv, io, { cwd: () => WORK, isFile: () => false });
+
+    assert.equal(code, EXIT_INVALID);
+    assert.equal(io.stdout.joined(), 'doctrine-lint: no such file a\\x1bb.md\n');
+  });
+
+  it('Given a doctrine path holding a control character, when a finding is reported, then the label escapes it', () => {
+    const io = makeCaptureIo();
+    const argv = ['a\u001bb.md', REGISTER];
+    const deps = { cwd: () => WORK, isFile: () => true, readFile: (p) => (p.endsWith(REGISTER) ? register(line(546)) : '## D-1 — Title\n') };
+
+    const code = sut(argv, io, deps);
+
+    assert.equal(code, EXIT_INVALID);
+    assert.ok(io.stdout.joined().startsWith('doctrine-lint: a\\x1bb.md:'));
+    assert.ok(!io.stdout.joined().includes('\u001b'));
+  });
 });

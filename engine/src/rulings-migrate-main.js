@@ -7,7 +7,7 @@ import { resolve } from 'node:path';
 import { load } from 'js-yaml';
 import { extractFrontmatter } from './frontmatter.js';
 import { parseSubjects } from './intention-subjects.js';
-import { REGISTER_HEADER, formatId, formatRulingLine, parseRulingLine, registerFindings } from './rulings.js';
+import { CONTROL_MESSAGE, REGISTER_HEADER, formatId, formatRulingLine, parseRulingLine, registerFindings } from './rulings.js';
 import { safeLabel } from './cli-io.js';
 
 const EXIT_OK = 0;
@@ -52,13 +52,13 @@ const SUPERSEDED_STATUS = /^superseded by ADR-(\d{3,})/;
 const REJECTED_STATUS = /^rejected — (.+)$/;
 
 const LINK_TARGET = /\]\(((?:[\w.-]+\/)*)adr\/\d{3,}-[\w-]+\.md(?:#[^)\s]*)?\)/g;
-const PATH_TOKEN = /(?<![\w.\/-])[\w.\/-]+\.md(?::\d+)?/g;
+const PATH_TOKEN = /(?<![\w.\/-])[\w.\/-]+\.md(?::\d+)?(?![\w-])/g;
 const ADR_PATH = /^(?:[\w.-]+\/)*adr\/(\d{3,})-[\w-]+\.md(?::\d+)?$/;
 const ADR_ID = /\bADR-(\d{3,})\b/g;
 const CITE_RULES = [
-  [LINK_TARGET, ']($1RULINGS.md)'],
+  [LINK_TARGET, (_match, prefix) => `](${prefix}RULINGS.md)`],
   [PATH_TOKEN, (match) => (ADR_PATH.test(match) ? match.replace(ADR_PATH, 'R-$1') : undefined)],
-  [ADR_ID, 'R-$1'],
+  [ADR_ID, (_match, id) => `R-${id}`],
 ];
 
 const DEFAULT_DEPS = {
@@ -78,6 +78,8 @@ function readHeading(lines, id) {
   return { title: match[2].trim() };
 }
 
+const directoryGlob = (path) => (path.endsWith('/') ? `${path}**` : path);
+
 function readPaths(content) {
   let subjects;
   try {
@@ -87,7 +89,7 @@ function readPaths(content) {
   }
   if (subjects === null) return { paths: [] };
   const valid = Array.isArray(subjects) && subjects.every((s) => typeof s === 'string' && s !== '');
-  return valid ? { paths: subjects } : refuse('subjects is not a list of non-empty strings');
+  return valid ? { paths: subjects.map(directoryGlob) } : refuse('subjects is not a list of non-empty strings');
 }
 
 function sectionLines(lines, isHeading) {
@@ -226,9 +228,11 @@ function sameShape(parsed, ruling) {
   return JSON.stringify([parsed.statement, parsed.refused, parsed.adopted, parsed.status]) === JSON.stringify([ruling.statement, ruling.refused, ruling.adopted, ruling.status]);
 }
 
-function roundTrips(ruling) {
+function roundTripRefusal(ruling) {
   const parsed = parseRulingLine(formatRulingLine(ruling), 0);
-  return !parsed.error && sameShape(parsed.ruling, ruling);
+  if (parsed.error?.message === CONTROL_MESSAGE) return 'title, option or basis holds a control character';
+  if (parsed.error || !sameShape(parsed.ruling, ruling)) return 'title, option or basis holds a reserved marker';
+  return null;
 }
 
 function statusLine(lines) {
@@ -301,7 +305,8 @@ function deriveRuling(id, content, entry, docs) {
   const superseded = statusOf(id, docs);
   if (superseded.reason) return superseded;
   const ruling = buildRuling({ id, subjects, heading, options, adopted, chosen, status: superseded.status });
-  if (!roundTrips(ruling)) return refuse('title, option or basis holds a reserved marker');
+  const unwritable = roundTripRefusal(ruling);
+  if (unwritable) return refuse(unwritable);
   return describe(ruling, chosen, options, content.includes(ADOPTED_TOKEN) && !isRecognisedAdoption(parts));
 }
 
@@ -406,7 +411,7 @@ function rewriteCitations(text) {
   let rewrites = 0;
   const content = CITE_RULES.reduce(
     (acc, [pattern, replacement]) => acc.replace(pattern, (...m) => {
-      const replaced = typeof replacement === 'string' ? replacement.replace(/\$(\d)/g, (_, i) => m[Number(i)]) : replacement(...m);
+      const replaced = replacement(...m);
       if (replaced === undefined) return m[0];
       rewrites += 1;
       return replaced;
