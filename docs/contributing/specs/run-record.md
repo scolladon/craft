@@ -8,7 +8,7 @@ subjects:
 
 One append-only markdown file per run, `<git-common-dir>/craft-runs/<run-id>.md` — the
 directory `run-ledger.sh dir` prints — never `${CLAUDE_PLUGIN_ROOT}` and never inside a
-working tree (ADR-384). The git common dir is shared by every worktree of the repository
+working tree (R-384). The git common dir is shared by every worktree of the repository
 and no commit can write inside it, so the ledger has one root for the whole run, whatever
 the workspace strategy: `open` creates it at §0 step 4, every later write goes to it, and
 nothing moves it. A cloned repository can never plant or seed it. `skills/run/SKILL.md`
@@ -53,7 +53,7 @@ since `save` performs no validation on the write path.
 
 Every run-scoped file lives under one directory, inside the git common dir, where no
 commit can write — so a cloned repository can never plant a pointer or a ledger
-(ADR-384):
+(R-384):
 
 ```
 <git-common-dir>/craft-runs/              <git-common-dir> = `git rev-parse --path-format=absolute --git-common-dir`; shared by every worktree
@@ -240,7 +240,7 @@ executing-harness). The compaction hooks only read.
 ## Lifetime — run-local, not committed
 
 The ledger lives inside the git common dir, which git never tracks, so it is never
-committed and no `.gitignore` change ships for it (ADR-384). It is run-local: `close`
+committed and no `.gitignore` change ships for it (R-384). It is run-local: `close`
 removes it at `Done`.
 
 It survives a context reset and `scripts/worktree-teardown.sh` alike — teardown removes
@@ -250,7 +250,7 @@ and against worktree loss**: `Done` reads the whole run from the ledger after
 
 ## Derivation at Done
 
-The memory `delta` (`docs/contributing/adr/303-memory-delta-derives-from-the-ledger.md`)
+The memory `delta` (`R-303`)
 is derived — read — from the ledger's run-id lines at `Done`, after the whole phase walk,
 teardown included: the ledger outlives the worktree, so the derivation reads the file,
 never a summary, and `save` runs exactly once, unweakened (R3).
@@ -259,7 +259,7 @@ never a summary, and `save` runs exactly once, unweakened (R3).
 
 A failed ledger append is surfaced to the user in-session and the run continues; it is
 **not** recorded into the ledger itself (that would be circular). Same posture as a
-failed `save` (ADR-120): a write failure never blocks delivery work.
+failed `save` (R-120): a write failure never blocks delivery work.
 
 A refused `open` (exit 3) is not a write failure: the orchestrator STOPs, because a run
 that continued would append into the other run's ledger.

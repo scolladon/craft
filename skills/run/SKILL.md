@@ -83,13 +83,13 @@ Input: `$ARGUMENTS`
     justifications, probe results, and forced actions are appended.
 
 1c-mem. **Load memory store (once per run).** Resolve the store path from the
-    manifest's `memory.ref` (default `.claude/craft-memory.md`, ADR-118/121), rooted
+    manifest's `memory.ref` (default `.claude/craft-memory.md`, R-118/121), rooted
     at the repo ROOT (the worktree/checkout root — NEVER `${CLAUDE_PLUGIN_ROOT}`, hard
     constraint). Call `load(repoRoot, deps)` — see `docs/contributing/specs/memory.md` Claude
     binding. Hold the single `MemoryView` in-session beside the run record for the
     duration of this run. A cold, absent, or malformed store yields an empty view and
     records a load no-op — the run proceeds without hints (advisory-only, never a
-    blocker; ADR-116/120). `load` is called **once per run, not per phase**.
+    blocker; R-116/120). `load` is called **once per run, not per phase**.
 
 1c-int. **Load intention view (once per run).** Build an in-session `IntentionView` via
     the intention port's `consult` — see `docs/contributing/specs/intention.md` `file` adapter
@@ -115,7 +115,7 @@ Input: `$ARGUMENTS`
     (`proposeGateReleased: true` — e.g. `validation`/`architecture`); those arrive
     via step 1c. For every OTHER waiver (a skipped `review`/`refactoring`,
     `proposeGateReleased: false` — the engine writes no record line), append your own
-    loud waiver notice to the run record so **every** skip is visible (ADR-005).
+    loud waiver notice to the run record so **every** skip is visible (R-005).
     Use `waivers[]` for the gate-release decision (each `proposeGateReleased: true`
     releases that phase's `propose`-gate).
 
@@ -766,7 +766,7 @@ is the payload split on the first run of whitespace, first field `file`, remaind
 `writeStore`/`validators`/`caps`/`run`/`ref` — the same validate-on-read map `load` took, so
 an observation that breaks the store's schema (e.g. an upper-case finding `severity`) is dropped
 rather than written. A failed save is a recorded
-warning in the run record — **never a blocker** (ADR-120); no locking (last-flush-wins).
+warning in the run record — **never a blocker** (R-120); no locking (last-flush-wins).
 Writes are buffered all run and flushed once here, so a phase that blocked mid-run leaves
 the store unchanged (atomicity; Req 6).
 

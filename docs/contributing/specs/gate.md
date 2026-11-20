@@ -68,7 +68,7 @@ hook set:
   `$(( … ))` or `$[ … ]` body reach the predicates; a `'` in that body, a body whose parens do not
   pair, and a line continuation after `$`, between `$(` and `(` or between the closing `))` are
   unparseable, and so are any `case` word in a `$( )`, `<( )` or `>( )` body and any bash 5.3
-  `${ …; }`/`${| …; }` function substitution (ADR-687 to ADR-693). A `'…'` or
+  `${ …; }`/`${| …; }` function substitution (R-687 to R-693). A `'…'` or
   `$'…'` span holding `$(`, a backtick or `${` (or a `$'…'` numeric escape that decodes to `$`, a
   backtick, `(`, `{` or `[`, octal masked to its low byte so `\444` is `$`) inside `(( ))`,
   `for (( ))`, a `${ }` body or an open `[` subscript is unparseable. So
@@ -78,7 +78,7 @@ hook set:
   `$` at run time (a `$`, any expansion including a bare `$name`, `$1` or `$@`, or a brace group's
   `}`) in a word holding a `[` and a `$`. A line continuation between the two parens of `((`
   (`(\<newline>(`) fails closed with the line-continuation reason. bash evaluates such a
-  subscript as arithmetic wherever the string is read (ADR-694 to ADR-698). Node prints
+  subscript as arithmetic wherever the string is read (R-694 to R-698). Node prints
   exactly one token: `allow`, on which the hook exits 0 with no output, or
   `{ hookSpecificOutput: { hookEventName: "PreToolUse", permissionDecision: "deny",
   permissionDecisionReason: "craft: <engine reason>" } }`, which the hook prints as given. The
@@ -250,7 +250,7 @@ output from an external diff driver by reading command text; it is not a sandbox
 (`craft: guard verdict timed out — denied fail-closed`) instead of letting copilot's ~30 s timeout
 fail open. Re-probe on 1.0.98 (live probe 2026-10-16): `git -C . push origin main` denied (ref
 unmoved); `git status --short && git tag allowed` executed; `bash -c 'git push origin main'` denied
-by the gate; the commit idiom executed (denied since ADR-606); a forced deadline denied.
+by the gate; the commit idiom executed (denied since R-606); a forced deadline denied.
 
 **Residuals**, written down rather than papered over:
 
@@ -348,7 +348,7 @@ guessing.
 **Because this hook genuinely denies, the git-ext-diff rule ships ENFORCED here — the Copilot
 binding's advisory carve-out does not carry over; destructive git and the plain-command gate ship
 enforced too.** Unlike Copilot, codex takes the gate without a verdict deadline: its default hook
-timeout exceeded 90 s when measured and the slowest measured verdict took about 190 ms (ADR-641). This is the strongest guard profile recorded
+timeout exceeded 90 s when measured and the slowest measured verdict took about 190 ms (R-641). This is the strongest guard profile recorded
 across the five bindings.
 
 `apply_patch` is Codex's write tool, and it is freeform: a Lark-grammar tool with **no structured

@@ -7,7 +7,7 @@
 >
 > Deeper provenance: [PRD](../contributing/prd/PRD-customizable-engine.md) (intent) ·
 > [DESIGN](../contributing/prd/DESIGN-customizable-engine.md) (architecture) ·
-> [../contributing/adr/](../contributing/adr/) (decisions).
+> [../contributing/RULINGS.md](../contributing/RULINGS.md) (rulings).
 
 ---
 
@@ -235,7 +235,8 @@ none can lower this floor. See [§2](#2-the-invariant-core--what-you-cannot-inje
 | **intention** *(Tier 0)* | per-repo architectural-intention corpus (`intention: { source: file, ref, gate, covers }`) — `consult` prepends the phase's matching living pages into the design/planning contract slot (advisory, slot 1 — no second injection surface); `record` routes ADR/page writes through the same seam the `file` adapter already uses; `assert-fresh` flags a changed path whose covering page went untouched (`INTENTION-DRIFT`), waivable per page (`INTENTION-WAIVE`). `intention.gate` chooses `advisory` (default) or `blocking`; `intention.covers` names load-bearing scopes a page must exist for. See [`docs/contributing/specs/intention.md`](../contributing/specs/intention.md) for the port contract. | a `blocking` gate on a thin/under-adopted corpus stalls on false positives — start `advisory` and promote once the corpus is populated | [`intention-corpus/`](../../examples/intention-corpus/) |
 | **policy** *(Tier 0)* | per-repo/per-user permission layer over outward/hard-to-reverse VCS-port actions. The `policy:` manifest key accepts `always`, `ask`, and `never` verdict lists over the action vocabulary (`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write` — note `integrate` = merge, `propose` = pr-create). Per-action defaults are keyed by reversibility: local reversible actions (`isolate`, `commit`, `backlog-write`) default to `always`; remote/hard-to-reverse actions (`push`, `propose`, `integrate`, `teardown`, `external-send`) default to `ask`, so an unconfigured repo behaves as today (merge still stops for confirmation). Three scopes fold in one direction (`per-invocation > project > user`): user `~/.claude/craft-policy.md` < project manifest `policy:` < per-invocation `--policy`. An explicit `always` verdict for `integrate` or `propose` supersedes craft's hardcoded merge/PR confirmation, enabling unattended headless auto-merge. The three engine floors (`never-commit-on-red`, `validation-triage-gates-propose`, `artifact-handoff`) are not nameable actions and cannot be reached by any verdict. See [`docs/contributing/specs/policy.md`](../contributing/specs/policy.md) for the port contract. | a misconfigured policy (unknown action or verdict, non-list value, intra-scope double-verdict) fails manifest-lint loudly, never silently | [`policy-headless-merge/`](../../examples/policy-headless-merge/) |
 | **lessons** *(Tier 0)* | per-repo corpus of evidence-bound lessons (`paths.lessons`, default `docs/lessons/`) — the default-on `lessons` phase harvests them from the run ledger and `consult` injects the few matching a phase (`lessons.max_injected`, default 3). Advisory, never a gate; `pipeline.skip: [lessons]` turns the harvest off. See the [lessons guide](lessons.md). | a lesson without repo-path evidence is never drafted | [`lessons-corpus/`](../../examples/lessons-corpus/) |
-| **doctrine** *(Tier 0)* | per-repo principles distilled from your rulings (`paths.doctrine`, default `docs/DOCTRINE.md`) — the decisions phase adopts a recommendation an entry covers and drafts new entries from rulings that override a recommendation; `doctrine-lint` keeps every citation pointing at a live ADR | an entry citing a superseded ADR fails the lint until re-pointed | — |
+| **doctrine** *(Tier 0)* | per-repo principles distilled from your rulings (`paths.doctrine`, default `docs/DOCTRINE.md`) — the decisions phase adopts a recommendation an entry covers and drafts new entries from rulings that override a recommendation; `doctrine-lint` keeps every citation pointing at a live ruling | an entry citing a superseded ruling fails the lint until re-pointed | — |
+| **rulings register** *(Tier 0)* | the register of ratified rulings (`paths.rulings`, default `docs/RULINGS.md`) — checked by `rulings-lint`, surfaced to phases by `rulings-hint`, and imported from an existing ADR corpus by `rulings-migrate` | a ruling the register does not list is not a ruling | — |
 | **DoD artifact** (`docs/DOD.md` or `paths.dod`) *(Tier 1)* | per-criterion acceptance-criteria check in the `validation` phase (default-ON); absence warns, never blocks | you own and maintain the checklist | [`dod-artifact/`](../../examples/dod-artifact/) |
 
 ### How Tier 2 works — the `extends:` block
@@ -358,7 +359,7 @@ per-knob message a bad manifest produces (e.g. `phases.review.harness.passes mus
 ```
 
 Runs the review harness with 2 reviewers per dimension and stops when ≤ 3 non-LOW findings remain
-(numeric convergence, ADR-097), for this invocation only.
+(numeric convergence, R-097), for this invocation only.
 
 **Cost basis for the fan-out advisory.** This repo's own committed telemetry puts a reviewer
 spawn at a pooled median near 92,500 tokens across 72 records, so eight reviewers is roughly 740,000
@@ -375,7 +376,7 @@ Repeatable (one action per flag; repeat for several). Sets a single action's ver
 precedence for that run only — overrides both the project manifest `policy:` block and the user
 `~/.claude/craft-policy.md`. The primary use is the **headless pre-approval channel**: an outer
 harness passes `--policy integrate=always` to authorize an unattended merge for that run without
-editing the manifest (ADR-130).
+editing the manifest (R-130).
 
 **Grammar:** `<action>=<verdict>` — exactly one `=`; `action` must be one of `POLICY_ACTIONS`
 (`isolate`, `commit`, `push`, `propose`, `integrate`, `teardown`, `external-send`, `backlog-write`);

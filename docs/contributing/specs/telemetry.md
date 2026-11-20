@@ -17,7 +17,7 @@ explicitly. The glob is left as-is rather than narrowed — the same advisory ov
     `--no-inline` opts it back out, see [main-loop inclusion](#main-loop-inclusion----no-inline-adr-329));
     `deps` carries
     `readTranscripts: () => AsyncIterable<string>` and an optional `sessionId` (the run-identity
-    string, see [ADR-186 below](#run-identity-sessionid-adr-186)). The adapter never receives an absolute
+    string, see [R-186 below](#run-identity-sessionid-adr-186)). The adapter never receives an absolute
     path; the `readTranscripts` provider owns the runtime path.
   - **post**: each returned `UsageEvent` is path-free, PII-free, and carries only the fields the
     core expects: `run`, `slug?`, `phase`, `role?`, `model`, `tokens`, `messages`,
@@ -73,7 +73,7 @@ The valid bindings are **`{ claude, pi, opencode, copilot, codex, aider }`**.
   that performs no I/O of its own. `listDir`/`readText` are front-door-owned, already
   realpath-contained ports; `discover` only ever names relative paths, so it holds no
   path-resolution power of its own and is unit-testable against fakes with zero filesystem.
-- **Sidecar labelling, not rollups** (ADR-328): rollups are never read, for tokens or for
+- **Sidecar labelling, not rollups** (R-328): rollups are never read, for tokens or for
   labels. Each sub-agent transcript's role/phase comes from the adjacent
   `agent-<id>.meta.json` sidecar's `agentType` field, read by `discover` and carried as opaque
   `context` into `parseLines`; every other sidecar field is discarded at the adapter boundary. A
@@ -90,7 +90,7 @@ The valid bindings are **`{ claude, pi, opencode, copilot, codex, aider }`**.
   turns, not transcript lines. A rollup rides on a `user` line's `toolUseResult` and never
   carries `message.usage`, so it can never satisfy this rule — the two shapes are structurally
   disjoint.
-- **sessionId injection** (ADR-186): when the caller supplies a `sessionId` the binding attaches
+- **sessionId injection** (R-186): when the caller supplies a `sessionId` the binding attaches
   it as the `run` field on each event, providing stable run identity across re-runs of the same
   session.
 - **Spawn identity**: the front door (`usage-mine-main.js`) discovers one entry per transcript
@@ -230,7 +230,7 @@ whose envelope-shaped parser also reads a persisted rollout file sharing the sam
   capped at `min(cached_input_tokens, input_tokens)` and `input` is the remainder
   (`input_tokens - cacheRead`), so `input + cacheRead` reconstructs the reported `input_tokens`
   exactly on every turn regardless of which vendor convention (subset vs. disjoint cache
-  accounting) actually applies — see ADR-258 and its amendment. `output` is `output_tokens` alone;
+  accounting) actually applies — see R-258 and its amendment. `output` is `output_tokens` alone;
   `reasoning_output_tokens` is never added to it, the safe (never-over-report) direction.
 - **role/phase**: `role` is `null` — subagent attribution is not yet pinned. `phase` is
   caller-injected, as in the pi, opencode, and copilot bindings.
@@ -314,7 +314,7 @@ Compliance rests on the claude binding's `collect` implementation mapping only t
 fields plus human review of any new binding's field set. There is no reject-at-write code; this
 spec is the enforcement layer.
 
-## Run identity: sessionId (ADR-186)
+## Run identity: sessionId (R-186)
 
 Each `UsageEvent` carries a `run` field that identifies the logical craft run the event belongs
 to. The claude binding derives this from the `sessionId` supplied by the caller (the CLI reads it
@@ -323,13 +323,13 @@ against the same session produces identical `run` values, making report diffing 
 `slug` field (human-readable run label, e.g. `feat/my-feature`) is distinct from `run` and is
 optional.
 
-## Main-loop inclusion / --no-inline (ADR-329)
+## Main-loop inclusion / --no-inline (R-329)
 
 Main-loop usage is **included by default**. Every main-loop assistant turn is attributed to a
 single `role: 'main-loop'`, `phase: null` group per model — an exact total, deliberately not
-split per phase (ADR-187's stated objection was to an approximate per-phase split, not to the
-total; ADR-329 sidesteps it by never splitting). `messages` on that group counts billed
-main-loop turns; `durationMs` stays `0` on every main-loop event (ADR-340) — the orchestrator's
+split per phase (R-187's stated objection was to an approximate per-phase split, not to the
+total; R-329 sidesteps it by never splitting). `messages` on that group counts billed
+main-loop turns; `durationMs` stays `0` on every main-loop event (R-340) — the orchestrator's
 wallclock span overlaps every sub-agent span spawned within it, so attributing it would roughly
 double a run-hours figure the README FAQ scopes to role-agent activity alone.
 
@@ -787,7 +787,7 @@ row does. It is advisory: never written to the metrics ledger, never in totals, 
 baseline, and exit codes are unchanged. A `--phase` call never prints it. A run-level call
 without `--session` (an empty `--session` counts as absent) prints no line and writes one
 stderr note, `metrics-emit: no --session, compaction estimate skipped`. This is the
-`emit-metrics` option ADR-382 left for later, taken by ADR-455.
+`emit-metrics` option R-382 left for later, taken by R-455.
 
 Config errors (exit 1, one stderr line naming the flag): a missing `--run`; a `--run` or
 `--phase` that fails `ROW_TOKEN` (`/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/`) — these are the

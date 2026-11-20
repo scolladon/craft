@@ -1,7 +1,7 @@
 ---
 # Injection point (PRD §7): phases.<id>.enabled — turn ON a default-off phase.
 # The requirements phase captures product requirements as a first-class artifact that
-# the design phase then consumes as a hard input (ADR-048/ADR-053). All-current.
+# the design phase then consumes as a hard input (R-048/R-053). All-current.
 phases:
   requirements:
     enabled: true

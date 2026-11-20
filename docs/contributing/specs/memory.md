@@ -16,7 +16,7 @@ subjects:
   - **post**: `entries` is keyed by the five concerns; entries that fail their concern's
     validate-on-read predicate are dropped from `entries` and listed in `evicted`; `loadNote`
     records the reason when the view is empty or partial. An absent/empty/malformed store returns
-    an **empty view, never an error** (advisory-only invariant — ADR-116). The returned view
+    an **empty view, never an error** (advisory-only invariant — R-116). The returned view
     never contains a gating value; the load path never throws. The view also carries
     `degraded: boolean`, true only when `load` never saw the store's real content — unparseable
     content, or a `ref` that escapes the repo root. A **cold start** (no store file yet, or an
@@ -28,7 +28,7 @@ subjects:
     never saw.
 
   Store location: `<repoRoot>/.claude/craft-memory.md`. Metrics live separately in
-  `<repoRoot>/.claude/craft-metrics.md` (ADR-119) — they are never loaded or written by this
+  `<repoRoot>/.claude/craft-metrics.md` (R-119) — they are never loaded or written by this
   port.
 
 - `save(repoRoot, view, delta, deps) → { writeNote: string|null, view: object }` — flush the
@@ -52,7 +52,7 @@ subjects:
     transitions plus both-caps eviction; the write is a single `deps.writeStore` call (no
     half-write); non-re-observed entries are **decayed, not deleted**; a failed `writeStore` is
     recorded in `writeNote` and `save` returns normally — it never throws and never blocks
-    (ADR-120).
+    (R-120).
 
 ## Core policy retained (NOT port verbs)
 
@@ -79,11 +79,11 @@ adapter:
     run proved the stored entry wrong — confidence → FLOOR, dropped this run rather than decayed
     by one STEP), EVICTED (confidence at/below FLOOR or dropped by cap eviction).
 
-- **Advisory-only bound (ADR-116)**: the store is never a gate. A malformed/unreadable store is
-  a recorded load no-op, not a blocker. A failed `save` is a recorded warning (ADR-120), not a
+- **Advisory-only bound (R-116)**: the store is never a gate. A malformed/unreadable store is
+  a recorded load no-op, not a blocker. A failed `save` is a recorded warning (R-120), not a
   blocker. The memory system informs phases; it never blocks them.
 
-- **Size ceiling + both-caps eviction (ADR-122)**: `evictToCaps` loops until the store fits both
+- **Size ceiling + both-caps eviction (R-122)**: `evictToCaps` loops until the store fits both
   `maxEntries` and `maxBytes`. Only the WINDOW (50) newest entries are candidates for cap
   eviction; within the window the least-relevant entry (lowest confidence; ties → oldest
   provenance date) is dropped first.
@@ -91,10 +91,10 @@ adapter:
 - **Per-repo scoping**: the store is always rooted at the individual repo's worktree via
   `repoRoot`; cross-repo sharing is never performed.
 
-- **Store committed via re-include (ADR-118)**: `.claude/craft-memory.md` lives in the repo and
+- **Store committed via re-include (R-118)**: `.claude/craft-memory.md` lives in the repo and
   is committed (via gitignore re-include) so it persists across worktrees and sessions.
 
-- **Content whitelist (ADR-123)**: the per-concern schemas below are the enforcement surface.
+- **Content whitelist (R-123)**: the per-concern schemas below are the enforcement surface.
   Compliance rests on this spec + each phase's documented write surface + human review of the
   diffable store. There is **no reject-at-write code and no schema lint**; this document is
   intentionally the only enforcement layer.
@@ -139,13 +139,13 @@ patch the engine. Only `file` (the default, built-in binding above) is currently
 
 ## Failure → blocker
 
-**Runtime errors are never blockers.** The advisory-only invariant (ADR-116) covers both verbs:
+**Runtime errors are never blockers.** The advisory-only invariant (R-116) covers both verbs:
 
 - A store that is absent, empty, malformed, or has validate-on-read failures is a **recorded
   load no-op** — `load` returns an empty or partial view; the run continues with whatever is
   available.
 - A `save` that cannot write (disk full, permission denied) is a **recorded warning**
-  (`writeNote` is set on the returned result); `save` never throws and never blocks (ADR-120).
+  (`writeNote` is set on the returned result); `save` never throws and never blocks (R-120).
 - A `save` given a **degraded** view (`view.degraded === true`, from a malformed store or an
   escaping ref) is also a **recorded warning** and nothing more — it declines the write before
   touching the filesystem so the run's accumulated entries are never overwritten by this run's
@@ -162,7 +162,7 @@ before any phase begins (same pattern as `backlog.md` and `model.md` config-erro
 HARD BAN: only mechanically-derived, mechanically-validatable facts. **No free-form text, no
 semantic summaries, no "this codebase prefers X" prose, no LLM-inferred content, no code
 snippets, no PII.** Each field value must be a string, number, or boolean that another tool or
-script could independently verify. This ban is enforced **document-only** (ADR-123): the spec
+script could independently verify. This ban is enforced **document-only** (R-123): the spec
 defines the schemas and forbids non-mechanical content; each phase's documented write surface is
 trusted to comply; human review of the diffable store is the final check.
 

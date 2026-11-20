@@ -23,7 +23,7 @@ description: Craft phase 6 - parallel multi-dimension review with per-dimension 
    findings that recurred this run, keyed by `file` + `pattern`, with `severity`. `file`
    MUST be stored repo-RELATIVE
    (strip the repoRoot prefix) — never an absolute path, which would leak `$HOME`/username
-   into the committed store. Per ADR-123 whitelist: no provenance refs, no code snippets,
+   into the committed store. Per R-123 whitelist: no provenance refs, no code snippets,
    no prose explanation body, no PII.
    RETRACTS: the run retracts a `findings` entry when it re-checked that entry's own
    `file` + `pattern` at that location and the pattern is absent — a **mechanical**

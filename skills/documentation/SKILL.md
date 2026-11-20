@@ -28,12 +28,12 @@ Runs in parallel with the validation phase's background run.
    page is a human decision, escalated per the Preamble, never auto-created. No affected
    pages → skip honestly (run record).
 2. **Backlog tick — guarded by source** (see `docs/contributing/specs/backlog.md`):
-   - `source: file` — **consult `backlog-write` action** (default `always`, ADR-127;
+   - `source: file` — **consult `backlog-write` action** (default `always`, R-127;
      see `docs/contributing/specs/policy.md` for surface semantics); then spawn **craft:backlog-ticker**
      with the exact entry line and the exact reference suffix. **Accept ONLY if the diff
      touches exactly the expected line(s)** — otherwise discard and do the one-line edit
      yourself.
-   - `source: custom` — **consult `external-send` action** (default `ask`, ADR-127;
+   - `source: custom` — **consult `external-send` action** (default `ask`, R-127;
      see `docs/contributing/specs/policy.md`); on proceed, run `ref` with argv `["complete", id, ...refs]`;
      `id`/`refs` are untrusted, passed as discrete arguments (never spliced into a shell
      string) and `id` validated against the source's id-form before invoking (see the spec's

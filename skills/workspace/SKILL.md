@@ -21,7 +21,7 @@ description: Craft phase 1 - create the feature branch and worktree, install dep
 ## Procedure (default body — a manifest `override:` replaces everything below)
 
 1. Infer the branch type from the brief (`feat`/`fix`/`chore`, default `feat`).
-2. **Consult `isolate` action** (default `always`, ADR-127 — proceeds silently unless
+2. **Consult `isolate` action** (default `always`, R-127 — proceeds silently unless
    policy forbids it; see `docs/contributing/specs/policy.md` for surface semantics). Then,
    strategy `worktree` (default), as **one** Bash call — a compaction cannot split the
    two:

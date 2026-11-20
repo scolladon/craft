@@ -6,7 +6,7 @@
 ## Context
 
 greet.sh prints `Hello, <name>!` for its first argument, `world` by default. It must stay
-portable to bash 3.2 (docs/adr/001-greet-stays-bash-3-portable.md).
+portable to bash 3.2 (R-001).
 
 ## Requirements
 
@@ -22,7 +22,7 @@ mechanism chosen in decision candidate 1.
 
 | # | Choice | Alternatives (≤3) | Recommendation | Why |
 |---|---|---|---|---|
-| 1 | How greet.sh uppercases the greeting | (a) pipe the finished line through `tr '[:lower:]' '[:upper:]'`; (b) bash 4 `${greeting^^}`; (c) `awk '{print toupper($0)}'` | **(a)** | Aligns with docs/adr/001-greet-stays-bash-3-portable.md: (b) is bash 4 only, and (a) is the simplest POSIX tool for the job. |
+| 1 | How greet.sh uppercases the greeting | (a) pipe the finished line through `tr '[:lower:]' '[:upper:]'`; (b) bash 4 `${greeting^^}`; (c) `awk '{print toupper($0)}'` | **(a)** | Aligns with R-001: (b) is bash 4 only, and (a) is the simplest POSIX tool for the job. |
 
 ## Test strategy
 

@@ -21,12 +21,12 @@ description: Craft phase 10 - pre-PR gate, push, and PR creation per repo policy
 2. **Consult `push` action** (see `docs/contributing/specs/policy.md` for surface semantics).
    Obey the returned surface, then push `-u origin <branch>`.
 3. **Consult `propose` action** (see `docs/contributing/specs/policy.md`). Obey the returned surface:
-   - `ask` (default, ADR-127) — hand the drafted body to the user and stop (`pr.creator: user`
+   - `ask` (default, R-127) — hand the drafted body to the user and stop (`pr.creator: user`
      behaviour); on approval proceed with the PR creation, on decline record
      `POLICY(ask:propose→declined)` and block.
    - `never` — refuse; record `POLICY(never:propose)`; phase no-ops.
    - `always` — create the PR without stopping; record `POLICY(always:propose)`;
-     supersedes the `pr.creator: user` stop (ADR-128 — Supersede).
+     supersedes the `pr.creator: user` stop (R-128 — Supersede).
 
    **Prose-lint the drafted body (advisory).** Before invoking the port, write the
    drafted body to a temp file and scan it under the same posture the ci.sh cadence

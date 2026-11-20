@@ -6,7 +6,7 @@
 ## Context
 
 greet.sh prints `Hello, <name>!` for its first argument, `world` by default. It has no flags
-and no tests. The uppercasing mechanism is decided in docs/adr/001-shout-flag-uppercases.md.
+and no tests. The uppercasing mechanism is decided in R-001.
 
 ## Requirements
 
@@ -23,7 +23,7 @@ and no tests. The uppercasing mechanism is decided in docs/adr/001-shout-flag-up
 
 ## Decision candidates
 
-none — fully pre-decided by docs/adr/001-shout-flag-uppercases.md.
+none — fully pre-decided by R-001.
 
 ## Test strategy
 
