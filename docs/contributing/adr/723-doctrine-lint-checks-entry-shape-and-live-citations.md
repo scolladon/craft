@@ -7,9 +7,11 @@ supersedes: []
 ---
 # 723 — doctrine-lint checks entry shape and that every cited ADR resolves live
 
-- **Status:** accepted
+- **Status:** superseded by ADR-732
 - **Date:** 2026-11-05
 - **Design:** docs/contributing/design/decisions-doctrine-layer.md · **Supersedes/Refines:** none
+
+> **Superseded by ADR-732** for the citation form and its target: doctrine cites R-NNN register ids, resolved against the register file instead of ADR files.
 
 ## Context
 
