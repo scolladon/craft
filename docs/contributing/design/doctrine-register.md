@@ -285,8 +285,8 @@ Rulings (settled for these paths — a proposal that re-opens one escalates):
   is the ratification, so a line committed on the run's branch is already settled and `planning`
   must see it.
 - `consult`'s governing lane goes: `deps.listGoverning` and its merge are removed from
-  `engine/src/intention.js`, `scripts/governing-corpus.sh` and `test/governing-corpus.test.js`
-  are deleted, `skills/run/SKILL.md` §1c-int drops "plus the resolved ADR directory for the
+  `engine/src/intention.js`; `scripts/governing-corpus.sh` stays, because `skills/validation/SKILL.md`
+  lists the lessons directory through it for `assert-fresh`, and only its ADR use goes; `skills/run/SKILL.md` §1c-int drops "plus the resolved ADR directory for the
   governing lane", and step 4's **Intention hint** keeps the living-page entries while the new
   **Rulings hint** paragraph sits beside it. The living and lessons lanes are untouched (R8).
   Alternative wiring is candidate #10.
@@ -423,7 +423,7 @@ Each commit green on `bash scripts/ci.sh` under the scripts it carries.
    included) with the `--chosen` table; wire `rulings-lint` into `static-lints.sh`; `paths.rulings`
    in `.claude/workflow.md`; prose-lint exclusion. `adr-lint` still runs, both green.
 4. `feat(rulings)`: `rulings-hint` (src, bin, tests); run skill §1c-int and step 4; governing lane
-   removed from `intention.js`, `governing-corpus.sh` and its test deleted; intention spec.
+   removed from `intention.js`; `governing-corpus.sh` kept for its lessons use; intention spec.
 5. `feat(doctrine)`: `doctrine.js` / `doctrine-lint` on the register; `DOCTRINE.md` and the eval
    fixture swept; `static-lints.sh:17`.
 6. `feat(decisions)`: decisions skill, planning skill, planner, designer, `templates/{design,plan,

@@ -35,4 +35,4 @@ Carried forward from ADR-351: decision memory enters the phases through its own 
 
 ## Consequences
 
-- `scripts/governing-corpus.sh` and `deps.listGoverning` are deleted.
+- `deps.listGoverning` is deleted; `scripts/governing-corpus.sh` stays for its lessons-directory listing and loses its ADR use.
